@@ -25,8 +25,8 @@ body.sidebar-collapsed {
 }
 
 body {
-  font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
-    sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto,
+    Oxygen, Ubuntu, 'Microsoft YaHei', sans-serif;
   color: var(--semi-color-text-0);
   background-color: var(--semi-color-bg-0);
 }
@@ -127,6 +127,7 @@ code {
   min-height: 0;
   transition: width 0.3s ease;
   background: var(--semi-color-bg-0);
+  border-right: 1px solid var(--semi-color-border);
 }
 
 .sidebar-nav {
@@ -156,14 +157,14 @@ code {
 }
 
 .sidebar-nav-item:hover {
-  background-color: rgba(var(--semi-blue-0), 0.08);
-  color: var(--semi-color-primary);
+  background-color: var(--semi-color-fill-0);
+  color: var(--semi-color-text-0);
 }
 
 .sidebar-nav-item-selected {
-  background-color: rgba(var(--semi-blue-0), 0.12);
-  color: var(--semi-color-primary);
-  font-weight: 500;
+  background-color: var(--semi-color-fill-1);
+  color: var(--semi-color-text-0);
+  font-weight: 600;
 }
 
 /* 图标容器样式 */
@@ -691,34 +692,16 @@ html.dark .sbg-variant-green {
 }
 
 .shine-text {
-  background: linear-gradient(
-    90deg,
-    currentColor 0%,
-    currentColor 40%,
-    rgba(255, 255, 255, 0.9) 50%,
-    currentColor 60%,
-    currentColor 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: sweep-shine 4s linear infinite;
+  color: var(--semi-color-primary);
+  -webkit-text-fill-color: unset;
+  background: none;
+  animation: none;
 }
 
 .dark .shine-text {
-  background: linear-gradient(
-    90deg,
-    currentColor 0%,
-    currentColor 40%,
-    #facc15 50%,
-    currentColor 60%,
-    currentColor 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--semi-color-primary);
+  -webkit-text-fill-color: unset;
+  background: none;
 }
 
 /* ==================== ScrollList 定制样式 ==================== */
@@ -748,13 +731,7 @@ html.dark .sbg-variant-green {
 
 /* ==================== Banner 背景模糊球 ==================== */
 .blur-ball {
-  position: absolute;
-  width: 360px;
-  height: 360px;
-  border-radius: 50%;
-  filter: blur(120px);
-  pointer-events: none;
-  z-index: -1;
+  display: none;
 }
 
 .blur-ball-indigo {
@@ -802,22 +779,7 @@ html:not(.dark) .blur-ball-teal {
 }
 
 .with-pastel-balls::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background: radial-gradient(
-      circle at -5% -10%,
-      var(--pb1) 0%,
-      transparent 60%
-    ),
-    radial-gradient(circle at 105% -10%, var(--pb2) 0%, transparent 55%),
-    radial-gradient(circle at 5% 110%, var(--pb3) 0%, transparent 55%),
-    radial-gradient(circle at 105% 110%, var(--pb4) 0%, transparent 50%);
-  filter: blur(var(--pb-blur));
-  opacity: var(--pb-opacity);
-  transform: translateZ(0);
+  display: none;
 }
 
 /* 暗黑模式下更柔和的色彩和透明度 */
@@ -934,7 +896,7 @@ html.dark .with-pastel-balls::before {
 /* ==================== semi-ui 组件自定义样式 ==================== */
 .semi-card-header,
 .semi-card-body {
-  padding: 10px !important;
+  padding: 16px !important;
 }
 
 /* ==================== 使用日志: channel affinity tag ==================== */
@@ -979,7 +941,7 @@ html.dark .with-pastel-balls::before {
 .semi-select,
 .semi-button,
 .semi-datepicker-range-input {
-  border-radius: 10px !important;
+  border-radius: 8px !important;
 }
 
 @keyframes slideInLeft {
