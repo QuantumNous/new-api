@@ -1,5 +1,10 @@
 import { create } from 'zustand'
 
+export type UserPermissions = {
+  sidebar_settings?: boolean
+  sidebar_modules?: Record<string, unknown>
+}
+
 export interface AuthUser {
   id: number
   username: string
@@ -24,7 +29,7 @@ export interface AuthUser {
   setting?: Record<string, unknown>
   stripe_customer?: string
   sidebar_modules?: string
-  permissions?: Record<string, unknown>
+  permissions?: UserPermissions
 }
 
 interface AuthState {

@@ -3,6 +3,7 @@ import { LayoutDashboard } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -31,6 +32,8 @@ export function SidebarModulesCard() {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [config, setConfig] = useState<SidebarModulesConfig>({})
+  const currentUser = useAuthStore((s) => s.auth.user)
+  const setUser = useAuthStore((s) => s.auth.setUser)
 
   const sectionDefs: SectionDef[] = [
     {
@@ -147,10 +150,16 @@ export function SidebarModulesCard() {
   const handleSave = async () => {
     setLoading(true)
     try {
+      const serialized = JSON.stringify(config)
       const res = await api.put('/api/user/self', {
-        sidebar_modules: JSON.stringify(config),
+        sidebar_modules: serialized,
       })
       if (res.data.success) {
+        // Sync to auth-store so useSidebarConfig re-runs and the sidebar
+        // updates immediately without needing a page refresh.
+        if (currentUser) {
+          setUser({ ...currentUser, sidebar_modules: serialized })
+        }
         toast.success(t('Saved successfully'))
       } else {
         toast.error(res.data.message || t('Save failed'))

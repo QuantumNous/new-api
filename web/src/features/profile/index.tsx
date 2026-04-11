@@ -1,4 +1,5 @@
 import { useStatus } from '@/hooks/use-status'
+import { useAuthStore } from '@/stores/auth-store'
 import { AppHeader, Main } from '@/components/layout'
 import {
   CardStaggerContainer,
@@ -17,12 +18,17 @@ import { useProfile } from './hooks'
 export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
   const { status } = useStatus()
+  const permissions = useAuthStore((s) => s.auth.user?.permissions)
 
   const checkinEnabled = status?.checkin_enabled === true
   const turnstileEnabled = !!(
     status?.turnstile_check && status?.turnstile_site_key
   )
   const turnstileSiteKey = status?.turnstile_site_key || ''
+  // Hide the sidebar customization card when the backend explicitly forbids
+  // it (e.g. root users). Default to visible to handle legacy sessions where
+  // the permissions field has not been populated yet.
+  const canConfigureSidebar = permissions?.sidebar_settings !== false
 
   return (
     <>
@@ -58,7 +64,7 @@ export function Profile() {
                   loading={loading}
                   onProfileUpdate={refreshProfile}
                 />
-                <SidebarModulesCard />
+                {canConfigureSidebar && <SidebarModulesCard />}
               </div>
             </div>
           </CardStaggerItem>
