@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -349,6 +350,58 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 							Type: "text",
 							Text: common.GetPointer[string](mediaMessage.Text),
 						})
+					case dto.ContentTypeFile:
+						file := mediaMessage.GetFile()
+						if file == nil || file.FileData == "" {
+							continue
+						}
+
+						providedMimeType := ""
+						if dot := strings.LastIndex(strings.TrimSpace(file.FileName), "."); dot != -1 && dot+1 < len(file.FileName) {
+							providedMimeType = service.GetMimeTypeByExtension(file.FileName[dot+1:])
+						}
+
+						source := types.NewFileSourceFromData(file.FileData, providedMimeType)
+						if source == nil {
+							continue
+						}
+
+						base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting file for Claude")
+						if err != nil {
+							return nil, fmt.Errorf("get file data failed: %s", err.Error())
+						}
+
+						switch {
+						case strings.HasPrefix(mimeType, "text/"):
+							decodedData, err := base64.StdEncoding.DecodeString(base64Data)
+							if err != nil {
+								return nil, fmt.Errorf("decode text file failed: %s", err.Error())
+							}
+							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+								Type: "text",
+								Text: common.GetPointer(string(decodedData)),
+							})
+						case strings.HasPrefix(mimeType, "application/pdf"):
+							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+								Type: "document",
+								Source: &dto.ClaudeMessageSource{
+									Type:      "base64",
+									MediaType: mimeType,
+									Data:      base64Data,
+								},
+							})
+						case mimeType == "" || mimeType == "application/octet-stream":
+							continue
+						default:
+							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+								Type: "image",
+								Source: &dto.ClaudeMessageSource{
+									Type:      "base64",
+									MediaType: mimeType,
+									Data:      base64Data,
+								},
+							})
+						}
 					default:
 						source := mediaMessage.ToFileSource()
 						if source == nil {
