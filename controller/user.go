@@ -390,7 +390,6 @@ func GetSelf(c *gin.Context) {
 		if reconciledAffCount != user.AffCount {
 			if err := model.UpdateUserAffCount(user.Id, reconciledAffCount); err != nil {
 				common.SysError(fmt.Sprintf("回写用户 %d 的邀请人数失败: %v", user.Id, err))
-				affCount = user.AffCount
 			} else {
 				user.AffCount = reconciledAffCount
 			}

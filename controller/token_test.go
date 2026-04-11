@@ -354,7 +354,7 @@ func TestGetSelfReconcilesAndPersistsAffCount(t *testing.T) {
 	}
 }
 
-func TestGetSelfFallsBackToStoredAffCountWhenPersistenceFails(t *testing.T) {
+func TestGetSelfReturnsReconciledAffCountWhenPersistenceFails(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 
 	inviter := &model.User{
@@ -369,6 +369,34 @@ func TestGetSelfFallsBackToStoredAffCountWhenPersistenceFails(t *testing.T) {
 	}
 	if err := db.Create(inviter).Error; err != nil {
 		t.Fatalf("failed to create inviter: %v", err)
+	}
+
+	invitees := []model.User{
+		{
+			Username:    "fallback-invitee-one",
+			Password:    "password123",
+			DisplayName: "Fallback Invitee One",
+			Role:        common.RoleCommonUser,
+			Status:      common.UserStatusEnabled,
+			Group:       "default",
+			AffCode:     "qrst",
+			InviterId:   inviter.Id,
+		},
+		{
+			Username:    "fallback-invitee-two",
+			Password:    "password123",
+			DisplayName: "Fallback Invitee Two",
+			Role:        common.RoleCommonUser,
+			Status:      common.UserStatusEnabled,
+			Group:       "default",
+			AffCode:     "uvwx",
+			InviterId:   inviter.Id,
+		},
+	}
+	for i := range invitees {
+		if err := db.Create(&invitees[i]).Error; err != nil {
+			t.Fatalf("failed to create fallback invitee %d: %v", i, err)
+		}
 	}
 
 	originalDB := model.DB
@@ -401,8 +429,8 @@ func TestGetSelfFallsBackToStoredAffCountWhenPersistenceFails(t *testing.T) {
 	if err := common.Unmarshal(response.Data, &selfData); err != nil {
 		t.Fatalf("failed to decode self response: %v", err)
 	}
-	if selfData.AffCount != inviter.AffCount {
-		t.Fatalf("expected fallback aff_count %d, got %d", inviter.AffCount, selfData.AffCount)
+	if selfData.AffCount != len(invitees) {
+		t.Fatalf("expected realtime aff_count %d, got %d", len(invitees), selfData.AffCount)
 	}
 
 	var refreshed model.User

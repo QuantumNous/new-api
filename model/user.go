@@ -329,14 +329,17 @@ func HardDeleteUserById(id int) error {
 }
 
 func inviteUser(inviterId int) (err error) {
-	user, err := GetUserById(inviterId, true)
-	if err != nil {
-		return err
+	if inviterId == 0 {
+		return errors.New("id 为空！")
 	}
-	user.AffCount++
-	user.AffQuota += common.QuotaForInviter
-	user.AffHistoryQuota += common.QuotaForInviter
-	return DB.Save(user).Error
+
+	return DB.Model(&User{}).
+		Where("id = ?", inviterId).
+		Updates(map[string]interface{}{
+			"aff_count":         gorm.Expr("aff_count + ?", 1),
+			"aff_quota":         gorm.Expr("aff_quota + ?", common.QuotaForInviter),
+			"aff_history_quota": gorm.Expr("aff_history + ?", common.QuotaForInviter),
+		}).Error
 }
 
 func GetInviteeCountByInviterId(inviterId int) (int, error) {
