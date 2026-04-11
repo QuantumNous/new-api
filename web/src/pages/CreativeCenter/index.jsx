@@ -1642,6 +1642,58 @@ const parseTaskDtoVideoState = (task) => {
   };
 };
 
+const isTerminalVideoTaskStatus = (status) => {
+  const normalizedStatus = normalizeVideoTaskStatus(status);
+  return normalizedStatus === 'completed' || normalizedStatus === 'failed';
+};
+
+const buildResolvedVideoTaskPatch = (queryTaskId, nextTaskState) => (currentTask) => {
+  const normalizedStatus = normalizeVideoTaskStatus(
+    nextTaskState?.status || currentTask?.status || '',
+  );
+  const resolvedUrl =
+    typeof nextTaskState?.url === 'string' ? nextTaskState.url.trim() : '';
+  const currentMediaUrl = getVideoTaskMediaUrl(currentTask);
+  const isCompleted = normalizedStatus === 'completed' || Boolean(resolvedUrl);
+  const isFailed = normalizedStatus === 'failed';
+  const nextStatus = isCompleted
+    ? 'completed'
+    : isFailed
+      ? 'failed'
+      : normalizedStatus;
+  const finalUrl = isCompleted ? resolvedUrl || currentMediaUrl : '';
+
+  return {
+    taskId: queryTaskId || currentTask?.taskId || '',
+    status: nextStatus,
+    progress:
+      isCompleted || isFailed
+        ? 100
+        : nextTaskState?.progress ?? currentTask?.progress ?? 0,
+    url: finalUrl,
+    resultUrl: finalUrl,
+    content:
+      typeof nextTaskState?.content === 'string'
+        ? nextTaskState.content
+        : currentTask?.content || '',
+    error: isFailed
+      ? nextTaskState?.error || currentTask?.error || '任务生成失败'
+      : '',
+    finalizingAt: 0,
+    requestPollable: false,
+    pollable: Boolean(queryTaskId || currentTask?.taskId) && !isTerminalVideoTaskStatus(nextStatus),
+  };
+};
+
+const buildResolvedVideoTaskIdPatch = (queryTaskId) => (currentTask) => ({
+  taskId: queryTaskId || currentTask?.taskId || '',
+  requestPollable: false,
+  pollable:
+    Boolean(queryTaskId || currentTask?.taskId) &&
+    !isTerminalVideoTaskStatus(currentTask?.status) &&
+    !Boolean(getVideoTaskMediaUrl(currentTask)),
+});
+
 const getTaskDtoImageUrls = (task) => {
   const dataPayload = normalizeTaskDtoDataPayload(task);
   const urls = [];
@@ -4867,33 +4919,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               if (!queryTaskId && exactTaskByRequest) {
                 const exactTaskState = parseTaskDtoVideoState(exactTaskByRequest);
                 queryTaskId = exactTaskState.taskId;
-                if (queryTaskId) {
-                  patchVideoTask(task.recordId, task.localTaskId, {
-                    taskId: queryTaskId,
-                    status: exactTaskState.status,
-                    progress: exactTaskState.progress,
-                    url:
-                      exactTaskState.status === 'completed'
-                        ? exactTaskState.url
-                        : '',
-                    resultUrl:
-                      exactTaskState.status === 'completed'
-                        ? exactTaskState.url
-                        : '',
-                    content: exactTaskState.content,
-                    error:
-                      exactTaskState.status === 'failed'
-                        ? exactTaskState.error
-                        : '',
-                    requestPollable: false,
-                    pollable: !['completed', 'failed'].includes(
-                      exactTaskState.status,
-                    ),
-                  });
-                  if (['completed', 'failed'].includes(exactTaskState.status)) {
-                    return;
-                  }
-                }
+                patchVideoTask(
+                  task.recordId,
+                  task.localTaskId,
+                  buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
+                );
+                return;
               }
 
               if (!queryTaskId) {
@@ -4903,32 +4934,20 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const exactTaskById = exactTaskByTaskId.get(queryTaskId);
               if (exactTaskById) {
                 const exactTaskState = parseTaskDtoVideoState(exactTaskById);
-                patchVideoTask(task.recordId, task.localTaskId, {
-                  taskId: queryTaskId,
-                  status: exactTaskState.status,
-                  progress: exactTaskState.progress,
-                  url:
-                    exactTaskState.status === 'completed'
-                      ? exactTaskState.url
-                      : '',
-                  resultUrl:
-                    exactTaskState.status === 'completed'
-                      ? exactTaskState.url
-                      : '',
-                  content: exactTaskState.content,
-                  error:
-                    exactTaskState.status === 'failed'
-                      ? exactTaskState.error
-                      : '',
-                  requestPollable: false,
-                  pollable: !['completed', 'failed'].includes(
-                    exactTaskState.status,
-                  ),
-                });
-                if (['completed', 'failed'].includes(exactTaskState.status)) {
-                  return;
-                }
+                patchVideoTask(
+                  task.recordId,
+                  task.localTaskId,
+                  buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
+                );
+                return;
               }
+
+              patchVideoTask(
+                task.recordId,
+                task.localTaskId,
+                buildResolvedVideoTaskIdPatch(queryTaskId),
+              );
+              return;
 
               const response = await API.get(
                 `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
@@ -5547,6 +5566,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 };
               }
 
+              return {
+                candidate,
+                queryTaskId,
+                nextTaskState: null,
+              };
+
               try {
                 const response = await API.get(
                   `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
@@ -5591,16 +5616,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             const taskIdPatch = patchVideoTaskInHistorySnapshot(
               recoveredSnapshot,
               candidate,
-              (currentTask) => ({
-                taskId: queryTaskId,
-                status:
-                  !getVideoTaskMediaUrl(currentTask) &&
-                  normalizeVideoTaskStatus(currentTask.status) === 'failed'
-                    ? 'submitted'
-                    : currentTask.status,
-                requestPollable: false,
-                pollable: !getVideoTaskMediaUrl(currentTask),
-              }),
+              buildResolvedVideoTaskIdPatch(queryTaskId),
             );
             if (taskIdPatch.hasChanged) {
               recoveredSnapshot = taskIdPatch.snapshot;
@@ -5611,24 +5627,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               return;
             }
 
-            const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
-            const resolvedURL = nextTaskState.url || '';
-            const isCompleted = nextStatus === 'completed' || Boolean(resolvedURL);
-            const isFailed = nextStatus === 'failed';
             const taskStatePatch = patchVideoTaskInHistorySnapshot(
               recoveredSnapshot,
               candidate,
-              (currentTask) => ({
-                taskId: queryTaskId,
-                status: isCompleted ? 'completed' : isFailed ? 'failed' : nextStatus,
-                progress: isCompleted
-                  ? 100
-                  : nextTaskState.progress ?? currentTask.progress ?? 0,
-                url: isCompleted
-                  ? (resolvedURL || currentTask.resultUrl || currentTask.url)
-                  : currentTask.url,
-                content: nextTaskState.content || currentTask.content,
-                error: isFailed
+              buildResolvedVideoTaskPatch(queryTaskId, nextTaskState),
+              /*
                   ? (nextTaskState.error || currentTask.error || '任务生成失败')
                   : '',
                 resultUrl: isCompleted
@@ -5637,6 +5640,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 finalizingAt: 0,
                 pollable: Boolean(queryTaskId) && !(isCompleted || isFailed),
               }),
+              */
             );
             if (taskStatePatch.hasChanged) {
               recoveredSnapshot = taskStatePatch.snapshot;
@@ -6000,20 +6004,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const taskPatch = patchVideoTaskInHistorySnapshot(
                 recoveredSnapshot,
                 candidate,
-                {
-                  taskId: queryTaskId,
-                  status: exactTaskState.status,
-                  progress: exactTaskState.progress,
-                  url: exactTaskState.status === 'completed' ? exactTaskState.url : '',
-                  resultUrl:
-                    exactTaskState.status === 'completed' ? exactTaskState.url : '',
-                  content: exactTaskState.content,
-                  error:
-                    exactTaskState.status === 'failed' ? exactTaskState.error : '',
-                  finalizingAt: 0,
-                  requestPollable: false,
-                  pollable: Boolean(queryTaskId) && !['completed', 'failed'].includes(exactTaskState.status),
-                },
+                buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
               );
               if (taskPatch.hasChanged) {
                 recoveredSnapshot = taskPatch.snapshot;
@@ -6029,12 +6020,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             const taskIdPatch = patchVideoTaskInHistorySnapshot(
               recoveredSnapshot,
               candidate,
-              {
-                taskId: queryTaskId,
-                status: 'submitted',
-                requestPollable: false,
-                pollable: true,
-              },
+              buildResolvedVideoTaskIdPatch(queryTaskId),
             );
             if (taskIdPatch.hasChanged) {
               recoveredSnapshot = taskIdPatch.snapshot;
@@ -6047,20 +6033,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const taskPatch = patchVideoTaskInHistorySnapshot(
                 recoveredSnapshot,
                 candidate,
-                {
-                  taskId: queryTaskId,
-                  status: exactTaskState.status,
-                  progress: exactTaskState.progress,
-                  url: exactTaskState.status === 'completed' ? exactTaskState.url : '',
-                  resultUrl:
-                    exactTaskState.status === 'completed' ? exactTaskState.url : '',
-                  content: exactTaskState.content,
-                  error:
-                    exactTaskState.status === 'failed' ? exactTaskState.error : '',
-                  finalizingAt: 0,
-                  requestPollable: false,
-                  pollable: Boolean(queryTaskId) && !['completed', 'failed'].includes(exactTaskState.status),
-                },
+                buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
               );
               if (taskPatch.hasChanged) {
                 recoveredSnapshot = taskPatch.snapshot;
@@ -6070,6 +6043,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 continue;
               }
             }
+
+            continue;
 
             try {
               const response = await API.get(
