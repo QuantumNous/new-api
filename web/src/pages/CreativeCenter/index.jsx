@@ -2650,6 +2650,8 @@ export default function App() {
   const [imageRecords, setImageRecords] = useState([]);
   const [videoRecords, setVideoRecords] = useState([]);
   const [activeGroup, setActiveGroup] = useState('');
+  const [modelsHydrated, setModelsHydrated] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [openMenu, setOpenMenu] = useState(null);
   const [params, setParams] = useState({
     generationCount: '1',
@@ -2874,6 +2876,7 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
+    setModelsHydrated(false);
 
     const tabTagMap = {
       chat: ['文本', '对话', '聊天'],
@@ -3107,6 +3110,10 @@ export default function App() {
         }
       } catch (error) {
         console.error('Failed to sync creative center models:', error);
+      } finally {
+        if (mounted) {
+          setModelsHydrated(true);
+        }
       }
     };
 
@@ -3191,6 +3198,7 @@ export default function App() {
     currentDisplayModels.find((model) => model.id === activeModel) ||
     currentDisplayModels[0] ||
     null;
+  const isCreativeCenterBootstrapping = !modelsHydrated || !historyLoaded;
   const currentModelName = selectedModel?.value || selectedModel?.name || '';
   const isGrokImagineImageModel =
     GROK_IMAGINE_IMAGE_MODELS.has(currentModelName);
@@ -5143,6 +5151,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
   useEffect(() => {
     let mounted = true;
+    setHistoryLoaded(false);
 
     const loadCreativeHistory = async () => {
       if (!isLoggedIn) {
@@ -5163,6 +5172,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         setCollapsedVideoRecordIds({});
         setSelectedImageTaskIds({});
         setSelectedVideoTaskIds({});
+        setHistoryLoaded(true);
         return;
       }
 
@@ -5218,9 +5228,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           'video',
         );
         historyHydratedRef.current = true;
+        setHistoryLoaded(true);
       } catch (error) {
         console.error('Failed to load creative center history:', error);
         historyHydratedRef.current = true;
+        if (mounted) {
+          setHistoryLoaded(true);
+        }
       }
     };
 
@@ -6763,6 +6777,52 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       setIsGenerating(false);
     }
   };
+
+  if (isCreativeCenterBootstrapping) {
+    return (
+      <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] mt-16 w-full bg-[#f0f5ff] bg-gradient-to-br from-[#eaf2ff] via-white to-[#f0f5ff] overflow-hidden'>
+        <div className='absolute inset-0 z-0 overflow-hidden pointer-events-none'>
+          <div className='absolute -top-[20%] -left-[10%] h-[50%] w-[50%] rounded-full bg-blue-400/10 blur-[120px]' />
+          <div className='absolute top-[40%] -right-[10%] h-[60%] w-[40%] rounded-full bg-sky-300/10 blur-[150px]' />
+        </div>
+
+        <aside className='relative z-10 flex w-[320px] shrink-0 flex-col border-r border-slate-200/50 bg-white/70 backdrop-blur-3xl shadow-[4px_0_24px_-16px_rgba(0,0,0,0.05)]'>
+          <div className='space-y-5 p-7 pt-9'>
+            <div className='h-10 w-44 animate-pulse rounded-2xl bg-blue-100/80' />
+            <div className='flex gap-4'>
+              <div className='h-20 flex-1 animate-pulse rounded-[1.5rem] bg-white/80' />
+              <div className='h-20 flex-1 animate-pulse rounded-[1.5rem] bg-white/70' />
+            </div>
+          </div>
+          <div className='space-y-4 px-5 py-6'>
+            {[0, 1, 2].map((index) => (
+              <div
+                key={index}
+                className='h-24 animate-pulse rounded-[1.5rem] border border-slate-200/50 bg-white/65'
+              />
+            ))}
+          </div>
+          <div className='mt-auto p-5'>
+            <div className='h-14 animate-pulse rounded-[1.25rem] bg-blue-200/70' />
+          </div>
+        </aside>
+
+        <div className='relative z-10 flex min-w-0 flex-1 flex-col'>
+          <div className='flex-1 px-8 py-10'>
+            <div className='mx-auto max-w-4xl space-y-6'>
+              <div className='h-28 animate-pulse rounded-[2rem] bg-white/70 shadow-[0_20px_60px_rgba(59,130,246,0.08)]' />
+              <div className='h-[420px] animate-pulse rounded-[2.5rem] bg-white/55 shadow-[0_20px_60px_rgba(59,130,246,0.06)]' />
+            </div>
+          </div>
+          <div className='px-4 pb-8 pt-6 md:px-8'>
+            <div className='mx-auto max-w-4xl'>
+              <div className='h-44 animate-pulse rounded-[2.5rem] bg-white/60 shadow-[0_20px_40px_-5px_rgba(0,0,0,0.05)]' />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] mt-16 w-full bg-[#f0f5ff] bg-gradient-to-br from-[#eaf2ff] via-white to-[#f0f5ff] text-slate-800 font-sans selection:bg-blue-500/20 selection:text-blue-900 overflow-hidden'>
