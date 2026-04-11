@@ -92,6 +92,7 @@ user.wechat_id_empty: "WeChat id 为空！"
 user.telegram_id_empty: "Telegram id 为空！"
 user.telegram_not_bound: "该 Telegram 账户未绑定"
 user.linux_do_id_empty: "Linux DO id 为空！"
+user.quota_change_zero: "额度变更量不能为0"
 
 # Quota messages
 quota.negative: "额度不能为负数！"

@@ -91,6 +91,7 @@ user.wechat_id_empty: "WeChat ID is empty!"
 user.telegram_id_empty: "Telegram ID is empty!"
 user.telegram_not_bound: "This Telegram account is not bound"
 user.linux_do_id_empty: "Linux DO ID is empty!"
+user.quota_change_zero: "Quota change amount cannot be zero"
 
 # Quota messages
 quota.negative: "Quota cannot be negative!"
