@@ -1,0 +1,53 @@
+name: new-api-lab
+
+services:
+  new-api:
+    image: ${NEW_API_IMAGE}
+    container_name: new-api-lab
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "${HOST_HTTP_PORT:-3000}:3000"
+    environment:
+      SQL_DSN: postgresql://root:${POSTGRES_PASSWORD}@postgres:5432/new-api?sslmode=disable
+      REDIS_CONN_STRING: redis://redis:6379/0
+      SESSION_SECRET: ${SESSION_SECRET}
+      TZ: ${TZ:-Asia/Shanghai}
+      ERROR_LOG_ENABLED: "true"
+      BATCH_UPDATE_ENABLED: "true"
+    volumes:
+      - ./runtime/data:/data
+      - ./runtime/logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: new-api-lab-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./runtime/redis:/data
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: new-api-lab-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: new-api
+    volumes:
+      - ./runtime/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

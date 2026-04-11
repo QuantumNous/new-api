@@ -1,0 +1,52 @@
+name: Fork Verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Resolve build version
+        run: |
+          if [ ! -s VERSION ]; then
+            echo "dev-${GITHUB_SHA::7}" > VERSION
+          fi
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.26.2"
+
+      - name: Build frontend
+        env:
+          CI: ""
+        run: |
+          cd web
+          bun install
+          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION="$(cat ../VERSION)" bun run build
+
+      - name: Run Go tests
+        run: |
+          go mod download
+          go test ./... -count=1
+
+      - name: Verify Docker build
+        run: docker build -t new-api-fork:verify .

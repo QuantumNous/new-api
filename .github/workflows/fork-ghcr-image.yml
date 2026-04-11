@@ -1,0 +1,93 @@
+name: Fork Publish GHCR Image
+
+on:
+  push:
+    branches:
+      - main
+      - lab
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Channel tag to publish, for example lab or main"
+        required: true
+        default: "lab"
+        type: string
+      push_latest:
+        description: "Also publish the latest tag"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: fork-ghcr-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Resolve image metadata
+        id: meta
+        shell: bash
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            channel="${{ github.event.inputs.channel }}"
+          else
+            channel="${GITHUB_REF_NAME}"
+          fi
+
+          short_sha="${GITHUB_SHA::7}"
+          version="${channel}-$(date +'%Y%m%d')-${short_sha}"
+
+          if [ ! -s VERSION ]; then
+            echo "${version}" > VERSION
+          fi
+
+          echo "repo=${repo}" >> "${GITHUB_OUTPUT}"
+          echo "channel=${channel}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.channel }}
+            ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}
+            ${{ steps.meta.outputs.repo }}:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      - name: Publish latest tag
+        if: ${{ github.ref_name == 'main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.push_latest == 'true') }}
+        run: |
+          docker buildx imagetools create \
+            -t ${{ steps.meta.outputs.repo }}:latest \
+            ${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.version }}

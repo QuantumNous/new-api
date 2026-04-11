@@ -1,0 +1,15 @@
+{
+  "governor": {
+    "enabled": true,
+    "channel_max_rpm": 120,
+    "channel_cooldown_seconds": 30,
+    "channel_cooldown_on_statuses": [429, 500, 502, 503, 504],
+    "key_max_concurrency": 4,
+    "key_cooldown_seconds": 20,
+    "key_cooldown_on_statuses": [429],
+    "reservation_lease_seconds": 90,
+    "reservation_heartbeat_seconds": 20,
+    "short_wait_ms": 150,
+    "respect_retry_after": true
+  }
+}

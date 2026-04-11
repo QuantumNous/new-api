@@ -29,3 +29,5 @@ data/
 .gomodcache/
 .gocache-temp
 .gopath
+deploy/lab/.env
+deploy/lab/runtime/
