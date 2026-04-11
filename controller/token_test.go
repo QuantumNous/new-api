@@ -38,6 +38,11 @@ type tokenKeyResponse struct {
 	Key string `json:"key"`
 }
 
+type selfResponseData struct {
+	ID       int `json:"id"`
+	AffCount int `json:"aff_count"`
+}
+
 func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -55,7 +60,7 @@ func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	if err := db.AutoMigrate(&model.Token{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Token{}); err != nil {
 		t.Fatalf("failed to migrate token table: %v", err)
 	}
 
@@ -271,5 +276,79 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	}
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
+	}
+}
+
+func TestGetSelfReconcilesAndPersistsAffCount(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+
+	inviter := &model.User{
+		Username:    "inviter-user",
+		Password:    "password123",
+		DisplayName: "Inviter",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AffCode:     "abcd",
+		AffCount:    0,
+	}
+	if err := db.Create(inviter).Error; err != nil {
+		t.Fatalf("failed to create inviter: %v", err)
+	}
+
+	invitees := []model.User{
+		{
+			Username:    "invitee-one",
+			Password:    "password123",
+			DisplayName: "Invitee One",
+			Role:        common.RoleCommonUser,
+			Status:      common.UserStatusEnabled,
+			Group:       "default",
+			AffCode:     "efgh",
+			InviterId:   inviter.Id,
+		},
+		{
+			Username:    "invitee-two",
+			Password:    "password123",
+			DisplayName: "Invitee Two",
+			Role:        common.RoleCommonUser,
+			Status:      common.UserStatusEnabled,
+			Group:       "default",
+			AffCode:     "ijkl",
+			InviterId:   inviter.Id,
+		},
+	}
+	for i := range invitees {
+		if err := db.Create(&invitees[i]).Error; err != nil {
+			t.Fatalf("failed to create invitee %d: %v", i, err)
+		}
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/user/self", nil, inviter.Id)
+	ctx.Set("role", inviter.Role)
+	GetSelf(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var selfData selfResponseData
+	if err := common.Unmarshal(response.Data, &selfData); err != nil {
+		t.Fatalf("failed to decode self response: %v", err)
+	}
+	if selfData.ID != inviter.Id {
+		t.Fatalf("expected self response for user %d, got %d", inviter.Id, selfData.ID)
+	}
+	if selfData.AffCount != 2 {
+		t.Fatalf("expected reconciled aff_count 2 in response, got %d", selfData.AffCount)
+	}
+
+	var refreshed model.User
+	if err := db.First(&refreshed, inviter.Id).Error; err != nil {
+		t.Fatalf("failed to reload inviter: %v", err)
+	}
+	if refreshed.AffCount != 2 {
+		t.Fatalf("expected persisted aff_count 2, got %d", refreshed.AffCount)
 	}
 }

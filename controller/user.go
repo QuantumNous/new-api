@@ -386,6 +386,13 @@ func GetSelf(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if reconciledAffCount != user.AffCount {
+		if err := model.UpdateUserAffCount(user.Id, reconciledAffCount); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		user.AffCount = reconciledAffCount
+	}
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
@@ -405,6 +412,7 @@ func GetSelf(c *gin.Context) {
 		"used_quota":        user.UsedQuota,
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,
+		"aff_count":         reconciledAffCount,
 		"aff_count":         reconciledAffCount,
 		"aff_quota":         user.AffQuota,
 		"aff_history_quota": user.AffHistoryQuota,
