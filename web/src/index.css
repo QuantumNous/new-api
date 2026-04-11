@@ -18,6 +18,14 @@
   --sidebar-width: 180px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
+  /* 橙棕色强调色 — 模仿 right.codes */
+  --semi-color-primary: #c06030;
+  --semi-color-primary-hover: #a8522a;
+  --semi-color-primary-active: #904824;
+  --semi-color-primary-disabled: rgba(192, 96, 48, 0.4);
+  --semi-color-primary-light-default: rgba(192, 96, 48, 0.08);
+  --semi-color-primary-light-hover: rgba(192, 96, 48, 0.15);
+  --semi-color-primary-light-active: rgba(192, 96, 48, 0.22);
 }
 
 body.sidebar-collapsed {
@@ -28,7 +36,27 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto,
     Oxygen, Ubuntu, 'Microsoft YaHei', sans-serif;
   color: var(--semi-color-text-0);
-  background-color: var(--semi-color-bg-0);
+  background: linear-gradient(135deg,
+    #fce4ec 0%,
+    #f3e5f5 25%,
+    #e8eaf6 50%,
+    #fff3e0 75%,
+    #fce4ec 100%
+  );
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+html.dark body {
+  background: linear-gradient(135deg,
+    #1a1a2e 0%,
+    #16213e 25%,
+    #0f3460 50%,
+    #1a1a2e 75%,
+    #16213e 100%
+  );
+  background-attachment: fixed;
+  color: var(--semi-color-text-0);
 }
 
 /* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
@@ -51,6 +79,23 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* ==================== 布局/卡片透明 — right.codes 风格 ==================== */
+.semi-layout,
+.semi-layout-content,
+.semi-layout-header,
+.semi-sider {
+  background-color: transparent !important;
+}
+
+.semi-card {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(10px);
+}
+
+html.dark .semi-card {
+  background: rgba(30, 30, 30, 0.85) !important;
 }
 
 /* ==================== 布局相关样式 ==================== */
@@ -126,14 +171,13 @@ code {
   flex-direction: column;
   min-height: 0;
   transition: width 0.3s ease;
-  background: var(--semi-color-bg-0);
-  border-right: 1px solid var(--semi-color-border);
+  background: transparent;
 }
 
 .sidebar-nav {
   flex: 1;
   width: 100%;
-  background: var(--semi-color-bg-0);
+  background: transparent;
   height: 100%;
   overflow-x: hidden;
   border-right: none;
@@ -157,13 +201,13 @@ code {
 }
 
 .sidebar-nav-item:hover {
-  background-color: var(--semi-color-fill-0);
-  color: var(--semi-color-text-0);
+  background-color: rgba(192, 96, 48, 0.08);
+  color: #c06030;
 }
 
 .sidebar-nav-item-selected {
-  background-color: var(--semi-color-fill-1);
-  color: var(--semi-color-text-0);
+  background-color: rgba(192, 96, 48, 0.12);
+  color: #c06030;
   font-weight: 600;
 }
 
@@ -213,7 +257,7 @@ code {
   padding: 12px;
   margin-top: auto;
   cursor: pointer;
-  background-color: var(--semi-color-bg-0);
+  background-color: transparent;
   position: sticky;
   bottom: 0;
   z-index: 10;
@@ -941,7 +985,7 @@ html.dark .with-pastel-balls::before {
 .semi-select,
 .semi-button,
 .semi-datepicker-range-input {
-  border-radius: 8px !important;
+  border-radius: 12px !important;
 }
 
 @keyframes slideInLeft {

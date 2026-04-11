@@ -158,7 +158,7 @@ const Home = () => {
       {homePageContentLoaded && homePageContent === '' ? (
         <div className='w-full overflow-x-hidden'>
           {/* Banner 部分 */}
-          <div className='w-full border-b border-semi-color-border min-h-[420px] md:min-h-[480px] lg:min-h-[540px] relative overflow-x-hidden'>
+          <div className='w-full border-b border-semi-color-border min-h-[500px] md:min-h-[600px] lg:min-h-[700px] relative overflow-x-hidden'>
             <div className='flex items-center justify-center h-full px-4 py-20 md:py-24 lg:py-32 mt-10'>
               {/* 居中内容区 */}
               <div className='flex flex-col items-center justify-center text-center max-w-4xl mx-auto'>
@@ -215,7 +215,7 @@ const Home = () => {
                       theme='solid'
                       type='primary'
                       size={isMobile ? 'default' : 'large'}
-                      className='!rounded-lg px-8 py-2'
+                      className='!rounded-xl px-8 py-2'
                       icon={<IconPlay />}
                     >
                       {t('获取密钥')}
@@ -224,7 +224,7 @@ const Home = () => {
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
                       size={isMobile ? 'default' : 'large'}
-                      className='flex items-center !rounded-lg px-6 py-2'
+                      className='flex items-center !rounded-xl px-6 py-2'
                       icon={<IconGithubLogo />}
                       onClick={() =>
                         window.open(
@@ -239,7 +239,7 @@ const Home = () => {
                     docsLink && (
                       <Button
                         size={isMobile ? 'default' : 'large'}
-                        className='flex items-center !rounded-lg px-6 py-2'
+                        className='flex items-center !rounded-xl px-6 py-2'
                         icon={<IconFile />}
                         onClick={() => window.open(docsLink, '_blank')}
                       >
@@ -254,73 +254,73 @@ const Home = () => {
                   <div className='flex items-center mb-6 md:mb-8 justify-center'>
                     <Text
                       type='tertiary'
-                      className='text-xs md:text-sm uppercase tracking-widest font-medium'
+                      className='text-lg md:text-xl font-light'
                     >
                       {t('支持众多的大模型供应商')}
                     </Text>
                   </div>
                   <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4'>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Moonshot size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <OpenAI size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <XAI size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Zhipu.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Volcengine.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Cohere.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Claude.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Gemini.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Suno size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Minimax.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Wenxin.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Spark.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Qingyan.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <DeepSeek.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Qwen.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Midjourney size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Grok size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <AzureAI.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Hunyuan.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Xinference.Color size={40} />
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity'>
+                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center '>
                       <Typography.Text className='!text-lg sm:!text-xl md:!text-2xl lg:!text-3xl font-bold'>
                         30+
                       </Typography.Text>
