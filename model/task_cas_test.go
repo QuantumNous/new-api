@@ -215,3 +215,32 @@ func TestUpdateWithStatus_ConcurrentWinner(t *testing.T) {
 	}
 	assert.Equal(t, 1, winCount, "exactly one goroutine should win the CAS")
 }
+
+func TestTaskGetRequestIDPrefersClientRequestID(t *testing.T) {
+	task := &Task{
+		PrivateData: TaskPrivateData{
+			RequestId:       "internal-request-id",
+			ClientRequestId: "creative-request-id",
+		},
+	}
+
+	assert.Equal(t, "creative-request-id", task.GetRequestID())
+}
+
+func TestTaskGetUserTasksByIdentifiersMatchesClientRequestID(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:      "task_request_match",
+		UserId:      1,
+		SubmitTime:  time.Now().Unix(),
+		Status:      TaskStatusSubmitted,
+		PrivateData: TaskPrivateData{RequestId: "internal-request-id", ClientRequestId: "creative-request-id"},
+		Data:        json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	items := TaskGetUserTasksByIdentifiers(1, nil, []string{"creative-request-id"}, SyncTaskQueryParams{}, 10)
+	require.Len(t, items, 1)
+	assert.Equal(t, task.TaskID, items[0].TaskID)
+}

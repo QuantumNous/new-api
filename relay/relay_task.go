@@ -49,6 +49,14 @@ func extractTaskPromptFromContext(c *gin.Context) string {
 	return strings.TrimSpace(req.GetPrompt())
 }
 
+func extractTaskClientRequestIDFromContext(c *gin.Context) string {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(req.RequestId)
+}
+
 func upsertPendingRelayTaskRecord(c *gin.Context, info *relaycommon.RelayInfo, platform constant.TaskPlatform) {
 	if info == nil || info.PublicTaskID == "" || info.Action == "" || platform == "" {
 		return
@@ -77,6 +85,9 @@ func upsertPendingRelayTaskRecord(c *gin.Context, info *relaycommon.RelayInfo, p
 	task.PrivateData.TokenId = info.TokenId
 	if prompt := extractTaskPromptFromContext(c); prompt != "" {
 		task.Properties.Input = prompt
+	}
+	if clientRequestID := extractTaskClientRequestIDFromContext(c); clientRequestID != "" {
+		task.PrivateData.ClientRequestId = clientRequestID
 	}
 	task.PrivateData.BillingContext = &model.TaskBillingContext{
 		ModelPrice:      info.PriceData.ModelPrice,
@@ -729,7 +740,7 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		CreatedAt:  task.CreatedAt,
 		UpdatedAt:  task.UpdatedAt,
 		TaskID:     task.TaskID,
-		RequestID:  task.PrivateData.RequestId,
+		RequestID:  task.GetRequestID(),
 		Platform:   string(task.Platform),
 		UserId:     task.UserId,
 		Group:      task.Group,
