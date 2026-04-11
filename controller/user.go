@@ -413,7 +413,6 @@ func GetSelf(c *gin.Context) {
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,
 		"aff_count":         reconciledAffCount,
-		"aff_count":         reconciledAffCount,
 		"aff_quota":         user.AffQuota,
 		"aff_history_quota": user.AffHistoryQuota,
 		"inviter_id":        user.InviterId,
