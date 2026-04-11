@@ -31,7 +31,7 @@ export const FORM_FIELD_PROPS = {
   size: 'large',
 };
 
-export const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
+export const ICON_BUTTON_CLASS = 'text-semi-color-text-1 hover:bg-semi-color-fill-1 !rounded-lg';
 export const FLEX_CENTER_GAP2 = 'flex items-center gap-2';
 
 export const ILLUSTRATION_SIZE = { width: 96, height: 96 };
