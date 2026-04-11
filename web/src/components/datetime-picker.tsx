@@ -131,8 +131,9 @@ export function DateTimePicker({
           size='icon'
           onClick={handleClear}
           className='shrink-0'
+          aria-label='Clear'
         >
-          ✕
+          <span aria-hidden='true'>✕</span>
         </Button>
       )}
     </div>

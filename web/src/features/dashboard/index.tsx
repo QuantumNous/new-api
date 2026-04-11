@@ -4,6 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SectionPageLayout } from '@/components/layout'
+import {
+  CardStaggerContainer,
+  CardStaggerItem,
+} from '@/components/page-transition'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { AnnouncementsPanel } from './components/overview/announcements-panel'
 import { ApiInfoPanel } from './components/overview/api-info-panel'
@@ -106,12 +110,20 @@ export function Dashboard() {
           {activeSection === 'overview' ? (
             <>
               <SummaryCards />
-              <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
-                <ApiInfoPanel />
-                <AnnouncementsPanel />
-                <FAQPanel />
-                <UptimePanel />
-              </div>
+              <CardStaggerContainer className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+                <CardStaggerItem>
+                  <ApiInfoPanel />
+                </CardStaggerItem>
+                <CardStaggerItem>
+                  <AnnouncementsPanel />
+                </CardStaggerItem>
+                <CardStaggerItem>
+                  <FAQPanel />
+                </CardStaggerItem>
+                <CardStaggerItem>
+                  <UptimePanel />
+                </CardStaggerItem>
+              </CardStaggerContainer>
             </>
           ) : (
             <>

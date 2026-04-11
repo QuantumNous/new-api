@@ -56,18 +56,7 @@ const PAYMENT_TYPES = [
   { value: 'stripe', label: 'Stripe' },
 ]
 
-// Map CSS variable colors to their actual values for preview
-const CSS_VAR_COLOR_MAP: Record<string, string> = {
-  'rgba(var(--semi-blue-5), 1)': '#1677FF',
-  'rgba(var(--semi-green-5), 1)': '#52C41A',
-}
-
 const getColorPreview = (color: string) => {
-  // Map CSS variables to actual colors
-  if (CSS_VAR_COLOR_MAP[color]) {
-    return CSS_VAR_COLOR_MAP[color]
-  }
-  // For other CSS variables, return null
   if (color.includes('var(--')) {
     return null
   }
@@ -75,11 +64,11 @@ const getColorPreview = (color: string) => {
 }
 
 const COLOR_PRESETS = [
-  { value: 'rgba(var(--semi-blue-5), 1)', label: 'Blue (Alipay)' },
-  { value: 'rgba(var(--semi-green-5), 1)', label: 'Green (WeChat)' },
+  { value: '#1677FF', label: 'Blue (Alipay)' },
+  { value: '#07C160', label: 'Green (WeChat)' },
   { value: '#635BFF', label: 'Purple (Stripe)' },
-  { value: '#1677FF', label: 'Sky Blue' },
-  { value: '#07C160', label: 'Lime Green' },
+  { value: '#1890FF', label: 'Sky Blue' },
+  { value: '#52C41A', label: 'Lime Green' },
   { value: 'black', label: 'Black' },
   { value: '#FF4D4F', label: 'Red' },
   { value: '#FFA940', label: 'Orange' },

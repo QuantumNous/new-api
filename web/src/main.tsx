@@ -68,9 +68,6 @@ const queryClient = new QueryClient({
           toast.error(i18next.t('Internal Server Error!'))
           router.navigate({ to: '/500' })
         }
-        if (error.response?.status === 403) {
-          // router.navigate("/forbidden", { replace: true });
-        }
       }
     },
   }),

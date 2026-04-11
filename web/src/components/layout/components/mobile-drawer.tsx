@@ -3,13 +3,12 @@ import { X, User, Wallet, LogOut } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import type { AuthUser } from '@/stores/auth-store'
-import { SKELETON_DEFAULTS } from '@/lib/constants'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { SignOutDialog } from '@/components/sign-out-dialog'
-import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import { MOBILE_DRAWER_ANIMATION, MOBILE_DRAWER_CONFIG } from '../constants'
 import type { TopNavLink } from '../types'
 
@@ -40,17 +39,12 @@ function BrandLogo({
       onClick={onClick}
     >
       <div className='relative h-6 w-6'>
-        <SkeletonWrapper loading={loading || !logoLoaded} type='image' />
+        {loading || !logoLoaded ? (
+          <Skeleton className='absolute inset-0 rounded-full' />
+        ) : null}
         {displayLogo}
       </div>
-      <SkeletonWrapper
-        loading={loading}
-        type='title'
-        width={SKELETON_DEFAULTS.TITLE_WIDTH}
-        height={SKELETON_DEFAULTS.TITLE_HEIGHT}
-      >
-        {displaySiteName}
-      </SkeletonWrapper>
+      {loading ? <Skeleton className='h-5 w-20' /> : displaySiteName}
     </Link>
   )
 }
@@ -237,13 +231,11 @@ export function MobileDrawer({
                 variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}
               >
                 {loading ? (
-                  <SkeletonWrapper
-                    loading={true}
-                    type='navigation'
-                    count={SKELETON_DEFAULTS.MOBILE_NAV_COUNT}
-                    width={SKELETON_DEFAULTS.MOBILE_NAV_WIDTH}
-                    height={SKELETON_DEFAULTS.MOBILE_NAV_HEIGHT}
-                  />
+                  <div className='flex flex-col gap-1 p-2'>
+                    {Array.from({ length: 4 }, (_, i) => (
+                      <Skeleton key={i} className='h-8 w-full' />
+                    ))}
+                  </div>
                 ) : (
                   <AnimatePresence>
                     {mobileLinksList.map((link, index) => (

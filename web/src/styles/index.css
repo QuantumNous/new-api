@@ -5,8 +5,6 @@
 
 @import './theme.css';
 
-@custom-variant dark (&:is(.dark *));
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -14,10 +12,10 @@
     scrollbar-color: var(--border) transparent;
   }
   html {
-    @apply overflow-x-hidden;
+    @apply overflow-x-hidden font-sans;
   }
   body {
-    @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full;
+    @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full font-sans;
   }
 
   body:has([data-layout='fixed']) {
@@ -42,6 +40,51 @@
     textarea {
       font-size: 16px !important;
     }
+  }
+}
+
+/* Vercel Geist-style skeleton shimmer */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base) 0%,
+    var(--skeleton-base) 33%,
+    var(--skeleton-highlight) 50%,
+    var(--skeleton-base) 67%,
+    var(--skeleton-base) 100%
+  );
+  background-size: 300% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: -100% 50%;
+  }
+}
+
+/* Override auto-skeleton-react inline styles with Vercel shimmer */
+.auto-skeleton-fade [class^='skeleton-'] {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base) 0%,
+    var(--skeleton-base) 33%,
+    var(--skeleton-highlight) 50%,
+    var(--skeleton-base) 67%,
+    var(--skeleton-base) 100%
+  ) !important;
+  background-size: 300% 100% !important;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer,
+  .auto-skeleton-fade [class^='skeleton-'] {
+    animation: none !important;
+    background: var(--skeleton-base) !important;
   }
 }
 
@@ -97,7 +140,7 @@
   }
 
   &:hover::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--border) / 0.6);
+    background-color: color-mix(in oklch, var(--border) 60%, transparent);
   }
 }
 
@@ -105,15 +148,16 @@
   @apply after:pointer-events-none after:absolute after:start-0 after:bottom-0 after:hidden after:h-32 after:w-full after:rounded-b-2xl after:bg-[linear-gradient(180deg,_transparent_10%,_var(--background)_70%)] md:after:block;
 }
 
-/* styles.css */
 .CollapsibleContent {
   overflow: hidden;
 }
-.CollapsibleContent[data-state='open'] {
-  animation: slideDown 300ms ease-out;
-}
-.CollapsibleContent[data-state='closed'] {
-  animation: slideUp 300ms ease-out;
+@media (prefers-reduced-motion: no-preference) {
+  .CollapsibleContent[data-state='open'] {
+    animation: slideDown 300ms ease-out;
+  }
+  .CollapsibleContent[data-state='closed'] {
+    animation: slideUp 300ms ease-out;
+  }
 }
 
 @keyframes slideDown {
@@ -292,4 +336,100 @@
   .scroll-container:hover .animate-scroll-down {
     animation-play-state: paused;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-appear,
+  .animate-appear-zoom,
+  .animate-scroll-up,
+  .animate-scroll-down,
+  [data-slot='table'] tbody tr {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Micro-interactions — Vercel-style subtle hover/active feedback */
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot='card'] {
+    transition:
+      transform 150ms ease,
+      box-shadow 150ms ease;
+  }
+  [data-slot='card']:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
+  }
+
+  .dark [data-slot='card']:hover {
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+  }
+
+  button:not(:disabled):active,
+  [role='button']:not(:disabled):active {
+    transform: scale(0.98);
+  }
+
+  [data-slot='table'] tr {
+    transition: background-color 120ms ease;
+  }
+
+  /* Table row stagger-in animation */
+  [data-slot='table'] tbody tr {
+    animation: tableRowEnter 0.2s cubic-bezier(0.33, 1, 0.68, 1) both;
+  }
+  [data-slot='table'] tbody tr:nth-child(2) {
+    animation-delay: 25ms;
+  }
+  [data-slot='table'] tbody tr:nth-child(3) {
+    animation-delay: 50ms;
+  }
+  [data-slot='table'] tbody tr:nth-child(4) {
+    animation-delay: 75ms;
+  }
+  [data-slot='table'] tbody tr:nth-child(5) {
+    animation-delay: 100ms;
+  }
+  [data-slot='table'] tbody tr:nth-child(6) {
+    animation-delay: 125ms;
+  }
+  [data-slot='table'] tbody tr:nth-child(7) {
+    animation-delay: 150ms;
+  }
+  [data-slot='table'] tbody tr:nth-child(8) {
+    animation-delay: 175ms;
+  }
+  [data-slot='table'] tbody tr:nth-child(9) {
+    animation-delay: 200ms;
+  }
+  [data-slot='table'] tbody tr:nth-child(10) {
+    animation-delay: 225ms;
+  }
+  [data-slot='table'] tbody tr:nth-child(n + 11) {
+    animation-delay: 250ms;
+  }
+}
+
+@keyframes tableRowEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Tabular numbers for data-heavy contexts */
+[data-slot='table'] td,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Long list rendering optimization */
+.content-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 80px;
 }

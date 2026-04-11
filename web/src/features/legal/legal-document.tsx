@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Markdown } from '@/components/ui/markdown'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
-import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import type { LegalDocumentResponse } from './types'
 
 type LegalDocumentProps = {
@@ -51,10 +51,10 @@ export function LegalDocument({
     return (
       <PublicLayout>
         <div className='mx-auto flex max-w-4xl flex-col gap-4 py-12'>
-          <SkeletonWrapper loading type='title' width='45%' />
-          <SkeletonWrapper loading height={16} width='100%' />
-          <SkeletonWrapper loading height={16} width='90%' />
-          <SkeletonWrapper loading height={16} width='80%' />
+          <Skeleton className='h-8 w-[45%]' />
+          <Skeleton className='h-4 w-full' />
+          <Skeleton className='h-4 w-[90%]' />
+          <Skeleton className='h-4 w-[80%]' />
         </div>
       </PublicLayout>
     )

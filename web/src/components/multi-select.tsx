@@ -69,6 +69,7 @@ export function MultiSelect({
                 <Button
                   variant='ghost'
                   size='icon-sm'
+                  aria-label='Remove'
                   className='ml-1 size-auto rounded-full p-0'
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -81,7 +82,10 @@ export function MultiSelect({
                   }}
                   onClick={() => handleUnselect(value)}
                 >
-                  <X className='text-muted-foreground hover:text-foreground h-3 w-3' />
+                  <X
+                    className='text-muted-foreground hover:text-foreground h-3 w-3'
+                    aria-hidden='true'
+                  />
                 </Button>
               </Badge>
             )

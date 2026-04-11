@@ -3,7 +3,6 @@ import { Link } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { SKELETON_DEFAULTS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -14,7 +13,6 @@ import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationButton } from '@/components/notification-button'
 import { NotificationDialog } from '@/components/notification-dialog'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
@@ -49,17 +47,12 @@ function BrandLogo({
       onClick={onClick}
     >
       <div className='relative h-6 w-6'>
-        <SkeletonWrapper loading={loading || !logoLoaded} type='image' />
+        {loading || !logoLoaded ? (
+          <Skeleton className='absolute inset-0 rounded-full' />
+        ) : null}
         {displayLogo}
       </div>
-      <SkeletonWrapper
-        loading={loading}
-        type='title'
-        width={SKELETON_DEFAULTS.TITLE_WIDTH}
-        height={SKELETON_DEFAULTS.TITLE_HEIGHT}
-      >
-        {displaySiteName}
-      </SkeletonWrapper>
+      {loading ? <Skeleton className='h-5 w-20' /> : displaySiteName}
     </Link>
   )
 }
@@ -254,14 +247,10 @@ export function PublicHeader({
                 {showNavigation &&
                   navContent &&
                   (loading ? (
-                    <div className='hidden md:flex'>
-                      <SkeletonWrapper
-                        loading={true}
-                        type='navigation'
-                        count={SKELETON_DEFAULTS.NAV_COUNT}
-                        width={SKELETON_DEFAULTS.NAV_WIDTH}
-                        height={SKELETON_DEFAULTS.NAV_HEIGHT}
-                      />
+                    <div className='hidden items-center gap-2 md:flex'>
+                      {Array.from({ length: 3 }, (_, i) => (
+                        <Skeleton key={i} className='h-4 w-16' />
+                      ))}
                     </div>
                   ) : (
                     navContent

@@ -112,23 +112,25 @@ export function NumericSpinnerInput({
             type='button'
             variant='ghost'
             size='icon-sm'
+            aria-label='Increment'
             onClick={handleIncrement}
             disabled={
               disabled || (max !== undefined && Number(localValue) >= max)
             }
             className='size-auto h-3.5 w-5 rounded-sm p-0'
           >
-            <ChevronUp className='h-3 w-3' />
+            <ChevronUp className='h-3 w-3' aria-hidden='true' />
           </Button>
           <Button
             type='button'
             variant='ghost'
             size='icon-sm'
+            aria-label='Decrement'
             onClick={handleDecrement}
             disabled={disabled || Number(localValue) <= min}
             className='size-auto h-3.5 w-5 rounded-sm p-0'
           >
-            <ChevronDown className='h-3 w-3' />
+            <ChevronDown className='h-3 w-3' aria-hidden='true' />
           </Button>
         </div>
       </div>

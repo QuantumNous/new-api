@@ -7,14 +7,16 @@ import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
+import {
+  CardStaggerContainer,
+  CardStaggerItem,
+} from '@/components/page-transition'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import { StatCard } from '../ui/stat-card'
 
 export function SummaryCards() {
   const { t } = useTranslation()
-  // 使用已缓存的用户数据，避免重复调用 API
   const user = useAuthStore((state) => state.auth.user)
-  // 使用 React Query 缓存的 status 数据
   const { status, loading } = useStatus()
 
   const summaryValues = useMemo(() => {
@@ -53,27 +55,28 @@ export function SummaryCards() {
   }))
 
   return (
-    <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+    <CardStaggerContainer className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
       {items.map((it) => (
-        <StatCard
-          key={it.title}
-          title={it.title}
-          value={it.value}
-          description={it.desc}
-          icon={it.icon}
-          loading={loading}
-          action={
-            it.isBalance ? (
-              <Button variant='outline' size='sm' className='h-7' asChild>
-                <Link to='/wallet'>
-                  <CreditCard className='mr-1.5 h-3.5 w-3.5' />
-                  {t('Recharge')}
-                </Link>
-              </Button>
-            ) : undefined
-          }
-        />
+        <CardStaggerItem key={it.title}>
+          <StatCard
+            title={it.title}
+            value={it.value}
+            description={it.desc}
+            icon={it.icon}
+            loading={loading}
+            action={
+              it.isBalance ? (
+                <Button variant='outline' size='sm' className='h-7' asChild>
+                  <Link to='/wallet'>
+                    <CreditCard className='mr-1.5 h-3.5 w-3.5' />
+                    {t('Recharge')}
+                  </Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        </CardStaggerItem>
       ))}
-    </div>
+    </CardStaggerContainer>
   )
 }

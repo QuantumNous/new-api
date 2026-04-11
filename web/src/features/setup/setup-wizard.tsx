@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Loader2, RefreshCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
-import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -17,8 +15,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Form } from '@/components/ui/form'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/error-state'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { SkeletonWrapper } from '@/components/skeleton-wrapper'
+import { LoadingState } from '@/components/loading-state'
 import { buildSetupPayload, getSetupStatus, submitSetup } from './api'
 import { AdminStep } from './components/admin-step'
 import { CompleteStep } from './components/complete-step'
@@ -266,8 +266,9 @@ export function SetupWizard() {
       <div className='container mx-auto flex max-w-5xl flex-col gap-8 px-4 sm:px-6'>
         <div className='flex flex-col items-center gap-3'>
           <div className='relative h-12 w-12'>
-            <SkeletonWrapper loading={systemConfigLoading} type='image' />
-            {!systemConfigLoading && (
+            {systemConfigLoading ? (
+              <Skeleton className='absolute inset-0 rounded-full' />
+            ) : (
               <img
                 src={logo}
                 alt={t('System logo')}
@@ -275,15 +276,13 @@ export function SetupWizard() {
               />
             )}
           </div>
-          <SkeletonWrapper
-            loading={systemConfigLoading}
-            type='title'
-            width={160}
-          >
+          {systemConfigLoading ? (
+            <Skeleton className='h-7 w-40' />
+          ) : (
             <h1 className='text-2xl font-semibold tracking-tight'>
               {t('Initialize')} {systemName}
             </h1>
-          </SkeletonWrapper>
+          )}
           <p className='text-muted-foreground text-center text-sm sm:text-base'>
             {t(
               'Follow the guided steps to prepare your workspace before the first login.'
@@ -346,25 +345,12 @@ export function SetupWizard() {
             </ol>
 
             {isLoading ? (
-              <div className='text-muted-foreground flex min-h-[200px] flex-col items-center justify-center gap-3 py-10'>
-                <Loader2 className='size-6 animate-spin' />
-                {t('Loading setup status…')}
-              </div>
+              <LoadingState message={t('Loading setup status…')} />
             ) : isError ? (
-              <div className='flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-8 text-center'>
-                <p className='text-sm font-medium'>
-                  {t('We could not load the setup status.')}
-                </p>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => refetch()}
-                  className='inline-flex items-center gap-2'
-                >
-                  <RefreshCcw className='size-4' />
-                  {t('Retry')}
-                </Button>
-              </div>
+              <ErrorState
+                title={t('We could not load the setup status.')}
+                onRetry={() => refetch()}
+              />
             ) : (
               <Form {...form}>
                 <form

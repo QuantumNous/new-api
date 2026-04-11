@@ -68,13 +68,14 @@ export function TagInput({
               type='button'
               variant='ghost'
               size='icon-sm'
+              aria-label='Remove tag'
               onClick={(e) => {
                 e.stopPropagation()
                 removeTag(tag)
               }}
               className='hover:bg-secondary-foreground/20 size-auto rounded-sm p-0'
             >
-              <X className='h-3 w-3' />
+              <X className='h-3 w-3' aria-hidden='true' />
             </Button>
           )}
         </Badge>

@@ -1,5 +1,9 @@
 import { useStatus } from '@/hooks/use-status'
 import { AppHeader, Main } from '@/components/layout'
+import {
+  CardStaggerContainer,
+  CardStaggerItem,
+} from '@/components/page-transition'
 import { AvailableModelsCard } from './components/available-models-card'
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { PasskeyCard } from './components/passkey-card'
@@ -9,10 +13,6 @@ import { ProfileSettingsCard } from './components/profile-settings-card'
 import { SidebarModulesCard } from './components/sidebar-modules-card'
 import { TwoFACard } from './components/two-fa-card'
 import { useProfile } from './hooks'
-
-// ============================================================================
-// Profile Page Component
-// ============================================================================
 
 export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
@@ -28,40 +28,41 @@ export function Profile() {
     <>
       <AppHeader fixed />
       <Main>
-        <div className='space-y-8'>
-          {/* Header */}
-          <ProfileHeader profile={profile} loading={loading} />
+        <CardStaggerContainer className='space-y-8'>
+          <CardStaggerItem>
+            <ProfileHeader profile={profile} loading={loading} />
+          </CardStaggerItem>
 
-          {/* Available Models */}
-          <AvailableModelsCard />
+          <CardStaggerItem>
+            <AvailableModelsCard />
+          </CardStaggerItem>
 
-          {/* Content Grid */}
-          <div className='grid gap-6 lg:grid-cols-2 lg:items-start'>
-            {/* Left Column - Security & 2FA */}
-            <div className='space-y-6'>
-              <ProfileSecurityCard profile={profile} loading={loading} />
-              <PasskeyCard loading={loading} />
-              <TwoFACard loading={loading} />
-            </div>
+          <CardStaggerItem>
+            <div className='grid gap-6 lg:grid-cols-2 lg:items-start'>
+              <div className='space-y-6'>
+                <ProfileSecurityCard profile={profile} loading={loading} />
+                <PasskeyCard loading={loading} />
+                <TwoFACard loading={loading} />
+              </div>
 
-            {/* Right Column - Settings */}
-            <div className='space-y-6'>
-              {checkinEnabled && (
-                <CheckinCalendarCard
-                  checkinEnabled={checkinEnabled}
-                  turnstileEnabled={turnstileEnabled}
-                  turnstileSiteKey={turnstileSiteKey}
+              <div className='space-y-6'>
+                {checkinEnabled && (
+                  <CheckinCalendarCard
+                    checkinEnabled={checkinEnabled}
+                    turnstileEnabled={turnstileEnabled}
+                    turnstileSiteKey={turnstileSiteKey}
+                  />
+                )}
+                <ProfileSettingsCard
+                  profile={profile}
+                  loading={loading}
+                  onProfileUpdate={refreshProfile}
                 />
-              )}
-              <ProfileSettingsCard
-                profile={profile}
-                loading={loading}
-                onProfileUpdate={refreshProfile}
-              />
-              <SidebarModulesCard />
+                <SidebarModulesCard />
+              </div>
             </div>
-          </div>
-        </div>
+          </CardStaggerItem>
+        </CardStaggerContainer>
       </Main>
     </>
   )
