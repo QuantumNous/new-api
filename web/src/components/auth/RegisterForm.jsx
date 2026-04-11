@@ -776,6 +776,17 @@ const RegisterForm = () => {
             }
           />
         </Form>
+
+        {turnstileEnabled && (
+          <div className='flex justify-center mt-6'>
+            <Turnstile
+              sitekey={turnstileSiteKey}
+              onVerify={(token) => {
+                setTurnstileToken(token);
+              }}
+            />
+          </div>
+        )}
       </Modal>
     );
   };
