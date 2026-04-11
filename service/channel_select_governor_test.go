@@ -115,3 +115,54 @@ func TestCacheGetRandomSatisfiedChannel_SkipsExcludedChannelsWithoutMemoryCache(
 	}
 }
 
+func TestCacheGetRandomSatisfiedChannel_ReenabledChannelReappearsInMemoryCache(t *testing.T) {
+	ensureGovernorSelectionSchema(t)
+	require.NoError(t, model.DB.Exec("DELETE FROM abilities").Error)
+	require.NoError(t, model.DB.Exec("DELETE FROM channels").Error)
+	t.Cleanup(func() {
+		model.DB.Exec("DELETE FROM abilities")
+		model.DB.Exec("DELETE FROM channels")
+	})
+
+	old := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	t.Cleanup(func() { common.MemoryCacheEnabled = old })
+
+	channelRecord := &model.Channel{
+		Name:   "reenable",
+		Key:    "k-reenable",
+		Models: "gpt-4o",
+		Group:  "default",
+		Status: common.ChannelStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create(channelRecord).Error)
+	require.NoError(t, channelRecord.AddAbilities(nil))
+
+	model.InitChannelCache()
+
+	selected, err := model.GetRandomSatisfiedChannel("default", "gpt-4o", 0)
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	require.Equal(t, channelRecord.Id, selected.Id)
+
+	require.True(t, model.UpdateChannelStatus(channelRecord.Id, "", common.ChannelStatusAutoDisabled, "test disable"))
+
+	disabled, err := model.GetRandomSatisfiedChannel("default", "gpt-4o", 0)
+	require.NoError(t, err)
+	require.Nil(t, disabled)
+
+	require.True(t, model.UpdateChannelStatus(channelRecord.Id, "", common.ChannelStatusEnabled, ""))
+
+	var dbChannel model.Channel
+	require.NoError(t, model.DB.First(&dbChannel, "id = ?", channelRecord.Id).Error)
+	require.Equal(t, common.ChannelStatusEnabled, dbChannel.Status)
+
+	var dbAbility model.Ability
+	require.NoError(t, model.DB.First(&dbAbility, "channel_id = ?", channelRecord.Id).Error)
+	require.True(t, dbAbility.Enabled)
+
+	reenabled, err := model.GetRandomSatisfiedChannel("default", "gpt-4o", 0)
+	require.NoError(t, err)
+	require.NotNil(t, reenabled)
+	require.Equal(t, channelRecord.Id, reenabled.Id)
+}

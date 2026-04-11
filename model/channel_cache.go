@@ -18,6 +18,33 @@ var group2model2channels map[string]map[string][]int // enabled channel
 var channelsIDM map[int]*Channel                     // all channels include disabled
 var channelSyncLock sync.RWMutex
 
+func appendChannelToGroupModelCache(group, model string, channel *Channel) {
+	if group2model2channels == nil {
+		group2model2channels = make(map[string]map[string][]int)
+	}
+	if _, ok := group2model2channels[group]; !ok {
+		group2model2channels[group] = make(map[string][]int)
+	}
+
+	channelIDs := group2model2channels[group][model]
+	for _, channelID := range channelIDs {
+		if channelID == channel.Id {
+			return
+		}
+	}
+
+	channelIDs = append(channelIDs, channel.Id)
+	sort.Slice(channelIDs, func(i, j int) bool {
+		left := channelsIDM[channelIDs[i]]
+		right := channelsIDM[channelIDs[j]]
+		if left == nil || right == nil {
+			return false
+		}
+		return left.GetPriority() > right.GetPriority()
+	})
+	group2model2channels[group][model] = channelIDs
+}
+
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		return
@@ -351,6 +378,18 @@ func CacheUpdateChannelStatus(id int, status int) {
 					}
 				}
 			}
+		}
+		return
+	}
+
+	channel, ok := channelsIDM[id]
+	if !ok || channel == nil {
+		return
+	}
+
+	for _, group := range strings.Split(channel.Group, ",") {
+		for _, model := range strings.Split(channel.Models, ",") {
+			appendChannelToGroupModelCache(group, model, channel)
 		}
 	}
 }
