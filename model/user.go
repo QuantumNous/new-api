@@ -336,9 +336,9 @@ func inviteUser(inviterId int) (err error) {
 	return DB.Model(&User{}).
 		Where("id = ?", inviterId).
 		Updates(map[string]interface{}{
-			"aff_count":         gorm.Expr("aff_count + ?", 1),
-			"aff_quota":         gorm.Expr("aff_quota + ?", common.QuotaForInviter),
-			"aff_history_quota": gorm.Expr("aff_history + ?", common.QuotaForInviter),
+			"aff_count":   gorm.Expr("aff_count + ?", 1),
+			"aff_quota":   gorm.Expr("aff_quota + ?", common.QuotaForInviter),
+			"aff_history": gorm.Expr("aff_history + ?", common.QuotaForInviter),
 		}).Error
 }
 
