@@ -32,9 +32,10 @@ type Channel struct {
 	ResponseTime       int     `json:"response_time"` // in milliseconds
 	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
 	Other              string  `json:"other"`
-	Balance            float64 `json:"balance"` // in USD
-	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
-	Models             string  `json:"models"`
+	Balance            float64  `json:"balance"`              // in USD
+	BalanceUpdatedTime int64    `json:"balance_updated_time" gorm:"bigint"`
+	ManualBalance      *float64 `json:"manual_balance"`       // 手动设置的余额（次数），为空则使用自动查询
+	Models             string   `json:"models"`
 	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
 	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
 	ModelMapping       *string `json:"model_mapping" gorm:"type:text"`

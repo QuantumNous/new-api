@@ -308,6 +308,7 @@ export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
   updateChannelBalance,
+  setChannelManualBalance,
   manageChannel,
   manageTag,
   submitTagEdit,
@@ -528,6 +529,10 @@ export const getChannelsColumns = ({
       dataIndex: 'expired_time',
       render: (text, record, index) => {
         if (record.children === undefined) {
+          // 优先使用手动余额，如果没有则显示自动查询的余额
+          const hasManualBalance = record.manual_balance !== null && record.manual_balance !== undefined;
+          const displayBalance = hasManualBalance ? record.manual_balance : record.balance;
+
           return (
             <div>
               <Space spacing={1}>
@@ -536,28 +541,72 @@ export const getChannelsColumns = ({
                     {renderQuota(record.used_quota)}
                   </Tag>
                 </Tooltip>
-                <Tooltip
-                  content={
-                    record.type === 57
-                      ? t('查看 Codex 帐号信息与用量')
-                      : t('剩余额度') +
-                        ': ' +
-                        renderQuotaWithAmount(record.balance) +
-                        t('，点击更新')
-                  }
-                >
-                  <Tag
-                    color={record.type === 57 ? 'light-blue' : 'white'}
-                    type={record.type === 57 ? 'light' : 'ghost'}
-                    shape='circle'
-                    className={record.type === 57 ? 'cursor-pointer' : ''}
-                    onClick={() => updateChannelBalance(record)}
+                {hasManualBalance ? (
+                  <Tooltip content={t('手动设置的余额，点击清空')}>
+                    <InputNumber
+                      size='small'
+                      style={{ width: 80 }}
+                      value={displayBalance}
+                      placeholder='手动'
+                      innerButtons
+                      onBlur={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === null) {
+                          setChannelManualBalance(record, null);
+                        } else {
+                          setChannelManualBalance(record, parseFloat(val));
+                        }
+                      }}
+                      onPressEnter={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === null) {
+                          setChannelManualBalance(record, null);
+                        } else {
+                          setChannelManualBalance(record, parseFloat(val));
+                        }
+                      }}
+                    />
+                  </Tooltip>
+                ) : (
+                  <Tooltip
+                    content={
+                      record.type === 57
+                        ? t('查看 Codex 帐号信息与用量')
+                        : t('剩余额度') +
+                          ': ' +
+                          renderQuotaWithAmount(record.balance) +
+                          t('，点击更新')
+                    }
                   >
-                    {record.type === 57
-                      ? t('帐号信息')
-                      : renderQuotaWithAmount(record.balance)}
-                  </Tag>
-                </Tooltip>
+                    <Tag
+                      color={record.type === 57 ? 'light-blue' : 'white'}
+                      type={record.type === 57 ? 'light' : 'ghost'}
+                      shape='circle'
+                      className={record.type === 57 ? 'cursor-pointer' : ''}
+                      onClick={() => updateChannelBalance(record)}
+                    >
+                      {record.type === 57
+                        ? t('帐号信息')
+                        : renderQuotaWithAmount(record.balance)}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {!hasManualBalance && (
+                  <Tooltip content={t('设置手动余额')}>
+                    <Tag
+                      color='blue'
+                      type='ghost'
+                      shape='circle'
+                      size='small'
+                      className='cursor-pointer'
+                      onClick={() => {
+                        setChannelManualBalance(record, 0);
+                      }}
+                    >
+                      {t('设')}
+                    </Tag>
+                  </Tooltip>
+                )}
               </Space>
             </div>
           );

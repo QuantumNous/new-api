@@ -451,6 +451,44 @@ func UpdateChannelBalance(c *gin.Context) {
 	})
 }
 
+// SetChannelManualBalance 设置渠道手动余额
+func SetChannelManualBalance(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	channel, err := model.CacheGetChannel(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var req struct {
+		ManualBalance *float64 `json:"manual_balance"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	// 更新数据库
+	err = model.DB.Model(channel).Update("manual_balance", req.ManualBalance).Error
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "余额已更新",
+		"manual_balance": req.ManualBalance,
+	})
+}
+
 func updateAllChannelsBalance() error {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
