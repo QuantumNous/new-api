@@ -29,12 +29,12 @@ function getAnnouncementKey(item: Record<string, unknown>): string {
   }
 
   const fingerprint = JSON.stringify({
-    publishDate: item?.publishDate || '',
-    content: (item?.content || '').trim(),
-    extra: (item?.extra || '').trim(),
-    type: item?.type || '',
-    title: (item?.title || '').trim(),
-    link: (item?.link || '').trim(),
+    publishDate: (item?.publishDate as string) || '',
+    content: ((item?.content as string) || '').trim(),
+    extra: ((item?.extra as string) || '').trim(),
+    type: (item?.type as string) || '',
+    title: ((item?.title as string) || '').trim(),
+    link: ((item?.link as string) || '').trim(),
   })
   return `hash:${hashString(fingerprint)}`
 }
@@ -85,18 +85,10 @@ export function useNotifications() {
 
   // Calculate unread counts
   const unreadCounts = useMemo(() => {
-    let noticeUnread = 0
-    let announcementsUnread = 0
+    const noticeUnread =
+      noticeContent && noticeContent !== lastReadNotice ? 1 : 0
 
-    // Check if Notice is unread (content changed or never read)
-    if (noticeContent) {
-      if (noticeContent !== lastReadNotice) {
-        noticeUnread = 1
-      }
-    }
-
-    // Check unread announcements
-    announcementsUnread = announcements.filter(
+    const announcementsUnread = announcements.filter(
       (item: Record<string, unknown>) => {
         const key = getAnnouncementKey(item)
         return !isAnnouncementRead(key)

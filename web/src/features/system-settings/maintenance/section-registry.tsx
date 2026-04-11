@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import type { MaintenanceSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import {

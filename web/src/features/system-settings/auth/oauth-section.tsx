@@ -188,22 +188,28 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
     // Update nested oidc fields
     if (resetValues.oidc && typeof resetValues.oidc === 'object') {
-      Object.keys(resetValues.oidc).forEach((key) => {
-        const flatKey = `oidc.${key}` as keyof typeof normalizedDefaults
-        if (flatKey in normalizedDefaults) {
-          resetValues.oidc[key] = normalizedDefaults[flatKey]
+      Object.keys(resetValues.oidc as Record<string, unknown>).forEach(
+        (key) => {
+          const flatKey = `oidc.${key}` as keyof typeof normalizedDefaults
+          if (flatKey in normalizedDefaults) {
+            ;(resetValues.oidc as Record<string, unknown>)[key] =
+              normalizedDefaults[flatKey]
+          }
         }
-      })
+      )
     }
 
     // Update nested discord fields
     if (resetValues.discord && typeof resetValues.discord === 'object') {
-      Object.keys(resetValues.discord).forEach((key) => {
-        const flatKey = `discord.${key}` as keyof typeof normalizedDefaults
-        if (flatKey in normalizedDefaults) {
-          resetValues.discord[key] = normalizedDefaults[flatKey]
+      Object.keys(resetValues.discord as Record<string, unknown>).forEach(
+        (key) => {
+          const flatKey = `discord.${key}` as keyof typeof normalizedDefaults
+          if (flatKey in normalizedDefaults) {
+            ;(resetValues.discord as Record<string, unknown>)[key] =
+              normalizedDefaults[flatKey]
+          }
         }
-      })
+      )
     }
 
     // Update top-level fields

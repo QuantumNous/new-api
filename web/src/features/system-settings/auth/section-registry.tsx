@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import type { AuthSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { BasicAuthSection } from './basic-auth-section'

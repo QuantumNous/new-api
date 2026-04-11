@@ -115,7 +115,7 @@ const rootElement = document.getElementById('root')!
     getStatus()
       .then((s) => {
         if (s?.system_name) {
-          apply(s.system_name)
+          apply(s.system_name as string)
           try {
             localStorage.setItem('status', JSON.stringify(s))
           } catch {

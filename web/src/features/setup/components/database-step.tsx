@@ -53,7 +53,7 @@ export function DatabaseStep({ status }: DatabaseStepProps) {
   const meta = resolveDatabaseMeta(status?.database_type)
   const electronApi =
     typeof window !== 'undefined'
-      ? ((window as Record<string, unknown>)?.electron as
+      ? ((window as unknown as Record<string, unknown>)?.electron as
           | Record<string, unknown>
           | undefined)
       : undefined

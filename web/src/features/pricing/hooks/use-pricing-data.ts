@@ -14,11 +14,11 @@ export function usePricingData() {
 
   // Ensure rates never reach zero to prevent division errors
   const priceRate = useMemo(
-    () => Math.max(status?.price ?? 1, 0.001),
+    () => Math.max((status?.price as number) ?? 1, 0.001),
     [status?.price]
   )
   const usdExchangeRate = useMemo(
-    () => Math.max(status?.usd_exchange_rate ?? priceRate, 0.001),
+    () => Math.max((status?.usd_exchange_rate as number) ?? priceRate, 0.001),
     [status?.usd_exchange_rate, priceRate]
   )
 

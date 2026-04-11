@@ -254,7 +254,6 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
                 props.confirmLoading ||
                 (selectedAdd.size === 0 && selectedRemove.size === 0)
               }
-              loading={props.confirmLoading}
             >
               {t('Confirm')}
             </Button>

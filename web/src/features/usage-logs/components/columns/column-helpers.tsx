@@ -106,9 +106,7 @@ export function createTimestampColumn<T>(config: {
 /**
  * Create a duration column
  */
-export function createDurationColumn<
-  T extends Record<string, unknown>,
->(config: {
+export function createDurationColumn<T>(config: {
   submitTimeKey: string
   finishTimeKey: string
   unit?: 'seconds' | 'milliseconds'
@@ -127,10 +125,10 @@ export function createDurationColumn<
       <DataTableColumnHeader column={column} title={headerLabel} />
     ),
     cell: ({ row }) => {
-      const log = row.original
+      const log = row.original as Record<string, unknown>
       const duration = formatDuration(
-        log[submitTimeKey],
-        log[finishTimeKey],
+        log[submitTimeKey] as number | undefined,
+        log[finishTimeKey] as number | undefined,
         unit
       )
 

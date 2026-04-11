@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Mail, Github, Shield, Send, Link2, Unlink } from 'lucide-react'
+import { Mail, Shield, Send, Link2, Unlink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { SiWechat, SiLinux } from 'react-icons/si'
+import { SiGithub, SiWechat, SiLinux } from 'react-icons/si'
 import { toast } from 'sonner'
 import { IconDiscord } from '@/assets/brand-icons'
 import {
@@ -146,18 +146,22 @@ export function AccountBindingsTab({
         label: t('WeChat'),
         icon: SiWechat as React.ComponentType<{ className?: string }>,
         value: undefined,
-        isBound: Boolean((profile as Record<string, unknown>).wechat_id),
+        isBound: Boolean(
+          (profile as unknown as Record<string, unknown>).wechat_id
+        ),
         isEnabled: status?.wechat_login || false,
         onBind: () => dialogs.open('wechat'),
       },
       {
         id: 'github',
         label: t('GitHub'),
-        icon: Github,
-        value: (profile as Record<string, unknown>).github_id as
+        icon: SiGithub,
+        value: (profile as unknown as Record<string, unknown>).github_id as
           | string
           | undefined,
-        isBound: Boolean((profile as Record<string, unknown>).github_id),
+        isBound: Boolean(
+          (profile as unknown as Record<string, unknown>).github_id
+        ),
         isEnabled: status?.github_oauth || false,
         onBind: () => {
           if (status?.github_client_id) {
@@ -169,10 +173,12 @@ export function AccountBindingsTab({
         id: 'discord',
         label: t('Discord'),
         icon: IconDiscord,
-        value: (profile as Record<string, unknown>).discord_id as
+        value: (profile as unknown as Record<string, unknown>).discord_id as
           | string
           | undefined,
-        isBound: Boolean((profile as Record<string, unknown>).discord_id),
+        isBound: Boolean(
+          (profile as unknown as Record<string, unknown>).discord_id
+        ),
         isEnabled: status?.discord_oauth || false,
         onBind: () => {
           if (status?.discord_client_id) {
@@ -184,10 +190,12 @@ export function AccountBindingsTab({
         id: 'oidc',
         label: t('OIDC'),
         icon: Shield,
-        value: (profile as Record<string, unknown>).oidc_id as
+        value: (profile as unknown as Record<string, unknown>).oidc_id as
           | string
           | undefined,
-        isBound: Boolean((profile as Record<string, unknown>).oidc_id),
+        isBound: Boolean(
+          (profile as unknown as Record<string, unknown>).oidc_id
+        ),
         isEnabled: status?.oidc_enabled || false,
         onBind: () => {
           if (status?.oidc_authorization_endpoint && status?.oidc_client_id) {
@@ -202,10 +210,12 @@ export function AccountBindingsTab({
         id: 'telegram',
         label: t('Telegram'),
         icon: Send,
-        value: (profile as Record<string, unknown>).telegram_id as
+        value: (profile as unknown as Record<string, unknown>).telegram_id as
           | string
           | undefined,
-        isBound: Boolean((profile as Record<string, unknown>).telegram_id),
+        isBound: Boolean(
+          (profile as unknown as Record<string, unknown>).telegram_id
+        ),
         isEnabled: status?.telegram_oauth || false,
         onBind: () => dialogs.open('telegram'),
       },
@@ -213,10 +223,12 @@ export function AccountBindingsTab({
         id: 'linuxdo',
         label: t('LinuxDO'),
         icon: SiLinux as React.ComponentType<{ className?: string }>,
-        value: (profile as Record<string, unknown>).linux_do_id as
+        value: (profile as unknown as Record<string, unknown>).linux_do_id as
           | string
           | undefined,
-        isBound: Boolean((profile as Record<string, unknown>).linux_do_id),
+        isBound: Boolean(
+          (profile as unknown as Record<string, unknown>).linux_do_id
+        ),
         isEnabled: status?.linuxdo_oauth || false,
         onBind: () => {
           if (status?.linuxdo_client_id) {
@@ -382,7 +394,7 @@ export function AccountBindingsTab({
           onOpenChange={(open) =>
             open ? dialogs.open('telegram') : dialogs.close('telegram')
           }
-          botName={status.telegram_bot_name}
+          botName={status.telegram_bot_name as string}
           onSuccess={onUpdate}
         />
       )}

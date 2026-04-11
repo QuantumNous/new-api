@@ -177,11 +177,11 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           <StatusBadge
             label={label}
             variant={
-              config.color as
+              (config.color === 'error' ? 'danger' : config.color) as
                 | 'neutral'
                 | 'success'
                 | 'warning'
-                | 'error'
+                | 'danger'
                 | 'info'
             }
             size='sm'
@@ -390,6 +390,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         const channels = row.getValue('bound_channels') as Array<{
           id: number
           name: string
+          type?: number
           status?: number
         }>
 
@@ -487,11 +488,11 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
               key={idx}
               label={config?.label || String(qt)}
               variant={
-                config?.color as
+                (config?.color === 'error' ? 'danger' : config?.color) as
                   | 'neutral'
                   | 'success'
                   | 'warning'
-                  | 'error'
+                  | 'danger'
                   | 'info'
               }
               size='sm'

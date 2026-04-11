@@ -139,7 +139,7 @@ export function UserAuthForm({
           return
         }
 
-        await handleLoginSuccess(res.data, redirectTo)
+        await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
         toast.success(t('Welcome back!'))
       }
     } catch (_error) {
@@ -176,7 +176,7 @@ export function UserAuthForm({
     try {
       const res = await wechatLoginByCode(wechatCode)
       if (res?.success) {
-        await handleLoginSuccess(res.data, redirectTo)
+        await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
         toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
       } else {

@@ -268,14 +268,10 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
             ? `Fixed Price: ${currentRatios.ModelPrice[model]}`
             : `Model Ratio: ${currentRatios.ModelRatio[model] ?? '-'}\nCompletion Ratio: ${currentRatios.CompletionRatio[model] ?? '-'}`
 
-        let newDesc = ''
-        if (newCat === 'price') {
-          newDesc = `Fixed Price: ${ratios.model_price}`
-        } else {
-          const newModelRatio = ratios.model_ratio ?? '-'
-          const newCompRatio = ratios.completion_ratio ?? '-'
-          newDesc = `Model Ratio: ${newModelRatio}\nCompletion Ratio: ${newCompRatio}`
-        }
+        const newDesc =
+          newCat === 'price'
+            ? `Fixed Price: ${ratios.model_price}`
+            : `Model Ratio: ${ratios.model_ratio ?? '-'}\nCompletion Ratio: ${ratios.completion_ratio ?? '-'}`
 
         const channelNames = Object.entries(ratios)
           .map(([rt, val]) => findSourceChannel(model, rt as RatioType, val))

@@ -81,7 +81,7 @@ export function createSettingsRouteConfig<
         if (!search?.section) {
           throw redirect({
             to: routePath,
-            search: { section: defaultSection },
+            search: { section: defaultSection } as Record<string, unknown>,
           })
         }
       },

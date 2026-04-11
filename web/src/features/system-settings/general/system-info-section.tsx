@@ -34,7 +34,7 @@ const _systemInfoSchema = z.object({
   }),
 })
 
-type SystemInfoFormValues = z.infer<typeof systemInfoSchema>
+type SystemInfoFormValues = z.infer<typeof _systemInfoSchema>
 
 type SystemInfoSectionProps = {
   defaultValues: SystemInfoFormValues

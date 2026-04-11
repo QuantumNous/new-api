@@ -39,11 +39,11 @@ export function useTopNavLinks(): TopNavLink[] {
   const modules = useMemo(() => {
     const raw = status?.HeaderNavModules
     // If empty string, null, or undefined, use default config
-    if (!raw || raw.trim() === '') {
+    if (!raw || (raw as string).trim() === '') {
       return DEFAULT_HEADER_NAV_MODULES
     }
     try {
-      return JSON.parse(raw)
+      return JSON.parse(raw as string)
     } catch {
       // Parse failed, use default config
       return DEFAULT_HEADER_NAV_MODULES
@@ -51,7 +51,7 @@ export function useTopNavLinks(): TopNavLink[] {
   }, [status?.HeaderNavModules])
 
   // Documentation link (may be external)
-  const docsLink: string | undefined = status?.docs_link
+  const docsLink: string | undefined = status?.docs_link as string | undefined
 
   const isAuthed = !!auth?.user
 

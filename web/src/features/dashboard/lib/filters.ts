@@ -16,7 +16,7 @@ export function cleanFilters<T extends Record<string, unknown>>(
       if (trimmed) cleaned[key as keyof T] = trimmed as T[keyof T]
       continue
     }
-    cleaned[key as keyof T] = value
+    cleaned[key as keyof T] = value as T[keyof T]
   }
   return cleaned
 }

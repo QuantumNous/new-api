@@ -333,7 +333,7 @@ export function CreateDeploymentDrawer({
     })
   }, [open, form])
 
-  const _priceSummary = useMemo(() => {
+  const priceSummary = useMemo<string>(() => {
     const est = priceData?.data
     if (!est || typeof est !== 'object') return ''
     const total =
@@ -344,6 +344,7 @@ export function CreateDeploymentDrawer({
     if (total === '' && currency === '') return ''
     return `${total} ${currency}`.trim()
   }, [priceData])
+  void priceSummary
 
   return (
     <Sheet

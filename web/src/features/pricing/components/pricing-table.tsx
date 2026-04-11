@@ -44,7 +44,7 @@ export function PricingTable({
   showRechargePrice = false,
 }: PricingTableProps) {
   const { t } = useTranslation()
-  const navigate = useNavigate({ from: '/pricing' })
+  const navigate = useNavigate({ from: '/pricing/' })
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: DEFAULT_PRICING_PAGE_SIZE,

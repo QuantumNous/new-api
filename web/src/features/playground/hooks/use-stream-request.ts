@@ -79,7 +79,12 @@ export function useStreamRequest() {
         'readystatechange',
         (e: Event & { readyState?: number }) => {
           const status = (source as unknown as { status?: number }).status
-          if (e.readyState >= 2 && status !== undefined && status !== 200) {
+          if (
+            e.readyState !== undefined &&
+            e.readyState >= 2 &&
+            status !== undefined &&
+            status !== 200
+          ) {
             handleError(`HTTP ${status}: ${ERROR_MESSAGES.CONNECTION_CLOSED}`)
           }
         }

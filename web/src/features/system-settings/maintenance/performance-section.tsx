@@ -130,11 +130,13 @@ export function PerformanceSection(props: Props) {
   const [logCleanupLoading, setLogCleanupLoading] = useState(false)
 
   const form = useForm<PerfFormValues>({
-    resolver: zodResolver(perfSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(perfSchema) as any,
     defaultValues: props.defaultValues,
   })
 
-  useResetForm(form, props.defaultValues)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useResetForm(form as any, props.defaultValues)
 
   const fetchStats = useCallback(async () => {
     try {
@@ -163,11 +165,14 @@ export function PerformanceSection(props: Props) {
     const entries = Object.entries(data) as [string, unknown][]
     const updates = entries.filter(
       ([key, value]) =>
-        value !== props.defaultValues[key as keyof PerfFormValues]
+        value !== (props.defaultValues[key as keyof PerfFormValues] as unknown)
     )
     if (updates.length === 0) return
     for (const [key, value] of updates) {
-      await updateOption.mutateAsync({ key, value })
+      await updateOption.mutateAsync({
+        key,
+        value: value as string | number | boolean,
+      })
     }
     toast.success(t('Saved successfully'))
     fetchStats()

@@ -40,8 +40,8 @@ export function MaintenanceSettings() {
   const sectionContent = getMaintenanceSectionContent(
     activeSection,
     settings,
-    status?.version,
-    status?.start_time
+    status?.version as string | undefined,
+    status?.start_time as number | null | undefined
   )
 
   return (

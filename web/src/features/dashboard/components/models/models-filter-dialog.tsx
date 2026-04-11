@@ -81,7 +81,11 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
   )
 
   const handleApply = () => {
-    onFilterChange(cleanFilters(filters))
+    onFilterChange(
+      cleanFilters(
+        filters as unknown as Record<string, unknown>
+      ) as typeof filters
+    )
     setOpen(false)
   }
 

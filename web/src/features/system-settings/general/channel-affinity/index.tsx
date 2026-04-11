@@ -457,7 +457,7 @@ export function ChannelAffinitySection(props: Props) {
                           variant={
                             rule.skip_retry_on_failure
                               ? 'destructive'
-                              : 'success'
+                              : 'outline'
                           }
                           className='text-xs'
                         >

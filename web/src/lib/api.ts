@@ -28,12 +28,13 @@ export const api = axios.create({
 const inFlightGet = new Map<string, Promise<unknown>>()
 const originalGet = api.get.bind(api)
 
-api.get = (url, config = {}) => {
-  const disableDuplicate = (config as Record<string, unknown>)?.disableDuplicate
+api.get = ((url: string, config = {}) => {
+  const disableDuplicate = (config as unknown as Record<string, unknown>)
+    ?.disableDuplicate
   if (disableDuplicate) return originalGet(url, config)
 
-  const params = (config as Record<string, unknown>)?.params
-    ? JSON.stringify((config as Record<string, unknown>).params)
+  const params = (config as unknown as Record<string, unknown>)?.params
+    ? JSON.stringify((config as unknown as Record<string, unknown>).params)
     : '{}'
   const key = `${url}?${params}`
 
@@ -44,7 +45,7 @@ api.get = (url, config = {}) => {
   const req = originalGet(url, config).finally(() => inFlightGet.delete(key))
   inFlightGet.set(key, req)
   return req
-}
+}) as typeof api.get
 
 // ============================================================================
 // Response Interceptor
@@ -53,7 +54,7 @@ api.get = (url, config = {}) => {
 // Handle business logic errors and HTTP errors globally
 api.interceptors.response.use(
   (response) => {
-    const skipBusiness = (response.config as Record<string, unknown>)
+    const skipBusiness = (response.config as unknown as Record<string, unknown>)
       ?.skipBusinessError
 
     // Unified business response format: { success, message, data }

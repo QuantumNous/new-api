@@ -14,7 +14,13 @@ import {
   DISPLAYABLE_LOG_TYPES,
   TIMING_LOG_TYPES,
 } from '../constants'
-import type { GetLogsParams, GetLogsResponse, FetchLogsConfig } from '../types'
+import type {
+  GetLogsParams,
+  GetLogsResponse,
+  FetchLogsConfig,
+  GetMidjourneyLogsParams,
+  GetTaskLogsParams,
+} from '../types'
 
 // ============================================================================
 // Type Checkers & Utilities
@@ -134,9 +140,11 @@ export function buildBaseParams(config: {
   return {
     p: page,
     page_size: pageSize,
-    ...(searchParams.channel && {
-      channel_id: searchParams.channel.toString(),
-    }),
+    ...(searchParams.channel
+      ? {
+          channel_id: String(searchParams.channel),
+        }
+      : {}),
     ...buildTimeRangeParams(searchParams, useMilliseconds),
   }
 }
@@ -165,14 +173,16 @@ export function buildApiParams(config: {
   const params: GetLogsParams = {
     p: page,
     page_size: pageSize,
-    ...(searchParams.type && { type: processType(searchParams.type) }),
-    ...(searchParams.model && { model_name: String(searchParams.model) }),
-    ...(searchParams.token && { token_name: String(searchParams.token) }),
-    ...(searchParams.group && { group: String(searchParams.group) }),
-    ...(isAdmin &&
-      searchParams.channel && { channel: Number(searchParams.channel) || 0 }),
-    ...(isAdmin &&
-      searchParams.username && { username: String(searchParams.username) }),
+    ...(searchParams.type ? { type: processType(searchParams.type) } : {}),
+    ...(searchParams.model ? { model_name: String(searchParams.model) } : {}),
+    ...(searchParams.token ? { token_name: String(searchParams.token) } : {}),
+    ...(searchParams.group ? { group: String(searchParams.group) } : {}),
+    ...(isAdmin && searchParams.channel
+      ? { channel: Number(searchParams.channel) || 0 }
+      : {}),
+    ...(isAdmin && searchParams.username
+      ? { username: String(searchParams.username) }
+      : {}),
     ...buildTimeRangeParams(searchParams, false),
   }
 
@@ -241,18 +251,22 @@ export async function fetchLogsByCategory(
 
   const paramsWithFilter = {
     ...baseParams,
-    ...(logCategory === 'drawing' && { mj_id: searchParams.filter }),
-    ...(logCategory === 'task' && { task_id: searchParams.filter }),
+    ...(logCategory === 'drawing'
+      ? { mj_id: searchParams.filter as string | undefined }
+      : {}),
+    ...(logCategory === 'task'
+      ? { task_id: searchParams.filter as string | undefined }
+      : {}),
   }
 
   if (logCategory === 'drawing') {
     return isAdmin
-      ? await getAllMidjourneyLogs(paramsWithFilter)
-      : await getUserMidjourneyLogs(paramsWithFilter)
+      ? await getAllMidjourneyLogs(paramsWithFilter as GetMidjourneyLogsParams)
+      : await getUserMidjourneyLogs(paramsWithFilter as GetMidjourneyLogsParams)
   }
 
   // task logs
   return isAdmin
-    ? await getAllTaskLogs(paramsWithFilter)
-    : await getUserTaskLogs(paramsWithFilter)
+    ? await getAllTaskLogs(paramsWithFilter as GetTaskLogsParams)
+    : await getUserTaskLogs(paramsWithFilter as GetTaskLogsParams)
 }

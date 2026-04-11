@@ -1,4 +1,5 @@
 import { useStatus } from '@/hooks/use-status'
+import type { AnnouncementItem, ApiInfoItem, FAQItem } from '../types'
 
 /**
  * Get specific list from status data
@@ -9,7 +10,7 @@ export function useStatusData<T = unknown>(
 ): { items: T[]; loading: boolean } {
   const { status, loading } = useStatus()
   const enabled = status?.[enabledKey] ?? false
-  const items = enabled ? status?.[dataKey] || [] : []
+  const items = (enabled ? status?.[dataKey] || [] : []) as T[]
 
   return { items, loading }
 }
@@ -18,19 +19,22 @@ export function useStatusData<T = unknown>(
  * Get API info list
  */
 export function useApiInfo() {
-  return useStatusData('api_info_enabled', 'api_info')
+  return useStatusData<ApiInfoItem>('api_info_enabled', 'api_info')
 }
 
 /**
  * Get announcements list
  */
 export function useAnnouncements() {
-  return useStatusData('announcements_enabled', 'announcements')
+  return useStatusData<AnnouncementItem>(
+    'announcements_enabled',
+    'announcements'
+  )
 }
 
 /**
  * Get FAQ list
  */
 export function useFAQ() {
-  return useStatusData('faq_enabled', 'faq')
+  return useStatusData<FAQItem>('faq_enabled', 'faq')
 }

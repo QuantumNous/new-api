@@ -228,7 +228,7 @@ export function Wallet() {
                 redeeming={redeeming}
                 topupLink={topupInfo?.topup_link}
                 loading={topupLoading}
-                priceRatio={status?.price || 1}
+                priceRatio={(status?.price as number) || 1}
                 usdExchangeRate={effectiveUsdExchangeRate}
                 onOpenBilling={() => setBillingDialogOpen(true)}
                 creemProducts={topupInfo?.creem_products}

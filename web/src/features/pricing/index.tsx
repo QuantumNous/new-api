@@ -42,7 +42,7 @@ import type { TokenUnit } from './types'
 export function Pricing() {
   const { t } = useTranslation()
   const search = useSearch({ from: '/pricing/' })
-  const navigate = useNavigate({ from: '/pricing' })
+  const navigate = useNavigate({ from: '/pricing/' })
   const isMobile = useMediaQuery('(max-width: 640px)')
   const {
     models,
@@ -136,8 +136,8 @@ export function Pricing() {
     if (showRechargePrice) params.rechargePrice = true
 
     navigate({
-      to: '/pricing',
-      search: params,
+      to: '/pricing' as const,
+      search: params as Record<string, unknown>,
       replace: true,
     })
   }, [

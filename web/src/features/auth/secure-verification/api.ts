@@ -128,11 +128,14 @@ async function verifyPasskey(): Promise<void> {
     }
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === 'NotAllowedError') {
-      throw new Error('Passkey verification was cancelled or timed out')
+      throw new Error('Passkey verification was cancelled or timed out', {
+        cause: error,
+      })
     }
     if (error instanceof DOMException && error.name === 'InvalidStateError') {
       throw new Error(
-        'Passkey verification is not available in the current state'
+        'Passkey verification is not available in the current state',
+        { cause: error }
       )
     }
     throw error

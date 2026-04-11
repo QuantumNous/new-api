@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import type { ContentSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { AnnouncementsSection } from './announcements-section'

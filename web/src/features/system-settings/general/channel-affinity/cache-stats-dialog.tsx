@@ -73,22 +73,22 @@ export function CacheStatsDialog(props: Props) {
     if (s.rule_name || props.target?.rule_name)
       data.push({
         key: t('Rule'),
-        value: s.rule_name || props.target?.rule_name || '',
+        value: (s.rule_name || props.target?.rule_name || '') as string,
       })
     if (s.using_group || props.target?.using_group)
       data.push({
         key: t('Group'),
-        value: s.using_group || props.target?.using_group || '',
+        value: (s.using_group || props.target?.using_group || '') as string,
       })
     if (props.target?.key_hint)
       data.push({ key: t('Key Summary'), value: props.target.key_hint })
     if (s.key_fp || props.target?.key_fp)
       data.push({
         key: t('Key Fingerprint'),
-        value: s.key_fp || props.target?.key_fp || '',
+        value: (s.key_fp || props.target?.key_fp || '') as string,
       })
     if (Number(s.window_seconds || 0) > 0)
-      data.push({ key: t('TTL (seconds)'), value: s.window_seconds })
+      data.push({ key: t('TTL (seconds)'), value: s.window_seconds as number })
     if (total > 0)
       data.push({
         key: t('Hit Rate'),
@@ -97,7 +97,7 @@ export function CacheStatsDialog(props: Props) {
     if (Number(s.last_seen_at || 0) > 0)
       data.push({
         key: t('Last Seen'),
-        value: formatTimestampToDate(s.last_seen_at),
+        value: formatTimestampToDate(s.last_seen_at as number | undefined),
       })
 
     const promptTokens = Number(s.prompt_tokens || 0)

@@ -40,7 +40,7 @@ export function buildChatCompletionPayload(
     if (parameterEnabled[key]) {
       const value = config[key as keyof PlaygroundConfig]
       if (value !== undefined && value !== null) {
-        ;(payload as Record<string, unknown>)[key] = value
+        ;(payload as unknown as Record<string, unknown>)[key] = value
       }
     }
   })

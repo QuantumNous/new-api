@@ -346,8 +346,14 @@ export function processChartData(
             for (let i = 0; i < array.length; i++) {
               if (array[i].key === 'Other') continue
               const v = Number(array[i].value) || 0
-              if (array[i].datum && array[i].datum.TimeSum) {
-                sum = Number(array[i].datum.TimeSum) || sum
+              if (
+                array[i].datum &&
+                (array[i].datum as Record<string, unknown>)?.TimeSum
+              ) {
+                sum =
+                  Number(
+                    (array[i].datum as Record<string, unknown>)?.TimeSum
+                  ) || sum
               }
               array[i].value = formatQuotaWithCurrency(v, {
                 digitsLarge: 4,

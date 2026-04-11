@@ -32,6 +32,7 @@ import {
   getGroups,
 } from '../../api'
 import { channelsQueryKeys } from '../../lib'
+import type { TagOperationParams } from '../../types'
 import { useChannels } from '../channels-provider'
 
 type EditTagDialogProps = {
@@ -174,7 +175,9 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
         params.groups = selectedGroups.join(',')
       }
 
-      const response = await editTagChannels(params)
+      const response = await editTagChannels(
+        params as unknown as TagOperationParams
+      )
 
       if (response.success) {
         toast.success(t('Tag updated successfully'))

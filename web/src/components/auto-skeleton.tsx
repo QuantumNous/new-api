@@ -14,20 +14,21 @@ interface ContentSkeletonProps {
 
 export function ContentSkeleton(props: ContentSkeletonProps) {
   return (
-    <AutoSkeleton
-      loading={props.loading}
-      config={{
-        animation: 'none',
-        baseColor: 'var(--skeleton-base)',
-        highlightColor: 'var(--skeleton-highlight)',
-        borderRadius: props.borderRadius ?? 6,
-        minTextHeight: props.minTextHeight ?? 14,
-        maxDepth: props.maxDepth ?? 10,
-      }}
-      className={props.className}
-    >
-      {props.children}
-    </AutoSkeleton>
+    <div className={props.className}>
+      <AutoSkeleton
+        loading={props.loading}
+        config={{
+          animation: 'none',
+          baseColor: 'var(--skeleton-base)',
+          highlightColor: 'var(--skeleton-highlight)',
+          borderRadius: props.borderRadius ?? 6,
+          minTextHeight: props.minTextHeight ?? 14,
+          maxDepth: props.maxDepth ?? 10,
+        }}
+      >
+        {props.children}
+      </AutoSkeleton>
+    </div>
   )
 }
 

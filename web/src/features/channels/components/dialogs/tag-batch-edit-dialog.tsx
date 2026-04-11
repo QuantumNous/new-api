@@ -25,6 +25,7 @@ import {
   getGroups,
 } from '../../api'
 import { channelsQueryKeys } from '../../lib'
+import type { TagOperationParams } from '../../types'
 import { useChannels } from '../channels-provider'
 import { ModelMappingEditor } from '../model-mapping-editor'
 
@@ -141,7 +142,9 @@ export function TagBatchEditDialog({
         return
       }
 
-      const response = await editTagChannels(params)
+      const response = await editTagChannels(
+        params as unknown as TagOperationParams
+      )
       if (response.success) {
         toast.success(t('Tag updated successfully'))
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })

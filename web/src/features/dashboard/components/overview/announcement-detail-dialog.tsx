@@ -13,7 +13,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 interface AnnouncementDetailModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  announcement: { title?: string; content?: string; tag?: string } | null
+  announcement: {
+    title?: string
+    content?: string
+    tag?: string
+    publishDate?: string
+    extra?: string
+  } | null
 }
 
 export function AnnouncementDetailModal({

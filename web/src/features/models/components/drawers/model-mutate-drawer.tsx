@@ -161,6 +161,8 @@ export function ModelMutateDrawer({
       GroupGroupRatio: '',
       AutoGroups: '',
       DefaultUseAutoGroup: false,
+      'grok.violation_deduction_enabled': false,
+      'grok.violation_deduction_amount': 0,
     }
     return getOptionValue(systemOptionsData.data, defaultModelSettings)
   }, [systemOptionsData])

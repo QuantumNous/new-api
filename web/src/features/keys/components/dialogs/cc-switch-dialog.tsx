@@ -82,7 +82,7 @@ interface Props {
 export function CCSwitchDialog(props: Props) {
   const { t } = useTranslation()
   const [app, setApp] = useState<AppType>('claude')
-  const [name, setName] = useState(APP_CONFIGS.claude.defaultName)
+  const [name, setName] = useState<string>(APP_CONFIGS.claude.defaultName)
   const [models, setModels] = useState<Record<string, string>>({})
 
   useEffect(() => {

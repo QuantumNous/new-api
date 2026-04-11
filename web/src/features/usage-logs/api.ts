@@ -26,12 +26,12 @@ function buildApiPath(endpoint: string, isAdmin: boolean): string {
 /**
  * Generic function to fetch logs with pagination
  */
-async function fetchLogs<T extends Record<string, unknown>>(
+async function fetchLogs<T>(
   endpoint: string,
   params: T,
   isAdmin: boolean
 ): Promise<GetLogsResponse> {
-  const paramRecord = params as Record<string, unknown>
+  const paramRecord = params as unknown as Record<string, unknown>
   const queryParams = buildQueryParams({
     p: paramRecord.p || 1,
     page_size: paramRecord.page_size || 10,
@@ -60,12 +60,14 @@ async function searchLogs(
 /**
  * Generic function to get log statistics
  */
-async function fetchLogStats<T extends Record<string, unknown>>(
+async function fetchLogStats<T>(
   endpoint: string,
   params: T,
   isAdmin: boolean
 ): Promise<GetLogStatsResponse> {
-  const queryParams = buildQueryParams(params)
+  const queryParams = buildQueryParams(
+    params as unknown as Record<string, unknown>
+  )
   const path = buildApiPath(endpoint, isAdmin)
   const res = await api.get(`${path}/stat?${queryParams}`)
   return res.data

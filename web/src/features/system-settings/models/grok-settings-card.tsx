@@ -36,20 +36,25 @@ export function GrokSettingsCard(props: Props) {
   const updateOption = useUpdateOption()
 
   const form = useForm<GrokFormValues>({
-    resolver: zodResolver(grokSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(grokSchema) as any,
     defaultValues: props.defaultValues,
   })
 
-  useResetForm(form, props.defaultValues)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useResetForm(form as any, props.defaultValues)
 
   const onSubmit = async (data: GrokFormValues) => {
     const entries = Object.entries(data) as [string, unknown][]
     const updates = entries.filter(
       ([key, value]) =>
-        value !== props.defaultValues[key as keyof GrokFormValues]
+        value !== (props.defaultValues[key as keyof GrokFormValues] as unknown)
     )
     for (const [key, value] of updates) {
-      await updateOption.mutateAsync({ key, value })
+      await updateOption.mutateAsync({
+        key,
+        value: value as string | number | boolean,
+      })
     }
   }
 

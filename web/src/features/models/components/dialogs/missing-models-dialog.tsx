@@ -23,6 +23,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { getMissingModels } from '../../api'
 import { DEFAULT_PAGE_SIZE } from '../../constants'
 import { modelsQueryKeys } from '../../lib'
+import type { Model } from '../../types'
 import { useModels } from '../models-provider'
 
 type MissingModelsDialogProps = {
@@ -50,7 +51,7 @@ export function MissingModelsDialog({
   const pageSize = DEFAULT_PAGE_SIZE
 
   const handleConfigureModel = (modelName: string) => {
-    setCurrentRow({ model_name: modelName } as Record<string, unknown>)
+    setCurrentRow({ model_name: modelName } as unknown as Model)
     setOpen('create-model')
   }
 

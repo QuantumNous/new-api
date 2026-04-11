@@ -41,7 +41,7 @@ function extractChats(status: SystemStatus | null): RawChatConfig {
   const raw =
     status?.Chats ?? status?.chats ?? status?.data?.Chats ?? status?.data?.chats
 
-  return raw ?? getStoredStatusChats()
+  return (raw as RawChatConfig) ?? getStoredStatusChats()
 }
 
 export function useChatPresets(): {

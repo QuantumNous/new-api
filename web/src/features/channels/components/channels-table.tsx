@@ -384,7 +384,8 @@ export function ChannelsTable() {
 }
 
 // Helper to render cell content
-function flexRender(content: unknown, context: Record<string, unknown>) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function flexRender(content: unknown, context: any) {
   if (typeof content === 'function') {
     return content(context)
   }

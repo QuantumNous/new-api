@@ -1,14 +1,7 @@
 import { useMemo } from 'react'
-import {
-  Github,
-  Loader2,
-  Send,
-  Shield,
-  UserRound,
-  type LucideIcon,
-} from 'lucide-react'
+import { Loader2, Send, Shield, UserRound, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { SiLinux, SiWechat } from 'react-icons/si'
+import { SiGithub, SiLinux, SiWechat } from 'react-icons/si'
 import { AuthLayout } from '../auth-layout'
 
 type OAuthCallbackScreenProps = {
@@ -22,7 +15,12 @@ type ProviderMeta = {
 }
 
 const providerDictionary: Record<string, ProviderMeta> = {
-  github: { label: 'GitHub', Icon: Github },
+  github: {
+    label: 'GitHub',
+    Icon: (props: { className?: string }) => (
+      <SiGithub className={props.className} focusable='false' />
+    ),
+  },
   oidc: { label: 'OIDC', Icon: Shield },
   linuxdo: {
     label: 'LinuxDO',

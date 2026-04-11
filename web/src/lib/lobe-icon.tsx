@@ -88,11 +88,9 @@ export function getLobeIcon(
     | Record<string, unknown>
     | undefined
 
-  let IconComponent: React.ComponentType<Record<string, unknown>> | undefined =
-    undefined
-  let propStartIndex = 1
+  let IconComponent: React.ComponentType<Record<string, unknown>> | undefined
+  let propStartIndex: number
 
-  // Check if it's a nested component like "OpenAI.Color"
   if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
     IconComponent = BaseIcon[segments[1]] as React.ComponentType<
       Record<string, unknown>
@@ -102,12 +100,7 @@ export function getLobeIcon(
     IconComponent = (LobeIcons as Record<string, unknown>)[baseKey] as
       | React.ComponentType<Record<string, unknown>>
       | undefined
-    propStartIndex = 1
-    // Skip failed nested component names (e.g., "Color", "Avatar") to avoid treating them as props
-    // Check if segments[1] looks like a component name (starts with uppercase)
-    if (segments.length > 1 && /^[A-Z]/.test(segments[1])) {
-      propStartIndex = 2 // Skip the failed component name
-    }
+    propStartIndex = segments.length > 1 && /^[A-Z]/.test(segments[1]) ? 2 : 1
   }
 
   // Fallback if icon not found

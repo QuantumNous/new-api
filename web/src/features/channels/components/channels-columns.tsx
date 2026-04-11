@@ -873,9 +873,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         if (isTagRow) {
           return (
             <DataTableTagRowActions
-              row={
-                row as unknown as import('@tanstack/react-table').Row<TagRow>
-              }
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              row={row as any}
             />
           )
         }

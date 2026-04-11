@@ -177,7 +177,10 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
   const { status } = useStatus()
 
   const config = useMemo(
-    () => parseSidebarConfig(status?.SidebarModulesAdmin),
+    () =>
+      parseSidebarConfig(
+        status?.SidebarModulesAdmin as string | null | undefined
+      ),
     [status?.SidebarModulesAdmin]
   )
 

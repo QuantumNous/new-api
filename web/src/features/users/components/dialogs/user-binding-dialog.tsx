@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Mail,
-  Github,
   Globe,
   MessageCircle,
   Send,
@@ -10,6 +9,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { SiGithub } from 'react-icons/si'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,7 +48,7 @@ interface BindingItem {
 
 const BUILTIN_BINDINGS = [
   { key: 'email', label: 'Email', icon: <Mail className='h-4 w-4' /> },
-  { key: 'github_id', label: 'GitHub', icon: <Github className='h-4 w-4' /> },
+  { key: 'github_id', label: 'GitHub', icon: <SiGithub className='h-4 w-4' /> },
   {
     key: 'wechat_id',
     label: 'WeChat',
