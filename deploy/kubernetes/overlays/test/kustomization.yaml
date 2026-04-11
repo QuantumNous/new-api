@@ -1,0 +1,12 @@
+# deploy/kubernetes/overlays/test/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: new-api-test # 定义测试环境的命名空间
+
+resources:
+  - ../../base # 引入基础配置
+
+patches:
+  - path: deployment.yaml # 覆盖 Deployment 配置
+  - path: secret.yaml # 覆盖 Secret 配置

@@ -1,0 +1,20 @@
+# deploy/kubernetes/overlays/test/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: new-api-deployment # 对应 base 中的 Deployment 名称
+  namespace: new-api-test # 覆盖 base 中的命名空间
+spec:
+  replicas: 1 # 测试环境通常一个副本即可
+  template:
+    spec:
+      containers:
+      - name: new-api
+        image: <your-acr-registry>/new-api:test-<COMMIT_SHA> # 测试环境镜像，CI/CD 时替换
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"

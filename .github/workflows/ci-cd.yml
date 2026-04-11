@@ -1,0 +1,294 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ========== 代码检查 ==========
+  lint:
+    name: Code Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Run Go Lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        working-directory: ./web
+        run: bun install
+
+      - name: Run frontend lint
+        working-directory: ./web
+        run: bun run lint || true
+
+  # ========== 单元测试 ==========
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Run Go tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+
+  # ========== 构建镜像 ==========
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,suffix=,format=short
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ========== 部署到开发环境 ==========
+  deploy-dev:
+    name: Deploy to Dev
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: development
+      url: http://dev.new-api.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure ACK credentials
+        uses: aliyun/ack-set-context@v1
+        with:
+          access-key-id: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+          access-key-secret: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+          cluster-id: ${{ secrets.ACK_CLUSTER_ID_DEV }}
+
+      - name: Update image tag
+        working-directory: ./deploy/aliyun/environments/dev
+        run: |
+          IMAGE_TAG=$(echo "${{ needs.build.outputs.image_tag }}" | cut -d',' -f1)
+          sed -i "s|image: calciumion/new-api:.*|image: ${IMAGE_TAG}|" 04-deployment.yaml
+
+      - name: Deploy to Dev
+        working-directory: ./deploy/aliyun/environments/dev
+        run: |
+          kubectl apply -f 01-namespace.yaml
+          kubectl apply -f 02-configmap.yaml
+          kubectl apply -f 03-secret.yaml
+          kubectl apply -f 04-deployment.yaml
+          kubectl apply -f 05-service.yaml
+          kubectl apply -f 06-hpa.yaml
+          kubectl rollout status deployment/new-api -n new-api-dev --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n new-api-dev
+          kubectl get svc -n new-api-dev
+
+  # ========== 部署到预发环境 ==========
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: http://staging.new-api.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure ACK credentials
+        uses: aliyun/ack-set-context@v1
+        with:
+          access-key-id: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+          access-key-secret: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+          cluster-id: ${{ secrets.ACK_CLUSTER_ID_STAGING }}
+
+      - name: Update image tag
+        working-directory: ./deploy/aliyun/environments/staging
+        run: |
+          IMAGE_TAG=$(echo "${{ needs.build.outputs.image_tag }}" | cut -d',' -f1)
+          sed -i "s|image: calciumion/new-api:.*|image: ${IMAGE_TAG}|" 04-deployment.yaml
+
+      - name: Deploy to Staging
+        working-directory: ./deploy/aliyun/environments/staging
+        run: |
+          kubectl apply -k .
+          kubectl rollout status deployment/new-api -n new-api-staging --timeout=300s
+
+      - name: Run smoke tests
+        run: |
+          STAGING_URL=$(kubectl get svc new-api-service -n new-api-staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          curl -f http://${STAGING_URL}/api/status || exit 1
+
+  # ========== 部署到生产环境 ==========
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, deploy-staging]
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: production
+      url: http://new-api.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure ACK credentials
+        uses: aliyun/ack-set-context@v1
+        with:
+          access-key-id: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+          access-key-secret: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+          cluster-id: ${{ secrets.ACK_CLUSTER_ID_PROD }}
+
+      - name: Update image tag
+        working-directory: ./deploy/aliyun/environments/production
+        run: |
+          IMAGE_TAG=$(echo "${{ needs.build.outputs.image_tag }}" | cut -d',' -f1)
+          sed -i "s|image: calciumion/new-api:.*|image: ${IMAGE_TAG}|" 04-deployment.yaml
+
+      - name: Deploy to Production
+        working-directory: ./deploy/aliyun/environments/production
+        run: |
+          kubectl apply -f 01-namespace.yaml
+          kubectl apply -f 02-configmap.yaml
+          kubectl apply -f 03-secret.yaml
+          kubectl apply -f 04-deployment.yaml
+          kubectl apply -f 05-service.yaml
+          kubectl apply -f 06-hpa.yaml
+          kubectl apply -f 07-pdb.yaml
+          kubectl rollout status deployment/new-api -n new-api-prod --timeout=600s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n new-api-prod
+          PROD_URL=$(kubectl get svc new-api-service -n new-api-prod -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          curl -f http://${PROD_URL}/api/status || exit 1
+
+      - name: Notify Slack
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: 'Production deployment ${{ job.status }}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ========== 安全扫描 ==========
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build.outputs.image_tag }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'

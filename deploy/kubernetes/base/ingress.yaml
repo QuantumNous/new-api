@@ -1,0 +1,36 @@
+# deploy/kubernetes/base/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: new-api-ingress
+  namespace: new-api # 命名空间名称，将被 overlay 覆盖
+  annotations:
+    # 如果使用阿里云 SLB Ingress Controller，可以添加以下注解来配置 SLB
+    # service.beta.kubernetes.io/alicloud-loadbalancer-protocol-port: "https:443,http:80"
+    # service.beta.kubernetes.io/alicloud-loadbalancer-cert-id: "<your_ssl_certificate_id>" # 替换为您的SSL证书ID
+    # service.beta.kubernetes.io/alicloud-loadbalancer-force-override-listeners: "true"
+    # service.beta.kubernetes.io/alicloud-loadbalancer-health-check-uri: "/api/status"
+    # service.beta.kubernetes.io/alicloud-loadbalancer-health-check-connect-port: "3000"
+    # service.beta.kubernetes.io/alicloud-loadbalancer-health-check-interval: "3"
+    # service.beta.kubernetes.io/alicloud-loadbalancer-health-check-timeout: "5"
+    # service.beta.kubernetes.io/alicloud-loadbalancer-health-check-unhealthy-threshold: "3"
+    # service.beta.kubernetes.io/alicloud-loadbalancer-health-check-healthy-threshold: "3"
+    # service.beta.kubernetes.io/alicloud-loadbalancer-spec: "slb.s1.small" # SLB实例规格
+    # nginx.ingress.kubernetes.io/rewrite-target: / # 如果需要路径重写
+spec:
+  ingressClassName: nginx # 或者 alibaba-cloud，根据您的 Ingress Controller 类型配置
+  rules:
+  - host: <your_domain_for_new_api> # 替换为您的实际域名，例如 new-api.yourcompany.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: new-api-service
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - <your_domain_for_new_api>
+    secretName: new-api-tls-secret # 存储TLS证书的Secret，需要手动创建或通过 Cert-manager 生成

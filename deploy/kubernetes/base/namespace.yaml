@@ -1,0 +1,5 @@
+# deploy/kubernetes/base/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: new-api # 命名空间名称，将被 overlay 覆盖为 new-api-test 或 new-api-prod

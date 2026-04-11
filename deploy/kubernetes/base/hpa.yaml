@@ -1,0 +1,26 @@
+# deploy/kubernetes/base/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: new-api-hpa
+  namespace: new-api # 命名空间名称，将被 overlay 覆盖
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: new-api-deployment # Deployment 名称，将被 overlay 覆盖
+  minReplicas: 2 # 最小副本数，确保高可用
+  maxReplicas: 10 # 最大副本数
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70 # 当 CPU 平均使用率达到 70% 时扩容
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80 # 当内存平均使用率达到 80% 时扩容

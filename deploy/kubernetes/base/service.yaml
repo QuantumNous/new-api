@@ -1,0 +1,14 @@
+# deploy/kubernetes/base/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: new-api-service
+  namespace: new-api # 命名空间名称，将被 overlay 覆盖
+spec:
+  selector:
+    app: new-api
+  ports:
+    - protocol: TCP
+      port: 80 # Service 监听的端口
+      targetPort: 3000 # Pod 实际监听的端口
+  type: ClusterIP # ClusterIP 类型，仅在集群内部可访问，通过 Ingress 对外暴露

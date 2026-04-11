@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -82,20 +83,20 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
 		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
 		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
-		"enable_waffo_topup": enableWaffo,
+		"enable_waffo_topup":  enableWaffo,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
 			}
 			return nil
 		}(),
-		"creem_products": setting.CreemProducts,
-		"pay_methods":         payMethods,
-		"min_topup":           operation_setting.MinTopUp,
-		"stripe_min_topup":    setting.StripeMinTopUp,
-		"waffo_min_topup":     setting.WaffoMinTopUp,
-		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":            operation_setting.GetPaymentSetting().AmountDiscount,
+		"creem_products":   setting.CreemProducts,
+		"pay_methods":      payMethods,
+		"min_topup":        operation_setting.MinTopUp,
+		"stripe_min_topup": setting.StripeMinTopUp,
+		"waffo_min_topup":  setting.WaffoMinTopUp,
+		"amount_options":   operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":         operation_setting.GetPaymentSetting().AmountDiscount,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -188,8 +189,16 @@ func RequestEpay(c *gin.Context) {
 	}
 
 	if !operation_setting.ContainsPayMethod(req.PaymentMethod) {
-		c.JSON(200, gin.H{"message": "error", "data": "支付方式不存在"})
+		common.ApiError(c, errors.New("支付方式不存在"))
 		return
+	}
+
+	epayType := req.PaymentMethod
+	switch req.PaymentMethod {
+	case "wechat_qr":
+		epayType = "wxpay"
+	case "alipay_qr":
+		epayType = "alipay"
 	}
 
 	callBackAddress := service.GetCallbackAddress()
@@ -199,11 +208,11 @@ func RequestEpay(c *gin.Context) {
 	tradeNo = fmt.Sprintf("USR%dNO%s", id, tradeNo)
 	client := GetEpayClient()
 	if client == nil {
-		c.JSON(200, gin.H{"message": "error", "data": "当前管理员未配置支付信息"})
+		common.ApiError(c, errors.New("当前管理员未配置支付信息"))
 		return
 	}
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
-		Type:           req.PaymentMethod,
+		Type:           epayType,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("TUC%d", req.Amount),
 		Money:          strconv.FormatFloat(payMoney, 'f', 2, 64),
@@ -212,7 +221,7 @@ func RequestEpay(c *gin.Context) {
 		ReturnUrl:      returnUrl,
 	})
 	if err != nil {
-		c.JSON(200, gin.H{"message": "error", "data": "拉起支付失败"})
+		common.ApiError(c, err)
 		return
 	}
 	amount := req.Amount
@@ -232,10 +241,14 @@ func RequestEpay(c *gin.Context) {
 	}
 	err = topUp.Insert()
 	if err != nil {
-		c.JSON(200, gin.H{"message": "error", "data": "创建订单失败"})
+		common.ApiError(c, err)
 		return
 	}
-	c.JSON(200, gin.H{"message": "success", "data": params, "url": uri})
+	c.JSON(200, gin.H{
+		"message": "success",
+		"url":     uri,
+		"data":    params,
+	})
 }
 
 // tradeNo lock
@@ -463,4 +476,3 @@ func AdminCompleteTopUp(c *gin.Context) {
 	}
 	common.ApiSuccess(c, nil)
 }
-

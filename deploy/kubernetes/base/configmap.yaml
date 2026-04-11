@@ -1,0 +1,12 @@
+# deploy/kubernetes/base/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: new-api-config
+  namespace: new-api # 命名空间名称，将被 overlay 覆盖
+data:
+  STREAMING_TIMEOUT: "300"
+  STREAM_SCANNER_MAX_BUFFER_MB: "64"
+  MAX_REQUEST_BODY_MB: "32"
+  # 其他非敏感环境变量
+  # ERROR_LOG_ENABLED: "false"

@@ -18,6 +18,11 @@ func RouteTag(tag string) gin.HandlerFunc {
 
 func SetUpLogger(server *gin.Engine) {
 	server.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		// 跳过负载均衡器健康检查日志（HEAD / 请求）
+		if param.Method == "HEAD" && param.Path == "/" {
+			return ""
+		}
+
 		var requestID string
 		if param.Keys != nil {
 			requestID, _ = param.Keys[common.RequestIdKey].(string)

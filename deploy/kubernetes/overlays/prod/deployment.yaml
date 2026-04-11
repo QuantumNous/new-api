@@ -1,0 +1,29 @@
+# deploy/kubernetes/overlays/prod/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: new-api-deployment
+  namespace: new-api-prod # 覆盖 base 中的命名空间
+spec:
+  replicas: 2 # 生产环境至少 2 个副本
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: new-api
+                topologyKey: kubernetes.io/hostname # 将 Pod 分散到不同节点
+      containers:
+      - name: new-api
+        image: <your-acr-registry>/new-api:vX.Y.Z # 生产环境镜像，CI/CD 时替换为版本号 Tag
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1024Mi"
