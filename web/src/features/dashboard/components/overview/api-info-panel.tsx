@@ -16,7 +16,6 @@ export function ApiInfoPanel() {
   const { items: list, loading } = useApiInfo()
   const [pingStatus, setPingStatus] = useState<PingStatusMap>({})
 
-  // Speed test function
   const handleTest = useCallback(async (url: string) => {
     setPingStatus((prev) => ({
       ...prev,
@@ -31,7 +30,7 @@ export function ApiInfoPanel() {
     <PanelWrapper
       title={
         <span className='flex items-center gap-2'>
-          <Route className='h-5 w-5' />
+          <Route className='text-muted-foreground/60 size-4' />
           {t('API Info')}
         </span>
       }
@@ -41,14 +40,20 @@ export function ApiInfoPanel() {
       height='h-64'
     >
       <ScrollArea className='h-64'>
-        <div className='space-y-0 pe-4'>
-          {list.map((item: ApiInfoItem) => (
-            <ApiInfoItemComponent
+        <div className='-mx-4 sm:-mx-5'>
+          {list.map((item: ApiInfoItem, idx: number) => (
+            <div
               key={item.url}
-              item={item}
-              status={pingStatus[item.url] || getDefaultPingStatus()}
-              onTest={handleTest}
-            />
+              className={
+                idx < list.length - 1 ? 'border-border/60 border-b' : ''
+              }
+            >
+              <ApiInfoItemComponent
+                item={item}
+                status={pingStatus[item.url] || getDefaultPingStatus()}
+                onTest={handleTest}
+              />
+            </div>
           ))}
         </div>
       </ScrollArea>

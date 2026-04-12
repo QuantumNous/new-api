@@ -1,12 +1,12 @@
 import { useState, useCallback, lazy, Suspense } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SectionPageLayout } from '@/components/layout'
 import {
   CardStaggerContainer,
   CardStaggerItem,
+  FadeIn,
 } from '@/components/page-transition'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { AnnouncementsPanel } from './components/overview/announcements-panel'
@@ -37,27 +37,31 @@ const LazyModelCharts = lazy(() =>
 
 function LogStatCardsFallback() {
   return (
-    <Card>
-      <CardContent>
-        <Skeleton className='h-32 w-full' />
-      </CardContent>
-    </Card>
+    <div className='overflow-hidden rounded-lg border'>
+      <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className='px-4 py-3.5 sm:px-5 sm:py-4'>
+            <Skeleton className='h-3.5 w-16' />
+            <Skeleton className='mt-2 h-7 w-20' />
+            <Skeleton className='mt-1.5 h-3.5 w-28' />
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
 function ModelChartsFallback() {
   return (
-    <Card className='!rounded-2xl !py-0'>
-      <div className='flex w-full flex-col gap-3 px-6 pt-6 lg:flex-row lg:items-center lg:justify-between'>
-        <Skeleton className='h-5 w-36' />
-        <Skeleton className='h-9 w-80' />
+    <div className='overflow-hidden rounded-lg border'>
+      <div className='flex items-center justify-between border-b px-4 py-3 sm:px-5'>
+        <Skeleton className='h-5 w-32' />
+        <Skeleton className='h-8 w-72' />
       </div>
-      <CardContent className='px-0 pt-0'>
-        <div className='h-96 p-2'>
-          <Skeleton className='h-full w-full' />
-        </div>
-      </CardContent>
-    </Card>
+      <div className='h-96 p-2'>
+        <Skeleton className='h-full w-full' />
+      </div>
+    </div>
   )
 }
 
@@ -127,13 +131,15 @@ export function Dashboard() {
             </>
           ) : (
             <>
-              <Suspense fallback={<LogStatCardsFallback />}>
-                <LazyLogStatCards
-                  filters={modelFilters}
-                  onDataUpdate={handleDataUpdate}
-                />
-              </Suspense>
-              <div className='grid grid-cols-1 gap-4'>
+              <FadeIn>
+                <Suspense fallback={<LogStatCardsFallback />}>
+                  <LazyLogStatCards
+                    filters={modelFilters}
+                    onDataUpdate={handleDataUpdate}
+                  />
+                </Suspense>
+              </FadeIn>
+              <FadeIn delay={0.1}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyModelCharts
                     data={modelData}
@@ -143,7 +149,7 @@ export function Dashboard() {
                     }
                   />
                 </Suspense>
-              </div>
+              </FadeIn>
             </>
           )}
         </div>

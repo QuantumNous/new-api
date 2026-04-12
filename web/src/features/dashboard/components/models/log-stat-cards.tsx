@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
-import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
@@ -20,7 +19,7 @@ interface LogStatCardsProps {
   onDataUpdate?: (data: QuotaDataItem[], loading: boolean) => void
 }
 
-export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
+export function LogStatCards(props: LogStatCardsProps) {
   const statCardsConfig = useModelStatCardsConfig()
   const [stats, setStats] = useState<{
     totalQuota: number
@@ -31,6 +30,8 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
   const [error, setError] = useState(false)
 
   const [timeRangeMinutes, setTimeRangeMinutes] = useState(0)
+
+  const { filters, onDataUpdate } = props
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -72,7 +73,6 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
     }
   }, [filters, onDataUpdate])
 
-  // Adapt data format to match config expectations
   const adaptedStats = {
     rpm: stats?.totalCount ?? 0,
     quota: stats?.totalQuota ?? 0,
@@ -90,52 +90,47 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
   }))
 
   return (
-    <Card>
-      <CardContent>
-        <div className='grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5'>
-          {items.map((it) => {
-            const Icon = it.icon
-            return (
-              <div
-                key={it.title}
-                className='group hover:bg-accent/50 -m-2 rounded-lg p-2 transition-colors'
-              >
-                <div className='flex items-center gap-2'>
-                  <Icon className='text-muted-foreground h-4 w-4 shrink-0' />
-                  <div className='text-muted-foreground truncate text-sm font-medium'>
-                    {it.title}
-                  </div>
+    <div className='overflow-hidden rounded-lg border'>
+      <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
+        {items.map((it) => {
+          const Icon = it.icon
+          return (
+            <div key={it.title} className='px-4 py-3.5 sm:px-5 sm:py-4'>
+              <div className='flex items-center gap-2'>
+                <Icon className='text-muted-foreground/60 size-3.5 shrink-0' />
+                <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
+                  {it.title}
                 </div>
-
-                {loading ? (
-                  <div className='mt-2 space-y-2'>
-                    <Skeleton className='h-8 w-28' />
-                    <Skeleton className='h-4 w-36' />
-                  </div>
-                ) : error ? (
-                  <>
-                    <div className='text-muted-foreground mt-2 text-2xl font-semibold tracking-tight tabular-nums'>
-                      --
-                    </div>
-                    <div className='text-muted-foreground mt-1 hidden text-xs md:block'>
-                      {it.desc}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className='mt-2 text-2xl font-semibold tracking-tight tabular-nums'>
-                      {it.value}
-                    </div>
-                    <div className='text-muted-foreground mt-1 hidden text-xs md:block'>
-                      {it.desc}
-                    </div>
-                  </>
-                )}
               </div>
-            )
-          })}
-        </div>
-      </CardContent>
-    </Card>
+
+              {loading ? (
+                <div className='mt-2 space-y-1.5'>
+                  <Skeleton className='h-7 w-20' />
+                  <Skeleton className='h-3.5 w-28' />
+                </div>
+              ) : error ? (
+                <>
+                  <div className='text-muted-foreground mt-2 font-mono text-2xl font-bold tracking-tight tabular-nums'>
+                    --
+                  </div>
+                  <div className='text-muted-foreground/40 mt-1 hidden text-xs md:block'>
+                    {it.desc}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className='text-foreground mt-2 font-mono text-2xl font-bold tracking-tight tabular-nums'>
+                    {it.value}
+                  </div>
+                  <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
+                    {it.desc}
+                  </div>
+                </>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }

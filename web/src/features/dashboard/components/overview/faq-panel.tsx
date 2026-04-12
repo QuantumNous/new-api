@@ -20,7 +20,7 @@ export function FAQPanel() {
     <PanelWrapper
       title={
         <span className='flex items-center gap-2'>
-          <HelpCircle className='h-5 w-5' />
+          <HelpCircle className='text-muted-foreground/60 size-4' />
           {t('FAQ')}
         </span>
       }
@@ -30,20 +30,23 @@ export function FAQPanel() {
       height='h-80'
     >
       <ScrollArea className='h-80'>
-        <Accordion type='single' collapsible className='w-full pe-4'>
+        <Accordion type='single' collapsible className='w-full'>
           {list.map((item: FAQItem, idx: number) => {
-            // Use id if available, otherwise fallback to index
             const key = item.id ?? `faq-${idx}`
             const value = `item-${key}`
             return (
-              <AccordionItem key={key} value={value}>
+              <AccordionItem
+                key={key}
+                value={value}
+                className='border-border/60'
+              >
                 <AccordionTrigger className='text-start hover:no-underline'>
                   <Markdown className='text-sm leading-relaxed font-semibold'>
                     {item.question}
                   </Markdown>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <Markdown className='text-muted-foreground'>
+                  <Markdown className='text-muted-foreground/60 text-sm'>
                     {item.answer}
                   </Markdown>
                 </AccordionContent>

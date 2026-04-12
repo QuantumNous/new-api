@@ -1,86 +1,63 @@
 import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface PanelWrapperProps {
-  /** Panel title (element with icon) */
   title: ReactNode
-  /** Whether in loading state */
   loading?: boolean
-  /** Whether in empty state */
   empty?: boolean
-  /** Empty state message */
   emptyMessage?: string
-  /** Content area height (for loading and empty states) */
   height?: string
-  /** Optional header action buttons */
   headerActions?: ReactNode
-  /** Normal state content */
   children?: ReactNode
 }
 
-/**
- * Unified panel wrapper - handles loading/empty/normal states
- */
-export function PanelWrapper({
-  title,
-  loading = false,
-  empty = false,
-  emptyMessage,
-  height = 'h-64',
-  headerActions,
-  children,
-}: PanelWrapperProps) {
+export function PanelWrapper(props: PanelWrapperProps) {
   const { t } = useTranslation()
-  const resolvedEmptyMessage = emptyMessage ?? t('No data available')
+  const resolvedEmptyMessage = props.emptyMessage ?? t('No data available')
+  const height = props.height ?? 'h-64'
 
-  // Loading state - return card with skeleton
-  if (loading) {
+  if (props.loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className='overflow-hidden rounded-lg border'>
+        <div className='border-b px-4 py-3 sm:px-5'>
+          <div className='text-sm font-semibold'>{props.title}</div>
+        </div>
+        <div className='p-4 sm:p-5'>
           <Skeleton className={`w-full ${height}`} />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
-  // Empty state - return card with empty message
-  if (empty) {
+  if (props.empty) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={`text-muted-foreground flex items-center justify-center ${height}`}
-          >
-            {resolvedEmptyMessage}
-          </div>
-        </CardContent>
-      </Card>
+      <div className='overflow-hidden rounded-lg border'>
+        <div className='border-b px-4 py-3 sm:px-5'>
+          <div className='text-sm font-semibold'>{props.title}</div>
+        </div>
+        <div
+          className={`text-muted-foreground flex items-center justify-center text-sm ${height}`}
+        >
+          {resolvedEmptyMessage}
+        </div>
+      </div>
     )
   }
 
-  // Normal state - return full card structure
   return (
-    <Card>
-      <CardHeader>
-        {headerActions ? (
+    <div className='overflow-hidden rounded-lg border'>
+      <div className='border-b px-4 py-3 sm:px-5'>
+        {props.headerActions ? (
           <div className='flex items-center justify-between'>
-            <CardTitle>{title}</CardTitle>
-            {headerActions}
+            <div className='text-sm font-semibold'>{props.title}</div>
+            {props.headerActions}
           </div>
         ) : (
-          <CardTitle>{title}</CardTitle>
+          <div className='text-sm font-semibold'>{props.title}</div>
         )}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+      </div>
+      <div className='p-4 sm:p-5'>{props.children}</div>
+    </div>
   )
 }

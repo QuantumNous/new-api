@@ -1,11 +1,12 @@
 import globals from 'globals'
 import js from '@eslint/js'
+import { defineConfig } from 'eslint/config'
 import pluginQuery from '@tanstack/eslint-plugin-query'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
-export default tseslint.config(
+export default defineConfig(
   { ignores: ['dist', 'src/components/ui'] },
   {
     extends: [
@@ -43,7 +44,6 @@ export default tseslint.config(
           ignoreRestSiblings: true,
         },
       ],
-      // Enforce type-only imports for TypeScript types
       '@typescript-eslint/consistent-type-imports': [
         'error',
         {
@@ -52,8 +52,16 @@ export default tseslint.config(
           disallowTypeAnnotations: false,
         },
       ],
-      // Prevent duplicate imports from the same module
       'no-duplicate-imports': 'error',
+    },
+  },
+  {
+    files: ['src/routes/**/*.{ts,tsx}'],
+    plugins: {
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   }
 )

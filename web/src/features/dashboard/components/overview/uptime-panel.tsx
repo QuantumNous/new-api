@@ -2,10 +2,8 @@ import { memo, useEffect, useState } from 'react'
 import { Activity, RotateCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { getUptimeStatus } from '@/features/dashboard/api'
 import type {
   UptimeGroupResult,
@@ -14,16 +12,16 @@ import type {
 import { PanelWrapper } from '../ui/panel-wrapper'
 
 const STATUS_COLOR_MAP: Record<number, string> = {
-  1: 'bg-emerald-500', // UP
-  0: 'bg-red-500', // DOWN
-  2: 'bg-amber-500', // HIGH LATENCY
-  3: 'bg-blue-500', // MAINTENANCE
+  1: 'bg-emerald-500',
+  0: 'bg-red-500',
+  2: 'bg-amber-500',
+  3: 'bg-blue-500',
 }
 const DEFAULT_STATUS_COLOR = 'bg-muted-foreground/40'
 
-const StatusDot = memo(function StatusDot({ status }: { status: number }) {
-  const color = STATUS_COLOR_MAP[status] ?? DEFAULT_STATUS_COLOR
-  return <span className={cn('inline-block h-2 w-2 rounded-full', color)} />
+const StatusDot = memo(function StatusDot(props: { status: number }) {
+  const color = STATUS_COLOR_MAP[props.status] ?? DEFAULT_STATUS_COLOR
+  return <span className={cn('inline-block size-2 rounded-full', color)} />
 })
 
 export function UptimePanel() {
@@ -79,7 +77,7 @@ export function UptimePanel() {
     <PanelWrapper
       title={
         <span className='flex items-center gap-2'>
-          <Activity className='h-5 w-5' />
+          <Activity className='text-muted-foreground/60 size-4' />
           {t('Uptime')}
         </span>
       }
@@ -93,53 +91,58 @@ export function UptimePanel() {
           size='sm'
           onClick={handleRefresh}
           disabled={refreshing}
-          className='h-8 w-8 p-0'
+          className='size-7 p-0'
         >
           <RotateCw
-            className={cn('h-4 w-4', refreshing && 'animate-spin')}
+            className={cn('size-3.5', refreshing && 'animate-spin')}
             aria-label={t('Refresh')}
           />
         </Button>
       }
     >
       <ScrollArea className='h-80'>
-        <div className='space-y-4 pe-4'>
+        <div className='-mx-4 space-y-0 sm:-mx-5'>
           {groups.map((group, groupIdx) => (
             <div key={group.categoryName}>
-              <div className='mb-3 flex items-center gap-2'>
-                <h4 className='text-sm font-semibold'>{group.categoryName}</h4>
-                <Badge variant='secondary' className='h-5 text-xs'>
-                  {group.monitors?.length || 0}
-                </Badge>
+              <div className='bg-muted/30 border-border/60 border-b px-4 py-2 sm:px-5'>
+                <div className='flex items-center gap-2'>
+                  <h4 className='text-muted-foreground text-xs font-semibold tracking-wider uppercase'>
+                    {group.categoryName}
+                  </h4>
+                  <span className='text-muted-foreground/40 font-mono text-xs tabular-nums'>
+                    {group.monitors?.length || 0}
+                  </span>
+                </div>
               </div>
-              <div className='space-y-0'>
-                {group.monitors?.map(
-                  (monitor: UptimeMonitor, monitorIdx: number) => (
-                    <div key={monitor.name}>
-                      <div className='group hover:bg-accent/50 -mx-2 flex items-center justify-between rounded-lg px-2 py-2.5 transition-colors'>
-                        <div className='flex min-w-0 items-center gap-2.5'>
-                          <StatusDot status={monitor.status} />
-                          <span className='truncate text-sm'>
-                            {monitor.name}
-                          </span>
-                          {monitor.group && (
-                            <span className='text-muted-foreground shrink-0 text-xs'>
-                              ({monitor.group})
-                            </span>
-                          )}
-                        </div>
-                        <span className='text-muted-foreground shrink-0 text-sm font-medium tabular-nums'>
-                          {((monitor.uptime ?? 0) * 100).toFixed(2)}%
+
+              {group.monitors?.map(
+                (monitor: UptimeMonitor, monitorIdx: number) => (
+                  <div
+                    key={monitor.name}
+                    className={cn(
+                      'hover:bg-muted/40 flex items-center justify-between px-4 py-2.5 transition-colors sm:px-5',
+                      monitorIdx < (group.monitors?.length || 0) - 1 &&
+                        'border-border/40 border-b',
+                      groupIdx < groups.length - 1 &&
+                        monitorIdx === (group.monitors?.length || 0) - 1 &&
+                        'border-border/60 border-b'
+                    )}
+                  >
+                    <div className='flex min-w-0 items-center gap-2.5'>
+                      <StatusDot status={monitor.status} />
+                      <span className='truncate text-sm'>{monitor.name}</span>
+                      {monitor.group && (
+                        <span className='text-muted-foreground/40 shrink-0 text-xs'>
+                          ({monitor.group})
                         </span>
-                      </div>
-                      {monitorIdx < (group.monitors?.length || 0) - 1 && (
-                        <Separator className='my-0' />
                       )}
                     </div>
-                  )
-                )}
-              </div>
-              {groupIdx < groups.length - 1 && <Separator className='my-4' />}
+                    <span className='text-foreground shrink-0 font-mono text-sm font-semibold tabular-nums'>
+                      {((monitor.uptime ?? 0) * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                )
+              )}
             </div>
           ))}
         </div>

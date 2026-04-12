@@ -1,5 +1,4 @@
 import { type LucideIcon } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface StatCardProps {
@@ -12,42 +11,43 @@ interface StatCardProps {
   action?: React.ReactNode
 }
 
-export function StatCard({
-  title,
-  value,
-  description,
-  icon: Icon,
-  loading = false,
-  error = false,
-  action,
-}: StatCardProps) {
+export function StatCard(props: StatCardProps) {
+  const Icon = props.icon
+
   return (
-    <Card>
-      <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-        <CardTitle className='text-sm font-medium'>{title}</CardTitle>
-        <div className='flex items-center gap-2'>
-          {action}
-          <Icon className='text-muted-foreground h-4 w-4' />
+    <div className='group flex flex-col gap-1.5 py-3'>
+      <div className='flex items-center justify-between'>
+        <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wider uppercase'>
+          <Icon className='text-muted-foreground/60 size-3.5' />
+          {props.title}
         </div>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <>
-            <Skeleton className='h-8 w-28' />
-            <Skeleton className='mt-1 h-4 w-36' />
-          </>
-        ) : error ? (
-          <>
-            <div className='text-muted-foreground text-2xl font-bold'>--</div>
-            <p className='text-muted-foreground text-xs'>{description}</p>
-          </>
-        ) : (
-          <>
-            <div className='text-2xl font-bold'>{value}</div>
-            <p className='text-muted-foreground text-xs'>{description}</p>
-          </>
-        )}
-      </CardContent>
-    </Card>
+        {props.action}
+      </div>
+
+      {props.loading ? (
+        <div className='space-y-1.5'>
+          <Skeleton className='h-7 w-24' />
+          <Skeleton className='h-3.5 w-32' />
+        </div>
+      ) : props.error ? (
+        <>
+          <div className='text-muted-foreground font-mono text-2xl font-bold tracking-tight tabular-nums'>
+            --
+          </div>
+          <p className='text-muted-foreground/60 text-xs'>
+            {props.description}
+          </p>
+        </>
+      ) : (
+        <>
+          <div className='text-foreground font-mono text-2xl font-bold tracking-tight tabular-nums'>
+            {props.value}
+          </div>
+          <p className='text-muted-foreground/60 text-xs'>
+            {props.description}
+          </p>
+        </>
+      )}
+    </div>
   )
 }

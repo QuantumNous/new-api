@@ -7,10 +7,7 @@ import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
-import {
-  CardStaggerContainer,
-  CardStaggerItem,
-} from '@/components/page-transition'
+import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import { StatCard } from '../ui/stat-card'
 
@@ -55,28 +52,40 @@ export function SummaryCards() {
   }))
 
   return (
-    <CardStaggerContainer className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-      {items.map((it) => (
-        <CardStaggerItem key={it.title}>
-          <StatCard
-            title={it.title}
-            value={it.value}
-            description={it.desc}
-            icon={it.icon}
-            loading={loading}
-            action={
-              it.isBalance ? (
-                <Button variant='outline' size='sm' className='h-7' asChild>
-                  <Link to='/wallet'>
-                    <CreditCard className='mr-1.5 h-3.5 w-3.5' />
-                    {t('Recharge')}
-                  </Link>
-                </Button>
-              ) : undefined
-            }
-          />
-        </CardStaggerItem>
-      ))}
-    </CardStaggerContainer>
+    <div className='overflow-hidden rounded-lg border'>
+      <StaggerContainer className='grid sm:grid-cols-2 lg:grid-cols-3'>
+        {items.map((it, idx) => (
+          <StaggerItem
+            key={it.title}
+            className={`px-4 sm:px-5 ${
+              idx > 0 ? 'border-t sm:border-t-0 sm:border-l' : ''
+            }`}
+          >
+            <StatCard
+              title={it.title}
+              value={it.value}
+              description={it.desc}
+              icon={it.icon}
+              loading={loading}
+              action={
+                it.isBalance ? (
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-6 gap-1 px-2 text-xs'
+                    asChild
+                  >
+                    <Link to='/wallet'>
+                      <CreditCard className='size-3' />
+                      {t('Recharge')}
+                    </Link>
+                  </Button>
+                ) : undefined
+              }
+            />
+          </StaggerItem>
+        ))}
+      </StaggerContainer>
+    </div>
   )
 }
