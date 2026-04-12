@@ -161,10 +161,7 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 }
 
 func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string) (*waffoPancakeWebhookEvent, error) {
-	environment := "prod"
-	if setting.WaffoPancakeSandbox {
-		environment = "test"
-	}
+	environment := resolveWaffoPancakeWebhookEnvironment(payload)
 	return verifyWaffoPancakeWebhook(payload, signatureHeader, environment)
 }
 
@@ -315,6 +312,33 @@ func parseWaffoPancakeSignatureHeader(header string) (string, string) {
 		}
 	}
 	return timestampPart, signaturePart
+}
+
+func resolveWaffoPancakeWebhookEnvironment(payload string) string {
+	if mode := extractWaffoPancakeWebhookMode(payload); mode != "" {
+		return mode
+	}
+	if setting.WaffoPancakeSandbox {
+		return "test"
+	}
+	return "prod"
+}
+
+func extractWaffoPancakeWebhookMode(payload string) string {
+	var envelope struct {
+		Mode string `json:"mode"`
+	}
+	if err := common.Unmarshal([]byte(payload), &envelope); err != nil {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(envelope.Mode)) {
+	case "test":
+		return "test"
+	case "prod":
+		return "prod"
+	default:
+		return ""
+	}
 }
 
 func resolveWaffoPancakeWebhookPublicKey(environment string) string {
