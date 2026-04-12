@@ -102,7 +102,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		// incorrect. The zero-TotalTokens guard below will set Quota=0.
 		// For non-stream requests (or normally-ended streams) with missing usage,
 		// fall back to estimated prompt tokens as before.
-		if relayInfo.IsStream && !relayInfo.StreamStatus.IsNormalEnd() {
+		if relayInfo.IsStream && !relayInfo.StreamStatus.IsNormalEnd() && relayInfo.SendResponseCount == 0 {
 			usage = &dto.Usage{}
 		} else {
 			usage = &dto.Usage{
