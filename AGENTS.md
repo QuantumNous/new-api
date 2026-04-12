@@ -7,7 +7,7 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 ## Tech Stack
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Frontend**: React 18, Vite, Semi Design UI (@douyinfe/semi-ui)
+- **Frontend**: React 19, TypeScript, Rsbuild, Radix UI, Tailwind CSS
 - **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
 - **Cache**: Redis (go-redis) + in-memory cache
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
@@ -45,11 +45,10 @@ web/           — React frontend
 
 ### Frontend (`web/src/i18n/`)
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
-- Languages: zh (fallback), en, fr, ru, ja, vi
-- Translation files: `web/src/i18n/locales/{lang}.json` — flat JSON, keys are Chinese source strings
-- Usage: `useTranslation()` hook, call `t('中文key')` in components
-- Semi UI locale synced via `SemiLocaleWrapper`
-- CLI tools: `bun run i18n:extract`, `bun run i18n:sync`, `bun run i18n:lint`
+- Languages: en (base), zh (fallback), fr, ru, ja, vi
+- Translation files: `web/src/i18n/locales/{lang}.json` — flat JSON, keys are English source strings
+- Usage: `useTranslation()` hook, call `t('English key')` in components
+- CLI tools: `bun run i18n:sync`
 
 ## Rules
 

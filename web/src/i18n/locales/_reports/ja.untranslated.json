@@ -44,6 +44,7 @@
   "https://status.example.com": "https://status.example.com",
   "https://wechat-server.example.com": "https://wechat-server.example.com",
   "https://worker.example.workers.dev": "https://worker.example.workers.dev",
+  "https://your-server.example.com": "https://your-server.example.com",
   "Jimeng": "Jimeng",
   "JustSong": "JustSong",
   "LingYiWanWu": "LingYiWanWu",
