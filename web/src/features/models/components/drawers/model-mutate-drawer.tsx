@@ -161,6 +161,8 @@ export function ModelMutateDrawer({
       GroupGroupRatio: '',
       AutoGroups: '',
       DefaultUseAutoGroup: false,
+      CreateCacheRatio: '',
+      'group_ratio_setting.group_special_usable_group': '{}',
       'grok.violation_deduction_enabled': false,
       'grok.violation_deduction_amount': 0,
     }

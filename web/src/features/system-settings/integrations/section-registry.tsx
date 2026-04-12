@@ -67,6 +67,7 @@ const INTEGRATIONS_SECTIONS = [
           SMTPFrom: settings.SMTPFrom,
           SMTPToken: settings.SMTPToken,
           SMTPSSLEnabled: settings.SMTPSSLEnabled,
+          SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
         }}
       />
     ),

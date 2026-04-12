@@ -47,6 +47,15 @@ const modelSchema = z.object({
       })
     }
   }),
+  CreateCacheRatio: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
   CompletionRatio: z.string().superRefine((value, ctx) => {
     const result = validateJsonString(value)
     if (!result.valid) {
@@ -138,6 +147,15 @@ const groupSchema = z.object({
     }
   }),
   DefaultUseAutoGroup: z.boolean(),
+  GroupSpecialUsableGroup: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
 })
 
 type ModelFormValues = z.infer<typeof modelSchema>
@@ -177,6 +195,7 @@ export function RatioSettingsCard({
     ModelPrice: normalizeJsonString(modelDefaults.ModelPrice),
     ModelRatio: normalizeJsonString(modelDefaults.ModelRatio),
     CacheRatio: normalizeJsonString(modelDefaults.CacheRatio),
+    CreateCacheRatio: normalizeJsonString(modelDefaults.CreateCacheRatio),
     CompletionRatio: normalizeJsonString(modelDefaults.CompletionRatio),
     ImageRatio: normalizeJsonString(modelDefaults.ImageRatio),
     AudioRatio: normalizeJsonString(modelDefaults.AudioRatio),
@@ -193,6 +212,9 @@ export function RatioSettingsCard({
     GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
     AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
     DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
+    GroupSpecialUsableGroup: normalizeJsonString(
+      groupDefaults.GroupSpecialUsableGroup
+    ),
   })
 
   const modelForm = useForm<ModelFormValues>({
@@ -203,6 +225,7 @@ export function RatioSettingsCard({
       ModelPrice: formatJsonForTextarea(modelDefaults.ModelPrice),
       ModelRatio: formatJsonForTextarea(modelDefaults.ModelRatio),
       CacheRatio: formatJsonForTextarea(modelDefaults.CacheRatio),
+      CreateCacheRatio: formatJsonForTextarea(modelDefaults.CreateCacheRatio),
       CompletionRatio: formatJsonForTextarea(modelDefaults.CompletionRatio),
       ImageRatio: formatJsonForTextarea(modelDefaults.ImageRatio),
       AudioRatio: formatJsonForTextarea(modelDefaults.AudioRatio),
@@ -222,6 +245,9 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
+      GroupSpecialUsableGroup: formatJsonForTextarea(
+        groupDefaults.GroupSpecialUsableGroup
+      ),
     },
   })
 
@@ -230,6 +256,7 @@ export function RatioSettingsCard({
       ModelPrice: normalizeJsonString(modelDefaults.ModelPrice),
       ModelRatio: normalizeJsonString(modelDefaults.ModelRatio),
       CacheRatio: normalizeJsonString(modelDefaults.CacheRatio),
+      CreateCacheRatio: normalizeJsonString(modelDefaults.CreateCacheRatio),
       CompletionRatio: normalizeJsonString(modelDefaults.CompletionRatio),
       ImageRatio: normalizeJsonString(modelDefaults.ImageRatio),
       AudioRatio: normalizeJsonString(modelDefaults.AudioRatio),
@@ -244,6 +271,7 @@ export function RatioSettingsCard({
       ModelPrice: formatJsonForTextarea(modelDefaults.ModelPrice),
       ModelRatio: formatJsonForTextarea(modelDefaults.ModelRatio),
       CacheRatio: formatJsonForTextarea(modelDefaults.CacheRatio),
+      CreateCacheRatio: formatJsonForTextarea(modelDefaults.CreateCacheRatio),
       CompletionRatio: formatJsonForTextarea(modelDefaults.CompletionRatio),
       ImageRatio: formatJsonForTextarea(modelDefaults.ImageRatio),
       AudioRatio: formatJsonForTextarea(modelDefaults.AudioRatio),
@@ -261,6 +289,9 @@ export function RatioSettingsCard({
       GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
       AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
       DefaultUseAutoGroup: groupDefaults.DefaultUseAutoGroup,
+      GroupSpecialUsableGroup: normalizeJsonString(
+        groupDefaults.GroupSpecialUsableGroup
+      ),
     }
 
     groupForm.reset({
@@ -270,6 +301,9 @@ export function RatioSettingsCard({
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
+      GroupSpecialUsableGroup: formatJsonForTextarea(
+        groupDefaults.GroupSpecialUsableGroup
+      ),
     })
   }, [groupDefaults, groupForm])
 
@@ -279,6 +313,7 @@ export function RatioSettingsCard({
         ModelPrice: normalizeJsonString(values.ModelPrice),
         ModelRatio: normalizeJsonString(values.ModelRatio),
         CacheRatio: normalizeJsonString(values.CacheRatio),
+        CreateCacheRatio: normalizeJsonString(values.CreateCacheRatio),
         CompletionRatio: normalizeJsonString(values.CompletionRatio),
         ImageRatio: normalizeJsonString(values.ImageRatio),
         AudioRatio: normalizeJsonString(values.AudioRatio),
@@ -308,16 +343,26 @@ export function RatioSettingsCard({
         GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
         AutoGroups: normalizeJsonString(values.AutoGroups),
         DefaultUseAutoGroup: values.DefaultUseAutoGroup,
+        GroupSpecialUsableGroup: normalizeJsonString(
+          values.GroupSpecialUsableGroup
+        ),
+      }
+
+      // Map form field names to API keys (most are 1:1, except GroupSpecialUsableGroup)
+      const apiKeyMap: Record<string, string> = {
+        GroupSpecialUsableGroup:
+          'group_ratio_setting.group_special_usable_group',
       }
 
       const updates = (
-        Object.keys(normalized) as Array<keyof GroupFormValues>
+        Object.keys(normalized) as Array<keyof typeof normalized>
       ).filter(
         (key) => normalized[key] !== groupNormalizedDefaults.current[key]
       )
 
       for (const key of updates) {
-        await updateOption.mutateAsync({ key, value: normalized[key] })
+        const apiKey = apiKeyMap[key] || key
+        await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
       }
     },
     [updateOption]

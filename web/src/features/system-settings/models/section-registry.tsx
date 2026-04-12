@@ -115,6 +115,7 @@ const MODELS_SECTIONS = [
           ModelPrice: settings.ModelPrice,
           ModelRatio: settings.ModelRatio,
           CacheRatio: settings.CacheRatio,
+          CreateCacheRatio: settings.CreateCacheRatio,
           CompletionRatio: settings.CompletionRatio,
           ImageRatio: settings.ImageRatio,
           AudioRatio: settings.AudioRatio,
@@ -128,6 +129,8 @@ const MODELS_SECTIONS = [
           GroupGroupRatio: settings.GroupGroupRatio,
           AutoGroups: settings.AutoGroups,
           DefaultUseAutoGroup: settings.DefaultUseAutoGroup,
+          GroupSpecialUsableGroup:
+            settings['group_ratio_setting.group_special_usable_group'],
         }}
       />
     ),
