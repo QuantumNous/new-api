@@ -191,11 +191,6 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		BuyerEmail:       getWaffoPancakeBuyerEmail(user),
 		SuccessURL:       getWaffoPancakeReturnURL(),
 		ExpiresInSeconds: &expiresInSeconds,
-		Metadata: map[string]string{
-			"internalTradeNo": tradeNo,
-			"userId":          fmt.Sprintf("%d", id),
-			"topupAmount":     fmt.Sprintf("%d", req.Amount),
-		},
 	})
 	if err != nil {
 		log.Printf("create Waffo Pancake checkout session failed: %v", err)
@@ -238,9 +233,9 @@ func WaffoPancakeWebhook(c *gin.Context) {
 		return
 	}
 
-	tradeNo := service.ExtractWaffoPancakeTradeNo(event)
-	if tradeNo == "" {
-		log.Printf("Waffo Pancake webhook missing internal trade no, event=%s", event.ID)
+	tradeNo, err := service.ResolveWaffoPancakeTradeNo(event)
+	if err != nil {
+		log.Printf("Waffo Pancake webhook resolve trade no failed: %v, event=%s, order_id=%s", err, event.ID, event.Data.OrderID)
 		c.String(200, "OK")
 		return
 	}
