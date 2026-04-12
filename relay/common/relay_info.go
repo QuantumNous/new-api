@@ -41,6 +41,8 @@ type ClaudeConvertInfo struct {
 
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int
+	ContentBlockStartSent  map[int]bool
+	ContentBlockStopSent   map[int]bool
 }
 
 type RerankerInfo struct {
@@ -339,7 +341,9 @@ func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info.RelayFormat = types.RelayFormatClaude
 	info.ShouldIncludeUsage = false
 	info.ClaudeConvertInfo = &ClaudeConvertInfo{
-		LastMessagesType: LastMessageTypeNone,
+		LastMessagesType:      LastMessageTypeNone,
+		ContentBlockStartSent: make(map[int]bool),
+		ContentBlockStopSent:  make(map[int]bool),
 	}
 	info.IsClaudeBetaQuery = c.Query("beta") == "true"
 	return info
