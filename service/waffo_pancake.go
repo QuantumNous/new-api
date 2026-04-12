@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/setting"
 )
 
@@ -62,16 +63,16 @@ type waffoPancakeCreateSessionResponse struct {
 }
 
 type waffoPancakeWebhookData struct {
-	ID          string         `json:"id"`
-	OrderID     string         `json:"orderId"`
-	BuyerEmail  string         `json:"buyerEmail"`
-	Currency    string         `json:"currency"`
-	Amount      int64          `json:"amount"`
-	TaxAmount   int64          `json:"taxAmount"`
-	ProductName string         `json:"productName"`
-	Status      string         `json:"status"`
-	CreatedAt   string         `json:"createdAt"`
-	Metadata    map[string]any `json:"metadata"`
+	ID          string          `json:"id"`
+	OrderID     string          `json:"orderId"`
+	BuyerEmail  string          `json:"buyerEmail"`
+	Currency    string          `json:"currency"`
+	Amount      dto.StringValue `json:"amount"`
+	TaxAmount   dto.StringValue `json:"taxAmount"`
+	ProductName string          `json:"productName"`
+	Status      string          `json:"status"`
+	CreatedAt   string          `json:"createdAt"`
+	Metadata    map[string]any  `json:"metadata"`
 }
 
 type waffoPancakeWebhookEvent struct {
