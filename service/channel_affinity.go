@@ -636,6 +636,27 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 	return meta.SkipRetry
 }
 
+// EvictChannelAffinityCache removes the current request's affinity cache entry.
+// Called when the preferred channel has been disabled (manually or auto-disabled),
+// so this and future requests go through normal channel selection.
+// Also clears the SkipRetry flag so the fallback channel can retry normally.
+func EvictChannelAffinityCache(c *gin.Context) {
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok || cacheKey == "" {
+		return
+	}
+	cache := getChannelAffinityCache()
+	if _, err := cache.DeleteMany([]string{cacheKey}); err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache evict failed: key=%s, err=%v", cacheKey, err))
+		return
+	}
+	// Clear SkipRetry so the fallback channel can use normal retry logic.
+	// Without this, ShouldSkipRetryAfterChannelAffinityFailure would read
+	// the stale meta from context and prevent retries on the new channel.
+	c.Set(ginKeyChannelAffinitySkipRetry, false)
+	common.SysLog(fmt.Sprintf("channel affinity cache evicted (preferred channel disabled): key=%s", cacheKey))
+}
+
 func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int) {
 	if c == nil || channelID <= 0 {
 		return

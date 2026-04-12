@@ -103,10 +103,12 @@ func Distribute() func(c *gin.Context) {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil {
 						if preferred.Status != common.ChannelStatusEnabled {
-							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
-								return
-							}
+							// Preferred channel disabled (manual or auto) — evict stale
+							// affinity cache so this and future requests use normal selection.
+							// After fallback succeeds, RecordChannelAffinity re-records the
+							// new channel automatically.
+							service.EvictChannelAffinityCache(c)
+							// fall through to CacheGetRandomSatisfiedChannel below
 						} else if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
