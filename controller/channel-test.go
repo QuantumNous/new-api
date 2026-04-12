@@ -42,6 +42,26 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+func resolveChannelTestStream(channel *model.Channel, streamOverride *bool) bool {
+	if streamOverride != nil {
+		return *streamOverride
+	}
+	if channel == nil {
+		return false
+	}
+	return channel.GetOtherSettings().TestStreamEnabled
+}
+
+func shouldSkipChannelAutoTest(channel *model.Channel, includeAutoDisabled bool) bool {
+	if channel == nil {
+		return true
+	}
+	if channel.Status == common.ChannelStatusManuallyDisabled {
+		return true
+	}
+	return channel.Status == common.ChannelStatusAutoDisabled && !includeAutoDisabled
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -56,7 +76,7 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	return normalized
 }
 
-func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(channel *model.Channel, testModel string, endpointType string, streamOverride *bool) testResult {
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
@@ -134,6 +154,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
 		testModel = ratio_setting.WithCompactModelSuffix(testModel)
 	}
+	isStream := resolveChannelTestStream(channel, streamOverride)
 
 	c.Request = &http.Request{
 		Method: "POST",
@@ -752,9 +773,13 @@ func TestChannel(c *gin.Context) {
 	//}()
 	testModel := c.Query("model")
 	endpointType := c.Query("endpoint_type")
-	isStream, _ := strconv.ParseBool(c.Query("stream"))
+	var streamOverride *bool
+	if raw, exists := c.GetQuery("stream"); exists {
+		parsed, _ := strconv.ParseBool(raw)
+		streamOverride = lo.ToPtr(parsed)
+	}
 	tik := time.Now()
-	result := testChannel(channel, testModel, endpointType, isStream)
+	result := testChannel(channel, testModel, endpointType, streamOverride)
 	if result.localErr != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -785,7 +810,7 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
-func testAllChannels(notify bool) error {
+func testAllChannels(notify bool, includeAutoDisabled bool) error {
 
 	testAllChannelsLock.Lock()
 	if testAllChannelsRunning {
@@ -811,12 +836,12 @@ func testAllChannels(notify bool) error {
 		}()
 
 		for _, channel := range channels {
-			if channel.Status == common.ChannelStatusManuallyDisabled {
+			if shouldSkipChannelAutoTest(channel, includeAutoDisabled) {
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
-			result := testChannel(channel, "", "", false)
+			result := testChannel(channel, "", "", nil)
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 
@@ -858,7 +883,7 @@ func testAllChannels(notify bool) error {
 }
 
 func TestAllChannels(c *gin.Context) {
-	err := testAllChannels(true)
+	err := testAllChannels(true, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -887,7 +912,7 @@ func AutomaticallyTestChannels() {
 				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
 				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
 				common.SysLog("automatically testing all channels")
-				_ = testAllChannels(false)
+				_ = testAllChannels(false, operation_setting.GetMonitorSetting().AutoTestAutoDisabledChannelsEnabled)
 				common.SysLog("automatically channel test finished")
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
 					break

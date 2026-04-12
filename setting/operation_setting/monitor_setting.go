@@ -8,14 +8,16 @@ import (
 )
 
 type MonitorSetting struct {
-	AutoTestChannelEnabled bool    `json:"auto_test_channel_enabled"`
-	AutoTestChannelMinutes float64 `json:"auto_test_channel_minutes"`
+	AutoTestChannelEnabled              bool    `json:"auto_test_channel_enabled"`
+	AutoTestChannelMinutes              float64 `json:"auto_test_channel_minutes"`
+	AutoTestAutoDisabledChannelsEnabled bool    `json:"auto_test_auto_disabled_channels_enabled"`
 }
 
 // 默认配置
 var monitorSetting = MonitorSetting{
-	AutoTestChannelEnabled: false,
-	AutoTestChannelMinutes: 10,
+	AutoTestChannelEnabled:              false,
+	AutoTestChannelMinutes:              10,
+	AutoTestAutoDisabledChannelsEnabled: true,
 }
 
 func init() {
