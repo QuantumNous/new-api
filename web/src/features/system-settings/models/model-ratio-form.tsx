@@ -20,6 +20,7 @@ type ModelFormValues = {
   ModelPrice: string
   ModelRatio: string
   CacheRatio: string
+  CreateCacheRatio: string
   CompletionRatio: string
   ImageRatio: string
   AudioRatio: string
@@ -183,6 +184,25 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                   </FormControl>
                   <FormDescription>
                     {t('Optional ratio used when upstream cache hits occur.')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='CreateCacheRatio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Create cache ratio')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={8} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Ratio applied when creating cache entries for supported models.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

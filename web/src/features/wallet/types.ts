@@ -24,6 +24,9 @@ export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
+export type WaffoPaymentResponse = ApiResponse<
+  { payment_url?: string } | string
+>
 
 /**
  * Creem product configuration
@@ -66,6 +69,20 @@ export interface PaymentMethod {
 }
 
 /**
+ * Waffo payment method configuration
+ */
+export interface WaffoPayMethod {
+  /** Display name of payment method */
+  name: string
+  /** Optional icon path */
+  icon?: string
+  /** Waffo pay method type */
+  payMethodType?: string
+  /** Waffo pay method name */
+  payMethodName?: string
+}
+
+/**
  * Topup configuration information
  */
 export interface TopupInfo {
@@ -89,6 +106,12 @@ export interface TopupInfo {
   enable_creem_topup?: boolean
   /** Available Creem products */
   creem_products?: CreemProduct[]
+  /** Whether Waffo topup is enabled */
+  enable_waffo_topup?: boolean
+  /** Available Waffo payment methods */
+  waffo_pay_methods?: WaffoPayMethod[]
+  /** Minimum topup amount for Waffo */
+  waffo_min_topup?: number
 }
 
 /**
@@ -117,6 +140,16 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+}
+
+/**
+ * Waffo payment request parameters
+ */
+export interface WaffoPaymentRequest {
+  /** Topup amount */
+  amount: number
+  /** Optional server-side Waffo payment method index */
+  pay_method_index?: number
 }
 
 /**

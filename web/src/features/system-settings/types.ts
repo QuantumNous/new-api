@@ -34,6 +34,7 @@ export type GeneralSettings = {
   Footer: string
   About: string
   HomePageContent: string
+  ServerAddress: string
   'legal.user_agreement': string
   'legal.privacy_policy': string
   QuotaForNewUser: number
@@ -136,6 +137,7 @@ export type IntegrationSettings = {
   SMTPFrom: string
   SMTPToken: string
   SMTPSSLEnabled: boolean
+  SMTPForceAuthLogin: boolean
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean
@@ -208,6 +210,7 @@ export type ModelSettings = {
   ModelPrice: string
   ModelRatio: string
   CacheRatio: string
+  CreateCacheRatio: string
   CompletionRatio: string
   ImageRatio: string
   AudioRatio: string
@@ -219,6 +222,7 @@ export type ModelSettings = {
   GroupGroupRatio: string
   AutoGroups: string
   DefaultUseAutoGroup: boolean
+  'group_ratio_setting.group_special_usable_group': string
 }
 
 export type MaintenanceSettings = {

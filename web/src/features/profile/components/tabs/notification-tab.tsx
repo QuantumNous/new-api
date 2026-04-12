@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Bell, Loader2, Mail, Server, Webhook } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ROLE } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,6 +35,7 @@ interface NotificationTabProps {
 
 export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
   const { t } = useTranslation()
+  const isAdmin = (profile?.role ?? 0) >= ROLE.ADMIN
   const [loading, setLoading] = useState(false)
   const [settings, setSettings] = useState<UserSettings>({
     notify_type: 'email',
@@ -47,6 +49,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
     gotify_priority: 5,
     accept_unset_model_ratio_model: false,
     record_ip_log: false,
+    upstream_model_update_notify_enabled: false,
   })
 
   // Update form field helper
@@ -74,6 +77,8 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         accept_unset_model_ratio_model:
           parsed.accept_unset_model_ratio_model || false,
         record_ip_log: parsed.record_ip_log || false,
+        upstream_model_update_notify_enabled:
+          parsed.upstream_model_update_notify_enabled || false,
       })
     }
   }, [profile])
@@ -289,6 +294,29 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             {t('Configure your account behavior preferences')}
           </p>
         </div>
+
+        {/* Receive Upstream Model Update Notifications (admin only) */}
+        {isAdmin && (
+          <div className='flex items-center justify-between rounded-lg border p-4'>
+            <div className='space-y-0.5'>
+              <Label htmlFor='upstreamModelUpdateNotify'>
+                {t('Receive Upstream Model Update Notifications')}
+              </Label>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Only available for admins. When enabled, you will receive a summary notification via your selected method when the scheduled model check detects upstream model changes or check failures.'
+                )}
+              </p>
+            </div>
+            <Switch
+              id='upstreamModelUpdateNotify'
+              checked={settings.upstream_model_update_notify_enabled}
+              onCheckedChange={(checked) =>
+                updateField('upstream_model_update_notify_enabled', checked)
+              }
+            />
+          </div>
+        )}
 
         {/* Accept Unset Model Price */}
         <div className='flex items-center justify-between rounded-lg border p-4'>

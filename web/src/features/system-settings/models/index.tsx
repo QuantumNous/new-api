@@ -27,6 +27,7 @@ const defaultModelSettings: ModelSettings = {
   ModelPrice: '',
   ModelRatio: '',
   CacheRatio: '',
+  CreateCacheRatio: '',
   CompletionRatio: '',
   ImageRatio: '',
   AudioRatio: '',
@@ -38,6 +39,7 @@ const defaultModelSettings: ModelSettings = {
   GroupGroupRatio: '',
   AutoGroups: '',
   DefaultUseAutoGroup: false,
+  'group_ratio_setting.group_special_usable_group': '{}',
 }
 
 export function ModelSettings() {

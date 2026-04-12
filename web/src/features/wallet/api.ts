@@ -16,6 +16,8 @@ import type {
   CompleteOrderRequest,
   CreemPaymentRequest,
   CreemPaymentResponse,
+  WaffoPaymentRequest,
+  WaffoPaymentResponse,
 } from './types'
 
 // ============================================================================
@@ -105,6 +107,18 @@ export async function requestCreemPayment(
   request: CreemPaymentRequest
 ): Promise<CreemPaymentResponse> {
   const res = await api.post('/api/user/creem/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request Waffo payment
+ */
+export async function requestWaffoPayment(
+  request: WaffoPaymentRequest
+): Promise<WaffoPaymentResponse> {
+  const res = await api.post('/api/user/waffo/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

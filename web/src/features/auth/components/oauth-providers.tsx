@@ -44,6 +44,7 @@ export function OAuthProviders({
     handleOIDCLogin,
     handleLinuxDOLogin,
     handleTelegramLogin,
+    handleCustomOAuthLogin,
   } = useOAuthLogin(status)
 
   const providerButtons: ProviderButton[] = []
@@ -100,6 +101,18 @@ export function OAuthProviders({
       label: t('Continue with Telegram'),
       onClick: handleTelegramLogin,
     })
+  }
+
+  // Custom OAuth providers
+  const customProviders = status?.custom_oauth_providers
+  if (customProviders && customProviders.length > 0) {
+    for (const provider of customProviders) {
+      providerButtons.push({
+        key: `custom-${provider.slug}`,
+        label: t('Continue with {{name}}', { name: provider.name }),
+        onClick: () => handleCustomOAuthLogin(provider),
+      })
+    }
   }
 
   if (providerButtons.length === 0) return null

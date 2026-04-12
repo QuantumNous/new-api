@@ -19,6 +19,7 @@ import {
   useAffiliate,
   useRedemption,
   useCreemPayment,
+  useWaffoPayment,
 } from './hooks'
 import { getDefaultPaymentType, getMinTopupAmount } from './lib'
 import type {
@@ -70,6 +71,7 @@ export function Wallet() {
   } = useAffiliate()
   const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
+  const { processWaffoPayment } = useWaffoPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -194,6 +196,17 @@ export function Wallet() {
     }
   }
 
+  const handleWaffoMethodSelect = async (_method: unknown, index: number) => {
+    const loadingKey = `waffo-${index}`
+    setPaymentLoading(loadingKey)
+
+    try {
+      await processWaffoPayment(topupAmount, index)
+    } finally {
+      setPaymentLoading(null)
+    }
+  }
+
   // Get discount rate for current topup amount
   const getDiscountRate = useCallback(() => {
     return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
@@ -234,6 +247,10 @@ export function Wallet() {
                 creemProducts={topupInfo?.creem_products}
                 enableCreemTopup={topupInfo?.enable_creem_topup}
                 onCreemProductSelect={handleCreemProductSelect}
+                enableWaffoTopup={topupInfo?.enable_waffo_topup}
+                waffoPayMethods={topupInfo?.waffo_pay_methods}
+                waffoMinTopup={topupInfo?.waffo_min_topup}
+                onWaffoMethodSelect={handleWaffoMethodSelect}
               />
             </div>
 

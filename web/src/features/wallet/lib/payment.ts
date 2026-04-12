@@ -70,10 +70,15 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
     return topupInfo.pay_methods[0].type
   }
 
-  // Fallback to stripe or default
-  return topupInfo.enable_stripe_topup
-    ? PAYMENT_TYPES.STRIPE
-    : DEFAULT_PAYMENT_TYPE
+  if (topupInfo.enable_stripe_topup) {
+    return PAYMENT_TYPES.STRIPE
+  }
+
+  if (topupInfo.enable_waffo_topup) {
+    return PAYMENT_TYPES.WAFFO
+  }
+
+  return DEFAULT_PAYMENT_TYPE
 }
 
 /**
@@ -90,6 +95,10 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
 
   if (topupInfo.enable_stripe_topup) {
     return topupInfo.stripe_min_topup
+  }
+
+  if (topupInfo.enable_waffo_topup) {
+    return topupInfo.waffo_min_topup || DEFAULT_MIN_TOPUP
   }
 
   return DEFAULT_MIN_TOPUP

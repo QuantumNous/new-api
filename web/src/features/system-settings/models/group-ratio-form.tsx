@@ -15,6 +15,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
+import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
 type GroupFormValues = {
   GroupRatio: string
@@ -23,6 +24,7 @@ type GroupFormValues = {
   GroupGroupRatio: string
   AutoGroups: string
   DefaultUseAutoGroup: boolean
+  GroupSpecialUsableGroup: string
 }
 
 type GroupRatioFormProps = {
@@ -82,6 +84,13 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               autoGroups={form.watch('AutoGroups')}
               onChange={(field, value) =>
                 handleFieldChange(field as keyof GroupFormValues, value)
+              }
+            />
+
+            <GroupSpecialUsableRulesEditor
+              value={form.watch('GroupSpecialUsableGroup')}
+              onChange={(value) =>
+                handleFieldChange('GroupSpecialUsableGroup', value)
               }
             />
 
@@ -207,6 +216,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'JSON array of group identifiers. When enabled below, new tokens rotate through this list.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupSpecialUsableGroup'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Special usable group rules')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={8} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.'
                     )}
                   </FormDescription>
                   <FormMessage />

@@ -12,6 +12,7 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
   SMTPFrom: '',
   SMTPToken: '',
   SMTPSSLEnabled: false,
+  SMTPForceAuthLogin: false,
   WorkerUrl: '',
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,

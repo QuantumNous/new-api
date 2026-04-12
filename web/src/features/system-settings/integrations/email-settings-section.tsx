@@ -34,6 +34,7 @@ const createEmailSchema = (t: (key: string) => string) =>
     }, t('Enter a valid email or leave blank')),
     SMTPToken: z.string(),
     SMTPSSLEnabled: z.boolean(),
+    SMTPForceAuthLogin: z.boolean(),
   })
 
 type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
@@ -64,6 +65,7 @@ export function EmailSettingsSection({
       SMTPFrom: values.SMTPFrom.trim(),
       SMTPToken: values.SMTPToken.trim(),
       SMTPSSLEnabled: values.SMTPSSLEnabled,
+      SMTPForceAuthLogin: values.SMTPForceAuthLogin,
     }
 
     const initial = {
@@ -73,6 +75,7 @@ export function EmailSettingsSection({
       SMTPFrom: defaultValues.SMTPFrom.trim(),
       SMTPToken: defaultValues.SMTPToken.trim(),
       SMTPSSLEnabled: defaultValues.SMTPSSLEnabled,
+      SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
     }
 
     const updates: Array<{ key: string; value: string | boolean }> = []
@@ -101,6 +104,13 @@ export function EmailSettingsSection({
       updates.push({
         key: 'SMTPSSLEnabled',
         value: sanitized.SMTPSSLEnabled,
+      })
+    }
+
+    if (sanitized.SMTPForceAuthLogin !== initial.SMTPForceAuthLogin) {
+      updates.push({
+        key: 'SMTPForceAuthLogin',
+        value: sanitized.SMTPForceAuthLogin,
       })
     }
 
@@ -177,6 +187,29 @@ export function EmailSettingsSection({
                     </FormLabel>
                     <FormDescription>
                       {t('Use secure connection when sending emails')}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='SMTPForceAuthLogin'
+              render={({ field }) => (
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('Force AUTH LOGIN')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t('Force SMTP authentication using AUTH LOGIN method')}
                     </FormDescription>
                   </div>
                   <FormControl>
