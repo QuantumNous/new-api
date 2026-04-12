@@ -645,15 +645,16 @@ func EvictChannelAffinityCache(c *gin.Context) {
 	if !ok || cacheKey == "" {
 		return
 	}
+	// Clear SkipRetry first, before attempting cache deletion.
+	// This must always run regardless of cache.DeleteMany outcome,
+	// otherwise ShouldSkipRetryAfterChannelAffinityFailure reads
+	// the stale meta from context and prevents retries on the fallback channel.
+	c.Set(ginKeyChannelAffinitySkipRetry, false)
 	cache := getChannelAffinityCache()
 	if _, err := cache.DeleteMany([]string{cacheKey}); err != nil {
 		common.SysError(fmt.Sprintf("channel affinity cache evict failed: key=%s, err=%v", cacheKey, err))
 		return
 	}
-	// Clear SkipRetry so the fallback channel can use normal retry logic.
-	// Without this, ShouldSkipRetryAfterChannelAffinityFailure would read
-	// the stale meta from context and prevent retries on the new channel.
-	c.Set(ginKeyChannelAffinitySkipRetry, false)
 	common.SysLog(fmt.Sprintf("channel affinity cache evicted (preferred channel disabled): key=%s", cacheKey))
 }
 
