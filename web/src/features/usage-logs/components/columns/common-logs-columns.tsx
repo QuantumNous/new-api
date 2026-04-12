@@ -153,6 +153,19 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               size='sm'
               copyable={false}
             />
+            {log.request_id && (
+              <StatusBadge
+                label={
+                  log.request_id.length > 18
+                    ? `${log.request_id.slice(0, 18)}…`
+                    : log.request_id
+                }
+                variant='neutral'
+                size='sm'
+                copyText={log.request_id}
+                className='max-w-[140px] truncate font-mono'
+              />
+            )}
           </div>
         )
       },

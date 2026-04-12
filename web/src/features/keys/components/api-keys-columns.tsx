@@ -13,11 +13,15 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
-import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { StatusBadge } from '@/components/status-badge'
 import { getSystemOptions } from '@/features/system-settings/api'
 import { API_KEY_STATUSES } from '../constants'
 import { type ApiKey } from '../types'
+import {
+  ApiKeyCell,
+  ModelLimitsCell,
+  IpRestrictionsCell,
+} from './api-keys-cells'
 import { DataTableRowActions } from './data-table-row-actions'
 
 function useGroupRatios(): Record<string, number> {
@@ -25,7 +29,6 @@ function useGroupRatios(): Record<string, number> {
     Boolean(s.auth.user?.role && s.auth.user.role >= 10)
   )
 
-  // Admin: load from system options (full GroupRatio map)
   const { data: adminData } = useQuery({
     queryKey: ['system-options-group-ratio'],
     queryFn: getSystemOptions,
@@ -33,8 +36,7 @@ function useGroupRatios(): Record<string, number> {
     staleTime: 5 * 60 * 1000,
     select: (res) => {
       if (!res.success || !res.data) return {}
-      const options = res.data
-      const option = options.find((o) => o.key === 'GroupRatio')
+      const option = res.data.find((o) => o.key === 'GroupRatio')
       if (!option?.value) return {}
       try {
         return JSON.parse(option.value) as Record<string, number>
@@ -44,7 +46,6 @@ function useGroupRatios(): Record<string, number> {
     },
   })
 
-  // Non-admin: load from self groups API
   const { data: userGroupsData } = useQuery({
     queryKey: ['user-self-groups'],
     queryFn: getUserGroups,
@@ -102,13 +103,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Name')} />
       ),
-      cell: ({ row }) => {
-        return (
-          <div className='max-w-[200px] truncate font-medium'>
-            {row.getValue('name')}
-          </div>
-        )
-      },
+      cell: ({ row }) => (
+        <div className='max-w-[200px] truncate font-medium'>
+          {row.getValue('name')}
+        </div>
+      ),
       meta: { label: t('Name') },
     },
     {
@@ -117,13 +116,8 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
       cell: ({ row }) => {
-        const statusValue = row.getValue('status') as number
-        const statusConfig = API_KEY_STATUSES[statusValue]
-
-        if (!statusConfig) {
-          return null
-        }
-
+        const statusConfig = API_KEY_STATUSES[row.getValue('status') as number]
+        if (!statusConfig) return null
         return (
           <StatusBadge
             label={t(statusConfig.label)}
@@ -133,30 +127,14 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           />
         )
       },
-      filterFn: (row, id, value) => {
-        return value.includes(String(row.getValue(id)))
-      },
+      filterFn: (row, id, value) => value.includes(String(row.getValue(id))),
       meta: { label: t('Status') },
     },
     {
       id: 'key',
       accessorKey: 'key',
       header: t('API Key'),
-      cell: function KeyCell({ row }) {
-        const apiKey = row.original
-        const fullKey = `sk-${apiKey.key}`
-        const maskedKey = `sk-${apiKey.key.slice(0, 4)}${'*'.repeat(16)}${apiKey.key.slice(-4)}`
-
-        return (
-          <MaskedValueDisplay
-            label={t('Full API Key')}
-            fullValue={fullKey}
-            maskedValue={maskedKey}
-            copyTooltip={t('Copy API key')}
-            copyAriaLabel={t('Copy API key')}
-          />
-        )
-      },
+      cell: ({ row }) => <ApiKeyCell apiKey={row.original} />,
       enableSorting: false,
       meta: { label: t('API Key') },
     },
@@ -266,17 +244,35 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       meta: { label: t('Group') },
     },
     {
+      id: 'model_limits',
+      accessorKey: 'model_limits',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Models')} />
+      ),
+      cell: ({ row }) => <ModelLimitsCell apiKey={row.original} />,
+      enableSorting: false,
+      meta: { label: t('Models') },
+    },
+    {
+      id: 'allow_ips',
+      accessorKey: 'allow_ips',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('IP Restriction')} />
+      ),
+      cell: ({ row }) => <IpRestrictionsCell apiKey={row.original} />,
+      enableSorting: false,
+      meta: { label: t('IP Restriction') },
+    },
+    {
       accessorKey: 'created_time',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Created')} />
       ),
-      cell: ({ row }) => {
-        return (
-          <div className='min-w-[140px] font-mono text-sm'>
-            {formatTimestampToDate(row.getValue('created_time'))}
-          </div>
-        )
-      },
+      cell: ({ row }) => (
+        <div className='min-w-[140px] font-mono text-sm'>
+          {formatTimestampToDate(row.getValue('created_time'))}
+        </div>
+      ),
       meta: { label: t('Created') },
     },
     {

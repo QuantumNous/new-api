@@ -1,9 +1,3 @@
 {
-  "Pass through the anthropic-beta header for beta features": "Pass through the anthropic-beta header for beta features",
-  "Pass through the include field for usage obfuscation": "Pass through the include field for usage obfuscation",
-  "Pass through the inference_geo field for geographic routing": "Pass through the inference_geo field for geographic routing",
-  "Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.": "Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.",
-  "Select or enter model name": "Select or enter model name",
-  "View the complete details for this log entry": "View the complete details for this log entry",
-  "View user consumption statistics and charts": "View user consumption statistics and charts"
+  "Failed to copy keys": "Failed to copy keys"
 }

@@ -34,6 +34,7 @@ import {
 } from '@/components/data-table'
 import { getApiKeys, searchApiKeys } from '../api'
 import { API_KEY_STATUS_OPTIONS, ERROR_MESSAGES } from '../constants'
+import { type ApiKey } from '../types'
 import { useApiKeysColumns } from './api-keys-columns'
 import { useApiKeys } from './api-keys-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
@@ -211,6 +212,11 @@ export function ApiKeysTable() {
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && 'selected'}
+                    className={
+                      (row.original as ApiKey).status !== 1
+                        ? 'opacity-60'
+                        : undefined
+                    }
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>

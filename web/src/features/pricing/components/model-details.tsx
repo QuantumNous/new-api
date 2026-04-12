@@ -344,7 +344,7 @@ function GroupPricingSection(props: {
     <section className='py-4'>
       <SectionTitle>{t('Pricing by Group')}</SectionTitle>
       <AutoGroupChain model={model} autoGroups={autoGroups} />
-      <div className='-mx-4 sm:mx-0 [&_[data-slot=table-container]]:overflow-y-clip'>
+      <div className='-mx-4 sm:mx-0'>
         <Table className='text-sm'>
           <TableHeader>
             <TableRow className='hover:bg-transparent'>

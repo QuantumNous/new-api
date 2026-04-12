@@ -87,6 +87,8 @@ export function StatusBadge({
   variant,
   size = 'sm',
   pulse = false,
+  showDot: _showDot,
+  rounded: _rounded,
   copyable = true,
   copyText,
   autoColor,
