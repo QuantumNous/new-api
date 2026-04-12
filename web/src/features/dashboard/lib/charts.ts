@@ -5,6 +5,7 @@ import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
 import type {
   QuotaDataItem,
   ProcessedChartData,
+  ProcessedUserChartData,
 } from '@/features/dashboard/types'
 
 type TFunction = (key: string) => string
@@ -434,6 +435,221 @@ export function processChartData(
         },
       },
       color: { specified: modelColorMap },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+  }
+}
+
+const USER_COLORS = [
+  '#5B8FF9',
+  '#5AD8A6',
+  '#F6BD16',
+  '#E8684A',
+  '#6DC8EC',
+  '#9270CA',
+  '#FF9D4D',
+  '#269A99',
+  '#FF99C3',
+  '#5D7092',
+]
+
+export function processUserChartData(
+  data: QuotaDataItem[],
+  timeGranularity: TimeGranularity = 'day',
+  t?: TFunction,
+  limit = 10
+): ProcessedUserChartData {
+  const tt: TFunction = t ?? ((x) => x)
+  const { config } = getCurrencyDisplay()
+  const quotaPerUnit = config.quotaPerUnit
+
+  const formatVal = (raw: number) =>
+    formatQuotaWithCurrency(raw, {
+      digitsLarge: 2,
+      digitsSmall: 2,
+      abbreviate: false,
+    })
+
+  const emptyResult: ProcessedUserChartData = {
+    spec_user_rank: {
+      type: 'bar',
+      data: [{ id: 'userRankData', values: [] }],
+      xField: 'rawQuota',
+      yField: 'User',
+      seriesField: 'User',
+      direction: 'horizontal',
+      title: {
+        visible: true,
+        text: tt('User Consumption Ranking'),
+        subtext: tt('No data available'),
+      },
+      legends: { visible: false },
+      color: { type: 'ordinal', range: USER_COLORS },
+      background: { fill: 'transparent' },
+    },
+    spec_user_trend: {
+      type: 'area',
+      data: [{ id: 'userTrendData', values: [] }],
+      xField: 'Time',
+      yField: 'rawQuota',
+      seriesField: 'User',
+      title: {
+        visible: true,
+        text: tt('User Consumption Trend'),
+        subtext: tt('No data available'),
+      },
+      legends: { visible: true, selectMode: 'single' },
+      color: { type: 'ordinal', range: USER_COLORS },
+      point: { visible: false },
+      background: { fill: 'transparent' },
+    },
+  }
+
+  if (!data || data.length === 0) return emptyResult
+
+  const userQuotaTotal = new Map<string, number>()
+  data.forEach((item) => {
+    const username = item.username || 'unknown'
+    const prev = userQuotaTotal.get(username) || 0
+    userQuotaTotal.set(username, prev + (Number(item.quota) || 0))
+  })
+
+  const sorted = Array.from(userQuotaTotal.entries()).sort(
+    (a, b) => b[1] - a[1]
+  )
+  const topUsers = sorted.slice(0, limit).map(([u]) => u)
+  const topUserSet = new Set(topUsers)
+  const totalQuota = sorted.slice(0, limit).reduce((s, [, q]) => s + q, 0)
+
+  const rankValues = sorted.slice(0, limit).map(([username, quota]) => ({
+    User: username,
+    rawQuota: quota,
+    Usage: Number((quota / quotaPerUnit).toFixed(4)),
+  }))
+
+  const userColorMap = topUsers.reduce<Record<string, string>>(
+    (acc, user, i) => {
+      acc[user] = USER_COLORS[i % USER_COLORS.length]
+      return acc
+    },
+    {}
+  )
+
+  const timeUserMap = new Map<string, Map<string, number>>()
+  const allTimePoints = new Set<string>()
+
+  data.forEach((item) => {
+    const ts = Number(item.created_at)
+    const timeKey = formatChartTime(ts, timeGranularity)
+    allTimePoints.add(timeKey)
+    const user = item.username || 'unknown'
+    if (!topUserSet.has(user)) return
+    if (!timeUserMap.has(timeKey)) timeUserMap.set(timeKey, new Map())
+    const map = timeUserMap.get(timeKey)!
+    map.set(user, (map.get(user) || 0) + (Number(item.quota) || 0))
+  })
+
+  const sortedTimePoints = Array.from(allTimePoints).sort()
+  const trendValues: Array<{
+    Time: string
+    User: string
+    rawQuota: number
+    Usage: number
+  }> = []
+
+  sortedTimePoints.forEach((time) => {
+    topUsers.forEach((user) => {
+      const q = timeUserMap.get(time)?.get(user) || 0
+      trendValues.push({
+        Time: time,
+        User: user,
+        rawQuota: q,
+        Usage: Number((q / quotaPerUnit).toFixed(4)),
+      })
+    })
+  })
+
+  return {
+    spec_user_rank: {
+      type: 'bar',
+      data: [{ id: 'userRankData', values: rankValues }],
+      xField: 'rawQuota',
+      yField: 'User',
+      seriesField: 'User',
+      direction: 'horizontal',
+      title: {
+        visible: true,
+        text: tt('User Consumption Ranking'),
+        subtext: `${tt('Total:')} ${formatVal(totalQuota)}`,
+      },
+      legends: { visible: false },
+      bar: {
+        state: { hover: { stroke: '#000', lineWidth: 1 } },
+      },
+      label: {
+        visible: true,
+        position: 'outside',
+        formatMethod: (value: number) => formatVal(value),
+        style: { fontSize: 11 },
+      },
+      axes: [
+        { orient: 'left', type: 'band' },
+        { orient: 'bottom', type: 'linear', visible: false },
+      ],
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.User,
+              value: (datum: Record<string, unknown>) =>
+                formatVal(Number(datum?.rawQuota) || 0),
+            },
+          ],
+        },
+      },
+      color: { specified: userColorMap },
+      background: { fill: 'transparent' },
+      animation: true,
+    },
+    spec_user_trend: {
+      type: 'area',
+      data: [{ id: 'userTrendData', values: trendValues }],
+      xField: 'Time',
+      yField: 'rawQuota',
+      seriesField: 'User',
+      stack: false,
+      title: {
+        visible: true,
+        text: tt('User Consumption Trend'),
+        subtext: `${tt('Total:')} ${formatVal(totalQuota)}`,
+      },
+      legends: { visible: true, selectMode: 'single' },
+      axes: [
+        { orient: 'bottom', type: 'band' },
+        {
+          orient: 'left',
+          type: 'linear',
+          label: {
+            formatMethod: (value: number) => formatVal(value),
+          },
+        },
+      ],
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.User,
+              value: (datum: Record<string, unknown>) =>
+                formatVal(Number(datum?.rawQuota) || 0),
+            },
+          ],
+        },
+      },
+      area: { style: { fillOpacity: 0.15 } },
+      line: { style: { lineWidth: 2 } },
+      point: { visible: false },
+      color: { specified: userColorMap },
       background: { fill: 'transparent' },
       animation: true,
     },

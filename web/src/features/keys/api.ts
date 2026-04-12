@@ -21,14 +21,17 @@ export async function getApiKeys(
   return res.data
 }
 
-// Search API keys by keyword or token
+// Search API keys by keyword or token (with pagination)
 export async function searchApiKeys(
   params: SearchApiKeysParams
 ): Promise<{ success: boolean; message?: string; data?: ApiKey[] }> {
-  const { keyword = '', token = '' } = params
-  const res = await api.get(
-    `/api/token/search?keyword=${keyword}&token=${token}`
-  )
+  const { keyword = '', token = '', p, size } = params
+  const queryParams = new URLSearchParams()
+  if (keyword) queryParams.set('keyword', keyword)
+  if (token) queryParams.set('token', token)
+  if (p != null) queryParams.set('p', String(p))
+  if (size != null) queryParams.set('size', String(size))
+  const res = await api.get(`/api/token/search?${queryParams.toString()}`)
   return res.data
 }
 
@@ -74,5 +77,13 @@ export async function updateApiKeyStatus(
   status: number
 ): Promise<ApiResponse<ApiKey>> {
   const res = await api.put('/api/token/?status_only=true', { id, status })
+  return res.data
+}
+
+// Fetch the real (unmasked) key for a token by ID
+export async function fetchTokenKey(
+  id: number
+): Promise<{ success: boolean; message?: string; data?: string }> {
+  const res = await api.post(`/api/token/${id}/key`)
   return res.data
 }

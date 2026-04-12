@@ -312,7 +312,7 @@ export const LOG_CATEGORY_LABELS: Record<LogCategory, string> = {
 /**
  * Log types that are displayable (have detailed info)
  */
-export const DISPLAYABLE_LOG_TYPES = [0, 2, 5] as const
+export const DISPLAYABLE_LOG_TYPES = [0, 2, 5, 6] as const
 
 /**
  * Log types that show timing info

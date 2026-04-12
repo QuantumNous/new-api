@@ -27,8 +27,6 @@
   "example.com&#10;blocked-site.com": "example.com&#10;blocked-site.com",
   "example.com&#10;company.com": "example.com&#10;company.com",
   "FastGPT": "FastGPT",
-  "footer.columns.friends.links.gptLoad": "GPT-Load",
-  "footer.columns.friends.links.horizon": "new-api-horizon",
   "footer.columns.related.links.midjourney": "Midjourney-Proxy",
   "footer.columns.related.links.neko": "neko-api-key-tool",
   "footer.columns.related.links.oneApi": "One API",

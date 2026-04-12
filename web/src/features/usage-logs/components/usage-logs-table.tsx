@@ -1,17 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   type ColumnDef,
-  type SortingState,
-  type VisibilityState,
   flexRender,
   getCoreRowModel,
   getFacetedRowModel,
   getFacetedUniqueValues,
   getFilteredRowModel,
   getPaginationRowModel,
-  getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
@@ -38,7 +35,6 @@ import { LOG_TYPE_FILTERS, DEFAULT_LOGS_DATA } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
-import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
@@ -50,15 +46,9 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
   const isMobile = useMediaQuery('(max-width: 640px)')
-  const { refreshTrigger } = useUsageLogsContext()
   const searchParams = route.useSearch()
 
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-
   const {
-    globalFilter,
-    onGlobalFilterChange,
     columnFilters,
     onColumnFiltersChange,
     pagination,
@@ -70,7 +60,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     pagination: { defaultPage: 1, defaultPageSize: 20 },
     globalFilter: { enabled: false },
     columnFilters: [
-      { columnId: 'type', searchKey: 'type', type: 'array' as const },
+      { columnId: 'created_at', searchKey: 'type', type: 'array' as const },
       { columnId: 'model_name', searchKey: 'model', type: 'string' as const },
       { columnId: 'token_name', searchKey: 'token', type: 'string' as const },
       { columnId: 'group', searchKey: 'group', type: 'string' as const },
@@ -91,8 +81,6 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     ],
   })
 
-  // Fetch data with React Query
-  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'logs',
@@ -101,9 +89,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       pagination.pageIndex + 1,
       pagination.pageSize,
       columnFilters,
-      globalFilter,
       searchParams,
-      refreshTrigger,
+      t,
     ],
     queryFn: async () => {
       const result = await fetchLogsByCategory({
@@ -122,8 +109,6 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
 
       return result.data || DEFAULT_LOGS_DATA
     },
-    // Only use placeholder data if the log category hasn't changed
-    // This prevents showing incompatible data structures during tab switches
     placeholderData: (previousData, previousQuery) => {
       if (previousQuery?.queryKey[1] === logCategory) {
         return previousData
@@ -133,33 +118,22 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   })
 
   const logs = data?.items || []
-
-  // Get column definitions based on log category
   const columns = useColumnsByCategory(logCategory, isAdmin)
-
-  // Show loading state when switching tabs or initial load
   const isLoadingData = isLoading || (isFetching && !data)
 
   const table = useReactTable({
     data: logs as Record<string, unknown>[],
     columns: columns as ColumnDef<Record<string, unknown>>[],
     state: {
-      sorting,
-      columnVisibility,
       columnFilters,
-      globalFilter,
       pagination,
     },
     enableRowSelection: false,
-    onSortingChange: setSorting,
-    onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange,
-    onGlobalFilterChange,
     onColumnFiltersChange,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
     manualPagination: true,
@@ -171,12 +145,11 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
-  // Different filters for different log categories
   const filters =
     logCategory === 'common'
       ? [
           {
-            columnId: 'type',
+            columnId: 'created_at',
             title: t('Log Type'),
             options: LOG_TYPE_FILTERS.map((opt) => ({
               value: opt.value,
@@ -205,18 +178,16 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    return (
-                      <TableHead key={header.id} colSpan={header.colSpan}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    )
-                  })}
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} colSpan={header.colSpan}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
                 </TableRow>
               ))}
             </TableHeader>
@@ -235,7 +206,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
                 table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id}>
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell key={cell.id} className='py-2'>
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()

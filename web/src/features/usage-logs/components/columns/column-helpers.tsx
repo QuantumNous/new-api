@@ -16,33 +16,6 @@ import { formatDuration } from '../../lib/format'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 
 /**
- * Column helper functions and utilities for usage logs tables
- * This module provides reusable column definitions and rendering utilities
- */
-
-// ============================================================================
-// Column Rendering Utilities
-// ============================================================================
-
-/**
- * Render a status badge with consistent styling
- */
-export function renderBadge(
-  value: string,
-  options?: { className?: string; mono?: boolean }
-) {
-  return (
-    <StatusBadge
-      label={value}
-      autoColor={value}
-      copyText={value}
-      size='sm'
-      className={options?.mono ? 'truncate font-mono' : options?.className}
-    />
-  )
-}
-
-/**
  * Cache tooltip component for token display
  */
 export function CacheTooltip({

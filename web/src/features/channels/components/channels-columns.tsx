@@ -2,7 +2,13 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
-import { ChevronDown, ChevronRight, ListOrdered, Shuffle } from 'lucide-react'
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  ListOrdered,
+  Shuffle,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getCurrencyLabel } from '@/lib/currency'
@@ -28,7 +34,7 @@ import {
   textColorMap,
 } from '@/components/status-badge'
 import { getCodexUsage } from '../api'
-import { CHANNEL_STATUS_CONFIG } from '../constants'
+import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatBalance,
   formatRelativeTime,
@@ -40,13 +46,16 @@ import {
   isMultiKeyChannel,
   parseModelsList,
   parseGroupsList,
+  parseChannelSettings,
   handleUpdateChannelField,
   handleUpdateTagField,
   handleUpdateChannelBalance,
   isTagAggregateRow,
   type TagRow,
 } from '../lib'
+import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
+import { useChannels } from './channels-provider'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DataTableTagRowActions } from './data-table-tag-row-actions'
 import {
@@ -101,6 +110,64 @@ function renderLimitedItems(
 }
 
 /**
+ * Upstream update tags (+N / -N) shown on channel name for model-fetchable channels
+ */
+function UpstreamUpdateTags({ channel }: { channel: Channel }) {
+  const { upstream, setCurrentRow } = useChannels()
+  if (!MODEL_FETCHABLE_TYPES.has(channel.type)) return null
+
+  const meta = parseUpstreamUpdateMeta(channel.settings)
+  if (!meta.enabled) return null
+
+  const addCount = meta.pendingAddModels.length
+  const removeCount = meta.pendingRemoveModels.length
+  if (addCount === 0 && removeCount === 0) return null
+
+  return (
+    <div className='flex items-center gap-0.5'>
+      {addCount > 0 && (
+        <StatusBadge
+          label={`+${addCount}`}
+          variant='success'
+          size='sm'
+          copyable={false}
+          className='cursor-pointer'
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation()
+            setCurrentRow(channel)
+            upstream.openModal(
+              channel,
+              meta.pendingAddModels,
+              meta.pendingRemoveModels,
+              'add'
+            )
+          }}
+        />
+      )}
+      {removeCount > 0 && (
+        <StatusBadge
+          label={`-${removeCount}`}
+          variant='danger'
+          size='sm'
+          copyable={false}
+          className='cursor-pointer'
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation()
+            setCurrentRow(channel)
+            upstream.openModal(
+              channel,
+              meta.pendingAddModels,
+              meta.pendingRemoveModels,
+              'remove'
+            )
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
  * Priority cell component with inline editing
  */
 function PriorityCell({ channel }: { channel: Channel }) {
@@ -124,7 +191,7 @@ function PriorityCell({ channel }: { channel: Channel }) {
             setPendingValue(value)
             setConfirmOpen(true)
           }}
-          min={0}
+          min={-999}
         />
         <ConfirmDialog
           open={confirmOpen}
@@ -150,7 +217,7 @@ function PriorityCell({ channel }: { channel: Channel }) {
       onChange={(value) => {
         handleUpdateChannelField(channel.id, 'priority', value, queryClient)
       }}
-      min={0}
+      min={-999}
     />
   )
 }
@@ -300,22 +367,26 @@ function BalanceCell({ channel }: { channel: Channel }) {
             <span
               className={cn(
                 'cursor-pointer transition-opacity hover:opacity-70',
-                textColorMap[isUpdating ? 'neutral' : variant]
+                channel.type === 57
+                  ? 'text-primary'
+                  : textColorMap[isUpdating ? 'neutral' : variant]
               )}
               onClick={handleClickUpdate}
             >
-              {isUpdating ? 'Updating...' : remainingDisplay}
+              {isUpdating
+                ? 'Updating...'
+                : channel.type === 57
+                  ? t('Account Info')
+                  : remainingDisplay}
             </span>
           </TooltipTrigger>
           <TooltipContent>
             <p>
-              {t('Remaining:')} {remainingDisplay}
-            </p>
-            <p>
               {channel.type === 57
                 ? t('Click to view Codex usage')
-                : t('Click to update balance')}
+                : `${t('Remaining:')} ${remainingDisplay}`}
             </p>
+            {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -459,11 +530,28 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         }
 
         // Regular channel row
+        const settings = parseChannelSettings(channel.setting)
+        const isPassThrough = settings.pass_through_body_enabled === true
+
         return (
           <div className='flex items-center gap-2'>
             <div className='flex flex-col gap-1'>
               <div className='flex items-center gap-1.5'>
                 <span className='font-medium'>{truncateText(name, 30)}</span>
+                {isPassThrough && (
+                  <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertTriangle className='h-3.5 w-3.5 flex-shrink-0 text-amber-500' />
+                      </TooltipTrigger>
+                      <TooltipContent side='top'>
+                        {t(
+                          'Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.'
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
                 {isMultiKey && (
                   <StatusBadge
                     label={`${channel.channel_info.multi_key_size} keys`}
@@ -472,11 +560,21 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                     copyable={false}
                   />
                 )}
+                <UpstreamUpdateTags channel={channel} />
               </div>
               {channel.remark && (
-                <span className='text-muted-foreground text-xs'>
-                  {truncateText(channel.remark, 40)}
-                </span>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className='text-muted-foreground text-xs'>
+                        {truncateText(channel.remark, 40)}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side='bottom' className='max-w-xs'>
+                      {channel.remark}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           </div>
@@ -649,6 +747,59 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           isMultiKey && keySize > 0
             ? `${t(config.label)} (${enabledCount}/${keySize})`
             : t(config.label)
+
+        // Auto-disabled: show reason and time tooltip
+        if (status === 3) {
+          let statusReason = ''
+          let statusTime = ''
+          try {
+            const otherInfo = channel.other_info
+              ? JSON.parse(channel.other_info)
+              : null
+            if (otherInfo) {
+              statusReason = otherInfo.status_reason || ''
+              statusTime = otherInfo.status_time
+                ? formatTimestampToDate(otherInfo.status_time)
+                : ''
+            }
+          } catch {
+            /* empty */
+          }
+
+          if (statusReason || statusTime) {
+            return (
+              <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <StatusBadge
+                        label={label}
+                        variant={config.variant}
+                        showDot={config.showDot}
+                        size='sm'
+                        copyable={false}
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' className='max-w-xs'>
+                    <div className='space-y-1 text-xs'>
+                      {statusReason && (
+                        <div>
+                          {t('Reason:')} {statusReason}
+                        </div>
+                      )}
+                      {statusTime && (
+                        <div>
+                          {t('Time:')} {statusTime}
+                        </div>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )
+          }
+        }
 
         return (
           <StatusBadge

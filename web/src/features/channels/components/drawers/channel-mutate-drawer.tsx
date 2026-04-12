@@ -102,6 +102,10 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
 } from '../../lib'
+import {
+  collectInvalidStatusCodeEntries,
+  collectNewDisallowedStatusCodeRedirects,
+} from '../../lib/status-code-risk-guard'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
@@ -110,6 +114,7 @@ import {
   MissingModelsConfirmationDialog,
   type MissingModelsAction,
 } from '../dialogs/missing-models-confirmation-dialog'
+import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
 
 type ChannelMutateDrawerProps = {
@@ -187,6 +192,14 @@ export function ChannelMutateDrawer({
   const doubaoApiClickCountRef = useRef(0)
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
+  const initialStatusCodeMappingRef = useRef<string>('')
+  const [statusCodeRiskOpen, setStatusCodeRiskOpen] = useState(false)
+  const [statusCodeRiskDetailItems, setStatusCodeRiskDetailItems] = useState<
+    string[]
+  >([])
+  const statusCodeRiskResolveRef = useRef<
+    ((confirmed: boolean) => void) | null
+  >(null)
   const [missingModelsDialogOpen, setMissingModelsDialogOpen] = useState(false)
   const [missingModelsList, setMissingModelsList] = useState<string[]>([])
   const missingModelsResolveRef = useRef<
@@ -404,10 +417,13 @@ export function ChannelMutateDrawer({
         channelData.data.models || ''
       )
       initialModelMappingRef.current = channelData.data.model_mapping || ''
+      initialStatusCodeMappingRef.current =
+        channelData.data.status_code_mapping || ''
     } else if (!isEditing) {
       form.reset(CHANNEL_FORM_DEFAULT_VALUES)
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
+      initialStatusCodeMappingRef.current = ''
     }
   }, [isEditing, channelData, form])
 
@@ -720,6 +736,34 @@ export function ChannelMutateDrawer({
     []
   )
 
+  const confirmStatusCodeRisk = useCallback(
+    (detailItems: string[]): Promise<boolean> =>
+      new Promise((resolve) => {
+        statusCodeRiskResolveRef.current = resolve
+        setStatusCodeRiskDetailItems(detailItems)
+        setStatusCodeRiskOpen(true)
+      }),
+    []
+  )
+
+  const handleStatusCodeRiskAction = useCallback((confirmed: boolean) => {
+    setStatusCodeRiskOpen(false)
+    setStatusCodeRiskDetailItems([])
+    if (statusCodeRiskResolveRef.current) {
+      statusCodeRiskResolveRef.current(confirmed)
+      statusCodeRiskResolveRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (statusCodeRiskResolveRef.current) {
+        statusCodeRiskResolveRef.current(false)
+        statusCodeRiskResolveRef.current = null
+      }
+    }
+  }, [])
+
   // Submit handler
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
@@ -730,6 +774,30 @@ export function ChannelMutateDrawer({
           message: 'API key is required',
         })
         return
+      }
+
+      // Validate status_code_mapping entries
+      if (data.status_code_mapping?.trim()) {
+        const invalidEntries = collectInvalidStatusCodeEntries(
+          data.status_code_mapping
+        )
+        if (invalidEntries.length > 0) {
+          toast.error(
+            t('Invalid status code mapping entries: {{entries}}', {
+              entries: invalidEntries.join(', '),
+            })
+          )
+          return
+        }
+
+        const riskyRedirects = collectNewDisallowedStatusCodeRedirects(
+          initialStatusCodeMappingRef.current,
+          data.status_code_mapping
+        )
+        if (riskyRedirects.length > 0) {
+          const confirmed = await confirmStatusCodeRisk(riskyRedirects)
+          if (!confirmed) return
+        }
       }
 
       // Validate model_mapping JSON format
@@ -822,6 +890,7 @@ export function ChannelMutateDrawer({
       form,
       handleSuccess,
       confirmMissingModelMappings,
+      confirmStatusCodeRisk,
       t,
     ]
   )
@@ -1270,7 +1339,86 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+
+                        <FormField
+                          control={form.control}
+                          name='allow_include_obfuscation'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t(
+                                    'Allow include usage obfuscation passthrough'
+                                  )}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Pass through the include field for usage obfuscation'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='allow_inference_geo'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Allow inference geography passthrough')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Pass through the inference_geo field for geographic routing'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
                       </>
+                    )}
+
+                    {currentType === 14 && (
+                      <FormField
+                        control={form.control}
+                        name='claude_beta_query'
+                        render={({ field }) => (
+                          <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                            <div className='space-y-0.5'>
+                              <FormLabel className='text-sm'>
+                                {t('Allow Claude beta query passthrough')}
+                              </FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Pass through the anthropic-beta header for beta features'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
                     )}
                   </div>
                 )}
@@ -2685,6 +2833,59 @@ export function ChannelMutateDrawer({
                     </FormItem>
                   )}
                 />
+
+                {MODEL_FETCHABLE_TYPES.has(currentType) && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name='upstream_model_update_check_enabled'
+                      render={({ field }) => (
+                        <FormItem className='flex items-center justify-between rounded-lg border p-4'>
+                          <div className='space-y-0.5'>
+                            <FormLabel className='text-base'>
+                              {t('Upstream Model Update Check')}
+                            </FormLabel>
+                            <FormDescription>
+                              {t(
+                                'Periodically check for upstream model changes'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name='upstream_model_update_auto_sync_enabled'
+                      render={({ field }) => (
+                        <FormItem className='flex items-center justify-between rounded-lg border p-4'>
+                          <div className='space-y-0.5'>
+                            <FormLabel className='text-base'>
+                              {t('Auto Sync Upstream Models')}
+                            </FormLabel>
+                            <FormDescription>
+                              {t(
+                                'Automatically sync model list when upstream changes are detected'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
               </div>
             </form>
           </Form>
@@ -2741,6 +2942,15 @@ export function ChannelMutateDrawer({
         missingModels={missingModelsList}
         onConfirm={handleMissingModelsAction}
         onOpenChange={setMissingModelsDialogOpen}
+      />
+
+      <StatusCodeRiskDialog
+        open={statusCodeRiskOpen}
+        onOpenChange={(v) => {
+          if (!v) handleStatusCodeRiskAction(false)
+        }}
+        detailItems={statusCodeRiskDetailItems}
+        onConfirm={() => handleStatusCodeRiskAction(true)}
       />
     </>
   )

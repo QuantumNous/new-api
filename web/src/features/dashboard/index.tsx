@@ -35,6 +35,12 @@ const LazyModelCharts = lazy(() =>
   }))
 )
 
+const LazyUserCharts = lazy(() =>
+  import('./components/users/user-charts').then((m) => ({
+    default: m.UserCharts,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -65,6 +71,24 @@ function ModelChartsFallback() {
   )
 }
 
+const SECTION_META: Record<
+  DashboardSectionId,
+  { titleKey: string; descriptionKey: string }
+> = {
+  overview: {
+    titleKey: 'Overview',
+    descriptionKey: 'View dashboard overview and statistics',
+  },
+  models: {
+    titleKey: 'Models',
+    descriptionKey: 'View model statistics and charts',
+  },
+  users: {
+    titleKey: 'User Analytics',
+    descriptionKey: 'View user consumption statistics and charts',
+  },
+}
+
 export function Dashboard() {
   const { t } = useTranslation()
   const params = route.useParams()
@@ -91,15 +115,13 @@ export function Dashboard() {
     []
   )
 
+  const meta = SECTION_META[activeSection] ?? SECTION_META.overview
+
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>
-        {activeSection === 'overview' ? t('Overview') : t('Models')}
-      </SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
       <SectionPageLayout.Description>
-        {activeSection === 'overview'
-          ? t('View dashboard overview and statistics')
-          : t('View model statistics and charts')}
+        {t(meta.descriptionKey)}
       </SectionPageLayout.Description>
       {activeSection === 'models' && (
         <SectionPageLayout.Actions>
@@ -111,7 +133,7 @@ export function Dashboard() {
       )}
       <SectionPageLayout.Content>
         <div className='space-y-4'>
-          {activeSection === 'overview' ? (
+          {activeSection === 'overview' && (
             <>
               <SummaryCards />
               <CardStaggerContainer className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
@@ -129,7 +151,8 @@ export function Dashboard() {
                 </CardStaggerItem>
               </CardStaggerContainer>
             </>
-          ) : (
+          )}
+          {activeSection === 'models' && (
             <>
               <FadeIn>
                 <Suspense fallback={<LogStatCardsFallback />}>
@@ -151,6 +174,13 @@ export function Dashboard() {
                 </Suspense>
               </FadeIn>
             </>
+          )}
+          {activeSection === 'users' && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyUserCharts />
+              </Suspense>
+            </FadeIn>
           )}
         </div>
       </SectionPageLayout.Content>

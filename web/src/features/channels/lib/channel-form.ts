@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { CHANNEL_STATUS } from '../constants'
+import { CHANNEL_STATUS, MODEL_FETCHABLE_TYPES } from '../constants'
 import type { Channel } from '../types'
 
 // ============================================================================
@@ -52,6 +52,12 @@ export const channelFormSchema = z.object({
   allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
   disable_store: z.boolean().optional(), // OpenAI only
   allow_safety_identifier: z.boolean().optional(), // OpenAI only
+  allow_include_obfuscation: z.boolean().optional(), // OpenAI: include usage obfuscation
+  allow_inference_geo: z.boolean().optional(), // OpenAI: inference geography
+  claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
+  // Upstream model update settings (stored in settings JSON)
+  upstream_model_update_check_enabled: z.boolean().optional(),
+  upstream_model_update_auto_sync_enabled: z.boolean().optional(),
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -102,6 +108,9 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_service_tier: false,
   disable_store: false,
   allow_safety_identifier: false,
+  allow_include_obfuscation: false,
+  allow_inference_geo: false,
+  claude_beta_query: false,
 }
 
 // ============================================================================
@@ -149,6 +158,11 @@ export function transformChannelToFormDefaults(
   let allowServiceTier = false
   let disableStore = false
   let allowSafetyIdentifier = false
+  let allowIncludeObfuscation = false
+  let allowInferenceGeo = false
+  let claudeBetaQuery = false
+  let upstreamModelUpdateCheckEnabled = false
+  let upstreamModelUpdateAutoSyncEnabled = false
 
   if (channel.settings) {
     try {
@@ -160,6 +174,13 @@ export function transformChannelToFormDefaults(
       allowServiceTier = parsed.allow_service_tier === true
       disableStore = parsed.disable_store === true
       allowSafetyIdentifier = parsed.allow_safety_identifier === true
+      allowIncludeObfuscation = parsed.allow_include_obfuscation === true
+      allowInferenceGeo = parsed.allow_inference_geo === true
+      claudeBetaQuery = parsed.claude_beta_query === true
+      upstreamModelUpdateCheckEnabled =
+        parsed.upstream_model_update_check_enabled === true
+      upstreamModelUpdateAutoSyncEnabled =
+        parsed.upstream_model_update_auto_sync_enabled === true
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -201,7 +222,12 @@ export function transformChannelToFormDefaults(
     aws_key_type: awsKeyType,
     allow_service_tier: allowServiceTier,
     disable_store: disableStore,
+    allow_include_obfuscation: allowIncludeObfuscation,
+    allow_inference_geo: allowInferenceGeo,
+    claude_beta_query: claudeBetaQuery,
     allow_safety_identifier: allowSafetyIdentifier,
+    upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
+    upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
   }
 }
 
@@ -277,10 +303,32 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.disable_store = formData.disable_store === true
     settingsObj.allow_safety_identifier =
       formData.allow_safety_identifier === true
+    settingsObj.allow_include_obfuscation =
+      formData.allow_include_obfuscation === true
+    settingsObj.allow_inference_geo = formData.allow_inference_geo === true
   } else {
     if ('disable_store' in settingsObj) delete settingsObj.disable_store
     if ('allow_safety_identifier' in settingsObj)
       delete settingsObj.allow_safety_identifier
+    if ('allow_include_obfuscation' in settingsObj)
+      delete settingsObj.allow_include_obfuscation
+    if ('allow_inference_geo' in settingsObj)
+      delete settingsObj.allow_inference_geo
+  }
+
+  // Anthropic (type 14): claude_beta_query passthrough
+  if (formData.type === 14) {
+    settingsObj.claude_beta_query = formData.claude_beta_query === true
+  } else if ('claude_beta_query' in settingsObj) {
+    delete settingsObj.claude_beta_query
+  }
+
+  // Upstream model update settings (for model-fetchable channel types)
+  if (MODEL_FETCHABLE_TYPES.has(formData.type)) {
+    settingsObj.upstream_model_update_check_enabled =
+      formData.upstream_model_update_check_enabled === true
+    settingsObj.upstream_model_update_auto_sync_enabled =
+      formData.upstream_model_update_auto_sync_enabled === true
   }
 
   return JSON.stringify(settingsObj)

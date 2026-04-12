@@ -1,13 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, type ReactNode } from 'react'
+import type { ChannelAffinityInfo } from '../types'
 
 interface UsageLogsContextValue {
-  refreshTrigger: number
-  triggerRefresh: () => void
   selectedUserId: number | null
   setSelectedUserId: (userId: number | null) => void
   userInfoDialogOpen: boolean
   setUserInfoDialogOpen: (open: boolean) => void
+  affinityTarget: ChannelAffinityInfo | null
+  setAffinityTarget: (target: ChannelAffinityInfo | null) => void
+  affinityDialogOpen: boolean
+  setAffinityDialogOpen: (open: boolean) => void
 }
 
 const UsageLogsContext = createContext<UsageLogsContextValue | undefined>(
@@ -15,23 +18,23 @@ const UsageLogsContext = createContext<UsageLogsContextValue | undefined>(
 )
 
 export function UsageLogsProvider({ children }: { children: ReactNode }) {
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [userInfoDialogOpen, setUserInfoDialogOpen] = useState(false)
-
-  const triggerRefresh = () => {
-    setRefreshTrigger((prev) => prev + 1)
-  }
+  const [affinityTarget, setAffinityTarget] =
+    useState<ChannelAffinityInfo | null>(null)
+  const [affinityDialogOpen, setAffinityDialogOpen] = useState(false)
 
   return (
     <UsageLogsContext.Provider
       value={{
-        refreshTrigger,
-        triggerRefresh,
         selectedUserId,
         setSelectedUserId,
         userInfoDialogOpen,
         setUserInfoDialogOpen,
+        affinityTarget,
+        setAffinityTarget,
+        affinityDialogOpen,
+        setAffinityDialogOpen,
       }}
     >
       {children}

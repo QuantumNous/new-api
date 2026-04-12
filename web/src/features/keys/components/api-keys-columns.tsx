@@ -1,5 +1,9 @@
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
@@ -11,12 +15,62 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { StatusBadge } from '@/components/status-badge'
+import { getSystemOptions } from '@/features/system-settings/api'
 import { API_KEY_STATUSES } from '../constants'
 import { type ApiKey } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
+function useGroupRatios(): Record<string, number> {
+  const isAdmin = useAuthStore((s) =>
+    Boolean(s.auth.user?.role && s.auth.user.role >= 10)
+  )
+
+  // Admin: load from system options (full GroupRatio map)
+  const { data: adminData } = useQuery({
+    queryKey: ['system-options-group-ratio'],
+    queryFn: getSystemOptions,
+    enabled: isAdmin,
+    staleTime: 5 * 60 * 1000,
+    select: (res) => {
+      if (!res.success || !res.data) return {}
+      const options = res.data
+      const option = options.find((o) => o.key === 'GroupRatio')
+      if (!option?.value) return {}
+      try {
+        return JSON.parse(option.value) as Record<string, number>
+      } catch {
+        return {}
+      }
+    },
+  })
+
+  // Non-admin: load from self groups API
+  const { data: userGroupsData } = useQuery({
+    queryKey: ['user-self-groups'],
+    queryFn: getUserGroups,
+    enabled: !isAdmin,
+    staleTime: 5 * 60 * 1000,
+    select: (res) => {
+      if (!res.success || !res.data) return {}
+      const ratios: Record<string, number> = {}
+      for (const [group, info] of Object.entries(res.data)) {
+        if (info.ratio !== undefined) {
+          ratios[group] = info.ratio
+        }
+      }
+      return ratios
+    },
+  })
+
+  return useMemo(
+    () => (isAdmin ? adminData : userGroupsData) ?? {},
+    [isAdmin, adminData, userGroupsData]
+  )
+}
+
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
   const { t } = useTranslation()
+  const groupRatios = useGroupRatios()
   return [
     {
       id: 'select',
@@ -171,6 +225,9 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       cell: ({ row }) => {
         const apiKey = row.original
         const group = row.getValue('group') as string
+        const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
+        const ratioLabel = ratio != null ? `${ratio}x` : undefined
+
         if (group === 'auto') {
           return (
             <Tooltip>
@@ -192,11 +249,18 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           )
         }
         return (
-          <StatusBadge
-            label={group || t('Default')}
-            variant='neutral'
-            copyable={false}
-          />
+          <div className='flex items-center gap-1.5'>
+            <StatusBadge
+              label={group || t('Default')}
+              variant='neutral'
+              copyable={false}
+            />
+            {ratioLabel && (
+              <span className='text-muted-foreground rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums dark:bg-amber-900/30'>
+                {ratioLabel}
+              </span>
+            )}
+          </div>
         )
       },
       meta: { label: t('Group') },

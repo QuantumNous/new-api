@@ -187,7 +187,7 @@ export async function handleUpdateTagField(
  */
 export async function handleTestChannel(
   id: number,
-  options?: { testModel?: string; endpointType?: string },
+  options?: { testModel?: string; endpointType?: string; stream?: boolean },
   onTestComplete?: (
     success: boolean,
     responseTime?: number,
@@ -195,12 +195,13 @@ export async function handleTestChannel(
   ) => void
 ): Promise<void> {
   const payload =
-    options && (options.testModel || options.endpointType)
+    options && (options.testModel || options.endpointType || options.stream)
       ? {
           ...(options.testModel ? { model: options.testModel } : {}),
           ...(options.endpointType
             ? { endpoint_type: options.endpointType }
             : {}),
+          ...(options.stream ? { stream: true } : {}),
         }
       : undefined
 

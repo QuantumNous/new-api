@@ -90,6 +90,7 @@ export const DEFAULT_GROUP = 'default' as const
 
 export const BINDING_FIELDS = [
   { key: 'github_id', label: 'GitHub ID' },
+  { key: 'discord_id', label: 'Discord ID' },
   { key: 'oidc_id', label: 'OIDC ID' },
   { key: 'wechat_id', label: 'WeChat ID' },
   { key: 'email', label: 'Email' },

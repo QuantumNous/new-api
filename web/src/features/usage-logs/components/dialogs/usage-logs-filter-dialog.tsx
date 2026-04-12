@@ -81,7 +81,6 @@ export function UsageLogsFilterDialog({
   }, [tokensData?.data?.items])
 
   // Sync filters from URL
-
   useEffect(() => {
     const urlFilters: Partial<LogFilters> = {}
 
@@ -91,13 +90,42 @@ export function UsageLogsFilterDialog({
       urlFilters.endTime = new Date(searchParams.endTime)
     if (searchParams.channel) urlFilters.channel = String(searchParams.channel)
 
+    if (logCategory === 'common') {
+      if (searchParams.model)
+        (urlFilters as CommonLogFilters).model = searchParams.model
+      if (searchParams.token)
+        (urlFilters as CommonLogFilters).token = searchParams.token
+      if (searchParams.group)
+        (urlFilters as CommonLogFilters).group = searchParams.group
+      if (searchParams.username)
+        (urlFilters as CommonLogFilters).username = searchParams.username
+      if (searchParams.requestId)
+        (urlFilters as CommonLogFilters).requestId = searchParams.requestId
+    } else if (logCategory === 'drawing') {
+      if (searchParams.filter)
+        (urlFilters as DrawingLogFilters).mjId = searchParams.filter
+    } else if (logCategory === 'task') {
+      if (searchParams.filter)
+        (urlFilters as TaskLogFilters).taskId = searchParams.filter
+    }
+
     if (Object.keys(urlFilters).length > 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFilters((prev: LogFilters) => ({ ...prev, ...urlFilters }))
-
       setSelectedRange(null)
     }
-  }, [searchParams.startTime, searchParams.endTime, searchParams.channel])
+  }, [
+    logCategory,
+    searchParams.startTime,
+    searchParams.endTime,
+    searchParams.channel,
+    searchParams.model,
+    searchParams.token,
+    searchParams.group,
+    searchParams.username,
+    searchParams.requestId,
+    searchParams.filter,
+  ])
 
   const handleChange = useCallback(
     (field: string, value: Date | string | undefined) => {
@@ -119,13 +147,15 @@ export function UsageLogsFilterDialog({
     setSelectedRange(days)
   }, [])
 
-  // Common navigation helper
   const navigateWithFilters = useCallback(
-    (searchParamsUpdate: Record<string, unknown>) => {
+    (searchUpdate: Record<string, unknown>) => {
       navigate({
         to: '/usage-logs/$section',
         params: { section: logCategory },
-        search: searchParamsUpdate,
+        search: (prev: Record<string, unknown>) => ({
+          ...prev,
+          ...searchUpdate,
+        }),
       })
     },
     [navigate, logCategory]
@@ -140,19 +170,24 @@ export function UsageLogsFilterDialog({
 
   const handleReset = useCallback(() => {
     const { start, end } = getDefaultTimeRange()
-    const resetFilters = { startTime: start, endTime: end }
+    const resetFilters: LogFilters = { startTime: start, endTime: end }
 
     setFilters(resetFilters)
     setSelectedRange(null)
 
-    navigateWithFilters({
-      startTime: start.getTime(),
-      endTime: end.getTime(),
+    navigate({
+      to: '/usage-logs/$section',
+      params: { section: logCategory },
+      search: {
+        page: 1,
+        startTime: start.getTime(),
+        endTime: end.getTime(),
+      },
     })
 
     onFilterChange?.(resetFilters)
     setOpen(false)
-  }, [navigateWithFilters, onFilterChange, setOpen])
+  }, [navigate, logCategory, onFilterChange, setOpen])
 
   // Render category-specific filters
   const renderCategoryFilters = () => {
@@ -195,6 +230,13 @@ export function UsageLogsFilterDialog({
                 onChange={(value) => handleChange('username', value)}
               />
             )}
+            <FilterInput
+              id='requestId'
+              label={t('Request ID')}
+              placeholder={t('Filter by request ID')}
+              value={commonFilters.requestId || ''}
+              onChange={(value) => handleChange('requestId', value)}
+            />
           </>
         )
       }

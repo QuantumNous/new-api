@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { getUserModels } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { ComboboxInput } from '@/components/ui/combobox-input'
 import {
   Dialog,
   DialogContent,
@@ -9,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
@@ -85,6 +87,18 @@ export function CCSwitchDialog(props: Props) {
   const [name, setName] = useState<string>(APP_CONFIGS.claude.defaultName)
   const [models, setModels] = useState<Record<string, string>>({})
 
+  const { data: modelsData } = useQuery({
+    queryKey: ['user-models-ccswitch'],
+    queryFn: getUserModels,
+    enabled: props.open,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const modelOptions = useMemo(() => {
+    const items = modelsData?.data ?? []
+    return items.map((m) => ({ value: m, label: m }))
+  }, [modelsData?.data])
+
   useEffect(() => {
     if (props.open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -110,7 +124,10 @@ export function CCSwitchDialog(props: Props) {
       toast.warning(t('Please select a primary model'))
       return
     }
-    const url = buildCCSwitchURL(app, name, models, `sk-${props.tokenKey}`)
+    const key = props.tokenKey.startsWith('sk-')
+      ? props.tokenKey
+      : `sk-${props.tokenKey}`
+    const url = buildCCSwitchURL(app, name, models, key)
     window.open(url, '_blank')
     props.onOpenChange(false)
   }
@@ -148,10 +165,12 @@ export function CCSwitchDialog(props: Props) {
 
           <div className='space-y-2'>
             <Label>{t('Name')}</Label>
-            <Input
+            <ComboboxInput
+              options={[]}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onValueChange={setName}
               placeholder={currentConfig.defaultName}
+              emptyText=''
             />
           </div>
 
@@ -163,15 +182,14 @@ export function CCSwitchDialog(props: Props) {
                   <span className='text-destructive ml-0.5'>*</span>
                 )}
               </Label>
-              <Input
+              <ComboboxInput
+                options={modelOptions}
                 value={models[field.key] || ''}
-                onChange={(e) =>
-                  setModels((prev) => ({
-                    ...prev,
-                    [field.key]: e.target.value,
-                  }))
+                onValueChange={(v) =>
+                  setModels((prev) => ({ ...prev, [field.key]: v }))
                 }
-                placeholder={t('Enter model name')}
+                placeholder={t('Select or enter model name')}
+                emptyText={t('No models found')}
               />
             </div>
           ))}

@@ -33,6 +33,7 @@ export interface CommonLogFilters extends CommonFilters {
   token?: string
   group?: string
   username?: string
+  requestId?: string
 }
 
 /**
@@ -61,12 +62,24 @@ export type LogFilters = CommonLogFilters | DrawingLogFilters | TaskLogFilters
 /**
  * Parsed data from the 'other' field in usage logs
  */
+export interface ChannelAffinityInfo {
+  rule_name?: string
+  selected_group?: string
+  key_source?: string
+  key_path?: string
+  key_key?: string
+  key_hint?: string
+  key_fp?: string
+  using_group?: string
+}
+
 export interface LogOtherData {
   admin_info?: {
     is_multi_key?: boolean
     multi_key_index?: number
     use_channel?: number[]
     local_count_tokens?: boolean
+    channel_affinity?: ChannelAffinityInfo
   }
   request_path?: string
   request_conversion?: string[]
@@ -78,6 +91,8 @@ export interface LogOtherData {
   text_output?: number
   cache_tokens?: number
   cache_creation_tokens?: number
+  cache_creation_tokens_5m?: number
+  cache_creation_tokens_1h?: number
   claude?: boolean
   model_ratio?: number
   completion_ratio?: number
@@ -86,6 +101,8 @@ export interface LogOtherData {
   user_group_ratio?: number
   cache_ratio?: number
   cache_creation_ratio?: number
+  cache_creation_ratio_5m?: number
+  cache_creation_ratio_1h?: number
   is_model_mapped?: boolean
   upstream_model_name?: string
   audio_ratio?: number
@@ -108,6 +125,35 @@ export interface LogOtherData {
   image_generation_call_price?: number
   is_system_prompt_overwritten?: boolean
   po?: string[]
+  billing_source?: string
+  group?: string
+  stream_status?: {
+    status?: string
+    end_reason?: string
+    error_count?: number
+    end_error?: string
+    errors?: string[]
+  }
+  // Violation fee fields
+  violation_fee?: boolean
+  violation_fee_code?: string
+  violation_fee_marker?: string
+  fee_quota?: number
+  // Reject / intercept reason (admin)
+  reject_reason?: string
+  // Task-related fields (for refund logs, type=6)
+  is_task?: boolean
+  task_id?: string
+  reason?: string
+  // Subscription billing fields
+  subscription_plan_id?: string
+  subscription_plan_title?: string
+  subscription_id?: string
+  subscription_pre_consumed?: number
+  subscription_post_delta?: number
+  subscription_consumed?: number
+  subscription_remain?: number
+  subscription_total?: number
 }
 
 /**
@@ -185,6 +231,7 @@ export interface GetLogsParams {
   end_timestamp?: number
   channel?: number
   group?: string
+  request_id?: string
 }
 
 export interface GetLogsResponse {
@@ -198,10 +245,6 @@ export interface GetLogsResponse {
   }
 }
 
-export interface SearchLogsParams {
-  keyword: string
-}
-
 export interface GetLogStatsParams {
   type?: number
   username?: string
@@ -211,6 +254,7 @@ export interface GetLogStatsParams {
   end_timestamp?: number
   channel?: number
   group?: string
+  request_id?: string
 }
 
 export interface GetLogStatsResponse {

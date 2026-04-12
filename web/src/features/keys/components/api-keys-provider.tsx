@@ -9,6 +9,8 @@ type ApiKeysContextType = {
   setCurrentRow: React.Dispatch<React.SetStateAction<ApiKey | null>>
   refreshTrigger: number
   triggerRefresh: () => void
+  resolvedKey: string
+  setResolvedKey: React.Dispatch<React.SetStateAction<string>>
 }
 
 const ApiKeysContext = React.createContext<ApiKeysContextType | null>(null)
@@ -17,6 +19,7 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useDialogState<ApiKeysDialogType>(null)
   const [currentRow, setCurrentRow] = useState<ApiKey | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [resolvedKey, setResolvedKey] = useState('')
 
   const triggerRefresh = () => setRefreshTrigger((prev) => prev + 1)
 
@@ -29,6 +32,8 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
         setCurrentRow,
         refreshTrigger,
         triggerRefresh,
+        resolvedKey,
+        setResolvedKey,
       }}
     >
       {children}

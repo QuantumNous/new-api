@@ -8,6 +8,9 @@ export {
   getTimeColor,
   formatModelName,
   formatDuration,
+  getParamOverrideActionLabel,
+  parseAuditLine,
+  isViolationFeeLog,
 } from './format'
 
 // Filter utilities

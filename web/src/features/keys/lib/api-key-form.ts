@@ -33,7 +33,7 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   model_limits: [],
   allow_ips: '',
   group: DEFAULT_GROUP,
-  cross_group_retry: false,
+  cross_group_retry: true,
   tokenCount: 1,
 }
 

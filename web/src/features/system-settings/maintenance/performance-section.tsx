@@ -167,7 +167,10 @@ export function PerformanceSection(props: Props) {
       ([key, value]) =>
         value !== (props.defaultValues[key as keyof PerfFormValues] as unknown)
     )
-    if (updates.length === 0) return
+    if (updates.length === 0) {
+      toast.info(t('No changes to save'))
+      return
+    }
     for (const [key, value] of updates) {
       await updateOption.mutateAsync({
         key,
@@ -245,6 +248,16 @@ export function PerformanceSection(props: Props) {
 
   const diskEnabled = form.watch('performance_setting.disk_cache_enabled')
   const monitorEnabled = form.watch('performance_setting.monitor_enabled')
+  const maxCacheSizeMb = form.watch(
+    'performance_setting.disk_cache_max_size_mb'
+  )
+
+  const lowDiskSpace =
+    diskEnabled &&
+    stats?.disk_space_info &&
+    stats.disk_space_info.free > 0 &&
+    maxCacheSizeMb > 0 &&
+    stats.disk_space_info.free < maxCacheSizeMb * 1024 * 1024
 
   const diskCachePercent =
     stats?.cache_stats?.disk_cache_max_bytes &&
@@ -328,6 +341,14 @@ export function PerformanceSection(props: Props) {
               )}
             />
           </div>
+
+          {lowDiskSpace && (
+            <Alert variant='destructive'>
+              <AlertDescription>
+                {`${t('Warning')}: ${t('Available disk space')} (${formatBytes(stats?.disk_space_info?.free ?? 0)}) ${t('is less than the configured maximum cache size')} (${maxCacheSizeMb} MB). ${t('This may cause cache failures.')}`}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {!stats?.config?.is_running_in_container && (
             <FormField
@@ -690,12 +711,18 @@ export function PerformanceSection(props: Props) {
                 <p className='mb-2 text-sm font-medium'>
                   {t('System Memory Stats')}
                 </p>
-                <div className='grid grid-cols-2 gap-2 text-xs md:grid-cols-4'>
+                <div className='grid grid-cols-2 gap-2 text-xs md:grid-cols-5'>
                   <div>
                     <span className='text-muted-foreground'>
                       {t('Allocated Memory')}:
                     </span>{' '}
                     {formatBytes(stats.memory_stats.alloc)}
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground'>
+                      {t('Total Allocated')}:
+                    </span>{' '}
+                    {formatBytes(stats.memory_stats.total_alloc)}
                   </div>
                   <div>
                     <span className='text-muted-foreground'>

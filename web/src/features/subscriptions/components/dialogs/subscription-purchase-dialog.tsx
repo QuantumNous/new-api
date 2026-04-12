@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -48,6 +48,14 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
 
+  useEffect(() => {
+    if (props.open && props.epayMethods && props.epayMethods.length > 0) {
+      setSelectedEpayMethod(props.epayMethods[0].type)
+    } else if (!props.open) {
+      setSelectedEpayMethod('')
+    }
+  }, [props.open, props.epayMethods])
+
   const plan = props.plan?.plan
   if (!plan) return null
 
@@ -70,6 +78,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
+      } else {
+        toast.error(
+          res.message && res.message !== 'success'
+            ? res.message
+            : t('Payment request failed')
+        )
       }
     } catch {
       toast.error(t('Payment request failed'))
@@ -86,6 +100,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
         window.open(res.data.checkout_url, '_blank')
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
+      } else {
+        toast.error(
+          res.message && res.message !== 'success'
+            ? res.message
+            : t('Payment request failed')
+        )
       }
     } catch {
       toast.error(t('Payment request failed'))
@@ -93,6 +113,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
       setPaying(false)
     }
   }
+
+  const isSafari =
+    typeof navigator !== 'undefined' &&
+    /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
 
   const handlePayEpay = async () => {
     if (!selectedEpayMethod) {
@@ -109,7 +133,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
         const form = document.createElement('form')
         form.action = res.url
         form.method = 'POST'
-        form.target = '_blank'
+        if (!isSafari) {
+          form.target = '_blank'
+        }
         Object.entries(res.data || {}).forEach(([key, value]) => {
           const input = document.createElement('input')
           input.type = 'hidden'
@@ -122,6 +148,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
         document.body.removeChild(form)
         toast.success(t('Payment initiated'))
         props.onOpenChange(false)
+      } else {
+        toast.error(
+          res.message && res.message !== 'success'
+            ? res.message
+            : t('Payment request failed')
+        )
       }
     } catch {
       toast.error(t('Payment request failed'))

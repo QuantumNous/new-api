@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
 import {
@@ -8,6 +8,8 @@ import {
   PowerOff,
   ExternalLink,
   ArrowRightLeft,
+  Copy,
+  Link,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -26,10 +28,31 @@ import {
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
-import { updateApiKeyStatus } from '../api'
+import { fetchTokenKey, updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import { apiKeySchema } from '../types'
 import { useApiKeys } from './api-keys-provider'
+
+function getServerAddress(): string {
+  try {
+    const raw = localStorage.getItem('status')
+    if (raw) {
+      const status = JSON.parse(raw)
+      if (status.server_address) return status.server_address as string
+    }
+  } catch {
+    /* empty */
+  }
+  return window.location.origin
+}
+
+function encodeConnectionString(key: string, url: string): string {
+  return JSON.stringify({
+    _type: 'newapi_channel_conn',
+    key,
+    url,
+  })
+}
 
 type DataTableRowActionsProps<TData> = {
   row: Row<TData>
@@ -40,16 +63,38 @@ export function DataTableRowActions<TData>({
 }: DataTableRowActionsProps<TData>) {
   const { t } = useTranslation()
   const apiKey = apiKeySchema.parse(row.original)
-  const { setOpen, setCurrentRow, triggerRefresh } = useApiKeys()
+  const { setOpen, setCurrentRow, triggerRefresh, setResolvedKey } =
+    useApiKeys()
   const isEnabled = apiKey.status === API_KEY_STATUS.ENABLED
   const { chatPresets, serverAddress } = useChatPresets()
+  const resolvedKeyCache = useRef<string | null>(null)
 
   const hasChatPresets = chatPresets.length > 0
 
+  const resolveRealKey = useCallback(async (): Promise<string | null> => {
+    if (resolvedKeyCache.current) return resolvedKeyCache.current
+    try {
+      const res = await fetchTokenKey(apiKey.id)
+      if (res.success && res.data) {
+        const fullKey = res.data.startsWith('sk-') ? res.data : `sk-${res.data}`
+        resolvedKeyCache.current = fullKey
+        return fullKey
+      }
+      toast.error(res.message || t(ERROR_MESSAGES.UNEXPECTED))
+      return null
+    } catch {
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+      return null
+    }
+  }, [apiKey.id, t])
+
   const handleOpenChatPreset = useCallback(
-    (preset: ChatPreset) => {
+    async (preset: ChatPreset) => {
+      const realKey = await resolveRealKey()
+      if (!realKey) return
+
       if (preset.type === 'fluent') {
-        const success = sendToFluent(apiKey.key, serverAddress)
+        const success = sendToFluent(realKey, serverAddress)
         if (success) {
           toast.success(t('Sent the API key to FluentRead.'))
         } else {
@@ -64,7 +109,7 @@ export function DataTableRowActions<TData>({
 
       const resolvedUrl = resolveChatUrl({
         template: preset.url,
-        apiKey: apiKey.key,
+        apiKey: realKey,
         serverAddress,
       })
 
@@ -81,7 +126,7 @@ export function DataTableRowActions<TData>({
         window.location.href = resolvedUrl
       }
     },
-    [apiKey.key, serverAddress, t]
+    [resolveRealKey, serverAddress, t]
   )
 
   const handleToggleStatus = async () => {
@@ -116,7 +161,35 @@ export function DataTableRowActions<TData>({
           <span className='sr-only'>{t('Open menu')}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-[160px]'>
+      <DropdownMenuContent align='end' className='w-[200px]'>
+        <DropdownMenuItem
+          onClick={async () => {
+            const realKey = await resolveRealKey()
+            if (!realKey) return
+            await navigator.clipboard.writeText(realKey)
+            toast.success(t('Copied'))
+          }}
+        >
+          {t('Copy Key')}
+          <DropdownMenuShortcut>
+            <Copy size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={async () => {
+            const realKey = await resolveRealKey()
+            if (!realKey) return
+            const connStr = encodeConnectionString(realKey, getServerAddress())
+            await navigator.clipboard.writeText(connStr)
+            toast.success(t('Copied'))
+          }}
+        >
+          {t('Copy Connection Info')}
+          <DropdownMenuShortcut>
+            <Link size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {
             setCurrentRow(apiKey)
@@ -146,12 +219,15 @@ export function DataTableRowActions<TData>({
           )}
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => {
+          onClick={async () => {
+            const realKey = await resolveRealKey()
+            if (!realKey) return
+            setResolvedKey(realKey)
             setCurrentRow(apiKey)
             setOpen('cc-switch')
           }}
         >
-          CC Switch
+          {t('CC Switch')}
           <DropdownMenuShortcut>
             <ArrowRightLeft size={16} />
           </DropdownMenuShortcut>

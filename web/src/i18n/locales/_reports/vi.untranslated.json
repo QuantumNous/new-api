@@ -1,10 +1,9 @@
 {
-  "High-risk status code retry risk check 1": "I understand that retrying on these status codes may cause the upstream provider to charge normally, and the charges cannot be recovered.",
-  "High-risk status code retry risk check 2": "I understand that these status codes typically indicate that the request has been processed successfully by the upstream provider, and retrying may result in duplicate billing.",
-  "High-risk status code retry risk check 3": "I acknowledge that these configurations may cause significant financial losses and accept all related risks.",
-  "High-risk status code retry risk check 4": "I have carefully reviewed the above status code redirect rules and confirm they are correct.",
-  "High-risk status code retry risk disclaimer": "The following status code redirect rules contain high-risk configurations. Retrying on these status codes may cause normal upstream charges that cannot be recovered. Please carefully verify these configurations.",
-  "Detected high-risk status code redirect rules": "The following high-risk status code redirect rules were detected:",
-  "High-risk status code retry input placeholder": "Please type the confirmation text above",
-  "High-risk status code retry input mismatch": "The entered text does not match, please try again."
+  "Pass through the anthropic-beta header for beta features": "Pass through the anthropic-beta header for beta features",
+  "Pass through the include field for usage obfuscation": "Pass through the include field for usage obfuscation",
+  "Pass through the inference_geo field for geographic routing": "Pass through the inference_geo field for geographic routing",
+  "Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.": "Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.",
+  "Select or enter model name": "Select or enter model name",
+  "View the complete details for this log entry": "View the complete details for this log entry",
+  "View user consumption statistics and charts": "View user consumption statistics and charts"
 }

@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -69,18 +70,29 @@ const endpointTypeOptions: Array<{ value: string; label: string }> = [
   { value: 'auto', label: 'Auto detect (default)' },
   { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
   { value: 'openai-response', label: 'OpenAI Responses (/v1/responses)' },
+  {
+    value: 'openai-response-compact',
+    label: 'OpenAI Response Compaction (/v1/responses/compact)',
+  },
   { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
   {
     value: 'gemini',
     label: 'Gemini (/v1beta/models/{model}:generateContent)',
   },
-  { value: 'jina-rerank', label: 'Jina Rerank (/rerank)' },
+  { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
   {
     value: 'image-generation',
     label: 'Image Generation (/v1/images/generations)',
   },
   { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
 ]
+
+const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
+  'embeddings',
+  'image-generation',
+  'jina-rerank',
+  'openai-response-compact',
+])
 
 export function ChannelTestDialog({
   open,
@@ -89,6 +101,7 @@ export function ChannelTestDialog({
   const { t } = useTranslation()
   const { currentRow } = useChannels()
   const [endpointType, setEndpointType] = useState('auto')
+  const [isStreamTest, setIsStreamTest] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -103,6 +116,7 @@ export function ChannelTestDialog({
 
   const resetState = useCallback(() => {
     setEndpointType('auto')
+    setIsStreamTest(false)
     setSearchTerm('')
     setTestResults({})
     setRowSelection({})
@@ -117,6 +131,14 @@ export function ChannelTestDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentRow?.id, resetState])
+
+  const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
+
+  useEffect(() => {
+    if (streamDisabled) {
+      setIsStreamTest(false)
+    }
+  }, [streamDisabled])
 
   const modelsValue = currentRow?.models ?? ''
   const defaultTestModel = currentRow?.test_model?.trim()
@@ -176,6 +198,7 @@ export function ChannelTestDialog({
           {
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
+            stream: isStreamTest || undefined,
           },
           (success, responseTime, error) => {
             updateTestResult(model, {
@@ -194,7 +217,7 @@ export function ChannelTestDialog({
         markModelTesting(model, false)
       }
     },
-    [currentRow, endpointType, markModelTesting, updateTestResult]
+    [currentRow, endpointType, isStreamTest, markModelTesting, updateTestResult]
   )
 
   const handleBatchTest = useCallback(
@@ -411,6 +434,23 @@ export function ChannelTestDialog({
                 {t(
                   'Override the endpoint used for testing. Leave empty to auto detect.'
                 )}
+              </p>
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='stream-toggle'>{t('Stream Mode')}</Label>
+              <div className='flex items-center gap-2'>
+                <Switch
+                  id='stream-toggle'
+                  checked={isStreamTest}
+                  onCheckedChange={setIsStreamTest}
+                  disabled={streamDisabled}
+                />
+                <span className='text-sm'>
+                  {isStreamTest ? t('Enabled') : t('Disabled')}
+                </span>
+              </div>
+              <p className='text-muted-foreground text-xs'>
+                {t('Enable streaming mode for the test request.')}
               </p>
             </div>
           </div>

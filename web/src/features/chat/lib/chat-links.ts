@@ -124,14 +124,26 @@ export function resolveChatUrl({
   let url = template
   const safeServerAddress = serverAddress || ''
 
+  const safeApiKey = apiKey || ''
+
   if (url.includes('{cherryConfig}')) {
     const payload = {
       id: 'new-api',
       baseUrl: safeServerAddress,
-      apiKey: apiKey ? `sk-${apiKey}` : '',
+      apiKey: safeApiKey,
     }
     const encoded = encodeURIComponent(toBase64(JSON.stringify(payload)))
     return replaceToken(url, '{cherryConfig}', encoded)
+  }
+
+  if (url.includes('{aionuiConfig}')) {
+    const payload = {
+      platform: 'new-api',
+      baseUrl: safeServerAddress,
+      apiKey: safeApiKey,
+    }
+    const encoded = encodeURIComponent(toBase64(JSON.stringify(payload)))
+    return replaceToken(url, '{aionuiConfig}', encoded)
   }
 
   if (safeServerAddress) {
@@ -139,8 +151,8 @@ export function resolveChatUrl({
     url = replaceToken(url, '{address}', encodedAddress)
   }
 
-  if (apiKey) {
-    url = replaceToken(url, '{key}', `sk-${apiKey}`)
+  if (safeApiKey) {
+    url = replaceToken(url, '{key}', safeApiKey)
   }
 
   return url

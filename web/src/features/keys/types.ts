@@ -60,6 +60,8 @@ export interface GetApiKeysResponse {
 export interface SearchApiKeysParams {
   keyword?: string
   token?: string
+  p?: number
+  size?: number
 }
 
 export interface ApiKeyFormData {

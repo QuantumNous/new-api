@@ -1,6 +1,7 @@
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
+import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
 import { CommonLogsStats } from './components/common-logs-stats'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import { UsageLogsPrimaryButtons } from './components/usage-logs-primary-buttons'
@@ -24,8 +25,14 @@ function UsageLogsContent() {
     params.section && isUsageLogsSectionId(params.section)
       ? params.section
       : USAGE_LOGS_DEFAULT_SECTION
-  const { selectedUserId, userInfoDialogOpen, setUserInfoDialogOpen } =
-    useUsageLogsContext()
+  const {
+    selectedUserId,
+    userInfoDialogOpen,
+    setUserInfoDialogOpen,
+    affinityTarget,
+    affinityDialogOpen,
+    setAffinityDialogOpen,
+  } = useUsageLogsContext()
 
   const title =
     activeCategory === 'common'
@@ -65,6 +72,24 @@ function UsageLogsContent() {
         userId={selectedUserId}
         open={userInfoDialogOpen}
         onOpenChange={setUserInfoDialogOpen}
+      />
+
+      <CacheStatsDialog
+        open={affinityDialogOpen}
+        onOpenChange={setAffinityDialogOpen}
+        target={
+          affinityTarget
+            ? {
+                rule_name: affinityTarget.rule_name || '',
+                using_group:
+                  affinityTarget.using_group ||
+                  affinityTarget.selected_group ||
+                  '',
+                key_hint: affinityTarget.key_hint || '',
+                key_fp: affinityTarget.key_fp || '',
+              }
+            : null
+        }
       />
     </>
   )

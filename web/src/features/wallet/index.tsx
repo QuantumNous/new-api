@@ -29,7 +29,11 @@ import type {
   CreemProduct,
 } from './types'
 
-export function Wallet() {
+interface WalletProps {
+  initialShowHistory?: boolean
+}
+
+export function Wallet(props: WalletProps) {
   const { t } = useTranslation()
   const [user, setUser] = useState<UserWalletData | null>(null)
   const [userLoading, setUserLoading] = useState(true)
@@ -92,6 +96,13 @@ export function Wallet() {
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
+
+  useEffect(() => {
+    if (props.initialShowHistory) {
+      setBillingDialogOpen(true)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [props.initialShowHistory])
 
   // Initialize topup amount when topup info is loaded
   useEffect(() => {

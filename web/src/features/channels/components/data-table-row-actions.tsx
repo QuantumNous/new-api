@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   handleDeleteChannel,
   handleToggleChannelStatus,
@@ -133,30 +134,32 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuShortcut>
         </DropdownMenuItem>
 
-        {/* Detect Upstream Updates */}
-        <DropdownMenuItem
-          onClick={() => {
-            const meta = parseUpstreamUpdateMeta(channel.settings)
-            if (
-              meta.pendingAddModels.length > 0 ||
-              meta.pendingRemoveModels.length > 0
-            ) {
-              upstream.openModal(
-                channel,
-                meta.pendingAddModels,
-                meta.pendingRemoveModels,
-                meta.pendingAddModels.length > 0 ? 'add' : 'remove'
-              )
-            } else {
-              upstream.detectChannelUpdates(channel)
-            }
-          }}
-        >
-          {t('Upstream Updates')}
-          <DropdownMenuShortcut>
-            <RefreshCw size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
+        {/* Detect Upstream Updates (only for fetchable channel types) */}
+        {MODEL_FETCHABLE_TYPES.has(channel.type) && (
+          <DropdownMenuItem
+            onClick={() => {
+              const meta = parseUpstreamUpdateMeta(channel.settings)
+              if (
+                meta.pendingAddModels.length > 0 ||
+                meta.pendingRemoveModels.length > 0
+              ) {
+                upstream.openModal(
+                  channel,
+                  meta.pendingAddModels,
+                  meta.pendingRemoveModels,
+                  meta.pendingAddModels.length > 0 ? 'add' : 'remove'
+                )
+              } else {
+                upstream.detectChannelUpdates(channel)
+              }
+            }}
+          >
+            {t('Upstream Updates')}
+            <DropdownMenuShortcut>
+              <RefreshCw size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        )}
 
         {/* Ollama Models (only for Ollama channels) */}
         {channel.type === 4 && (

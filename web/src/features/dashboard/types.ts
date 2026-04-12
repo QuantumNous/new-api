@@ -75,6 +75,11 @@ export interface ProcessedChartData {
   spec_rank_bar: VChartSpec
 }
 
+export interface ProcessedUserChartData {
+  spec_user_rank: VChartSpec
+  spec_user_trend: VChartSpec
+}
+
 // ============================================================================
 // Announcement Types
 // ============================================================================

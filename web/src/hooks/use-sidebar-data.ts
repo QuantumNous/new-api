@@ -14,6 +14,7 @@ import {
   CreditCard,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
 import { getDashboardSectionNavItems } from '@/features/dashboard/section-registry'
@@ -22,6 +23,8 @@ import { getUsageLogsSectionNavItems } from '@/features/usage-logs/section-regis
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const user = useAuthStore((s) => s.auth.user)
+  const isAdmin = Boolean(user?.role && user.role >= 10)
 
   return {
     workspaces: [
@@ -56,7 +59,7 @@ export function useSidebarData(): SidebarData {
           {
             title: t('Dashboard'),
             icon: LayoutDashboard,
-            items: getDashboardSectionNavItems(t),
+            items: getDashboardSectionNavItems(t, { isAdmin }),
           },
           {
             title: t('API Keys'),

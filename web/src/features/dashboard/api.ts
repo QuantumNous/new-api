@@ -29,6 +29,17 @@ export async function getUserQuotaDates(params: {
 // System Monitoring
 // ----------------------------------------------------------------------------
 
+export async function getUserQuotaDataByUsers(params: {
+  start_timestamp: number
+  end_timestamp: number
+}) {
+  const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
+    '/api/data/users',
+    { params }
+  )
+  return res.data
+}
+
 // Get uptime monitoring status for all services
 export async function getUptimeStatus() {
   const res = await api.get<{ success: boolean; data: UptimeGroupResult[] }>(
