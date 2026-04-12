@@ -3,7 +3,6 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
-import { ThemeSwitch } from '@/components/theme-switch'
 
 interface FooterLink {
   text: string
@@ -20,26 +19,21 @@ interface FooterProps {
   name?: string
   columns?: FooterColumnProps[]
   copyright?: string
-  policies?: FooterLink[]
-  showThemeToggle?: boolean
   className?: string
 }
 
-// Reusable link component that handles both internal and external links
-function FooterLink({ link }: { link: FooterLink }) {
+function FooterLinkItem(props: { link: FooterLink }) {
   const { t } = useTranslation()
-  const isExternal = link.href.startsWith('http')
-  const className =
-    'text-muted-foreground hover:text-foreground text-sm transition-colors'
-  const label = t(link.text)
+  const isExternal = props.link.href.startsWith('http')
+  const label = t(props.link.text)
 
   if (isExternal) {
     return (
       <a
-        href={link.href}
+        href={props.link.href}
         target='_blank'
         rel='noopener noreferrer'
-        className={className}
+        className='text-muted-foreground hover:text-foreground text-sm transition-colors duration-200'
       >
         {label}
       </a>
@@ -47,21 +41,16 @@ function FooterLink({ link }: { link: FooterLink }) {
   }
 
   return (
-    <Link to={link.href} className={className}>
+    <Link
+      to={props.link.href}
+      className='text-muted-foreground hover:text-foreground text-sm transition-colors duration-200'
+    >
       {label}
     </Link>
   )
 }
 
-export function Footer({
-  logo = '/logo.png',
-  name = 'New API',
-  columns,
-  copyright,
-  policies = [],
-  showThemeToggle = false,
-  className,
-}: FooterProps) {
+export function Footer(props: FooterProps) {
   const { t } = useTranslation()
   const {
     systemName,
@@ -70,9 +59,8 @@ export function Footer({
     demoSiteEnabled,
   } = useSystemConfig()
 
-  // Use system config with fallbacks
-  const displayLogo = systemLogo || logo
-  const displayName = systemName || name
+  const displayLogo = systemLogo || props.logo || '/logo.png'
+  const displayName = systemName || props.name || 'New API'
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 
@@ -129,31 +117,12 @@ export function Footer({
           },
         ],
       },
-      {
-        title: t('footer.columns.friends.title'),
-        links: [
-          {
-            text: t('footer.columns.friends.links.horizon'),
-            href: 'https://github.com/Calcium-Ion/new-api-horizon',
-          },
-          {
-            text: t('footer.columns.friends.links.coai'),
-            href: 'https://github.com/coaidev/coai',
-          },
-          {
-            text: t('footer.columns.friends.links.gptLoad'),
-            href: 'https://www.gpt-load.com/',
-          },
-        ],
-      },
     ],
     [t]
   )
 
-  const displayColumns = columns ?? fallbackColumns
-  const fallbackCopyright = copyright ?? t('footer.defaultCopyright')
+  const displayColumns = props.columns ?? fallbackColumns
 
-  // If custom footer HTML is provided, render it
   if (footerHtml) {
     return (
       <div
@@ -163,67 +132,65 @@ export function Footer({
     )
   }
 
-  // Otherwise, render default footer
   return (
-    <footer className={cn('bg-background w-full px-4', className)}>
-      <div className='max-w-container mx-auto py-12'>
-        {/* Demo Site Mode: Show full footer with links */}
-        {isDemoSiteMode && (
-          <div className='grid grid-cols-2 gap-8 sm:grid-cols-3 md:grid-cols-5'>
-            {/* Logo Column */}
-            <div className='col-span-2 flex flex-col gap-4 sm:col-span-3 md:col-span-1'>
-              <div className='flex items-center gap-2'>
-                <img
-                  src={displayLogo}
-                  alt={displayName}
-                  className='h-6 w-6 rounded object-contain'
-                />
-                <h3 className='text-xl font-bold'>{displayName}</h3>
-              </div>
-              <p className='text-muted-foreground text-sm'>
-                {t('Powerful API Management Platform')}
-              </p>
-            </div>
+    <footer
+      className={cn('border-border/40 relative z-10 border-t', props.className)}
+    >
+      <div className='mx-auto max-w-6xl px-6 py-12 md:py-16'>
+        <div className='flex flex-col justify-between gap-10 md:flex-row md:gap-16'>
+          {/* Brand column */}
+          <div className='shrink-0'>
+            <Link to='/' className='group flex items-center gap-2.5'>
+              <img
+                src={displayLogo}
+                alt={displayName}
+                className='size-7 rounded-lg object-contain'
+              />
+              <span className='text-sm font-semibold tracking-tight'>
+                {displayName}
+              </span>
+            </Link>
+            <p className='text-muted-foreground/60 mt-3 max-w-[200px] text-xs leading-relaxed'>
+              {t('Powerful API Management Platform')}
+            </p>
+          </div>
 
-            {/* Links Columns */}
-            {displayColumns.map((column, index) => (
-              <div key={index} className='flex flex-col gap-4'>
-                <h3 className='pt-1 text-sm font-semibold'>
-                  {t(column.title)}
-                </h3>
-                <div className='flex flex-col gap-2'>
-                  {column.links.map((link, linkIndex) => (
-                    <FooterLink key={linkIndex} link={link} />
-                  ))}
+          {/* Links columns */}
+          {isDemoSiteMode && (
+            <div className='grid grid-cols-3 gap-8 md:gap-16'>
+              {displayColumns.map((column, index) => (
+                <div key={index}>
+                  <p className='text-muted-foreground/50 mb-3 text-xs font-medium tracking-wider uppercase'>
+                    {t(column.title)}
+                  </p>
+                  <ul className='space-y-2.5'>
+                    {column.links.map((link, linkIndex) => (
+                      <li key={linkIndex}>
+                        <FooterLinkItem link={link} />
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Bottom Section: Always shown */}
-        <div
-          className={cn(
-            'flex flex-col items-center justify-between gap-4 border-t pt-8 sm:flex-row',
-            isDemoSiteMode && 'mt-8'
+              ))}
+            </div>
           )}
-        >
-          <div className='text-muted-foreground text-sm'>
-            © {currentYear} {displayName}. {fallbackCopyright}
-          </div>
+        </div>
+
+        {/* Bottom section */}
+        <div className='border-border/30 mt-12 flex flex-col items-center justify-between gap-3 border-t pt-6 sm:flex-row'>
+          <p className='text-muted-foreground/40 text-xs'>
+            &copy; {currentYear} {displayName}.{' '}
+            {props.copyright ?? t('footer.defaultCopyright')}
+          </p>
           <div className='flex items-center gap-2'>
-            {policies.map((policy, index) => (
-              <FooterLink key={index} link={policy} />
-            ))}
-            {showThemeToggle && <ThemeSwitch />}
-            <span className='text-muted-foreground text-sm'>
+            <span className='text-muted-foreground/40 text-xs'>
               {t('Designed and Developed by')}{' '}
             </span>
             <a
               href='https://github.com/QuantumNous/new-api'
               target='_blank'
               rel='noopener noreferrer'
-              className='text-primary text-sm font-medium hover:underline'
+              className='text-primary text-xs font-medium hover:underline'
             >
               {t('New API')}
             </a>

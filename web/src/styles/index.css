@@ -350,6 +350,84 @@
   }
 }
 
+/* ── Landing page scroll-triggered animations ── */
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes landing-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes landing-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes landing-fade-left {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes landing-fade-right {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.landing-animate-fade-up {
+  animation: landing-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.landing-animate-fade-in {
+  animation: landing-fade-in 0.6s ease-out both;
+}
+.landing-animate-scale-in {
+  animation: landing-scale-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.landing-animate-fade-left {
+  animation: landing-fade-left 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.landing-animate-fade-right {
+  animation: landing-fade-right 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-animate-fade-up,
+  .landing-animate-fade-in,
+  .landing-animate-scale-in,
+  .landing-animate-fade-left,
+  .landing-animate-fade-right {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 /* Micro-interactions — Vercel-style subtle hover/active feedback */
 @media (prefers-reduced-motion: no-preference) {
   [data-slot='card'] {
@@ -432,4 +510,48 @@
 .content-auto {
   content-visibility: auto;
   contain-intrinsic-size: 0 80px;
+}
+
+/* ── Hero terminal demo animations ── */
+@keyframes terminal-demo-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+.terminal-demo-blink {
+  animation: terminal-demo-blink 1s step-end infinite;
+}
+
+@keyframes terminal-demo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.terminal-demo-spin {
+  animation: terminal-demo-spin 0.8s linear infinite;
+}
+
+@keyframes terminal-demo-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.terminal-demo-pulse {
+  animation: terminal-demo-pulse 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-demo-blink,
+  .terminal-demo-spin,
+  .terminal-demo-pulse {
+    animation: none !important;
+  }
 }

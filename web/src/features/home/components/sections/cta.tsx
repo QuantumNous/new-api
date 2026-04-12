@@ -1,61 +1,65 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Glow } from '@/components/layout/components/glow'
-import { Section } from '@/components/layout/components/section'
+import { AnimateInView } from '@/components/animate-in-view'
 
 interface CTAProps {
-  title?: string
-  description?: string
-  buttons?: React.ReactNode
   className?: string
   isAuthenticated?: boolean
 }
 
-export function CTA({
-  title,
-  description,
-  buttons,
-  className,
-  isAuthenticated = false,
-}: CTAProps) {
+export function CTA(props: CTAProps) {
   const { t } = useTranslation()
-  if (isAuthenticated) {
+
+  if (props.isAuthenticated) {
     return null
   }
 
-  const displayTitle = title ?? t('home.cta.title')
-  const displayDescription = description ?? t('home.cta.description')
-
   return (
-    <Section className={cn('group relative overflow-hidden', className)}>
-      <div className='max-w-container relative z-10 mx-auto flex flex-col items-center gap-6 text-center sm:gap-8'>
-        <h2 className='max-w-[640px] text-3xl leading-tight font-semibold sm:text-5xl sm:leading-tight'>
-          {displayTitle}
+    <section className='relative z-10 overflow-hidden px-6 py-24 md:py-32'>
+      {/* Gradient mesh background */}
+      <div
+        aria-hidden
+        className='absolute inset-0 -z-10 opacity-20 dark:opacity-[0.08]'
+        style={{
+          background: [
+            'radial-gradient(ellipse 50% 50% at 30% 50%, oklch(0.7 0.15 250 / 70%) 0%, transparent 70%)',
+            'radial-gradient(ellipse 40% 40% at 70% 40%, oklch(0.65 0.12 200 / 50%) 0%, transparent 70%)',
+          ].join(', '),
+        }}
+      />
+
+      <AnimateInView
+        className='mx-auto max-w-2xl text-center'
+        animation='scale-in'
+      >
+        <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-4xl'>
+          {t('Ready to simplify')}
+          <br />
+          <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
+            {t('your AI integration?')}
+          </span>
         </h2>
-        {displayDescription && (
-          <p className='text-muted-foreground max-w-[600px] text-lg'>
-            {displayDescription}
-          </p>
-        )}
-        {buttons || (
-          <div className='flex justify-center gap-4'>
-            <Button size='lg' asChild>
-              <Link to='/sign-up'>
-                {t('Sign Up Free')} <ArrowRight className='ml-2 h-5 w-5' />
-              </Link>
-            </Button>
-            <Button size='lg' variant='outline' asChild>
-              <Link to='/pricing'>{t('View Pricing')}</Link>
-            </Button>
-          </div>
-        )}
-      </div>
-      <div className='absolute top-0 left-0 h-full w-full translate-y-[1rem] opacity-80 transition-all duration-500 ease-in-out group-hover:translate-y-[-2rem] group-hover:opacity-100'>
-        <Glow variant='bottom' />
-      </div>
-    </Section>
+        <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
+          {t('Start for free with generous limits. No credit card required.')}
+        </p>
+        <div className='mt-8 flex items-center justify-center gap-3'>
+          <Button className='group rounded-lg' asChild>
+            <Link to='/sign-up'>
+              {t('Get Started')}
+              <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
+            </Link>
+          </Button>
+          <Button
+            variant='outline'
+            className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
+            asChild
+          >
+            <Link to='/pricing'>{t('View Pricing')}</Link>
+          </Button>
+        </div>
+      </AnimateInView>
+    </section>
   )
 }

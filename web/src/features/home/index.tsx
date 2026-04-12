@@ -3,8 +3,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
-import { CTA, Features, Hero, Stats } from './components'
-import { MAIN_BASE_CLASSES } from './constants'
+import { CTA, Features, Hero, HowItWorks, Stats } from './components'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -13,24 +12,20 @@ export function Home() {
   const isAuthenticated = !!auth.user
   const { content, isLoaded, isUrl } = useHomePageContent()
 
-  // Show loading state
   if (!isLoaded) {
     return (
       <PublicLayout showMainContainer={false}>
-        <main
-          className={`${MAIN_BASE_CLASSES} -mt-16 flex min-h-screen items-center justify-center`}
-        >
+        <main className='flex min-h-screen items-center justify-center'>
           <div className='text-muted-foreground'>{t('Loading...')}</div>
         </main>
       </PublicLayout>
     )
   }
 
-  // If custom content exists, render it
   if (content) {
     return (
       <PublicLayout showMainContainer={false}>
-        <main className={`${MAIN_BASE_CLASSES} overflow-x-hidden`}>
+        <main className='overflow-x-hidden'>
           {isUrl ? (
             <iframe
               src={content}
@@ -47,16 +42,14 @@ export function Home() {
     )
   }
 
-  // Default home page
   return (
     <PublicLayout showMainContainer={false}>
-      <main className={`${MAIN_BASE_CLASSES} min-h-screen overflow-hidden`}>
-        <Hero isAuthenticated={isAuthenticated} />
-        <Stats />
-        <Features />
-        <CTA isAuthenticated={isAuthenticated} />
-        <Footer />
-      </main>
+      <Hero isAuthenticated={isAuthenticated} />
+      <Stats />
+      <Features />
+      <HowItWorks />
+      <CTA isAuthenticated={isAuthenticated} />
+      <Footer />
     </PublicLayout>
   )
 }
