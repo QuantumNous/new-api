@@ -22,10 +22,6 @@ import { DEFAULT_PRICING_PAGE_SIZE, DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import { usePricingColumns } from './pricing-columns'
 
-// ----------------------------------------------------------------------------
-// Pricing Table Component
-// ----------------------------------------------------------------------------
-
 export interface PricingTableProps {
   models: PricingModel[]
   isLoading?: boolean
@@ -35,22 +31,23 @@ export interface PricingTableProps {
   showRechargePrice?: boolean
 }
 
-export function PricingTable({
-  models,
-  isLoading = false,
-  priceRate = 1,
-  usdExchangeRate = 1,
-  tokenUnit = DEFAULT_TOKEN_UNIT,
-  showRechargePrice = false,
-}: PricingTableProps) {
+export function PricingTable(props: PricingTableProps) {
   const { t } = useTranslation()
   const navigate = useNavigate({ from: '/pricing/' })
+  const {
+    models,
+    isLoading = false,
+    priceRate = 1,
+    usdExchangeRate = 1,
+    tokenUnit = DEFAULT_TOKEN_UNIT,
+    showRechargePrice = false,
+  } = props
+
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: DEFAULT_PRICING_PAGE_SIZE,
   })
 
-  // Generate columns with current options
   const columns = usePricingColumns({
     tokenUnit,
     priceRate,
@@ -58,21 +55,17 @@ export function PricingTable({
     showRechargePrice,
   })
 
-  // React Table instance
   const table = useReactTable({
     data: models,
     columns,
     pageCount: Math.ceil(models.length / pagination.pageSize),
-    state: {
-      pagination,
-    },
+    state: { pagination },
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     manualPagination: false,
   })
 
-  // Handle row click to navigate to model detail
   const handleRowClick = useCallback(
     (model: PricingModel) => {
       navigate({
@@ -86,8 +79,7 @@ export function PricingTable({
 
   return (
     <div className='space-y-4'>
-      {/* Table */}
-      <div className='overflow-hidden rounded-md border'>
+      <div className='overflow-hidden rounded-lg border'>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -96,6 +88,7 @@ export function PricingTable({
                   <TableHead
                     key={header.id}
                     style={{ width: header.getSize() }}
+                    className='text-muted-foreground text-[10px] font-medium tracking-wider uppercase'
                   >
                     {header.isPlaceholder
                       ? null
@@ -122,7 +115,7 @@ export function PricingTable({
                 <TableRow
                   key={row.id}
                   onClick={() => handleRowClick(row.original)}
-                  className='cursor-pointer'
+                  className='hover:bg-muted/30 cursor-pointer transition-colors'
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -139,7 +132,6 @@ export function PricingTable({
         </Table>
       </div>
 
-      {/* Pagination */}
       {!isLoading && models.length > 0 && <DataTablePagination table={table} />}
     </div>
   )

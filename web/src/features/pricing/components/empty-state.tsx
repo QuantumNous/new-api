@@ -1,18 +1,6 @@
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty'
-
-// ----------------------------------------------------------------------------
-// Empty State Component
-// ----------------------------------------------------------------------------
 
 export interface EmptyStateProps {
   searchQuery?: string
@@ -20,32 +8,32 @@ export interface EmptyStateProps {
   onClearFilters: () => void
 }
 
-export function EmptyState({
-  searchQuery,
-  hasActiveFilters,
-  onClearFilters,
-}: EmptyStateProps) {
+export function EmptyState(props: EmptyStateProps) {
   const { t } = useTranslation()
+  const hasSearch = Boolean(props.searchQuery?.trim())
+
   return (
-    <Empty className='min-h-[400px] border'>
-      <EmptyHeader>
-        <EmptyMedia variant='icon'>
-          <Search />
-        </EmptyMedia>
-        <EmptyTitle>{t('No models found')}</EmptyTitle>
-        <EmptyDescription>
-          {searchQuery
-            ? "Try adjusting your search or filters to find what you're looking for."
-            : 'No models match your current filters. Try changing your filter criteria.'}
-        </EmptyDescription>
-      </EmptyHeader>
-      {hasActiveFilters && (
-        <EmptyContent>
-          <Button variant='outline' onClick={onClearFilters} size='sm'>
-            {t('Clear filters')}
-          </Button>
-        </EmptyContent>
+    <div className='flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed px-6 py-12 text-center'>
+      <Search className='text-muted-foreground/40 mb-3 size-10' />
+
+      <h3 className='text-foreground mb-1 text-base font-semibold'>
+        {t('No models found')}
+      </h3>
+
+      <p className='text-muted-foreground mb-5 max-w-xs text-sm'>
+        {hasSearch
+          ? t(
+              'No results for "{{query}}". Try adjusting your search or filters.',
+              { query: props.searchQuery }
+            )
+          : t('No models match your current filters.')}
+      </p>
+
+      {(props.hasActiveFilters || hasSearch) && (
+        <Button variant='outline' size='sm' onClick={props.onClearFilters}>
+          {t('Clear all filters')}
+        </Button>
       )}
-    </Empty>
+    </div>
   )
 }

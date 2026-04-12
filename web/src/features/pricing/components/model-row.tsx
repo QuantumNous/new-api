@@ -1,17 +1,13 @@
+import { memo } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { StatusBadge } from '@/components/status-badge'
-import { MAX_TAGS_DISPLAY, DEFAULT_TOKEN_UNIT } from '../constants'
+import { cn } from '@/lib/utils'
+import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
-
-// ----------------------------------------------------------------------------
-// Model Row Component
-// ----------------------------------------------------------------------------
 
 export interface ModelRowProps {
   model: PricingModel
@@ -22,136 +18,178 @@ export interface ModelRowProps {
   showRechargePrice?: boolean
 }
 
-export function ModelRow({
-  model,
-  onClick,
-  priceRate = 1,
-  usdExchangeRate = 1,
-  tokenUnit = DEFAULT_TOKEN_UNIT,
-  showRechargePrice = false,
-}: ModelRowProps) {
+function PriceLabel(props: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className='flex items-baseline justify-end gap-2'>
+      <span
+        className={cn(
+          'text-[11px]',
+          props.muted ? 'text-muted-foreground/40' : 'text-muted-foreground/60'
+        )}
+      >
+        {props.label}
+      </span>
+      <span
+        className={cn(
+          'font-mono text-sm tabular-nums',
+          props.muted
+            ? 'text-muted-foreground'
+            : 'text-foreground font-semibold'
+        )}
+      >
+        {props.value}
+      </span>
+    </div>
+  )
+}
+
+export const ModelRow = memo(function ModelRow(props: ModelRowProps) {
   const { t } = useTranslation()
-  const tags = parseTags(model.tags).slice(0, MAX_TAGS_DISPLAY)
+  const model = props.model
+  const priceRate = props.priceRate ?? 1
+  const usdExchangeRate = props.usdExchangeRate ?? 1
+  const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
+  const showRechargePrice = props.showRechargePrice ?? false
+
   const isTokenBased = isTokenBasedModel(model)
   const vendorIcon = model.vendor_icon
-    ? getLobeIcon(model.vendor_icon, 14)
+    ? getLobeIcon(model.vendor_icon, 20)
     : null
+  const tags = parseTags(model.tags)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
+  const hasCachedPrice = isTokenBased && model.cache_ratio != null
 
   return (
-    <Button
-      variant='ghost'
-      onClick={onClick}
-      className='hover:bg-accent/5 group h-auto w-full px-4 py-4 text-left whitespace-normal sm:px-6 sm:py-6'
+    <button
+      type='button'
+      onClick={props.onClick}
+      className='group hover:bg-muted/40 w-full border-b text-left transition-colors last:border-b-0'
     >
-      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8'>
-        {/* Model Info */}
-        <div className='min-w-0 flex-1 space-y-2'>
-          {/* Title */}
-          <div className='space-y-0.5 sm:space-y-1'>
-            <h3 className='text-foreground text-sm font-medium sm:text-base'>
-              {model.model_name}
-            </h3>
-            {model.vendor_name && (
-              <div className='flex items-center gap-1.5'>
-                {vendorIcon}
-                <p className='text-muted-foreground text-xs sm:text-sm'>
-                  {model.vendor_name}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Description */}
-          {model.description && (
-            <p className='text-muted-foreground line-clamp-2 text-xs leading-relaxed sm:text-sm'>
-              {model.description}
-            </p>
-          )}
-
-          {/* Tags */}
-          {tags.length > 0 && (
-            <div className='flex flex-wrap gap-1 sm:gap-1.5'>
-              {tags.map((tag) => (
-                <StatusBadge
-                  key={tag}
-                  label={tag}
-                  autoColor={tag}
-                  size='sm'
-                  copyable={false}
-                />
-              ))}
+      <div className='flex items-start gap-3.5 px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-4'>
+        <div className='hidden shrink-0 pt-0.5 sm:block'>
+          {vendorIcon || (
+            <div className='bg-muted text-muted-foreground flex size-5 items-center justify-center rounded text-[10px] font-bold'>
+              {model.model_name?.charAt(0).toUpperCase() || '?'}
             </div>
           )}
         </div>
 
-        {/* Pricing */}
-        <div className='flex shrink-0 flex-col items-start gap-1 sm:items-end sm:gap-1.5'>
-          {isTokenBased ? (
-            <>
-              <div className='flex items-center gap-2 sm:gap-3'>
-                <div className='flex flex-col items-start gap-0.5 sm:items-end'>
-                  <span className='text-muted-foreground text-[9px] font-medium tracking-wide uppercase sm:text-[10px]'>
-                    {t('Input')}
+        <div className='min-w-0 flex-1'>
+          <div className='flex items-center gap-2'>
+            <span className='shrink-0 sm:hidden'>{vendorIcon}</span>
+            <h3 className='text-foreground truncate font-mono text-sm font-semibold'>
+              {model.model_name}
+            </h3>
+          </div>
+
+          <div className='text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs'>
+            {model.vendor_name && <span>{model.vendor_name}</span>}
+            {model.vendor_name && (
+              <span className='text-muted-foreground/30'>·</span>
+            )}
+            <span className='text-muted-foreground/60'>
+              {isTokenBased ? t('Token-based') : t('Per Request')}
+            </span>
+            {model.supported_endpoint_types &&
+              model.supported_endpoint_types.length > 0 && (
+                <>
+                  <span className='text-muted-foreground/30'>·</span>
+                  <span className='text-muted-foreground/50'>
+                    {model.supported_endpoint_types.slice(0, 2).join(', ')}
+                    {model.supported_endpoint_types.length > 2 &&
+                      ` +${model.supported_endpoint_types.length - 2}`}
                   </span>
-                  <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
-                    {formatPrice(
-                      model,
-                      'input',
-                      tokenUnit,
-                      showRechargePrice,
-                      priceRate,
-                      usdExchangeRate
-                    )}
-                  </span>
-                </div>
-                <Separator
-                  orientation='vertical'
-                  className='h-6 sm:h-8'
-                  decorative
-                />
-                <div className='flex flex-col items-start gap-0.5 sm:items-end'>
-                  <span className='text-muted-foreground text-[9px] font-medium tracking-wide uppercase sm:text-[10px]'>
-                    {t('Output')}
-                  </span>
-                  <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
-                    {formatPrice(
-                      model,
-                      'output',
-                      tokenUnit,
-                      showRechargePrice,
-                      priceRate,
-                      usdExchangeRate
-                    )}
-                  </span>
-                </div>
-              </div>
-              <span className='text-muted-foreground text-[10px] sm:text-xs'>
-                {t('per')} {tokenUnitLabel} {t('tokens')}
-              </span>
-            </>
-          ) : (
-            <>
-              <div className='flex flex-col items-start gap-0.5 sm:items-end'>
-                <span className='text-muted-foreground text-[9px] font-medium tracking-wide uppercase sm:text-[10px]'>
-                  {t('Price')}
+                </>
+              )}
+          </div>
+
+          {model.description && (
+            <p className='text-muted-foreground/60 mt-1 line-clamp-1 text-xs leading-relaxed'>
+              {model.description}
+            </p>
+          )}
+
+          {tags.length > 0 && (
+            <div className='mt-1.5 flex flex-wrap gap-1'>
+              {tags.slice(0, 4).map((tag) => (
+                <span
+                  key={tag}
+                  className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium'
+                >
+                  {tag}
                 </span>
-                <span className='text-foreground text-sm font-semibold tabular-nums sm:text-base'>
-                  {formatRequestPrice(
+              ))}
+              {tags.length > 4 && (
+                <span className='text-muted-foreground/40 self-center text-[10px]'>
+                  +{tags.length - 4}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className='shrink-0 text-right'>
+          {isTokenBased ? (
+            <div className='grid gap-0.5'>
+              <PriceLabel
+                label={t('Input')}
+                value={formatPrice(
+                  model,
+                  'input',
+                  tokenUnit,
+                  showRechargePrice,
+                  priceRate,
+                  usdExchangeRate
+                )}
+              />
+              {hasCachedPrice && (
+                <PriceLabel
+                  label={t('Cached')}
+                  value={formatPrice(
                     model,
+                    'cache',
+                    tokenUnit,
                     showRechargePrice,
                     priceRate,
                     usdExchangeRate
                   )}
-                </span>
-              </div>
-              <span className='text-muted-foreground text-[10px] sm:text-xs'>
-                {t('per request')}
+                  muted
+                />
+              )}
+              <PriceLabel
+                label={t('Output')}
+                value={formatPrice(
+                  model,
+                  'output',
+                  tokenUnit,
+                  showRechargePrice,
+                  priceRate,
+                  usdExchangeRate
+                )}
+              />
+              <span className='text-muted-foreground/40 text-[10px]'>
+                / {tokenUnitLabel} tokens
               </span>
-            </>
+            </div>
+          ) : (
+            <div>
+              <span className='text-foreground text-sm font-semibold tabular-nums'>
+                {formatRequestPrice(
+                  model,
+                  showRechargePrice,
+                  priceRate,
+                  usdExchangeRate
+                )}
+              </span>
+              <div className='text-muted-foreground/40 text-[10px]'>
+                / {t('request')}
+              </div>
+            </div>
           )}
         </div>
+
+        <ChevronRight className='text-muted-foreground/20 group-hover:text-muted-foreground/50 mt-1.5 hidden size-4 shrink-0 transition-colors sm:block' />
       </div>
-    </Button>
+    </button>
   )
-}
+})

@@ -56,16 +56,51 @@ function getMinGroupRatio(
 }
 
 /**
- * Calculate token price in USD
+ * Calculate token price in USD.
+ *
+ * Returns NaN when the required ratio field is missing/null so callers can
+ * skip rendering that price type.
  */
 function calculateTokenPrice(
   model: PricingModel,
   type: PriceType,
   ratio: number
 ): number {
-  const inputPrice = model.model_ratio * 2 * ratio
-  const outputPrice = model.model_ratio * model.completion_ratio * 2 * ratio
-  return type === 'input' ? inputPrice : outputPrice
+  const base = model.model_ratio * 2 * ratio
+
+  switch (type) {
+    case 'input':
+      return base
+    case 'output':
+      return base * model.completion_ratio
+    case 'cache':
+      return hasRatio(model.cache_ratio)
+        ? base * Number(model.cache_ratio)
+        : NaN
+    case 'create_cache':
+      return hasRatio(model.create_cache_ratio)
+        ? base * Number(model.create_cache_ratio)
+        : NaN
+    case 'image':
+      return hasRatio(model.image_ratio)
+        ? base * Number(model.image_ratio)
+        : NaN
+    case 'audio_input':
+      return hasRatio(model.audio_ratio)
+        ? base * Number(model.audio_ratio)
+        : NaN
+    case 'audio_output':
+      return hasRatio(model.audio_ratio) &&
+        hasRatio(model.audio_completion_ratio)
+        ? base *
+            Number(model.audio_ratio) *
+            Number(model.audio_completion_ratio)
+        : NaN
+  }
+}
+
+function hasRatio(value: number | null | undefined): boolean {
+  return value !== undefined && value !== null && Number.isFinite(Number(value))
 }
 
 /**

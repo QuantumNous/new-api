@@ -1,12 +1,7 @@
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
-import { cn } from '@/lib/utils'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelRow } from './model-row'
-
-// ----------------------------------------------------------------------------
-// Virtual Model List Component
-// ----------------------------------------------------------------------------
 
 export interface VirtualModelListProps {
   models: PricingModel[]
@@ -19,76 +14,57 @@ export interface VirtualModelListProps {
   showRechargePrice?: boolean
 }
 
-export function VirtualModelList({
-  models,
-  onModelClick,
-  estimateSize = 140,
-  overscan = 5,
-  priceRate = 1,
-  usdExchangeRate = 1,
-  tokenUnit = DEFAULT_TOKEN_UNIT,
-  showRechargePrice = false,
-}: VirtualModelListProps) {
-  // Window-based virtualizer - page scroll controls virtualization
+export function VirtualModelList(props: VirtualModelListProps) {
+  const estimateSize = props.estimateSize ?? 130
+  const overscan = props.overscan ?? 5
+  const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
+
   const virtualizer = useWindowVirtualizer({
-    count: models.length,
+    count: props.models.length,
     estimateSize: () => estimateSize,
     overscan,
     measureElement:
-      typeof window !== 'undefined' &&
-      navigator.userAgent.indexOf('Firefox') === -1
+      typeof window !== 'undefined' && !navigator.userAgent.includes('Firefox')
         ? (element) => element?.getBoundingClientRect().height
         : undefined,
   })
 
   const items = virtualizer.getVirtualItems()
-  const totalSize = virtualizer.getTotalSize()
+
+  if (props.models.length === 0) {
+    return null
+  }
 
   return (
     <div
-      className='border-border/40 rounded-lg border'
-      style={{ height: `${totalSize}px`, position: 'relative' }}
+      className='overflow-hidden rounded-lg border'
+      style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
     >
-      <div
-        style={{
-          height: `${totalSize}px`,
-          width: '100%',
-          position: 'relative',
-        }}
-      >
-        {items.map((virtualItem) => {
-          const model = models[virtualItem.index]
-          const isLast = virtualItem.index === models.length - 1
-          const reactKey =
-            model.id != null
-              ? `m-${model.id}`
-              : `${model.vendor_id ?? model.vendor_name ?? 'v-unknown'}-${model.model_name}-${virtualItem.index}`
+      {items.map((virtualItem) => {
+        const model = props.models[virtualItem.index]
+        const key =
+          model.id ??
+          `${model.vendor_name}-${model.model_name}-${virtualItem.index}`
 
-          return (
-            <div
-              key={reactKey}
-              data-index={virtualItem.index}
-              ref={virtualizer.measureElement}
-              className={cn(
-                'border-border/30 absolute top-0 left-0 w-full',
-                !isLast && 'border-b'
-              )}
-              style={{
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-            >
-              <ModelRow
-                model={model}
-                priceRate={priceRate}
-                usdExchangeRate={usdExchangeRate}
-                tokenUnit={tokenUnit}
-                showRechargePrice={showRechargePrice}
-                onClick={() => onModelClick(model.model_name || '')}
-              />
-            </div>
-          )
-        })}
-      </div>
+        return (
+          <div
+            key={key}
+            data-index={virtualItem.index}
+            ref={virtualizer.measureElement}
+            className='absolute top-0 left-0 w-full'
+            style={{ transform: `translateY(${virtualItem.start}px)` }}
+          >
+            <ModelRow
+              model={model}
+              priceRate={props.priceRate}
+              usdExchangeRate={props.usdExchangeRate}
+              tokenUnit={tokenUnit}
+              showRechargePrice={props.showRechargePrice}
+              onClick={() => props.onModelClick(model.model_name || '')}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
