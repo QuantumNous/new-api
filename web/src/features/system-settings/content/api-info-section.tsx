@@ -15,7 +15,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -52,6 +51,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -339,15 +339,18 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                       className='max-w-xs truncate font-mono text-sm'
                       title={apiInfo.url}
                     >
-                      <Badge
-                        variant='outline'
-                        className={`${getColorClass(apiInfo.color)} text-white`}
-                      >
-                        {apiInfo.url}
-                      </Badge>
+                      <StatusBadge
+                        label={apiInfo.url}
+                        variant='neutral'
+                        copyable={false}
+                      />
                     </TableCell>
                     <TableCell>
-                      <Badge variant='secondary'>{apiInfo.route}</Badge>
+                      <StatusBadge
+                        label={apiInfo.route}
+                        variant='neutral'
+                        copyable={false}
+                      />
                     </TableCell>
                     <TableCell
                       className='max-w-xs truncate'

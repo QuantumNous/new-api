@@ -12,7 +12,6 @@ import {
 } from '@tanstack/react-table'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -27,6 +26,7 @@ import {
   DataTableToolbar,
   DataTablePagination,
 } from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import { safeJsonParse } from '../utils/json-parser'
 import { ModelRatioDialog, type ModelRatioData } from './model-ratio-dialog'
 
@@ -274,9 +274,11 @@ export const ModelRatioVisualEditor = memo(
             <div className='flex items-center gap-2 font-medium'>
               {row.getValue('name')}
               {row.original.hasConflict && (
-                <Badge variant='destructive' className='text-xs'>
-                  {t('Conflict')}
-                </Badge>
+                <StatusBadge
+                  label={t('Conflict')}
+                  variant='danger'
+                  copyable={false}
+                />
               )}
             </div>
           ),

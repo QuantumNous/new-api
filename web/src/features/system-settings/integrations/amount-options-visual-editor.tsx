@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
 import { Plus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { StatusBadge } from '@/components/status-badge'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 
@@ -86,10 +86,11 @@ export function AmountOptionsVisualEditor({
         ) : (
           <div className='flex flex-wrap gap-2'>
             {amounts.map((amount) => (
-              <Badge
+              <StatusBadge
                 key={amount}
-                variant='secondary'
-                className='gap-2 py-2 pr-2 pl-3 text-base'
+                variant='neutral'
+                className='text-base'
+                copyable={false}
               >
                 <span className='font-mono'>${amount}</span>
                 <Button
@@ -106,7 +107,7 @@ export function AmountOptionsVisualEditor({
                 >
                   <X className='h-3.5 w-3.5' />
                 </Button>
-              </Badge>
+              </StatusBadge>
             ))}
           </div>
         )}

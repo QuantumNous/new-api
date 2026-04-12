@@ -3,10 +3,10 @@ import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useSystemConfig } from '@/hooks/use-system-config'
-import { Badge } from '@/components/ui/badge'
 import { Glow } from '@/components/layout/components/glow'
 import { Mockup, MockupFrame } from '@/components/layout/components/mockup'
 import { Section } from '@/components/layout/components/section'
+import { StatusBadge } from '@/components/status-badge'
 import { AI_APPLICATIONS, AI_MODELS } from '../../constants'
 import { ConnectionLine } from '../connection-line'
 import { GatewayCard } from '../gateway-card'
@@ -40,7 +40,7 @@ export function Hero({
     'A powerful API proxy service supporting OpenAI, Claude, Gemini and other mainstream AI models, helping you easily manage and call various API services'
   )
   const defaultBadge = (
-    <Badge variant='outline' className='animate-appear'>
+    <StatusBadge variant='neutral' className='animate-appear' copyable={false}>
       <span className='text-muted-foreground'>
         {t('New upgrade with more powerful performance!')}
       </span>
@@ -48,7 +48,7 @@ export function Hero({
         {t('View Pricing')}
         <ArrowRight className='h-3 w-3' />
       </Link>
-    </Badge>
+    </StatusBadge>
   )
 
   const finalTitle = title ?? defaultTitle

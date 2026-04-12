@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Route, Info } from 'lucide-react'
+import { Route, Info, Cloud, Monitor } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   formatTokens,
@@ -9,6 +9,7 @@ import {
   formatLogQuota,
   formatTimestampToDate,
 } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -22,7 +23,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
-import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import {
+  StatusBadge,
+  type StatusBadgeProps,
+  dotColorMap,
+  textColorMap,
+} from '@/components/status-badge'
 import type { UsageLog } from '../../data/schema'
 import { getTimeColor, formatModelName, parseLogOther } from '../../lib/format'
 import {
@@ -346,28 +352,33 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const other = parseLogOther(log.other)
         const frt = other?.frt
 
+        const timeVariant = getTimeColor(useTime)
+        const frtVariant = frt ? getTimeColor(frt / 1000) : null
+
         return (
-          <div className='flex items-center gap-1'>
-            <StatusBadge
-              label={formatUseTime(useTime)}
-              variant={getTimeColor(useTime)}
-              size='sm'
-              copyable={false}
+          <div className='flex items-center gap-1.5 text-xs'>
+            <span
+              className={cn(
+                'size-1.5 shrink-0 rounded-full',
+                dotColorMap[timeVariant]
+              )}
+              aria-hidden='true'
             />
+            <span className={cn('font-medium', textColorMap[timeVariant])}>
+              {formatUseTime(useTime)}
+            </span>
             {log.is_stream && frt && (
-              <StatusBadge
-                label={formatUseTime(frt / 1000)}
-                variant={getTimeColor(frt / 1000)}
-                size='sm'
-                copyable={false}
-              />
+              <>
+                <span className='text-muted-foreground/30'>·</span>
+                <span className={cn('font-medium', textColorMap[frtVariant!])}>
+                  {formatUseTime(frt / 1000)}
+                </span>
+              </>
             )}
-            <StatusBadge
-              label={log.is_stream ? t('Stream') : t('Non-stream')}
-              variant={log.is_stream ? 'info' : 'neutral'}
-              size='sm'
-              copyable={false}
-            />
+            <span className='text-muted-foreground/30'>·</span>
+            <span className='text-muted-foreground'>
+              {log.is_stream ? t('Stream') : t('Non-stream')}
+            </span>
           </div>
         )
       },
@@ -467,11 +478,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div
-                        className={`size-2 flex-shrink-0 rounded-full ${
-                          localCountTokens ? 'bg-blue-500' : 'bg-green-500'
-                        }`}
-                      />
+                      {localCountTokens ? (
+                        <Monitor className='size-3.5 flex-shrink-0 text-blue-500' />
+                      ) : (
+                        <Cloud className='size-3.5 flex-shrink-0 text-emerald-500' />
+                      )}
                     </TooltipTrigger>
                     <TooltipContent>
                       <span>

@@ -11,7 +11,7 @@ import {
   formatQuota as formatQuotaValue,
 } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
-import { truncateText } from '@/lib/utils'
+import { cn, truncateText } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -22,7 +22,11 @@ import {
 } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
-import { StatusBadge } from '@/components/status-badge'
+import {
+  StatusBadge,
+  dotColorMap,
+  textColorMap,
+} from '@/components/status-badge'
 import { getCodexUsage } from '../api'
 import { CHANNEL_STATUS_CONFIG } from '../constants'
 import {
@@ -270,17 +274,19 @@ function BalanceCell({ channel }: { channel: Channel }) {
 
   return (
     <TooltipProvider>
-      <div className='flex items-center gap-1'>
+      <div className='flex items-center gap-1.5 text-xs font-medium'>
+        <span
+          className={cn(
+            'size-1.5 shrink-0 rounded-full',
+            dotColorMap[isUpdating ? 'neutral' : variant]
+          )}
+          aria-hidden='true'
+        />
         <Tooltip>
           <TooltipTrigger asChild>
-            <div>
-              <StatusBadge
-                label={usedDisplay}
-                variant='neutral'
-                size='sm'
-                copyable={false}
-              />
-            </div>
+            <span className='text-muted-foreground cursor-help'>
+              {usedDisplay}
+            </span>
           </TooltipTrigger>
           <TooltipContent>
             <p>
@@ -288,17 +294,18 @@ function BalanceCell({ channel }: { channel: Channel }) {
             </p>
           </TooltipContent>
         </Tooltip>
-
+        <span className='text-muted-foreground/30'>·</span>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className='cursor-pointer' onClick={handleClickUpdate}>
-              <StatusBadge
-                label={isUpdating ? 'Updating...' : remainingDisplay}
-                variant={isUpdating ? 'neutral' : variant}
-                size='sm'
-                copyable={false}
-              />
-            </div>
+            <span
+              className={cn(
+                'cursor-pointer transition-opacity hover:opacity-70',
+                textColorMap[isUpdating ? 'neutral' : variant]
+              )}
+              onClick={handleClickUpdate}
+            >
+              {isUpdating ? 'Updating...' : remainingDisplay}
+            </span>
           </TooltipTrigger>
           <TooltipContent>
             <p>
@@ -549,7 +556,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
-                      className='cursor-pointer'
+                      className='flex cursor-pointer items-center gap-1.5 text-xs font-medium'
                       onClick={(e) => {
                         e.stopPropagation()
                         if (!deploymentId) return
@@ -557,12 +564,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                         window.open(targetUrl, '_blank', 'noopener')
                       }}
                     >
-                      <StatusBadge
-                        label='IO.NET'
-                        variant='purple'
-                        size='sm'
-                        copyable={false}
-                      />
+                      <span className='text-muted-foreground/30'>·</span>
+                      <span className={cn(textColorMap.purple)}>IO.NET</span>
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side='top'>

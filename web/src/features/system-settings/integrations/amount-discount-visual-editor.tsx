@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -11,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { StatusBadge } from '@/components/status-badge'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isObjectRecord } from '../utils/json-validators'
 import {
@@ -153,14 +153,13 @@ export function AmountDiscountVisualEditor({
                       </code>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          discount.discountRate < 1 ? 'default' : 'secondary'
-                        }
-                        className='font-mono text-xs'
+                      <StatusBadge
+                        variant={discount.discountRate < 1 ? 'info' : 'neutral'}
+                        className='font-mono'
+                        copyable={false}
                       >
                         {formatPercentage(discount.discountRate)} {t('off')}
-                      </Badge>
+                      </StatusBadge>
                     </TableCell>
                     <TableCell className='text-right'>
                       <div className='flex justify-end gap-2'>
@@ -205,14 +204,13 @@ export function AmountDiscountVisualEditor({
                     <div className='mb-2 font-mono text-base font-medium'>
                       ${discount.amount}
                     </div>
-                    <Badge
-                      variant={
-                        discount.discountRate < 1 ? 'default' : 'secondary'
-                      }
-                      className='font-mono text-xs'
+                    <StatusBadge
+                      variant={discount.discountRate < 1 ? 'info' : 'neutral'}
+                      className='font-mono'
+                      copyable={false}
                     >
                       {formatPercentage(discount.discountRate)} {t('off')}
-                    </Badge>
+                    </StatusBadge>
                   </div>
                   <div className='flex gap-1'>
                     <Button

@@ -1,7 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
-import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { LongText } from '@/components/long-text'
-import { StatusBadge } from '@/components/status-badge'
+import { StatusBadge, dotColorMap } from '@/components/status-badge'
 import {
   USER_STATUSES,
   USER_ROLES,
@@ -76,13 +76,9 @@ export function useUsersColumns(): ColumnDef<User>[] {
             {remark && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge
-                    variant='outline'
-                    className='cursor-help gap-1 text-xs font-normal'
-                  >
-                    <div className='h-2 w-2 rounded-full bg-green-500' />
+                  <StatusBadge variant='success' copyable={false}>
                     <LongText className='max-w-[80px]'>{remark}</LongText>
-                  </Badge>
+                  </StatusBadge>
                 </TooltipTrigger>
                 <TooltipContent>
                   <p className='text-xs'>{remark}</p>
@@ -166,7 +162,13 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const percentage = total > 0 ? (remaining / total) * 100 : 0
 
         if (total === 0) {
-          return <Badge variant='outline'>{t('No Quota')}</Badge>
+          return (
+            <StatusBadge
+              label={t('No Quota')}
+              variant='neutral'
+              copyable={false}
+            />
+          )
         }
 
         return (
@@ -210,7 +212,13 @@ export function useUsersColumns(): ColumnDef<User>[] {
       ),
       cell: ({ row }) => {
         const group = row.getValue('group') as string
-        return <Badge variant='outline'>{group || DEFAULT_GROUP}</Badge>
+        return (
+          <StatusBadge
+            label={group || DEFAULT_GROUP}
+            variant='neutral'
+            copyable={false}
+          />
+        )
       },
       filterFn: (row, id, value) => {
         const group = String(row.getValue(id) || DEFAULT_GROUP).toLowerCase()
@@ -259,45 +267,57 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const inviterId = user.inviter_id || 0
 
         return (
-          <div className='flex flex-wrap items-center gap-1'>
+          <div className='flex items-center gap-1.5 text-xs font-medium'>
+            <span
+              className={cn(
+                'size-1.5 shrink-0 rounded-full',
+                dotColorMap.neutral
+              )}
+              aria-hidden='true'
+            />
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant='secondary' className='cursor-help text-xs'>
+                <span className='text-muted-foreground cursor-help'>
                   {t('Invited')}: {affCount}
-                </Badge>
+                </span>
               </TooltipTrigger>
               <TooltipContent>
                 <p className='text-xs'>{t('Number of users invited')}</p>
               </TooltipContent>
             </Tooltip>
+            <span className='text-muted-foreground/30'>·</span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant='secondary' className='cursor-help text-xs'>
+                <span className='text-muted-foreground cursor-help'>
                   {t('Revenue')}: {formatQuota(affHistoryQuota)}
-                </Badge>
+                </span>
               </TooltipTrigger>
               <TooltipContent>
                 <p className='text-xs'>{t('Total invitation revenue')}</p>
               </TooltipContent>
             </Tooltip>
             {inviterId > 0 && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant='outline' className='cursor-help text-xs'>
-                    {t('Inviter')}: {inviterId}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className='text-xs'>
-                    {t('Invited by user ID')} {inviterId}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
+              <>
+                <span className='text-muted-foreground/30'>·</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className='text-muted-foreground cursor-help'>
+                      {t('Inviter')}: {inviterId}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className='text-xs'>
+                      {t('Invited by user ID')} {inviterId}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </>
             )}
             {inviterId === 0 && (
-              <Badge variant='outline' className='text-xs'>
-                {t('No Inviter')}
-              </Badge>
+              <>
+                <span className='text-muted-foreground/30'>·</span>
+                <span className='text-muted-foreground'>{t('No Inviter')}</span>
+              </>
             )}
           </div>
         )

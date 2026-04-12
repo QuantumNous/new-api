@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, Trash2, Power, PowerOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -211,13 +210,21 @@ export function MultiKeyManageDialog({
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2'>
               {t('Multi-Key Management')}
-              <Badge variant='outline'>{currentRow.name}</Badge>
+              <StatusBadge
+                label={currentRow.name}
+                variant='neutral'
+                copyable={false}
+              />
               {currentRow.channel_info?.multi_key_mode && (
-                <Badge variant='secondary'>
-                  {currentRow.channel_info.multi_key_mode === 'random'
-                    ? t('Random')
-                    : t('Polling')}
-                </Badge>
+                <StatusBadge
+                  label={
+                    currentRow.channel_info.multi_key_mode === 'random'
+                      ? t('Random')
+                      : t('Polling')
+                  }
+                  variant='neutral'
+                  copyable={false}
+                />
               )}
             </DialogTitle>
             <DialogDescription>

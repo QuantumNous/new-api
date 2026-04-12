@@ -1,7 +1,6 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
-import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -116,7 +115,13 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       cell: ({ row }) => {
         const apiKey = row.original
         if (apiKey.unlimited_quota) {
-          return <Badge variant='outline'>{t('Unlimited')}</Badge>
+          return (
+            <StatusBadge
+              label={t('Unlimited')}
+              variant='neutral'
+              copyable={false}
+            />
+          )
         }
 
         const used = apiKey.used_quota
@@ -170,9 +175,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           return (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant='secondary'>
-                  Auto{apiKey.cross_group_retry ? ` (${t('Cross-group')})` : ''}
-                </Badge>
+                <StatusBadge
+                  label={`Auto${apiKey.cross_group_retry ? ` (${t('Cross-group')})` : ''}`}
+                  variant='neutral'
+                  copyable={false}
+                />
               </TooltipTrigger>
               <TooltipContent>
                 <span className='text-xs'>
@@ -184,7 +191,13 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             </Tooltip>
           )
         }
-        return <Badge variant='outline'>{group || t('Default')}</Badge>
+        return (
+          <StatusBadge
+            label={group || t('Default')}
+            variant='neutral'
+            copyable={false}
+          />
+        )
       },
       meta: { label: t('Group') },
     },
@@ -210,7 +223,13 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       cell: ({ row }) => {
         const expiredTime = row.getValue('expired_time') as number
         if (expiredTime === -1) {
-          return <Badge variant='outline'>{t('Never')}</Badge>
+          return (
+            <StatusBadge
+              label={t('Never')}
+              variant='neutral'
+              copyable={false}
+            />
+          )
         }
         const isExpired = expiredTime * 1000 < Date.now()
         return (

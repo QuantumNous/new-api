@@ -3,8 +3,8 @@ import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
@@ -22,6 +22,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  StatusBadge,
+  dotColorMap,
+  textColorMap,
+} from '@/components/status-badge'
 import {
   getPublicPlans,
   getSelfSubscriptionFull,
@@ -218,21 +223,33 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                   <span className='text-sm font-medium'>
                     {t('My Subscriptions')}
                   </span>
-                  {hasActive ? (
-                    <Badge variant='default' className='text-xs'>
-                      {activeSubscriptions.length} {t('active')}
-                    </Badge>
-                  ) : (
-                    <Badge variant='secondary' className='text-xs'>
-                      {t('No Active')}
-                    </Badge>
-                  )}
-                  {allSubscriptions.length > activeSubscriptions.length && (
-                    <Badge variant='outline' className='text-xs'>
-                      {allSubscriptions.length - activeSubscriptions.length}{' '}
-                      {t('expired')}
-                    </Badge>
-                  )}
+                  <span className='flex items-center gap-1.5 text-xs font-medium'>
+                    <span
+                      className={cn(
+                        'size-1.5 shrink-0 rounded-full',
+                        hasActive ? dotColorMap.success : dotColorMap.neutral
+                      )}
+                      aria-hidden='true'
+                    />
+                    {hasActive ? (
+                      <span className={cn(textColorMap.success)}>
+                        {activeSubscriptions.length} {t('active')}
+                      </span>
+                    ) : (
+                      <span className='text-muted-foreground'>
+                        {t('No Active')}
+                      </span>
+                    )}
+                    {allSubscriptions.length > activeSubscriptions.length && (
+                      <>
+                        <span className='text-muted-foreground/30'>·</span>
+                        <span className='text-muted-foreground'>
+                          {allSubscriptions.length - activeSubscriptions.length}{' '}
+                          {t('expired')}
+                        </span>
+                      </>
+                    )}
+                  </span>
                 </div>
                 <div className='flex items-center gap-2'>
                   <Select
@@ -330,26 +347,23 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                                   : `${t('Subscription')} #${subscription?.id}`}
                               </span>
                               {isActive ? (
-                                <Badge
-                                  variant='default'
-                                  className='h-5 text-[10px]'
-                                >
-                                  {t('Active')}
-                                </Badge>
+                                <StatusBadge
+                                  label={t('Active')}
+                                  variant='success'
+                                  copyable={false}
+                                />
                               ) : isCancelled ? (
-                                <Badge
-                                  variant='secondary'
-                                  className='h-5 text-[10px]'
-                                >
-                                  {t('Cancelled')}
-                                </Badge>
+                                <StatusBadge
+                                  label={t('Cancelled')}
+                                  variant='neutral'
+                                  copyable={false}
+                                />
                               ) : (
-                                <Badge
-                                  variant='outline'
-                                  className='h-5 text-[10px]'
-                                >
-                                  {t('Expired')}
-                                </Badge>
+                                <StatusBadge
+                                  label={t('Expired')}
+                                  variant='neutral'
+                                  copyable={false}
+                                />
                               )}
                             </div>
                             {isActive && (
@@ -452,10 +466,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                   >
                     {isPopular && (
                       <div className='absolute -top-2.5 left-3'>
-                        <Badge className='gap-1 text-xs'>
+                        <StatusBadge variant='info' copyable={false}>
                           <Sparkles className='h-3 w-3' />
                           {t('Recommended')}
-                        </Badge>
+                        </StatusBadge>
                       </div>
                     )}
                     <CardContent className='flex h-full flex-col p-4 pt-5'>

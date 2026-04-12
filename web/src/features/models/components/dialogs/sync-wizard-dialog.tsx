@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -17,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { StatusBadge } from '@/components/status-badge'
 import { syncUpstream, previewUpstreamDiff } from '../../api'
 import { getSyncLocaleOptions, getSyncSourceOptions } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
@@ -167,9 +167,11 @@ export function SyncWizardDialog({
                         <div className='flex items-center gap-2'>
                           <span className='font-medium'>{option.label}</span>
                           {option.value === 'official' && (
-                            <Badge variant='secondary' className='text-xs'>
-                              Default
-                            </Badge>
+                            <StatusBadge
+                              label='Default'
+                              variant='neutral'
+                              copyable={false}
+                            />
                           )}
                         </div>
                         <p className='text-muted-foreground text-sm'>

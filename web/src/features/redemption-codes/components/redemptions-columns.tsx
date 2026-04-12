@@ -1,7 +1,6 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
-import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
@@ -152,7 +151,13 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       ),
       cell: ({ row }) => {
         const quota = row.getValue('quota') as number
-        return <Badge variant='secondary'>{formatQuota(quota)}</Badge>
+        return (
+          <StatusBadge
+            label={formatQuota(quota)}
+            variant='neutral'
+            copyable={false}
+          />
+        )
       },
     },
     {
@@ -178,7 +183,13 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       cell: ({ row }) => {
         const expiredTime = row.getValue('expired_time') as number
         if (expiredTime === 0) {
-          return <Badge variant='outline'>{t('Never')}</Badge>
+          return (
+            <StatusBadge
+              label={t('Never')}
+              variant='neutral'
+              copyable={false}
+            />
+          )
         }
         const isExpired = isTimestampExpired(expiredTime)
         return (
@@ -207,9 +218,12 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         return (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant='outline' className='cursor-help'>
-                {t('User {{id}}', { id: userId })}
-              </Badge>
+              <StatusBadge
+                label={t('User {{id}}', { id: userId })}
+                variant='neutral'
+                copyable={false}
+                className='cursor-help'
+              />
             </TooltipTrigger>
             <TooltipContent>
               <div className='space-y-1 text-xs'>

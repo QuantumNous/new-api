@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -25,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
+import { StatusBadge } from '@/components/status-badge'
 import {
   editTagChannels,
   getTagModels,
@@ -256,14 +256,15 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                   <div className='flex min-h-[60px] flex-wrap gap-2 rounded-md border p-3'>
                     {selectedModels.length > 0 ? (
                       selectedModels.map((model) => (
-                        <Badge
+                        <StatusBadge
                           key={model}
-                          variant='secondary'
-                          className='cursor-pointer'
+                          variant='neutral'
+                          className='cursor-pointer transition-opacity hover:opacity-70'
+                          copyable={false}
                           onClick={() => handleRemoveModel(model)}
                         >
                           {model} ×
-                        </Badge>
+                        </StatusBadge>
                       ))
                     ) : (
                       <span className='text-muted-foreground text-sm'>
@@ -387,16 +388,17 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
               </Label>
               <div className='flex min-h-[60px] flex-wrap gap-2 rounded-md border p-3'>
                 {availableGroups.map((group) => (
-                  <Badge
+                  <StatusBadge
                     key={group}
                     variant={
-                      selectedGroups.includes(group) ? 'default' : 'outline'
+                      selectedGroups.includes(group) ? 'info' : 'neutral'
                     }
-                    className='cursor-pointer'
+                    className='cursor-pointer transition-opacity hover:opacity-70'
+                    copyable={false}
                     onClick={() => handleToggleGroup(group)}
                   >
                     {group}
-                  </Badge>
+                  </StatusBadge>
                 ))}
               </div>
             </div>

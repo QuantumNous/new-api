@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
 import { DataTableColumnHeader } from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import { formatDuration, formatResetPeriod } from '../lib'
 import type { PlanRecord } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -102,9 +102,17 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         ),
         cell: ({ row }) =>
           row.original.plan.enabled ? (
-            <Badge variant='default'>{t('Enable')}</Badge>
+            <StatusBadge
+              label={t('Enable')}
+              variant='success'
+              copyable={false}
+            />
           ) : (
-            <Badge variant='secondary'>{t('Disable')}</Badge>
+            <StatusBadge
+              label={t('Disable')}
+              variant='neutral'
+              copyable={false}
+            />
           ),
         size: 80,
       },
@@ -117,8 +125,16 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
           const plan = row.original.plan
           return (
             <div className='flex gap-1'>
-              {plan.stripe_price_id && <Badge variant='outline'>Stripe</Badge>}
-              {plan.creem_product_id && <Badge variant='outline'>Creem</Badge>}
+              {plan.stripe_price_id && (
+                <StatusBadge
+                  label='Stripe'
+                  variant='neutral'
+                  copyable={false}
+                />
+              )}
+              {plan.creem_product_id && (
+                <StatusBadge label='Creem' variant='neutral' copyable={false} />
+              )}
             </div>
           )
         },

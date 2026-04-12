@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { ExternalLink, Copy, Music } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { StatusBadge } from '@/components/status-badge'
 
 export interface AudioClip {
   clip_id?: string
@@ -74,9 +74,12 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
         <div className='mb-1 flex items-center gap-2'>
           <span className='truncate text-sm font-medium'>{title}</span>
           {duration != null && duration > 0 && (
-            <Badge variant='secondary' className='shrink-0 text-xs'>
-              {formatDuration(duration)}
-            </Badge>
+            <StatusBadge
+              label={formatDuration(duration)}
+              variant='neutral'
+              className='shrink-0'
+              copyable={false}
+            />
           )}
         </div>
 

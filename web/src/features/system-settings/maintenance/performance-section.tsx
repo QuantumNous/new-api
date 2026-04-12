@@ -18,7 +18,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -40,6 +39,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -636,9 +636,9 @@ export function PerformanceSection(props: Props) {
                     {stats.cache_stats?.active_disk_files ?? 0}
                   </span>
                 </div>
-                <Badge variant='outline'>
+                <StatusBadge variant='neutral' copyable={false}>
                   {t('Disk Hits')}: {stats.cache_stats?.disk_cache_hits ?? 0}
-                </Badge>
+                </StatusBadge>
               </div>
               <div className='space-y-2 rounded-lg border p-4'>
                 <p className='text-sm font-medium'>
@@ -656,10 +656,10 @@ export function PerformanceSection(props: Props) {
                     {stats.cache_stats?.active_memory_buffers ?? 0}
                   </span>
                 </div>
-                <Badge variant='outline'>
+                <StatusBadge variant='neutral' copyable={false}>
                   {t('Memory Hits')}:{' '}
                   {stats.cache_stats?.memory_cache_hits ?? 0}
-                </Badge>
+                </StatusBadge>
               </div>
             </div>
 

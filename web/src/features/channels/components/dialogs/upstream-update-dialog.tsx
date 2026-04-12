@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -15,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StatusBadge } from '@/components/status-badge'
 
 interface UpstreamUpdateDialogProps {
   open: boolean
@@ -121,15 +121,23 @@ export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
             <TabsList className='grid w-full grid-cols-2'>
               <TabsTrigger value='add' className='gap-1'>
                 {t('Add Models')}
-                <Badge variant='secondary' className='ml-1 h-5 text-xs'>
+                <StatusBadge
+                  variant='neutral'
+                  className='ml-1'
+                  copyable={false}
+                >
                   {selectedAdd.size}/{props.addModels.length}
-                </Badge>
+                </StatusBadge>
               </TabsTrigger>
               <TabsTrigger value='remove' className='gap-1'>
                 {t('Remove Models')}
-                <Badge variant='secondary' className='ml-1 h-5 text-xs'>
+                <StatusBadge
+                  variant='neutral'
+                  className='ml-1'
+                  copyable={false}
+                >
                   {selectedRemove.size}/{props.removeModels.length}
-                </Badge>
+                </StatusBadge>
               </TabsTrigger>
             </TabsList>
 

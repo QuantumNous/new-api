@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -27,6 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StatusBadge } from '@/components/status-badge'
 import {
   getAdminPlans,
   getUserSubscriptions,
@@ -44,7 +44,7 @@ interface Props {
   onSuccess?: () => void
 }
 
-function StatusBadge(props: {
+function SubscriptionStatusBadge(props: {
   sub: UserSubscriptionRecord['subscription']
   t: (key: string) => string
 }) {
@@ -52,10 +52,29 @@ function StatusBadge(props: {
   const now = Date.now() / 1000
   const isExpired = (props.sub.end_time || 0) > 0 && props.sub.end_time < now
   const isActive = props.sub.status === 'active' && !isExpired
-  if (isActive) return <Badge variant='default'>{props.t('Active')}</Badge>
+  if (isActive)
+    return (
+      <StatusBadge
+        label={props.t('Active')}
+        variant='success'
+        copyable={false}
+      />
+    )
   if (props.sub.status === 'cancelled')
-    return <Badge variant='secondary'>{props.t('Invalidated')}</Badge>
-  return <Badge variant='secondary'>{props.t('Expired')}</Badge>
+    return (
+      <StatusBadge
+        label={props.t('Invalidated')}
+        variant='neutral'
+        copyable={false}
+      />
+    )
+  return (
+    <StatusBadge
+      label={props.t('Expired')}
+      variant='neutral'
+      copyable={false}
+    />
+  )
 }
 
 export function UserSubscriptionsDialog(props: Props) {
@@ -238,7 +257,7 @@ export function UserSubscriptionsDialog(props: Props) {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <StatusBadge sub={sub} t={t} />
+                            <SubscriptionStatusBadge sub={sub} t={t} />
                           </TableCell>
                           <TableCell>
                             <div className='text-xs'>

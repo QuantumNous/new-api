@@ -3,7 +3,6 @@ import { Edit, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +18,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../../components/settings-section'
 import { useUpdateOption } from '../../hooks/use-update-option'
 import { getCacheStats, clearAllCache, clearRuleCache } from './api'
@@ -423,66 +423,97 @@ export function ChannelAffinitySection(props: Props) {
                         {rule.name || '-'}
                       </TableCell>
                       <TableCell>
-                        <div className='flex flex-wrap gap-1'>
-                          {(rule.model_regex || []).slice(0, 2).map((r, i) => (
-                            <Badge
-                              key={i}
-                              variant='outline'
-                              className='text-xs'
-                            >
-                              {r}
-                            </Badge>
-                          ))}
+                        <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
+                          {(rule.model_regex || []).length > 0 && (
+                            <span
+                              className='size-1.5 shrink-0 rounded-full bg-slate-400'
+                              aria-hidden='true'
+                            />
+                          )}
+                          {(rule.model_regex || [])
+                            .slice(0, 2)
+                            .map((r, i, arr) => (
+                              <span
+                                key={i}
+                                className='flex items-center gap-1.5'
+                              >
+                                {r}
+                                {i < arr.length - 1 && (
+                                  <span className='text-muted-foreground/30'>
+                                    ·
+                                  </span>
+                                )}
+                              </span>
+                            ))}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className='flex flex-wrap gap-1'>
+                        <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
+                          {(rule.key_sources || []).length > 0 && (
+                            <span
+                              className='size-1.5 shrink-0 rounded-full bg-slate-400'
+                              aria-hidden='true'
+                            />
+                          )}
                           {(rule.key_sources || [])
                             .slice(0, 2)
-                            .map((src, i) => (
-                              <Badge
+                            .map((src, i, arr) => (
+                              <span
                                 key={i}
-                                variant='outline'
-                                className='text-xs'
+                                className='flex items-center gap-1.5'
                               >
                                 {src.type}:
                                 {src.type === 'gjson' ? src.path : src.key}
-                              </Badge>
+                                {i < arr.length - 1 && (
+                                  <span className='text-muted-foreground/30'>
+                                    ·
+                                  </span>
+                                )}
+                              </span>
                             ))}
                         </div>
                       </TableCell>
                       <TableCell>{rule.ttl_seconds || '-'}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
+                        <StatusBadge
+                          label={
                             rule.skip_retry_on_failure
-                              ? 'destructive'
-                              : 'outline'
+                              ? t('No Retry')
+                              : t('Retry')
                           }
-                          className='text-xs'
-                        >
-                          {rule.skip_retry_on_failure
-                            ? t('No Retry')
-                            : t('Retry')}
-                        </Badge>
+                          variant={
+                            rule.skip_retry_on_failure ? 'danger' : 'neutral'
+                          }
+                          copyable={false}
+                        />
                       </TableCell>
                       <TableCell>
-                        <div className='flex flex-wrap gap-1'>
-                          {rule.include_using_group && (
-                            <Badge variant='secondary' className='text-xs'>
-                              {t('Group')}
-                            </Badge>
-                          )}
-                          {rule.include_model_name && (
-                            <Badge variant='secondary' className='text-xs'>
-                              {t('Model')}
-                            </Badge>
-                          )}
-                          {rule.include_rule_name && (
-                            <Badge variant='secondary' className='text-xs'>
-                              {t('Rule')}
-                            </Badge>
-                          )}
+                        <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
+                          {[
+                            rule.include_using_group && t('Group'),
+                            rule.include_model_name && t('Model'),
+                            rule.include_rule_name && t('Rule'),
+                          ]
+                            .filter(Boolean)
+                            .map((item, idx, arr) => (
+                              <span
+                                key={idx}
+                                className='flex items-center gap-1.5'
+                              >
+                                {idx === 0 && (
+                                  <span
+                                    className='size-1.5 shrink-0 rounded-full bg-slate-400'
+                                    aria-hidden='true'
+                                  />
+                                )}
+                                {item}
+                                {idx < arr.length - 1 && (
+                                  <span className='text-muted-foreground/30'>
+                                    ·
+                                  </span>
+                                )}
+                              </span>
+                            )) || '-'}
                         </div>
                       </TableCell>
                       <TableCell>

@@ -1,7 +1,7 @@
 import { getRoleLabel } from '@/lib/roles'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatusBadge } from '@/components/status-badge'
 import { getUserInitials, getDisplayName } from '../lib'
 import type { UserProfile } from '../types'
 
@@ -56,9 +56,7 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
             <h1 className='text-3xl font-semibold tracking-tight'>
               {displayName}
             </h1>
-            <Badge variant='secondary' className='text-xs'>
-              {roleLabel}
-            </Badge>
+            <StatusBadge label={roleLabel} variant='neutral' copyable={false} />
           </div>
 
           <div className='text-muted-foreground flex flex-col gap-1 text-sm sm:flex-row sm:flex-wrap sm:justify-center sm:gap-4 lg:justify-start'>

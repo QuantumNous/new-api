@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -20,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -244,7 +244,11 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
               <h3 className='text-base font-semibold'>
                 {t('ChatCompletions -> Responses Compatibility')}
               </h3>
-              <Badge variant='secondary'>{t('Preview')}</Badge>
+              <StatusBadge
+                label={t('Preview')}
+                variant='neutral'
+                copyable={false}
+              />
             </div>
 
             <Alert>

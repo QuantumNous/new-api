@@ -4,8 +4,6 @@ import { ChevronDown, ChevronUp, Copy, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -16,6 +14,7 @@ import {
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { StatusBadge } from '@/components/status-badge'
 
 const MODEL_CATEGORIES = [
   { key: 'all', label: 'All', filter: () => true },
@@ -174,12 +173,12 @@ export function AvailableModelsCard() {
             {categoriesWithCounts.map((cat) => (
               <TabsTrigger key={cat.key} value={cat.key} className='text-xs'>
                 {cat.label}
-                <Badge
-                  variant={activeCategory === cat.key ? 'default' : 'secondary'}
-                  className='ml-1 h-4 px-1 text-[10px]'
-                >
-                  {cat.count}
-                </Badge>
+                <StatusBadge
+                  label={String(cat.count)}
+                  variant={activeCategory === cat.key ? 'info' : 'neutral'}
+                  className='ml-1'
+                  copyable={false}
+                />
               </TabsTrigger>
             ))}
           </TabsList>
@@ -187,18 +186,16 @@ export function AvailableModelsCard() {
 
         <div className='flex flex-wrap gap-1.5'>
           {displayModels.map((model) => (
-            <Badge
+            <StatusBadge
               key={model}
-              variant='outline'
-              className={cn(
-                'hover:bg-accent cursor-pointer gap-1 transition-colors',
-                'text-xs font-normal'
-              )}
+              variant='neutral'
+              className='cursor-pointer font-normal transition-opacity hover:opacity-70'
               onClick={() => copyModel(model)}
+              copyable={false}
             >
               <Copy className='h-2.5 w-2.5 opacity-50' />
               {model}
-            </Badge>
+            </StatusBadge>
           ))}
 
           {needsExpand && !isExpanded && (

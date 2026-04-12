@@ -1,7 +1,6 @@
 import { Copy, Check, Route, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { StatusBadge } from '@/components/status-badge'
 import type { UsageLog } from '../../data/schema'
 import { parseLogOther } from '../../lib/format'
 
@@ -185,9 +185,11 @@ export function DetailsDialog({
                   <Label className='flex items-center gap-1.5 text-sm font-semibold'>
                     <Settings2 className='size-4' aria-hidden='true' />
                     {t('Param Override')}
-                    <Badge variant='secondary' className='h-5 text-[10px]'>
-                      {other.po.length}
-                    </Badge>
+                    <StatusBadge
+                      label={String(other.po.length)}
+                      variant='neutral'
+                      copyable={false}
+                    />
                   </Label>
                   <div className='space-y-1.5'>
                     {other.po.filter(Boolean).map((line, idx) => {
@@ -198,12 +200,12 @@ export function DetailsDialog({
                           key={idx}
                           className='bg-muted/50 flex items-start gap-2.5 rounded-md border p-2.5'
                         >
-                          <Badge
-                            variant='outline'
-                            className='shrink-0 text-[10px] font-bold'
-                          >
-                            {getActionLabel(parsed.action, t)}
-                          </Badge>
+                          <StatusBadge
+                            variant='neutral'
+                            label={getActionLabel(parsed.action, t)}
+                            className='shrink-0 font-medium'
+                            copyable={false}
+                          />
                           <span className='min-w-0 font-mono text-xs leading-relaxed break-words'>
                             {parsed.content}
                           </span>

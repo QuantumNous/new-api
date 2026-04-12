@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { formatLogQuota } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatusBadge } from '@/components/status-badge'
+import { dotColorMap, textColorMap } from '@/components/status-badge'
 import { getLogStats, getUserLogStats } from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
 import { buildApiParams } from '../lib/utils'
@@ -49,22 +50,22 @@ export function CommonLogsStats() {
   }
 
   return (
-    <div className='flex items-center gap-2'>
-      <StatusBadge
-        label={`${t('Usage')}: ${formatLogQuota(stats?.quota || 0)}`}
-        variant='blue'
-        copyable={false}
+    <div className='flex items-center gap-1.5 text-xs font-medium'>
+      <span
+        className={cn('size-1.5 shrink-0 rounded-full', dotColorMap.blue)}
+        aria-hidden='true'
       />
-      <StatusBadge
-        label={`${t('RPM')}: ${stats?.rpm || 0}`}
-        variant='pink'
-        copyable={false}
-      />
-      <StatusBadge
-        label={`${t('TPM')}: ${stats?.tpm || 0}`}
-        variant='neutral'
-        copyable={false}
-      />
+      <span className={cn(textColorMap.blue)}>
+        {t('Usage')}: {formatLogQuota(stats?.quota || 0)}
+      </span>
+      <span className='text-muted-foreground/30'>·</span>
+      <span className={cn(textColorMap.pink)}>
+        {t('RPM')}: {stats?.rpm || 0}
+      </span>
+      <span className='text-muted-foreground/30'>·</span>
+      <span className='text-muted-foreground'>
+        {t('TPM')}: {stats?.tpm || 0}
+      </span>
     </div>
   )
 }

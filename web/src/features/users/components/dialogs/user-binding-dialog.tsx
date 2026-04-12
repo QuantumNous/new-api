@@ -11,7 +11,6 @@ import {
 import { useTranslation } from 'react-i18next'
 import { SiGithub } from 'react-icons/si'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -21,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StatusBadge } from '@/components/status-badge'
 import {
   getUser,
   getUserOAuthBindings,
@@ -211,18 +211,15 @@ export function UserBindingDialog(props: Props) {
                             <span className='text-sm font-medium'>
                               {binding.label}
                             </span>
-                            <Badge
-                              variant={
+                            <StatusBadge
+                              variant='neutral'
+                              label={
                                 binding.type === 'builtin'
-                                  ? 'secondary'
-                                  : 'outline'
+                                  ? t('Built-in')
+                                  : t('Custom')
                               }
-                              className='h-5 text-[10px]'
-                            >
-                              {binding.type === 'builtin'
-                                ? t('Built-in')
-                                : t('Custom')}
-                            </Badge>
+                              copyable={false}
+                            />
                           </div>
                           <p className='text-muted-foreground max-w-[200px] truncate text-xs'>
                             {binding.value}

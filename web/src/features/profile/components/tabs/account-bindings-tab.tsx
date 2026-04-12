@@ -12,10 +12,10 @@ import {
 } from '@/lib/oauth'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StatusBadge } from '@/components/status-badge'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import {
   getSelfOAuthBindings,
@@ -259,9 +259,11 @@ export function AccountBindingsTab({
                 <div className='flex items-center gap-1.5'>
                   <p className='text-sm font-medium'>{binding.label}</p>
                   {binding.isBound && (
-                    <Badge variant='outline' className='px-1 py-0 text-[10px]'>
-                      {t('Bound')}
-                    </Badge>
+                    <StatusBadge
+                      label={t('Bound')}
+                      variant='success'
+                      copyable={false}
+                    />
                   )}
                 </div>
                 <p className='text-muted-foreground truncate text-xs'>
@@ -312,12 +314,11 @@ export function AccountBindingsTab({
                       <div className='flex items-center gap-1.5'>
                         <p className='text-sm font-medium'>{provider.name}</p>
                         {isBound && (
-                          <Badge
-                            variant='outline'
-                            className='px-1 py-0 text-[10px]'
-                          >
-                            {t('Bound')}
-                          </Badge>
+                          <StatusBadge
+                            label={t('Bound')}
+                            variant='success'
+                            copyable={false}
+                          />
                         )}
                       </div>
                       <p className='text-muted-foreground truncate text-xs'>

@@ -2,9 +2,9 @@ import { Zap, ExternalLink, Gauge } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getBgColorClass } from '@/lib/colors'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/copy-button'
+import { StatusBadge } from '@/components/status-badge'
 import {
   getLatencyColorClass,
   openExternalSpeedTest,
@@ -50,32 +50,26 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
       <div className='flex shrink-0 items-center gap-2'>
         <div className='flex items-center'>
           {status.testing && (
-            <Badge
-              variant='outline'
-              className='text-muted-foreground h-5 animate-pulse border-transparent px-2 text-xs'
-            >
-              {t('Testing...')}
-            </Badge>
+            <StatusBadge
+              label={t('Testing...')}
+              variant='warning'
+              className='animate-pulse'
+              copyable={false}
+            />
           )}
           {status.latency !== null && !status.testing && (
-            <Badge
-              variant='outline'
+            <StatusBadge
+              variant='success'
+              label={`${status.latency}${t('ms')}`}
               className={cn(
-                'h-5 border-current px-2 font-mono text-xs font-medium',
+                'font-mono font-medium',
                 getLatencyColorClass(status.latency)
               )}
-            >
-              {status.latency}
-              {t('ms')}
-            </Badge>
+              copyable={false}
+            />
           )}
           {status.error && (
-            <Badge
-              variant='outline'
-              className='text-muted-foreground/60 h-5 border-transparent px-2 text-xs'
-            >
-              {t('N/A')}
-            </Badge>
+            <StatusBadge label={t('N/A')} variant='neutral' copyable={false} />
           )}
         </div>
 

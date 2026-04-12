@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -12,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StatusBadge } from '@/components/status-badge'
 import { useDeleteProvider } from '../hooks/use-custom-oauth-mutations'
 import type { CustomOAuthProvider } from '../types'
 
@@ -74,12 +74,18 @@ export function ProviderTable(props: ProviderTableProps) {
                 </TableCell>
                 <TableCell className='font-medium'>{provider.name}</TableCell>
                 <TableCell>
-                  <Badge variant='secondary'>{provider.slug}</Badge>
+                  <StatusBadge
+                    label={provider.slug}
+                    variant='neutral'
+                    copyable={false}
+                  />
                 </TableCell>
                 <TableCell>
-                  <Badge variant={provider.enabled ? 'default' : 'outline'}>
-                    {provider.enabled ? t('Enabled') : t('Disabled')}
-                  </Badge>
+                  <StatusBadge
+                    label={provider.enabled ? t('Enabled') : t('Disabled')}
+                    variant={provider.enabled ? 'success' : 'neutral'}
+                    copyable={false}
+                  />
                 </TableCell>
                 <TableCell className='text-muted-foreground max-w-[120px] truncate font-mono text-xs'>
                   {provider.client_id}

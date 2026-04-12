@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -23,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { StatusBadge } from '@/components/status-badge'
 
 const OP_ADD = 'add' as const
 const OP_REMOVE = 'remove' as const
@@ -103,11 +103,11 @@ function serializeRules(rules: Rule[]): string {
 
 const OP_BADGE_MAP: Record<
   OpType,
-  { variant: 'default' | 'destructive' | 'secondary'; label: string }
+  { variant: 'info' | 'danger' | 'neutral'; label: string }
 > = {
-  [OP_ADD]: { variant: 'default', label: 'Add (+:)' },
-  [OP_REMOVE]: { variant: 'destructive', label: 'Remove (-:)' },
-  [OP_APPEND]: { variant: 'secondary', label: 'Append' },
+  [OP_ADD]: { variant: 'info', label: 'Add (+:)' },
+  [OP_REMOVE]: { variant: 'danger', label: 'Remove (-:)' },
+  [OP_APPEND]: { variant: 'neutral', label: 'Append' },
 }
 
 type GroupSpecialUsableRulesEditorProps = {
@@ -143,9 +143,9 @@ function GroupSection(props: GroupSectionProps) {
               </Button>
             </CollapsibleTrigger>
             <span className='font-semibold'>{props.groupName}</span>
-            <Badge variant='secondary'>
+            <StatusBadge variant='neutral' copyable={false}>
               {props.items.length} {t('rules')}
-            </Badge>
+            </StatusBadge>
           </div>
           <div className='flex items-center gap-1'>
             <Button
@@ -176,26 +176,34 @@ function GroupSection(props: GroupSectionProps) {
                 >
                   <SelectTrigger className='w-[130px]'>
                     <SelectValue>
-                      <Badge variant={OP_BADGE_MAP[rule.op].variant}>
-                        {t(OP_BADGE_MAP[rule.op].label)}
-                      </Badge>
+                      <StatusBadge
+                        label={t(OP_BADGE_MAP[rule.op].label)}
+                        variant={OP_BADGE_MAP[rule.op].variant}
+                        copyable={false}
+                      />
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={OP_ADD}>
-                      <Badge variant={OP_BADGE_MAP[OP_ADD].variant}>
-                        {t(OP_BADGE_MAP[OP_ADD].label)}
-                      </Badge>
+                      <StatusBadge
+                        label={t(OP_BADGE_MAP[OP_ADD].label)}
+                        variant={OP_BADGE_MAP[OP_ADD].variant}
+                        copyable={false}
+                      />
                     </SelectItem>
                     <SelectItem value={OP_REMOVE}>
-                      <Badge variant={OP_BADGE_MAP[OP_REMOVE].variant}>
-                        {t(OP_BADGE_MAP[OP_REMOVE].label)}
-                      </Badge>
+                      <StatusBadge
+                        label={t(OP_BADGE_MAP[OP_REMOVE].label)}
+                        variant={OP_BADGE_MAP[OP_REMOVE].variant}
+                        copyable={false}
+                      />
                     </SelectItem>
                     <SelectItem value={OP_APPEND}>
-                      <Badge variant={OP_BADGE_MAP[OP_APPEND].variant}>
-                        {t(OP_BADGE_MAP[OP_APPEND].label)}
-                      </Badge>
+                      <StatusBadge
+                        label={t(OP_BADGE_MAP[OP_APPEND].label)}
+                        variant={OP_BADGE_MAP[OP_APPEND].variant}
+                        copyable={false}
+                      />
                     </SelectItem>
                   </SelectContent>
                 </Select>

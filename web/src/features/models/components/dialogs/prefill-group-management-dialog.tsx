@@ -275,17 +275,18 @@ export function PrefillGroupManagementDialog({
                               <CardTitle className='flex flex-wrap items-center gap-2'>
                                 {group.name}
                                 <StatusBadge
-                                  label={meta.label}
                                   variant={meta.badge}
                                   size='sm'
                                   copyable={false}
-                                />
-                                <StatusBadge
-                                  label={`#${group.id}`}
-                                  variant='neutral'
-                                  size='sm'
-                                  className='font-mono'
-                                />
+                                >
+                                  {meta.label}
+                                  <span className='text-muted-foreground/30'>
+                                    ·
+                                  </span>
+                                  <span className='text-muted-foreground font-mono'>
+                                    #{group.id}
+                                  </span>
+                                </StatusBadge>
                               </CardTitle>
                               {group.description ? (
                                 <CardDescription className='line-clamp-2'>

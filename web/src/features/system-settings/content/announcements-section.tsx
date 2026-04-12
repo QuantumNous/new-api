@@ -16,7 +16,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -55,6 +54,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { DateTimePicker } from '@/components/datetime-picker'
+import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -87,11 +87,36 @@ const announcementSchema = z.object({
 type AnnouncementFormValues = z.infer<typeof announcementSchema>
 
 const typeOptions = [
-  { value: 'default', label: 'Default', color: 'bg-gray-500' },
-  { value: 'ongoing', label: 'Ongoing', color: 'bg-blue-500' },
-  { value: 'success', label: 'Success', color: 'bg-green-500' },
-  { value: 'warning', label: 'Warning', color: 'bg-orange-500' },
-  { value: 'error', label: 'Error', color: 'bg-red-500' },
+  {
+    value: 'default',
+    label: 'Default',
+    color: 'bg-gray-500',
+    badgeVariant: 'neutral' as const,
+  },
+  {
+    value: 'ongoing',
+    label: 'Ongoing',
+    color: 'bg-blue-500',
+    badgeVariant: 'info' as const,
+  },
+  {
+    value: 'success',
+    label: 'Success',
+    color: 'bg-green-500',
+    badgeVariant: 'success' as const,
+  },
+  {
+    value: 'warning',
+    label: 'Warning',
+    color: 'bg-orange-500',
+    badgeVariant: 'warning' as const,
+  },
+  {
+    value: 'error',
+    label: 'Error',
+    color: 'bg-red-500',
+    badgeVariant: 'danger' as const,
+  },
 ]
 
 export function AnnouncementsSection({
@@ -261,10 +286,6 @@ export function AnnouncementsSection({
     })
   }, [announcements])
 
-  const getTypeColor = (type: string) => {
-    return typeOptions.find((opt) => opt.value === type)?.color || 'bg-gray-500'
-  }
-
   const getRelativeTime = (date: string) => {
     const now = new Date()
     const past = new Date(date)
@@ -377,15 +398,19 @@ export function AnnouncementsSection({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        className={`${getTypeColor(announcement.type)} text-white`}
-                      >
-                        {
+                      <StatusBadge
+                        label={
                           typeOptions.find(
                             (opt) => opt.value === announcement.type
                           )?.label
                         }
-                      </Badge>
+                        variant={
+                          typeOptions.find(
+                            (opt) => opt.value === announcement.type
+                          )?.badgeVariant ?? 'neutral'
+                        }
+                        copyable={false}
+                      />
                     </TableCell>
                     <TableCell
                       className='text-muted-foreground max-w-xs truncate'
