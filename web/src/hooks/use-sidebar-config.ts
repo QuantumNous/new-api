@@ -251,10 +251,7 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
       return null
     }
     return parseUserSidebarConfig(auth?.user?.sidebar_modules)
-  }, [
-    auth?.user?.permissions?.sidebar_settings,
-    auth?.user?.sidebar_modules,
-  ])
+  }, [auth?.user?.permissions?.sidebar_settings, auth?.user?.sidebar_modules])
 
   const filteredNavGroups = useMemo(
     () =>

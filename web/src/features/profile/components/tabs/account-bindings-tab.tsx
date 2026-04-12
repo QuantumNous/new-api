@@ -51,8 +51,9 @@ export function AccountBindingsTab({
   )
   const [unbinding, setUnbinding] = useState(false)
 
-  const customProviders = (status as Record<string, unknown>)
-    ?.custom_oauth_providers as Array<{ id: string; name: string }> | undefined
+  const customProviders = status?.custom_oauth_providers as
+    | Array<{ id: string; name: string }>
+    | undefined
 
   const fetchCustomBindings = useCallback(async () => {
     if (!customProviders || customProviders.length === 0) return
@@ -320,7 +321,9 @@ export function AccountBindingsTab({
                         )}
                       </div>
                       <p className='text-muted-foreground truncate text-xs'>
-                        {binding?.external_id || t('Not bound')}
+                        {isBound
+                          ? binding?.external_id || t('Bound')
+                          : t('Not bound')}
                       </p>
                     </div>
                   </div>
