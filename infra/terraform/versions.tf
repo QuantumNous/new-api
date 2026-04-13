@@ -20,7 +20,7 @@ terraform {
   # 首次使用前需手动创建 COS bucket
   backend "cos" {
     region = "ap-guangzhou"
-    bucket = "new-api-tfstate-replace-me" # 替换为你的 COS bucket 名称
+    bucket = "burton-tfstate-1305184517"
     prefix = "terraform/state"
   }
 }
