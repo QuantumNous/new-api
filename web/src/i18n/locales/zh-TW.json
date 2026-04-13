@@ -8,7 +8,7 @@
     " 秒": " 秒",
     "，时间：": "，時間：",
     "，点击更新": "，點擊更新",
-    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "（當前僅支援易支付接口，預設使用上方伺服器位址作為回調位址！）",
+    "（支持易支付和虎皮椒接口，默认使用上方服务器地址作为回调地址！）": "（支援易支付和虎皮椒接口，預設使用上方伺服器位址作為回調位址！）",
     "(筛选后显示 {{count}} 条)_other": "(篩選後顯示 {{count}} 條)",
     "(输入 {{input}} tokens / 1M tokens * {{symbol}}{{price}}": "(輸入 {{input}} tokens / 1M tokens * {{symbol}}{{price}}",
     "(输入 {{nonAudioInput}} tokens / 1M tokens * {{symbol}}{{price}} + 音频输入 {{audioInput}} tokens / 1M tokens * {{symbol}}{{audioPrice}}": "(輸入 {{nonAudioInput}} tokens / 1M tokens * {{symbol}}{{price}} + 音訊輸入 {{audioInput}} tokens / 1M tokens * {{symbol}}{{audioPrice}}",

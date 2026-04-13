@@ -12,7 +12,7 @@
     "，当前无生效订阅，将自动使用钱包": ", hiện không có gói đăng ký hiệu lực, sẽ tự động dùng ví.",
     "，时间：": ", thời gian:",
     "，点击更新": ", nhấn để cập nhật",
-    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Hiện tại chỉ hỗ trợ giao diện Epay, địa chỉ máy chủ phía trên được sử dụng làm địa chỉ gọi lại theo mặc định!)",
+    "（支持易支付和虎皮椒接口，默认使用上方服务器地址作为回调地址！）": "(Hỗ trợ giao diện Epay và XunhuPay, địa chỉ máy chủ phía trên được sử dụng làm địa chỉ gọi lại theo mặc định!)",
     "(筛选后显示 {{count}} 条)_other": "(Showing {{count}} items after filtering)",
     "(输入 {{input}} tokens / 1M tokens * {{symbol}}{{price}}": "(Đầu vào {{input}} tokens / 1M tokens * {{symbol}}{{price}}",
     "(输入 {{nonAudioInput}} tokens / 1M tokens * {{symbol}}{{price}} + 音频输入 {{audioInput}} tokens / 1M tokens * {{symbol}}{{audioPrice}}": "(Đầu vào {{nonAudioInput}} tokens / 1M tokens * {{symbol}}{{price}} + Đầu vào âm thanh {{audioInput}} tokens / 1M tokens * {{symbol}}{{audioPrice}}",

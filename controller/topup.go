@@ -78,24 +78,69 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enableEpay := operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != ""
+	enableXunhuPay := operation_setting.XunhuPayAppId != "" && operation_setting.XunhuPayAppSecret != "" && operation_setting.XunhuPayGateway != ""
+
+	// 如果启用了虎皮椒支付，根据 XunhuPayMethod 自动注入对应支付方式
+	if enableXunhuPay {
+		xunhuMethod := operation_setting.XunhuPayMethod
+		if xunhuMethod == "" {
+			xunhuMethod = "both"
+		}
+		minTopupStr := strconv.Itoa(operation_setting.MinTopUp)
+		if xunhuMethod == "alipay" || xunhuMethod == "both" {
+			hasAlipay := false
+			for _, m := range payMethods {
+				if m["type"] == "alipay" {
+					hasAlipay = true
+					break
+				}
+			}
+			if !hasAlipay {
+				payMethods = append(payMethods, map[string]string{
+					"name":      "支付宝",
+					"type":      "alipay",
+					"min_topup": minTopupStr,
+				})
+			}
+		}
+		if xunhuMethod == "wxpay" || xunhuMethod == "both" {
+			hasWxpay := false
+			for _, m := range payMethods {
+				if m["type"] == "wxpay" {
+					hasWxpay = true
+					break
+				}
+			}
+			if !hasWxpay {
+				payMethods = append(payMethods, map[string]string{
+					"name":      "微信支付",
+					"type":      "wxpay",
+					"min_topup": minTopupStr,
+				})
+			}
+		}
+	}
+
 	data := gin.H{
-		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
-		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
-		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
-		"enable_waffo_topup": enableWaffo,
+		"enable_online_topup":   enableEpay || enableXunhuPay,
+		"enable_xunhupay_topup": enableXunhuPay,
+		"enable_stripe_topup":   setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
+		"enable_creem_topup":    setting.CreemApiKey != "" && setting.CreemProducts != "[]",
+		"enable_waffo_topup":    enableWaffo,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
 			}
 			return nil
 		}(),
-		"creem_products": setting.CreemProducts,
-		"pay_methods":         payMethods,
-		"min_topup":           operation_setting.MinTopUp,
-		"stripe_min_topup":    setting.StripeMinTopUp,
-		"waffo_min_topup":     setting.WaffoMinTopUp,
-		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":            operation_setting.GetPaymentSetting().AmountDiscount,
+		"creem_products":   setting.CreemProducts,
+		"pay_methods":      payMethods,
+		"min_topup":        operation_setting.MinTopUp,
+		"stripe_min_topup": setting.StripeMinTopUp,
+		"waffo_min_topup":  setting.WaffoMinTopUp,
+		"amount_options":   operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":         operation_setting.GetPaymentSetting().AmountDiscount,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -463,4 +508,3 @@ func AdminCompleteTopUp(c *gin.Context) {
 	}
 	common.ApiSuccess(c, nil)
 }
-

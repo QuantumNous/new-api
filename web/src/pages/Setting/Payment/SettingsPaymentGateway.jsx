@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Form, Row, Col, Typography, Spin } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Form,
+  Row,
+  Col,
+  Typography,
+  Spin,
+} from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
   API,
@@ -40,7 +47,6 @@ export default function SettingsPaymentGateway(props) {
     MinTopUp: 1,
     TopupGroupRatio: '',
     CustomCallbackAddress: '',
-    PayMethods: '',
     AmountOptions: '',
     AmountDiscount: '',
   });
@@ -63,7 +69,6 @@ export default function SettingsPaymentGateway(props) {
             : 1,
         TopupGroupRatio: props.options.TopupGroupRatio || '',
         CustomCallbackAddress: props.options.CustomCallbackAddress || '',
-        PayMethods: props.options.PayMethods || '',
         AmountOptions: props.options.AmountOptions || '',
         AmountDiscount: props.options.AmountDiscount || '',
       };
@@ -107,13 +112,6 @@ export default function SettingsPaymentGateway(props) {
     if (originInputs['TopupGroupRatio'] !== inputs.TopupGroupRatio) {
       if (!verifyJSON(inputs.TopupGroupRatio)) {
         showError(t('充值分组倍率不是合法的 JSON 字符串'));
-        return;
-      }
-    }
-
-    if (originInputs['PayMethods'] !== inputs.PayMethods) {
-      if (!verifyJSON(inputs.PayMethods)) {
-        showError(t('充值方式设置不是合法的 JSON 字符串'));
         return;
       }
     }
@@ -165,9 +163,6 @@ export default function SettingsPaymentGateway(props) {
       if (originInputs['TopupGroupRatio'] !== inputs.TopupGroupRatio) {
         options.push({ key: 'TopupGroupRatio', value: inputs.TopupGroupRatio });
       }
-      if (originInputs['PayMethods'] !== inputs.PayMethods) {
-        options.push({ key: 'PayMethods', value: inputs.PayMethods });
-      }
       if (originInputs['AmountOptions'] !== inputs.AmountOptions) {
         options.push({
           key: 'payment_setting.amount_options',
@@ -180,7 +175,6 @@ export default function SettingsPaymentGateway(props) {
           value: inputs.AmountDiscount,
         });
       }
-
       // 发送请求
       const requestQueue = options.map((opt) =>
         API.put('/api/option/', {
@@ -279,13 +273,6 @@ export default function SettingsPaymentGateway(props) {
             placeholder={t('为一个 JSON 文本，键为组名称，值为倍率')}
             autosize
           />
-          <Form.TextArea
-            field='PayMethods'
-            label={t('充值方式设置')}
-            placeholder={t('为一个 JSON 文本')}
-            autosize
-          />
-
           <Row
             gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
             style={{ marginTop: 16 }}
@@ -324,7 +311,9 @@ export default function SettingsPaymentGateway(props) {
             </Col>
           </Row>
 
-          <Button onClick={submitPayAddress}>{t('更新支付设置')}</Button>
+          <Button onClick={submitPayAddress} style={{ marginTop: 16 }}>
+            {t('更新支付设置')}
+          </Button>
         </Form.Section>
       </Form>
     </Spin>

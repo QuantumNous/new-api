@@ -76,6 +76,9 @@ const TopUp = () => {
   const [waffoPayMethods, setWaffoPayMethods] = useState([]);
   const [waffoMinTopUp, setWaffoMinTopUp] = useState(1);
 
+  // 虎皮椒 相关状态
+  const [enableXunhupayTopUp, setEnableXunhupayTopUp] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
@@ -192,15 +195,9 @@ const TopUp = () => {
 
   const onlineTopUp = async () => {
     if (payWay === 'stripe') {
-      // Stripe 支付处理
-      if (amount === 0) {
-        await getStripeAmount();
-      }
+      if (amount === 0) await getStripeAmount();
     } else {
-      // 普通支付处理
-      if (amount === 0) {
-        await getAmount();
-      }
+      if (amount === 0) await getAmount();
     }
 
     if (topUpCount < minTopUp) {
@@ -211,13 +208,21 @@ const TopUp = () => {
     try {
       let res;
       if (payWay === 'stripe') {
-        // Stripe 支付请求
         res = await API.post('/api/user/stripe/pay', {
           amount: parseInt(topUpCount),
           payment_method: 'stripe',
         });
+      } else if (
+        enableXunhupayTopUp &&
+        (payWay === 'alipay' || payWay === 'wxpay')
+      ) {
+        // 虎皮椒支付 — 直接跳转 URL
+        res = await API.post('/api/user/xunhupay/pay', {
+          amount: parseInt(topUpCount),
+          payment_method: payWay,
+        });
       } else {
-        // 普通支付请求
+        // 易支付 form 提交
         res = await API.post('/api/user/pay', {
           amount: parseInt(topUpCount),
           payment_method: payWay,
@@ -228,21 +233,31 @@ const TopUp = () => {
         const { message, data } = res.data;
         if (message === 'success') {
           if (payWay === 'stripe') {
-            // Stripe 支付回调处理
             window.open(data.pay_link, '_blank');
+          } else if (
+            res.config?.url?.includes('xunhupay') ||
+            (enableXunhupayTopUp && res.data.url && !res.data.data)
+          ) {
+            // 虎皮椒返回直接跳转链接
+            const isSafari =
+              navigator.userAgent.indexOf('Safari') > -1 &&
+              navigator.userAgent.indexOf('Chrome') < 1;
+            if (isSafari) {
+              window.location.href = res.data.url;
+            } else {
+              window.open(res.data.url, '_blank');
+            }
           } else {
-            // 普通支付表单提交
+            // 易支付 form 提交
             let params = data;
             let url = res.data.url;
             let form = document.createElement('form');
             form.action = url;
             form.method = 'POST';
-            let isSafari =
+            const isSafari =
               navigator.userAgent.indexOf('Safari') > -1 &&
               navigator.userAgent.indexOf('Chrome') < 1;
-            if (!isSafari) {
-              form.target = '_blank';
-            }
+            if (!isSafari) form.target = '_blank';
             for (let key in params) {
               let input = document.createElement('input');
               input.type = 'hidden';
@@ -317,32 +332,32 @@ const TopUp = () => {
 
   const waffoTopUp = async (payMethodIndex) => {
     try {
-        if (topUpCount < waffoMinTopUp) {
-            showError(t('充值数量不能小于') + waffoMinTopUp);
-            return;
-        }
-        setPaymentLoading(true);
-        const requestBody = {
-            amount: parseInt(topUpCount),
-        };
-        if (payMethodIndex != null) {
-            requestBody.pay_method_index = payMethodIndex;
-        }
-        const res = await API.post('/api/user/waffo/pay', requestBody);
-        if (res !== undefined) {
-            const { message, data } = res.data;
-            if (message === 'success' && data?.payment_url) {
-                window.open(data.payment_url, '_blank');
-            } else {
-                showError(data || t('支付请求失败'));
-            }
+      if (topUpCount < waffoMinTopUp) {
+        showError(t('充值数量不能小于') + waffoMinTopUp);
+        return;
+      }
+      setPaymentLoading(true);
+      const requestBody = {
+        amount: parseInt(topUpCount),
+      };
+      if (payMethodIndex != null) {
+        requestBody.pay_method_index = payMethodIndex;
+      }
+      const res = await API.post('/api/user/waffo/pay', requestBody);
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success' && data?.payment_url) {
+          window.open(data.payment_url, '_blank');
         } else {
-            showError(res);
+          showError(data || t('支付请求失败'));
         }
+      } else {
+        showError(res);
+      }
     } catch (e) {
-        showError(t('支付请求失败'));
+      showError(t('支付请求失败'));
     } finally {
-        setPaymentLoading(false);
+      setPaymentLoading(false);
     }
   };
 
@@ -478,17 +493,20 @@ const TopUp = () => {
           // 这个逻辑现在由后端处理，如果 Stripe 启用，后端会在 pay_methods 中包含它
 
           setPayMethods(payMethods);
-          const enableStripeTopUp = data.enable_stripe_topup || false;
           const enableOnlineTopUp = data.enable_online_topup || false;
+          const enableXunhupayTopUp = data.enable_xunhupay_topup || false;
+          const enableStripeTopUp = data.enable_stripe_topup || false;
           const enableCreemTopUp = data.enable_creem_topup || false;
-          const minTopUpValue = enableOnlineTopUp
-            ? data.min_topup
-            : enableStripeTopUp
-              ? data.stripe_min_topup
-              : data.enable_waffo_topup
-                ? data.waffo_min_topup
-                : 1;
+          const minTopUpValue =
+            enableOnlineTopUp || enableXunhupayTopUp
+              ? data.min_topup
+              : enableStripeTopUp
+                ? data.stripe_min_topup
+                : data.enable_waffo_topup
+                  ? data.waffo_min_topup
+                  : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
+          setEnableXunhupayTopUp(enableXunhupayTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
           const enableWaffoTopUp = data.enable_waffo_topup || false;
@@ -784,6 +802,7 @@ const TopUp = () => {
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
+          enableXunhupayTopUp={enableXunhupayTopUp}
           enableStripeTopUp={enableStripeTopUp}
           enableCreemTopUp={enableCreemTopUp}
           creemProducts={creemProducts}

@@ -75,6 +75,7 @@ const SubscriptionPlansCard = ({
   plans = [],
   payMethods = [],
   enableOnlineTopUp = false,
+  enableXunhupayTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
   billingPreference,
@@ -176,12 +177,31 @@ const SubscriptionPlansCard = ({
     }
     setPaying(true);
     try {
-      const res = await API.post('/api/subscription/epay/pay', {
+      // 如果启用了虎皮椒且支付方式为微信/支付宝，走虎皮椒接口
+      const isXunhupayMethod =
+        enableXunhupayTopUp &&
+        (selectedEpayMethod === 'alipay' || selectedEpayMethod === 'wxpay');
+      const apiUrl = isXunhupayMethod
+        ? '/api/subscription/xunhupay/pay'
+        : '/api/subscription/epay/pay';
+      const res = await API.post(apiUrl, {
         plan_id: selectedPlan.plan.id,
         payment_method: selectedEpayMethod,
       });
       if (res.data?.message === 'success') {
-        submitEpayForm({ url: res.data.url, params: res.data.data });
+        if (isXunhupayMethod && res.data.url) {
+          // 虎皮椒返回直接跳转链接
+          const isSafari =
+            navigator.userAgent.indexOf('Safari') > -1 &&
+            navigator.userAgent.indexOf('Chrome') < 1;
+          if (isSafari) {
+            window.location.href = res.data.url;
+          } else {
+            window.open(res.data.url, '_blank');
+          }
+        } else {
+          submitEpayForm({ url: res.data.url, params: res.data.data });
+        }
         showSuccess(t('已发起支付'));
         closeBuy();
       } else {

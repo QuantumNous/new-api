@@ -12,7 +12,7 @@
     "，当前无生效订阅，将自动使用钱包": ", no active subscription. Wallet will be used automatically.",
     "，时间：": ",time:",
     "，点击更新": ", click Update",
-    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)",
+    "（支持易支付和虎皮椒接口，默认使用上方服务器地址作为回调地址！）": "(Supports Epay and XunhuPay interfaces, the default callback address is the server address above!)",
     "(筛选后显示 {{count}} 条)_one": "(Showing {{count}} item after filtering)",
     "(筛选后显示 {{count}} 条)_other": "(Showing {{count}} items after filtering)",
     "(输入 {{input}} tokens / 1M tokens * {{symbol}}{{price}}": "(Input {{input}} tokens / 1M tokens * {{symbol}}{{price}}",

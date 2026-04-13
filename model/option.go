@@ -76,6 +76,10 @@ func InitOptionMap() {
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
 	common.OptionMap["EpayKey"] = ""
+	common.OptionMap["XunhuPayAppId"] = operation_setting.XunhuPayAppId
+	common.OptionMap["XunhuPayAppSecret"] = operation_setting.XunhuPayAppSecret
+	common.OptionMap["XunhuPayGateway"] = operation_setting.XunhuPayGateway
+	common.OptionMap["XunhuPayMethod"] = operation_setting.XunhuPayMethod
 	common.OptionMap["Price"] = strconv.FormatFloat(operation_setting.Price, 'f', -1, 64)
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
@@ -338,6 +342,14 @@ func updateOptionMap(key string, value string) (err error) {
 		system_setting.WorkerValidKey = value
 	case "PayAddress":
 		operation_setting.PayAddress = value
+	case "XunhuPayAppId":
+		operation_setting.XunhuPayAppId = value
+	case "XunhuPayAppSecret":
+		operation_setting.XunhuPayAppSecret = value
+	case "XunhuPayGateway":
+		operation_setting.XunhuPayGateway = value
+	case "XunhuPayMethod":
+		operation_setting.XunhuPayMethod = value
 	case "Chats":
 		err = setting.UpdateChatsByJsonString(value)
 	case "AutoGroups":

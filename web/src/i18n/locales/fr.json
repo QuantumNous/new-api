@@ -14,7 +14,7 @@
     "，当前无生效订阅，将自动使用钱包": ", aucun abonnement actif, le portefeuille sera utilisé automatiquement.",
     "，时间：": ", time:",
     "，点击更新": ", cliquez sur Mettre à jour",
-    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Actuellement, seule l'interface Epay est prise en charge, l'adresse du serveur ci-dessus est utilisée par défaut comme adresse de rappel !)",
+    "（支持易支付和虎皮椒接口，默认使用上方服务器地址作为回调地址！）": "(Prise en charge des interfaces Epay et XunhuPay, l'adresse du serveur ci-dessus est utilisée par défaut comme adresse de rappel !)",
     "(筛选后显示 {{count}} 条)_one": "(Showing {{count}} item after filtering)",
     "(筛选后显示 {{count}} 条)_many": "(Affichage de {{count}} éléments après filtrage)",
     "(筛选后显示 {{count}} 条)_other": "(Showing {{count}} items after filtering)",
