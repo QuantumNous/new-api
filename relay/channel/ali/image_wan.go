@@ -40,7 +40,8 @@ func oaiFormEdit2WanxImageEdit(c *gin.Context, info *relaycommon.RelayInfo, requ
 }
 
 func isOldWanModel(modelName string) bool {
-	return strings.Contains(modelName, "wan") && !strings.Contains(modelName, "wan2.6")
+	return strings.Contains(modelName, "wan") &&
+		!lo.SomeBy([]string{"wan2.6", "wan2.7"}, func(v string) bool { return strings.Contains(modelName, v) })
 }
 
 func isWanModel(modelName string) bool {
