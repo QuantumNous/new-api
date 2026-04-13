@@ -14,6 +14,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
@@ -64,7 +65,7 @@ export function RedemptionsTable() {
   })
 
   // Fetch data with React Query
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'redemptions',
       pagination.pageIndex + 1,
@@ -152,7 +153,12 @@ export function RedemptionsTable() {
             },
           ]}
         />
-        <div className='overflow-hidden rounded-md border'>
+        <div
+          className={cn(
+            'overflow-hidden rounded-md border transition-opacity duration-150',
+            isFetching && !isLoading && 'pointer-events-none opacity-50'
+          )}
+        >
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (

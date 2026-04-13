@@ -8,8 +8,9 @@ export function RedemptionsPrimaryButtons() {
   const { setOpen } = useRedemptions()
   return (
     <div className='flex gap-2'>
-      <Button className='space-x-1' onClick={() => setOpen('create')}>
-        <span>{t('Create Code')}</span> <Plus size={18} />
+      <Button size='sm' onClick={() => setOpen('create')}>
+        <Plus className='h-4 w-4' />
+        {t('Create Code')}
       </Button>
     </div>
   )

@@ -247,6 +247,8 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         )
       },
       meta: { label: t('Details') },
+      size: 200,
+      maxSize: 220,
     }
   )
 

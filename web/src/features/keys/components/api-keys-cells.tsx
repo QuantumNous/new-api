@@ -61,7 +61,6 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
             className='text-muted-foreground h-7 font-mono text-xs'
           >
             {maskedKey}
-            {isLoading && <Loader2 className='ml-1 size-3 animate-spin' />}
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -96,8 +95,11 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
             size='icon'
             className='size-7 shrink-0'
             onClick={handleCopy}
+            disabled={isLoading}
           >
-            {isCopied ? (
+            {isLoading ? (
+              <Loader2 className='size-3.5 animate-spin' />
+            ) : isCopied ? (
               <Check className='size-3.5 text-green-600' />
             ) : (
               <Copy className='size-3.5' />
@@ -105,7 +107,11 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          {isCopied ? t('Copied!') : t('Copy API key')}
+          {isLoading
+            ? t('Loading...')
+            : isCopied
+              ? t('Copied!')
+              : t('Copy API key')}
         </TooltipContent>
       </Tooltip>
     </div>

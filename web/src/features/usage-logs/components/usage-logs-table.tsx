@@ -14,6 +14,7 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
@@ -175,7 +176,12 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
             )}
           />
         ) : (
-          <div className='overflow-hidden rounded-md border'>
+          <div
+            className={cn(
+              'overflow-hidden rounded-md border transition-opacity duration-150',
+              isFetching && !isLoadingData && 'pointer-events-none opacity-50'
+            )}
+          >
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (

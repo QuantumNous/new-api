@@ -17,12 +17,9 @@ export function UsageLogsPrimaryButtons({
 
   return (
     <div className='flex gap-2'>
-      <Button
-        className='space-x-1'
-        onClick={() => setFilterDialogOpen(true)}
-        variant='default'
-      >
-        <span>{t('Search')}</span> <Search size={18} />
+      <Button size='sm' onClick={() => setFilterDialogOpen(true)}>
+        <Search className='h-4 w-4' />
+        {t('Search')}
       </Button>
 
       <UsageLogsFilterDialog

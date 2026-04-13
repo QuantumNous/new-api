@@ -94,7 +94,7 @@ function renderLimitedItems(
   const remaining = items.length - maxDisplay
 
   return (
-    <div className='flex max-w-full items-center gap-1 overflow-x-auto'>
+    <div className='flex max-w-full items-center gap-1 overflow-hidden'>
       {displayed}
       {remaining > 0 && (
         <StatusBadge

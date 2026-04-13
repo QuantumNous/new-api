@@ -8,8 +8,9 @@ export function SubscriptionsPrimaryButtons() {
   const { setOpen } = useSubscriptions()
   return (
     <div className='flex gap-2'>
-      <Button className='space-x-1' onClick={() => setOpen('create')}>
-        <span>{t('Create Plan')}</span> <Plus size={18} />
+      <Button size='sm' onClick={() => setOpen('create')}>
+        <Plus className='h-4 w-4' />
+        {t('Create Plan')}
       </Button>
     </div>
   )

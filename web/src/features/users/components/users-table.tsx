@@ -15,6 +15,7 @@ import {
 } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
@@ -73,7 +74,7 @@ export function UsersTable() {
   })
 
   // Fetch data with React Query
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'users',
       pagination.pageIndex + 1,
@@ -174,7 +175,12 @@ export function UsersTable() {
             },
           ]}
         />
-        <div className='overflow-hidden rounded-md border'>
+        <div
+          className={cn(
+            'overflow-hidden rounded-md border transition-opacity duration-150',
+            isFetching && !isLoading && 'pointer-events-none opacity-50'
+          )}
+        >
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (

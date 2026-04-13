@@ -16,6 +16,7 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
@@ -69,7 +70,7 @@ export function ApiKeysTable() {
 
   // Fetch data with React Query
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'keys',
       pagination.pageIndex + 1,
@@ -180,7 +181,12 @@ export function ApiKeysTable() {
             )}
           />
         ) : (
-          <div className='overflow-hidden rounded-md border'>
+          <div
+            className={cn(
+              'overflow-hidden rounded-md border transition-opacity duration-150',
+              isFetching && !isLoading && 'pointer-events-none opacity-50'
+            )}
+          >
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (

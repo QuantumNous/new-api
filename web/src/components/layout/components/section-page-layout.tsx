@@ -74,9 +74,9 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
           {breadcrumb != null && <div className='mb-3'>{breadcrumb}</div>}
           <div className='flex flex-wrap items-center justify-between gap-x-4 gap-y-2'>
             <div>
-              <h2 className='text-2xl font-bold tracking-tight'>{title}</h2>
+              <h2 className='text-lg font-bold tracking-tight'>{title}</h2>
               {description != null && (
-                <p className='text-muted-foreground'>{description}</p>
+                <p className='text-muted-foreground text-sm'>{description}</p>
               )}
             </div>
             {actions != null && (

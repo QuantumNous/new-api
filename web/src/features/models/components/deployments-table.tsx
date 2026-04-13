@@ -10,6 +10,7 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   AlertDialog,
@@ -115,7 +116,7 @@ export function DeploymentsTable() {
   const [deleteTarget, setDeleteTarget] = useState<Deployment | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: deploymentsQueryKeys.list({
       keyword,
       status: activeStatus,
@@ -252,7 +253,12 @@ export function DeploymentsTable() {
             )}
           />
         ) : (
-          <div className='overflow-hidden rounded-md border'>
+          <div
+            className={cn(
+              'overflow-hidden rounded-md border transition-opacity duration-150',
+              isFetching && !isLoading && 'pointer-events-none opacity-50'
+            )}
+          >
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (

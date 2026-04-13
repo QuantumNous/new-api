@@ -680,6 +680,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Details') },
+      size: 200,
+      maxSize: 220,
     }
   )
 

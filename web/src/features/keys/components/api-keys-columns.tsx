@@ -219,18 +219,15 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           return (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className='inline-flex items-center gap-1.5'>
-                  <StatusBadge
-                    label={t('Auto')}
-                    variant='neutral'
-                    copyable={false}
-                  />
+                <span className='inline-flex items-center gap-1.5 text-xs'>
+                  <span className='text-muted-foreground'>{t('Auto')}</span>
                   {apiKey.cross_group_retry && (
-                    <StatusBadge
-                      label={t('Cross-group')}
-                      variant='info'
-                      copyable={false}
-                    />
+                    <>
+                      <span className='text-muted-foreground/30'>·</span>
+                      <span className='text-muted-foreground/60'>
+                        {t('Cross-group')}
+                      </span>
+                    </>
                   )}
                 </span>
               </TooltipTrigger>
@@ -245,20 +242,17 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           )
         }
         return (
-          <div className='flex items-center gap-1.5'>
-            <StatusBadge
-              label={group || t('Default')}
-              autoColor={group || undefined}
-              copyable={false}
-            />
+          <span className='inline-flex items-center gap-1.5 text-xs'>
+            <span className='font-medium'>{group || t('Default')}</span>
             {ratio != null && (
-              <StatusBadge
-                label={`${ratio}x`}
-                variant='success'
-                copyable={false}
-              />
+              <>
+                <span className='text-muted-foreground/30'>·</span>
+                <span className='text-muted-foreground/60 font-mono tabular-nums'>
+                  {ratio}x
+                </span>
+              </>
             )}
-          </div>
+          </span>
         )
       },
       meta: { label: t('Group') },

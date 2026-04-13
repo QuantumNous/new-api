@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react'
-import { ChevronUp, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Minus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 interface NumericSpinnerInputProps {
@@ -26,113 +24,153 @@ export function NumericSpinnerInput({
   className,
   label,
 }: NumericSpinnerInputProps) {
-  // Local state for controlled input
   const [localValue, setLocalValue] = useState(String(value ?? 0))
+  const [editing, setEditing] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  // Sync local value when prop changes
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLocalValue(String(value ?? 0))
-  }, [value])
-
-  const handleIncrement = () => {
-    const currentValue = Number(localValue) || 0
-    const newValue = currentValue + step
-    if (max === undefined || newValue <= max) {
-      const finalValue = newValue
-      setLocalValue(String(finalValue))
-      onChange(finalValue)
+    if (!editing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLocalValue(String(value ?? 0))
     }
+  }, [value, editing])
+
+  const clamp = (v: number) => {
+    let result = v
+    if (min !== undefined) result = Math.max(min, result)
+    if (max !== undefined) result = Math.min(max, result)
+    return result
   }
 
-  const handleDecrement = () => {
-    const currentValue = Number(localValue) || 0
-    const newValue = currentValue - step
-    if (newValue >= min) {
-      setLocalValue(String(newValue))
-      onChange(newValue)
-    }
+  const handleIncrement = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (disabled) return
+    const next = clamp((Number(localValue) || 0) + step)
+    setLocalValue(String(next))
+    onChange(next)
+  }
+
+  const handleDecrement = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (disabled) return
+    const next = clamp((Number(localValue) || 0) - step)
+    setLocalValue(String(next))
+    onChange(next)
+  }
+
+  const handleStartEdit = () => {
+    if (disabled) return
+    setEditing(true)
+    requestAnimationFrame(() => inputRef.current?.select())
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const inputValue = e.target.value
-
-    // Allow empty input for better UX
-    if (inputValue === '') {
-      setLocalValue('')
+    const raw = e.target.value
+    if (raw === '' || raw === '-') {
+      setLocalValue(raw)
       return
     }
-
-    // Only allow numbers
-    if (!/^\d+$/.test(inputValue)) {
-      return
-    }
-
-    const numValue = Number(inputValue)
-
-    // Validate range
-    if (max !== undefined && numValue > max) {
-      return
-    }
-
-    if (numValue < min) {
-      return
-    }
-
-    setLocalValue(inputValue)
+    if (!/^-?\d+$/.test(raw)) return
+    setLocalValue(raw)
   }
 
-  const handleBlur = () => {
-    // On blur, ensure we have a valid value
-    const numValue = Number(localValue)
-    if (isNaN(numValue) || localValue === '') {
-      setLocalValue('0')
-      onChange(0)
-    } else {
-      onChange(numValue)
+  const commitValue = () => {
+    setEditing(false)
+    const num = Number(localValue)
+    if (isNaN(num) || localValue === '' || localValue === '-') {
+      setLocalValue(String(value ?? 0))
+      return
+    }
+    const clamped = clamp(num)
+    setLocalValue(String(clamped))
+    if (clamped !== (value ?? 0)) {
+      onChange(clamped)
     }
   }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      commitValue()
+    } else if (e.key === 'Escape') {
+      setEditing(false)
+      setLocalValue(String(value ?? 0))
+    }
+  }
+
+  const atMin = min !== undefined && Number(localValue) <= min
+  const atMax = max !== undefined && Number(localValue) >= max
 
   return (
-    <div className={cn('inline-flex', className)}>
+    <div className={cn('inline-flex items-center', className)}>
       {label && (
-        <Label className='text-muted-foreground text-xs'>{label}</Label>
+        <Label className='text-muted-foreground mr-1.5 text-xs'>{label}</Label>
       )}
-      <div className='relative inline-block'>
-        <Input
-          type='text'
-          value={localValue}
-          onChange={handleInputChange}
-          onBlur={handleBlur}
-          disabled={disabled}
-          className='h-8 w-20 pr-7 text-center font-mono'
-        />
-        <div className='absolute inset-y-0 right-0 flex flex-col items-center justify-center pr-1'>
-          <Button
+      <div
+        className={cn(
+          'group/spinner inline-flex h-7 items-center gap-0 rounded-md transition-colors',
+          !disabled && 'hover:bg-muted/60',
+          editing && 'bg-muted/60 ring-primary/30 ring-1'
+        )}
+      >
+        <button
+          type='button'
+          tabIndex={-1}
+          aria-label='Decrement'
+          onClick={handleDecrement}
+          disabled={disabled || atMin}
+          className={cn(
+            'text-muted-foreground/0 group-hover/spinner:text-muted-foreground flex h-7 w-6 shrink-0 items-center justify-center rounded-l-md transition-colors',
+            !disabled &&
+              !atMin &&
+              'group-hover/spinner:hover:text-foreground group-hover/spinner:hover:bg-muted',
+            (disabled || atMin) && 'group-hover/spinner:opacity-30'
+          )}
+        >
+          <Minus className='size-3' />
+        </button>
+
+        {editing ? (
+          <input
+            ref={inputRef}
+            type='text'
+            value={localValue}
+            onChange={handleInputChange}
+            onBlur={commitValue}
+            onKeyDown={handleKeyDown}
+            className='h-7 w-10 bg-transparent text-center font-mono text-sm outline-none'
+            autoFocus
+          />
+        ) : (
+          <button
             type='button'
-            variant='ghost'
-            size='icon-sm'
-            aria-label='Increment'
-            onClick={handleIncrement}
-            disabled={
-              disabled || (max !== undefined && Number(localValue) >= max)
-            }
-            className='size-auto h-3.5 w-5 rounded-sm p-0'
+            onClick={handleStartEdit}
+            disabled={disabled}
+            className={cn(
+              'h-7 min-w-8 cursor-text px-1 text-center font-mono text-sm tabular-nums',
+              disabled && 'cursor-default opacity-50'
+            )}
           >
-            <ChevronUp className='h-3 w-3' aria-hidden='true' />
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='icon-sm'
-            aria-label='Decrement'
-            onClick={handleDecrement}
-            disabled={disabled || Number(localValue) <= min}
-            className='size-auto h-3.5 w-5 rounded-sm p-0'
-          >
-            <ChevronDown className='h-3 w-3' aria-hidden='true' />
-          </Button>
-        </div>
+            {localValue}
+          </button>
+        )}
+
+        <button
+          type='button'
+          tabIndex={-1}
+          aria-label='Increment'
+          onClick={handleIncrement}
+          disabled={disabled || atMax}
+          className={cn(
+            'text-muted-foreground/0 group-hover/spinner:text-muted-foreground flex h-7 w-6 shrink-0 items-center justify-center rounded-r-md transition-colors',
+            !disabled &&
+              !atMax &&
+              'group-hover/spinner:hover:text-foreground group-hover/spinner:hover:bg-muted',
+            (disabled || atMax) && 'group-hover/spinner:opacity-30'
+          )}
+        >
+          <Plus className='size-3' />
+        </button>
       </div>
     </div>
   )
