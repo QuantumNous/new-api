@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -23,6 +24,12 @@ import {
   IpRestrictionsCell,
 } from './api-keys-cells'
 import { DataTableRowActions } from './data-table-row-actions'
+
+function getQuotaProgressColor(percentage: number): string {
+  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
+  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
+  return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
+}
 
 function useGroupRatios(): Record<string, number> {
   const isAdmin = useAuthStore((s) =>
@@ -166,12 +173,17 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             <TooltipTrigger asChild>
               <div className='w-[150px] space-y-1'>
                 <div className='flex justify-between text-xs'>
-                  <span>{formatQuota(remaining)}</span>
-                  <span className='text-muted-foreground'>
+                  <span className='font-medium tabular-nums'>
+                    {formatQuota(remaining)}
+                  </span>
+                  <span className='text-muted-foreground tabular-nums'>
                     {formatQuota(total)}
                   </span>
                 </div>
-                <Progress value={percentage} className='h-2' />
+                <Progress
+                  value={percentage}
+                  className={cn('h-1.5', getQuotaProgressColor(percentage))}
+                />
               </div>
             </TooltipTrigger>
             <TooltipContent>
@@ -180,13 +192,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
                   {t('Used:')} {formatQuota(used)}
                 </div>
                 <div>
-                  {t('Remaining:')} {formatQuota(remaining)}
+                  {t('Remaining:')} {formatQuota(remaining)} (
+                  {percentage.toFixed(1)}%)
                 </div>
                 <div>
                   {t('Total:')} {formatQuota(total)}
-                </div>
-                <div>
-                  {t('Percentage:')} {percentage.toFixed(1)}%
                 </div>
               </div>
             </TooltipContent>
@@ -204,17 +214,25 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         const apiKey = row.original
         const group = row.getValue('group') as string
         const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
-        const ratioLabel = ratio != null ? `${ratio}x` : undefined
 
         if (group === 'auto') {
           return (
             <Tooltip>
               <TooltipTrigger asChild>
-                <StatusBadge
-                  label={`Auto${apiKey.cross_group_retry ? ` (${t('Cross-group')})` : ''}`}
-                  variant='neutral'
-                  copyable={false}
-                />
+                <span className='inline-flex items-center gap-1.5'>
+                  <StatusBadge
+                    label={t('Auto')}
+                    variant='neutral'
+                    copyable={false}
+                  />
+                  {apiKey.cross_group_retry && (
+                    <StatusBadge
+                      label={t('Cross-group')}
+                      variant='info'
+                      copyable={false}
+                    />
+                  )}
+                </span>
               </TooltipTrigger>
               <TooltipContent>
                 <span className='text-xs'>
@@ -230,13 +248,15 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           <div className='flex items-center gap-1.5'>
             <StatusBadge
               label={group || t('Default')}
-              variant='neutral'
+              autoColor={group || undefined}
               copyable={false}
             />
-            {ratioLabel && (
-              <span className='text-muted-foreground rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums dark:bg-amber-900/30'>
-                {ratioLabel}
-              </span>
+            {ratio != null && (
+              <StatusBadge
+                label={`${ratio}x`}
+                variant='success'
+                copyable={false}
+              />
             )}
           </div>
         )
@@ -269,9 +289,9 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         <DataTableColumnHeader column={column} title={t('Created')} />
       ),
       cell: ({ row }) => (
-        <div className='min-w-[140px] font-mono text-sm'>
+        <span className='text-muted-foreground font-mono text-xs tabular-nums'>
           {formatTimestampToDate(row.getValue('created_time'))}
-        </div>
+        </span>
       ),
       meta: { label: t('Created') },
     },
@@ -293,11 +313,14 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         }
         const isExpired = expiredTime * 1000 < Date.now()
         return (
-          <div
-            className={`min-w-[140px] font-mono text-sm ${isExpired ? 'text-destructive' : ''}`}
+          <span
+            className={cn(
+              'font-mono text-xs tabular-nums',
+              isExpired ? 'text-destructive' : 'text-muted-foreground'
+            )}
           >
             {formatTimestampToDate(expiredTime)}
-          </div>
+          </span>
         )
       },
       meta: { label: t('Expires') },

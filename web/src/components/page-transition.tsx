@@ -43,7 +43,11 @@ export function AnimatedOutlet() {
   })
 
   if (shouldReduce) {
-    return <Outlet />
+    return (
+      <div className='flex min-h-0 flex-1 flex-col'>
+        <Outlet />
+      </div>
+    )
   }
 
   return (
@@ -52,7 +56,7 @@ export function AnimatedOutlet() {
       initial={MOTION_VARIANTS.pageEnter.initial}
       animate={MOTION_VARIANTS.pageEnter.animate}
       transition={MOTION_TRANSITION.fast}
-      className='flex flex-1 flex-col'
+      className='flex min-h-0 flex-1 flex-col'
     >
       <Outlet />
     </motion.div>

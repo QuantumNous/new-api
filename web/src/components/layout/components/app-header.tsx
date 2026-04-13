@@ -28,10 +28,6 @@ import { TopNav } from './top-nav'
  * <AppHeader showTopNav={false} showSearch={false} />
  *
  * @example
- * // Fixed at top
- * <AppHeader fixed />
- *
- * @example
  * // Fully customize left and right content
  * <AppHeader
  *   leftContent={<CustomLeft />}
@@ -58,11 +54,6 @@ type AppHeaderProps = {
    */
   showSearch?: boolean
   /**
-   * Whether to fix at top
-   * @default false
-   */
-  fixed?: boolean
-  /**
    * Custom right content, overrides default right content if provided
    */
   rightContent?: React.ReactNode
@@ -88,7 +79,6 @@ export function AppHeader({
   showTopNav = true,
   leftContent,
   showSearch = true,
-  fixed = false,
   rightContent,
   showNotifications = true,
   showConfigDrawer = true,
@@ -107,7 +97,7 @@ export function AppHeader({
 
   return (
     <>
-      <Header fixed={fixed}>
+      <Header>
         {leftSection}
         {rightContent ?? (
           <div className='ms-auto flex items-center space-x-4'>

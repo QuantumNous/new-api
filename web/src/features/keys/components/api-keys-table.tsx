@@ -32,6 +32,7 @@ import {
   TableEmpty,
   MobileCardList,
 } from '@/components/data-table'
+import { PageFooterPortal } from '@/components/layout'
 import { getApiKeys, searchApiKeys } from '../api'
 import { API_KEY_STATUS_OPTIONS, ERROR_MESSAGES } from '../constants'
 import { type ApiKey } from '../types'
@@ -156,33 +157,35 @@ export function ApiKeysTable() {
   }, [pageCount, ensurePageInRange])
 
   return (
-    <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      <DataTableToolbar
-        table={table}
-        searchPlaceholder={t('Filter by name or key...')}
-        filters={[
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: API_KEY_STATUS_OPTIONS,
-          },
-        ]}
-      />
-      {isMobile ? (
-        <MobileCardList
+    <>
+      <div className='space-y-4'>
+        <DataTableToolbar
           table={table}
-          isLoading={isLoading}
-          emptyTitle='No API Keys Found'
-          emptyDescription='No API keys available. Create your first API key to get started.'
+          searchPlaceholder={t('Filter by name or key...')}
+          filters={[
+            {
+              columnId: 'status',
+              title: t('Status'),
+              options: API_KEY_STATUS_OPTIONS,
+            },
+          ]}
         />
-      ) : (
-        <div className='overflow-hidden rounded-md border'>
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    return (
+        {isMobile ? (
+          <MobileCardList
+            table={table}
+            isLoading={isLoading}
+            emptyTitle={t('No API Keys Found')}
+            emptyDescription={t(
+              'No API keys available. Create your first API key to get started.'
+            )}
+          />
+        ) : (
+          <div className='overflow-hidden rounded-md border'>
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
                       <TableHead key={header.id} colSpan={header.colSpan}>
                         {header.isPlaceholder
                           ? null
@@ -191,50 +194,52 @@ export function ApiKeysTable() {
                               header.getContext()
                             )}
                       </TableHead>
-                    )
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton table={table} keyPrefix='api-keys-skeleton' />
-              ) : table.getRowModel().rows.length === 0 ? (
-                <TableEmpty
-                  colSpan={columns.length}
-                  title={t('No API Keys Found')}
-                  description={t(
-                    'No API keys available. Create your first API key to get started.'
-                  )}
-                />
-              ) : (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && 'selected'}
-                    className={
-                      (row.original as ApiKey).status !== 1
-                        ? 'opacity-60'
-                        : undefined
-                    }
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
                     ))}
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-      <DataTablePagination table={table} />
-      {!isMobile && <DataTableBulkActions table={table} />}
-    </div>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton table={table} keyPrefix='api-keys-skeleton' />
+                ) : table.getRowModel().rows.length === 0 ? (
+                  <TableEmpty
+                    colSpan={columns.length}
+                    title={t('No API Keys Found')}
+                    description={t(
+                      'No API keys available. Create your first API key to get started.'
+                    )}
+                  />
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && 'selected'}
+                      className={
+                        (row.original as ApiKey).status !== 1
+                          ? 'opacity-60'
+                          : undefined
+                      }
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        {!isMobile && <DataTableBulkActions table={table} />}
+      </div>
+      <PageFooterPortal>
+        <DataTablePagination table={table} />
+      </PageFooterPortal>
+    </>
   )
 }

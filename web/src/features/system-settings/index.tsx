@@ -5,10 +5,12 @@ import { AppHeader } from '@/components/layout/components/app-header'
 export function SystemSettings() {
   return (
     <>
-      <AppHeader fixed />
+      <AppHeader />
 
       <Main>
-        <Outlet />
+        <div className='min-h-0 flex-1'>
+          <Outlet />
+        </div>
       </Main>
     </>
   )

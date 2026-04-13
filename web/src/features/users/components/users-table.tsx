@@ -30,6 +30,7 @@ import {
   TableSkeleton,
   TableEmpty,
 } from '@/components/data-table'
+import { PageFooterPortal } from '@/components/layout'
 import { getUsers, searchUsers } from '../api'
 import {
   USER_STATUS,
@@ -155,30 +156,30 @@ export function UsersTable() {
   }, [pageCount, ensurePageInRange])
 
   return (
-    <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      <DataTableToolbar
-        table={table}
-        searchPlaceholder={t('Filter by username, name or email...')}
-        filters={[
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: getUserStatusOptions(t),
-          },
-          {
-            columnId: 'role',
-            title: t('Role'),
-            options: getUserRoleOptions(t),
-          },
-        ]}
-      />
-      <div className='overflow-hidden rounded-md border'>
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
+    <>
+      <div className='space-y-4'>
+        <DataTableToolbar
+          table={table}
+          searchPlaceholder={t('Filter by username, name or email...')}
+          filters={[
+            {
+              columnId: 'status',
+              title: t('Status'),
+              options: getUserStatusOptions(t),
+            },
+            {
+              columnId: 'role',
+              title: t('Role'),
+              options: getUserRoleOptions(t),
+            },
+          ]}
+        />
+        <div className='overflow-hidden rounded-md border'>
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
                     <TableHead key={header.id} colSpan={header.colSpan}>
                       {header.isPlaceholder
                         ? null
@@ -187,53 +188,55 @@ export function UsersTable() {
                             header.getContext()
                           )}
                     </TableHead>
-                  )
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableSkeleton table={table} keyPrefix='users-skeleton' />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <TableEmpty
-                colSpan={columns.length}
-                title={t('No Users Found')}
-                description={t(
-                  'No users available. Try adjusting your search or filters.'
-                )}
-              />
-            ) : (
-              table.getRowModel().rows.map((row) => {
-                const user = row.original
-                const isDeleted = isUserDeleted(user)
-                const isDisabled = user.status === USER_STATUS.DISABLED
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableSkeleton table={table} keyPrefix='users-skeleton' />
+              ) : table.getRowModel().rows.length === 0 ? (
+                <TableEmpty
+                  colSpan={columns.length}
+                  title={t('No Users Found')}
+                  description={t(
+                    'No users available. Try adjusting your search or filters.'
+                  )}
+                />
+              ) : (
+                table.getRowModel().rows.map((row) => {
+                  const user = row.original
+                  const isDeleted = isUserDeleted(user)
+                  const isDisabled = user.status === USER_STATUS.DISABLED
 
-                return (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && 'selected'}
-                    className={
-                      isDeleted || isDisabled ? 'opacity-50' : undefined
-                    }
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && 'selected'}
+                      className={
+                        isDeleted || isDisabled ? 'opacity-50' : undefined
+                      }
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <DataTableBulkActions table={table} />
       </div>
-      <DataTablePagination table={table} />
-      <DataTableBulkActions table={table} />
-    </div>
+      <PageFooterPortal>
+        <DataTablePagination table={table} />
+      </PageFooterPortal>
+    </>
   )
 }

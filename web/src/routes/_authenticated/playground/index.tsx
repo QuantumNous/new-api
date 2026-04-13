@@ -9,8 +9,8 @@ export const Route = createFileRoute('/_authenticated/playground/')({
 function PlaygroundPage() {
   return (
     <>
-      <AppHeader fixed />
-      <Main fixed className='p-0'>
+      <AppHeader />
+      <Main className='p-0'>
         <Playground />
       </Main>
     </>

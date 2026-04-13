@@ -29,6 +29,7 @@ import {
   TableSkeleton,
   TableEmpty,
 } from '@/components/data-table'
+import { PageFooterPortal } from '@/components/layout'
 import { getRedemptions, searchRedemptions } from '../api'
 import { REDEMPTION_STATUS, getRedemptionStatusOptions } from '../constants'
 import { isRedemptionExpired } from '../lib'
@@ -138,82 +139,86 @@ export function RedemptionsTable() {
   )
 
   return (
-    <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      <DataTableToolbar
-        table={table}
-        searchPlaceholder={t('Filter by name or ID...')}
-        filters={[
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: redemptionStatusOptions,
-          },
-        ]}
-      />
-      <div className='overflow-hidden rounded-md border'>
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  )
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableSkeleton table={table} keyPrefix='redemptions-skeleton' />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <TableEmpty
-                colSpan={columns.length}
-                title={t('No Redemption Codes Found')}
-                description={t(
-                  'No redemption codes available. Create your first redemption code to get started.'
-                )}
-              />
-            ) : (
-              table.getRowModel().rows.map((row) => {
-                const redemption = row.original
-                const isDisabled =
-                  redemption.status !== REDEMPTION_STATUS.ENABLED ||
-                  isRedemptionExpired(
-                    redemption.expired_time,
-                    redemption.status
-                  )
+    <>
+      <div className='space-y-4'>
+        <DataTableToolbar
+          table={table}
+          searchPlaceholder={t('Filter by name or ID...')}
+          filters={[
+            {
+              columnId: 'status',
+              title: t('Status'),
+              options: redemptionStatusOptions,
+            },
+          ]}
+        />
+        <div className='overflow-hidden rounded-md border'>
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead key={header.id} colSpan={header.colSpan}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    )
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableSkeleton table={table} keyPrefix='redemptions-skeleton' />
+              ) : table.getRowModel().rows.length === 0 ? (
+                <TableEmpty
+                  colSpan={columns.length}
+                  title={t('No Redemption Codes Found')}
+                  description={t(
+                    'No redemption codes available. Create your first redemption code to get started.'
+                  )}
+                />
+              ) : (
+                table.getRowModel().rows.map((row) => {
+                  const redemption = row.original
+                  const isDisabled =
+                    redemption.status !== REDEMPTION_STATUS.ENABLED ||
+                    isRedemptionExpired(
+                      redemption.expired_time,
+                      redemption.status
+                    )
 
-                return (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && 'selected'}
-                    className={isDisabled ? 'opacity-50' : undefined}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && 'selected'}
+                      className={isDisabled ? 'opacity-50' : undefined}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <DataTableBulkActions table={table} />
       </div>
-      <DataTablePagination table={table} />
-      <DataTableBulkActions table={table} />
-    </div>
+      <PageFooterPortal>
+        <DataTablePagination table={table} />
+      </PageFooterPortal>
+    </>
   )
 }

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
+  flexRender,
   getCoreRowModel,
   useReactTable,
   type SortingState,
@@ -25,6 +26,7 @@ import {
   MobileCardList,
 } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
+import { PageFooterPortal } from '@/components/layout'
 import { getModels, searchModels, getVendors } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
@@ -213,113 +215,106 @@ export function ModelsTable() {
   ]
 
   return (
-    <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      {/* Toolbar with Filters */}
-      <DataTableToolbar
-        table={table}
-        searchPlaceholder={t('Filter by model name...')}
-        filters={[
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: [...getModelStatusOptions(t)],
-            singleSelect: true,
-          },
-          {
-            columnId: 'vendor_id',
-            title: t('Vendor'),
-            options: vendorFilterOptions,
-            singleSelect: true,
-          },
-          {
-            columnId: 'sync_official',
-            title: t('Official Sync'),
-            options: [...getSyncStatusOptions(t)],
-            singleSelect: true,
-          },
-        ]}
-      />
-
-      {isMobile ? (
-        <MobileCardList
+    <>
+      <div className='space-y-4'>
+        <DataTableToolbar
           table={table}
-          isLoading={isLoading}
-          emptyTitle={t('No Models Found')}
-          emptyDescription={t(
-            'No models available. Create your first model to get started.'
-          )}
+          searchPlaceholder={t('Filter by model name...')}
+          filters={[
+            {
+              columnId: 'status',
+              title: t('Status'),
+              options: [...getModelStatusOptions(t)],
+              singleSelect: true,
+            },
+            {
+              columnId: 'vendor_id',
+              title: t('Vendor'),
+              options: vendorFilterOptions,
+              singleSelect: true,
+            },
+            {
+              columnId: 'sync_official',
+              title: t('Official Sync'),
+              options: [...getSyncStatusOptions(t)],
+              singleSelect: true,
+            },
+          ]}
         />
-      ) : (
-        <>
-          {/* Table */}
-          <div className='overflow-hidden rounded-md border'>
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead
-                        key={header.id}
-                        style={{ width: header.getSize() }}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableSkeleton table={table} keyPrefix='model-skeleton' />
-                ) : table.getRowModel().rows.length === 0 ? (
-                  <TableEmpty
-                    colSpan={columns.length}
-                    title={t('No Models Found')}
-                    description={t(
-                      'No models available. Create your first model to get started.'
-                    )}
-                  />
-                ) : (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && 'selected'}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
+
+        {isMobile ? (
+          <MobileCardList
+            table={table}
+            isLoading={isLoading}
+            emptyTitle={t('No Models Found')}
+            emptyDescription={t(
+              'No models available. Create your first model to get started.'
+            )}
+          />
+        ) : (
+          <>
+            <div className='overflow-hidden rounded-md border'>
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          style={{ width: header.getSize() }}
+                        >
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                        </TableHead>
                       ))}
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableSkeleton table={table} keyPrefix='model-skeleton' />
+                  ) : table.getRowModel().rows.length === 0 ? (
+                    <TableEmpty
+                      colSpan={columns.length}
+                      title={t('No Models Found')}
+                      description={t(
+                        'No models available. Create your first model to get started.'
+                      )}
+                    />
+                  ) : (
+                    table.getRowModel().rows.map((row) => (
+                      <TableRow
+                        key={row.id}
+                        data-state={row.getIsSelected() && 'selected'}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
 
-          {/* Bulk Actions Floating Toolbar */}
-          <DataTableBulkActions table={table} />
-        </>
-      )}
-
-      {/* Pagination */}
-      <DataTablePagination table={table as ReturnType<typeof useReactTable>} />
-    </div>
+            <DataTableBulkActions table={table} />
+          </>
+        )}
+      </div>
+      <PageFooterPortal>
+        <DataTablePagination
+          table={table as ReturnType<typeof useReactTable>}
+        />
+      </PageFooterPortal>
+    </>
   )
-}
-
-// Helper to render cell content
-function flexRender(content: unknown, context: unknown) {
-  if (typeof content === 'function') {
-    return content(context)
-  }
-  return content
 }

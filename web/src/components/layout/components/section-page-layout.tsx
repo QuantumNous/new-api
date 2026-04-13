@@ -1,11 +1,13 @@
 import {
   Children,
   isValidElement,
+  useState,
   type ReactElement,
   type ReactNode,
 } from 'react'
 import { AppHeader } from './app-header'
 import { Main } from './main'
+import { PageFooterProvider } from './page-footer'
 
 type SlotProps = { children?: ReactNode }
 
@@ -39,6 +41,10 @@ export type SectionPageLayoutProps = {
 }
 
 export function SectionPageLayout(props: SectionPageLayoutProps) {
+  const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(
+    null
+  )
+
   let title: ReactNode = null
   let description: ReactNode = null
   let actions: ReactNode = null
@@ -60,29 +66,35 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
   })
 
   return (
-    <>
-      <AppHeader fixed />
+    <PageFooterProvider container={footerContainer}>
+      <AppHeader />
 
       <Main>
-        {breadcrumb != null && <div className='mb-3'>{breadcrumb}</div>}
-        <div className='mb-2 flex flex-wrap items-center justify-between space-y-2 gap-x-4'>
-          <div>
-            <h2 className='text-2xl font-bold tracking-tight'>{title}</h2>
-            {description != null && (
-              <p className='text-muted-foreground'>{description}</p>
+        <div className='shrink-0 px-4 pt-6 pb-4'>
+          {breadcrumb != null && <div className='mb-3'>{breadcrumb}</div>}
+          <div className='flex flex-wrap items-center justify-between gap-x-4 gap-y-2'>
+            <div>
+              <h2 className='text-2xl font-bold tracking-tight'>{title}</h2>
+              {description != null && (
+                <p className='text-muted-foreground'>{description}</p>
+              )}
+            </div>
+            {actions != null && (
+              <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+                {actions}
+              </div>
             )}
           </div>
-          {actions != null && (
-            <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
-              {actions}
-            </div>
-          )}
         </div>
-        <div className='-mx-4 flex-1 overflow-auto px-4 py-1 lg:flex-row lg:space-y-0 lg:space-x-12'>
-          {content}
-        </div>
+
+        <div className='min-h-0 flex-1 overflow-auto px-4 pb-4'>{content}</div>
+
+        <div
+          ref={setFooterContainer}
+          className='bg-background shrink-0 border-t px-4 py-3 empty:hidden'
+        />
       </Main>
-    </>
+    </PageFooterProvider>
   )
 }
 

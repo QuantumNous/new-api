@@ -25,8 +25,8 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
             <SidebarInset
               className={cn(
                 '@container/content',
-                'has-[[data-layout=fixed]]:h-svh',
-                'peer-data-[variant=inset]:has-[[data-layout=fixed]]:h-[calc(100svh-(var(--spacing)*4))]'
+                'h-svh',
+                'peer-data-[variant=inset]:h-[calc(100svh-(var(--spacing)*4))]'
               )}
             >
               {props.children ?? <AnimatedOutlet />}

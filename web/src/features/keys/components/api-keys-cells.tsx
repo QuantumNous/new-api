@@ -1,8 +1,13 @@
-import { useCallback } from 'react'
-import { Check, Eye, EyeOff, Copy, Loader2 } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { Check, Copy, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { Button } from '@/components/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Tooltip,
   TooltipContent,
@@ -16,70 +21,74 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   const { t } = useTranslation()
   const {
     resolveRealKey,
-    toggleKeyVisibility,
-    keyVisibility,
     resolvedKeys,
     loadingKeys,
     copiedKeyId,
     markKeyCopied,
   } = useApiKeys()
+  const [popoverOpen, setPopoverOpen] = useState(false)
 
-  const isVisible = !!keyVisibility[apiKey.id]
   const isLoading = !!loadingKeys[apiKey.id]
   const resolvedFullKey = resolvedKeys[apiKey.id]
   const isCopied = copiedKeyId === apiKey.id
+  const maskedKey = `sk-${apiKey.key}`
 
-  const displayedKey =
-    isVisible && resolvedFullKey
-      ? resolvedFullKey
-      : `sk-${apiKey.key.slice(0, 4)}${'*'.repeat(16)}${apiKey.key.slice(-4)}`
-
-  const handleCopy = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      const realKey = resolvedFullKey || (await resolveRealKey(apiKey.id))
-      if (realKey) {
-        const success = await copyToClipboard(realKey)
-        if (success) {
-          markKeyCopied(apiKey.id)
-        }
+  const handlePopoverOpen = useCallback(
+    (open: boolean) => {
+      setPopoverOpen(open)
+      if (open && !resolvedFullKey) {
+        resolveRealKey(apiKey.id)
       }
     },
-    [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied]
+    [resolvedFullKey, resolveRealKey, apiKey.id]
   )
 
+  const handleCopy = useCallback(async () => {
+    const realKey = resolvedFullKey || (await resolveRealKey(apiKey.id))
+    if (realKey) {
+      const ok = await copyToClipboard(realKey)
+      if (ok) markKeyCopied(apiKey.id)
+    }
+  }, [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied])
+
   return (
-    <div className='flex items-center gap-0.5'>
-      <span
-        className={`max-w-[180px] truncate font-mono text-xs ${isVisible ? '' : 'text-muted-foreground'}`}
-      >
-        {displayedKey}
-      </span>
-      <Tooltip>
-        <TooltipTrigger asChild>
+    <div className='flex items-center'>
+      <Popover open={popoverOpen} onOpenChange={handlePopoverOpen}>
+        <PopoverTrigger asChild>
           <Button
             variant='ghost'
-            size='icon'
-            className='size-7 shrink-0'
-            disabled={isLoading}
-            onClick={(e) => {
-              e.stopPropagation()
-              toggleKeyVisibility(apiKey.id)
-            }}
+            size='sm'
+            className='text-muted-foreground h-7 font-mono text-xs'
           >
-            {isLoading ? (
-              <Loader2 className='size-3.5 animate-spin' />
-            ) : isVisible ? (
-              <EyeOff className='size-3.5' />
-            ) : (
-              <Eye className='size-3.5' />
-            )}
+            {maskedKey}
+            {isLoading && <Loader2 className='ml-1 size-3 animate-spin' />}
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {isVisible ? t('Hide API key') : t('Reveal API key')}
-        </TooltipContent>
-      </Tooltip>
+        </PopoverTrigger>
+        <PopoverContent
+          className='w-auto max-w-[min(90vw,28rem)]'
+          align='start'
+        >
+          <div className='space-y-2'>
+            <p className='text-muted-foreground text-xs'>{t('Full API Key')}</p>
+            {isLoading ? (
+              <div className='flex items-center gap-2 py-2'>
+                <Loader2 className='size-3.5 animate-spin' />
+                <span className='text-muted-foreground text-xs'>
+                  {t('Loading...')}
+                </span>
+              </div>
+            ) : (
+              <input
+                readOnly
+                value={resolvedFullKey || maskedKey}
+                autoFocus
+                onFocus={(e) => e.target.select()}
+                className='bg-muted/50 w-full min-w-[280px] rounded-md border px-3 py-2 font-mono text-xs outline-none'
+              />
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
@@ -117,8 +126,12 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className='text-muted-foreground cursor-default text-xs font-medium'>
-          {t('{{count}} model(s)', { count: models.length })}
+        <span>
+          <StatusBadge
+            label={t('{{count}} model(s)', { count: models.length })}
+            variant='neutral'
+            copyable={false}
+          />
         </span>
       </TooltipTrigger>
       <TooltipContent side='top' className='max-w-xs'>
@@ -156,8 +169,12 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className='text-muted-foreground cursor-default text-xs font-medium'>
-          {t('{{count}} IP(s)', { count: ips.length })}
+        <span>
+          <StatusBadge
+            label={t('{{count}} IP(s)', { count: ips.length })}
+            variant='neutral'
+            copyable={false}
+          />
         </span>
       </TooltipTrigger>
       <TooltipContent side='top' className='max-w-xs'>

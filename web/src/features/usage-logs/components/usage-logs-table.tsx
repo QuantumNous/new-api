@@ -31,6 +31,7 @@ import {
   TableEmpty,
   MobileCardList,
 } from '@/components/data-table'
+import { PageFooterPortal } from '@/components/layout'
 import { LOG_TYPE_FILTERS, DEFAULT_LOGS_DATA } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
@@ -161,66 +162,70 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       : []
 
   return (
-    <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      <DataTableToolbar table={table} filters={filters} customSearch={null} />
-      {isMobile ? (
-        <MobileCardList
-          table={table}
-          isLoading={isLoadingData}
-          emptyTitle={t('No Logs Found')}
-          emptyDescription={t(
-            'No usage logs available. Logs will appear here once API calls are made.'
-          )}
-        />
-      ) : (
-        <div className='overflow-hidden rounded-md border'>
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {isLoadingData ? (
-                <TableSkeleton table={table} keyPrefix='usage-log-skeleton' />
-              ) : table.getRowModel().rows.length === 0 ? (
-                <TableEmpty
-                  colSpan={columns.length}
-                  title={t('No Logs Found')}
-                  description={t(
-                    'No usage logs available. Logs will appear here once API calls are made.'
-                  )}
-                />
-              ) : (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className='py-2'>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
+    <>
+      <div className='space-y-4'>
+        <DataTableToolbar table={table} filters={filters} customSearch={null} />
+        {isMobile ? (
+          <MobileCardList
+            table={table}
+            isLoading={isLoadingData}
+            emptyTitle={t('No Logs Found')}
+            emptyDescription={t(
+              'No usage logs available. Logs will appear here once API calls are made.'
+            )}
+          />
+        ) : (
+          <div className='overflow-hidden rounded-md border'>
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id} colSpan={header.colSpan}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
                     ))}
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-      <DataTablePagination table={table} />
-    </div>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {isLoadingData ? (
+                  <TableSkeleton table={table} keyPrefix='usage-log-skeleton' />
+                ) : table.getRowModel().rows.length === 0 ? (
+                  <TableEmpty
+                    colSpan={columns.length}
+                    title={t('No Logs Found')}
+                    description={t(
+                      'No usage logs available. Logs will appear here once API calls are made.'
+                    )}
+                  />
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id} className='py-2'>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+      <PageFooterPortal>
+        <DataTablePagination table={table} />
+      </PageFooterPortal>
+    </>
   )
 }

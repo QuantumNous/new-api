@@ -36,6 +36,7 @@ import {
   TableSkeleton,
 } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
+import { PageFooterPortal } from '@/components/layout'
 import { deleteDeployment, listDeployments, searchDeployments } from '../api'
 import { getDeploymentStatusOptions } from '../constants'
 import { deploymentsQueryKeys } from '../lib'
@@ -226,83 +227,91 @@ export function DeploymentsTable() {
   }, [t])
 
   return (
-    <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      {/* Toolbar with Filters */}
-      <DataTableToolbar
-        table={table}
-        searchPlaceholder={t('Search deployments...')}
-        filters={[
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: statusFilterOptions,
-            singleSelect: true,
-          },
-        ]}
-      />
-
-      {isMobile ? (
-        <MobileCardList
+    <>
+      <div className='space-y-4'>
+        <DataTableToolbar
           table={table}
-          isLoading={isLoading}
-          emptyTitle={t('No Deployments Found')}
-          emptyDescription={t(
-            'No deployments available. Create one to get started.'
-          )}
+          searchPlaceholder={t('Search deployments...')}
+          filters={[
+            {
+              columnId: 'status',
+              title: t('Status'),
+              options: statusFilterOptions,
+              singleSelect: true,
+            },
+          ]}
         />
-      ) : (
-        <div className='overflow-hidden rounded-md border'>
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      style={{ width: header.getSize() }}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton table={table} keyPrefix='deployment-skeleton' />
-              ) : table.getRowModel().rows.length === 0 ? (
-                <TableEmpty
-                  colSpan={table.getVisibleLeafColumns().length}
-                  title={t('No Deployments Found')}
-                  description={t(
-                    'No deployments available. Create one to get started.'
-                  )}
-                />
-              ) : (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
+
+        {isMobile ? (
+          <MobileCardList
+            table={table}
+            isLoading={isLoading}
+            emptyTitle={t('No Deployments Found')}
+            emptyDescription={t(
+              'No deployments available. Create one to get started.'
+            )}
+          />
+        ) : (
+          <div className='overflow-hidden rounded-md border'>
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        style={{ width: header.getSize() }}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
                     ))}
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+                ))}
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableSkeleton
+                    table={table}
+                    keyPrefix='deployment-skeleton'
+                  />
+                ) : table.getRowModel().rows.length === 0 ? (
+                  <TableEmpty
+                    colSpan={table.getVisibleLeafColumns().length}
+                    title={t('No Deployments Found')}
+                    description={t(
+                      'No deployments available. Create one to get started.'
+                    )}
+                  />
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
 
-      <DataTablePagination table={table as ReturnType<typeof useReactTable>} />
+      <PageFooterPortal>
+        <DataTablePagination
+          table={table as ReturnType<typeof useReactTable>}
+        />
+      </PageFooterPortal>
 
       <ViewLogsDialog
         open={logsOpen}
@@ -380,6 +389,6 @@ export function DeploymentsTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   )
 }

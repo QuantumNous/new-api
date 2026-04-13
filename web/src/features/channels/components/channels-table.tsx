@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
+  flexRender,
   getCoreRowModel,
   useReactTable,
   getExpandedRowModel,
@@ -29,6 +30,7 @@ import {
   MobileCardList,
 } from '@/components/data-table'
 import { DataTablePagination } from '@/components/data-table/pagination'
+import { PageFooterPortal } from '@/components/layout'
 import { getChannels, searchChannels, getGroups } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
@@ -274,120 +276,110 @@ export function ChannelsTable() {
   ]
 
   return (
-    <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      {/* Toolbar with Filters */}
-      <DataTableToolbar
-        table={table}
-        searchPlaceholder={t('Filter by name, ID, or key...')}
-        additionalSearch={
-          <Input
-            placeholder={t('Filter by model...')}
-            value={modelFilterInput}
-            onChange={(e) => setModelFilterInput(e.target.value)}
-            className='h-8 w-full sm:w-[150px] lg:w-[200px]'
-          />
-        }
-        filters={[
-          {
-            columnId: 'status',
-            title: t('Status'),
-            options: [...CHANNEL_STATUS_OPTIONS],
-            singleSelect: true,
-          },
-          {
-            columnId: 'type',
-            title: t('Type'),
-            options: typeFilterOptions,
-            singleSelect: true,
-          },
-          {
-            columnId: 'group',
-            title: t('Group'),
-            options: groupFilterOptions,
-            singleSelect: true,
-          },
-        ]}
-      />
-
-      {isMobile ? (
-        <MobileCardList
+    <>
+      <div className='space-y-4'>
+        <DataTableToolbar
           table={table}
-          isLoading={isLoading}
-          emptyTitle='No Channels Found'
-          emptyDescription='No channels available. Create your first channel to get started.'
+          searchPlaceholder={t('Filter by name, ID, or key...')}
+          additionalSearch={
+            <Input
+              placeholder={t('Filter by model...')}
+              value={modelFilterInput}
+              onChange={(e) => setModelFilterInput(e.target.value)}
+              className='h-8 w-full sm:w-[150px] lg:w-[200px]'
+            />
+          }
+          filters={[
+            {
+              columnId: 'status',
+              title: t('Status'),
+              options: [...CHANNEL_STATUS_OPTIONS],
+              singleSelect: true,
+            },
+            {
+              columnId: 'type',
+              title: t('Type'),
+              options: typeFilterOptions,
+              singleSelect: true,
+            },
+            {
+              columnId: 'group',
+              title: t('Group'),
+              options: groupFilterOptions,
+              singleSelect: true,
+            },
+          ]}
         />
-      ) : (
-        <>
-          {/* Table */}
-          <div className='overflow-hidden rounded-md border'>
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead
-                        key={header.id}
-                        style={{ width: header.getSize() }}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableSkeleton table={table} keyPrefix='channel-skeleton' />
-                ) : table.getRowModel().rows.length === 0 ? (
-                  <TableEmpty
-                    colSpan={columns.length}
-                    title={t('No Channels Found')}
-                    description={t(
-                      'No channels available. Create your first channel to get started.'
-                    )}
-                  />
-                ) : (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && 'selected'}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
+
+        {isMobile ? (
+          <MobileCardList
+            table={table}
+            isLoading={isLoading}
+            emptyTitle='No Channels Found'
+            emptyDescription='No channels available. Create your first channel to get started.'
+          />
+        ) : (
+          <>
+            <div className='overflow-hidden rounded-md border'>
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          style={{ width: header.getSize() }}
+                        >
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                        </TableHead>
                       ))}
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableSkeleton table={table} keyPrefix='channel-skeleton' />
+                  ) : table.getRowModel().rows.length === 0 ? (
+                    <TableEmpty
+                      colSpan={columns.length}
+                      title={t('No Channels Found')}
+                      description={t(
+                        'No channels available. Create your first channel to get started.'
+                      )}
+                    />
+                  ) : (
+                    table.getRowModel().rows.map((row) => (
+                      <TableRow
+                        key={row.id}
+                        data-state={row.getIsSelected() && 'selected'}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
 
-          {/* Bulk Actions Floating Toolbar */}
-          <DataTableBulkActions table={table} />
-        </>
-      )}
-
-      {/* Pagination */}
-      <DataTablePagination table={table} />
-    </div>
+            <DataTableBulkActions table={table} />
+          </>
+        )}
+      </div>
+      <PageFooterPortal>
+        <DataTablePagination table={table} />
+      </PageFooterPortal>
+    </>
   )
-}
-
-// Helper to render cell content
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function flexRender(content: unknown, context: any) {
-  if (typeof content === 'function') {
-    return content(context)
-  }
-  return content
 }

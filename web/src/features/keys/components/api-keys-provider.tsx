@@ -17,8 +17,6 @@ type ApiKeysContextType = {
   setResolvedKey: React.Dispatch<React.SetStateAction<string>>
   resolveRealKey: (id: number) => Promise<string | null>
   resolveRealKeysBatch: (ids: number[]) => Promise<Record<number, string>>
-  toggleKeyVisibility: (id: number) => Promise<void>
-  keyVisibility: Record<number, boolean>
   resolvedKeys: Record<number, string>
   loadingKeys: Record<number, boolean>
   copiedKeyId: number | null
@@ -35,9 +33,6 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
   const [resolvedKey, setResolvedKey] = useState('')
 
   const [resolvedKeys, setResolvedKeys] = useState<Record<number, string>>({})
-  const [keyVisibility, setKeyVisibility] = useState<Record<number, boolean>>(
-    {}
-  )
   const [loadingKeys, setLoadingKeys] = useState<Record<number, boolean>>({})
   const pendingRequests = useRef<Record<number, Promise<string | null>>>({})
 
@@ -56,7 +51,6 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
 
   const triggerRefresh = useCallback(() => {
     setRefreshTrigger((prev) => prev + 1)
-    setKeyVisibility({})
   }, [])
 
   const resolveRealKey = useCallback(
@@ -140,20 +134,6 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
     [resolvedKeys, t]
   )
 
-  const toggleKeyVisibility = useCallback(
-    async (id: number) => {
-      if (keyVisibility[id]) {
-        setKeyVisibility((prev) => ({ ...prev, [id]: false }))
-        return
-      }
-      const key = await resolveRealKey(id)
-      if (key) {
-        setKeyVisibility((prev) => ({ ...prev, [id]: true }))
-      }
-    },
-    [keyVisibility, resolveRealKey]
-  )
-
   return (
     <ApiKeysContext
       value={{
@@ -167,8 +147,6 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
         setResolvedKey,
         resolveRealKey,
         resolveRealKeysBatch,
-        toggleKeyVisibility,
-        keyVisibility,
         resolvedKeys,
         loadingKeys,
         copiedKeyId,

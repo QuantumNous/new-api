@@ -23,6 +23,7 @@ import {
   TableSkeleton,
   TableEmpty,
 } from '@/components/data-table'
+import { PageFooterPortal } from '@/components/layout'
 import { getAdminPlans } from '../api'
 import { useSubscriptionsColumns } from './subscriptions-columns'
 import { useSubscriptions } from './subscriptions-provider'
@@ -57,7 +58,7 @@ export function SubscriptionsTable() {
   })
 
   return (
-    <div className='space-y-4'>
+    <>
       <div className='overflow-hidden rounded-md border'>
         <Table>
           <TableHeader>
@@ -104,7 +105,9 @@ export function SubscriptionsTable() {
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
-    </div>
+      <PageFooterPortal>
+        <DataTablePagination table={table} />
+      </PageFooterPortal>
+    </>
   )
 }

@@ -25,50 +25,49 @@ export function Profile() {
     status?.turnstile_check && status?.turnstile_site_key
   )
   const turnstileSiteKey = status?.turnstile_site_key || ''
-  // Hide the sidebar customization card when the backend explicitly forbids
-  // it (e.g. root users). Default to visible to handle legacy sessions where
-  // the permissions field has not been populated yet.
   const canConfigureSidebar = permissions?.sidebar_settings !== false
 
   return (
     <>
-      <AppHeader fixed />
+      <AppHeader />
       <Main>
-        <CardStaggerContainer className='space-y-8'>
-          <CardStaggerItem>
-            <ProfileHeader profile={profile} loading={loading} />
-          </CardStaggerItem>
+        <div className='min-h-0 flex-1 overflow-auto px-4 py-6'>
+          <CardStaggerContainer className='space-y-8'>
+            <CardStaggerItem>
+              <ProfileHeader profile={profile} loading={loading} />
+            </CardStaggerItem>
 
-          <CardStaggerItem>
-            <AvailableModelsCard />
-          </CardStaggerItem>
+            <CardStaggerItem>
+              <AvailableModelsCard />
+            </CardStaggerItem>
 
-          <CardStaggerItem>
-            <div className='grid gap-6 lg:grid-cols-2 lg:items-start'>
-              <div className='space-y-6'>
-                <ProfileSecurityCard profile={profile} loading={loading} />
-                <PasskeyCard loading={loading} />
-                <TwoFACard loading={loading} />
-              </div>
+            <CardStaggerItem>
+              <div className='grid gap-6 lg:grid-cols-2 lg:items-start'>
+                <div className='space-y-6'>
+                  <ProfileSecurityCard profile={profile} loading={loading} />
+                  <PasskeyCard loading={loading} />
+                  <TwoFACard loading={loading} />
+                </div>
 
-              <div className='space-y-6'>
-                {checkinEnabled && (
-                  <CheckinCalendarCard
-                    checkinEnabled={checkinEnabled}
-                    turnstileEnabled={turnstileEnabled}
-                    turnstileSiteKey={turnstileSiteKey}
+                <div className='space-y-6'>
+                  {checkinEnabled && (
+                    <CheckinCalendarCard
+                      checkinEnabled={checkinEnabled}
+                      turnstileEnabled={turnstileEnabled}
+                      turnstileSiteKey={turnstileSiteKey}
+                    />
+                  )}
+                  <ProfileSettingsCard
+                    profile={profile}
+                    loading={loading}
+                    onProfileUpdate={refreshProfile}
                   />
-                )}
-                <ProfileSettingsCard
-                  profile={profile}
-                  loading={loading}
-                  onProfileUpdate={refreshProfile}
-                />
-                {canConfigureSidebar && <SidebarModulesCard />}
+                  {canConfigureSidebar && <SidebarModulesCard />}
+                </div>
               </div>
-            </div>
-          </CardStaggerItem>
-        </CardStaggerContainer>
+            </CardStaggerItem>
+          </CardStaggerContainer>
+        </div>
       </Main>
     </>
   )
