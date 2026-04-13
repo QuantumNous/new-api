@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
@@ -34,7 +34,11 @@ export const useUsersData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [searching, setSearching] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
+  const [planOptions, setPlanOptions] = useState([]);
   const [userCount, setUserCount] = useState(0);
+  const [userSubscriptions, setUserSubscriptions] = useState(null);
+  const latestSubscriptionRequestRef = useRef(0);
+  const latestUserRequestRef = useRef(0);
 
   // Modal states
   const [showAddUser, setShowAddUser] = useState(false);
@@ -47,6 +51,7 @@ export const useUsersData = () => {
   const formInitValues = {
     searchKeyword: '',
     searchGroup: '',
+    searchPlan: '',
   };
 
   // Form API reference
@@ -58,6 +63,7 @@ export const useUsersData = () => {
     return {
       searchKeyword: formValues.searchKeyword || '',
       searchGroup: formValues.searchGroup || '',
+      searchPlan: formValues.searchPlan || '',
     };
   };
 
@@ -71,49 +77,104 @@ export const useUsersData = () => {
 
   // Load users data
   const loadUsers = async (startIdx, pageSize) => {
+    const reqId = ++latestUserRequestRef.current;
     setLoading(true);
     const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}`);
+    if (reqId !== latestUserRequestRef.current) return;
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
       setActivePage(data.page);
       setUserCount(data.total);
       setUserFormat(newPageData);
+      loadUserSubscriptions(newPageData);
     } else {
       showError(message);
     }
     setLoading(false);
   };
 
-  // Search users with keyword and group
+  // Load subscription info for a list of users (single batch request)
+  const loadUserSubscriptions = async (userList) => {
+    const requestId = latestSubscriptionRequestRef.current + 1;
+    latestSubscriptionRequestRef.current = requestId;
+
+    if (!userList || userList.length === 0) {
+      setUserSubscriptions({});
+      return;
+    }
+
+    setUserSubscriptions(null);
+
+    const userIds = userList.map((u) => u.id);
+    try {
+      const res = await API.post(
+        '/api/subscription/admin/users/batch_active_subscriptions',
+        { user_ids: userIds },
+      );
+      if (requestId !== latestSubscriptionRequestRef.current) {
+        return;
+      }
+      if (res.data?.success) {
+        // Backend returns { userId: [UserSubscription, ...] } map
+        const subsMap = {};
+        const data = res.data.data || {};
+        for (const [uid, sub] of Object.entries(data)) {
+          subsMap[Number(uid)] = sub;
+        }
+        setUserSubscriptions(subsMap);
+      } else {
+        setUserSubscriptions({});
+      }
+    } catch (e) {
+      if (requestId !== latestSubscriptionRequestRef.current) {
+        return;
+      }
+      setUserSubscriptions(null);
+    }
+  };
+
+  // Search users with keyword, group, and plan
   const searchUsers = async (
     startIdx,
     pageSize,
     searchKeyword = null,
     searchGroup = null,
+    searchPlan = null,
   ) => {
     // If no parameters passed, get values from form
-    if (searchKeyword === null || searchGroup === null) {
+    if (searchKeyword === null || searchGroup === null || searchPlan === null) {
       const formValues = getFormValues();
       searchKeyword = formValues.searchKeyword;
       searchGroup = formValues.searchGroup;
+      searchPlan = formValues.searchPlan;
     }
 
-    if (searchKeyword === '' && searchGroup === '') {
-      // If keyword is blank, load files instead
+    if (searchKeyword === '' && searchGroup === '' && searchPlan === '') {
+      // If all filters are blank, load all users instead
       await loadUsers(startIdx, pageSize);
       return;
     }
+    const reqId = ++latestUserRequestRef.current;
     setSearching(true);
-    const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
-    );
+    const params = new URLSearchParams({
+      keyword: searchKeyword,
+      group: searchGroup,
+      p: String(startIdx),
+      page_size: String(pageSize),
+    });
+    if (searchPlan) {
+      params.set('plan_id', String(searchPlan));
+    }
+    const res = await API.get(`/api/user/search?${params.toString()}`);
+    if (reqId !== latestUserRequestRef.current) return;
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
       setActivePage(data.page);
       setUserCount(data.total);
       setUserFormat(newPageData);
+      loadUserSubscriptions(newPageData);
     } else {
       showError(message);
     }
@@ -191,11 +252,17 @@ export const useUsersData = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    const { searchKeyword, searchGroup } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '') {
+    const { searchKeyword, searchGroup, searchPlan } = getFormValues();
+    if (searchKeyword === '' && searchGroup === '' && searchPlan === '') {
       loadUsers(page, pageSize).then();
     } else {
-      searchUsers(page, pageSize, searchKeyword, searchGroup).then();
+      searchUsers(
+        page,
+        pageSize,
+        searchKeyword,
+        searchGroup,
+        searchPlan,
+      ).then();
     }
   };
 
@@ -226,11 +293,11 @@ export const useUsersData = () => {
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '') {
+    const { searchKeyword, searchGroup, searchPlan } = getFormValues();
+    if (searchKeyword === '' && searchGroup === '' && searchPlan === '') {
       await loadUsers(page, pageSize);
     } else {
-      await searchUsers(page, pageSize, searchKeyword, searchGroup);
+      await searchUsers(page, pageSize, searchKeyword, searchGroup, searchPlan);
     }
   };
 
@@ -249,6 +316,24 @@ export const useUsersData = () => {
       );
     } catch (error) {
       showError(error.message);
+    }
+  };
+
+  // Fetch subscription plans for filter dropdown
+  const fetchPlans = async () => {
+    try {
+      const res = await API.get('/api/subscription/admin/plans');
+      if (res.data?.success) {
+        const plans = res.data.data || [];
+        setPlanOptions(
+          plans.map((p) => ({
+            label: p?.plan?.title || `#${p?.plan?.id}`,
+            value: p?.plan?.id,
+          })),
+        );
+      }
+    } catch (e) {
+      // ignore - subscription feature may not be enabled
     }
   };
 
@@ -272,6 +357,7 @@ export const useUsersData = () => {
         showError(reason);
       });
     fetchGroups().then();
+    fetchPlans().then();
   }, []);
 
   return {
@@ -283,6 +369,8 @@ export const useUsersData = () => {
     userCount,
     searching,
     groupOptions,
+    planOptions,
+    userSubscriptions,
 
     // Modal state
     showAddUser,

@@ -29,6 +29,7 @@ const UsersFilters = ({
   activePage,
   pageSize,
   groupOptions,
+  planOptions,
   loading,
   searching,
   t,
@@ -88,6 +89,24 @@ const UsersFilters = ({
             size='small'
           />
         </div>
+        {planOptions && planOptions.length > 0 && (
+          <div className='w-full md:w-48'>
+            <Form.Select
+              field='searchPlan'
+              placeholder={t('选择订阅')}
+              optionList={planOptions}
+              onChange={(value) => {
+                setTimeout(() => {
+                  searchUsers(1, pageSize);
+                }, 100);
+              }}
+              className='w-full'
+              showClear
+              pure
+              size='small'
+            />
+          </div>
+        )}
         <div className='flex gap-2 w-full md:w-auto'>
           <Button
             type='tertiary'

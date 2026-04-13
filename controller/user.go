@@ -249,8 +249,24 @@ func GetAllUsers(c *gin.Context) {
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
+	planIdStr := c.Query("plan_id")
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+
+	var users []*model.User
+	var total int64
+	var err error
+
+	if planIdStr != "" {
+		planId, parseErr := strconv.Atoi(planIdStr)
+		if parseErr != nil || planId <= 0 {
+			common.ApiErrorMsg(c, "无效的订阅套餐ID")
+			return
+		}
+		users, total, err = model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), planId)
+	} else {
+		users, total, err = model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	}
+
 	if err != nil {
 		common.ApiError(c, err)
 		return

@@ -302,6 +302,28 @@ func AdminBindSubscription(c *gin.Context) {
 
 // ---- Admin: user subscription management ----
 
+type AdminBatchActiveSubscriptionsRequest struct {
+	UserIds []int `json:"user_ids"`
+}
+
+func AdminBatchActiveSubscriptions(c *gin.Context) {
+	var req AdminBatchActiveSubscriptionsRequest
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.UserIds) == 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if len(req.UserIds) > 100 {
+		common.ApiErrorMsg(c, "单次查询最多100个用户")
+		return
+	}
+	subsMap, err := model.GetActiveSubscriptionsByUserIds(req.UserIds)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, subsMap)
+}
+
 func AdminListUserSubscriptions(c *gin.Context) {
 	userId, _ := strconv.Atoi(c.Param("id"))
 	if userId <= 0 {

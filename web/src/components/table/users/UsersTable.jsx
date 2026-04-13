@@ -50,6 +50,8 @@ const UsersTable = (usersData) => {
     refresh,
     resetUserPasskey,
     resetUserTwoFA,
+    userSubscriptions,
+    planOptions,
     t,
   } = usersData;
 
@@ -141,6 +143,8 @@ const UsersTable = (usersData) => {
       showResetPasskeyModal: showResetPasskeyUserModal,
       showResetTwoFAModal: showResetTwoFAUserModal,
       showUserSubscriptionsModal: showUserSubscriptionsUserModal,
+      userSubscriptions,
+      planOptions,
     });
   }, [
     t,
@@ -153,6 +157,8 @@ const UsersTable = (usersData) => {
     showResetPasskeyUserModal,
     showResetTwoFAUserModal,
     showUserSubscriptionsUserModal,
+    userSubscriptions,
+    planOptions,
   ]);
 
   // Handle compact mode by removing fixed positioning
