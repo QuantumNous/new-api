@@ -96,7 +96,10 @@ jobs:
           terraform_version: "1.9"
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: |
+          terraform init -input=false \
+            -backend-config="secret_id=${{ secrets.TENCENTCLOUD_SECRET_ID }}" \
+            -backend-config="secret_key=${{ secrets.TENCENTCLOUD_SECRET_KEY }}"
 
       - name: Terraform Plan
         id: plan
