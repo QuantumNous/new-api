@@ -41,6 +41,20 @@ function parseStatusCodeMappingTarget(rawValue) {
     const code = Number.parseInt(normalized, 10);
     return code >= 100 && code <= 599 ? code : null;
   }
+  // Object format: {"status_code": 503, "message": "custom message"}
+  if (typeof rawValue === 'object' && rawValue !== null && !Array.isArray(rawValue)) {
+    const hasMessage = typeof rawValue.message === 'string' && rawValue.message.length > 0;
+    const hasStatusCode = rawValue.status_code !== undefined;
+    if (!hasMessage && !hasStatusCode) {
+      return null;
+    }
+    if (hasStatusCode) {
+      const code = parseStatusCodeMappingTarget(rawValue.status_code);
+      return code !== null ? code : null;
+    }
+    // Only message, no status_code override
+    return -1;
+  }
   return null;
 }
 
@@ -68,7 +82,8 @@ export function collectInvalidStatusCodeEntries(statusCodeMappingStr) {
     const fromCode = parseStatusCodeKey(rawKey);
     const toCode = parseStatusCodeMappingTarget(rawValue);
     if (fromCode === null || toCode === null) {
-      invalid.push(`${rawKey} → ${rawValue}`);
+      const displayValue = typeof rawValue === 'object' ? JSON.stringify(rawValue) : rawValue;
+      invalid.push(`${rawKey} → ${displayValue}`);
     }
   }
 
@@ -98,7 +113,7 @@ export function collectDisallowedStatusCodeRedirects(statusCodeMappingStr) {
   Object.entries(parsed).forEach(([rawFrom, rawTo]) => {
     const fromCode = parseStatusCodeKey(rawFrom);
     const toCode = parseStatusCodeMappingTarget(rawTo);
-    if (fromCode === null || toCode === null) {
+    if (fromCode === null || toCode === null || toCode === -1) {
       return;
     }
     if (!NON_REDIRECTABLE_STATUS_CODES.has(fromCode)) {
