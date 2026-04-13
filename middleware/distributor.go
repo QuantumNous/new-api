@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -48,6 +49,16 @@ func Distribute() func(c *gin.Context) {
 				return
 			}
 			if channel.Status != common.ChannelStatusEnabled {
+				logDistributorChannelDecision(
+					c,
+					channel,
+					modelRequest.Model,
+					"request_failed",
+					"specific_channel_disabled",
+					i18n.T(c, i18n.MsgDistributorChannelDisabled),
+					http.StatusForbidden,
+					true,
+				)
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
 				return
 			}
@@ -101,29 +112,28 @@ func Distribute() func(c *gin.Context) {
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil {
-						if preferred.Status != common.ChannelStatusEnabled {
-							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
-								return
+					if err != nil || preferred == nil {
+						cleared := service.ClearCurrentChannelAffinity(c)
+						logDistributorAffinityFallback(c, preferredChannelID, nil, modelRequest.Model, "preferred_channel_missing", cleared)
+					} else if preferred.Status != common.ChannelStatusEnabled {
+						cleared := service.ClearCurrentChannelAffinity(c)
+						logDistributorAffinityFallback(c, preferredChannelID, preferred, modelRequest.Model, "preferred_channel_disabled", cleared)
+					} else if usingGroup == "auto" {
+						userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+						autoGroups := service.GetUserAutoGroup(userGroup)
+						for _, g := range autoGroups {
+							if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+								selectGroup = g
+								common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+								channel = preferred
+								service.MarkChannelAffinityUsed(c, g, preferred.Id)
+								break
 							}
-						} else if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
-							for _, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
-								}
-							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							channel = preferred
-							selectGroup = usingGroup
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
+					} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+						channel = preferred
+						selectGroup = usingGroup
+						service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 					}
 				}
 
@@ -432,4 +442,105 @@ func extractModelNameFromGeminiPath(path string) string {
 
 	// 返回模型名部分
 	return path[startIndex : startIndex+colonIndex]
+}
+
+func logDistributorAffinityFallback(c *gin.Context, channelID int, channel *model.Channel, modelName string, decisionReason string, cacheCleared bool) {
+	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	channelName := ""
+	channelStatus := -1
+	if channel != nil {
+		channelName = channel.Name
+		channelStatus = channel.Status
+	}
+
+	adminInfo := map[string]interface{}{
+		"cache_cleared": cacheCleared,
+	}
+	service.AppendChannelAffinityAdminInfo(c, adminInfo)
+
+	logger.LogWarn(
+		c.Request.Context(),
+		fmt.Sprintf(
+			"event=fallback_triggered status=affinity_channel_unavailable decision_reason=%s model=%s channel_id=%d channel_name=%q channel_status=%d using_group=%s request_path=%s cache_cleared=%t",
+			decisionReason,
+			modelName,
+			channelID,
+			channelName,
+			channelStatus,
+			usingGroup,
+			c.Request.URL.Path,
+			cacheCleared,
+		),
+	)
+}
+
+func logDistributorChannelDecision(
+	c *gin.Context,
+	channel *model.Channel,
+	modelName string,
+	event string,
+	decisionReason string,
+	message string,
+	statusCode int,
+	recordErrorLog bool,
+) {
+	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	channelID := 0
+	channelName := ""
+	channelStatus := -1
+	if channel != nil {
+		channelID = channel.Id
+		channelName = channel.Name
+		channelStatus = channel.Status
+	}
+
+	adminInfo := map[string]interface{}{
+		"channel_id":     channelID,
+		"channel_name":   channelName,
+		"channel_status": channelStatus,
+	}
+	service.AppendChannelAffinityAdminInfo(c, adminInfo)
+
+	other := map[string]interface{}{
+		"event":           event,
+		"decision_reason": decisionReason,
+		"status_code":     statusCode,
+		"request_path":    c.Request.URL.Path,
+		"using_group":     usingGroup,
+		"channel_id":      channelID,
+		"channel_name":    channelName,
+		"channel_status":  channelStatus,
+		"admin_info":      adminInfo,
+	}
+
+	if recordErrorLog && constant.ErrorLogEnabled {
+		model.RecordErrorLog(
+			c,
+			c.GetInt("id"),
+			channelID,
+			modelName,
+			c.GetString("token_name"),
+			message,
+			c.GetInt("token_id"),
+			0,
+			false,
+			usingGroup,
+			other,
+		)
+	}
+
+	logger.LogError(
+		c.Request.Context(),
+		fmt.Sprintf(
+			"event=%s status=channel_disabled decision_reason=%s model=%s channel_id=%d channel_name=%q channel_status=%d using_group=%s request_path=%s",
+			event,
+			decisionReason,
+			modelName,
+			channelID,
+			channelName,
+			channelStatus,
+			usingGroup,
+			c.Request.URL.Path,
+		),
+	)
 }
