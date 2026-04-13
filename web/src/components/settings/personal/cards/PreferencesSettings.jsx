@@ -30,6 +30,7 @@ const languageOptions = [
 	{ value: "zh-CN", label: "简体中文" },
 	{ value: "zh-TW", label: "繁體中文" },
 	{ value: "en", label: "English" },
+	{ value: "de", label: "Deutsch" },
 	{ value: 'fr', label: 'Français'},
 	{ value: 'ru', label: 'Русский'},
 	{ value: 'ja', label: '日本語'},
