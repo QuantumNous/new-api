@@ -361,6 +361,12 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 
 	log.Printf("Creem充值成功 - 订单号: %s, 充值额度: %d, 支付金额: %.2f",
 		referenceId, topUp.Amount, topUp.Money)
+
+	// 处理邀请充值返利（Creem 的 Amount 已经是额度，直接使用）
+	if err := model.ProcessInviterReward(topUp.UserId, int(topUp.Amount), topUp.Id); err != nil {
+		log.Printf("Creem回调处理邀请返利失败: %v", err)
+	}
+
 	c.Status(http.StatusOK)
 }
 

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Select } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
   compareObjects,
@@ -36,6 +36,8 @@ export default function SettingsCreditLimit(props) {
     PreConsumedQuota: '',
     QuotaForInviter: '',
     QuotaForInvitee: '',
+    InviterRewardType: '',
+    InviterRewardValue: '',
     'quota_setting.enable_free_model_pre_consume': true,
   });
   const refForm = useRef();
@@ -44,6 +46,30 @@ export default function SettingsCreditLimit(props) {
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
+
+    // 验证邀请充值返利值的范围
+    const rewardValueChanged = updateArray.some(
+      (item) => item.key === 'InviterRewardValue',
+    );
+    if (rewardValueChanged) {
+      const rewardValue = parseInt(inputs.InviterRewardValue);
+      if (isNaN(rewardValue)) {
+        showError(t('充值返利值必须是有效的数字'));
+        return;
+      }
+      if (inputs.InviterRewardType === 'percentage') {
+        if (rewardValue < 0 || rewardValue > 100) {
+          showError(t('当充值返利类型为百分比时，返利值应在0-100之间'));
+          return;
+        }
+      } else if (inputs.InviterRewardType === 'fixed') {
+        if (rewardValue < 0) {
+          showError(t('当充值返利类型为固定时，返利值应大于等于0'));
+          return;
+        }
+      }
+    }
+
     const requestQueue = updateArray.map((item) => {
       let value = '';
       if (typeof inputs[item.key] === 'boolean') {
@@ -59,11 +85,11 @@ export default function SettingsCreditLimit(props) {
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+        if (res.some((r) => !r || !r.success)) {
+          if (requestQueue.length === 1) {
+            return;
+          }
+          return showError(t('部分保存失败，请重试'));
         }
         showSuccess(t('保存成功'));
         props.refresh();
@@ -108,7 +134,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      QuotaForNewUser: String(value),
+                      QuotaForNewUser: String(value ?? ''),
                     })
                   }
                 />
@@ -125,7 +151,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      PreConsumedQuota: String(value),
+                      PreConsumedQuota: String(value ?? ''),
                     })
                   }
                 />
@@ -142,7 +168,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      QuotaForInviter: String(value),
+                      QuotaForInviter: String(value ?? ''),
                     })
                   }
                 />
@@ -161,7 +187,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      QuotaForInvitee: String(value),
+                      QuotaForInvitee: String(value ?? ''),
                     })
                   }
                 />
@@ -184,13 +210,78 @@ export default function SettingsCreditLimit(props) {
                 />
               </Col>
             </Row>
+          </Form.Section>
+
+          <Form.Section text={t('邀请充值返利')}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  label={t('充值返利类型')}
+                  field={'InviterRewardType'}
+                  extraText={t(
+                    '设置被邀请人充值时，邀请人获得返利的类型。留空表示关闭返利功能',
+                  )}
+                  placeholder={t('关闭（不启用返利）')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      InviterRewardType: value || '',
+                    })
+                  }
+                  showClear
+                >
+                  <Select.Option value='fixed'>{t('固定额度')}</Select.Option>
+                  <Select.Option value='percentage'>
+                    {t('按充值比例')}
+                  </Select.Option>
+                </Form.Select>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={
+                    t('充值返利值') +
+                    (inputs.InviterRewardType === 'percentage' ? ' (%)' : '')
+                  }
+                  field={'InviterRewardValue'}
+                  step={1}
+                  min={0}
+                  max={
+                    inputs.InviterRewardType === 'percentage' ? 100 : undefined
+                  }
+                  suffix={
+                    inputs.InviterRewardType === 'percentage'
+                      ? '%'
+                      : 'Token'
+                  }
+                  extraText={
+                    inputs.InviterRewardType === 'percentage'
+                      ? t('被邀请人每次充值时，邀请人获得充值额度的百分比作为返利')
+                      : t(
+                          '被邀请人每次充值时，邀请人获得的固定返利额度',
+                        )
+                  }
+                  placeholder={
+                    inputs.InviterRewardType === 'percentage'
+                      ? t('例如：10（表示10%）')
+                      : t('例如：2000')
+                  }
+                  disabled={!inputs.InviterRewardType}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      InviterRewardValue: String(value ?? ''),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+          </Form.Section>
 
             <Row>
               <Button size='default' onClick={onSubmit}>
                 {t('保存额度设置')}
               </Button>
             </Row>
-          </Form.Section>
         </Form>
       </Spin>
     </>

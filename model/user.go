@@ -339,6 +339,76 @@ func inviteUser(inviterId int) (err error) {
 	return DB.Save(user).Error
 }
 
+// ProcessInviterReward 处理邀请人的充值返利
+// 当被邀请人充值成功后，根据管理员设置的返利类型和返利值，给邀请人发放返利奖励
+// topUpId: 关联的充值订单ID，用于幂等性检查（防止重复返利）。传 0 表示跳过幂等检查（如兑换码场景）
+func ProcessInviterReward(userId int, rechargeQuota int, topUpId int) error {
+	// 如果返利功能未开启（类型为空或返利值为0），直接返回
+	if common.InviterRewardType == "" || common.InviterRewardValue == 0 {
+		return nil
+	}
+
+	// 获取充值用户信息，查看是否有邀请人
+	user, err := GetUserById(userId, false)
+	if err != nil {
+		return err
+	}
+
+	// 如果没有邀请人，直接返回
+	if user.InviterId == 0 {
+		return nil
+	}
+
+	// 幂等性检查：如果提供了 topUpId，通过原子更新确保同一笔充值只发一次返利
+	if topUpId > 0 {
+		result := DB.Model(&TopUp{}).
+			Where("id = ? AND inviter_reward_sent = ?", topUpId, false).
+			Update("inviter_reward_sent", true)
+		if result.Error != nil {
+			return fmt.Errorf("检查返利幂等性失败: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			// 已经发过返利，跳过
+			return nil
+		}
+	}
+
+	var rewardQuota int
+	var logMessage string
+
+	if common.InviterRewardType == "percentage" {
+		// 百分比返利：按充值额度的百分比计算
+		rewardQuota = int(float64(rechargeQuota) * float64(common.InviterRewardValue) / 100.0)
+		logMessage = fmt.Sprintf("邀请用户充值返利 %s（充值额度: %s，返利比例: %d%%）",
+			logger.LogQuota(rewardQuota),
+			logger.LogQuota(rechargeQuota),
+			common.InviterRewardValue)
+	} else {
+		// 固定返利：每次充值返利固定额度
+		rewardQuota = common.InviterRewardValue
+		logMessage = fmt.Sprintf("邀请用户充值返利 %s（固定奖励）",
+			logger.LogQuota(rewardQuota))
+	}
+
+	if rewardQuota <= 0 {
+		return nil
+	}
+
+	// 原子更新：在单次 DB 操作中同时更新 aff_quota 和 aff_history
+	err = DB.Model(&User{}).Where("id = ?", user.InviterId).Updates(map[string]interface{}{
+		"aff_quota":   gorm.Expr("aff_quota + ?", rewardQuota),
+		"aff_history": gorm.Expr("aff_history + ?", rewardQuota),
+	}).Error
+	if err != nil {
+		return fmt.Errorf("更新邀请人返利额度失败: %w", err)
+	}
+
+	// 记录日志
+	RecordLog(user.InviterId, LogTypeSystem, logMessage)
+
+	return nil
+}
+
 func (user *User) TransferAffQuotaToQuota(quota int) error {
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {

@@ -359,6 +359,10 @@ func EpayNotify(c *gin.Context) {
 			}
 			log.Printf("易支付回调更新用户成功 %v", topUp)
 			model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
+			// 处理邀请充值返利
+			if err := model.ProcessInviterReward(topUp.UserId, quotaToAdd, topUp.Id); err != nil {
+				log.Printf("易支付回调处理邀请返利失败: %v", err)
+			}
 		}
 	} else {
 		log.Printf("易支付异常回调: %v", verifyInfo)
@@ -457,10 +461,19 @@ func AdminCompleteTopUp(c *gin.Context) {
 	LockOrder(req.TradeNo)
 	defer UnlockOrder(req.TradeNo)
 
-	if err := model.ManualCompleteTopUp(req.TradeNo); err != nil {
+	completed, creditedQuota, topUpId, topUpUserId, err := model.ManualCompleteTopUp(req.TradeNo)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 只有真正从非成功切换到成功时才触发返利
+	if completed && creditedQuota > 0 {
+		if err := model.ProcessInviterReward(topUpUserId, creditedQuota, topUpId); err != nil {
+			log.Printf("管理员补单处理邀请返利失败: %v", err)
+		}
+	}
+
 	common.ApiSuccess(c, nil)
 }
 

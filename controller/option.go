@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -187,6 +188,50 @@ func UpdateOption(c *gin.Context) {
 				"message": "无法启用 Telegram OAuth，请先填入 Telegram Bot Token！",
 			})
 			return
+		}
+	case "InviterRewardType":
+		// 验证返利类型只能是 "fixed"、"percentage" 或空字符串
+		rewardType := option.Value.(string)
+		if rewardType != "" && rewardType != "fixed" && rewardType != "percentage" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "充值返利类型只能是 fixed（固定）或 percentage（百分比），留空表示关闭",
+			})
+			return
+		}
+		// 切换到百分比模式时，检查当前返利值是否兼容
+		if rewardType == "percentage" && common.InviterRewardValue > 100 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("当前返利值为 %d，超过百分比模式上限 100，请先修改返利值", common.InviterRewardValue),
+			})
+			return
+		}
+	case "InviterRewardValue":
+		rewardValue, err := strconv.Atoi(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "充值返利值必须是有效的数字",
+			})
+			return
+		}
+		if common.InviterRewardType == "percentage" {
+			if rewardValue < 0 || rewardValue > 100 {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "当充值返利类型为百分比时，返利值应在0-100之间",
+				})
+				return
+			}
+		} else {
+			if rewardValue < 0 {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "充值返利值不能为负数",
+				})
+				return
+			}
 		}
 	case "GroupRatio":
 		err = ratio_setting.CheckGroupRatio(option.Value.(string))

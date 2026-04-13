@@ -208,6 +208,15 @@ func sessionCompleted(event stripe.Event) {
 		return
 	}
 
+	// 处理邀请充值返利
+	topUp := model.GetTopUpByTradeNo(referenceId)
+	if topUp != nil {
+		quota := int(topUp.Money * common.QuotaPerUnit)
+		if err := model.ProcessInviterReward(topUp.UserId, quota, topUp.Id); err != nil {
+			log.Printf("Stripe回调处理邀请返利失败: %v", err)
+		}
+	}
+
 	total, _ := strconv.ParseFloat(event.GetObjectValue("amount_total"), 64)
 	currency := strings.ToUpper(event.GetObjectValue("currency"))
 	log.Printf("收到款项：%s, %.2f(%s)", referenceId, total/100, currency)
