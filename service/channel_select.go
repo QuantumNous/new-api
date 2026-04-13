@@ -113,6 +113,20 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			if i > startGroupIndex {
 				priorityRetry = 0
 			}
+
+			// 跨分组重试时，检查当前分组的优先级是否已耗尽
+			// 如果 priorityRetry >= 该分组的优先级数量，说明已经没有新的优先级可用，应跳到下一个分组
+			if crossGroupRetry && priorityRetry > 0 {
+				priorityCount := model.GetGroupModelPriorityCount(autoGroup, param.ModelName)
+				if priorityCount > 0 && priorityRetry >= priorityCount {
+					logger.LogDebug(param.Ctx, "Group %s priorities exhausted (priorityRetry=%d >= priorityCount=%d), switching to next group", autoGroup, priorityRetry, priorityCount)
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+					param.SetRetry(0)
+					continue
+				}
+			}
+
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
 			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
@@ -134,20 +148,20 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 			// Prepare state for next retry
 			// 为下一次重试准备状态
-			if crossGroupRetry && priorityRetry >= common.RetryTimes {
-				// Current group has exhausted all retries, prepare to switch to next group
-				// This request still uses current group, but next retry will use next group
-				// 当前分组已用完所有重试次数，准备切换到下一个分组
-				// 本次请求仍使用当前分组，但下次重试将使用下一个分组
-				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, common.RetryTimes)
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
-				param.SetRetry(0)
-				param.ResetRetryNextTry()
+			if crossGroupRetry {
+				priorityCount := model.GetGroupModelPriorityCount(autoGroup, param.ModelName)
+				if priorityCount > 0 && priorityRetry >= priorityCount-1 {
+					// 当前分组的优先级已全部使用，下次重试切换到下一个分组
+					logger.LogDebug(param.Ctx, "Current group %s priorities will be exhausted after this retry (priorityRetry=%d, priorityCount=%d), preparing switch to next group", autoGroup, priorityRetry, priorityCount)
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+					param.SetRetry(0)
+					param.ResetRetryNextTry()
+				} else {
+					// Stay in current group, save current state
+					// 保持在当前分组，保存当前状态
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+				}
 			} else {
-				// Stay in current group, save current state
-				// 保持在当前分组，保存当前状态
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
 			}
 			break
