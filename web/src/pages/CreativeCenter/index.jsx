@@ -75,6 +75,7 @@ const ADOBE_VIDEO_MODELS = new Set([
 const CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS = {
   'grok-imagine-1.0-edit': 3,
   'grok-imagine-1.0-video': 7,
+  'nano-banana': 4,
   'nano-banana2': 6,
   'nano-banana-pro': 6,
   'veo31-fast': 2,
