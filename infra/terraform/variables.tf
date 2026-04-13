@@ -103,7 +103,7 @@ variable "tags" {
   description = "资源标签"
   type        = map(string)
   default = {
-    project   = "new-api"
-    managed   = "terraform"
+    project = "new-api"
+    managed = "terraform"
   }
 }

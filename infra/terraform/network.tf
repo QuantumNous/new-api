@@ -37,25 +37,48 @@ resource "tencentcloud_security_group" "app" {
   tags        = var.tags
 }
 
-resource "tencentcloud_security_group_lite_rule" "app_rules" {
+resource "tencentcloud_security_group_rule_set" "app_rules" {
   security_group_id = tencentcloud_security_group.app.id
 
-  ingress = [
-    # VPC 内部全放通
-    "ACCEPT#10.0.0.0/16#ALL#ALL",
-    # HTTP
-    "ACCEPT#0.0.0.0/0#TCP#80",
-    # HTTPS
-    "ACCEPT#0.0.0.0/0#TCP#443",
-    # 应用端口（CLB 健康检查需要）
-    "ACCEPT#10.0.0.0/16#TCP#3000",
-    # 拒绝其他
-    "DROP#0.0.0.0/0#ALL#ALL",
-  ]
+  ingress {
+    action      = "ACCEPT"
+    cidr_block  = "10.0.0.0/16"
+    protocol    = "ALL"
+    port        = "ALL"
+    description = "VPC internal"
+  }
 
-  egress = [
-    "ACCEPT#0.0.0.0/0#ALL#ALL",
-  ]
+  ingress {
+    action      = "ACCEPT"
+    cidr_block  = "0.0.0.0/0"
+    protocol    = "TCP"
+    port        = "80"
+    description = "HTTP"
+  }
+
+  ingress {
+    action      = "ACCEPT"
+    cidr_block  = "0.0.0.0/0"
+    protocol    = "TCP"
+    port        = "443"
+    description = "HTTPS"
+  }
+
+  ingress {
+    action      = "ACCEPT"
+    cidr_block  = "10.0.0.0/16"
+    protocol    = "TCP"
+    port        = "3000"
+    description = "App port for CLB health check"
+  }
+
+  egress {
+    action      = "ACCEPT"
+    cidr_block  = "0.0.0.0/0"
+    protocol    = "ALL"
+    port        = "ALL"
+    description = "Allow all outbound"
+  }
 }
 
 # 数据库安全组 — 仅允许 VPC 内访问
@@ -65,18 +88,30 @@ resource "tencentcloud_security_group" "db" {
   tags        = var.tags
 }
 
-resource "tencentcloud_security_group_lite_rule" "db_rules" {
+resource "tencentcloud_security_group_rule_set" "db_rules" {
   security_group_id = tencentcloud_security_group.db.id
 
-  ingress = [
-    # 仅 VPC 内部可访问 PostgreSQL
-    "ACCEPT#10.0.0.0/16#TCP#5432",
-    # 仅 VPC 内部可访问 Redis
-    "ACCEPT#10.0.0.0/16#TCP#6379",
-    "DROP#0.0.0.0/0#ALL#ALL",
-  ]
+  ingress {
+    action      = "ACCEPT"
+    cidr_block  = "10.0.0.0/16"
+    protocol    = "TCP"
+    port        = "5432"
+    description = "PostgreSQL from VPC"
+  }
 
-  egress = [
-    "ACCEPT#0.0.0.0/0#ALL#ALL",
-  ]
+  ingress {
+    action      = "ACCEPT"
+    cidr_block  = "10.0.0.0/16"
+    protocol    = "TCP"
+    port        = "6379"
+    description = "Redis from VPC"
+  }
+
+  egress {
+    action      = "ACCEPT"
+    cidr_block  = "0.0.0.0/0"
+    protocol    = "ALL"
+    port        = "ALL"
+    description = "Allow all outbound"
+  }
 }

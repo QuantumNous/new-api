@@ -21,13 +21,10 @@ resource "tencentcloud_postgresql_instance" "main" {
   tags = var.tags
 }
 
-# 创建应用数据库
-resource "tencentcloud_postgresql_database" "app" {
-  db_instance_id = tencentcloud_postgresql_instance.main.id
-  db_name        = "new_api"
-  character_set  = "UTF8"
-  owner          = "root"
-}
+# 注意：tencentcloud_postgresql_database 资源不受 Provider 支持
+# 数据库 new_api 需要在首次部署后手动创建，或通过 provisioner 执行：
+#   CREATE DATABASE new_api;
+# new-api 应用在启动时如果数据库不存在会自动创建表结构（GORM AutoMigrate）
 
 # ============================================================
 # 云数据库 Redis
@@ -40,7 +37,7 @@ resource "tencentcloud_redis_instance" "main" {
   vpc_id            = tencentcloud_vpc.main.id
   subnet_id         = tencentcloud_subnet.db.id
   security_groups   = [tencentcloud_security_group.db.id]
-  charge_type       = "POSTPAID_BY_HOUR"
+  charge_type       = "POSTPAID"
 
   tags = var.tags
 }

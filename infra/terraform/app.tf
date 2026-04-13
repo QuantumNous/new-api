@@ -1,33 +1,44 @@
 # ============================================================
-# TKE Serverless (EKS) 集群
+# TKE 标准集群（Serverless 模式，无需购买节点）
 # ============================================================
-resource "tencentcloud_eks_cluster" "main" {
-  cluster_name = "new-api-serverless"
-  k8s_version  = var.cluster_version
+resource "tencentcloud_kubernetes_cluster" "main" {
+  cluster_name                    = "new-api-cluster"
+  cluster_version                 = var.cluster_version
+  cluster_cidr                    = "172.16.0.0/22"
+  cluster_os                      = "ubuntu18.04.1x86_64"
+  vpc_id                          = tencentcloud_vpc.main.id
+  cluster_deploy_type             = "MANAGED_CLUSTER"
+  cluster_internet                = true
+  cluster_internet_security_group = tencentcloud_security_group.app.id
 
-  vpc_id            = tencentcloud_vpc.main.id
-  subnet_ids        = [tencentcloud_subnet.app.id]
-  service_subnet_id = tencentcloud_subnet.app.id
-
-  # 开启公网访问（kubectl 管理 + CLB 入口）
-  public_lb {
-    enabled          = true
-    allow_from_cidrs = ["0.0.0.0/0"]
-  }
-
-  # 开启内网 DNS
-  enable_vpc_core_dns = true
-  need_delete_cbs     = true
-
-  cluster_desc = "new-api production serverless cluster"
+  cluster_desc = "new-api production cluster (serverless)"
 
   tags = var.tags
 }
 
 # ============================================================
+# TKE Serverless 节点池 — 无需管理节点，按 Pod 付费
+# ============================================================
+resource "tencentcloud_kubernetes_serverless_node_pool" "app" {
+  cluster_id = tencentcloud_kubernetes_cluster.main.id
+  name       = "new-api-serverless-pool"
+
+  serverless_nodes {
+    display_name = "new-api-node"
+    subnet_id    = tencentcloud_subnet.app.id
+  }
+
+  security_group_ids = [tencentcloud_security_group.app.id]
+
+  labels = {
+    app = "new-api"
+  }
+}
+
+# ============================================================
 # Kubernetes 资源 — Namespace
 # ============================================================
-resource "kubernetes_namespace" "app" {
+resource "kubernetes_namespace_v1" "app" {
   metadata {
     name = "new-api"
     labels = {
@@ -35,21 +46,23 @@ resource "kubernetes_namespace" "app" {
       managed = "terraform"
     }
   }
+
+  depends_on = [tencentcloud_kubernetes_serverless_node_pool.app]
 }
 
 # ============================================================
 # Kubernetes 资源 — Secret（数据库连接信息）
 # ============================================================
-resource "kubernetes_secret" "app_config" {
+resource "kubernetes_secret_v1" "app_config" {
   metadata {
     name      = "new-api-config"
-    namespace = kubernetes_namespace.app.metadata[0].name
+    namespace = kubernetes_namespace_v1.app.metadata[0].name
   }
 
   data = {
-    SQL_DSN            = "postgresql://root:${var.db_password}@${tencentcloud_postgresql_instance.main.private_access_ip}:${tencentcloud_postgresql_instance.main.private_access_port}/new_api?sslmode=require"
-    REDIS_CONN_STRING  = "redis://${tencentcloud_redis_instance.main.ip}:${tencentcloud_redis_instance.main.port}"
-    SESSION_SECRET     = var.session_secret
+    SQL_DSN           = "postgresql://root:${var.db_password}@${tencentcloud_postgresql_instance.main.private_access_ip}:${tencentcloud_postgresql_instance.main.private_access_port}/new_api?sslmode=require"
+    REDIS_CONN_STRING = "redis://${tencentcloud_redis_instance.main.ip}:${tencentcloud_redis_instance.main.port}"
+    SESSION_SECRET    = var.session_secret
   }
 }
 
@@ -61,10 +74,10 @@ resource "kubernetes_secret" "app_config" {
 # var.app_image_tag 由 CI 传入 → image 字段变化 → terraform apply
 # → K8s 执行滚动更新（RollingUpdate）→ 零停机部署
 #
-resource "kubernetes_deployment" "app" {
+resource "kubernetes_deployment_v1" "app" {
   metadata {
     name      = "new-api"
-    namespace = kubernetes_namespace.app.metadata[0].name
+    namespace = kubernetes_namespace_v1.app.metadata[0].name
     labels = {
       app = "new-api"
     }
@@ -112,7 +125,7 @@ resource "kubernetes_deployment" "app" {
           # 从 Secret 注入环境变量
           env_from {
             secret_ref {
-              name = kubernetes_secret.app_config.metadata[0].name
+              name = kubernetes_secret_v1.app_config.metadata[0].name
             }
           }
 
@@ -131,7 +144,7 @@ resource "kubernetes_deployment" "app" {
             value = "true"
           }
 
-          # 资源限制（TKE Serverless 按 Pod 规格计费）
+          # 资源限制（Serverless 节点池按 Pod 规格计费）
           resources {
             requests = {
               cpu    = "1"
@@ -179,7 +192,6 @@ resource "kubernetes_deployment" "app" {
           }
         }
 
-        # TKE Serverless 使用 CFS 或 emptyDir
         volume {
           name = "data"
           empty_dir {}
@@ -190,7 +202,6 @@ resource "kubernetes_deployment" "app" {
           empty_dir {}
         }
 
-        # 确保在 Serverless 环境运行
         restart_policy = "Always"
       }
     }
@@ -208,14 +219,13 @@ resource "kubernetes_deployment" "app" {
 # ============================================================
 # Kubernetes 资源 — Service
 # ============================================================
-resource "kubernetes_service" "app" {
+resource "kubernetes_service_v1" "app" {
   metadata {
     name      = "new-api"
-    namespace = kubernetes_namespace.app.metadata[0].name
+    namespace = kubernetes_namespace_v1.app.metadata[0].name
     annotations = {
       # 使用腾讯云 CLB 作为 LoadBalancer
-      "service.kubernetes.io/tke-existed-lbid"                = ""
-      "service.cloud.tencent.com/direct-access"               = "true"
+      "service.cloud.tencent.com/direct-access"                 = "true"
       "service.kubernetes.io/local-svc-only-bind-node-with-pod" = "true"
     }
   }
