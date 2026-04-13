@@ -1,0 +1,718 @@
+# 文档说明，必须看！
+
+#   生视频渠道接入说明（完整）
+
+本文档用于给用户直接使用，覆盖：
+
+- 渠道创建与密钥格式
+- 文生、图生、参考图、参考视频、首尾帧、动作控制、数字人、对口型、模板特效
+- 参数说明与优先级
+- 计费模型命名与默认价格映射约定
+
+## 1. 接口与鉴权
+
+统一使用网关接口（不直接调用云 Action API）：
+
+- 提交任务：`POST /v1/videos`
+- 查询任务：`GET /v1/videos/{task_id}`
+- 获取视频内容：`GET /v1/videos/{task_id}/content`
+
+渠道密钥格式：
+
+- `SubAppId|SecretId|SecretKey`
+- `SubAppId|SecretId|SecretKey|Region`（可选 Region）
+
+## 2. 模型与命名
+
+用户请求 `model` 推荐传基础模型（例如 `Kling-2.6`、`Vidu-q2-pro`、`GV-3.1-fast`）。
+
+也支持直接传组合计费模型（例如 `kling-3.0-omni-1080p-ref-audio`、`vidu-q2-pro-reference-1080p-offpeak`），网关会自动还原为上游 `ModelName/ModelVersion` 并补齐相关参数。
+
+网关会做两件事：
+
+1) 规范化上游模型名（发云时）：
+
+- `Kling` / `Vidu` / `GV` / `OS` / `Hailuo` / `Hunyuan` / `Mingmou` / `SV` / `JV`
+
+2) 根据参数拼接内部计费模型键（用于匹配默认价格）。
+
+### 2.1 模型名字含义（给用户）
+
+基础模型名：
+
+- `Vidu-*`：Vidu 系列模型
+- `Kling-*`：可灵系列模型
+- `GV-*`：GV 系列模型
+- `OS-*`：OS 系列模型
+- `Hunyuan-*`：混元系列模型
+- `Mingmou-*`：明眸系列模型
+- `Hailuo-*`：海螺系列模型
+- `SV-*`：SV 系列模型
+- `JV-*`：JV 系列模型
+
+组合计费模型名（可直接当 `model` 传）：
+
+- `vidu-q2-pro-reference-1080p-offpeak`
+  - `vidu`：模型族
+  - `q2-pro`：版本
+  - `reference`：参考生视频/参考模式
+  - `1080p`：分辨率档位（短边）
+  - `offpeak`：错峰模式
+
+- `kling-3.0-omni-1080p-ref-audio`
+  - `kling`：模型族
+  - `3.0-omni`：版本
+  - `1080p`：分辨率档位
+  - `ref`：有参考输入（`noref` 表示无参考）
+  - `audio`：有声（`mute` 表示无声）
+
+- `kling-2.6-motion-pro-1080p`
+  - `kling`：模型族
+  - `2.6`：版本
+  - `motion`：动作控制场景
+  - `pro`：动作控制档位（`std/pro`）
+  - `1080p`：分辨率档位
+
+- `kling-avatar-720p`
+  - `avatar`：数字人场景
+
+- `kling-identify-face`
+  - `identify-face`：对口型场景（不足 5 秒按 5 秒计）
+
+- `sv-1.5-pro-1080p-audio`
+  - `sv`：模型族
+  - `1.5-pro`：版本
+  - `1080p`：分辨率档位
+  - `audio`：有声（`mute` 表示无声）
+
+## 3. 参数总览（网关请求体）
+
+统一请求体（`POST /v1/videos`）：
+
+- 顶层字段：`model`、`prompt`、`seconds`/`duration`、`size`、`image`/`images`、`metadata`
+- 顶层 `seconds` / `duration` 目前仍然生效，不是只能放进 `metadata`
+- 时长优先级：顶层 `seconds` > 顶层 `duration` > `metadata.seconds` / `metadata.duration` / `metadata.video_duration` > 默认 `5`
+- 建议把上游原生输出参数放到 `metadata.output_config`；但“时长”这个参数既可以放顶层，也可以放 `metadata`
+- 顶层 `size` 适合快速调用；复杂场景请显式传 `metadata.output_config.resolution/aspect_ratio`
+
+最小可用示例：
+
+```json
+{
+  "model": "Kling-3.0-Omni",
+  "prompt": "死寂系统空间中，角色被蓝色面板照亮",
+  "seconds": "15",
+  "size": "720x1280",
+  "metadata": {
+    "output_config": {
+      "duration": 15,
+      "resolution": "720P",
+      "aspect_ratio": "9:16",
+      "audio_generation": "Enabled"
+    }
+  }
+}
+```
+
+`metadata` 常用扩展：
+
+- `scene_type`：`motion_control` / `avatar_i2v` / `lip_sync` / `template_effect`
+- `motion_level`：`std` / `pro`（网关扩展字段，用于动作控制计费分档）
+- `offpeak`：是否错峰计费（布尔）
+- `last_frame_url` / `last_frame_file_id`：首尾帧中的尾帧
+- `video_url`：参考视频 URL（网关扩展，自动转为 `FileInfos`）
+- `file_infos`：原生 `FileInfos` 透传（高级用法）
+- `output_config`： `AigcVideoOutputConfig`（支持 snake_case）
+- `ext_info`：原生 `ExtInfo` 字符串透传（高级用法）
+
+时长参数补充说明：
+
+- 推荐写法 1：顶层直接传 `seconds`，例如：`"seconds": "5"`
+- 兼容写法 2：顶层传 `duration`
+- 兼容写法 3：放在 `metadata.seconds`、`metadata.duration` 或 `metadata.video_duration`
+- 若你同时传了顶层和 `metadata` 内的时长，网关会优先使用顶层值
+
+## 4. 关键优先级与规则
+
+### 4.1 文生/图生判定
+
+- 存在参考输入（`image`/`images`/`input_reference`/`last_frame_*`）=> 图生
+- 无参考输入 => 文生
+
+### 4.2 分辨率优先级
+
+- 先取 `metadata.output_config.resolution`
+- 再取顶层 `size`
+- 都没有时用模型默认值
+
+### 4.3 `output_config` 字段映射
+
+支持 snake_case 自动映射到官方字段：
+
+- `storage_mode` -> `StorageMode`
+- `media_name` -> `MediaName`
+- `class_id` -> `ClassId`
+- `expire_time` -> `ExpireTime`
+- `duration` -> `Duration`
+- `resolution` -> `Resolution`
+- `aspect_ratio` -> `AspectRatio`
+- `audio_generation` -> `AudioGeneration`
+- `person_generation` -> `PersonGeneration`
+- `input_compliance_check` -> `InputComplianceCheck`
+- `output_compliance_check` -> `OutputComplianceCheck`
+- `enhance_switch` -> `EnhanceSwitch`
+- `frame_interpolate` -> `FrameInterpolate`
+- `logo_add` -> `LogoAdd`
+
+### 4.3.1 时长字段规则
+
+- 顶层 `seconds` / `duration` 用于网关统一视频请求体
+- `metadata.output_config.duration` 主要用于透传给上游 `AigcVideoOutputConfig.Duration`
+- 为避免歧义，建议保持两处一致；如果只想传一处，优先传顶层 `seconds`
+
+### 4.4 `AigcVideoOutputConfig` 全字段（口径）
+
+以下为 `metadata.output_config` 可传字段：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `storage_mode` | String | `Permanent`/`Temporary`，默认 `Temporary` |
+| `media_name` | String | 输出媒体名，最长 64 字符 |
+| `class_id` | Integer | 分类 ID，默认 `0` |
+| `expire_time` | String | 过期时间，ISO 8601（如 `2025-12-28T00:35:00Z`） |
+| `duration` | Float | 生成时长（秒） |
+| `resolution` | String | 分辨率档位（如 `720P`/`1080P`） |
+| `aspect_ratio` | String | 宽高比（如 `16:9`/`9:16`） |
+| `audio_generation` | String | `Enabled`/`Disabled` |
+| `person_generation` | String | `AllowAdult`/`Disallowed` |
+| `input_compliance_check` | String | `Enabled`/`Disabled` |
+| `output_compliance_check` | String | `Enabled`/`Disabled` |
+| `enhance_switch` | String | `Enabled`/`Disabled` |
+| `frame_interpolate` | String | `Enabled`/`Disabled`（Vidu） |
+| `logo_add` | String | `Enabled`/`Disabled`（Vidu） |
+
+模型约束（口径，调用前建议遵守）：
+
+- `Duration`
+  - `Kling`：`5/10`（默认 `5`）
+  - `Hailuo`：`6/10`（默认 `6`）
+  - `Vidu`：`1~10`
+  - `GV`：`8`（默认 `8`）
+  - `OS`：`4/8/12`（默认 `8`）
+- `Resolution`
+  - `Kling`：`720P/1080P`（默认 `720P`）
+  - `Hailuo`：`768P/1080P`（默认 `768P`）
+  - `Vidu`：`720P/1080P`（默认 `720P`）
+  - `GV`：`720P/1080P`（默认 `720P`）
+  - `OS`：`720P`
+- `AspectRatio`
+  - `Kling`（文生）：`16:9/9:16/1:1`（默认 `16:9`）
+  - `Vidu`（文生/图生）：`16:9/9:16/4:3/3:4/1:1`（`4:3/3:4` 仅 q2）
+  - `GV`：`16:9/9:16`（默认 `16:9`）
+  - `OS`（文生）：`16:9/9:16`（默认 `16:9`）
+  - `Hailuo`：暂不支持
+
+### 4.5 `ext_info` 透传规则（重点）
+
+- `metadata.ext_info` 会直接透传为上游顶层字段 `ExtInfo`
+- `ExtInfo` 必须是**字符串**，不能直接传对象
+- 若官方要求 `AdditionalParameters` 也是字符串，则需要按官方格式进行双层 JSON 字符串编码
+- 适用于 `Kling 3.0` 多镜头等官方暂未拆到 `OutputConfig` 的扩展参数
+
+示例：网关请求体中这样写
+
+```json
+{
+  "model": "Kling-3.0",
+  "metadata": {
+    "ext_info": "{\"AdditionalParameters\":\"{\\\"multi_prompt\\\":[{\\\"index\\\":1,\\\"prompt\\\":\\\"美女在跳舞\\\",\\\"duration\\\":\\\"2\\\"},{\\\"index\\\":2,\\\"prompt\\\":\\\"美女跳起来\\\",\\\"duration\\\":\\\"3\\\"}],\\\"shot_type\\\":\\\"customize\\\",\\\"multi_shot\\\":true}\"}"
+  }
+}
+```
+
+最终透传到的核心字段会是：
+
+```json
+{
+  "ModelName": "Kling",
+  "ModelVersion": "3.0",
+  "ExtInfo": "{\"AdditionalParameters\":\"{\\\"multi_prompt\\\":[{\\\"index\\\":1,\\\"prompt\\\":\\\"美女在跳舞\\\",\\\"duration\\\":\\\"2\\\"},{\\\"index\\\":2,\\\"prompt\\\":\\\"美女跳起来\\\",\\\"duration\\\":\\\"3\\\"}],\\\"shot_type\\\":\\\"customize\\\",\\\"multi_shot\\\":true}\"}"
+}
+```
+
+说明：
+
+- `shot_type` 请按官方字段名传，不要写成 `short_type`
+- 如果你在业务代码里拼装参数，建议先生成 `AdditionalParameters` 对象，再序列化为字符串，最后再包成 `ExtInfo`
+
+### 4.6 `size` 的传参规则（重点）
+
+- 若你已经明确知道目标档位，优先直接传：`metadata.output_config.resolution/aspect_ratio`
+- 顶层 `size` 支持：`720P`/`1080P`，也支持 `WxH`（如 `720x1280`）
+- 当只传 `size=WxH` 时，网关会推导并转换为参数：
+  - `Resolution`（按模型支持档位收敛）
+  - `AspectRatio`（如 `720x1280 -> 9:16`）
+
+示例：
+
+- `size=720x1280` + `model=Kling-3.0-Omni` => `Resolution=720P`, `AspectRatio=9:16`
+- `size=1792x1024` + `model=Kling-3.0-Omni` => `Resolution=1080P`, `AspectRatio=7:4`（最终是否可用由上游模型校验）
+
+### 4.7 动作控制特殊规则（Kling）
+
+`scene_type=motion_control` 必须提供**视频参考**，仅传图片会报类似：
+
+- `videoUrl must not be blank`
+
+可用方式：
+
+- `metadata.video_url`
+- 或 `metadata.file_infos` 里给 `Category=Video`
+
+### 4.8 `metadata.file_infos` 字段说明
+
+`AigcVideoTaskInputFileInfo` 已适配为 `metadata.file_infos`（也兼容 `metadata.FileInfos`）。
+
+当前已支持的子字段：
+
+- `Type`：`File` / `Url`
+- `Category`：`Image` / `Video`
+- `FileId`：当 `Type=File` 时使用
+- `Url`：当 `Type=Url` 时使用
+- `Usage`：如 `FirstFrame` / `Reference`
+- `ReferenceType`：适用于 GV / Kling 的参考类型区分,当使用 Kling 模型以及 Category 为 Video 时，可区分参考视频类型，feature 表示特征参考视频，base 表示待编辑视频。
+- `ObjectId`：适用于 Vidu 主体 / 参考图模式
+- `VoiceId`：适用于 `Vidu-q2`
+- `KeepOriginalSound`：当 `Category=Video` 时有效
+
+说明：
+
+- `metadata.file_infos` 已在适配器中落地，会透传为上游请求的 `FileInfos`
+- 当前最多支持 `3` 个 `file_infos`
+- 顶层 `image` / `images` / `input_reference` 也会自动转换为 `FileInfos`
+- 顶层图片输入仅支持：
+  - 可访问的 `http(s)` 图片 URL
+  - 或文件 ID
+- 当前**不支持** `data:image/...;base64,...` 这类 base64 data URI 作为图片输入
+
+### 4.9 对口型时长规则
+
+`scene_type=lip_sync`（`identify-face`）不足 5 秒按 5 秒计。
+
+## 5. 全场景请求示例
+
+以下均为 `POST /v1/videos` 请求体。
+
+### 5.1 文生视频（Text to Video）
+
+```json
+{
+  "model": "Vidu-q2",
+  "prompt": "赛博朋克城市夜景，镜头慢慢推进",
+  "seconds": "5",
+  "metadata": {
+    "output_config": {
+      "resolution": "720P",
+      "aspect_ratio": "16:9"
+    }
+  }
+}
+```
+
+### 5.2 图生视频（Image to Video）
+
+```json
+{
+  "model": "Vidu-q2-pro",
+  "prompt": "让人物向前走并微笑",
+  "image": "https://example.com/character.png",
+  "seconds": "5",
+  "metadata": {
+    "output_config": {
+      "resolution": "1080P",
+      "aspect_ratio": "9:16"
+    }
+  }
+}
+```
+
+### 5.3 多图参考（Reference Images）
+
+该写法已适配。网关会将顶层 `images` 自动转换为 `FileInfos`，每张图默认映射为：
+
+- `Type=Url`
+- `Category=Image`
+
+适用前提：
+
+- `images` 里的每一项都应是可访问的 `http(s)` 图片 URL；如果不是 URL，则会按 `FileId` 处理
+- 不支持在 `images` 中直接传 `data:image/...;base64,...`
+- 总数不能超过 `3`
+
+```json
+{
+  "model": "Vidu-q2-pro",
+  "prompt": "镜头从远到近展示产品细节",
+  "images": [
+    "https://example.com/ref-1.png",
+    "https://example.com/ref-2.png"
+  ],
+  "seconds": "6",
+  "metadata": {
+    "offpeak": true,
+    "output_config": {
+      "resolution": "1080P"
+    }
+  }
+}
+```
+
+### 5.4 首尾帧（First + Last Frame）
+
+```json
+{
+  "model": "GV-3.1-fast",
+  "prompt": "第一帧到最后一帧平滑过渡",
+  "image": "https://example.com/first.png",
+  "seconds": "8",
+  "metadata": {
+    "last_frame_url": "https://example.com/last.png",
+    "output_config": {
+      "resolution": "1080P",
+      "aspect_ratio": "16:9",
+      "audio_generation": "Enabled"
+    }
+  }
+}
+```
+
+### 5.5 模板特效（Vidu template_effect）
+
+```json
+{
+  "model": "Vidu-q2-pro",
+  "prompt": "使用模板特效生成炫酷转场",
+  "seconds": "5",
+  "metadata": {
+    "scene_type": "template_effect",
+    "output_config": {
+      "resolution": "720P"
+    }
+  }
+}
+```
+
+### 5.6 动作控制（Kling motion_control，必须视频参考）
+
+```json
+{
+  "model": "Kling-2.6",
+  "prompt": "人物惊恐逃窜",
+  "seconds": "5",
+  "metadata": {
+    "video_url": "https://example.com/motion-ref.mp4",
+    "scene_type": "motion_control",
+    "motion_level": "pro",
+    "output_config": {
+      "resolution": "1080P"
+    }
+  }
+}
+```
+
+### 5.7 数字人（Kling avatar_i2v）
+
+```json
+{
+  "model": "Kling-2.1",
+  "prompt": "数字人播报今日新闻",
+  "seconds": "5",
+  "metadata": {
+    "scene_type": "avatar_i2v",
+    "output_config": {
+      "resolution": "720P",
+      "aspect_ratio": "9:16"
+    }
+  }
+}
+```
+
+### 5.8 对口型（Kling lip_sync）
+
+```json
+{
+  "model": "Kling-2.1",
+  "prompt": "人物口型与音频同步",
+  "image": "https://example.com/face.png",
+  "seconds": "4",
+  "metadata": {
+    "scene_type": "lip_sync"
+  }
+}
+```
+
+### 5.9 参考视频高级透传（file_infos）
+
+```json
+{
+  "model": "Kling-3.0-Omni",
+  "prompt": "基于参考视频生成同风格镜头",
+  "seconds": "5",
+  "metadata": {
+    "file_infos": [
+      {
+        "type": "Url",
+        "category": "Video",
+        "url": "https://example.com/ref-video.mp4",
+        "reference_type": "feature"
+      }
+    ],
+    "output_config": {
+      "resolution": "720P"
+    }
+  }
+}
+```
+
+### 5.10 `ExtInfo` 多镜头透传（Kling 3.0）
+
+```json
+{
+  "model": "Kling-3.0",
+  "seconds": "5",
+  "metadata": {
+    "file_infos": [
+      {
+        "type": "Url",
+        "category": "Image",
+        "url": "https://example.com/ref-image.png"
+      }
+    ],
+    "output_config": {
+      "duration": 5,
+      "resolution": "720P",
+      "input_compliance_check": "Disabled"
+    },
+    "ext_info": "{\"AdditionalParameters\":\"{\\\"multi_prompt\\\":[{\\\"index\\\":1,\\\"prompt\\\":\\\"美女在跳舞\\\",\\\"duration\\\":\\\"2\\\"},{\\\"index\\\":2,\\\"prompt\\\":\\\"美女跳起来\\\",\\\"duration\\\":\\\"3\\\"}],\\\"shot_type\\\":\\\"customize\\\",\\\"multi_shot\\\":true}\"}"
+  }
+}
+```
+
+### 5.11 `ExtInfo` + 视频参考（Kling 3.0 Omni / motion_control）
+
+```json
+{
+  "model": "Kling-3.0-Omni",
+  "prompt": "让人物按参考视频动作运动",
+  "seconds": "5",
+  "metadata": {
+    "scene_type": "motion_control",
+    "file_infos": [
+      {
+        "type": "Url",
+        "category": "Video",
+        "url": "https://example.com/motion-ref.mp4"
+      }
+    ],
+    "output_config": {
+      "duration": 5,
+      "resolution": "720P"
+    },
+    "ext_info": "{\"AdditionalParameters\":\"{\\\"shot_type\\\":\\\"customize\\\",\\\"multi_shot\\\":true}\"}"
+  }
+}
+```
+
+### 5.12 竖屏 9:16（与你当前请求一致）
+
+```json
+{
+  "model": "Kling-3.0-Omni",
+  "prompt": "图1是角色陈舟，图2是角色大邪神系统，图3是场景虚无幽暗系统空间...",
+  "seconds": "15",
+  "size": "720x1280",
+  "metadata": {
+    "output_config": {
+      "duration": 15,
+      "resolution": "720P",
+      "aspect_ratio": "9:16",
+      "audio_generation": "Enabled"
+    }
+  }
+}
+```
+
+> 建议：为避免“比例没生效”的歧义，推荐同时显式传 `output_config.resolution` 和 `output_config.aspect_ratio`。
+
+## 6. 任务查询与结果
+
+查询：
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" "$BASE_URL/v1/videos/{task_id}"
+```
+
+取视频：
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" "$BASE_URL/v1/videos/{task_id}/content"
+```
+
+网关已对齐 `DescribeTaskDetail` 中 `AigcVideoTask`：
+
+- 状态：`WAITING/PROCESSING/FINISH/ABORTED` 映射到网关任务状态
+- 进度：读取 `AigcVideoTask.Progress`
+- 错误：读取 `ErrCode/ErrCodeExt/Message`
+- 视频地址：优先读取 `AigcVideoTask.Output.FileInfos[].FileUrl`
+
+## 7. 默认可选模型（前端）
+
+渠道选择“AIGC”后，默认模型列表：
+
+- `Vidu-q2` / `Vidu-q2-pro` / `Vidu-q2-turbo` / `Vidu-q3-pro` / `Vidu-q3-turbo` / `Vidu-template`
+- `Hunyuan-1.5` / `Mingmou-1.0` / `OS-2.0`
+- `GV-3.1` / `GV-3.1-fast`
+- `Kling-1.6` / `Kling-2.0` / `Kling-2.1` / `Kling-2.5` / `Kling-2.6` / `Kling-3.0` / `Kling-3.0-Omni` / `Kling-O1`
+- 当前仓库已内置映射到上述 `Kling` 型号；`Kling-O3`、`Kling-Mini` 还未作为预置型号加入文档与计费映射
+- 以及组合计费模型（Vidu/Kling/Hailuo/SV/JV 等），如：
+  - `vidu-q2-pro-reference-1080p-offpeak`
+  - `kling-2.6-motion-pro-1080p`
+  - `kling-3.0-omni-1080p-ref-audio`
+  - `hailuo-2.3-fast-1080p`
+  - `sv-1.5-pro-1080p-audio`
+  - `jv-3.0-pro`
+- `Hailuo-02` / `Hailuo-2.3` / `Hailuo-2.3-fast`
+- `SV-1.5-pro` / `SV-1.0-pro` / `SV-1.0-pro-fast` / `SV-1.0-lite`
+- `JV-3.0-pro`
+
+## 8. 校验与限制（网关侧）
+
+- `FileInfos` 最多 3 项
+- `Type=Url` 时必须有 `Url`
+- `Type=File` 时必须有 `FileId`
+- `motion_control` 必须提供视频参考
+
+> 建议：先小流量验证各场景参数，再批量放量。
+
+## 9. 默认价格表（对齐口径）
+
+说明：以下为网关内置的默认单价（元/秒），用于计费模型键匹配。与文档口径一致，实际以你账户侧开通能力与结算为准。
+
+### Vidu
+
+| 版本 | 场景 | 分辨率 | 单价(元/秒) |
+|---|---|---|---:|
+| q2 | 普通 | ≤720P | 0.32 |
+| q2 | 普通（错峰） | ≤720P | 0.16 |
+| q2 | 普通 | ≤1080P | 0.47 |
+| q2 | 普通（错峰） | ≤1080P | 0.24 |
+| q2 | 参考 | ≤540P | 0.24 |
+| q2 | 参考（错峰） | ≤540P | 0.12 |
+| q2 | 参考 | ≤720P | 0.32 |
+| q2 | 参考（错峰） | ≤720P | 0.16 |
+| q2 | 参考 | ≤1080P | 0.82 |
+| q2 | 参考（错峰） | ≤1080P | 0.41 |
+| q2-pro | 普通 | ≤720P | 0.35 |
+| q2-pro | 普通（错峰） | ≤720P | 0.18 |
+| q2-pro | 普通 | ≤1080P | 0.70 |
+| q2-pro | 普通（错峰） | ≤1080P | 0.35 |
+| q2-pro | 参考 | ≤540P | 0.27 |
+| q2-pro | 参考（错峰） | ≤540P | 0.14 |
+| q2-pro | 参考 | ≤720P | 0.35 |
+| q2-pro | 参考（错峰） | ≤720P | 0.18 |
+| q2-pro | 参考 | ≤1080P | 0.90 |
+| q2-pro | 参考（错峰） | ≤1080P | 0.45 |
+| q2-turbo | 普通 | ≤720P | 0.25 |
+| q2-turbo | 普通（错峰） | ≤720P | 0.13 |
+| q2-turbo | 普通 | ≤1080P | 0.47 |
+| q2-turbo | 普通（错峰） | ≤1080P | 0.24 |
+| q3-pro | 普通 | ≤540P | 0.44 |
+| q3-pro | 普通（错峰） | ≤540P | 0.22 |
+| q3-pro | 普通 | ≤720P | 0.937 |
+| q3-pro | 普通（错峰） | ≤720P | 0.468 |
+| q3-pro | 普通 | ≤1080P | 1.00 |
+| q3-pro | 普通（错峰） | ≤1080P | 0.50 |
+| q3-turbo | 普通 | ≤540P | 0.25 |
+| q3-turbo | 普通（错峰） | ≤540P | 0.13 |
+| q3-turbo | 普通 | ≤720P | 0.38 |
+| q3-turbo | 普通（错峰） | ≤720P | 0.19 |
+| q3-turbo | 普通 | ≤1080P | 0.50 |
+| q3-turbo | 普通（错峰） | ≤1080P | 0.25 |
+| template | 特效模板 | - | 0.40 |
+
+### Hunyuan / Mingmou / OS / GV
+
+| 模型 | 版本 | 分辨率 | 单价(元/秒) |
+|---|---|---|---:|
+| Hunyuan | 1.5 | ≤720P | 0.30 |
+| Hunyuan | 1.5 | ≤1080P | 0.50 |
+| Mingmou | 1.0 | ≤720P | 0.30 |
+| Mingmou | 1.0 | ≤1080P | 0.50 |
+| OS | 2.0 | 不区分 | 0.75 |
+| GV | 3.1 | 不区分 | 3.00 |
+| GV | 3.1-fast | 不区分 | 1.15 |
+
+### Kling
+
+| 版本 | 场景 | 分辨率 | 单价(元/秒) |
+|---|---|---|---:|
+| 3.0 | 无声 | ≤720P | 0.60 |
+| 3.0 | 有声 | ≤720P | 0.90 |
+| 3.0 | 无声 | ≤1080P | 0.80 |
+| 3.0 | 有声 | ≤1080P | 1.20 |
+| 3.0-Omni | 无参考无声 | ≤720P | 0.60 |
+| 3.0-Omni | 无参考有声 | ≤720P | 0.80 |
+| 3.0-Omni | 有参考无声 | ≤720P | 0.90 |
+| 3.0-Omni | 有参考有声 | ≤720P | 1.10 |
+| 3.0-Omni | 无参考无声 | ≤1080P | 0.80 |
+| 3.0-Omni | 无参考有声 | ≤1080P | 1.00 |
+| 3.0-Omni | 有参考无声 | ≤1080P | 1.20 |
+| 3.0-Omni | 有参考有声 | ≤1080P | 1.40 |
+| 2.6 | 无声 | 不区分 | 0.50 |
+| 2.6 | 有声 | 不区分 | 1.00 |
+| 2.6 | 动作控制 std | 不区分 | 0.50 |
+| 2.6 | 动作控制 pro | 不区分 | 0.80 |
+| O1 | 普通 | ≤720P | 0.90 |
+| O1 | 普通 | ≤1080P | 1.20 |
+| 2.5 | 普通 | ≤720P | 0.30 |
+| 2.5 | 普通 | ≤1080P | 0.50 |
+| 1.6 / 2.0 / 2.1 | 普通 | ≤720P | 0.40 |
+| 1.6 / 2.0 / 2.1 | 普通 | ≤1080P | 0.70 |
+| avatar | 数字人 | ≤720P | 0.40 |
+| avatar | 数字人 | ≤1080P | 0.80 |
+| identify-face | 对口型 | 不区分（不足5秒按5秒） | 0.10 |
+
+### Hailuo
+
+| 版本 | 分辨率 | 单价(元/秒) |
+|---|---|---:|
+| 02 / 2.3 | ≤768P | 0.33 |
+| 02 / 2.3 | ≤1080P | 0.58 |
+| 2.3-fast | ≤768P | 0.23 |
+| 2.3-fast | ≤1080P | 0.39 |
+
+### SV
+
+| 版本 | 分辨率 | 单价(元/秒) |
+|---|---|---:|
+| 1.5-pro | ≤480P（无声） | 0.08 |
+| 1.5-pro | ≤480P（有声） | 0.16 |
+| 1.5-pro | ≤720P（无声） | 0.172 |
+| 1.5-pro | ≤720P（有声） | 0.346 |
+| 1.5-pro | ≤1080P（无声） | 0.388 |
+| 1.5-pro | ≤1080P（有声） | 0.778 |
+| 1.0-pro | ≤480P | 0.146 |
+| 1.0-pro | ≤720P | 0.308 |
+| 1.0-pro | ≤1080P | 0.734 |
+| 1.0-pro-fast | ≤480P | 0.04 |
+| 1.0-pro-fast | ≤720P | 0.086 |
+| 1.0-pro-fast | ≤1080P | 0.206 |
+| 1.0-lite | ≤480P | 0.098 |
+| 1.0-lite | ≤720P | 0.206 |
+| 1.0-lite | ≤1080P | 0.49 |
+
+### JV
+
+| 模型 | 版本 | 分辨率 | 单价(元/秒) |
+|---|---|---|---:|
+| JV | 3.0-pro | 不区分 | 1.00 |

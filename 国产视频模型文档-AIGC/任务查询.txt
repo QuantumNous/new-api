@@ -1,0 +1,132 @@
+# 任务查询进度
+
+## OpenAPI Specification
+
+```yaml
+openapi: 3.0.1
+info:
+  title: ''
+  description: ''
+  version: 1.0.0
+paths:
+  /v1/videos/{task_id}:
+    get:
+      summary: 任务查询进度
+      deprecated: false
+      description: ''
+      tags:
+        - 视频模型/国产视频模型全系列-AIGC
+      parameters:
+        - name: task_id
+          in: path
+          description: ''
+          required: true
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          description: ''
+          example: '{{Authorization}}'
+          schema:
+            type: string
+            default: '{{Authorization}}'
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  object:
+                    type: string
+                  model:
+                    type: string
+                  status:
+                    description: 任务状态 ，processing,failed,completed
+                    type: string
+                  progress:
+                    description: 进度百分比
+                    type: integer
+                  created_at:
+                    type: integer
+                  completed_at:
+                    type: integer
+                  expires_at:
+                    type: integer
+                  seconds:
+                    type: string
+                  size:
+                    type: string
+                  remixed_from_video_id:
+                    type: string
+                  error:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      code:
+                        type: string
+                    required:
+                      - message
+                      - code
+                    x-apifox-orders:
+                      - message
+                      - code
+                  video_url:
+                    type: string
+                    description: 视频地址
+                required:
+                  - id
+                  - object
+                  - model
+                  - status
+                  - progress
+                  - created_at
+                  - completed_at
+                  - expires_at
+                  - seconds
+                  - size
+                  - remixed_from_video_id
+                  - error
+                  - video_url
+                x-apifox-orders:
+                  - id
+                  - object
+                  - model
+                  - status
+                  - progress
+                  - created_at
+                  - completed_at
+                  - expires_at
+                  - seconds
+                  - size
+                  - video_url
+                  - remixed_from_video_id
+                  - error
+          headers: {}
+          x-apifox-name: 成功
+      security: []
+      x-apifox-folder: 视频模型/国产视频模型全系列-AIGC
+      x-apifox-status: released
+      x-run-in-apifox: https://app.apifox.com/web/project/6149777/apis/api-421754638-run
+components:
+  schemas: {}
+  securitySchemes:
+    bearer:
+      type: bearer
+      scheme: bearer
+    BearerAuth:
+      type: bearer
+      scheme: bearer
+      bearerFormat: API Key
+    BearerAuth1:
+      type: bearer
+      scheme: bearer
+      bearerFormat: API Key
+servers: []
+security: []
+
+```

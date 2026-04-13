@@ -402,6 +402,8 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		c.Set("api_version", channel.Other)
 	case constant.ChannelTypeCoze:
 		c.Set("bot_id", channel.Other)
+	case constant.ChannelTypeAIGCVideo:
+		c.Set("region", channel.Other)
 	}
 	return nil
 }

@@ -2,6 +2,9 @@ package controller
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,6 +75,9 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		return testResult{
 			localErr: fmt.Errorf("%s channel test is not supported", channelTypeName),
 		}
+	}
+	if channel.Type == constant.ChannelTypeAIGCVideo {
+		return testAIGCVideoChannel(channel, testModel)
 	}
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -503,6 +509,103 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		localErr:    nil,
 		newAPIError: nil,
 	}
+}
+
+func testAIGCVideoChannel(channel *model.Channel, testModel string) testResult {
+	testModel = strings.TrimSpace(testModel)
+	if testModel == "" {
+		if channel.TestModel != nil && *channel.TestModel != "" {
+			testModel = strings.TrimSpace(*channel.TestModel)
+		} else {
+			models := channel.GetModels()
+			if len(models) > 0 {
+				testModel = strings.TrimSpace(models[0])
+			}
+			if testModel == "" {
+				testModel = "Kling-3.0-Omni"
+			}
+		}
+	}
+
+	// Build minimal test request
+	reqBody := map[string]any{
+		"model":  testModel,
+		"prompt": "test video generation",
+		"metadata": map[string]any{
+			"output_config": map[string]any{
+				"resolution":   "720P",
+				"aspect_ratio": "16:9",
+			},
+		},
+	}
+	bodyBytes, err := common.Marshal(reqBody)
+	if err != nil {
+		return testResult{localErr: fmt.Errorf("marshal test request failed: %v", err)}
+	}
+
+	baseURL := channel.GetBaseURL()
+	uri := fmt.Sprintf("%s/v1/videos", baseURL)
+
+	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return testResult{localErr: fmt.Errorf("create request failed: %v", err)}
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Parse key and set HMAC-SHA256 signature headers
+	parts := strings.Split(channel.Key, "|")
+	if len(parts) < 3 {
+		return testResult{localErr: fmt.Errorf("invalid key format, expected SubAppId|SecretId|SecretKey[|Region]")}
+	}
+	subAppId := parts[0]
+	secretId := parts[1]
+	secretKey := parts[2]
+
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	signStr := fmt.Sprintf("%s\n%s\n%s", secretId, timestamp, secretKey)
+	h := hmac.New(sha256.New, []byte(secretKey))
+	h.Write([]byte(signStr))
+	signature := hex.EncodeToString(h.Sum(nil))
+
+	req.Header.Set("X-SubAppId", subAppId)
+	req.Header.Set("X-SecretId", secretId)
+	req.Header.Set("X-Timestamp", timestamp)
+	req.Header.Set("X-Signature", signature)
+	if len(parts) >= 4 && parts[3] != "" {
+		req.Header.Set("X-Region", parts[3])
+	}
+
+	// Send request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return testResult{localErr: fmt.Errorf("request failed: %v", err)}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return testResult{localErr: fmt.Errorf("read response failed: %v", err)}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return testResult{
+			localErr:    fmt.Errorf("bad response status code %d, body: %s", resp.StatusCode, string(respBody)),
+			newAPIError: types.NewOpenAIError(fmt.Errorf("upstream error: %s", string(respBody)), types.ErrorCodeBadResponse, resp.StatusCode),
+		}
+	}
+
+	// Validate response has task ID
+	taskID := gjson.GetBytes(respBody, "id").String()
+	if taskID == "" {
+		return testResult{
+			localErr:    fmt.Errorf("response missing task id, body: %s", string(respBody)),
+			newAPIError: types.NewOpenAIError(fmt.Errorf("invalid response: missing task id"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
+		}
+	}
+
+	common.SysLog(fmt.Sprintf("AIGC Video channel #%d test success, task_id: %s, model: %s", channel.Id, taskID, testModel))
+	return testResult{}
 }
 
 func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dto.Usage, error) {

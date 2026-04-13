@@ -1,0 +1,143 @@
+# 视频生成 
+
+## OpenAPI Specification
+
+```yaml
+openapi: 3.0.1
+info:
+  title: ''
+  description: ''
+  version: 1.0.0
+paths:
+  /v1/videos:
+    post:
+      summary: '视频生成 '
+      deprecated: false
+      description: ''
+      tags:
+        - 视频模型/国产视频模型全系列-AIGC
+      parameters:
+        - name: Authorization
+          in: header
+          description: ''
+          required: false
+          example: Bearer {{key}}
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model:
+                  type: string
+                prompt:
+                  type: string
+                metadata:
+                  type: object
+                  properties:
+                    output_config:
+                      type: object
+                      properties:
+                        resolution:
+                          type: string
+                        aspect_ratio:
+                          type: string
+                      required:
+                        - resolution
+                        - aspect_ratio
+                      x-apifox-orders:
+                        - resolution
+                        - aspect_ratio
+                  required:
+                    - output_config
+                  x-apifox-orders:
+                    - output_config
+              required:
+                - model
+                - prompt
+                - metadata
+              x-apifox-orders:
+                - model
+                - prompt
+                - metadata
+            example:
+              model: Kling-3.0-Omni
+              prompt: 镜头环绕建筑并使用希区柯克变焦
+              seconds: '6'
+              metadata:
+                offpeak: true
+                file_infos:
+                  - type: Url
+                    category: Image
+                    url: https://qh.sz.gov.cn/img/4/4223/4223286/11670681.jpg
+                output_config:
+                  resolution: 1080P
+                  audio_generation: Enabled
+                ext_info: >-
+                  {"AdditionalParameters":"{\"multi_prompt\":[{\"index\":1,\"prompt\":\"建筑在白天未开灯\",\"duration\":\"2\"},{\"index\":2,\"prompt\":\"建筑在晚上有内透灯光\",\"duration\":\"3\"}],\"shot_type\":\"customize\",\"multi_shot\":true}"}
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  object:
+                    type: string
+                  model:
+                    type: string
+                  status:
+                    type: string
+                    title: 状态码
+                    description: queued，processing，completed，failed，cancelled
+                  progress:
+                    type: integer
+                  created_at:
+                    type: integer
+                  size:
+                    type: string
+                x-apifox-orders:
+                  - id
+                  - object
+                  - model
+                  - status
+                  - progress
+                  - created_at
+                  - size
+                required:
+                  - id
+                  - object
+                  - model
+                  - status
+                  - progress
+                  - created_at
+                  - size
+          headers: {}
+          x-apifox-name: 成功
+      security: []
+      x-apifox-folder: 视频模型/国产视频模型全系列-AIGC
+      x-apifox-status: released
+      x-run-in-apifox: https://app.apifox.com/web/project/6149777/apis/api-421754554-run
+components:
+  schemas: {}
+  securitySchemes:
+    bearer:
+      type: bearer
+      scheme: bearer
+    BearerAuth:
+      type: bearer
+      scheme: bearer
+      bearerFormat: API Key
+    BearerAuth1:
+      type: bearer
+      scheme: bearer
+      bearerFormat: API Key
+servers: []
+security: []
+
+```

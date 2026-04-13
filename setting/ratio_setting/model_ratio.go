@@ -302,6 +302,36 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
+	// AIGC Video - Vidu 系列（元/秒）
+	"Vidu-q2":        0.32,
+	"Vidu-q2-pro":    0.35,
+	"Vidu-q2-turbo":  0.25,
+	"Vidu-q3-pro":    0.937,
+	"Vidu-q3-turbo":  0.38,
+	"Vidu-template":  0.40,
+	// AIGC Video - Kling 系列
+	"Kling-1.6":      0.40,
+	"Kling-2.0":      0.40,
+	"Kling-2.1":      0.40,
+	"Kling-2.5":      0.30,
+	"Kling-2.6":      0.50,
+	"Kling-3.0":      0.60,
+	"Kling-3.0-Omni": 0.60,
+	"Kling-O1":       0.90,
+	// AIGC Video - 其他
+	"Hunyuan-1.5":      0.30,
+	"Mingmou-1.0":      0.30,
+	"OS-2.0":           0.75,
+	"GV-3.1":           3.00,
+	"GV-3.1-fast":      1.15,
+	"Hailuo-02":        0.33,
+	"Hailuo-2.3":       0.33,
+	"Hailuo-2.3-fast":  0.23,
+	"SV-1.5-pro":       0.172,
+	"SV-1.0-pro":       0.308,
+	"SV-1.0-pro-fast":  0.086,
+	"SV-1.0-lite":      0.206,
+	"JV-3.0-pro":       1.00,
 }
 
 var defaultAudioRatio = map[string]float64{
