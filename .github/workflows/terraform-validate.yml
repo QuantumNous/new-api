@@ -110,6 +110,9 @@ jobs:
     defaults:
       run:
         working-directory: ${{ env.TF_WORKING_DIR }}
+    env:
+      TENCENTCLOUD_SECRET_ID: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+      TENCENTCLOUD_SECRET_KEY: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -119,22 +122,20 @@ jobs:
           terraform_version: "1.9"
 
       - name: Terraform Init
-        run: terraform init -input=false -backend=false
+        run: terraform init -input=false
 
-      - name: Terraform Plan (dry-run validation)
+      - name: Terraform Plan
         id: plan
         run: |
-          # PR 阶段不连接远程 backend，仅做配置合法性检查
-          # 真正的 plan 在 deploy workflow 中执行
           terraform plan -no-color -input=false \
             -var="app_image_tag=plan-check" \
-            -var="secret_id=placeholder" \
-            -var="secret_key=placeholder" \
-            -var="tcr_namespace=placeholder" \
-            -var="db_password=placeholder" \
-            -var="session_secret=placeholder" \
-            2>&1 | tee plan_output.txt || true
-          echo "Note: plan may show errors due to placeholder values, this is expected in PR validation."
+            -var="secret_id=${{ secrets.TENCENTCLOUD_SECRET_ID }}" \
+            -var="secret_key=${{ secrets.TENCENTCLOUD_SECRET_KEY }}" \
+            -var="tcr_namespace=${{ secrets.TCR_NAMESPACE }}" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -var="session_secret=${{ secrets.SESSION_SECRET }}" \
+            2>&1 | tee plan_output.txt
+        continue-on-error: true
 
       # 在 PR 上评论 plan 结果（截断过长输出）
       - name: Comment Plan on PR
