@@ -190,6 +190,31 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	return nil, errors.New("channel not found")
 }
 
+// GetGroupModelPriorityCount 返回指定分组和模型的不同优先级数量（用于跨分组重试判断）
+func GetGroupModelPriorityCount(group string, modelName string) int {
+	if !common.MemoryCacheEnabled {
+		return 0
+	}
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	channels := group2model2channels[group][modelName]
+	if len(channels) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
+		channels = group2model2channels[group][normalizedModel]
+	}
+	if len(channels) <= 1 {
+		return len(channels)
+	}
+	uniquePriorities := make(map[int]bool)
+	for _, channelId := range channels {
+		if channel, ok := channelsIDM[channelId]; ok {
+			uniquePriorities[int(channel.GetPriority())] = true
+		}
+	}
+	return len(uniquePriorities)
+}
+
 func CacheGetChannel(id int) (*Channel, error) {
 	if !common.MemoryCacheEnabled {
 		return GetChannelById(id, true)
