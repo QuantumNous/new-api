@@ -30,6 +30,7 @@ data/
 .gocache-temp
 .gopath
 
+<<<<<<< HEAD
 # Terraform
 infra/terraform/.terraform/
 infra/terraform/.terraform.lock.hcl
@@ -37,3 +38,6 @@ infra/terraform/terraform.tfvars
 infra/terraform/terraform.tfstate*
 infra/terraform/tfplan
 infra/terraform/*.backup
+=======
+token_estimator_test.go
+>>>>>>> main
