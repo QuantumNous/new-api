@@ -1,0 +1,33 @@
+name: PR Check
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+jobs:
+  pr-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peakoss/anti-slop@v0.2.1
+        with:
+          max-failures: 4
+          require-description: true
+
+          # require-linked-issue: false
+          blocked-terms:  |
+            🤖 Generated with Claude Code
+
+          require-pr-template: true
+          strict-pr-template-sections: "✅ 提交前检查项 / Checklist"
+
+          detect-spam-usernames: true
+          min-account-age: 30
+
+          failure-add-pr-labels: "pr-check-failed"
+          failure-pr-message: "感谢您的提交。由于该 PR 未遵循我们的贡献模板，且被识别为缺乏人工参与的纯 AI 生成内容 (AI Slop)，我们将先予以关闭。我们更欢迎经过人工审核、验证并带有个人思考的贡献。如果您认为这其中存在误解，请回复告知。/ Thank you for your submission. This PR has been closed because it does not follow our contribution template and has been identified as purely AI-generated content (AI Slop) without meaningful human involvement. We prioritize contributions that are human-verified and reflect individual effort. If you believe this is a mistake, please let us know by replying to this comment."
+          close-pr: true

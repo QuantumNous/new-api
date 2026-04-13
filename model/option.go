@@ -62,6 +62,7 @@ func InitOptionMap() {
 	common.OptionMap["SMTPAccount"] = ""
 	common.OptionMap["SMTPToken"] = ""
 	common.OptionMap["SMTPSSLEnabled"] = strconv.FormatBool(common.SMTPSSLEnabled)
+	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -233,7 +234,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
@@ -308,6 +309,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.StopOnSensitiveEnabled = boolValue
 		case "SMTPSSLEnabled":
 			common.SMTPSSLEnabled = boolValue
+		case "SMTPForceAuthLogin":
+			common.SMTPForceAuthLogin = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
 			system_setting.WorkerAllowHttpImageRequestEnabled = boolValue
 		case "DefaultUseAutoGroup":

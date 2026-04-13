@@ -26,9 +26,8 @@ import {
   Row,
   Spin,
   Modal,
-  Select,
-  InputGroup,
   Input,
+  Typography,
 } from '@douyinfe/semi-ui';
 import {
   compareObjects,
@@ -38,6 +37,8 @@ import {
   showWarning,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+
+const { Text } = Typography;
 
 export default function GeneralSettings(props) {
   const { t } = useTranslation();
@@ -126,6 +127,77 @@ export default function GeneralSettings(props) {
     }
   };
 
+  const showTokensOption = useMemo(() => {
+    const initialType = props.options?.['general_setting.quota_display_type'];
+    const initialQuotaPerUnit = parseFloat(props.options?.QuotaPerUnit);
+    const legacyTokensMode =
+      initialType === undefined &&
+      props.options?.DisplayInCurrencyEnabled !== undefined &&
+      !props.options.DisplayInCurrencyEnabled;
+    return (
+      initialType === 'TOKENS' ||
+      legacyTokensMode ||
+      (!isNaN(initialQuotaPerUnit) && initialQuotaPerUnit !== 500000)
+    );
+  }, [props.options]);
+
+  const quotaDisplayType = inputs['general_setting.quota_display_type'];
+
+  const quotaDisplayTypeDesc = useMemo(() => {
+    const descMap = {
+      USD: t('站点所有额度将以美元 ($) 显示'),
+      CNY: t('站点所有额度将按汇率换算为人民币 (¥) 显示'),
+      TOKENS: t('站点所有额度将以原始 Token 数显示，不做货币换算'),
+      CUSTOM: t('站点所有额度将按汇率换算为自定义货币显示'),
+    };
+    return descMap[quotaDisplayType] || '';
+  }, [quotaDisplayType, t]);
+
+  const rateLabel = useMemo(() => {
+    if (quotaDisplayType === 'CNY') return t('汇率');
+    if (quotaDisplayType === 'TOKENS') return t('每美元对应 Token 数');
+    if (quotaDisplayType === 'CUSTOM') return t('汇率');
+    return '';
+  }, [quotaDisplayType, t]);
+
+  const rateSuffix = useMemo(() => {
+    if (quotaDisplayType === 'CNY') return 'CNY (¥)';
+    if (quotaDisplayType === 'TOKENS') return 'Tokens';
+    if (quotaDisplayType === 'CUSTOM')
+      return inputs['general_setting.custom_currency_symbol'] || '¤';
+    return '';
+  }, [quotaDisplayType, inputs]);
+
+  const rateExtraText = useMemo(() => {
+    if (quotaDisplayType === 'CNY')
+      return t(
+        '系统内部以美元 (USD) 为基准计价。用户余额、充值金额、模型定价、用量日志等所有金额显示均按此汇率换算为人民币，不影响内部计费',
+      );
+    if (quotaDisplayType === 'TOKENS')
+      return t(
+        '系统内部计费精度，默认 500000，修改可能导致计费异常，请谨慎操作',
+      );
+    if (quotaDisplayType === 'CUSTOM')
+      return t(
+        '系统内部以美元 (USD) 为基准计价。用户余额、充值金额、模型定价、用量日志等所有金额显示均按此汇率换算为自定义货币，不影响内部计费',
+      );
+    return '';
+  }, [quotaDisplayType, t]);
+
+  const previewText = useMemo(() => {
+    if (quotaDisplayType === 'USD') return '$1.00';
+    const rate = parseFloat(combinedRate);
+    if (!rate || isNaN(rate)) return t('请输入汇率');
+    if (quotaDisplayType === 'CNY') return `$1.00 → ¥${rate.toFixed(2)}`;
+    if (quotaDisplayType === 'TOKENS')
+      return `$1.00 → ${Number(rate).toLocaleString()} Tokens`;
+    if (quotaDisplayType === 'CUSTOM') {
+      const symbol = inputs['general_setting.custom_currency_symbol'] || '¤';
+      return `$1.00 → ${symbol}${rate.toFixed(2)}`;
+    }
+    return '';
+  }, [quotaDisplayType, combinedRate, inputs, t]);
+
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
@@ -202,47 +274,78 @@ export default function GeneralSettings(props) {
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Slot label={t('站点额度展示类型及汇率')}>
-                  <InputGroup style={{ width: '100%' }}>
+                <Form.Select
+                  field='general_setting.quota_display_type'
+                  label={t('额度展示类型')}
+                  extraText={quotaDisplayTypeDesc}
+                  onChange={handleFieldChange(
+                    'general_setting.quota_display_type',
+                  )}
+                >
+                  <Form.Select.Option value='USD'>
+                    USD ($)
+                  </Form.Select.Option>
+                  <Form.Select.Option value='CNY'>
+                    CNY (¥)
+                  </Form.Select.Option>
+                  {showTokensOption && (
+                    <Form.Select.Option value='TOKENS'>
+                      Tokens
+                    </Form.Select.Option>
+                  )}
+                  <Form.Select.Option value='CUSTOM'>
+                    {t('自定义货币')}
+                  </Form.Select.Option>
+                </Form.Select>
+              </Col>
+              {quotaDisplayType !== 'USD' && (
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <Form.Slot label={rateLabel}>
                     <Input
-                      prefix={'1 USD = '}
-                      style={{ width: '50%' }}
+                      prefix='1 USD = '
+                      suffix={rateSuffix}
                       value={combinedRate}
                       onChange={onCombinedRateChange}
-                      disabled={
-                        inputs['general_setting.quota_display_type'] === 'USD'
-                      }
                     />
-                    <Select
-                      style={{ width: '50%' }}
-                      value={inputs['general_setting.quota_display_type']}
-                      onChange={handleFieldChange(
-                        'general_setting.quota_display_type',
-                      )}
+                    <Text
+                      type='tertiary'
+                      size='small'
+                      style={{ marginTop: 4, display: 'block' }}
                     >
-                      <Select.Option value='USD'>USD ($)</Select.Option>
-                      <Select.Option value='CNY'>CNY (¥)</Select.Option>
-                      <Select.Option value='TOKENS'>Tokens</Select.Option>
-                      <Select.Option value='CUSTOM'>
-                        {t('自定义货币')}
-                      </Select.Option>
-                    </Select>
-                  </InputGroup>
-                </Form.Slot>
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                      {rateExtraText}
+                    </Text>
+                  </Form.Slot>
+                </Col>
+              )}
+              <Col
+                xs={24}
+                sm={12}
+                md={8}
+                lg={8}
+                xl={8}
+                style={
+                  quotaDisplayType !== 'CUSTOM'
+                    ? { display: 'none' }
+                    : undefined
+                }
+              >
                 <Form.Input
-                  field={'general_setting.custom_currency_symbol'}
+                  field='general_setting.custom_currency_symbol'
                   label={t('自定义货币符号')}
+                  extraText={t(
+                    '自定义货币符号将显示在所有额度数值前，例如 €1.50',
+                  )}
                   placeholder={t('例如 €, £, Rp, ₩, ₹...')}
                   onChange={handleFieldChange(
                     'general_setting.custom_currency_symbol',
                   )}
                   showClear
-                  disabled={
-                    inputs['general_setting.quota_display_type'] !== 'CUSTOM'
-                  }
                 />
+              </Col>
+              <Col span={24}>
+                <Text type='tertiary' size='small'>
+                  {t('预览效果')}：{previewText}
+                </Text>
               </Col>
             </Row>
             <Row gutter={16}>
