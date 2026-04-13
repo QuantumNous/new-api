@@ -125,6 +125,10 @@ const GENERIC_VIDEO_SIZE_OPTIONS = [
 const GENERIC_VIDEO_SECONDS_OPTIONS = [6, 8, 10, 12, 15, 20, 25, 30].map(
   (value) => ({ label: `${value}s`, value: String(value) }),
 );
+const GROK_IMAGINE_VIDEO_SECONDS_OPTIONS = [6, 8, 10].map((value) => ({
+  label: `${value}s`,
+  value: String(value),
+}));
 const GENERIC_VIDEO_QUALITY_OPTIONS = [
   { label: '480p', value: '480p' },
   { label: '720p', value: '720p' },
@@ -3218,6 +3222,9 @@ export default function App() {
   const isVideoModel =
     typeof currentModelName === 'string' && currentModelName.includes('video');
   const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
+  const currentVideoSecondsOptions = isGrokImagineVideoModel
+    ? GROK_IMAGINE_VIDEO_SECONDS_OPTIONS
+    : GENERIC_VIDEO_SECONDS_OPTIONS;
   const currentImageUploadLimit = getCreativeCenterImageUploadLimit(currentModelName);
   const currentAdobeImageAspectRatioOptions =
     getAdobeImageAspectRatioOptions(currentModelName);
@@ -3541,11 +3548,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           next.videoSize = '1280x720';
         }
         if (
-          !GENERIC_VIDEO_SECONDS_OPTIONS.some(
+          !currentVideoSecondsOptions.some(
             (option) => option.value === next.videoSeconds,
           )
         ) {
-          next.videoSeconds = '10';
+          next.videoSeconds = currentVideoSecondsOptions[0]?.value || '10';
         }
         if (
           !GENERIC_VIDEO_QUALITY_OPTIONS.some(
@@ -8040,11 +8047,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         menuKey='videoSeconds'
                         icon={<Clock size={14} />}
                         label={`时长 ${getOptionLabel(
-                          GENERIC_VIDEO_SECONDS_OPTIONS,
+                          currentVideoSecondsOptions,
                           params.videoSeconds,
                         )}`}
                         value={params.videoSeconds}
-                        options={GENERIC_VIDEO_SECONDS_OPTIONS}
+                        options={currentVideoSecondsOptions}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
