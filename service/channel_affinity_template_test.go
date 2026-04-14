@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -8,8 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -176,8 +180,100 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 	}
 }
 
+func TestShouldSkipRetryAfterChannelAffinityDisabledChannel(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+
+	originalRetryOnDisabledChannel := setting.RetryOnDisabledChannel
+	setting.RetryOnDisabledChannel = true
+	t.Cleanup(func() {
+		setting.RetryOnDisabledChannel = originalRetryOnDisabledChannel
+	})
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		RuleName:   "rule-disabled-channel",
+		SkipRetry:  true,
+		UsingGroup: "default",
+		ModelName:  "gpt-5",
+	})
+	require.False(t, ShouldSkipRetryAfterChannelAffinityDisabledChannel(ctx))
+
+	setting.RetryOnDisabledChannel = false
+	require.True(t, ShouldSkipRetryAfterChannelAffinityDisabledChannel(ctx))
+}
+
+func TestShouldSkipRetryAfterChannelAffinityError_QuotaExceeded(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+
+	originalRetryOnChannelQuotaExceeded := setting.RetryOnChannelQuotaExceeded
+	setting.RetryOnChannelQuotaExceeded = true
+	t.Cleanup(func() {
+		setting.RetryOnChannelQuotaExceeded = originalRetryOnChannelQuotaExceeded
+	})
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		RuleName:   "rule-quota-exceeded",
+		SkipRetry:  true,
+		UsingGroup: "default",
+		ModelName:  "gpt-5",
+	})
+	quotaErr := types.WithOpenAIError(types.OpenAIError{
+		Message: "insufficient quota",
+		Type:    "insufficient_quota",
+		Code:    "insufficient_quota",
+	}, http.StatusTooManyRequests)
+	usageLimitErr := types.WithOpenAIError(types.OpenAIError{
+		Message: "You've hit your usage limit. Try again later.",
+	}, http.StatusTooManyRequests)
+
+	require.False(t, ShouldSkipRetryAfterChannelAffinityError(ctx, quotaErr))
+	require.False(t, ShouldSkipRetryAfterChannelAffinityError(ctx, usageLimitErr))
+
+	setting.RetryOnChannelQuotaExceeded = false
+	require.True(t, ShouldSkipRetryAfterChannelAffinityError(ctx, quotaErr))
+	require.True(t, ShouldSkipRetryAfterChannelAffinityError(ctx, usageLimitErr))
+}
+
+func TestShouldSkipRetryAfterChannelAffinityError_UnrelatedErrorStillSkips(t *testing.T) {
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		RuleName:   "rule-other-error",
+		SkipRetry:  true,
+		UsingGroup: "default",
+		ModelName:  "gpt-5",
+	})
+	otherErr := types.NewErrorWithStatusCode(errors.New("upstream timeout"), types.ErrorCodeDoRequestFailed, http.StatusGatewayTimeout)
+	require.True(t, ShouldSkipRetryAfterChannelAffinityError(ctx, otherErr))
+}
+
 func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	require.NoError(t, model.DB.AutoMigrate(&model.Ability{}))
+
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		model.DB.Exec("DELETE FROM abilities WHERE channel_id = ?", 9527)
+		model.DB.Exec("DELETE FROM channels WHERE id = ?", 9527)
+		model.InitChannelCache()
+	})
+
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:     9527,
+		Name:   "codex-hit-channel",
+		Key:    "sk-hit",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "gpt-5",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "default",
+		Model:     "gpt-5",
+		ChannelId: 9527,
+		Enabled:   true,
+	}).Error)
+	model.InitChannelCache()
 
 	setting := operation_setting.GetChannelAffinitySetting()
 	require.NotNil(t, setting)
@@ -244,4 +340,266 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.False(t, exists)
 	_, exists = info.RuntimeHeadersOverride["x-codex-turn-metadata"]
 	require.False(t, exists)
+}
+
+func TestGetPreferredChannelByAffinity_InvalidatesDisabledChannel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		model.DB.Exec("DELETE FROM channels WHERE id = ?", 9528)
+		model.InitChannelCache()
+	})
+
+	disabledChannelID := 9528
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:     disabledChannelID,
+		Name:   "disabled-codex-channel",
+		Key:    "sk-disabled",
+		Status: common.ChannelStatusAutoDisabled,
+	}).Error)
+	model.InitChannelCache()
+
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+
+	var codexRule *operation_setting.ChannelAffinityRule
+	for i := range setting.Rules {
+		rule := &setting.Rules[i]
+		if strings.EqualFold(strings.TrimSpace(rule.Name), "codex cli trace") {
+			codexRule = rule
+			break
+		}
+	}
+	require.NotNil(t, codexRule)
+
+	affinityValue := fmt.Sprintf("pc-disabled-%d", time.Now().UnixNano())
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "gpt-5", "default", affinityValue)
+
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, disabledChannelID, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(fmt.Sprintf(`{"prompt_cache_key":"%s"}`, affinityValue)))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	channelID, found := GetPreferredChannelByAffinity(ctx, "gpt-5", "default")
+	require.False(t, found)
+	require.Equal(t, 0, channelID)
+
+	_, stillFound, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.False(t, stillFound)
+}
+
+func TestGetPreferredChannelByAffinity_StaleCacheInvalidationCanBeDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+	originalInvalidateStaleCacheEnabled := setting.InvalidateStaleCacheEnabled
+	setting.InvalidateStaleCacheEnabled = false
+	t.Cleanup(func() {
+		setting.InvalidateStaleCacheEnabled = originalInvalidateStaleCacheEnabled
+	})
+
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		model.DB.Exec("DELETE FROM channels WHERE id = ?", 9530)
+		model.InitChannelCache()
+	})
+
+	disabledChannelID := 9530
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:     disabledChannelID,
+		Name:   "disabled-codex-channel-with-toggle-off",
+		Key:    "sk-disabled-toggle-off",
+		Status: common.ChannelStatusAutoDisabled,
+	}).Error)
+	model.InitChannelCache()
+
+	var codexRule *operation_setting.ChannelAffinityRule
+	for i := range setting.Rules {
+		rule := &setting.Rules[i]
+		if strings.EqualFold(strings.TrimSpace(rule.Name), "codex cli trace") {
+			codexRule = rule
+			break
+		}
+	}
+	require.NotNil(t, codexRule)
+
+	affinityValue := fmt.Sprintf("pc-disabled-toggle-off-%d", time.Now().UnixNano())
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "gpt-5.4", "default", affinityValue)
+
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, disabledChannelID, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(fmt.Sprintf(`{"prompt_cache_key":"%s"}`, affinityValue)))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	channelID, found := GetPreferredChannelByAffinity(ctx, "gpt-5.4", "default")
+	require.True(t, found)
+	require.Equal(t, disabledChannelID, channelID)
+
+	_, stillFound, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.True(t, stillFound)
+}
+
+func TestGetPreferredChannelByAffinity_InvalidatesChannelNoLongerEnabledForGroupModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	require.NoError(t, model.DB.AutoMigrate(&model.Ability{}))
+
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		model.DB.Exec("DELETE FROM abilities WHERE channel_id = ?", 9529)
+		model.DB.Exec("DELETE FROM channels WHERE id = ?", 9529)
+		model.InitChannelCache()
+	})
+
+	channelID := 9529
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:     channelID,
+		Name:   "orphaned-codex-channel",
+		Key:    "sk-orphaned",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "gpt-5.4-mini",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "default",
+		Model:     "gpt-5.4-mini",
+		ChannelId: channelID,
+		Enabled:   true,
+	}).Error)
+	model.InitChannelCache()
+
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+
+	var codexRule *operation_setting.ChannelAffinityRule
+	for i := range setting.Rules {
+		rule := &setting.Rules[i]
+		if strings.EqualFold(strings.TrimSpace(rule.Name), "codex cli trace") {
+			codexRule = rule
+			break
+		}
+	}
+	require.NotNil(t, codexRule)
+
+	affinityValue := fmt.Sprintf("pc-orphaned-%d", time.Now().UnixNano())
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "gpt-5.4", "default", affinityValue)
+
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, channelID, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
+	})
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(fmt.Sprintf(`{"prompt_cache_key":"%s"}`, affinityValue)))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	preferredChannelID, found := GetPreferredChannelByAffinity(ctx, "gpt-5.4", "default")
+	require.False(t, found)
+	require.Equal(t, 0, preferredChannelID)
+
+	_, stillFound, err := cache.Get(cacheKeySuffix)
+	require.NoError(t, err)
+	require.False(t, stillFound)
+}
+
+func TestClaudeTemplateSyncsClaudeSessionToPromptCacheKeyAndSessionHeader(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+
+	var claudeRule *operation_setting.ChannelAffinityRule
+	for i := range setting.Rules {
+		rule := &setting.Rules[i]
+		if strings.EqualFold(strings.TrimSpace(rule.Name), "claude cli trace") {
+			claudeRule = rule
+			break
+		}
+	}
+	require.NotNil(t, claudeRule)
+
+	meta := channelAffinityMeta{
+		RuleName:      claudeRule.Name,
+		ParamTemplate: claudeRule.ParamOverrideTemplate,
+		KeyValue:      "claude-session-123",
+	}
+	ctx := buildChannelAffinityTemplateContextForTest(meta)
+
+	mergedOverride, applied := ApplyChannelAffinityOverrideTemplate(ctx, map[string]interface{}{})
+	require.True(t, applied)
+
+	info := &relaycommon.RelayInfo{
+		RequestHeaders: map[string]string{
+			"X-Claude-Code-Session-Id": "claude-session-123",
+			"User-Agent":               "claude-cli-test",
+			"X-App":                    "cli",
+		},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ParamOverride:        mergedOverride,
+			ParamOverrideContext: buildChannelAffinityParamOverrideContext(meta),
+		},
+	}
+
+	out, err := relaycommon.ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-5.4"}`), info)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-5.4","prompt_cache_key":"claude-session-123"}`, string(out))
+
+	require.True(t, info.UseRuntimeHeadersOverride)
+	require.Equal(t, "claude-session-123", info.RuntimeHeadersOverride["x-claude-code-session-id"])
+	require.Equal(t, "claude-session-123", info.RuntimeHeadersOverride["session_id"])
+	require.Equal(t, "claude-cli-test", info.RuntimeHeadersOverride["user-agent"])
+	require.Equal(t, "cli", info.RuntimeHeadersOverride["x-app"])
+}
+
+func TestExtractChannelAffinityValueFromRequestHeader(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	ctx.Request.Header.Set("X-Claude-Code-Session-Id", "header-session")
+
+	value := extractChannelAffinityValue(ctx, operation_setting.ChannelAffinityKeySource{
+		Type: "request_header",
+		Key:  "X-Claude-Code-Session-Id",
+	})
+	require.Equal(t, "header-session", value)
+}
+
+func TestExtractChannelAffinityValueFromNestedJSONString(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"metadata":{"user_id":"{\"device_id\":\"dev-1\",\"session_id\":\"nested-session\"}"}}`),
+	)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	value := extractChannelAffinityValue(ctx, operation_setting.ChannelAffinityKeySource{
+		Type:       "gjson",
+		Path:       "metadata.user_id",
+		NestedPath: "session_id",
+	})
+	require.Equal(t, "nested-session", value)
 }

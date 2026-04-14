@@ -62,6 +62,12 @@ import ParamOverrideEditorModal from '../../../components/table/channels/modals/
 
 const KEY_ENABLED = 'channel_affinity_setting.enabled';
 const KEY_SWITCH_ON_SUCCESS = 'channel_affinity_setting.switch_on_success';
+const KEY_INVALIDATE_STALE_CACHE =
+  'channel_affinity_setting.invalidate_stale_cache_enabled';
+const KEY_RETRY_ON_DISABLED_CHANNEL =
+  'channel_affinity_setting.retry_on_disabled_channel';
+const KEY_RETRY_ON_CHANNEL_QUOTA_EXCEEDED =
+  'channel_affinity_setting.retry_on_channel_quota_exceeded';
 const KEY_MAX_ENTRIES = 'channel_affinity_setting.max_entries';
 const KEY_DEFAULT_TTL = 'channel_affinity_setting.default_ttl_seconds';
 const KEY_RULES = 'channel_affinity_setting.rules';
@@ -240,6 +246,9 @@ export default function SettingsChannelAffinity(props) {
   const [inputs, setInputs] = useState({
     [KEY_ENABLED]: false,
     [KEY_SWITCH_ON_SUCCESS]: true,
+    [KEY_INVALIDATE_STALE_CACHE]: true,
+    [KEY_RETRY_ON_DISABLED_CHANNEL]: true,
+    [KEY_RETRY_ON_CHANNEL_QUOTA_EXCEEDED]: true,
     [KEY_MAX_ENTRIES]: 100000,
     [KEY_DEFAULT_TTL]: 3600,
     [KEY_RULES]: '[]',
@@ -853,6 +862,9 @@ export default function SettingsChannelAffinity(props) {
         ![
           KEY_ENABLED,
           KEY_SWITCH_ON_SUCCESS,
+          KEY_INVALIDATE_STALE_CACHE,
+          KEY_RETRY_ON_DISABLED_CHANNEL,
+          KEY_RETRY_ON_CHANNEL_QUOTA_EXCEEDED,
           KEY_MAX_ENTRIES,
           KEY_DEFAULT_TTL,
           KEY_RULES,
@@ -862,6 +874,12 @@ export default function SettingsChannelAffinity(props) {
       if (key === KEY_ENABLED)
         currentInputs[key] = toBoolean(props.options[key]);
       else if (key === KEY_SWITCH_ON_SUCCESS)
+        currentInputs[key] = toBoolean(props.options[key]);
+      else if (key === KEY_INVALIDATE_STALE_CACHE)
+        currentInputs[key] = toBoolean(props.options[key]);
+      else if (key === KEY_RETRY_ON_DISABLED_CHANNEL)
+        currentInputs[key] = toBoolean(props.options[key]);
+      else if (key === KEY_RETRY_ON_CHANNEL_QUOTA_EXCEEDED)
         currentInputs[key] = toBoolean(props.options[key]);
       else if (key === KEY_MAX_ENTRIES)
         currentInputs[key] = Number(props.options[key] || 0) || 0;
@@ -995,6 +1013,66 @@ export default function SettingsChannelAffinity(props) {
                 <Text type='tertiary' size='small'>
                   {t(
                     '如果亲和到的渠道失败，重试到其他渠道成功后，将亲和更新到成功的渠道。',
+                  )}
+                </Text>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={KEY_INVALIDATE_STALE_CACHE}
+                  label={t('自动淘汰失效亲和缓存')}
+                  checkedText='|'
+                  uncheckedText='O'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      [KEY_INVALIDATE_STALE_CACHE]: value,
+                    })
+                  }
+                />
+                <Text type='tertiary' size='small'>
+                  {t(
+                    '命中已禁用或已不再匹配当前分组/模型的渠道时，自动删除该亲和缓存并回退到正常选路。',
+                  )}
+                </Text>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={KEY_RETRY_ON_DISABLED_CHANNEL}
+                  label={t('禁用渠道时允许切换')}
+                  checkedText='|'
+                  uncheckedText='O'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      [KEY_RETRY_ON_DISABLED_CHANNEL]: value,
+                    })
+                  }
+                />
+                <Text type='tertiary' size='small'>
+                  {t(
+                    '当亲和命中的渠道已被禁用时，即使规则设置为失败不重试，也允许回退到其他可用渠道。',
+                  )}
+                </Text>
+              </Col>
+            </Row>
+
+            <Row gutter={16} style={{ marginTop: 12 }}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={KEY_RETRY_ON_CHANNEL_QUOTA_EXCEEDED}
+                  label={t('额度耗尽时允许切换')}
+                  checkedText='|'
+                  uncheckedText='O'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      [KEY_RETRY_ON_CHANNEL_QUOTA_EXCEEDED]: value,
+                    })
+                  }
+                />
+                <Text type='tertiary' size='small'>
+                  {t(
+                    '当亲和命中的渠道返回上游额度不足、欠费或账单未激活等错误时，允许切换到其他可用渠道。',
                   )}
                 </Text>
               </Col>

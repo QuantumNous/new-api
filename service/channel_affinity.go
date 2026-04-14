@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -62,6 +63,14 @@ type ChannelAffinityStatsContext struct {
 	KeyFingerprint string
 	TTLSeconds     int64
 }
+
+type channelAffinityFailureReason string
+
+const (
+	channelAffinityFailureReasonUnknown              channelAffinityFailureReason = "unknown"
+	channelAffinityFailureReasonDisabledChannel      channelAffinityFailureReason = "disabled_channel"
+	channelAffinityFailureReasonChannelQuotaExceeded channelAffinityFailureReason = "channel_quota_exceeded"
+)
 
 const (
 	cacheTokenRateModeCachedOverPrompt           = "cached_over_prompt"
@@ -611,6 +620,10 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 			return 0, false
 		}
 		if found {
+			if setting.InvalidateStaleCacheEnabled && !isChannelAffinityTargetUsable(c, channelID, modelName, usingGroup) {
+				invalidateChannelAffinityCacheEntry(cacheKeyFull)
+				return 0, false
+			}
 			return channelID, true
 		}
 		return 0, false
@@ -618,7 +631,48 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 	return 0, false
 }
 
+func invalidateChannelAffinityCacheEntry(cacheKey string) {
+	cacheKey = strings.TrimSpace(cacheKey)
+	if cacheKey == "" {
+		return
+	}
+	cache := getChannelAffinityCache()
+	if _, err := cache.DeleteMany([]string{cacheKey}); err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache delete failed: key=%s, err=%v", cacheKey, err))
+	}
+}
+
+func isChannelAffinityTargetUsable(c *gin.Context, channelID int, modelName string, usingGroup string) bool {
+	if channelID <= 0 {
+		return false
+	}
+	channel, err := model.CacheGetChannel(channelID)
+	if err != nil || channel == nil {
+		return false
+	}
+	if channel.Status != common.ChannelStatusEnabled {
+		return false
+	}
+	if usingGroup == "auto" {
+		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		return model.IsChannelEnabledForAnyGroupModel(GetUserAutoGroup(userGroup), modelName, channelID)
+	}
+	return model.IsChannelEnabledForGroupModel(usingGroup, modelName, channelID)
+}
+
 func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
+	return shouldSkipRetryAfterChannelAffinityFailureWithReason(c, channelAffinityFailureReasonUnknown)
+}
+
+func ShouldSkipRetryAfterChannelAffinityDisabledChannel(c *gin.Context) bool {
+	return shouldSkipRetryAfterChannelAffinityFailureWithReason(c, channelAffinityFailureReasonDisabledChannel)
+}
+
+func ShouldSkipRetryAfterChannelAffinityError(c *gin.Context, err *types.NewAPIError) bool {
+	return shouldSkipRetryAfterChannelAffinityFailureWithReason(c, classifyChannelAffinityFailureReason(err))
+}
+
+func shouldSkipRetryAfterChannelAffinityFailureWithReason(c *gin.Context, reason channelAffinityFailureReason) bool {
 	if c == nil {
 		return false
 	}
@@ -633,7 +687,55 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 	if !ok {
 		return false
 	}
-	return meta.SkipRetry
+	if !meta.SkipRetry {
+		return false
+	}
+	setting := operation_setting.GetChannelAffinitySetting()
+	if setting == nil {
+		return true
+	}
+	switch reason {
+	case channelAffinityFailureReasonDisabledChannel:
+		if setting.RetryOnDisabledChannel {
+			return false
+		}
+	case channelAffinityFailureReasonChannelQuotaExceeded:
+		if setting.RetryOnChannelQuotaExceeded {
+			return false
+		}
+	}
+	return true
+}
+
+func classifyChannelAffinityFailureReason(err *types.NewAPIError) channelAffinityFailureReason {
+	if isChannelAffinityChannelQuotaExceededError(err) {
+		return channelAffinityFailureReasonChannelQuotaExceeded
+	}
+	return channelAffinityFailureReasonUnknown
+}
+
+func isChannelAffinityChannelQuotaExceededError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	oaiErr := err.ToOpenAIError()
+	code := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", oaiErr.Code)))
+	errType := strings.ToLower(strings.TrimSpace(oaiErr.Type))
+	msg := strings.ToLower(strings.TrimSpace(oaiErr.Message))
+
+	switch code {
+	case "billing_not_active", "arrearage", "account_deactivated":
+		return true
+	}
+	switch errType {
+	case "insufficient_quota":
+		return true
+	}
+	return strings.Contains(msg, "insufficient quota") ||
+		strings.Contains(msg, "quota exceeded") ||
+		strings.Contains(msg, "usage limit") ||
+		strings.Contains(msg, "额度不足") ||
+		strings.Contains(msg, "余额不足")
 }
 
 func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int) {
