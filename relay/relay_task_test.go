@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -118,4 +119,32 @@ func TestCalcTaskQuotaWithRatiosFallsBackToLinearSeconds(t *testing.T) {
 	assert.Equal(t, 12.0, ratios["seconds"])
 	_, hasSize := ratios["size"]
 	assert.False(t, hasSize)
+}
+
+func TestTaskModel2DtoDoesNotExposeFailureReasonAsResultURL(t *testing.T) {
+	task := &model.Task{
+		TaskID:     "task_failed",
+		Status:     model.TaskStatusFailure,
+		FailReason: "video poll failed",
+		PrivateData: model.TaskPrivateData{
+			ResultURL: "https://example.com/stale-video.mp4",
+		},
+	}
+
+	dtoTask := TaskModel2Dto(task)
+
+	assert.Empty(t, dtoTask.ResultURL)
+	assert.Equal(t, task.FailReason, dtoTask.FailReason)
+}
+
+func TestTaskModel2DtoKeepsLegacySuccessResultURLFallback(t *testing.T) {
+	task := &model.Task{
+		TaskID:     "task_success",
+		Status:     model.TaskStatusSuccess,
+		FailReason: "https://example.com/video.mp4",
+	}
+
+	dtoTask := TaskModel2Dto(task)
+
+	assert.Equal(t, task.FailReason, dtoTask.ResultURL)
 }

@@ -1483,13 +1483,34 @@ const openVideoPreviewInNewWindow = (
   previewWindow.document.close();
 };
 
+const normalizeVideoMediaUrl = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const trimmedValue = value.trim();
+  if (
+    /^(https?:\/\/|blob:|data:video\/|\/(?!\/))/i.test(trimmedValue)
+  ) {
+    return trimmedValue;
+  }
+
+  return '';
+};
+
 const getVideoTaskMediaUrl = (task) => {
-  if (typeof task?.url === 'string' && task.url.trim()) {
-    return task.url.trim();
+  const directUrl = normalizeVideoMediaUrl(task?.url);
+  if (directUrl) {
+    return directUrl;
   }
-  if (typeof task?.resultUrl === 'string' && task.resultUrl.trim()) {
-    return task.resultUrl.trim();
+
+  const resultUrl =
+    normalizeVideoMediaUrl(task?.resultUrl) ||
+    normalizeVideoMediaUrl(task?.result_url);
+  if (resultUrl) {
+    return resultUrl;
   }
+
   return '';
 };
 
@@ -1580,12 +1601,16 @@ const normalizeCreativeTimestampToSeconds = (value) => {
 };
 
 const getTaskDtoResultUrl = (task) => {
-  if (typeof task?.result_url === 'string' && task.result_url.trim()) {
-    return task.result_url.trim();
+  const resultUrl = normalizeVideoMediaUrl(task?.result_url);
+  if (resultUrl) {
+    return resultUrl;
   }
-  if (typeof task?.resultUrl === 'string' && task.resultUrl.trim()) {
-    return task.resultUrl.trim();
+
+  const camelResultUrl = normalizeVideoMediaUrl(task?.resultUrl);
+  if (camelResultUrl) {
+    return camelResultUrl;
   }
+
   return '';
 };
 
@@ -1648,8 +1673,8 @@ const parseTaskDtoVideoState = (task) => {
   const url = getTaskDtoResultUrl(task);
   const normalizedStatus = normalizeVideoTaskStatus(task?.status || '');
   const completedWithoutVideo = !url && normalizedStatus === 'completed';
-  const isCompleted = Boolean(url);
   const isFailed = normalizedStatus === 'failed' || completedWithoutVideo;
+  const isCompleted = Boolean(url) && !isFailed;
   const progress =
     parseProgressValue(task?.progress) ?? (isCompleted || isFailed ? 100 : 0);
   const submitTime = normalizeCreativeTimestampToSeconds(
@@ -1705,13 +1730,14 @@ const buildResolvedVideoTaskPatch = (queryTaskId, nextTaskState) => (currentTask
   const currentMediaUrl = getVideoTaskMediaUrl(currentTask);
   const finalUrl = resolvedUrl || currentMediaUrl;
   const completedWithoutVideo = normalizedStatus === 'completed' && !finalUrl;
-  const isCompleted = Boolean(finalUrl);
   const isFailed = normalizedStatus === 'failed' || completedWithoutVideo;
+  const isCompleted = Boolean(finalUrl) && !isFailed;
   const nextStatus = isCompleted
     ? 'completed'
     : isFailed
       ? 'failed'
       : normalizedStatus;
+  const nextUrl = isFailed ? '' : finalUrl;
 
   return {
     taskId: queryTaskId || currentTask?.taskId || '',
@@ -1720,8 +1746,8 @@ const buildResolvedVideoTaskPatch = (queryTaskId, nextTaskState) => (currentTask
       isCompleted || isFailed
         ? 100
         : nextTaskState?.progress ?? currentTask?.progress ?? 0,
-    url: finalUrl,
-    resultUrl: finalUrl,
+    url: nextUrl,
+    resultUrl: nextUrl,
     content:
       typeof nextTaskState?.content === 'string'
         ? nextTaskState.content
