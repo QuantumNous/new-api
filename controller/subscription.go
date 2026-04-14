@@ -55,10 +55,17 @@ func GetSubscriptionSelf(c *gin.Context) {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
 
+	var primarySubscription any
+	if primary := model.SelectPrimarySubscriptionSummary(activeSubscriptions); primary != nil {
+		primarySubscription = primary
+	}
+
 	common.ApiSuccess(c, gin.H{
-		"billing_preference": pref,
-		"subscriptions":      activeSubscriptions, // all active subscriptions
-		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"billing_preference":        pref,
+		"subscriptions":             activeSubscriptions, // all active subscriptions
+		"all_subscriptions":         allSubscriptions,    // all subscriptions including expired
+		"primary_subscription":      primarySubscription,
+		"active_subscription_count": len(activeSubscriptions),
 	})
 }
 

@@ -175,11 +175,12 @@ func Register(c *gin.Context) {
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.Username,
-		InviterId:   inviterId,
-		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		Username:      user.Username,
+		Password:      user.Password,
+		DisplayName:   user.Username,
+		InviterId:     inviterId,
+		Role:          common.RoleCommonUser, // 明确设置角色为普通用户
+		AllowRecharge: true,
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
@@ -412,6 +413,7 @@ func GetSelf(c *gin.Context) {
 		"linux_do_id":       user.LinuxDOId,
 		"setting":           user.Setting,
 		"stripe_customer":   user.StripeCustomer,
+		"allow_recharge":    user.AllowRecharge,
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":       permissions,                // 新增权限字段
 	}
@@ -542,8 +544,19 @@ func GetUserModels(c *gin.Context) {
 }
 
 func UpdateUser(c *gin.Context) {
+	var requestData map[string]any
+	err := json.NewDecoder(c.Request.Body).Decode(&requestData)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	requestDataBytes, err := json.Marshal(requestData)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	var updatedUser model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
+	err = json.Unmarshal(requestDataBytes, &updatedUser)
 	if err != nil || updatedUser.Id == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -568,6 +581,9 @@ func UpdateUser(c *gin.Context) {
 	if myRole <= updatedUser.Role && myRole != common.RoleRootUser {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
+	}
+	if _, ok := requestData["allow_recharge"]; !ok {
+		updatedUser.AllowRecharge = originUser.AllowRecharge
 	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
@@ -802,8 +818,21 @@ func DeleteSelf(c *gin.Context) {
 }
 
 func CreateUser(c *gin.Context) {
+	var requestData map[string]any
+	err := json.NewDecoder(c.Request.Body).Decode(&requestData)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	requestDataBytes, err := json.Marshal(requestData)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
 	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	err = json.Unmarshal(requestDataBytes, &user)
 	user.Username = strings.TrimSpace(user.Username)
 	if err != nil || user.Username == "" || user.Password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
@@ -822,15 +851,28 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 	// Even for admin users, we cannot fully trust them!
+	allowRecharge := true
+	if rawAllowRecharge, ok := requestData["allow_recharge"]; ok {
+		if allowRechargeValue, ok := rawAllowRecharge.(bool); ok {
+			allowRecharge = allowRechargeValue
+		}
+	}
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.DisplayName,
-		Role:        user.Role, // 保持管理员设置的角色
+		Username:      user.Username,
+		Password:      user.Password,
+		DisplayName:   user.DisplayName,
+		Role:          user.Role, // 保持管理员设置的角色
+		AllowRecharge: allowRecharge,
 	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if !allowRecharge {
+		if err := model.DB.Model(&model.User{}).Where("id = ?", cleanUser.Id).Update("allow_recharge", false).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

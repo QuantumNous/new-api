@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon } from '../../helpers/render';
@@ -26,6 +26,8 @@ import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { isAdmin, isRoot, showError } from '../../helpers';
+import { UserContext } from '../../context/User';
+import { canAccessWalletManagement } from '../../helpers/rechargeAccess';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
 import { Nav, Divider, Button } from '@douyinfe/semi-ui';
@@ -53,6 +55,7 @@ const routerMap = {
 
 const SiderBar = ({ onNavigate = () => {} }) => {
   const { t } = useTranslation();
+  const [userState] = useContext(UserContext);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const {
     isModuleVisible,
@@ -138,12 +141,18 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
+      if (
+        item.itemKey === 'topup' &&
+        !canAccessWalletManagement(userState?.user)
+      ) {
+        return false;
+      }
       const configVisible = isModuleVisible('personal', item.itemKey);
       return configVisible;
     });
 
     return filteredItems;
-  }, [t, isModuleVisible]);
+  }, [t, isModuleVisible, userState?.user]);
 
   const adminItems = useMemo(() => {
     const items = [

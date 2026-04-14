@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -266,8 +267,16 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+type SubscriptionPlanSummary struct {
+	Id                      int    `json:"id"`
+	Title                   string `json:"title"`
+	QuotaResetPeriod        string `json:"quota_reset_period"`
+	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds"`
+}
+
 type SubscriptionSummary struct {
-	Subscription *UserSubscription `json:"subscription"`
+	Subscription *UserSubscription        `json:"subscription"`
+	Plan         *SubscriptionPlanSummary `json:"plan,omitempty"`
 }
 
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
@@ -701,14 +710,78 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 	if len(subs) == 0 {
 		return []SubscriptionSummary{}
 	}
+	planIDs := make([]int, 0, len(subs))
+	seenPlanIDs := make(map[int]struct{}, len(subs))
+	for _, sub := range subs {
+		if sub.PlanId <= 0 {
+			continue
+		}
+		if _, ok := seenPlanIDs[sub.PlanId]; ok {
+			continue
+		}
+		seenPlanIDs[sub.PlanId] = struct{}{}
+		planIDs = append(planIDs, sub.PlanId)
+	}
+	planSummaryMap := make(map[int]*SubscriptionPlanSummary, len(planIDs))
+	if len(planIDs) > 0 {
+		var plans []SubscriptionPlan
+		if err := DB.Where("id IN ?", planIDs).Find(&plans).Error; err == nil {
+			for i := range plans {
+				plan := plans[i]
+				planSummaryMap[plan.Id] = &SubscriptionPlanSummary{
+					Id:                      plan.Id,
+					Title:                   plan.Title,
+					QuotaResetPeriod:        plan.QuotaResetPeriod,
+					QuotaResetCustomSeconds: plan.QuotaResetCustomSeconds,
+				}
+			}
+		}
+	}
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
-		result = append(result, SubscriptionSummary{
+		summary := SubscriptionSummary{
 			Subscription: &subCopy,
-		})
+		}
+		if planSummary, ok := planSummaryMap[subCopy.PlanId]; ok {
+			planCopy := *planSummary
+			summary.Plan = &planCopy
+		}
+		result = append(result, summary)
 	}
 	return result
+}
+
+func isSubscriptionStillConsumable(sub *UserSubscription) bool {
+	if sub == nil {
+		return false
+	}
+	return sub.AmountTotal == 0 || sub.AmountUsed < sub.AmountTotal
+}
+
+func SelectPrimarySubscriptionSummary(subs []SubscriptionSummary) *SubscriptionSummary {
+	if len(subs) == 0 {
+		return nil
+	}
+	ordered := make([]SubscriptionSummary, len(subs))
+	copy(ordered, subs)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		left := ordered[i].Subscription
+		right := ordered[j].Subscription
+		if left == nil || right == nil {
+			return left != nil
+		}
+		if left.EndTime != right.EndTime {
+			return left.EndTime < right.EndTime
+		}
+		return left.Id < right.Id
+	})
+	for i := range ordered {
+		if isSubscriptionStillConsumable(ordered[i].Subscription) {
+			return &ordered[i]
+		}
+	}
+	return &ordered[0]
 }
 
 // AdminInvalidateUserSubscription marks a user subscription as cancelled and ends it immediately.

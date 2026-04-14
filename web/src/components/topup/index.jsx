@@ -29,6 +29,7 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
+import { canAccessWalletManagement } from '../../helpers/rechargeAccess';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
@@ -45,6 +46,7 @@ const TopUp = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
+  const walletAccessAllowed = canAccessWalletManagement(userState?.user);
 
   const [redemptionCode, setRedemptionCode] = useState('');
   const [amount, setAmount] = useState(0.0);
@@ -591,12 +593,29 @@ const TopUp = () => {
     getAffLink().then();
   }, []);
 
-  // 在 statusState 可用时获取充值信息
   useEffect(() => {
-    getTopupInfo().then();
+    if (!userState?.user) return;
+
+    if (walletAccessAllowed) {
+      getTopupInfo().then();
+    } else {
+      setTopupInfo({
+        amount_options: [],
+        discount: {},
+      });
+      setPayMethods([]);
+      setPresetAmounts([]);
+      setEnableOnlineTopUp(false);
+      setEnableStripeTopUp(false);
+      setEnableCreemTopUp(false);
+      setEnableWaffoTopUp(false);
+      setWaffoPayMethods([]);
+      setCreemProducts([]);
+    }
+
     getSubscriptionPlans().then();
     getSubscriptionSelf().then();
-  }, []);
+  }, [userState?.user?.id, userState?.user?.allow_recharge, walletAccessAllowed]);
 
   useEffect(() => {
     if (statusState?.status) {
@@ -783,6 +802,7 @@ const TopUp = () => {
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         <RechargeCard
           t={t}
+          walletAccessAllowed={walletAccessAllowed}
           enableOnlineTopUp={enableOnlineTopUp}
           enableStripeTopUp={enableStripeTopUp}
           enableCreemTopUp={enableCreemTopUp}

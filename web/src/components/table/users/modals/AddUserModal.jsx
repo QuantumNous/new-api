@@ -49,6 +49,7 @@ const AddUserModal = (props) => {
     display_name: '',
     password: '',
     remark: '',
+    allow_recharge: true,
   });
 
   const submit = async (values) => {
@@ -171,6 +172,17 @@ const AddUserModal = (props) => {
                       label={t('备注')}
                       placeholder={t('请输入备注（仅管理员可见）')}
                       showClear
+                    />
+                  </Col>
+                  <Col span={24}>
+                    <Form.Switch
+                      field='allow_recharge'
+                      label={t('允许充值')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      extraText={t(
+                        '关闭后，该用户无法使用普通在线充值入口，但仍可使用兑换码充值。',
+                      )}
                     />
                   </Col>
                 </Row>

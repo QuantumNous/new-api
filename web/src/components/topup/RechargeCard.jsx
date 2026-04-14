@@ -54,6 +54,7 @@ const { Text } = Typography;
 
 const RechargeCard = ({
   t,
+  walletAccessAllowed = true,
   enableOnlineTopUp,
   enableStripeTopUp,
   enableCreemTopUp,
@@ -223,7 +224,16 @@ const RechargeCard = ({
         }
       >
         {/* 在线充值表单 */}
-        {statusLoading ? (
+        {!walletAccessAllowed ? (
+          <Banner
+            type='warning'
+            description={t(
+              '当前账户不支持在线充值，如需帮助请联系管理员；兑换码充值仍可正常使用。',
+            )}
+            className='!rounded-xl'
+            closeIcon={null}
+          />
+        ) : statusLoading ? (
           <div className='py-8 flex justify-center'>
             <Spin size='large' />
           </div>

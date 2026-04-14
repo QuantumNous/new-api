@@ -94,6 +94,7 @@ const EditUserModal = (props) => {
     quota_amount: 0,
     group: 'default',
     remark: '',
+    allow_recharge: true,
   });
 
   const fetchGroups = async () => {
@@ -335,85 +336,104 @@ const EditUserModal = (props) => {
                 </Card>
 
                 {/* 权限设置 */}
-                {userId && (
-                  <Card className='!rounded-2xl shadow-sm border-0'>
-                    <div className='flex items-center mb-2'>
-                      <Avatar
-                        size='small'
-                        color='green'
-                        className='mr-2 shadow-md'
-                      >
-                        <IconUserGroup size={16} />
-                      </Avatar>
-                      <div>
-                        <Text className='text-lg font-medium'>
-                          {t('权限设置')}
-                        </Text>
-                        <div className='text-xs text-gray-600'>
-                          {t('用户分组和额度管理')}
-                        </div>
+                <Card className='!rounded-2xl shadow-sm border-0'>
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='green'
+                      className='mr-2 shadow-md'
+                    >
+                      <IconUserGroup size={16} />
+                    </Avatar>
+                    <div>
+                      <Text className='text-lg font-medium'>
+                        {t('权限设置')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {userId
+                          ? t('用户分组、额度和充值权限管理')
+                          : t('配置用户的基础权限与充值能力')}
                       </div>
                     </div>
+                  </div>
 
-                    <Row gutter={12}>
-                      <Col span={24}>
-                        <Form.Select
-                          field='group'
-                          label={t('分组')}
-                          placeholder={t('请选择分组')}
-                          optionList={groupOptions}
-                          allowAdditions
-                          search
-                          rules={[{ required: true, message: t('请选择分组') }]}
-                        />
-                      </Col>
+                  <Row gutter={12}>
+                    <Col span={24}>
+                      <Form.Switch
+                        field='allow_recharge'
+                        label={t('允许充值')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        extraText={t(
+                          '关闭后，该用户无法使用普通在线充值入口，但仍可使用兑换码充值。',
+                        )}
+                      />
+                    </Col>
 
-                      <Col span={10}>
-                        <Form.InputNumber
-                          field='quota_amount'
-                          label={t('金额')}
-                          prefix={getCurrencyConfig().symbol}
-                          precision={6}
-                          step={0.000001}
-                          style={{ width: '100%' }}
-                          readonly
-                        />
-                      </Col>
+                    {userId && (
+                      <>
+                        <Col span={24}>
+                          <Form.Select
+                            field='group'
+                            label={t('分组')}
+                            placeholder={t('请选择分组')}
+                            optionList={groupOptions}
+                            allowAdditions
+                            search
+                            rules={[{ required: true, message: t('请选择分组') }]}
+                          />
+                        </Col>
 
-                      <Col span={14}>
-                        <Form.Slot label={t('调整额度')}>
-                          <Button
-                            icon={<IconEdit />}
-                            onClick={() => setAdjustModalOpen(true)}
-                          >
-                            {t('调整额度')}
-                          </Button>
-                        </Form.Slot>
-                      </Col>
-
-                      <Col span={24}>
-                        <div
-                          className='text-xs cursor-pointer'
-                          style={{ color: 'var(--semi-color-text-2)' }}
-                          onClick={() => setShowQuotaInput((v) => !v)}
-                        >
-                          {showQuotaInput
-                            ? `▾ ${t('收起原生额度输入')}`
-                            : `▸ ${t('使用原生额度输入')}`}
-                        </div>
-                        <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                        <Col span={10}>
                           <Form.InputNumber
-                            field='quota'
-                            label={t('额度')}
-                            placeholder={t('请输入额度')}
+                            field='quota_amount'
+                            label={t('金额')}
+                            prefix={getCurrencyConfig().symbol}
+                            precision={6}
+                            step={0.000001}
                             style={{ width: '100%' }}
                             readonly
                           />
-                        </div>
-                      </Col>
-                    </Row>
-                  </Card>
-                )}
+                        </Col>
+
+                        <Col span={14}>
+                          <Form.Slot label={t('调整额度')}>
+                            <Button
+                              icon={<IconEdit />}
+                              onClick={() => setAdjustModalOpen(true)}
+                            >
+                              {t('调整额度')}
+                            </Button>
+                          </Form.Slot>
+                        </Col>
+
+                        <Col span={24}>
+                          <div
+                            className='text-xs cursor-pointer'
+                            style={{ color: 'var(--semi-color-text-2)' }}
+                            onClick={() => setShowQuotaInput((v) => !v)}
+                          >
+                            {showQuotaInput
+                              ? `▾ ${t('收起原生额度输入')}`
+                              : `▸ ${t('使用原生额度输入')}`}
+                          </div>
+                          <div
+                            style={{ display: showQuotaInput ? 'block' : 'none' }}
+                            className='mt-2'
+                          >
+                            <Form.InputNumber
+                              field='quota'
+                              label={t('额度')}
+                              placeholder={t('请输入额度')}
+                              style={{ width: '100%' }}
+                              readonly
+                            />
+                          </div>
+                        </Col>
+                      </>
+                    )}
+                  </Row>
+                </Card>
 
                 {/* 绑定信息入口 */}
                 {userId && (

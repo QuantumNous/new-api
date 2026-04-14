@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
 import { RefreshCw, Search } from 'lucide-react';
+import DashboardSubscriptionSummary from './DashboardSubscriptionSummary';
 
 const DashboardHeader = ({
   getGreeting,
@@ -27,6 +28,7 @@ const DashboardHeader = ({
   showSearchModal,
   refresh,
   loading,
+  dashboardSubscriptionSummary,
   t,
 }) => {
   const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
@@ -39,20 +41,26 @@ const DashboardHeader = ({
       >
         {getGreeting}
       </h2>
-      <div className='flex gap-3'>
-        <Button
-          type='tertiary'
-          icon={<Search size={16} />}
-          onClick={showSearchModal}
-          className={`bg-green-500 hover:bg-green-600 ${ICON_BUTTON_CLASS}`}
+      <div className='flex min-w-0 flex-nowrap items-start gap-3'>
+        <DashboardSubscriptionSummary
+          dashboardSubscriptionSummary={dashboardSubscriptionSummary}
+          t={t}
         />
-        <Button
-          type='tertiary'
-          icon={<RefreshCw size={16} />}
-          onClick={refresh}
-          loading={loading}
-          className={`bg-blue-500 hover:bg-blue-600 ${ICON_BUTTON_CLASS}`}
-        />
+        <div className='flex shrink-0 items-center gap-3 pt-0.5'>
+          <Button
+            type='tertiary'
+            icon={<Search size={16} />}
+            onClick={showSearchModal}
+            className={`bg-green-500 hover:bg-green-600 ${ICON_BUTTON_CLASS}`}
+          />
+          <Button
+            type='tertiary'
+            icon={<RefreshCw size={16} />}
+            onClick={refresh}
+            loading={loading}
+            className={`bg-blue-500 hover:bg-blue-600 ${ICON_BUTTON_CLASS}`}
+          />
+        </div>
       </div>
     </div>
   );

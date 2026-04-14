@@ -61,6 +61,7 @@ require (
 )
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/DmitriyVTitov/size v1.5.0 // indirect
 	github.com/anknown/darts v0.0.0-20151216065714-83ff685239e6 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect

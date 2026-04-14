@@ -23,6 +23,9 @@ import (
 )
 
 func GetTopUpInfo(c *gin.Context) {
+	if !ensureRechargeAllowed(c) {
+		return
+	}
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
 
@@ -164,6 +167,9 @@ func getMinTopup() int64 {
 }
 
 func RequestEpay(c *gin.Context) {
+	if !ensureRechargeAllowed(c) {
+		return
+	}
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
@@ -366,6 +372,9 @@ func EpayNotify(c *gin.Context) {
 }
 
 func RequestAmount(c *gin.Context) {
+	if !ensureRechargeAllowed(c) {
+		return
+	}
 	var req AmountRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
@@ -463,4 +472,3 @@ func AdminCompleteTopUp(c *gin.Context) {
 	}
 	common.ApiSuccess(c, nil)
 }
-

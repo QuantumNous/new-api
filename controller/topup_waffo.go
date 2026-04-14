@@ -101,6 +101,9 @@ type WaffoPayRequest struct {
 
 // RequestWaffoPay 创建 Waffo 支付订单
 func RequestWaffoPay(c *gin.Context) {
+	if !ensureRechargeAllowed(c) {
+		return
+	}
 	if !setting.WaffoEnabled {
 		c.JSON(200, gin.H{"message": "error", "data": "Waffo 支付未启用"})
 		return

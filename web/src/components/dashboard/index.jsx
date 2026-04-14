@@ -96,11 +96,13 @@ const Dashboard = () => {
   };
 
   const initChart = async () => {
-    await dashboardData.loadQuotaData().then((data) => {
-      if (data && data.length > 0) {
-        dashboardCharts.updateChartData(data);
-      }
-    });
+    const [data] = await Promise.all([
+      dashboardData.loadQuotaData(),
+      dashboardData.loadDashboardSubscriptionSummary(),
+    ]);
+    if (data && data.length > 0) {
+      dashboardCharts.updateChartData(data);
+    }
     await loadUserData();
     await dashboardData.loadUptimeData();
   };
@@ -158,6 +160,7 @@ const Dashboard = () => {
         showSearchModal={dashboardData.showSearchModal}
         refresh={handleRefresh}
         loading={dashboardData.loading}
+        dashboardSubscriptionSummary={dashboardData.dashboardSubscriptionSummary}
         t={dashboardData.t}
       />
 

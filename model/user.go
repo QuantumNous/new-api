@@ -50,6 +50,7 @@ type User struct {
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	AllowRecharge    bool           `json:"allow_recharge" gorm:"default:true"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -293,12 +294,13 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	if id == 0 {
 		return nil, errors.New("id 为空！")
 	}
-	user := User{Id: id}
-	var err error = nil
-	if selectAll {
-		err = DB.First(&user, "id = ?", id).Error
-	} else {
-		err = DB.Omit("password").First(&user, "id = ?", id).Error
+	user := User{}
+	err := DB.First(&user, "id = ?", id).Error
+	if err != nil {
+		return &user, err
+	}
+	if !selectAll {
+		user.Password = ""
 	}
 	return &user, err
 }
@@ -520,10 +522,11 @@ func (user *User) Edit(updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":     newUser.Username,
-		"display_name": newUser.DisplayName,
-		"group":        newUser.Group,
-		"remark":       newUser.Remark,
+		"username":       newUser.Username,
+		"display_name":   newUser.DisplayName,
+		"group":          newUser.Group,
+		"remark":         newUser.Remark,
+		"allow_recharge": newUser.AllowRecharge,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password

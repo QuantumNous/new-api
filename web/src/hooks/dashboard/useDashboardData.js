@@ -22,6 +22,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API, isAdmin, showError, timestamp2string } from '../../helpers';
 import { getDefaultTime, getInitialTimestamp } from '../../helpers/dashboard';
+import { getQuotaPerUnit } from '../../helpers/quota';
+import { buildDashboardSubscriptionDisplayFromPayload } from '../../helpers/dashboardSubscriptionSummary';
 import { TIME_OPTIONS } from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
@@ -60,6 +62,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [pieData, setPieData] = useState([{ type: 'null', value: '0' }]);
   const [lineData, setLineData] = useState([]);
   const [modelColors, setModelColors] = useState({});
+  const [dashboardSubscriptionSummary, setDashboardSubscriptionSummary] =
+    useState(null);
 
   // ========== 图表状态 ==========
   const [activeChartTab, setActiveChartTab] = useState('1');
@@ -234,6 +238,30 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [inputs, isAdminUser]);
 
+  const loadDashboardSubscriptionSummary = useCallback(async () => {
+    try {
+      const res = await API.get('/api/subscription/self');
+      const { success, message, data } = res.data;
+      if (success) {
+        const display = buildDashboardSubscriptionDisplayFromPayload(data || {}, {
+          quotaPerUnit: getQuotaPerUnit(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        setDashboardSubscriptionSummary(
+          display.summary?.summaryText ? display : null,
+        );
+        return display;
+      }
+      showError(message);
+      setDashboardSubscriptionSummary(null);
+      return null;
+    } catch (err) {
+      console.error(err);
+      setDashboardSubscriptionSummary(null);
+      return null;
+    }
+  }, []);
+
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
     const { success, message, data } = res.data;
@@ -245,10 +273,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [userDispatch]);
 
   const refresh = useCallback(async () => {
-    const data = await loadQuotaData();
+    const [data] = await Promise.all([
+      loadQuotaData(),
+      loadDashboardSubscriptionSummary(),
+    ]);
     await loadUptimeData();
     return data;
-  }, [loadQuotaData, loadUptimeData]);
+  }, [loadQuotaData, loadDashboardSubscriptionSummary, loadUptimeData]);
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
@@ -300,6 +331,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setLineData,
     modelColors,
     setModelColors,
+    dashboardSubscriptionSummary,
+    loadDashboardSubscriptionSummary,
 
     // 图表状态
     activeChartTab,
