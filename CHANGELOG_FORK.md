@@ -6,7 +6,17 @@
 
 ---
 
-## 新增功能：手机验证码登录
+## 改动一览
+
+| # | 功能 | 添加日期 | 状态 |
+|---|------|----------|------|
+| 1 | 手机验证码登录 | 2026-03-31 | 已完成 |
+| 2 | 跨域 CORS 修复 | 2026-04-01 | 已完成 |
+| 3 | 弹窗登录模式（OAuth-style）| 2026-04-01 | 已完成 |
+
+---
+
+## 1. 新增功能：手机验证码登录
 
 ### 功能概述
 
@@ -177,14 +187,112 @@ Content-Type: application/json
 1. **`model/user.go`** - 用户模型新增 `Phone` 字段，合并时保留
 2. **`router/api-router.go`** - 新增短信登录路由，合并时保留
 3. **数据库迁移** - 确保上游迁移不会删除 `phone` 字段
+4. **`middleware/cors.go`** - CORS 中间件已重写，不再使用 `AllowAllOrigins`
+5. **`web/src/components/auth/LoginForm.jsx`** - 含弹窗登录逻辑，合并时仔细 review
+6. **`web/src/helpers/auth.jsx`** - `AuthRedirect` 已支持 popup 模式
+
+---
+
+## 2. CORS 跨域修复
+
+### 背景
+
+为支持 AionUi 商业化集成（独立域名跨域调用），原有 CORS 配置 `AllowAllOrigins=true + AllowCredentials=true` 不符合 CORS 规范，浏览器会拒绝。
+
+### 改动
+
+**文件**: `middleware/cors.go`
+
+- 移除 `AllowAllOrigins: true`
+- 改用 `AllowOriginFunc` 函数动态判断：
+  - 允许 `localhost` 和 `127.0.0.1`（开发环境）
+  - 允许所有 `https://` 来源（生产环境）
+- 保持 `AllowCredentials: true` 以支持 cookie 跨域
+
+### 与上游合并注意事项
+
+如果上游修改了 CORS 配置，需手动 merge 我们的 `AllowOriginFunc` 实现。
+
+---
+
+## 3. 弹窗登录模式（Popup OAuth-style）
+
+### 背景
+
+为支持 AionUi 等第三方应用通过弹窗方式集成 new-api 登录，新增 popup 模式：第三方应用打开 new-api 登录页弹窗 → 用户登录 → new-api 通过 `postMessage` 回传 token → 关闭弹窗。
+
+### 流程
+
+```
+1. AionUi 打开弹窗：
+   https://new-api.example.com/login?mode=popup&callback_origin=https://aionui.example.com
+
+2. 用户在弹窗中登录（支持密码/SMS/OAuth/2FA/Passkey/微信/Telegram 全部方式）
+
+3. 登录成功后，前端：
+   a. 调用 GET /api/user/token 获取 Access Token
+   b. 调用 GET /api/token/ 获取 API Token 列表
+      - 若无 Token，自动调用 POST /api/token/ 创建一个
+   c. 调用 POST /api/token/{id}/key 获取 API Token key
+   d. 通过 window.opener.postMessage 回传：
+      { type: 'aionui-auth', accessToken, apiToken: 'sk-xxx', user: {...} }
+   e. window.close() 关闭弹窗
+```
+
+### 修改的文件
+
+| 文件 | 改动说明 |
+|------|----------|
+| `web/src/components/auth/LoginForm.jsx` | 检测 `mode=popup` 参数，所有登录方式（密码/2FA/Passkey/WeChat/Telegram）成功后调用 `handlePopupCallback` |
+| `web/src/components/auth/SmsLoginForm.jsx` | 接收 `isPopupMode` 和 `onPopupCallback` props，SMS 登录成功后回调 |
+| `web/src/helpers/auth.jsx` | `AuthRedirect` 在 popup 模式下不重定向到 /console |
+
+### URL 参数
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `mode` | 设为 `popup` 启用弹窗模式 | `popup` |
+| `callback_origin` | 弹窗 postMessage 的目标 origin | `https://aionui.example.com` |
+
+### postMessage 消息格式
+
+```javascript
+{
+  type: 'aionui-auth',
+  accessToken: '<access_token>',  // 用于调用 new-api 管理 API
+  apiToken: 'sk-xxxxxxxxxxxx',    // 用于走 /v1/ 代理的 Bearer Token
+  user: {
+    id: 1,
+    username: 'sms_1',
+    display_name: '138****8000',
+    role: 1,
+    status: 1,
+    group: 'default'
+  }
+}
+```
+
+### 安全说明
+
+- 第三方应用接收 message 时**必须**校验 `event.origin` 等于 new-api 的 origin
+- new-api 的 `callback_origin` 参数应限制白名单（当前未限制，建议生产环境加强）
+- 推荐启用 `GENERATE_DEFAULT_TOKEN=true` 环境变量，确保新用户注册后自动有 API Token
+
+### 与上游合并注意事项
+
+`LoginForm.jsx` 改动较多，如果上游修改了登录流程，需仔细 merge：
+- 保留 `isPopupMode` / `callbackOrigin` 状态变量
+- 保留 `handlePopupCallback` 函数
+- 保留所有登录成功路径中的 `if (isPopupMode)` 分支
 
 ---
 
 ## 更新记录
 
-| 日期 | 上游 Commit | 同步状态 |
-|------|-------------|----------|
-| 2026-04-02 | d22f889e | 已同步 |
+| 日期 | 改动 | 上游同步状态 |
+|------|------|--------------|
+| 2026-03-31 | 新增手机验证码登录 | 基于 d22f889e |
+| 2026-04-01 | CORS 修复 + 弹窗登录模式 | 待同步 |
 
 ---
 
