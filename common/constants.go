@@ -85,6 +85,24 @@ var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""
 
+// SMS 短信通知系统级配置
+var SMSProvider = ""              // 短信服务商: aliyun, tencent, custom
+var SMSAliyunAccessKeyId = ""     // 阿里云 AccessKeyId
+var SMSAliyunAccessKeySecret = "" // 阿里云 AccessKeySecret
+var SMSAliyunSignName = ""        // 阿里云短信签名
+var SMSAliyunTemplateCode = ""    // 阿里云短信模板Code
+var SMSSendCloudSmsUser = ""      // SendCloud smsUser
+var SMSSendCloudSmsKey = ""       // SendCloud smsKey
+var SMSSendCloudTemplateId = ""   // SendCloud 短信模板ID
+var SMSTencentSecretId = ""       // 腾讯云 SecretId
+var SMSTencentSecretKey = ""      // 腾讯云 SecretKey
+var SMSTencentSmsSdkAppId = ""    // 腾讯云 SmsSdkAppId
+var SMSTencentSignName = ""       // 腾讯云短信签名
+var SMSTencentTemplateId = ""     // 腾讯云短信模板ID
+var SMSCustomUrl = ""             // 通用HTTP接口地址
+var SMSCustomMethod = "POST"      // 通用HTTP请求方法
+var SMSCustomTemplate = ""        // 通用HTTP请求模板
+
 var GitHubClientId = ""
 var GitHubClientSecret = ""
 var LinuxDOClientId = ""
