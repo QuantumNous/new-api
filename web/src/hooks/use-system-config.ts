@@ -7,6 +7,7 @@ import {
   DEFAULT_CURRENCY_CONFIG,
 } from '@/stores/system-config-store'
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
+import { applyFaviconToDom } from '@/lib/dom-utils'
 
 interface UseSystemConfigOptions {
   /** Automatically fetch config from backend (use only in root component) */
@@ -160,7 +161,10 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
     // Preload new logo
     return preloadImage(
       logo,
-      () => setLoadedLogoUrl(logo),
+      () => {
+        setLoadedLogoUrl(logo)
+        applyFaviconToDom(logo)
+      },
       () => {
         if (logo !== DEFAULT_LOGO) {
           // eslint-disable-next-line no-console
