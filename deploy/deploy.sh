@@ -58,6 +58,9 @@ if ! id new-api &>/dev/null; then
     useradd --system --no-create-home --shell /usr/sbin/nologin new-api
 fi
 
+# 确保目录权限正确（服务以 new-api 用户运行）
+chown -R new-api:new-api "$INSTALL_DIR"/{data,logs}
+
 echo -e "${BLUE}2. 停止现有服务...${NC}"
 
 systemctl stop $SERVICE_NAME 2>/dev/null || true
@@ -77,12 +80,14 @@ chown new-api:new-api "$INSTALL_DIR/new-api"
 
 echo -e "${GREEN}✅ 二进制文件已安装${NC}"
 
-# 检查 .env 是否存在
+# 检查 .env 是否存在，并确保权限正确
 if [ ! -f "$INSTALL_DIR/.env" ]; then
     echo -e "${RED}❌ 未找到 $INSTALL_DIR/.env，请先上传 .env 文件${NC}"
     echo -e "${YELLOW}参考 deploy/.env.example 创建${NC}"
     exit 1
 fi
+chown new-api:new-api "$INSTALL_DIR/.env"
+chmod 600 "$INSTALL_DIR/.env"
 
 echo -e "${BLUE}4. 安装 systemd 服务...${NC}"
 
