@@ -1,0 +1,102 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-web.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web/**'
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
+
+env:
+  VITE_REACT_APP_SERVER: 'https://api.4aicode.com'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装依赖
+        working-directory: ./web
+        run: npm ci
+
+      - name: 类型检查
+        working-directory: ./web
+        run: npm run type-check 2>/dev/null || true
+        continue-on-error: true
+
+      - name: 构建
+        working-directory: ./web
+        run: npm run build
+
+      - name: 保存构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: Slack 通知
+        if: always()
+        uses: forecho/slack-deploy-action@v1
+        with:
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+          language: zh
+          service_name: 前端构建
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装依赖
+        working-directory: ./web
+        run: npm ci
+
+      - name: 构建
+        working-directory: ./web
+        run: npm run build
+
+      - name: 部署到 Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: 4aicode
+          directory: web/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Slack 通知
+        if: always()
+        uses: forecho/slack-deploy-action@v1
+        with:
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+          language: zh
+          service_name: 前端部署
