@@ -156,7 +156,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		groupRatios := ratio_setting.GetGroupRatioCopy()
 		for _, group := range strings.Split(req.Plan.AllowedGroups, ",") {
 			if _, ok := groupRatios[group]; !ok {
-				common.ApiErrorMsg(c, "allowed group does not exist")
+				common.ApiErrorMsg(c, "适用分组不存在")
 				return
 			}
 		}
@@ -229,7 +229,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		groupRatios := ratio_setting.GetGroupRatioCopy()
 		for _, group := range strings.Split(req.Plan.AllowedGroups, ",") {
 			if _, ok := groupRatios[group]; !ok {
-				common.ApiErrorMsg(c, "allowed group does not exist")
+				common.ApiErrorMsg(c, "适用分组不存在")
 				return
 			}
 		}
