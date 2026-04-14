@@ -40,6 +40,8 @@ import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 
+const CODEX_CHANNEL_TYPE = 57;
+
 export const useChannelsData = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -112,6 +114,25 @@ export const useChannelsData = () => {
   };
 
   const getChannelDefaultStreamTest = (record) => {
+    if (record?.type === CODEX_CHANNEL_TYPE) {
+      if (!record?.settings) {
+        return true;
+      }
+      try {
+        const parsedSettings = JSON.parse(record.settings);
+        if (
+          !Object.prototype.hasOwnProperty.call(
+            parsedSettings || {},
+            'test_stream_enabled',
+          )
+        ) {
+          return true;
+        }
+        return parsedSettings?.test_stream_enabled === true;
+      } catch (error) {
+        return true;
+      }
+    }
     if (!record?.settings) {
       return false;
     }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 )
@@ -29,6 +30,24 @@ func TestResolveChannelTestStream(t *testing.T) {
 	overrideTrue := true
 	if !resolveChannelTestStream(channel, &overrideTrue) {
 		t.Fatal("expected explicit true override to enable stream test")
+	}
+
+	codexChannel := &model.Channel{Type: constant.ChannelTypeCodex}
+	if !resolveChannelTestStream(codexChannel, nil) {
+		t.Fatal("expected codex channels without stored setting to default to stream test")
+	}
+
+	codexChannelWithExplicitFalse := &model.Channel{
+		Type:          constant.ChannelTypeCodex,
+		OtherSettings: `{"test_stream_enabled":false}`,
+	}
+	if resolveChannelTestStream(codexChannelWithExplicitFalse, nil) {
+		t.Fatal("expected explicit false stream setting to override codex default")
+	}
+
+	nonCodexChannel := &model.Channel{Type: 1}
+	if resolveChannelTestStream(nonCodexChannel, nil) {
+		t.Fatal("expected non-codex channels without stored setting to default to non-stream test")
 	}
 }
 

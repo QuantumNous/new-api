@@ -107,6 +107,7 @@ const REGION_EXAMPLE = {
 };
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8;
 const ADVANCED_SETTINGS_EXPANDED_KEY = 'channel-advanced-settings-expanded';
+const CODEX_CHANNEL_TYPE = 57;
 
 const PARAM_OVERRIDE_LEGACY_TEMPLATE = {
   temperature: 0,
@@ -136,6 +137,44 @@ const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
 const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
 ]);
+
+const channelTypeDefaultsToStreamTest = (channelType) =>
+  channelType === CODEX_CHANNEL_TYPE;
+
+const hasExplicitChannelTestStreamSetting = (settings) => {
+  if (!settings || typeof settings !== 'string') {
+    return false;
+  }
+  try {
+    const parsedSettings = JSON.parse(settings);
+    return Object.prototype.hasOwnProperty.call(
+      parsedSettings || {},
+      'test_stream_enabled',
+    );
+  } catch (error) {
+    return false;
+  }
+};
+
+const resolveChannelTestStreamSetting = (channelType, settings) => {
+  if (!settings || typeof settings !== 'string') {
+    return channelTypeDefaultsToStreamTest(channelType);
+  }
+  try {
+    const parsedSettings = JSON.parse(settings);
+    if (
+      Object.prototype.hasOwnProperty.call(
+        parsedSettings || {},
+        'test_stream_enabled',
+      )
+    ) {
+      return parsedSettings.test_stream_enabled === true;
+    }
+  } catch (error) {
+    return channelTypeDefaultsToStreamTest(channelType);
+  }
+  return channelTypeDefaultsToStreamTest(channelType);
+};
 
 function type2secretPrompt(type) {
   // inputs.type === 15 ? '按照如下格式输入：APIKey|SecretKey' : (inputs.type === 18 ? '按照如下格式输入：APPID|APISecret|APIKey' : '请输入渠道对应的鉴权密钥')
@@ -208,7 +247,7 @@ const EditChannelModal = (props) => {
     // 字段透传控制默认值
     allow_service_tier: false,
     disable_store: false, // false = 允许透传（默认开启）
-    test_stream_enabled: false,
+    test_stream_enabled: channelTypeDefaultsToStreamTest(1),
     allow_safety_identifier: false,
     allow_include_obfuscation: false,
     allow_inference_geo: false,
@@ -613,6 +652,20 @@ const EditChannelModal = (props) => {
     }
     setInputs((inputs) => ({ ...inputs, [name]: value }));
     if (name === 'type') {
+      if (!hasExplicitChannelTestStreamSetting(inputs.settings)) {
+        const nextTestStreamEnabled = channelTypeDefaultsToStreamTest(value);
+        if (formApiRef.current) {
+          formApiRef.current.setValue(
+            'test_stream_enabled',
+            nextTestStreamEnabled,
+          );
+        }
+        setInputs((prev) => ({
+          ...prev,
+          test_stream_enabled: nextTestStreamEnabled,
+        }));
+      }
+
       let localModels = [];
       switch (value) {
         case 2:
@@ -887,8 +940,10 @@ const EditChannelModal = (props) => {
           // 读取字段透传控制设置
           data.allow_service_tier = parsedSettings.allow_service_tier || false;
           data.disable_store = parsedSettings.disable_store || false;
-          data.test_stream_enabled =
-            parsedSettings.test_stream_enabled || false;
+          data.test_stream_enabled = resolveChannelTestStreamSetting(
+            data.type,
+            data.settings,
+          );
           data.allow_safety_identifier =
             parsedSettings.allow_safety_identifier || false;
           data.allow_include_obfuscation =
@@ -921,7 +976,7 @@ const EditChannelModal = (props) => {
           data.is_enterprise_account = false;
           data.allow_service_tier = false;
           data.disable_store = false;
-          data.test_stream_enabled = false;
+          data.test_stream_enabled = channelTypeDefaultsToStreamTest(data.type);
           data.allow_safety_identifier = false;
           data.allow_include_obfuscation = false;
           data.allow_inference_geo = false;
@@ -939,7 +994,7 @@ const EditChannelModal = (props) => {
         data.is_enterprise_account = false;
         data.allow_service_tier = false;
         data.disable_store = false;
-        data.test_stream_enabled = false;
+        data.test_stream_enabled = channelTypeDefaultsToStreamTest(data.type);
         data.allow_safety_identifier = false;
         data.allow_include_obfuscation = false;
         data.allow_inference_geo = false;

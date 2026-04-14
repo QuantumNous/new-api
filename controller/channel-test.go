@@ -42,14 +42,53 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+func channelTypeDefaultsToStreamTest(channel *model.Channel) bool {
+	return channel != nil && channel.Type == constant.ChannelTypeCodex
+}
+
+func getStoredChannelTestStream(channel *model.Channel) (bool, bool) {
+	if channel == nil {
+		return false, false
+	}
+	raw := strings.TrimSpace(channel.OtherSettings)
+	if raw == "" {
+		return false, false
+	}
+
+	settings := map[string]interface{}{}
+	if err := common.UnmarshalJsonStr(raw, &settings); err != nil {
+		return false, false
+	}
+
+	value, ok := settings["test_stream_enabled"]
+	if !ok {
+		return false, false
+	}
+
+	switch typed := value.(type) {
+	case bool:
+		return typed, true
+	case string:
+		lower := strings.ToLower(strings.TrimSpace(typed))
+		if lower == "true" {
+			return true, true
+		}
+		if lower == "false" {
+			return false, true
+		}
+	}
+
+	return false, false
+}
+
 func resolveChannelTestStream(channel *model.Channel, streamOverride *bool) bool {
 	if streamOverride != nil {
 		return *streamOverride
 	}
-	if channel == nil {
-		return false
+	if stored, ok := getStoredChannelTestStream(channel); ok {
+		return stored
 	}
-	return channel.GetOtherSettings().TestStreamEnabled
+	return channelTypeDefaultsToStreamTest(channel)
 }
 
 func shouldSkipChannelAutoTest(channel *model.Channel, includeAutoDisabled bool) bool {
