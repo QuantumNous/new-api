@@ -23,12 +23,20 @@ env:
   BACKEND_PORT: '3002'
   BACKEND_HOST: '127.0.0.1'
   SSL_EMAIL: 'ceo@richcalls.xyz'
+  VITE_REACT_APP_SERVER: 'https://api.4aicode.com'
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: 构建前端（Go embed 依赖）
+        working-directory: ./web
+        run: bun install --frozen-lockfile && bun run build
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -56,6 +64,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: 构建前端（Go embed 依赖）
+        working-directory: ./web
+        run: bun install --frozen-lockfile && bun run build
 
       - name: Set up Go
         uses: actions/setup-go@v5
