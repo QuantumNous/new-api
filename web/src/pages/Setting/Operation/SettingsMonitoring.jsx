@@ -44,6 +44,7 @@ export default function SettingsMonitoring(props) {
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
+    'monitor_setting.auto_test_auto_disabled_channels_enabled': true,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -138,10 +139,32 @@ export default function SettingsMonitoring(props) {
                   size='default'
                   checkedText='｜'
                   uncheckedText='〇'
+                  extraText={t('按设定间隔巡检全部通道，手动禁用通道始终跳过')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
                       'monitor_setting.auto_test_channel_enabled': value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={
+                    'monitor_setting.auto_test_auto_disabled_channels_enabled'
+                  }
+                  label={t('定时重测自动禁用通道')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  extraText={t(
+                    '开启后，定时测试会忽略自动禁用状态继续测活；手动禁用通道仍会跳过',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_auto_disabled_channels_enabled':
+                        value,
                     })
                   }
                 />
@@ -226,6 +249,9 @@ export default function SettingsMonitoring(props) {
                   size='default'
                   checkedText='｜'
                   uncheckedText='〇'
+                  extraText={t(
+                    '仅对自动禁用通道生效，通常配合定时测试所有通道一起使用',
+                  )}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,

@@ -40,6 +40,8 @@ import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 
+const CODEX_CHANNEL_TYPE = 57;
+
 export const useChannelsData = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -111,6 +113,37 @@ export const useChannelsData = () => {
     }
   };
 
+  const getChannelDefaultStreamTest = (record) => {
+    if (record?.type === CODEX_CHANNEL_TYPE) {
+      if (!record?.settings) {
+        return true;
+      }
+      try {
+        const parsedSettings = JSON.parse(record.settings);
+        if (
+          !Object.prototype.hasOwnProperty.call(
+            parsedSettings || {},
+            'test_stream_enabled',
+          )
+        ) {
+          return true;
+        }
+        return parsedSettings?.test_stream_enabled === true;
+      } catch (error) {
+        return true;
+      }
+    }
+    if (!record?.settings) {
+      return false;
+    }
+    try {
+      const parsedSettings = JSON.parse(record.settings);
+      return parsedSettings?.test_stream_enabled === true;
+    } catch (error) {
+      return false;
+    }
+  };
+
   // 使用 ref 来避免闭包问题，类似旧版实现
   const shouldStopBatchTestingRef = useRef(false);
 
@@ -167,6 +200,13 @@ export const useChannelsData = () => {
     loadChannelModels().then();
     fetchGlobalPassThroughEnabled().then();
   }, []);
+
+  useEffect(() => {
+    if (!showModelTestModal || !currentTestChannel) {
+      return;
+    }
+    setIsStreamTest(getChannelDefaultStreamTest(currentTestChannel));
+  }, [showModelTestModal, currentTestChannel]);
 
   // Column visibility management
   const getDefaultColumnVisibility = () => {
@@ -859,13 +899,12 @@ export const useChannelsData = () => {
   };
 
   // Test channel - 单个模型测试，参考旧版实现
-  const testChannel = async (
-    record,
-    model,
-    endpointType = '',
-    stream = false,
-  ) => {
+  const testChannel = async (record, model, endpointType = '', stream) => {
     const testKey = `${record.id}-${model}`;
+    const resolvedStream =
+      typeof stream === 'boolean'
+        ? stream
+        : getChannelDefaultStreamTest(record);
 
     // 检查是否应该停止批量测试
     if (shouldStopBatchTestingRef.current && isBatchTesting) {
@@ -880,9 +919,7 @@ export const useChannelsData = () => {
       if (endpointType) {
         url += `&endpoint_type=${endpointType}`;
       }
-      if (stream) {
-        url += `&stream=true`;
-      }
+      url += `&stream=${resolvedStream ? 'true' : 'false'}`;
       const res = await API.get(url);
 
       // 检查是否在请求期间被停止
