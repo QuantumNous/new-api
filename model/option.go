@@ -132,8 +132,11 @@ func InitOptionMap() {
 	common.OptionMap["ModelRequestRateLimitGroup"] = setting.ModelRequestRateLimitGroup2JSONString()
 	common.OptionMap["ModelRatio"] = ratio_setting.ModelRatio2JSONString()
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
+	common.OptionMap["GroupModelPrice"] = ratio_setting.GroupModelPrice2JSONString()
 	common.OptionMap["ModelPriceBySeconds"] = ratio_setting.ModelPriceBySeconds2JSONString()
 	common.OptionMap["ModelPriceByResolution"] = ratio_setting.ModelPriceByResolution2JSONString()
+	common.OptionMap["GroupModelPriceBySeconds"] = ratio_setting.GroupModelPriceBySeconds2JSONString()
+	common.OptionMap["GroupModelPriceByResolution"] = ratio_setting.GroupModelPriceByResolution2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
@@ -480,10 +483,16 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateCompletionRatioByJSONString(value)
 	case "ModelPrice":
 		err = ratio_setting.UpdateModelPriceByJSONString(value)
+	case "GroupModelPrice":
+		err = ratio_setting.UpdateGroupModelPriceByJSONString(value)
 	case "ModelPriceBySeconds":
 		err = ratio_setting.UpdateModelPriceBySecondsByJSONString(value)
 	case "ModelPriceByResolution":
 		err = ratio_setting.UpdateModelPriceByResolutionByJSONString(value)
+	case "GroupModelPriceBySeconds":
+		err = ratio_setting.UpdateGroupModelPriceBySecondsByJSONString(value)
+	case "GroupModelPriceByResolution":
+		err = ratio_setting.UpdateGroupModelPriceByResolutionByJSONString(value)
 	case "CacheRatio":
 		err = ratio_setting.UpdateCacheRatioByJSONString(value)
 	case "CreateCacheRatio":

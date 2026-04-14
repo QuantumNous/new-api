@@ -324,8 +324,11 @@ var defaultAudioCompletionRatio = map[string]float64{
 }
 
 var modelPriceMap = types.NewRWMap[string, float64]()
+var groupModelPriceMap = types.NewRWMap[string, map[string]float64]()
 var modelPriceBySecondsMap = types.NewRWMap[string, map[string]float64]()
 var modelPriceByResolutionMap = types.NewRWMap[string, map[string]float64]()
+var groupModelPriceBySecondsMap = types.NewRWMap[string, map[string]map[string]float64]()
+var groupModelPriceByResolutionMap = types.NewRWMap[string, map[string]map[string]float64]()
 var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
@@ -356,6 +359,10 @@ func ModelPriceBySeconds2JSONString() string {
 	return modelPriceBySecondsMap.MarshalJSONString()
 }
 
+func GroupModelPriceBySeconds2JSONString() string {
+	return groupModelPriceBySecondsMap.MarshalJSONString()
+}
+
 func normalizeResolutionKey(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
@@ -364,12 +371,54 @@ func ModelPriceByResolution2JSONString() string {
 	return modelPriceByResolutionMap.MarshalJSONString()
 }
 
+func GroupModelPriceByResolution2JSONString() string {
+	return groupModelPriceByResolutionMap.MarshalJSONString()
+}
+
 func ModelPrice2JSONString() string {
 	return modelPriceMap.MarshalJSONString()
 }
 
+func GroupModelPrice2JSONString() string {
+	return groupModelPriceMap.MarshalJSONString()
+}
+
 func UpdateModelPriceBySecondsByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(modelPriceBySecondsMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func UpdateGroupModelPriceBySecondsByJSONString(jsonStr string) error {
+	var parsed map[string]map[string]map[string]float64
+	if err := common.UnmarshalJsonStr(jsonStr, &parsed); err != nil {
+		return err
+	}
+	groupModelPriceBySecondsMap.Clear()
+	for group, modelMap := range parsed {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		normalizedModelMap := make(map[string]map[string]float64, len(modelMap))
+		for modelName, secondsMap := range modelMap {
+			modelName = FormatMatchingModelName(modelName)
+			normalizedSecondsMap := make(map[string]float64, len(secondsMap))
+			for seconds, price := range secondsMap {
+				seconds = strings.TrimSpace(seconds)
+				if seconds == "" {
+					continue
+				}
+				normalizedSecondsMap[seconds] = price
+			}
+			if len(normalizedSecondsMap) > 0 {
+				normalizedModelMap[modelName] = normalizedSecondsMap
+			}
+		}
+		if len(normalizedModelMap) > 0 {
+			groupModelPriceBySecondsMap.Set(group, normalizedModelMap)
+		}
+	}
+	InvalidateExposedDataCache()
+	return nil
 }
 
 func UpdateModelPriceByResolutionByJSONString(jsonStr string) error {
@@ -393,8 +442,69 @@ func UpdateModelPriceByResolutionByJSONString(jsonStr string) error {
 	return nil
 }
 
+func UpdateGroupModelPriceByResolutionByJSONString(jsonStr string) error {
+	var parsed map[string]map[string]map[string]float64
+	if err := common.UnmarshalJsonStr(jsonStr, &parsed); err != nil {
+		return err
+	}
+	groupModelPriceByResolutionMap.Clear()
+	for group, modelMap := range parsed {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		normalizedModelMap := make(map[string]map[string]float64, len(modelMap))
+		for modelName, resolutionMap := range modelMap {
+			modelName = FormatMatchingModelName(modelName)
+			normalizedResolutionMap := make(map[string]float64, len(resolutionMap))
+			for resolution, price := range resolutionMap {
+				key := normalizeResolutionKey(resolution)
+				if key == "" {
+					continue
+				}
+				normalizedResolutionMap[key] = price
+			}
+			if len(normalizedResolutionMap) > 0 {
+				normalizedModelMap[modelName] = normalizedResolutionMap
+			}
+		}
+		if len(normalizedModelMap) > 0 {
+			groupModelPriceByResolutionMap.Set(group, normalizedModelMap)
+		}
+	}
+	InvalidateExposedDataCache()
+	return nil
+}
+
 func UpdateModelPriceByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(modelPriceMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func UpdateGroupModelPriceByJSONString(jsonStr string) error {
+	var parsed map[string]map[string]float64
+	if err := common.UnmarshalJsonStr(jsonStr, &parsed); err != nil {
+		return err
+	}
+	groupModelPriceMap.Clear()
+	for group, modelMap := range parsed {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		normalizedModelMap := make(map[string]float64, len(modelMap))
+		for modelName, price := range modelMap {
+			modelName = FormatMatchingModelName(modelName)
+			if modelName == "" {
+				continue
+			}
+			normalizedModelMap[modelName] = price
+		}
+		if len(normalizedModelMap) > 0 {
+			groupModelPriceMap.Set(group, normalizedModelMap)
+		}
+	}
+	InvalidateExposedDataCache()
+	return nil
 }
 
 // GetModelPrice 返回模型的价格，如果模型不存在则返回-1，false
@@ -422,6 +532,20 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 	return price, true
 }
 
+func GetGroupModelPrice(group string, name string) (float64, bool) {
+	group = strings.TrimSpace(group)
+	name = FormatMatchingModelName(name)
+	if group == "" || name == "" {
+		return 0, false
+	}
+	modelMap, ok := groupModelPriceMap.Get(group)
+	if !ok {
+		return 0, false
+	}
+	price, ok := modelMap[name]
+	return price, ok
+}
+
 func GetModelPriceBySeconds(name string, seconds int) (float64, bool) {
 	name = FormatMatchingModelName(name)
 	if seconds <= 0 {
@@ -435,9 +559,48 @@ func GetModelPriceBySeconds(name string, seconds int) (float64, bool) {
 	return price, ok
 }
 
+func GetGroupModelPriceBySeconds(group string, name string, seconds int) (float64, bool) {
+	group = strings.TrimSpace(group)
+	name = FormatMatchingModelName(name)
+	if group == "" || seconds <= 0 {
+		return 0, false
+	}
+	modelMap, ok := groupModelPriceBySecondsMap.Get(group)
+	if !ok {
+		return 0, false
+	}
+	secondsPriceMap, ok := modelMap[name]
+	if !ok {
+		return 0, false
+	}
+	price, ok := secondsPriceMap[strconv.Itoa(seconds)]
+	return price, ok
+}
+
 func GetModelPriceBySecondsMap(name string) (map[string]float64, bool) {
 	name = FormatMatchingModelName(name)
 	secondsPriceMap, ok := modelPriceBySecondsMap.Get(name)
+	if !ok || len(secondsPriceMap) == 0 {
+		return nil, false
+	}
+	cloned := make(map[string]float64, len(secondsPriceMap))
+	for seconds, price := range secondsPriceMap {
+		cloned[seconds] = price
+	}
+	return cloned, true
+}
+
+func GetGroupModelPriceBySecondsMap(group string, name string) (map[string]float64, bool) {
+	group = strings.TrimSpace(group)
+	name = FormatMatchingModelName(name)
+	if group == "" {
+		return nil, false
+	}
+	modelMap, ok := groupModelPriceBySecondsMap.Get(group)
+	if !ok {
+		return nil, false
+	}
+	secondsPriceMap, ok := modelMap[name]
 	if !ok || len(secondsPriceMap) == 0 {
 		return nil, false
 	}
@@ -462,9 +625,49 @@ func GetModelPriceByResolution(name string, resolution string) (float64, bool) {
 	return price, ok
 }
 
+func GetGroupModelPriceByResolution(group string, name string, resolution string) (float64, bool) {
+	group = strings.TrimSpace(group)
+	name = FormatMatchingModelName(name)
+	key := normalizeResolutionKey(resolution)
+	if group == "" || key == "" {
+		return 0, false
+	}
+	modelMap, ok := groupModelPriceByResolutionMap.Get(group)
+	if !ok {
+		return 0, false
+	}
+	resolutionPriceMap, ok := modelMap[name]
+	if !ok {
+		return 0, false
+	}
+	price, ok := resolutionPriceMap[key]
+	return price, ok
+}
+
 func GetModelPriceByResolutionMap(name string) (map[string]float64, bool) {
 	name = FormatMatchingModelName(name)
 	resolutionPriceMap, ok := modelPriceByResolutionMap.Get(name)
+	if !ok || len(resolutionPriceMap) == 0 {
+		return nil, false
+	}
+	cloned := make(map[string]float64, len(resolutionPriceMap))
+	for resolution, price := range resolutionPriceMap {
+		cloned[resolution] = price
+	}
+	return cloned, true
+}
+
+func GetGroupModelPriceByResolutionMap(group string, name string) (map[string]float64, bool) {
+	group = strings.TrimSpace(group)
+	name = FormatMatchingModelName(name)
+	if group == "" {
+		return nil, false
+	}
+	modelMap, ok := groupModelPriceByResolutionMap.Get(group)
+	if !ok {
+		return nil, false
+	}
+	resolutionPriceMap, ok := modelMap[name]
 	if !ok || len(resolutionPriceMap) == 0 {
 		return nil, false
 	}
@@ -491,8 +694,40 @@ func GetModelPriceByResolutionMin(name string) (float64, bool) {
 	return minPrice, found
 }
 
+func GetGroupModelPriceByResolutionMin(group string, name string) (float64, bool) {
+	resolutionPriceMap, ok := GetGroupModelPriceByResolutionMap(group, name)
+	if !ok {
+		return 0, false
+	}
+	minPrice := 0.0
+	found := false
+	for _, price := range resolutionPriceMap {
+		if !found || price < minPrice {
+			minPrice = price
+			found = true
+		}
+	}
+	return minPrice, found
+}
+
 func GetModelPriceBySecondsMin(name string) (float64, bool) {
 	secondsPriceMap, ok := GetModelPriceBySecondsMap(name)
+	if !ok {
+		return 0, false
+	}
+	minPrice := 0.0
+	found := false
+	for _, price := range secondsPriceMap {
+		if !found || price < minPrice {
+			minPrice = price
+			found = true
+		}
+	}
+	return minPrice, found
+}
+
+func GetGroupModelPriceBySecondsMin(group string, name string) (float64, bool) {
+	secondsPriceMap, ok := GetGroupModelPriceBySecondsMap(group, name)
 	if !ok {
 		return 0, false
 	}
@@ -557,6 +792,14 @@ func GetModelPriceBySecondsCopy() map[string]map[string]float64 {
 
 func GetModelPriceByResolutionCopy() map[string]map[string]float64 {
 	return modelPriceByResolutionMap.ReadAll()
+}
+
+func GetGroupModelPriceBySecondsCopy() map[string]map[string]map[string]float64 {
+	return groupModelPriceBySecondsMap.ReadAll()
+}
+
+func GetGroupModelPriceByResolutionCopy() map[string]map[string]map[string]float64 {
+	return groupModelPriceByResolutionMap.ReadAll()
 }
 
 func CompletionRatio2JSONString() string {
@@ -827,6 +1070,10 @@ func GetModelRatioCopy() map[string]float64 {
 
 func GetModelPriceCopy() map[string]float64 {
 	return modelPriceMap.ReadAll()
+}
+
+func GetGroupModelPriceCopy() map[string]map[string]float64 {
+	return groupModelPriceMap.ReadAll()
 }
 
 func GetCompletionRatioCopy() map[string]float64 {

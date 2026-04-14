@@ -777,7 +777,16 @@ export const calculateModelPrice = ({
 
   if (record.quota_type === 1) {
     // 按次计费
-    const priceUSD = parseFloat(record.model_price) * usedGroupRatio;
+    const groupPrice =
+      record.group_model_price &&
+      typeof record.group_model_price === 'object' &&
+      record.group_model_price[usedGroup] !== undefined
+        ? Number(record.group_model_price[usedGroup])
+        : null;
+    const priceUSD =
+      groupPrice !== null
+        ? groupPrice
+        : parseFloat(record.model_price) * usedGroupRatio;
     const displayVal = displayPrice(priceUSD);
 
     return {
@@ -786,6 +795,7 @@ export const calculateModelPrice = ({
       isTokensDisplay: false,
       usedGroup,
       usedGroupRatio,
+      groupPriceOverride: groupPrice !== null,
     };
   }
 

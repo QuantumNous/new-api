@@ -36,6 +36,9 @@ export default function GroupRatioSettings(props) {
     GroupRatio: '',
     UserUsableGroups: '',
     GroupGroupRatio: '',
+    GroupModelPrice: '',
+    GroupModelPriceBySeconds: '',
+    GroupModelPriceByResolution: '',
     'group_ratio_setting.group_special_usable_group': '',
     AutoGroups: '',
     DefaultUseAutoGroup: false,
@@ -135,6 +138,78 @@ export default function GroupRatioSettings(props) {
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, GroupRatio: value })}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('分组按次固定价格')}
+              placeholder={t('JSON 文本，格式为 {"vip": {"grok-imagine-1.0-edit": 0.02, "grok-imagine-1.0": 0.02}}')}
+              extraText={t(
+                '用于图片等按次固定价格模型。命中后直接按该价格扣费，不再乘分组倍率；未命中时仍按普通模型价格乘分组倍率。',
+              )}
+              field={'GroupModelPrice'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, GroupModelPrice: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('分组按秒固定价格')}
+              placeholder={t('JSON 文本，格式为 {"vip": {"grok-imagine-1.0-video": {"6": 0.05, "8": 0.07}}}')}
+              extraText={t(
+                '仅用于视频等按时长固定价格模型。命中后直接按该价格扣费，不再乘分组倍率；未命中时仍按普通模型价格乘分组倍率。',
+              )}
+              field={'GroupModelPriceBySeconds'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, GroupModelPriceBySeconds: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('分组按分辨率固定价格')}
+              placeholder={t('JSON 文本，格式为 {"vip": {"nano-banana-pro": {"1K": 0.07, "2K": 0.12, "4K": 0.25}}}')}
+              extraText={t(
+                '仅用于图片等按分辨率固定价格模型。命中后直接按该价格扣费，不再乘分组倍率；未命中时仍按普通模型价格乘分组倍率。',
+              )}
+              field={'GroupModelPriceByResolution'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, GroupModelPriceByResolution: value })
+              }
             />
           </Col>
         </Row>

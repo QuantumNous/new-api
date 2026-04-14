@@ -350,3 +350,32 @@ func TestCalculateTextQuotaSummaryIgnoresBananaOtherRatios(t *testing.T) {
 	require.Equal(t, 1000, summary.Quota)
 	require.Empty(t, relayInfo.PriceData.OtherRatios)
 }
+
+func TestCalculateTextQuotaSummaryUsesGroupPriceOverrideWithoutGroupRatio(t *testing.T) {
+	originalQuotaPerUnit := common.QuotaPerUnit
+	defer func() {
+		common.QuotaPerUnit = originalQuotaPerUnit
+	}()
+	common.QuotaPerUnit = 500
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "nano-banana-pro",
+		PriceData: types.PriceData{
+			ModelPrice:         0.12,
+			UsePrice:           true,
+			GroupPriceOverride: true,
+			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 0.5},
+		},
+		StartTime: time.Now(),
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{
+		PromptTokens: 1,
+	})
+
+	require.Equal(t, int(0.12*common.QuotaPerUnit), summary.Quota)
+}

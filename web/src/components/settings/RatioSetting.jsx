@@ -34,8 +34,11 @@ const RatioSetting = () => {
 
   let [inputs, setInputs] = useState({
     ModelPrice: '',
+    GroupModelPrice: '',
     ModelPriceBySeconds: '',
     ModelPriceByResolution: '',
+    GroupModelPriceBySeconds: '',
+    GroupModelPriceByResolution: '',
     ModelRatio: '',
     CacheRatio: '',
     CreateCacheRatio: '',

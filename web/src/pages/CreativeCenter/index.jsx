@@ -1200,6 +1200,12 @@ const buildCreativeCenterModelPriceLabel = (
     activeGroup,
     groupRatioMap,
   );
+  const activePricingGroup =
+    activeGroup &&
+    Array.isArray(pricingModel.enable_groups) &&
+    pricingModel.enable_groups.includes(activeGroup)
+      ? activeGroup
+      : null;
   const prices = [];
   const appendPrice = (value) => {
     const numericValue = Number(value);
@@ -1231,15 +1237,31 @@ const buildCreativeCenterModelPriceLabel = (
         Number(pricingModel.audio_completion_ratio),
     );
   } else if (pricingModel.quota_type === 1) {
-    appendPrice(Number(pricingModel.model_price) * groupRatio);
+    const groupModelPrice =
+      activePricingGroup && pricingModel.group_model_price?.[activePricingGroup] !== undefined
+        ? Number(pricingModel.group_model_price[activePricingGroup])
+        : null;
+    appendPrice(
+      groupModelPrice !== null
+        ? groupModelPrice
+        : Number(pricingModel.model_price) * groupRatio,
+    );
   } else if (pricingModel.quota_type === 2) {
-    Object.values(pricingModel.model_price_by_seconds || {}).forEach((value) => {
-      appendPrice(Number(value) * groupRatio);
-    });
-  } else if (pricingModel.quota_type === 3) {
-    Object.values(pricingModel.model_price_by_resolution || {}).forEach(
+    const groupSecondsPriceMap = activePricingGroup
+      ? pricingModel.group_model_price_by_seconds?.[activePricingGroup]
+      : null;
+    Object.values(groupSecondsPriceMap || pricingModel.model_price_by_seconds || {}).forEach(
       (value) => {
-        appendPrice(Number(value) * groupRatio);
+        appendPrice(Number(value) * (groupSecondsPriceMap ? 1 : groupRatio));
+      },
+    );
+  } else if (pricingModel.quota_type === 3) {
+    const groupResolutionPriceMap = activePricingGroup
+      ? pricingModel.group_model_price_by_resolution?.[activePricingGroup]
+      : null;
+    Object.values(groupResolutionPriceMap || pricingModel.model_price_by_resolution || {}).forEach(
+      (value) => {
+        appendPrice(Number(value) * (groupResolutionPriceMap ? 1 : groupRatio));
       },
     );
   }

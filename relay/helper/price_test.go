@@ -51,6 +51,93 @@ func TestModelPriceHelperUsesSecondsPriceForChatCompatibleVideo(t *testing.T) {
 	assert.Equal(t, int(0.8*common.QuotaPerUnit), priceData.QuotaToPreConsume)
 }
 
+func TestModelPriceHelperUsesGroupResolutionPriceWithoutGroupRatio(t *testing.T) {
+	originalGroupResolution := ratio_setting.GroupModelPriceByResolution2JSONString()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalQuotaPerUnit := common.QuotaPerUnit
+	defer func() {
+		_ = ratio_setting.UpdateGroupModelPriceByResolutionByJSONString(originalGroupResolution)
+		_ = ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio)
+		common.QuotaPerUnit = originalQuotaPerUnit
+	}()
+
+	common.QuotaPerUnit = 500
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{
+		"default": 1,
+		"vip": 0.5
+	}`))
+	require.NoError(t, ratio_setting.UpdateGroupModelPriceByResolutionByJSONString(`{
+		"vip": {
+			"nano-banana-pro": {
+				"2K": 0.12
+			}
+		}
+	}`))
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	request := &dto.GeneralOpenAIRequest{
+		Model:            "nano-banana-pro",
+		OutputResolution: "2K",
+	}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "nano-banana-pro",
+		UsingGroup:      "vip",
+		Request:         request,
+	}
+
+	priceData, err := ModelPriceHelper(c, info, 0, &types.TokenCountMeta{})
+
+	require.NoError(t, err)
+	assert.True(t, priceData.UsePrice)
+	assert.True(t, priceData.GroupPriceOverride)
+	assert.Equal(t, 0.12, priceData.ModelPrice)
+	assert.Equal(t, 0.5, priceData.GroupRatioInfo.GroupRatio)
+	assert.Equal(t, int(0.12*common.QuotaPerUnit), priceData.QuotaToPreConsume)
+}
+
+func TestModelPriceHelperUsesGroupPerCallPriceWithoutGroupRatio(t *testing.T) {
+	originalGroupPrice := ratio_setting.GroupModelPrice2JSONString()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalQuotaPerUnit := common.QuotaPerUnit
+	defer func() {
+		_ = ratio_setting.UpdateGroupModelPriceByJSONString(originalGroupPrice)
+		_ = ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio)
+		common.QuotaPerUnit = originalQuotaPerUnit
+	}()
+
+	common.QuotaPerUnit = 500
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{
+		"default": 1,
+		"vip": 0.5
+	}`))
+	require.NoError(t, ratio_setting.UpdateGroupModelPriceByJSONString(`{
+		"vip": {
+			"grok-imagine-1.0-edit": 0.02
+		}
+	}`))
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	request := &dto.ImageRequest{
+		Model: "grok-imagine-1.0-edit",
+	}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "grok-imagine-1.0-edit",
+		UsingGroup:      "vip",
+		Request:         request,
+	}
+
+	priceData, err := ModelPriceHelper(c, info, 0, &types.TokenCountMeta{})
+
+	require.NoError(t, err)
+	assert.True(t, priceData.UsePrice)
+	assert.True(t, priceData.GroupPriceOverride)
+	assert.Equal(t, 0.02, priceData.ModelPrice)
+	assert.Equal(t, 0.5, priceData.GroupRatioInfo.GroupRatio)
+	assert.Equal(t, int(0.02*common.QuotaPerUnit), priceData.QuotaToPreConsume)
+}
+
 func TestModelPriceHelperFallsBackToSecondsMinPrice(t *testing.T) {
 	original := ratio_setting.ModelPriceBySeconds2JSONString()
 	originalQuotaPerUnit := common.QuotaPerUnit

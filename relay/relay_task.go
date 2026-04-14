@@ -383,8 +383,14 @@ func calcTaskQuotaWithRatios(c *gin.Context, info *relaycommon.RelayInfo, ratios
 	}
 
 	if seconds, ok := extractTaskSeconds(normalizedRatios); ok {
-		if secondsPrice, found := ratio_setting.GetModelPriceBySeconds(info.OriginModelName, seconds); found {
+		if secondsPrice, found := ratio_setting.GetGroupModelPriceBySeconds(info.UsingGroup, info.OriginModelName, seconds); found {
 			info.PriceData.ModelPrice = secondsPrice
+			info.PriceData.GroupPriceOverride = true
+			baseQuota = int(secondsPrice * common.QuotaPerUnit)
+			normalizedRatios["seconds"] = 1
+		} else if secondsPrice, found := ratio_setting.GetModelPriceBySeconds(info.OriginModelName, seconds); found {
+			info.PriceData.ModelPrice = secondsPrice
+			info.PriceData.GroupPriceOverride = false
 			baseQuota = int(secondsPrice * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
 			normalizedRatios["seconds"] = 1
 		}
@@ -393,8 +399,14 @@ func calcTaskQuotaWithRatios(c *gin.Context, info *relaycommon.RelayInfo, ratios
 	if c != nil {
 		if req, err := relaycommon.GetTaskRequest(c); err == nil {
 			if resolution := extractTaskResolution(req); resolution != "" {
-				if resolutionPrice, found := ratio_setting.GetModelPriceByResolution(info.OriginModelName, resolution); found {
+				if resolutionPrice, found := ratio_setting.GetGroupModelPriceByResolution(info.UsingGroup, info.OriginModelName, resolution); found {
 					info.PriceData.ModelPrice = resolutionPrice
+					info.PriceData.GroupPriceOverride = true
+					baseQuota = int(resolutionPrice * common.QuotaPerUnit)
+					normalizedRatios["resolution"] = 1
+				} else if resolutionPrice, found := ratio_setting.GetModelPriceByResolution(info.OriginModelName, resolution); found {
+					info.PriceData.ModelPrice = resolutionPrice
+					info.PriceData.GroupPriceOverride = false
 					baseQuota = int(resolutionPrice * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
 					normalizedRatios["resolution"] = 1
 				}

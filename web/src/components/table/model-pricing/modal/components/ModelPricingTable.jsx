@@ -125,6 +125,18 @@ const ModelPricingTable = ({
       ? modelData.model_price_by_resolution
       : {};
 
+  const groupModelPriceBySeconds =
+    modelData?.group_model_price_by_seconds &&
+    typeof modelData.group_model_price_by_seconds === 'object'
+      ? modelData.group_model_price_by_seconds
+      : {};
+
+  const groupModelPriceByResolution =
+    modelData?.group_model_price_by_resolution &&
+    typeof modelData.group_model_price_by_resolution === 'object'
+      ? modelData.group_model_price_by_resolution
+      : {};
+
   const autoChain = autoGroups.filter((g) => modelEnableGroups.includes(g));
 
   const getBillingTypeLabel = (quotaType) => {
@@ -197,6 +209,8 @@ const ModelPricingTable = ({
 
       const groupRatioValue = groupRatio && groupRatio[group] ? groupRatio[group] : 1;
       const quotaType = modelData?.quota_type;
+      const secondsOverrideMap = groupModelPriceBySeconds[group];
+      const resolutionOverrideMap = groupModelPriceByResolution[group];
 
       return {
         key: group,
@@ -210,13 +224,18 @@ const ModelPricingTable = ({
             : getModelPriceItems(priceData, t, siteDisplayType),
         secondsPriceItems:
           quotaType === 2
-            ? buildSecondsPriceItems(modelPriceBySeconds, groupRatioValue, displayPrice, t)
+            ? buildSecondsPriceItems(
+                secondsOverrideMap || modelPriceBySeconds,
+                secondsOverrideMap ? 1 : groupRatioValue,
+                displayPrice,
+                t,
+              )
             : [],
         resolutionPriceItems:
           quotaType === 3
             ? buildResolutionPriceItems(
-                modelPriceByResolution,
-                groupRatioValue,
+                resolutionOverrideMap || modelPriceByResolution,
+                resolutionOverrideMap ? 1 : groupRatioValue,
                 displayPrice,
                 t,
               )
