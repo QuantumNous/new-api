@@ -151,6 +151,16 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	req.Plan.AllowedGroups = model.NormalizeSubscriptionAllowedGroups(req.Plan.AllowedGroups)
+	if req.Plan.AllowedGroups != "" {
+		groupRatios := ratio_setting.GetGroupRatioCopy()
+		for _, group := range strings.Split(req.Plan.AllowedGroups, ",") {
+			if _, ok := groupRatios[group]; !ok {
+				common.ApiErrorMsg(c, "allowed group does not exist")
+				return
+			}
+		}
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
@@ -214,6 +224,16 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	req.Plan.AllowedGroups = model.NormalizeSubscriptionAllowedGroups(req.Plan.AllowedGroups)
+	if req.Plan.AllowedGroups != "" {
+		groupRatios := ratio_setting.GetGroupRatioCopy()
+		for _, group := range strings.Split(req.Plan.AllowedGroups, ",") {
+			if _, ok := groupRatios[group]; !ok {
+				common.ApiErrorMsg(c, "allowed group does not exist")
+				return
+			}
+		}
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
@@ -237,6 +257,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
+			"allowed_groups":             req.Plan.AllowedGroups,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),

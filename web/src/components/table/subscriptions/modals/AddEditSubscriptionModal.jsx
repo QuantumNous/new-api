@@ -95,6 +95,7 @@ const AddEditSubscriptionModal = ({
     max_purchase_per_user: 0,
     total_amount: 0,
     upgrade_group: '',
+    allowed_groups: [],
     stripe_price_id: '',
     creem_product_id: '',
   });
@@ -121,6 +122,12 @@ const AddEditSubscriptionModal = ({
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
+      allowed_groups: p.allowed_groups
+        ? String(p.allowed_groups)
+            .split(',')
+            .map((g) => g.trim())
+            .filter(Boolean)
+        : [],
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
     };
@@ -164,6 +171,9 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          allowed_groups: Array.isArray(values.allowed_groups)
+            ? values.allowed_groups.join(',')
+            : values.allowed_groups || '',
         },
       };
       if (editingPlan?.plan?.id) {
@@ -349,6 +359,26 @@ const AddEditSubscriptionModal = ({
                         disabled
                         extraText={t('由全站货币展示设置统一控制')}
                       />
+                    </Col>
+
+                    <Col span={24}>
+                      <Form.Select
+                        field='allowed_groups'
+                        label={t('适用分组')}
+                        multiple
+                        showClear
+                        loading={groupLoading}
+                        placeholder={t('不限制分组')}
+                        extraText={t(
+                          '为空表示该套餐订阅额度可用于任意分组；选择后仅这些分组的请求可消耗该套餐。',
+                        )}
+                      >
+                        {(groupOptions || []).map((g) => (
+                          <Select.Option key={g} value={g}>
+                            {g}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
                     </Col>
 
                     <Col span={12}>
