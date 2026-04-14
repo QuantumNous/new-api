@@ -54,7 +54,7 @@ export const normalizeLanguage = (language) => {
     return 'zh-TW';
   }
 
-  if (lower.startsWith('de')) {
+  if (lower === 'de' || lower.startsWith('de-')) {
     return 'de';
   }
 
