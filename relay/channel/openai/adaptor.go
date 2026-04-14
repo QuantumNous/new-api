@@ -244,7 +244,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
+	if !info.SupportStreamOptions {
 		request.StreamOptions = nil
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
