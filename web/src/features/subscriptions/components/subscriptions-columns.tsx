@@ -15,6 +15,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         accessorFn: (row) => row.plan.id,
         id: 'id',
+        meta: { label: 'ID', mobileHidden: true },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title='ID' />
         ),
@@ -26,6 +27,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         accessorFn: (row) => row.plan.title,
         id: 'title',
+        meta: { label: t('Plan'), mobileTitle: true },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Plan')} />
         ),
@@ -47,6 +49,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         accessorFn: (row) => row.plan.price_amount,
         id: 'price',
+        meta: { label: t('Price') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Price')} />
         ),
@@ -59,6 +62,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       },
       {
         id: 'duration',
+        meta: { label: t('Validity') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Validity')} />
         ),
@@ -71,6 +75,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       },
       {
         id: 'reset',
+        meta: { label: t('Quota Reset'), mobileHidden: true },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Quota Reset')} />
         ),
@@ -84,6 +89,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         accessorFn: (row) => row.plan.sort_order,
         id: 'sort_order',
+        meta: { label: t('Priority'), mobileHidden: true },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Priority')} />
         ),
@@ -97,6 +103,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         accessorFn: (row) => row.plan.enabled,
         id: 'enabled',
+        meta: { label: t('Status'), mobileBadge: true },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Status')} />
         ),
@@ -118,6 +125,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       },
       {
         id: 'payment',
+        meta: { label: t('Payment Channel'), mobileHidden: true },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Payment Channel')} />
         ),
@@ -142,6 +150,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       },
       {
         id: 'total_amount',
+        meta: { label: t('Total Quota'), mobileHidden: true },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Total Quota')} />
         ),
@@ -157,6 +166,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       },
       {
         id: 'upgrade_group',
+        meta: { label: t('Upgrade Group'), mobileHidden: true },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Upgrade Group')} />
         ),

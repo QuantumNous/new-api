@@ -70,17 +70,21 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
       <AppHeader />
 
       <Main>
-        <div className='shrink-0 px-4 pt-6 pb-4'>
+        <div className='shrink-0 px-4 pt-4 pb-3 sm:pt-6 sm:pb-4'>
           {breadcrumb != null && <div className='mb-3'>{breadcrumb}</div>}
           <div className='flex flex-wrap items-center justify-between gap-x-4 gap-y-2'>
-            <div>
-              <h2 className='text-lg font-bold tracking-tight'>{title}</h2>
+            <div className='min-w-0'>
+              <h2 className='text-base font-bold tracking-tight sm:text-lg'>
+                {title}
+              </h2>
               {description != null && (
-                <p className='text-muted-foreground text-sm'>{description}</p>
+                <p className='text-muted-foreground max-sm:text-xs sm:text-sm'>
+                  {description}
+                </p>
               )}
             </div>
             {actions != null && (
-              <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+              <div className='flex shrink-0 flex-wrap items-center gap-2 sm:gap-x-4'>
                 {actions}
               </div>
             )}

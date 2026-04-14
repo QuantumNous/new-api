@@ -57,7 +57,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       cell: ({ row }) => {
         return <div className='w-[60px]'>{row.getValue('id')}</div>
       },
-      meta: { label: t('ID') },
+      meta: { label: t('ID'), mobileHidden: true },
     },
     {
       accessorKey: 'username',
@@ -89,7 +89,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       enableHiding: false,
-      meta: { label: t('Username') },
+      meta: { label: t('Username'), mobileTitle: true },
     },
     {
       accessorKey: 'display_name',
@@ -103,7 +103,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </LongText>
         )
       },
-      meta: { label: t('Display Name') },
+      meta: { label: t('Display Name'), mobileHidden: true },
     },
     {
       accessorKey: 'status',
@@ -146,7 +146,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         return value.includes(String(row.getValue(id)))
       },
       enableSorting: false,
-      meta: { label: t('Status') },
+      meta: { label: t('Status'), mobileBadge: true },
     },
     {
       id: 'quota',
@@ -323,7 +323,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       enableSorting: false,
-      meta: { label: t('Invite Info') },
+      meta: { label: t('Invite Info'), mobileHidden: true },
     },
     {
       id: 'actions',

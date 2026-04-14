@@ -115,7 +115,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           {row.getValue('name')}
         </div>
       ),
-      meta: { label: t('Name') },
+      meta: { label: t('Name'), mobileTitle: true },
     },
     {
       accessorKey: 'status',
@@ -135,7 +135,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         )
       },
       filterFn: (row, id, value) => value.includes(String(row.getValue(id))),
-      meta: { label: t('Status') },
+      meta: { label: t('Status'), mobileBadge: true },
     },
     {
       id: 'key',
@@ -255,7 +255,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           </span>
         )
       },
-      meta: { label: t('Group') },
+      meta: { label: t('Group'), mobileHidden: true },
     },
     {
       id: 'model_limits',
@@ -265,7 +265,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       ),
       cell: ({ row }) => <ModelLimitsCell apiKey={row.original} />,
       enableSorting: false,
-      meta: { label: t('Models') },
+      meta: { label: t('Models'), mobileHidden: true },
     },
     {
       id: 'allow_ips',
@@ -275,7 +275,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       ),
       cell: ({ row }) => <IpRestrictionsCell apiKey={row.original} />,
       enableSorting: false,
-      meta: { label: t('IP Restriction') },
+      meta: { label: t('IP Restriction'), mobileHidden: true },
     },
     {
       accessorKey: 'created_time',
@@ -287,7 +287,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           {formatTimestampToDate(row.getValue('created_time'))}
         </span>
       ),
-      meta: { label: t('Created') },
+      meta: { label: t('Created'), mobileHidden: true },
     },
     {
       accessorKey: 'expired_time',
@@ -317,7 +317,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           </span>
         )
       },
-      meta: { label: t('Expires') },
+      meta: { label: t('Expires'), mobileHidden: true },
     },
     {
       id: 'actions',

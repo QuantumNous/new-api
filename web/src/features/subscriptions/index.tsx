@@ -19,8 +19,8 @@ export function Subscriptions() {
           {t('Manage subscription plan creation, pricing and status')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
-          <div className='flex items-center gap-3'>
-            <Alert variant='default' className='px-3 py-2'>
+          <div className='flex items-center gap-2'>
+            <Alert variant='default' className='hidden px-3 py-2 sm:flex'>
               <Info className='h-4 w-4' />
               <AlertDescription className='text-xs'>
                 {t(

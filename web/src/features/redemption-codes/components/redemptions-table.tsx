@@ -13,6 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
@@ -29,6 +30,7 @@ import {
   DataTableToolbar,
   TableSkeleton,
   TableEmpty,
+  MobileCardList,
 } from '@/components/data-table'
 import { PageFooterPortal } from '@/components/layout'
 import { getRedemptions, searchRedemptions } from '../api'
@@ -44,6 +46,7 @@ export function RedemptionsTable() {
   const { t } = useTranslation()
   const columns = useRedemptionsColumns()
   const { refreshTrigger } = useRedemptions()
+  const isMobile = useMediaQuery('(max-width: 640px)')
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -153,74 +156,90 @@ export function RedemptionsTable() {
             },
           ]}
         />
-        <div
-          className={cn(
-            'overflow-hidden rounded-md border transition-opacity duration-150',
-            isFetching && !isLoading && 'pointer-events-none opacity-50'
-          )}
-        >
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    return (
-                      <TableHead key={header.id} colSpan={header.colSpan}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    )
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton table={table} keyPrefix='redemptions-skeleton' />
-              ) : table.getRowModel().rows.length === 0 ? (
-                <TableEmpty
-                  colSpan={columns.length}
-                  title={t('No Redemption Codes Found')}
-                  description={t(
-                    'No redemption codes available. Create your first redemption code to get started.'
-                  )}
-                />
-              ) : (
-                table.getRowModel().rows.map((row) => {
-                  const redemption = row.original
-                  const isDisabled =
-                    redemption.status !== REDEMPTION_STATUS.ENABLED ||
-                    isRedemptionExpired(
-                      redemption.expired_time,
-                      redemption.status
-                    )
-
-                  return (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && 'selected'}
-                      className={isDisabled ? 'opacity-50' : undefined}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  )
-                })
+        {isMobile ? (
+          <MobileCardList
+            table={table}
+            isLoading={isLoading}
+            emptyTitle={t('No Redemption Codes Found')}
+            emptyDescription={t(
+              'No redemption codes available. Create your first redemption code to get started.'
+            )}
+          />
+        ) : (
+          <>
+            <div
+              className={cn(
+                'overflow-hidden rounded-md border transition-opacity duration-150',
+                isFetching && !isLoading && 'pointer-events-none opacity-50'
               )}
-            </TableBody>
-          </Table>
-        </div>
-        <DataTableBulkActions table={table} />
+            >
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => {
+                        return (
+                          <TableHead key={header.id} colSpan={header.colSpan}>
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext()
+                                )}
+                          </TableHead>
+                        )
+                      })}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableSkeleton
+                      table={table}
+                      keyPrefix='redemptions-skeleton'
+                    />
+                  ) : table.getRowModel().rows.length === 0 ? (
+                    <TableEmpty
+                      colSpan={columns.length}
+                      title={t('No Redemption Codes Found')}
+                      description={t(
+                        'No redemption codes available. Create your first redemption code to get started.'
+                      )}
+                    />
+                  ) : (
+                    table.getRowModel().rows.map((row) => {
+                      const redemption = row.original
+                      const isDisabled =
+                        redemption.status !== REDEMPTION_STATUS.ENABLED ||
+                        isRedemptionExpired(
+                          redemption.expired_time,
+                          redemption.status
+                        )
+
+                      return (
+                        <TableRow
+                          key={row.id}
+                          data-state={row.getIsSelected() && 'selected'}
+                          className={isDisabled ? 'opacity-50' : undefined}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext()
+                              )}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <DataTableBulkActions table={table} />
+          </>
+        )}
       </div>
       <PageFooterPortal>
         <DataTablePagination table={table} />

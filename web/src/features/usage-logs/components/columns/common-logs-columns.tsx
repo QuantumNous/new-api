@@ -290,7 +290,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: t('Source') },
+      meta: { label: t('Source'), mobileHidden: true },
     })
   }
 
@@ -376,7 +376,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: t('Model') },
+      meta: { label: t('Model'), mobileTitle: true },
     },
 
     {
@@ -459,7 +459,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: t('Timing') },
+      meta: { label: t('Timing'), mobileHidden: true },
     },
 
     {
@@ -503,7 +503,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: t('Input') },
+      meta: { label: t('Input'), mobileHidden: true },
     },
 
     {
@@ -554,7 +554,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: t('Output') },
+      meta: { label: t('Output'), mobileHidden: true },
     },
 
     {
@@ -679,7 +679,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </>
         )
       },
-      meta: { label: t('Details') },
+      meta: { label: t('Details'), mobileHidden: true },
       size: 200,
       maxSize: 220,
     }

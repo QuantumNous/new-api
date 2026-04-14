@@ -81,7 +81,7 @@ export function useDrawingLogsColumns(
           />
         )
       },
-      meta: { label: t('Task ID') },
+      meta: { label: t('Task ID'), mobileHidden: true },
     }
   )
 
@@ -160,7 +160,7 @@ export function useDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: t('Image') },
+      meta: { label: t('Image'), mobileHidden: true },
     },
 
     // Prompt (clickable)
@@ -195,7 +195,7 @@ export function useDrawingLogsColumns(
           </>
         )
       },
-      meta: { label: t('Prompt') },
+      meta: { label: t('Prompt'), mobileHidden: true },
     },
 
     createFailReasonColumn<MidjourneyLog>({

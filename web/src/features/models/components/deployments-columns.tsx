@@ -26,7 +26,7 @@ export function useDeploymentsColumns(opts: {
   return [
     {
       accessorKey: 'id',
-      meta: { label: t('ID') },
+      meta: { label: t('ID'), mobileHidden: true },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('ID')} />
       ),
@@ -48,7 +48,7 @@ export function useDeploymentsColumns(opts: {
       id: 'name',
       accessorFn: (row) =>
         row.container_name || row.deployment_name || row.name || '',
-      meta: { label: t('Name') },
+      meta: { label: t('Name'), mobileTitle: true },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Name')} />
       ),
@@ -68,7 +68,7 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'status',
-      meta: { label: t('Status') },
+      meta: { label: t('Status'), mobileBadge: true },
       header: t('Status'),
       cell: ({ row }) => {
         const raw = row.original.status
@@ -178,7 +178,7 @@ export function useDeploymentsColumns(opts: {
     },
     {
       id: 'hardware',
-      meta: { label: t('Hardware') },
+      meta: { label: t('Hardware'), mobileHidden: true },
       header: t('Hardware'),
       accessorFn: (row) =>
         row.hardware_info || row.hardware_name || row.brand_name || '',
@@ -213,7 +213,7 @@ export function useDeploymentsColumns(opts: {
     },
     {
       accessorKey: 'created_at',
-      meta: { label: t('Created') },
+      meta: { label: t('Created'), mobileHidden: true },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Created')} />
       ),

@@ -431,13 +431,16 @@
       transform 150ms ease,
       box-shadow 150ms ease;
   }
-  [data-slot='card']:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
-  }
 
-  .dark [data-slot='card']:hover {
-    box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+  @media (min-width: 641px) {
+    [data-slot='card']:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
+    }
+
+    .dark [data-slot='card']:hover {
+      box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+    }
   }
 
   button:not(:disabled):active,

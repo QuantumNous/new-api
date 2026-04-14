@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
@@ -58,14 +59,11 @@ export function ChannelsPrimaryButtons() {
 
   return (
     <>
-      <div className='flex flex-wrap items-center gap-2'>
-        {/* Tag Mode Toggle */}
-        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5 max-sm:px-2'>
+      <div className='flex items-center gap-2'>
+        {/* Desktop: Toggle switches visible */}
+        <div className='hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex'>
           <Tags className='text-muted-foreground h-4 w-4' />
-          <Label
-            htmlFor='tag-mode'
-            className='cursor-pointer text-sm max-sm:sr-only'
-          >
+          <Label htmlFor='tag-mode' className='cursor-pointer text-sm'>
             {t('Tag Mode')}
           </Label>
           <Switch
@@ -75,13 +73,9 @@ export function ChannelsPrimaryButtons() {
           />
         </div>
 
-        {/* ID Sort Toggle */}
-        <div className='flex items-center gap-2 rounded-md border px-3 py-1.5 max-sm:px-2'>
+        <div className='hidden items-center gap-2 rounded-md border px-3 py-1.5 sm:flex'>
           <SortAsc className='text-muted-foreground h-4 w-4' />
-          <Label
-            htmlFor='id-sort'
-            className='cursor-pointer text-sm max-sm:sr-only'
-          >
+          <Label htmlFor='id-sort' className='cursor-pointer text-sm'>
             {t('Sort by ID')}
           </Label>
           <Switch
@@ -106,6 +100,27 @@ export function ChannelsPrimaryButtons() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-56'>
+            {/* Mobile-only: toggle switches */}
+            <DropdownMenuCheckboxItem
+              className='sm:hidden'
+              checked={enableTagMode}
+              onCheckedChange={handleTagModeToggle}
+            >
+              <Tags className='mr-2 h-4 w-4' />
+              {t('Tag Mode')}
+            </DropdownMenuCheckboxItem>
+
+            <DropdownMenuCheckboxItem
+              className='sm:hidden'
+              checked={idSort}
+              onCheckedChange={handleIdSortToggle}
+            >
+              <SortAsc className='mr-2 h-4 w-4' />
+              {t('Sort by ID')}
+            </DropdownMenuCheckboxItem>
+
+            <DropdownMenuSeparator className='sm:hidden' />
+
             <DropdownMenuItem
               onClick={() => {
                 handleTestAllChannels(queryClient)

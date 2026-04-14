@@ -147,7 +147,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           />
         )
       },
-      meta: { label: t('Task ID') },
+      meta: { label: t('Task ID'), mobileHidden: true },
     },
 
     // Status

@@ -45,7 +45,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'id',
-      meta: { label: t('ID') },
+      meta: { label: t('ID'), mobileHidden: true },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('ID')} />
       ),
@@ -55,7 +55,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'name',
-      meta: { label: t('Name') },
+      meta: { label: t('Name'), mobileTitle: true },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Name')} />
       ),
@@ -69,7 +69,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'status',
-      meta: { label: t('Status') },
+      meta: { label: t('Status'), mobileBadge: true },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
@@ -162,7 +162,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'created_time',
-      meta: { label: t('Created') },
+      meta: { label: t('Created'), mobileHidden: true },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Created')} />
       ),
@@ -176,7 +176,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'expired_time',
-      meta: { label: t('Expires') },
+      meta: { label: t('Expires'), mobileHidden: true },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Expires')} />
       ),
@@ -203,7 +203,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'used_user_id',
-      meta: { label: t('Redeemed By') },
+      meta: { label: t('Redeemed By'), mobileHidden: true },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Redeemed By')} />
       ),

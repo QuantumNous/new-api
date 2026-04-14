@@ -13,6 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -30,6 +31,7 @@ import {
   DataTableToolbar,
   TableSkeleton,
   TableEmpty,
+  MobileCardList,
 } from '@/components/data-table'
 import { PageFooterPortal } from '@/components/layout'
 import { getUsers, searchUsers } from '../api'
@@ -49,6 +51,7 @@ export function UsersTable() {
   const { t } = useTranslation()
   const columns = useUsersColumns()
   const { refreshTrigger } = useUsers()
+  const isMobile = useMediaQuery('(max-width: 640px)')
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -175,70 +178,83 @@ export function UsersTable() {
             },
           ]}
         />
-        <div
-          className={cn(
-            'overflow-hidden rounded-md border transition-opacity duration-150',
-            isFetching && !isLoading && 'pointer-events-none opacity-50'
-          )}
-        >
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableSkeleton table={table} keyPrefix='users-skeleton' />
-              ) : table.getRowModel().rows.length === 0 ? (
-                <TableEmpty
-                  colSpan={columns.length}
-                  title={t('No Users Found')}
-                  description={t(
-                    'No users available. Try adjusting your search or filters.'
-                  )}
-                />
-              ) : (
-                table.getRowModel().rows.map((row) => {
-                  const user = row.original
-                  const isDeleted = isUserDeleted(user)
-                  const isDisabled = user.status === USER_STATUS.DISABLED
-
-                  return (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && 'selected'}
-                      className={
-                        isDeleted || isDisabled ? 'opacity-50' : undefined
-                      }
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
+        {isMobile ? (
+          <MobileCardList
+            table={table}
+            isLoading={isLoading}
+            emptyTitle={t('No Users Found')}
+            emptyDescription={t(
+              'No users available. Try adjusting your search or filters.'
+            )}
+          />
+        ) : (
+          <>
+            <div
+              className={cn(
+                'overflow-hidden rounded-md border transition-opacity duration-150',
+                isFetching && !isLoading && 'pointer-events-none opacity-50'
+              )}
+            >
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead key={header.id} colSpan={header.colSpan}>
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                        </TableHead>
                       ))}
                     </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <DataTableBulkActions table={table} />
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableSkeleton table={table} keyPrefix='users-skeleton' />
+                  ) : table.getRowModel().rows.length === 0 ? (
+                    <TableEmpty
+                      colSpan={columns.length}
+                      title={t('No Users Found')}
+                      description={t(
+                        'No users available. Try adjusting your search or filters.'
+                      )}
+                    />
+                  ) : (
+                    table.getRowModel().rows.map((row) => {
+                      const user = row.original
+                      const isDeleted = isUserDeleted(user)
+                      const isDisabled = user.status === USER_STATUS.DISABLED
+
+                      return (
+                        <TableRow
+                          key={row.id}
+                          data-state={row.getIsSelected() && 'selected'}
+                          className={
+                            isDeleted || isDisabled ? 'opacity-50' : undefined
+                          }
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext()
+                              )}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <DataTableBulkActions table={table} />
+          </>
+        )}
       </div>
       <PageFooterPortal>
         <DataTablePagination table={table} />
