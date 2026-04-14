@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Card, Avatar, Tag, Divider, Empty } from '@douyinfe/semi-ui';
-import { Server, Gauge, ExternalLink } from 'lucide-react';
+import { Server, Gauge, ExternalLink, Copy } from 'lucide-react';
 import {
   IllustrationConstruction,
   IllustrationConstructionDark,
@@ -87,11 +87,18 @@ const ApiInfoPanel = ({
                       </Tag>
                     </div>
                   </div>
-                  <div
-                    className='!text-semi-color-primary break-all cursor-pointer hover:underline mb-1'
-                    onClick={() => handleCopyUrl(api.url)}
-                  >
-                    {api.url}
+                  <div className='flex items-center gap-1 mb-1'>
+                    <span
+                      className='!text-semi-color-primary break-all cursor-pointer hover:underline'
+                      onClick={() => handleCopyUrl(api.url)}
+                    >
+                      {api.url}
+                    </span>
+                    <Copy
+                      size={14}
+                      className='flex-shrink-0 text-gray-400 hover:text-semi-color-primary cursor-pointer transition-colors'
+                      onClick={() => handleCopyUrl(api.url)}
+                    />
                   </div>
                   <div className='text-gray-500'>{api.description}</div>
                 </div>

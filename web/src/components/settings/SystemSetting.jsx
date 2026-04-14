@@ -91,6 +91,7 @@ const SystemSetting = () => {
     EmailDomainRestrictionEnabled: '',
     EmailAliasRestrictionEnabled: '',
     SMTPSSLEnabled: '',
+    SMTPForceAuthLogin: '',
     EmailDomainWhitelist: [],
     TelegramOAuthEnabled: '',
     TelegramBotToken: '',
@@ -109,7 +110,7 @@ const SystemSetting = () => {
     'fetch_setting.domain_list': [],
     'fetch_setting.ip_list': [],
     'fetch_setting.allowed_ports': [],
-    'fetch_setting.apply_ip_filter_for_domain': false,
+    'fetch_setting.apply_ip_filter_for_domain': true,
   });
 
   const [originInputs, setOriginInputs] = useState({});
@@ -183,6 +184,7 @@ const SystemSetting = () => {
           case 'EmailDomainRestrictionEnabled':
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
+          case 'SMTPForceAuthLogin':
           case 'LinuxDOOAuthEnabled':
           case 'discord.enabled':
           case 'oidc.enabled':
@@ -849,7 +851,7 @@ const SystemSetting = () => {
                         }
                         style={{ marginBottom: 8 }}
                       >
-                        {t('对域名启用 IP 过滤（实验性）')}
+                        {t('对域名启用 IP 过滤（推荐开启）')}
                       </Form.Checkbox>
                       <Text strong>
                         {t(domainFilterMode ? '域名白名单' : '域名黑名单')}
@@ -1345,6 +1347,15 @@ const SystemSetting = () => {
                         }
                       >
                         {t('启用SMTP SSL')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='SMTPForceAuthLogin'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('SMTPForceAuthLogin', e)
+                        }
+                      >
+                        {t('强制使用 AUTH LOGIN')}
                       </Form.Checkbox>
                     </Col>
                   </Row>

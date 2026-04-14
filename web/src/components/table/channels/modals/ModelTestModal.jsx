@@ -30,6 +30,7 @@ import {
   Banner,
 } from '@douyinfe/semi-ui';
 import { IconSearch, IconInfoCircle } from '@douyinfe/semi-icons';
+import { Settings } from 'lucide-react';
 import { copy, showError, showInfo, showSuccess } from '../../../../helpers';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
 
@@ -168,17 +169,43 @@ const ModelTestModal = ({
         }
 
         return (
-          <div className='flex items-center gap-2'>
-            <Tag color={testResult.success ? 'green' : 'red'} shape='circle'>
-              {testResult.success ? t('成功') : t('失败')}
-            </Tag>
-            {testResult.success && (
-              <Typography.Text type='tertiary'>
-                {t('请求时长: ${time}s').replace(
-                  '${time}',
-                  testResult.time.toFixed(2),
+          <div className='flex flex-col gap-1'>
+            <div className='flex items-center gap-2'>
+              <Tag color={testResult.success ? 'green' : 'red'} shape='circle'>
+                {testResult.success ? t('成功') : t('失败')}
+              </Tag>
+              {testResult.success && (
+                <Typography.Text type='tertiary'>
+                  {t('请求时长: ${time}s').replace(
+                    '${time}',
+                    testResult.time.toFixed(2),
+                  )}
+                </Typography.Text>
+              )}
+            </div>
+            {!testResult.success && testResult.message && (
+              <div className='flex flex-col gap-1'>
+                <Typography.Text
+                  type='danger'
+                  size='small'
+                  className='break-all'
+                  style={{ maxWidth: '400px', fontSize: '12px' }}
+                >
+                  {testResult.message}
+                </Typography.Text>
+                {testResult.errorCode === 'model_price_error' && (
+                  <Button
+                    size='small'
+                    theme='light'
+                    type='warning'
+                    icon={<Settings size={12} />}
+                    onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                    style={{ width: 'fit-content' }}
+                  >
+                    {t('前往设置')}
+                  </Button>
                 )}
-              </Typography.Text>
+              </div>
             )}
           </div>
         );

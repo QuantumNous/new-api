@@ -80,9 +80,9 @@ type AliVideoOutput struct {
 
 // AliUsage 使用统计
 type AliUsage struct {
-	Duration   int `json:"duration,omitempty"`
-	VideoCount int `json:"video_count,omitempty"`
-	SR         int `json:"SR,omitempty"`
+	Duration   dto.IntValue `json:"duration,omitempty"`
+	VideoCount dto.IntValue `json:"video_count,omitempty"`
+	SR         dto.IntValue `json:"SR,omitempty"`
 }
 
 type AliMetadata struct {

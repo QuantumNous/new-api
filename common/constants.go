@@ -81,6 +81,7 @@ var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 var SMTPServer = ""
 var SMTPPort = 587
 var SMTPSSLEnabled = false
+var SMTPForceAuthLogin = false
 var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""

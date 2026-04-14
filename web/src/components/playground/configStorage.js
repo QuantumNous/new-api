@@ -65,11 +65,15 @@ export const loadConfig = () => {
     const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
     if (savedConfig) {
       const parsedConfig = JSON.parse(savedConfig);
+      const parsedMaxTokens = parseInt(parsedConfig?.inputs?.max_tokens, 10);
 
       const mergedConfig = {
         inputs: {
           ...DEFAULT_CONFIG.inputs,
           ...parsedConfig.inputs,
+          max_tokens: Number.isNaN(parsedMaxTokens)
+            ? parsedConfig?.inputs?.max_tokens
+            : parsedMaxTokens,
         },
         parameterEnabled: {
           ...DEFAULT_CONFIG.parameterEnabled,

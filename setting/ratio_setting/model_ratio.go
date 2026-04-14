@@ -361,6 +361,10 @@ func UpdateModelPriceByJSONString(jsonStr string) error {
 func GetModelPrice(name string, printErr bool) (float64, bool) {
 	name = FormatMatchingModelName(name)
 
+	if price, ok := modelPriceMap.Get(name); ok {
+		return price, true
+	}
+
 	if strings.HasSuffix(name, CompactModelSuffix) {
 		price, ok := modelPriceMap.Get(CompactWildcardModelKey)
 		if !ok {
@@ -372,14 +376,10 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 		return price, true
 	}
 
-	price, ok := modelPriceMap.Get(name)
-	if !ok {
-		if printErr {
-			common.SysError("model price not found: " + name)
-		}
-		return -1, false
+	if printErr {
+		common.SysError("model price not found: " + name)
 	}
-	return price, true
+	return -1, false
 }
 
 func UpdateModelRatioByJSONString(jsonStr string) error {

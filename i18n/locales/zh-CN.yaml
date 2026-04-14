@@ -3,7 +3,7 @@
 
 # Common messages
 common.invalid_params: "无效的参数"
-common.database_error: "数据库错误，请稍后重试"
+common.database_error: "数据库出错，请联系管理员"
 common.retry_later: "请稍后重试"
 common.generate_failed: "生成失败"
 common.not_found: "未找到"
@@ -22,6 +22,17 @@ common.delete_success: "删除成功"
 common.delete_failed: "删除失败"
 common.already_exists: "已存在"
 common.name_cannot_be_empty: "名称不能为空"
+common.batch_too_many: "批量请求数量过多，最多 {{.Max}} 条"
+
+# Auth middleware messages
+auth.not_logged_in: "无权进行此操作，未登录且未提供 access token"
+auth.access_token_invalid: "无权进行此操作，access token 无效"
+auth.user_info_invalid: "无权进行此操作，用户信息无效"
+auth.user_id_not_provided: "无权进行此操作，未提供 New-Api-User"
+auth.user_id_format_error: "无权进行此操作，New-Api-User 格式错误"
+auth.user_id_mismatch: "无权进行此操作，New-Api-User 与登录用户不匹配"
+auth.user_banned: "用户已被封禁"
+auth.insufficient_privilege: "无权进行此操作，权限不足"
 
 # Token messages
 token.name_too_long: "令牌名称过长"
@@ -91,6 +102,7 @@ user.wechat_id_empty: "WeChat id 为空！"
 user.telegram_id_empty: "Telegram id 为空！"
 user.telegram_not_bound: "该 Telegram 账户未绑定"
 user.linux_do_id_empty: "Linux DO id 为空！"
+user.quota_change_zero: "额度变更量不能为0"
 
 # Quota messages
 quota.negative: "额度不能为负数！"

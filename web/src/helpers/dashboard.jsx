@@ -387,3 +387,58 @@ export const generateChartTimePoints = (
 
   return chartTimePoints;
 };
+
+// ========== 用户维度数据处理 ==========
+export const processUserData = (data, dataExportDefaultTime, limit = 10) => {
+  const userQuotaTotal = new Map();
+  data.forEach((item) => {
+    const prev = userQuotaTotal.get(item.username) || 0;
+    userQuotaTotal.set(item.username, prev + item.quota);
+  });
+
+  const sorted = Array.from(userQuotaTotal.entries()).sort(
+    (a, b) => b[1] - a[1],
+  );
+  const topUsers = sorted.slice(0, limit).map(([u]) => u);
+  const topUserSet = new Set(topUsers);
+
+  const rankingData = sorted.slice(0, limit).map(([username, quota]) => ({
+    User: username,
+    Quota: quota,
+  }));
+
+  const showYear = isDataCrossYear(data.map((item) => item.created_at));
+
+  const timeUserMap = new Map();
+  const allTimePoints = new Set();
+
+  data.forEach((item) => {
+    const timeKey = timestamp2string1(
+      item.created_at,
+      dataExportDefaultTime,
+      showYear,
+    );
+    allTimePoints.add(timeKey);
+    const user = topUserSet.has(item.username) ? item.username : null;
+    if (!user) return;
+    const key = `${timeKey}-${user}`;
+    const prev = timeUserMap.get(key) || { quota: 0 };
+    timeUserMap.set(key, { quota: prev.quota + item.quota });
+  });
+
+  const sortedTimePoints = Array.from(allTimePoints).sort();
+  const trendData = [];
+  sortedTimePoints.forEach((time) => {
+    topUsers.forEach((user) => {
+      const key = `${time}-${user}`;
+      const val = timeUserMap.get(key);
+      trendData.push({
+        Time: time,
+        User: user,
+        Quota: val?.quota || 0,
+      });
+    });
+  });
+
+  return { rankingData, trendData, topUsers };
+};

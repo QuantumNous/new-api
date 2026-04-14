@@ -34,6 +34,20 @@ export async function fetchTokenKey(tokenId) {
 }
 
 /**
+ * 批量获取多个令牌的真实 key
+ * @param {number[]} tokenIds
+ * @returns {Promise<Record<number, string>>} 返回 {id: key} map，key 不带 sk- 前缀
+ */
+export async function fetchTokenKeysBatch(tokenIds) {
+  const response = await API.post('/api/token/batch/keys', { ids: tokenIds });
+  const { success, data, message } = response.data || {};
+  if (!success || !data?.keys) {
+    throw new Error(message || 'Failed to fetch token keys');
+  }
+  return data.keys;
+}
+
+/**
  * 获取可用的 token keys
  * @returns {Promise<string[]>} 返回 active 状态的不带 sk- 前缀的真实 token key 数组
  */
@@ -79,4 +93,42 @@ export function getServerAddress() {
   }
 
   return serverAddress;
+}
+
+export const CHANNEL_CONN_CLIPBOARD_TYPE = 'newapi_channel_conn';
+
+/**
+ * @param {string} key - 完整的 API key（含 sk- 前缀）
+ * @param {string} url - 服务器地址
+ * @returns {string} JSON 格式的连接字符串
+ */
+export function encodeChannelConnectionString(key, url) {
+  return JSON.stringify({
+    _type: CHANNEL_CONN_CLIPBOARD_TYPE,
+    key,
+    url,
+  });
+}
+
+/**
+ * @param {string} text - 剪贴板文本
+ * @returns {{ key: string, url: string } | null}
+ */
+export function parseChannelConnectionString(text) {
+  if (!text || typeof text !== 'string') return null;
+  try {
+    const parsed = JSON.parse(text.trim());
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      parsed._type === CHANNEL_CONN_CLIPBOARD_TYPE &&
+      typeof parsed.key === 'string' &&
+      typeof parsed.url === 'string'
+    ) {
+      return { key: parsed.key, url: parsed.url };
+    }
+  } catch {
+    // not valid JSON
+  }
+  return null;
 }

@@ -31,6 +31,13 @@ body {
   background-color: var(--semi-color-bg-0);
 }
 
+/* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
+@media (min-width: 768px) {
+  body {
+    overflow-y: hidden;
+  }
+}
+
 .app-layout {
   height: 100vh;
   height: 100dvh;
@@ -468,6 +475,9 @@ html.dark .sbg-variant-green {
 /* 页脚样式 */
 .custom-footer {
   font-size: 1.1em;
+}
+.custom-footer.na-cb6feafeb3990c78 {
+  position: relative;
 }
 
 /* 卡片内容容器通用样式 */
@@ -994,3 +1004,5 @@ html.dark .with-pastel-balls::before {
     opacity: 1;
   }
 }
+
+.ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
