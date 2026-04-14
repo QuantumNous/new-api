@@ -68,7 +68,8 @@ func TestCalcTaskQuotaWithRatiosUsesGroupMappedSecondsPriceWithoutGroupRatio(t *
 
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "grok-imagine-1.0-video",
-		UsingGroup:      "vip",
+		UsingGroup:      "default",
+		UserGroup:       "vip",
 		PriceData: types.PriceData{
 			BaseQuota: 100,
 			Quota:     100,

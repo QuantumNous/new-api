@@ -82,7 +82,8 @@ func TestModelPriceHelperUsesGroupResolutionPriceWithoutGroupRatio(t *testing.T)
 	}
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "nano-banana-pro",
-		UsingGroup:      "vip",
+		UsingGroup:      "default",
+		UserGroup:       "vip",
 		Request:         request,
 	}
 
@@ -92,7 +93,7 @@ func TestModelPriceHelperUsesGroupResolutionPriceWithoutGroupRatio(t *testing.T)
 	assert.True(t, priceData.UsePrice)
 	assert.True(t, priceData.GroupPriceOverride)
 	assert.Equal(t, 0.12, priceData.ModelPrice)
-	assert.Equal(t, 0.5, priceData.GroupRatioInfo.GroupRatio)
+	assert.Equal(t, 1.0, priceData.GroupRatioInfo.GroupRatio)
 	assert.Equal(t, int(0.12*common.QuotaPerUnit), priceData.QuotaToPreConsume)
 }
 
@@ -124,7 +125,8 @@ func TestModelPriceHelperUsesGroupPerCallPriceWithoutGroupRatio(t *testing.T) {
 	}
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "grok-imagine-1.0-edit",
-		UsingGroup:      "vip",
+		UsingGroup:      "default",
+		UserGroup:       "vip",
 		Request:         request,
 	}
 
@@ -134,7 +136,7 @@ func TestModelPriceHelperUsesGroupPerCallPriceWithoutGroupRatio(t *testing.T) {
 	assert.True(t, priceData.UsePrice)
 	assert.True(t, priceData.GroupPriceOverride)
 	assert.Equal(t, 0.02, priceData.ModelPrice)
-	assert.Equal(t, 0.5, priceData.GroupRatioInfo.GroupRatio)
+	assert.Equal(t, 1.0, priceData.GroupRatioInfo.GroupRatio)
 	assert.Equal(t, int(0.02*common.QuotaPerUnit), priceData.QuotaToPreConsume)
 }
 

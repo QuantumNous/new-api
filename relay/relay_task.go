@@ -383,7 +383,7 @@ func calcTaskQuotaWithRatios(c *gin.Context, info *relaycommon.RelayInfo, ratios
 	}
 
 	if seconds, ok := extractTaskSeconds(normalizedRatios); ok {
-		if secondsPrice, found := ratio_setting.GetGroupModelPriceBySeconds(info.UsingGroup, info.OriginModelName, seconds); found {
+		if secondsPrice, found := helper.ResolveGroupModelPriceBySeconds(info, seconds); found {
 			info.PriceData.ModelPrice = secondsPrice
 			info.PriceData.GroupPriceOverride = true
 			baseQuota = int(secondsPrice * common.QuotaPerUnit)
@@ -399,7 +399,7 @@ func calcTaskQuotaWithRatios(c *gin.Context, info *relaycommon.RelayInfo, ratios
 	if c != nil {
 		if req, err := relaycommon.GetTaskRequest(c); err == nil {
 			if resolution := extractTaskResolution(req); resolution != "" {
-				if resolutionPrice, found := ratio_setting.GetGroupModelPriceByResolution(info.UsingGroup, info.OriginModelName, resolution); found {
+				if resolutionPrice, found := helper.ResolveGroupModelPriceByResolution(info, resolution); found {
 					info.PriceData.ModelPrice = resolutionPrice
 					info.PriceData.GroupPriceOverride = true
 					baseQuota = int(resolutionPrice * common.QuotaPerUnit)
