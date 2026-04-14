@@ -119,6 +119,8 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/images/edits", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
+		httpRouter.POST("/images/async-generations", controller.RelayAsyncImageGenerations)
+		httpRouter.POST("/images/async-edits", controller.RelayAsyncImageEdits)
 
 		// embedding related routes
 		httpRouter.POST("/embeddings", func(c *gin.Context) {
@@ -167,6 +169,11 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/fine-tunes/:id/cancel", controller.RelayNotImplemented)
 		httpRouter.GET("/fine-tunes/:id/events", controller.RelayNotImplemented)
 		httpRouter.DELETE("/models/:model", controller.RelayNotImplemented)
+	}
+	{
+		asyncImageRouter := relayV1Router.Group("")
+		asyncImageRouter.GET("/images/async-generations/:task_id", controller.RelayAsyncImageFetch)
+		asyncImageRouter.GET("/images/async-edits/:task_id", controller.RelayAsyncImageFetch)
 	}
 
 	relayMjRouter := router.Group("/mj")

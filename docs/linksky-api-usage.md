@@ -31,6 +31,10 @@ curl https://linksky.top/v1/models \
 | `POST /v1/responses` | Responses 风格对话 | 当前 Grok 文本模型支持 |
 | `POST /v1/images/generations` | 文生图 | 适合 `grok-imagine-1.0` |
 | `POST /v1/images/edits` | 图生图/编辑 | 适合 `grok-imagine-1.0-edit` |
+| `POST /v1/images/async-generations` | 异步文生图 | 立即返回 `task_id`，后台生成 |
+| `POST /v1/images/async-edits` | 异步图生图/编辑 | 立即返回 `task_id`，后台生成 |
+| `GET /v1/images/async-generations/{task_id}` | 查询异步图片任务 | 轮询获取状态与图片结果 |
+| `GET /v1/images/async-edits/{task_id}` | 查询异步图片编辑任务 | 轮询获取状态与图片结果 |
 | `POST /v1/chat/completions` | Banana 系列图片生成/编辑 | 适合 `nano-banana-pro` / `nano-banana2` |
 | `POST /v1/video/generations` | 视频生成 | 异步任务，返回 `task_id` |
 | `GET /v1/video/generations/{task_id}` | 查询视频任务 | 轮询获取状态与结果 |
@@ -263,7 +267,69 @@ curl https://linksky.top/v1/chat/completions \
 
 如果你接的是标准 OpenAI 文件上传流，也可以改用 `multipart/form-data` 上传本地图片文件。
 
-### 4.5 视频生成
+### 4.5 图片异步任务
+
+如果下游需要“提交任务 -> 轮询结果”的异步模式，可以使用异步图片接口。它不会改动原来的同步接口行为，后台仍复用现有图片生成/编辑链路，因此模型适配、分组价格、扣费和使用日志规则与 `/v1/images/generations`、`/v1/images/edits` 保持一致。
+
+#### 异步文生图
+
+```bash
+curl https://linksky.top/v1/images/async-generations \
+  -H "Authorization: Bearer $LINKSKY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "grok-imagine-1.0",
+    "prompt": "一张复古科幻旅行海报，火星城市、火箭、胶片颗粒质感",
+    "size": "1024x1024",
+    "response_format": "url"
+  }'
+```
+
+提交成功会立即返回类似:
+
+```json
+{
+  "id": "task_xxx",
+  "task_id": "task_xxx",
+  "object": "image.task",
+  "model": "grok-imagine-1.0",
+  "status": "queued",
+  "progress": 10,
+  "created_at": 1776146800
+}
+```
+
+轮询查询:
+
+```bash
+curl https://linksky.top/v1/images/async-generations/<task_id> \
+  -H "Authorization: Bearer $LINKSKY_API_KEY"
+```
+
+完成后会返回 `status: "completed"`，并在 `result_url` 和 `data[].url` 中带图片结果；失败时会返回 `status: "failed"` 和 `error.message`。
+
+#### 异步图生图 / 图片编辑
+
+```bash
+curl https://linksky.top/v1/images/async-edits \
+  -H "Authorization: Bearer $LINKSKY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "grok-imagine-1.0-edit",
+    "prompt": "保留主体构图，把画面改成黄昏氛围，并增加赛博朋克霓虹灯",
+    "image": "https://example.com/source.png",
+    "response_format": "url"
+  }'
+```
+
+轮询查询:
+
+```bash
+curl https://linksky.top/v1/images/async-edits/<task_id> \
+  -H "Authorization: Bearer $LINKSKY_API_KEY"
+```
+
+### 4.6 视频生成
 
 视频接口是异步任务模式。  
 先 `POST /v1/video/generations` 获取 `task_id`，再轮询 `GET /v1/video/generations/{task_id}`。
