@@ -440,6 +440,7 @@
     "余额充值管理": "Balance recharge management",
     "作废": "Invalidate",
     "作废于": "Invalidated at",
+    "下一次重置": "Next reset",
     "作废后该订阅将立即失效，历史记录不受影响。是否继续？": "After invalidation, the subscription becomes invalid immediately. History is not affected. Continue?",
     "作用域": "Scope",
     "作用域：包含分组": "Scope: Include Group",
