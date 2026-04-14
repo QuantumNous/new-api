@@ -66,7 +66,7 @@ echo -e "${BLUE}3. 安装二进制文件...${NC}"
 
 # 备份旧二进制
 if [ -f "$INSTALL_DIR/new-api" ]; then
-    mv "$INSTALL_DIR/new-api" "$INSTALL_DIR/new-api.backup"
+    mv "$INSTALL_DIR/new-api" "$INSTALL_DIR/new-api.backup.$(date +%Y%m%d%H%M%S)"
     echo -e "${YELLOW}已备份旧版本${NC}"
 fi
 
@@ -113,7 +113,7 @@ else
         fi
 
         if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-            sed "s/__DOMAIN__/$DOMAIN/g; s/__BACKEND_PORT__/$BACKEND_PORT/g; s/__BACKEND_HOST__/$BACKEND_HOST/g; s/server_name _;/server_name $DOMAIN;/g" \
+            sed "s|__DOMAIN__|$DOMAIN|g; s|__BACKEND_PORT__|$BACKEND_PORT|g; s|__BACKEND_HOST__|$BACKEND_HOST|g; s|server_name _;|server_name $DOMAIN;|g" \
                 "$NGINX_CONF_SOURCE" > "$NGINX_CONF"
         else
             cat > "$NGINX_CONF" << EOF
@@ -161,8 +161,9 @@ else
     echo -e "${RED}❌ 服务启动失败${NC}"
     echo -e "${YELLOW}尝试回滚...${NC}"
 
-    if [ -f "$INSTALL_DIR/new-api.backup" ]; then
-        cp "$INSTALL_DIR/new-api.backup" "$INSTALL_DIR/new-api"
+    LATEST_BACKUP=$(ls -t "$INSTALL_DIR"/new-api.backup.* 2>/dev/null | head -1)
+    if [ -n "$LATEST_BACKUP" ]; then
+        cp "$LATEST_BACKUP" "$INSTALL_DIR/new-api"
         chown new-api:new-api "$INSTALL_DIR/new-api"
         systemctl start $SERVICE_NAME
         echo -e "${YELLOW}已回滚到旧版本${NC}"
@@ -173,7 +174,7 @@ else
 fi
 
 # 检查端口监听
-if ss -tlnp 2>/dev/null | grep -q ":$BACKEND_PORT"; then
+if ss -tlnp 2>/dev/null | grep -qE ":$BACKEND_PORT([[:space:]]|$)"; then
     echo -e "${GREEN}✅ 端口 $BACKEND_PORT 监听正常${NC}"
 else
     echo -e "${YELLOW}⚠️  端口 $BACKEND_PORT 未检测到监听${NC}"

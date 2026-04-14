@@ -53,6 +53,7 @@ jobs:
 
       - name: Slack 通知
         if: always()
+        continue-on-error: true
         uses: forecho/slack-deploy-action@v1
         with:
           slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -94,6 +95,7 @@ jobs:
 
       - name: Slack 通知
         if: always()
+        continue-on-error: true
         uses: forecho/slack-deploy-action@v1
         with:
           slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}

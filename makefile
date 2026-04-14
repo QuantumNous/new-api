@@ -4,7 +4,7 @@ DEPLOY_HOST ?= hetzner
 
 # === 本地编译 ===
 build:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+	CGO_ENABLED=0 GOOS=linux GOARCH=$${GOARCH:-amd64} go build \
 		-ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$$(cat VERSION 2>/dev/null || echo dev)'" \
 		-o bin/new-api
 

@@ -69,7 +69,7 @@ if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
 fi
 
 if [ "$SSL_EXISTS" = true ]; then
-    sed "s/__DOMAIN__/$DOMAIN/g; s/__BACKEND_PORT__/$BACKEND_PORT/g; s/__BACKEND_HOST__/$BACKEND_HOST/g; s/server_name _;/server_name $DOMAIN;/g" \
+    sed "s|__DOMAIN__|$DOMAIN|g; s|__BACKEND_PORT__|$BACKEND_PORT|g; s|__BACKEND_HOST__|$BACKEND_HOST|g; s|server_name _;|server_name $DOMAIN;|g" \
         "$NGINX_CONF_SOURCE" > "$NGINX_CONF_TARGET"
     echo -e "${GREEN}✅ Nginx 配置已更新（含 SSL）${NC}"
 else
@@ -149,7 +149,7 @@ fi
 echo -e "${BLUE}7. 验证部署...${NC}"
 
 sleep 2
-if ss -tlnp 2>/dev/null | grep -q ":$BACKEND_PORT"; then
+if ss -tlnp 2>/dev/null | grep -qE ":$BACKEND_PORT([[:space:]]|$)"; then
     echo -e "${GREEN}✅ 后端服务监听端口 $BACKEND_PORT${NC}"
 else
     echo -e "${RED}❌ 后端服务未监听端口 $BACKEND_PORT${NC}"
