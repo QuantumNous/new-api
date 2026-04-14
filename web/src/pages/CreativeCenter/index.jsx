@@ -1691,6 +1691,11 @@ const isTerminalVideoTaskStatus = (status) => {
   return normalizedStatus === 'completed' || normalizedStatus === 'failed';
 };
 
+const isTerminalImageTaskStatus = (status) => {
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  return normalizedStatus === 'completed' || normalizedStatus === 'failed';
+};
+
 const buildResolvedVideoTaskPatch = (queryTaskId, nextTaskState) => (currentTask) => {
   const normalizedStatus = normalizeVideoTaskStatus(
     nextTaskState?.status || currentTask?.status || '',
@@ -2264,6 +2269,7 @@ const collectRecoverableImageCandidatesFromSnapshot = (snapshot) => {
     .filter(
       (item) =>
         !item.hasMedia &&
+        !isTerminalImageTaskStatus(item.status) &&
         Boolean(item.requestId),
     )
     .sort((left, right) => right.sortTimestamp - left.sortTimestamp);
@@ -5775,6 +5781,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           queryTaskId: getRecoverableImageTaskId(image),
           requestId: String(image?.requestId || '').trim(),
           hasMedia: Boolean(getImageTaskMediaUrl(image)),
+          status: String(image?.status || '').trim().toLowerCase(),
           recordModelName: String(record?.modelName || '').trim().toLowerCase(),
           recordCreatedAt: Number(record?.createdAt) || 0,
           recordUpdatedAt: Number(record?.updatedAt) || 0,
@@ -5785,7 +5792,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             0,
         })),
       )
-      .filter((candidate) => !candidate.hasMedia && Boolean(candidate.queryTaskId || candidate.requestId));
+      .filter(
+        (candidate) =>
+          !candidate.hasMedia &&
+          !isTerminalImageTaskStatus(candidate.status) &&
+          Boolean(candidate.queryTaskId || candidate.requestId),
+      );
 
     if (candidates.length === 0) {
       return undefined;
