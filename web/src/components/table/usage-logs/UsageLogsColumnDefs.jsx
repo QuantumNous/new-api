@@ -459,6 +459,33 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
   };
 }
 
+function renderUsageLogGroup(record, t) {
+  const other = getLogOther(record.other);
+  const billingGroup =
+    other?.group_price_override && other?.billing_group
+      ? String(other.billing_group)
+      : '';
+  const usingGroup = String(other?.using_group || record.group || other?.group || '');
+  const displayGroup = billingGroup || record.group || other?.group || '';
+
+  if (!displayGroup) {
+    return <></>;
+  }
+
+  const renderedGroup = renderGroup(displayGroup);
+  if (billingGroup && usingGroup && billingGroup !== usingGroup) {
+    return (
+      <Tooltip
+        content={`${t('计费分组')}: ${billingGroup} / ${t('调用分组')}: ${usingGroup}`}
+      >
+        {renderedGroup}
+      </Tooltip>
+    );
+  }
+
+  return <>{renderedGroup}</>;
+}
+
 export const getLogsColumns = ({
   t,
   COLUMN_KEYS,
@@ -630,27 +657,7 @@ export const getLogsColumns = ({
           record.type === 5 ||
           record.type === 6
         ) {
-          if (record.group) {
-            return <>{renderGroup(record.group)}</>;
-          } else {
-            let other = null;
-            try {
-              other = JSON.parse(record.other);
-            } catch (e) {
-              console.error(
-                `Failed to parse record.other: "${record.other}".`,
-                e,
-              );
-            }
-            if (other === null) {
-              return <></>;
-            }
-            if (other.group !== undefined) {
-              return <>{renderGroup(other.group)}</>;
-            } else {
-              return <></>;
-            }
-          }
+          return renderUsageLogGroup(record, t);
         } else {
           return <></>;
         }

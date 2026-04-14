@@ -41,6 +41,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["cache_ratio"] = cacheRatio
 	other["model_price"] = modelPrice
 	other["user_group_ratio"] = userGroupRatio
+	appendGroupPriceOverrideInfo(relayInfo, relayInfo.PriceData, other)
 	other["frt"] = float64(relayInfo.FirstResponseTime.UnixMilli() - relayInfo.StartTime.UnixMilli())
 	if relayInfo.ReasoningEffort != "" {
 		other["reasoning_effort"] = relayInfo.ReasoningEffort
@@ -84,6 +85,26 @@ func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]
 		return
 	}
 	other["po"] = relayInfo.ParamOverrideAudit
+}
+
+func appendGroupPriceOverrideInfo(relayInfo *relaycommon.RelayInfo, priceData types.PriceData, other map[string]interface{}) {
+	if other == nil || !priceData.GroupPriceOverride {
+		return
+	}
+	other["group_price_override"] = true
+	billingGroup := strings.TrimSpace(priceData.GroupPriceOverrideGroup)
+	if billingGroup == "" && relayInfo != nil {
+		billingGroup = strings.TrimSpace(relayInfo.UserGroup)
+		if billingGroup == "" {
+			billingGroup = strings.TrimSpace(relayInfo.UsingGroup)
+		}
+	}
+	if billingGroup != "" {
+		other["billing_group"] = billingGroup
+	}
+	if relayInfo != nil && strings.TrimSpace(relayInfo.UsingGroup) != "" {
+		other["using_group"] = strings.TrimSpace(relayInfo.UsingGroup)
+	}
 }
 
 func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
@@ -231,6 +252,7 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	appendGroupPriceOverrideInfo(relayInfo, priceData, other)
 	appendRequestPath(nil, relayInfo, other)
 	return other
 }

@@ -90,6 +90,7 @@ func TestCalcTaskQuotaWithRatiosUsesGroupMappedSecondsPriceWithoutGroupRatio(t *
 	assert.False(t, hasSize)
 	assert.Equal(t, 0.07, info.PriceData.ModelPrice)
 	assert.True(t, info.PriceData.GroupPriceOverride)
+	assert.Equal(t, "vip", info.PriceData.GroupPriceOverrideGroup)
 }
 
 func TestCalcTaskQuotaWithRatiosFallsBackToLinearSeconds(t *testing.T) {

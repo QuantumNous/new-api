@@ -51,6 +51,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	appendGroupPriceOverrideInfo(info, info.PriceData, other)
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
@@ -131,6 +132,15 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		if len(bc.OtherRatios) > 0 {
 			for k, v := range bc.OtherRatios {
 				other[k] = v
+			}
+		}
+		if bc.GroupPriceOverride {
+			other["group_price_override"] = true
+			if strings.TrimSpace(bc.GroupPriceOverrideGroup) != "" {
+				other["billing_group"] = strings.TrimSpace(bc.GroupPriceOverrideGroup)
+			}
+			if strings.TrimSpace(bc.UsingGroup) != "" {
+				other["using_group"] = strings.TrimSpace(bc.UsingGroup)
 			}
 		}
 	}
