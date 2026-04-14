@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -24,14 +25,26 @@ import (
 // FileService 统一的文件处理服务
 // 提供文件下载、解码、缓存等功能的统一入口
 
-// getContextCacheKey 生成 context 缓存的 key
+// getContextCacheKey 生成 URL context 缓存的 key
 func getContextCacheKey(url string) string {
 	return fmt.Sprintf("file_cache_%s", common.GenerateHMAC(url))
 }
 
+// getBase64ContextCacheKey 生成 base64 context 缓存的 key
+// 使用 length + MIME + 前 128 字符作为输入，避免对整个 base64 数据做 hash
+func getBase64ContextCacheKey(data string, mimeType string) string {
+	keyMaterial := fmt.Sprintf("%d:%s:", len(data), mimeType)
+	if len(data) > 128 {
+		keyMaterial += data[:128]
+	} else {
+		keyMaterial += data
+	}
+	return fmt.Sprintf("b64_cache_%s", common.GenerateHMAC(keyMaterial))
+}
+
 // LoadFileSource 加载文件源数据
 // 这是统一的入口，会自动处理缓存和不同的来源类型
-func LoadFileSource(c *gin.Context, source *types.FileSource, reason ...string) (*types.CachedFileData, error) {
+func LoadFileSource(c *gin.Context, source types.FileSource, reason ...string) (*types.CachedFileData, error) {
 	if source == nil {
 		return nil, fmt.Errorf("file source is nil")
 	}
@@ -42,7 +55,6 @@ func LoadFileSource(c *gin.Context, source *types.FileSource, reason ...string) 
 
 	// 1. 快速检查内部缓存
 	if source.HasCache() {
-		// 即使命中内部缓存，也要确保注册到清理列表（如果尚未注册）
 		if c != nil {
 			registerSourceForCleanup(c, source)
 		}
@@ -61,39 +73,49 @@ func LoadFileSource(c *gin.Context, source *types.FileSource, reason ...string) 
 		return source.GetCache(), nil
 	}
 
-	// 4. 如果是 URL，检查 Context 缓存
-	var contextKey string
-	if source.IsURL() && c != nil {
-		contextKey = getContextCacheKey(source.URL)
-		if cachedData, exists := c.Get(contextKey); exists {
-			data := cachedData.(*types.CachedFileData)
-			source.SetCache(data)
-			registerSourceForCleanup(c, source)
-			return data, nil
-		}
-	}
-
-	// 5. 执行加载逻辑
+	// 4. 根据来源类型加载（含 URL context 缓存查找）
 	var cachedData *types.CachedFileData
+	var contextKey string
 	var err error
 
-	if source.IsURL() {
-		cachedData, err = loadFromURL(c, source.URL, reason...)
-	} else {
-		cachedData, err = loadFromBase64(source.Base64Data, source.MimeType)
+	switch s := source.(type) {
+	case *types.URLSource:
+		if c != nil {
+			contextKey = getContextCacheKey(s.URL)
+			if cached, exists := c.Get(contextKey); exists {
+				data := cached.(*types.CachedFileData)
+				source.SetCache(data)
+				registerSourceForCleanup(c, source)
+				return data, nil
+			}
+		}
+		cachedData, err = loadFromURL(c, s.URL, reason...)
+	case *types.Base64Source:
+		if c != nil {
+			contextKey = getBase64ContextCacheKey(s.Base64Data, s.MimeType)
+			if cached, exists := c.Get(contextKey); exists {
+				data := cached.(*types.CachedFileData)
+				source.SetCache(data)
+				registerSourceForCleanup(c, source)
+				return data, nil
+			}
+		}
+		cachedData, err = loadFromBase64(s.Base64Data, s.MimeType)
+	default:
+		return nil, fmt.Errorf("unsupported file source type: %T", source)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	// 6. 设置缓存
+	// 5. 设置缓存
 	source.SetCache(cachedData)
 	if contextKey != "" && c != nil {
 		c.Set(contextKey, cachedData)
 	}
 
-	// 7. 注册到 context 以便请求结束时自动清理
+	// 6. 注册到 context 以便请求结束时自动清理
 	if c != nil {
 		registerSourceForCleanup(c, source)
 	}
@@ -102,15 +124,15 @@ func LoadFileSource(c *gin.Context, source *types.FileSource, reason ...string) 
 }
 
 // registerSourceForCleanup 注册 FileSource 到 context 以便请求结束时清理
-func registerSourceForCleanup(c *gin.Context, source *types.FileSource) {
+func registerSourceForCleanup(c *gin.Context, source types.FileSource) {
 	if source.IsRegistered() {
 		return
 	}
 
 	key := string(constant.ContextKeyFileSourcesToCleanup)
-	var sources []*types.FileSource
+	var sources []types.FileSource
 	if existing, exists := c.Get(key); exists {
-		sources = existing.([]*types.FileSource)
+		sources = existing.([]types.FileSource)
 	}
 	sources = append(sources, source)
 	c.Set(key, sources)
@@ -122,12 +144,12 @@ func registerSourceForCleanup(c *gin.Context, source *types.FileSource) {
 func CleanupFileSources(c *gin.Context) {
 	key := string(constant.ContextKeyFileSourcesToCleanup)
 	if sources, exists := c.Get(key); exists {
-		for _, source := range sources.([]*types.FileSource) {
+		for _, source := range sources.([]types.FileSource) {
 			if cache := source.GetCache(); cache != nil {
 				cache.Close()
 			}
 		}
-		c.Set(key, nil) // 清除引用
+		c.Set(key, nil)
 	}
 }
 
@@ -275,6 +297,11 @@ func smartDetectMimeType(resp *http.Response, url string, fileBytes []byte) stri
 			}
 			return sniffed
 		}
+
+		// 4.5 尝试 HEIF/HEIC 检测（Go 标准库不识别）
+		if heifMime := detectHEIF(fileBytes); heifMime != "" {
+			return heifMime
+		}
 	}
 
 	// 5. 尝试作为图片解码获取格式
@@ -357,7 +384,7 @@ func loadFromBase64(base64String string, providedMimeType string) (*types.Cached
 }
 
 // GetImageConfig 获取图片配置
-func GetImageConfig(c *gin.Context, source *types.FileSource) (image.Config, string, error) {
+func GetImageConfig(c *gin.Context, source types.FileSource) (image.Config, string, error) {
 	cachedData, err := LoadFileSource(c, source, "get_image_config")
 	if err != nil {
 		return image.Config{}, "", err
@@ -388,7 +415,7 @@ func GetImageConfig(c *gin.Context, source *types.FileSource) (image.Config, str
 }
 
 // GetBase64Data 获取 base64 编码的数据
-func GetBase64Data(c *gin.Context, source *types.FileSource, reason ...string) (string, string, error) {
+func GetBase64Data(c *gin.Context, source types.FileSource, reason ...string) (string, string, error) {
 	cachedData, err := LoadFileSource(c, source, reason...)
 	if err != nil {
 		return "", "", err
@@ -401,13 +428,13 @@ func GetBase64Data(c *gin.Context, source *types.FileSource, reason ...string) (
 }
 
 // GetMimeType 获取文件的 MIME 类型
-func GetMimeType(c *gin.Context, source *types.FileSource) (string, error) {
+func GetMimeType(c *gin.Context, source types.FileSource) (string, error) {
 	if source.HasCache() {
 		return source.GetCache().MimeType, nil
 	}
 
-	if source.IsURL() {
-		mimeType, err := GetFileTypeFromUrl(c, source.URL, "get_mime_type")
+	if urlSource, ok := source.(*types.URLSource); ok {
+		mimeType, err := GetFileTypeFromUrl(c, urlSource.URL, "get_mime_type")
 		if err == nil && mimeType != "" && mimeType != "application/octet-stream" {
 			return mimeType, nil
 		}
@@ -449,7 +476,116 @@ func decodeImageConfig(data []byte) (image.Config, string, error) {
 		return config, "webp", nil
 	}
 
+	// Try HEIF/HEIC: parse ISOBMFF ispe box for dimensions
+	if heifMime := detectHEIF(data); heifMime != "" {
+		formatName := "heif"
+		if heifMime == "image/heic" {
+			formatName = "heic"
+		}
+		if w, h, ok := parseHEIFDimensions(data); ok {
+			return image.Config{Width: w, Height: h}, formatName, nil
+		}
+		return image.Config{}, "", fmt.Errorf("failed to decode HEIF/HEIC image dimensions")
+	}
+
 	return image.Config{}, "", fmt.Errorf("failed to decode image config: unsupported format")
+}
+
+// detectHEIF checks ISOBMFF magic bytes to detect HEIC/HEIF files.
+// Returns "image/heic", "image/heif", or "" if not recognized.
+func detectHEIF(data []byte) string {
+	if len(data) < 12 {
+		return ""
+	}
+	// ISOBMFF: bytes[4:8] must be "ftyp"
+	if string(data[4:8]) != "ftyp" {
+		return ""
+	}
+	brand := string(data[8:12])
+	switch brand {
+	case "heic", "heix", "hevc", "hevx", "heim", "heis":
+		return "image/heic"
+	case "mif1", "msf1":
+		return "image/heif"
+	default:
+		return ""
+	}
+}
+
+// parseHEIFDimensions parses ISOBMFF box tree to find the ispe box
+// and extract image width/height. Returns (width, height, ok).
+func parseHEIFDimensions(data []byte) (int, int, bool) {
+	size := len(data)
+	if size < 12 {
+		return 0, 0, false
+	}
+
+	// Walk top-level boxes to find "meta"
+	offset := 0
+	for offset+8 <= size {
+		boxSize := int(binary.BigEndian.Uint32(data[offset : offset+4]))
+		boxType := string(data[offset+4 : offset+8])
+		headerLen := 8
+
+		if boxSize == 1 {
+			// 64-bit extended size
+			if offset+16 > size {
+				break
+			}
+			boxSize = int(binary.BigEndian.Uint64(data[offset+8 : offset+16]))
+			headerLen = 16
+		} else if boxSize == 0 {
+			// box extends to end of data
+			boxSize = size - offset
+		}
+
+		if boxSize < headerLen || offset+boxSize > size {
+			break
+		}
+
+		if boxType == "meta" {
+			// meta is a full box: 4 bytes version/flags after header
+			metaData := data[offset+headerLen : offset+boxSize]
+			if len(metaData) < 4 {
+				return 0, 0, false
+			}
+			return findISPE(metaData[4:])
+		}
+		offset += boxSize
+	}
+	return 0, 0, false
+}
+
+// findISPE recursively searches for the ispe box within container boxes.
+// Path: meta -> iprp -> ipco -> ispe
+func findISPE(data []byte) (int, int, bool) {
+	offset := 0
+	size := len(data)
+	for offset+8 <= size {
+		boxSize := int(binary.BigEndian.Uint32(data[offset : offset+4]))
+		boxType := string(data[offset+4 : offset+8])
+		if boxSize < 8 || offset+boxSize > size {
+			break
+		}
+		content := data[offset+8 : offset+boxSize]
+		switch boxType {
+		case "iprp", "ipco":
+			if w, h, ok := findISPE(content); ok {
+				return w, h, true
+			}
+		case "ispe":
+			// ispe is a full box: 4 bytes version/flags, then 4 bytes width, 4 bytes height
+			if len(content) >= 12 {
+				w := int(binary.BigEndian.Uint32(content[4:8]))
+				h := int(binary.BigEndian.Uint32(content[8:12]))
+				if w > 0 && h > 0 {
+					return w, h, true
+				}
+			}
+		}
+		offset += boxSize
+	}
+	return 0, 0, false
 }
 
 // guessMimeTypeFromURL 从 URL 猜测 MIME 类型

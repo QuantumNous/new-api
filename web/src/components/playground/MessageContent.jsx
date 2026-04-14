@@ -21,8 +21,9 @@ import React, { useRef, useEffect } from 'react';
 import { Typography, TextArea, Button } from '@douyinfe/semi-ui';
 import MarkdownRenderer from '../common/markdown/MarkdownRenderer';
 import ThinkingContent from './ThinkingContent';
-import { Loader2, Check, X } from 'lucide-react';
+import { Loader2, Check, X, Settings, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { isAdmin } from '../../helpers/utils';
 
 const MessageContent = ({
   message,
@@ -62,6 +63,44 @@ const MessageContent = ({
       errorText = message.content;
     } else {
       errorText = t('请求发生错误');
+    }
+
+    if (message.errorCode === 'model_price_error') {
+      return (
+        <div className={`${className}`}>
+          <div
+            className='rounded-lg p-3 space-y-2'
+            style={{
+              background: 'var(--semi-color-bg-0)',
+              border: '1px solid var(--semi-color-border)',
+            }}
+          >
+            <div className='flex items-center gap-2'>
+              <AlertTriangle size={16} className='text-orange-500 shrink-0' />
+              <Typography.Text strong className='!text-[var(--semi-color-text-0)]'>
+                {t('模型价格未配置')}
+              </Typography.Text>
+            </div>
+            <Typography.Paragraph
+              className='!text-[var(--semi-color-text-1)] !text-sm !mb-0'
+              style={{ wordBreak: 'break-word' }}
+            >
+              {errorText}
+            </Typography.Paragraph>
+            {isAdmin() && (
+              <Button
+                size='small'
+                theme='light'
+                type='warning'
+                icon={<Settings size={14} />}
+                onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+              >
+                {t('前往设置')}
+              </Button>
+            )}
+          </div>
+        </div>
+      );
     }
 
     return (
