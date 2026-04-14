@@ -702,6 +702,30 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 	}
 }
 
+func ForceUpdateChannelAffinity(c *gin.Context, successChannelID int) {
+	if successChannelID <= 0 {
+		return
+	}
+	setting := operation_setting.GetChannelAffinitySetting()
+	if setting == nil || !setting.Enabled {
+		return
+	}
+	cacheKey, ttlSeconds, ok := getChannelAffinityContext(c)
+	if !ok {
+		return
+	}
+	if ttlSeconds <= 0 {
+		ttlSeconds = setting.DefaultTTLSeconds
+	}
+	if ttlSeconds <= 0 {
+		ttlSeconds = 3600
+	}
+	cache := getChannelAffinityCache()
+	if err := cache.SetWithTTL(cacheKey, successChannelID, time.Duration(ttlSeconds)*time.Second); err != nil {
+		common.SysError(fmt.Sprintf("force update channel affinity failed: key=%s, channel=%d, err=%v", cacheKey, successChannelID, err))
+	}
+}
+
 type ChannelAffinityUsageCacheStats struct {
 	RuleName            string `json:"rule_name"`
 	UsingGroup          string `json:"using_group"`
