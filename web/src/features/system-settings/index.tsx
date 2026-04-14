@@ -8,7 +8,7 @@ export function SystemSettings() {
       <AppHeader />
 
       <Main>
-        <div className='min-h-0 flex-1'>
+        <div className='min-h-0 flex-1 px-4 pt-6 pb-4'>
           <Outlet />
         </div>
       </Main>
