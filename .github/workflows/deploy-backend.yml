@@ -1,0 +1,99 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'VERSION'
+      - 'deploy/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+# 防止同时部署
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.23'
+  API_DOMAIN: 'api.4aicode.com'
+  BACKEND_PORT: '3002'
+  BACKEND_HOST: '127.0.0.1'
+  SSL_EMAIL: 'ceo@richcalls.xyz'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run tests
+        run: go test ./... -v
+        continue-on-error: true
+
+      - name: Slack 通知
+        if: always()
+        uses: forecho/slack-deploy-action@v1
+        with:
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+          language: zh
+          service_name: 后端测试
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: 编译
+        run: |
+          VERSION=$(cat VERSION 2>/dev/null || echo "dev")
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=${VERSION}'" \
+            -o new-api
+
+      - name: 上传到服务器
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "new-api,deploy/"
+          target: "/tmp/new-api-deploy/"
+          strip_components: 0
+
+      - name: 执行部署
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /tmp/new-api-deploy
+            chmod +x deploy/deploy.sh
+            sudo ./deploy/deploy.sh "/tmp/new-api-deploy" "${{ env.API_DOMAIN }}" "${{ env.BACKEND_PORT }}" "${{ env.BACKEND_HOST }}" "${{ env.SSL_EMAIL }}"
+
+      - name: Slack 通知
+        if: always()
+        uses: forecho/slack-deploy-action@v1
+        with:
+          slack_bot_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack_channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+          language: zh
+          service_name: 后端部署

@@ -1,0 +1,24 @@
+[Unit]
+Description=New API Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=new-api
+Group=new-api
+WorkingDirectory=/opt/new-api
+ExecStart=/opt/new-api/new-api
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# 环境变量文件
+EnvironmentFile=-/opt/new-api/.env
+
+# 安全选项
+NoNewPrivileges=yes
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
