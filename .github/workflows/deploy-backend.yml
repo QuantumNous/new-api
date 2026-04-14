@@ -23,7 +23,7 @@ env:
   BACKEND_PORT: '3002'
   BACKEND_HOST: '127.0.0.1'
   SSL_EMAIL: 'ceo@richcalls.xyz'
-  VITE_REACT_APP_SERVER: 'https://api.4aicode.com'
+  VITE_REACT_APP_SERVER_URL: 'https://api.4aicode.com'
 
 jobs:
   test:

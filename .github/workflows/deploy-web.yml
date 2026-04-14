@@ -17,7 +17,7 @@ permissions:
   pull-requests: write
 
 env:
-  VITE_REACT_APP_SERVER: 'https://api.4aicode.com'
+  VITE_REACT_APP_SERVER_URL: 'https://api.4aicode.com'
 
 jobs:
   build:
