@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -362,4 +363,21 @@ func TestRequestOpenAI2ClaudeMessage_ConvertsTextFileContentToText(t *testing.T)
 	require.Equal(t, "text", content[0].Type)
 	require.NotNil(t, content[0].Text)
 	require.Equal(t, "alpha\nbeta", *content[0].Text)
+}
+
+func TestRequestOpenAI2ClaudeMessage_PreservesMetadata(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model:    "claude-3-5-sonnet",
+		Metadata: json.RawMessage(`{"user_id":"channel-test"}`),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hi",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"user_id":"channel-test"}`, string(claudeRequest.Metadata))
 }

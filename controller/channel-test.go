@@ -36,6 +36,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var claudeCodeTestHeaders = map[string]string{
+	"User-Agent":                                "claude-code/channel-test",
+	"X-Stainless-Arch":                          "arm64",
+	"X-Stainless-Lang":                          "js",
+	"X-Stainless-Os":                            "macos",
+	"X-Stainless-Package-Version":               "channel-test",
+	"X-Stainless-Retry-Count":                   "0",
+	"X-Stainless-Runtime":                       "node",
+	"X-Stainless-Runtime-Version":               "20.18.0",
+	"X-Stainless-Timeout":                       "600",
+	"X-App":                                     "claude-code",
+	"Anthropic-Version":                         "2023-06-01",
+	"Anthropic-Dangerous-Direct-Browser-Access": "false",
+}
+
 type testResult struct {
 	context     *gin.Context
 	localErr    error
@@ -54,6 +69,32 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
 	return normalized
+}
+
+func applyClaudeCodeTestFixtures(c *gin.Context, info *relaycommon.RelayInfo, request dto.Request) {
+	if c == nil || c.Request == nil || info == nil || info.RelayFormat != types.RelayFormatClaude {
+		return
+	}
+
+	for key, value := range claudeCodeTestHeaders {
+		if strings.TrimSpace(c.Request.Header.Get(key)) == "" {
+			c.Request.Header.Set(key, value)
+		}
+	}
+
+	if req, ok := request.(*dto.GeneralOpenAIRequest); ok && len(req.Metadata) == 0 {
+		req.Metadata = json.RawMessage(`{"user_id":"channel-test"}`)
+	}
+
+	runtimeHeaders := map[string]interface{}{}
+	for key, value := range relaycommon.GetEffectiveHeaderOverride(info) {
+		runtimeHeaders[key] = value
+	}
+	for key, value := range claudeCodeTestHeaders {
+		runtimeHeaders[key] = value
+	}
+	info.RuntimeHeadersOverride = runtimeHeaders
+	info.UseRuntimeHeadersOverride = true
 }
 
 func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
@@ -231,6 +272,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	info.IsChannelTest = true
 	info.InitChannelMeta(c)
+	applyClaudeCodeTestFixtures(c, info, request)
 
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
@@ -785,7 +827,7 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
-func testAllChannels(notify bool) error {
+func testAllChannels(notify bool, allowAutoDisable bool) error {
 
 	testAllChannelsLock.Lock()
 	if testAllChannelsRunning {
@@ -838,7 +880,17 @@ func testAllChannels(notify bool) error {
 
 			// disable channel
 			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
-				processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+				if allowAutoDisable {
+					processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+				} else {
+					common.SysLog(fmt.Sprintf(
+						"scheduled channel test detected unhealthy channel but skipped auto-disable: channel_id=%d name=%s status_code=%d reason=%s",
+						channel.Id,
+						channel.Name,
+						newAPIError.StatusCode,
+						newAPIError.Error(),
+					))
+				}
 			}
 
 			// enable channel
@@ -858,7 +910,7 @@ func testAllChannels(notify bool) error {
 }
 
 func TestAllChannels(c *gin.Context) {
-	err := testAllChannels(true)
+	err := testAllChannels(true, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -887,7 +939,7 @@ func AutomaticallyTestChannels() {
 				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
 				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
 				common.SysLog("automatically testing all channels")
-				_ = testAllChannels(false)
+				_ = testAllChannels(false, false)
 				common.SysLog("automatically channel test finished")
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
 					break
