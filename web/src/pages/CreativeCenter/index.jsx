@@ -201,6 +201,13 @@ const ACTIVE_VIDEO_POLL_STATUSES = new Set([
   'processing',
   'in_progress',
 ]);
+const CREATIVE_CENTER_VIDEO_TASK_ACTIONS = new Set([
+  'generate',
+  'textGenerate',
+  'firstTailGenerate',
+  'referenceGenerate',
+  'remixGenerate',
+]);
 const UNIFORM_CREATIVE_VIDEO_CARD_MODELS = new Set([
   'grok-imagine-1.0-video',
   'veo31-fast',
@@ -1601,14 +1608,12 @@ const normalizeCreativeTimestampToSeconds = (value) => {
 };
 
 const getTaskDtoResultUrl = (task) => {
-  const resultUrl = normalizeVideoMediaUrl(task?.result_url);
-  if (resultUrl) {
-    return resultUrl;
+  if (typeof task?.result_url === 'string' && task.result_url.trim()) {
+    return task.result_url.trim();
   }
 
-  const camelResultUrl = normalizeVideoMediaUrl(task?.resultUrl);
-  if (camelResultUrl) {
-    return camelResultUrl;
+  if (typeof task?.resultUrl === 'string' && task.resultUrl.trim()) {
+    return task.resultUrl.trim();
   }
 
   return '';
@@ -1670,7 +1675,7 @@ const normalizeTaskDtoDataPayload = (task) => {
 
 const parseTaskDtoVideoState = (task) => {
   const taskId = String(task?.task_id || task?.taskId || '').trim();
-  const url = getTaskDtoResultUrl(task);
+  const url = normalizeVideoMediaUrl(getTaskDtoResultUrl(task));
   const normalizedStatus = normalizeVideoTaskStatus(task?.status || '');
   const completedWithoutVideo = !url && normalizedStatus === 'completed';
   const isFailed = normalizedStatus === 'failed' || completedWithoutVideo;
@@ -1725,8 +1730,7 @@ const buildResolvedVideoTaskPatch = (queryTaskId, nextTaskState) => (currentTask
   const normalizedStatus = normalizeVideoTaskStatus(
     nextTaskState?.status || currentTask?.status || '',
   );
-  const resolvedUrl =
-    typeof nextTaskState?.url === 'string' ? nextTaskState.url.trim() : '';
+  const resolvedUrl = normalizeVideoMediaUrl(nextTaskState?.url);
   const currentMediaUrl = getVideoTaskMediaUrl(currentTask);
   const finalUrl = resolvedUrl || currentMediaUrl;
   const completedWithoutVideo = normalizedStatus === 'completed' && !finalUrl;
@@ -2380,7 +2384,14 @@ const collectRecoverableVideoCandidatesFromSnapshot = (snapshot) => {
     .filter(
       (task) =>
         !task.hasMedia &&
-        Boolean(task.queryTaskId || task.requestId),
+        !isTerminalVideoTaskStatus(task.status) &&
+        Boolean(
+          task.queryTaskId ||
+            task.requestId ||
+            task.sortTimestamp ||
+            task.recordCreatedAt ||
+            task.recordUpdatedAt,
+        ),
     )
     .sort((left, right) => right.sortTimestamp - left.sortTimestamp);
 };
@@ -4501,6 +4512,195 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     });
   };
 
+  const fetchCreativeVideoTasksAroundCandidates = async (candidates) => {
+    const safeCandidates = Array.isArray(candidates) ? candidates : [];
+    const candidateTimes = safeCandidates
+      .map((candidate) =>
+        normalizeCreativeTimestampToSeconds(
+          candidate?.sortTimestamp ||
+            candidate?.recordUpdatedAt ||
+            candidate?.recordCreatedAt,
+        ),
+      )
+      .filter((value) => value > 0);
+
+    if (candidateTimes.length === 0) {
+      return [];
+    }
+
+    const baseStartTimestamp = Math.min(...candidateTimes);
+    const baseEndTimestamp = Math.max(...candidateTimes);
+    const startTimestamp = Math.max(0, baseStartTimestamp - 120);
+    const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
+
+    const response = await API.get('/api/task/self', {
+      params: {
+        p: 1,
+        page_size: Math.max(100, Math.min(300, safeCandidates.length * 20)),
+        media_type: 'video',
+        start_timestamp: startTimestamp,
+        end_timestamp: endTimestamp,
+      },
+      skipErrorHandler: true,
+      headers: {
+        'New-API-User': getUserIdFromLocalStorage(),
+      },
+    });
+
+    const items = Array.isArray(response?.data?.data?.items)
+      ? response.data.data.items
+      : [];
+    return items.filter((item) =>
+      CREATIVE_CENTER_VIDEO_TASK_ACTIONS.has(String(item?.action || '').trim()),
+    );
+  };
+
+  const getCreativeVideoTaskDtoId = (task) =>
+    String(task?.task_id || task?.taskId || '').trim();
+
+  const getCreativeVideoCandidateKey = (candidate) =>
+    String(candidate?.taskId || candidate?.localTaskId || '').trim();
+
+  const mergeCreativeTaskDtoLists = (...lists) => {
+    const taskById = new Map();
+    const anonymousTasks = [];
+
+    lists.flat().forEach((task) => {
+      if (!task) {
+        return;
+      }
+      const taskId = getCreativeVideoTaskDtoId(task);
+      if (taskId) {
+        taskById.set(taskId, task);
+        return;
+      }
+      anonymousTasks.push(task);
+    });
+
+    return [...taskById.values(), ...anonymousTasks];
+  };
+
+  const matchCreativeVideoTasksToCandidates = (candidates, tasks) => {
+    const safeCandidates = Array.isArray(candidates) ? candidates : [];
+    const videoTasks = (Array.isArray(tasks) ? tasks : [])
+      .filter((task) =>
+        CREATIVE_CENTER_VIDEO_TASK_ACTIONS.has(String(task?.action || '').trim()),
+      )
+      .sort(
+        (left, right) =>
+          normalizeCreativeTimestampToSeconds(left?.submit_time || left?.submitTime) -
+          normalizeCreativeTimestampToSeconds(right?.submit_time || right?.submitTime),
+      );
+    const matches = new Map();
+    const usedTaskIds = new Set();
+
+    const rememberMatch = (candidate, task) => {
+      const candidateKey = getCreativeVideoCandidateKey(candidate);
+      if (!candidateKey || !task) {
+        return;
+      }
+      matches.set(candidateKey, task);
+      const taskId = getCreativeVideoTaskDtoId(task);
+      if (taskId) {
+        usedTaskIds.add(taskId);
+      }
+    };
+
+    safeCandidates.forEach((candidate) => {
+      const queryTaskId = String(candidate?.queryTaskId || '').trim();
+      if (!queryTaskId) {
+        return;
+      }
+      const matchedTask = videoTasks.find(
+        (task) => getCreativeVideoTaskDtoId(task) === queryTaskId,
+      );
+      if (matchedTask) {
+        rememberMatch(candidate, matchedTask);
+      }
+    });
+
+    safeCandidates.forEach((candidate) => {
+      if (matches.has(getCreativeVideoCandidateKey(candidate))) {
+        return;
+      }
+      const requestId = String(candidate?.requestId || '').trim();
+      if (!requestId) {
+        return;
+      }
+      const matchedTask = videoTasks.find(
+        (task) => getTaskDtoRequestId(task) === requestId,
+      );
+      if (matchedTask) {
+        rememberMatch(candidate, matchedTask);
+      }
+    });
+
+    const groupedCandidates = Array.from(
+      safeCandidates.reduce((map, candidate) => {
+        if (matches.has(getCreativeVideoCandidateKey(candidate))) {
+          return map;
+        }
+        const key = candidate.recordId || 'default';
+        if (!map.has(key)) {
+          map.set(key, []);
+        }
+        map.get(key).push(candidate);
+        return map;
+      }, new Map()),
+    );
+
+    groupedCandidates.forEach(([, group]) => {
+      const recordModelName = String(
+        group[0]?.recordModelName || group[0]?.modelName || '',
+      )
+        .trim()
+        .toLowerCase();
+      const recordTimes = group
+        .map((candidate) =>
+          normalizeCreativeTimestampToSeconds(
+            candidate.sortTimestamp ||
+              candidate.recordUpdatedAt ||
+              candidate.recordCreatedAt,
+          ),
+        )
+        .filter((value) => value > 0);
+      const recordStart = recordTimes.length > 0 ? Math.min(...recordTimes) - 120 : 0;
+      const recordEnd = recordTimes.length > 0 ? Math.max(...recordTimes) + 1800 : 0;
+
+      const matchedTasks = videoTasks.filter((task) => {
+        const taskId = getCreativeVideoTaskDtoId(task);
+        if (taskId && usedTaskIds.has(taskId)) {
+          return false;
+        }
+        const taskModelName = getTaskDtoModelName(task).toLowerCase();
+        if (recordModelName && taskModelName && taskModelName !== recordModelName) {
+          return false;
+        }
+        const submitTime = normalizeCreativeTimestampToSeconds(
+          task?.submit_time || task?.submitTime,
+        );
+        if (recordStart > 0 && submitTime > 0 && submitTime < recordStart) {
+          return false;
+        }
+        if (recordEnd > 0 && submitTime > 0 && submitTime > recordEnd) {
+          return false;
+        }
+        return true;
+      });
+
+      [...group]
+        .sort((left, right) => (left.sortTimestamp || 0) - (right.sortTimestamp || 0))
+        .forEach((candidate, index) => {
+          const matchedTask = matchedTasks[index];
+          if (matchedTask) {
+            rememberMatch(candidate, matchedTask);
+          }
+        });
+    });
+
+    return matches;
+  };
+
   const parseVideoFetchPayload = (rawResponse) => {
     const rootPayload = rawResponse?.data;
     const dataPayload =
@@ -4527,7 +4727,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     const progress =
       parseProgressValue(dataPayload.progress) ??
       parseProgressValue(rootPayload?.progress);
-    const url =
+    const rawUrl =
       dataPayload.url ||
       dataPayload.presignedUrl ||
       dataPayload.presigned_url ||
@@ -4547,6 +4747,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       rootPayload?.metadata?.url ||
       rootPayload?.metadata?.remote_url ||
       '';
+    const url = normalizeVideoMediaUrl(rawUrl);
     const content =
       dataPayload.content ||
       dataPayload.message ||
@@ -4938,9 +5139,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           .map((task) => ({
             recordId: record.id,
             modelName: record.modelName,
+            recordModelName: String(record?.modelName || '').trim().toLowerCase(),
             localTaskId: task.id,
             queryTaskId: getRecoverableVideoTaskId(task),
             requestId: typeof task?.requestId === 'string' ? task.requestId.trim() : '',
+            recordCreatedAt: Number(record?.createdAt) || 0,
+            recordUpdatedAt: Number(record?.updatedAt) || 0,
+            sortTimestamp:
+              Number(task?.submittedAt) ||
+              Number(record?.updatedAt) ||
+              Number(record?.createdAt) ||
+              0,
           })),
       );
 
@@ -4995,6 +5204,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
         let exactTaskByRequestId = new Map();
         let exactTaskByTaskId = new Map();
+        let fallbackTaskMatches = new Map();
         try {
           const exactTasks = await fetchCreativeVideoTasksByIdentifiers(
             tasksToPoll,
@@ -5011,6 +5221,27 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               exactTaskByTaskId.set(taskId, task);
             }
           });
+
+          const unresolvedTasks = tasksToPoll.filter(
+            (task) =>
+              !(
+                task.queryTaskId &&
+                exactTaskByTaskId.has(task.queryTaskId)
+              ) &&
+              !(
+                task.requestId &&
+                exactTaskByRequestId.has(task.requestId)
+              ),
+          );
+          if (unresolvedTasks.length > 0) {
+            const nearbyTasks = await fetchCreativeVideoTasksAroundCandidates(
+              unresolvedTasks,
+            );
+            fallbackTaskMatches = matchCreativeVideoTasksToCandidates(
+              unresolvedTasks,
+              mergeCreativeTaskDtoLists(exactTasks, nearbyTasks),
+            );
+          }
         } catch (error) {
           console.error('Failed to fetch exact creative center video task states:', error);
         }
@@ -5028,6 +5259,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   task.recordId,
                   task.localTaskId,
                   buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
+                );
+                return;
+              }
+
+              const fallbackTask = fallbackTaskMatches.get(task.localTaskId);
+              if (fallbackTask) {
+                const fallbackTaskState = parseTaskDtoVideoState(fallbackTask);
+                queryTaskId = fallbackTaskState.taskId || queryTaskId;
+                patchVideoTask(
+                  task.recordId,
+                  task.localTaskId,
+                  buildResolvedVideoTaskPatch(queryTaskId, fallbackTaskState),
                 );
                 return;
               }
@@ -5052,7 +5295,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 task.localTaskId,
                 buildResolvedVideoTaskIdPatch(queryTaskId),
               );
-              return;
 
               const response = await API.get(
                 `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
@@ -5066,9 +5308,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
               const nextTaskState = parseVideoFetchPayload(response);
               const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
-              const isCompleted =
-                nextStatus === 'completed' || Boolean(nextTaskState.url);
               const isFailed = nextStatus === 'failed';
+              const isCompleted =
+                !isFailed && (nextStatus === 'completed' || Boolean(nextTaskState.url));
 
               if (
                 isCompleted &&
@@ -5624,6 +5866,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         const exactTasks = await fetchCreativeVideoTasksByIdentifiers(
           limitedCandidates,
         );
+        const nearbyTasks = await fetchCreativeVideoTasksAroundCandidates(
+          limitedCandidates,
+        );
+        const taskMatches = matchCreativeVideoTasksToCandidates(
+          limitedCandidates,
+          mergeCreativeTaskDtoLists(exactTasks, nearbyTasks),
+        );
         const exactTaskByRequestId = new Map();
         const exactTaskByTaskId = new Map();
         exactTasks.forEach((task) => {
@@ -5650,6 +5899,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           const batchResults = await Promise.allSettled(
             currentBatch.map(async (candidate) => {
               let queryTaskId = candidate.queryTaskId;
+              const matchedTask = taskMatches.get(candidate.taskId);
+              if (matchedTask) {
+                const matchedTaskState = parseTaskDtoVideoState(matchedTask);
+                queryTaskId = matchedTaskState.taskId || queryTaskId;
+                if (queryTaskId || ['completed', 'failed'].includes(matchedTaskState.status)) {
+                  return {
+                    candidate,
+                    queryTaskId,
+                    nextTaskState: matchedTaskState,
+                  };
+                }
+              }
+
               const exactTask = exactTaskByRequestId.get(candidate.requestId);
 
               if (!queryTaskId && exactTask) {
@@ -5676,12 +5938,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   nextTaskState: parseTaskDtoVideoState(exactTaskById),
                 };
               }
-
-              return {
-                candidate,
-                queryTaskId,
-                nextTaskState: null,
-              };
 
               try {
                 const response = await API.get(
@@ -6058,6 +6314,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           queryTaskId: getRecoverableVideoTaskId(task),
           requestId: String(task?.requestId || '').trim(),
           hasMedia: Boolean(getVideoTaskMediaUrl(task)),
+          status: normalizeVideoTaskStatus(task.status),
           recordModelName: String(record?.modelName || '').trim().toLowerCase(),
           recordCreatedAt: Number(record?.createdAt) || 0,
           recordUpdatedAt: Number(record?.updatedAt) || 0,
@@ -6071,7 +6328,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       .filter(
         (candidate) =>
           !candidate.hasMedia &&
-          Boolean(candidate.requestId || candidate.queryTaskId),
+          !isTerminalVideoTaskStatus(candidate.status) &&
+          Boolean(
+            candidate.requestId ||
+              candidate.queryTaskId ||
+              candidate.sortTimestamp ||
+              candidate.recordCreatedAt ||
+              candidate.recordUpdatedAt,
+          ),
       );
 
     if (candidates.length === 0) {
@@ -6094,18 +6358,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           return;
         }
 
-        const exactTaskByRequestId = new Map();
-        const exactTaskByTaskId = new Map();
-        exactTasks.forEach((task) => {
-          const requestId = getTaskDtoRequestId(task);
-          if (requestId) {
-            exactTaskByRequestId.set(requestId, task);
-          }
-          const taskId = String(task?.task_id || task?.taskId || '').trim();
-          if (taskId) {
-            exactTaskByTaskId.set(taskId, task);
-          }
-        });
+        const nearbyTasks = await fetchCreativeVideoTasksAroundCandidates(candidates);
+        const taskMatches = matchCreativeVideoTasksToCandidates(
+          candidates,
+          mergeCreativeTaskDtoLists(exactTasks, nearbyTasks),
+        );
 
         for (const candidate of candidates) {
           if (cancelled) {
@@ -6113,23 +6370,21 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           }
 
           let queryTaskId = candidate.queryTaskId;
-          const exactTask = exactTaskByRequestId.get(candidate.requestId);
-          if (!queryTaskId && exactTask) {
-            const exactTaskState = parseTaskDtoVideoState(exactTask);
-            queryTaskId = exactTaskState.taskId;
-            if (queryTaskId) {
-              const taskPatch = patchVideoTaskInHistorySnapshot(
-                recoveredSnapshot,
-                candidate,
-                buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
-              );
-              if (taskPatch.hasChanged) {
-                recoveredSnapshot = taskPatch.snapshot;
-                hasRecoveredChanges = true;
-              }
-              if (['completed', 'failed'].includes(exactTaskState.status)) {
-                continue;
-              }
+          const matchedTask = taskMatches.get(candidate.taskId);
+          if (matchedTask) {
+            const matchedTaskState = parseTaskDtoVideoState(matchedTask);
+            queryTaskId = matchedTaskState.taskId || queryTaskId;
+            const taskPatch = patchVideoTaskInHistorySnapshot(
+              recoveredSnapshot,
+              candidate,
+              buildResolvedVideoTaskPatch(queryTaskId, matchedTaskState),
+            );
+            if (taskPatch.hasChanged) {
+              recoveredSnapshot = taskPatch.snapshot;
+              hasRecoveredChanges = true;
+            }
+            if (['completed', 'failed'].includes(matchedTaskState.status)) {
+              continue;
             }
           }
 
@@ -6143,25 +6398,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               recoveredSnapshot = taskIdPatch.snapshot;
               hasRecoveredChanges = true;
             }
-
-            const exactTaskById = exactTaskByTaskId.get(queryTaskId);
-            if (exactTaskById) {
-              const exactTaskState = parseTaskDtoVideoState(exactTaskById);
-              const taskPatch = patchVideoTaskInHistorySnapshot(
-                recoveredSnapshot,
-                candidate,
-                buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
-              );
-              if (taskPatch.hasChanged) {
-                recoveredSnapshot = taskPatch.snapshot;
-                hasRecoveredChanges = true;
-              }
-              if (['completed', 'failed'].includes(exactTaskState.status)) {
-                continue;
-              }
-            }
-
-            continue;
 
             try {
               const response = await API.get(
@@ -6181,8 +6417,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const nextTaskState = parseVideoFetchPayload(response);
               const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
               const resolvedURL = nextTaskState.url || '';
-              const isCompleted = nextStatus === 'completed' || Boolean(resolvedURL);
               const isFailed = nextStatus === 'failed';
+              const isCompleted =
+                !isFailed && (nextStatus === 'completed' || Boolean(resolvedURL));
 
               const taskPatch = patchVideoTaskInHistorySnapshot(
                 recoveredSnapshot,
@@ -6781,15 +7018,16 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             const submitPayload =
               data?.data && typeof data.data === 'object' ? data.data : data;
             const immediateResultUrl =
-              submitPayload?.url ||
-              submitPayload?.video_url ||
-              submitPayload?.result_url ||
-              '';
+              normalizeVideoMediaUrl(submitPayload?.url) ||
+              normalizeVideoMediaUrl(submitPayload?.video_url) ||
+              normalizeVideoMediaUrl(submitPayload?.result_url);
             const normalizedStatus = normalizeVideoTaskStatus(
               submitPayload?.status ||
                 (immediateResultUrl ? 'completed' : 'submitted'),
             );
-            if (useEstimatedVideoProgress && immediateResultUrl) {
+            const isImmediateFailed = normalizedStatus === 'failed';
+            const isImmediateCompleted = !isImmediateFailed && Boolean(immediateResultUrl);
+            if (useEstimatedVideoProgress && isImmediateCompleted) {
               patchVideoTask(recordId, localTaskId, {
                 taskId: submitPayload?.task_id || submitPayload?.id || '',
                 status: 'finalizing',
@@ -6808,24 +7046,31 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             }
             patchVideoTask(recordId, localTaskId, {
               taskId: submitPayload?.task_id || submitPayload?.id || '',
-              status: immediateResultUrl ? 'completed' : normalizedStatus,
-              url: immediateResultUrl || '',
+              status: isImmediateCompleted ? 'completed' : normalizedStatus,
+              url: isImmediateCompleted ? immediateResultUrl : '',
               content: submitPayload?.message || '',
               progress:
-                immediateResultUrl
+                isImmediateCompleted || isImmediateFailed
                   ? 100
                   : parseProgressValue(submitPayload?.progress) ?? 0,
-              error: '',
-              resultUrl: immediateResultUrl || '',
+              error: isImmediateFailed
+                ? submitPayload?.error?.message ||
+                  submitPayload?.fail_reason ||
+                  submitPayload?.message ||
+                  '浠诲姟鐢熸垚澶辫触'
+                : '',
+              resultUrl: isImmediateCompleted ? immediateResultUrl : '',
               requestId,
               finalizingAt: 0,
               progressUnavailable: false,
               requestPollable:
-                !immediateResultUrl &&
+                !isImmediateCompleted &&
+                !isImmediateFailed &&
                 !Boolean(submitPayload?.task_id || submitPayload?.id) &&
                 Boolean(requestId),
               pollable:
-                !immediateResultUrl &&
+                !isImmediateCompleted &&
+                !isImmediateFailed &&
                 Boolean(
                   submitPayload?.task_id || submitPayload?.id || requestId,
                 ),
