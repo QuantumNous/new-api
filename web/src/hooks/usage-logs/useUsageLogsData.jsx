@@ -57,6 +57,7 @@ export const useLogsData = () => {
     USE_TIME: 'use_time',
     PROMPT: 'prompt',
     COMPLETION: 'completion',
+    SPEED: 'speed',
     COST: 'cost',
     RETRY: 'retry',
     IP: 'ip',
@@ -120,6 +121,7 @@ export const useLogsData = () => {
       [COLUMN_KEYS.USE_TIME]: true,
       [COLUMN_KEYS.PROMPT]: true,
       [COLUMN_KEYS.COMPLETION]: true,
+      [COLUMN_KEYS.SPEED]: true,
       [COLUMN_KEYS.COST]: true,
       [COLUMN_KEYS.RETRY]: isAdminUser,
       [COLUMN_KEYS.IP]: true,
@@ -380,6 +382,11 @@ export const useLogsData = () => {
       logs[i].timestamp2string = timestamp2string(logs[i].created_at);
       logs[i].key = logs[i].id;
       let other = getLogOther(logs[i].other);
+      const useTime = logs[i].use_time;
+      const frtSec = (other?.frt || 0) / 1000;
+      const genTime = useTime - frtSec;
+      const ct = logs[i].completion_tokens || 0;
+      logs[i].speed = genTime > 0 && ct > 0 ? ct / genTime : 0;
       let expandDataLocal = [];
 
       if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {

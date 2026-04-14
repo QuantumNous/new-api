@@ -2444,6 +2444,8 @@
     "用户额度": "Hạn ngạch người dùng",
     "用户额度设置": "Cài đặt hạn ngạch người dùng",
     "用时/首字": "Thời gian/từ đầu tiên",
+    "速度": "Tốc độ",
+    "输出速度 (tokens/s) = 输出 tokens / (总耗时 - 首字耗时)": "Tốc độ đầu ra (tokens/s) = tokens đầu ra / (tổng thời gian - thời gian token đầu tiên)",
     "用途": "Mục đích",
     "由全站货币展示设置统一控制": "Được điều khiển bởi cài đặt hiển thị tiền tệ toàn site",
     "由管理员分配，决定用户身份等级（如 default、vip）。": "Assigned by admin, determines user tier (e.g., default, vip).",
