@@ -217,6 +217,9 @@ const CREATIVE_CENTER_IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY = 2;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS = 20;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY = 4;
+const CREATIVE_CENTER_IMAGE_POLL_INTERVAL_MS = 6000;
+const CREATIVE_CENTER_IMAGE_POLL_CONCURRENCY = 2;
+const CREATIVE_CENTER_IMAGE_POLL_429_BACKOFF_MS = 15000;
 const CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS = 6000;
 const CREATIVE_CENTER_VIDEO_POLL_CONCURRENCY = 2;
 const CREATIVE_CENTER_VIDEO_POLL_429_BACKOFF_MS = 15000;
@@ -4257,6 +4260,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     return response.data;
   };
 
+  const buildCreativeTaskStatusRequestConfig = (config = {}) => ({
+    ...config,
+    skipErrorHandler: true,
+    disableStaleCache: true,
+    disableDuplicate: true,
+    headers: {
+      'New-API-User': getUserIdFromLocalStorage(),
+      ...(config.headers || {}),
+    },
+  });
+
   const postCreativeChatStreamRequest = (payload) =>
     new Promise((resolve, reject) => {
       const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
@@ -4631,19 +4645,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     const startTimestamp = Math.max(0, baseStartTimestamp - 120);
     const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
 
-    const response = await API.get('/api/task/self', {
-      params: {
-        p: 1,
-        page_size: Math.max(100, Math.min(300, safeCandidates.length * 20)),
-        media_type: 'video',
-        start_timestamp: startTimestamp,
-        end_timestamp: endTimestamp,
-      },
-      skipErrorHandler: true,
-      headers: {
-        'New-API-User': getUserIdFromLocalStorage(),
-      },
-    });
+    const response = await API.get(
+      '/api/task/self',
+      buildCreativeTaskStatusRequestConfig({
+        params: {
+          p: 1,
+          page_size: Math.max(100, Math.min(300, safeCandidates.length * 20)),
+          media_type: 'video',
+          start_timestamp: startTimestamp,
+          end_timestamp: endTimestamp,
+        },
+      }),
+    );
 
     const items = Array.isArray(response?.data?.data?.items)
       ? response.data.data.items
@@ -5280,10 +5293,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           .filter(
             (task) => !imagePollingInFlightRef.current.has(task.localTaskId),
           )
-          .slice(0, CREATIVE_CENTER_VIDEO_POLL_CONCURRENCY);
+          .slice(0, CREATIVE_CENTER_IMAGE_POLL_CONCURRENCY);
 
         if (tasksToPoll.length === 0) {
-          scheduleImagePollingCycle(CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS);
+          scheduleImagePollingCycle(CREATIVE_CENTER_IMAGE_POLL_INTERVAL_MS);
           return;
         }
 
@@ -5293,12 +5306,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             try {
               const response = await API.get(
                 `${API_ENDPOINTS.IMAGE_ASYNC_GENERATIONS}/${encodeURIComponent(task.queryTaskId)}`,
-                {
-                  skipErrorHandler: true,
-                  headers: {
-                    'New-API-User': getUserIdFromLocalStorage(),
-                  },
-                },
+                buildCreativeTaskStatusRequestConfig(),
               );
               const nextTaskState = parseImageFetchPayload(response);
               patchImageTask(
@@ -5310,7 +5318,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               if (error?.response?.status === 429) {
                 creativeImagePollingBlockedUntilRef.current = Math.max(
                   creativeImagePollingBlockedUntilRef.current,
-                  Date.now() + CREATIVE_CENTER_VIDEO_POLL_429_BACKOFF_MS,
+                  Date.now() + CREATIVE_CENTER_IMAGE_POLL_429_BACKOFF_MS,
                 );
                 return;
               }
@@ -5322,7 +5330,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         );
 
         if (collectPendingImageTasks().length > 0) {
-          scheduleImagePollingCycle(CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS);
+          scheduleImagePollingCycle(CREATIVE_CENTER_IMAGE_POLL_INTERVAL_MS);
         }
       }, delay);
     };
@@ -5522,12 +5530,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
               const response = await API.get(
                 `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
-                {
-                  skipErrorHandler: true,
-                  headers: {
-                    'New-API-User': getUserIdFromLocalStorage(),
-                  },
-                },
+                buildCreativeTaskStatusRequestConfig(),
               );
 
               const nextTaskState = parseVideoFetchPayload(response);
@@ -5886,19 +5889,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
 
       try {
-        const response = await API.get('/api/task/self', {
-          params: {
-            p: 1,
-            page_size: 100,
-            status: 'SUCCESS',
-            start_timestamp: startTimestamp,
-            end_timestamp: endTimestamp,
-          },
-          skipErrorHandler: true,
-          headers: {
-            'New-API-User': getUserIdFromLocalStorage(),
-          },
-        });
+        const response = await API.get(
+          '/api/task/self',
+          buildCreativeTaskStatusRequestConfig({
+            params: {
+              p: 1,
+              page_size: 100,
+              status: 'SUCCESS',
+              start_timestamp: startTimestamp,
+              end_timestamp: endTimestamp,
+            },
+          }),
+        );
 
         const items = Array.isArray(response?.data?.data?.items)
           ? response.data.data.items
@@ -6166,12 +6168,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               try {
                 const response = await API.get(
                   `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
-                  {
-                    skipErrorHandler: true,
-                    headers: {
-                      'New-API-User': getUserIdFromLocalStorage(),
-                    },
-                  },
+                  buildCreativeTaskStatusRequestConfig(),
                 );
 
                 if (cancelled) {
@@ -6335,19 +6332,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
 
       try {
-        const response = await API.get('/api/task/self', {
-          params: {
-            p: 1,
-            page_size: 100,
-            status: 'SUCCESS',
-            start_timestamp: startTimestamp,
-            end_timestamp: endTimestamp,
-          },
-          skipErrorHandler: true,
-          headers: {
-            'New-API-User': getUserIdFromLocalStorage(),
-          },
-        });
+        const response = await API.get(
+          '/api/task/self',
+          buildCreativeTaskStatusRequestConfig({
+            params: {
+              p: 1,
+              page_size: 100,
+              status: 'SUCCESS',
+              start_timestamp: startTimestamp,
+              end_timestamp: endTimestamp,
+            },
+          }),
+        );
 
         if (cancelled) {
           return;
@@ -6626,12 +6622,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             try {
               const response = await API.get(
                 `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
-                {
-                  skipErrorHandler: true,
-                  headers: {
-                    'New-API-User': getUserIdFromLocalStorage(),
-                  },
-                },
+                buildCreativeTaskStatusRequestConfig(),
               );
 
               if (cancelled) {

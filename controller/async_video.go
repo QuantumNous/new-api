@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -95,7 +96,34 @@ func RelayAsyncVideoFetch(c *gin.Context) {
 		respondAsyncVideoOpenAIError(c, http.StatusNotFound, "task_not_exist", types.ErrorCodeInvalidRequest)
 		return
 	}
+	if shouldRefreshAsyncVideoTask(task) {
+		if err := service.RefreshVideoTask(c.Request.Context(), task); err != nil {
+			common.SysLog("refresh async video task failed: " + err.Error())
+		}
+		task, exist, err = model.GetByTaskId(c.GetInt("id"), taskID)
+		if err != nil {
+			respondAsyncVideoOpenAIError(c, http.StatusInternalServerError, err.Error(), types.ErrorCodeQueryDataError)
+			return
+		}
+		if !exist || task == nil {
+			respondAsyncVideoOpenAIError(c, http.StatusNotFound, "task_not_exist", types.ErrorCodeInvalidRequest)
+			return
+		}
+	}
 	c.JSON(http.StatusOK, buildAsyncVideoTaskResponse(task))
+}
+
+func shouldRefreshAsyncVideoTask(task *model.Task) bool {
+	if task == nil {
+		return false
+	}
+	if task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure {
+		return false
+	}
+	if task.ChannelId <= 0 {
+		return false
+	}
+	return strings.TrimSpace(task.PrivateData.UpstreamTaskID) != ""
 }
 
 func readAsyncVideoTaskRequest(c *gin.Context, bodyBytes []byte) relaycommon.TaskSubmitReq {

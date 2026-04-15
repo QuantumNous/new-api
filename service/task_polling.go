@@ -35,6 +35,41 @@ type TaskPollingAdaptor interface {
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
 
+func RefreshVideoTask(ctx context.Context, task *model.Task) error {
+	if task == nil {
+		return errors.New("task is nil")
+	}
+	if task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure {
+		return nil
+	}
+	if task.ChannelId <= 0 {
+		return errors.New("task channel id is invalid")
+	}
+	if GetTaskAdaptorFunc == nil {
+		return errors.New("task adaptor factory is not initialized")
+	}
+
+	channelModel, err := model.GetChannelById(task.ChannelId, true)
+	if err != nil {
+		return err
+	}
+	adaptor := GetTaskAdaptorFunc(task.Platform)
+	if adaptor == nil {
+		return fmt.Errorf("video adaptor not found for platform %s", task.Platform)
+	}
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: channelModel.GetBaseURL(),
+			ApiKey:         channelModel.Key,
+		},
+	}
+	adaptor.Init(info)
+	return updateVideoSingleTask(ctx, adaptor, channelModel, task.TaskID, map[string]*model.Task{
+		task.TaskID: task,
+	})
+}
+
 func isTransientVideoNotFoundResponse(statusCode int, responseBody []byte) bool {
 	if statusCode != http.StatusNotFound {
 		return false
