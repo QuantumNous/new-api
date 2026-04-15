@@ -83,6 +83,7 @@ func upsertPendingRelayTaskRecord(c *gin.Context, info *relaycommon.RelayInfo, p
 	task.PrivateData.BillingSource = info.BillingSource
 	task.PrivateData.SubscriptionId = info.SubscriptionId
 	task.PrivateData.TokenId = info.TokenId
+	task.PrivateData.UpstreamRequestPath = strings.TrimSpace(info.RequestURLPath)
 	if prompt := extractTaskPromptFromContext(c); prompt != "" {
 		task.Properties.Input = prompt
 	}

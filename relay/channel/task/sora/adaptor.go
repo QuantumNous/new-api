@@ -40,19 +40,19 @@ type ImageURL struct {
 }
 
 type responseTask struct {
-	ID                 string `json:"id"`
-	TaskID             string `json:"task_id,omitempty"` //兼容旧接口
-	Object             string `json:"object"`
-	Model              string `json:"model"`
-	Status             string `json:"status"`
-	URL                string `json:"url,omitempty"`
-	Progress           int    `json:"progress"`
-	CreatedAt          int64  `json:"created_at"`
-	CompletedAt        int64  `json:"completed_at,omitempty"`
-	ExpiresAt          int64  `json:"expires_at,omitempty"`
-	Seconds            string `json:"seconds,omitempty"`
-	Size               string `json:"size,omitempty"`
-	RemixedFromVideoID string `json:"remixed_from_video_id,omitempty"`
+	ID                 string  `json:"id"`
+	TaskID             string  `json:"task_id,omitempty"` //兼容旧接口
+	Object             string  `json:"object"`
+	Model              string  `json:"model"`
+	Status             string  `json:"status"`
+	URL                string  `json:"url,omitempty"`
+	Progress           float64 `json:"progress"`
+	CreatedAt          int64   `json:"created_at"`
+	CompletedAt        int64   `json:"completed_at,omitempty"`
+	ExpiresAt          int64   `json:"expires_at,omitempty"`
+	Seconds            string  `json:"seconds,omitempty"`
+	Size               string  `json:"size,omitempty"`
+	RemixedFromVideoID string  `json:"remixed_from_video_id,omitempty"`
 	Error              *struct {
 		Message string `json:"message"`
 		Code    string `json:"code"`
@@ -68,6 +68,49 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+}
+
+const videoGenerationsTaskPath = "/v1/video/generations"
+
+func trimTaskPathQuery(path string) string {
+	path = strings.TrimSpace(path)
+	if idx := strings.Index(path, "?"); idx >= 0 {
+		path = path[:idx]
+	}
+	return path
+}
+
+func usesVideoGenerationsTaskPath(path string) bool {
+	path = trimTaskPathQuery(path)
+	return path == videoGenerationsTaskPath || strings.HasPrefix(path, videoGenerationsTaskPath+"/")
+}
+
+func taskFetchRequestPath(body map[string]any) string {
+	if body == nil {
+		return ""
+	}
+	if requestPath, ok := body["request_path"].(string); ok {
+		return requestPath
+	}
+	return ""
+}
+
+func buildTaskFetchURL(baseURL string, body map[string]any) (string, error) {
+	taskID, ok := body["task_id"].(string)
+	if !ok {
+		return "", fmt.Errorf("invalid task_id")
+	}
+	if usesVideoGenerationsTaskPath(taskFetchRequestPath(body)) {
+		return fmt.Sprintf("%s%s/%s", baseURL, videoGenerationsTaskPath, taskID), nil
+	}
+	return fmt.Sprintf("%s/v1/videos/%s", baseURL, taskID), nil
+}
+
+func formatTaskProgress(progress float64) string {
+	if progress == float64(int64(progress)) {
+		return fmt.Sprintf("%d%%", int64(progress))
+	}
+	return fmt.Sprintf("%.1f%%", progress)
 }
 
 func stringifyBodyValue(value any) string {
@@ -269,8 +312,11 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.Action == constant.TaskActionRemix {
+	if info != nil && info.TaskRelayInfo != nil && info.Action == constant.TaskActionRemix {
 		return fmt.Sprintf("%s/v1/videos/%s/remix", a.baseURL, info.OriginTaskID), nil
+	}
+	if info != nil && usesVideoGenerationsTaskPath(info.RequestURLPath) {
+		return fmt.Sprintf("%s%s", a.baseURL, videoGenerationsTaskPath), nil
 	}
 	return fmt.Sprintf("%s/v1/videos", a.baseURL), nil
 }
@@ -412,12 +458,10 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 
 // FetchTask fetch task status
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
-	taskID, ok := body["task_id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid task_id")
+	uri, err := buildTaskFetchURL(baseUrl, body)
+	if err != nil {
+		return nil, err
 	}
-
-	uri := fmt.Sprintf("%s/v1/videos/%s", baseUrl, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -475,7 +519,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	default:
 	}
 	if resTask.Progress > 0 && resTask.Progress < 100 {
-		taskResult.Progress = fmt.Sprintf("%d%%", resTask.Progress)
+		taskResult.Progress = formatTaskProgress(resTask.Progress)
 	}
 
 	return &taskResult, nil

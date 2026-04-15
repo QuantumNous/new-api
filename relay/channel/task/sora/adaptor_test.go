@@ -1,6 +1,10 @@
 package sora
 
-import "testing"
+import (
+	"testing"
+
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+)
 
 func TestNormalizeGrokVideoRequestAddsResolutionAliases(t *testing.T) {
 	body := map[string]interface{}{
@@ -101,5 +105,70 @@ func TestNormalizeGrokVideoRequestPromotesImageReference(t *testing.T) {
 	}
 	if imageReference[1] != "https://example.com/frame-2.png" {
 		t.Fatalf("unexpected second image reference %#v", imageReference[1])
+	}
+}
+
+func TestBuildRequestURLUsesVideoGenerationsPath(t *testing.T) {
+	adaptor := &TaskAdaptor{baseURL: "https://upstream.example"}
+	url, err := adaptor.BuildRequestURL(&relaycommon.RelayInfo{
+		RequestURLPath: "/v1/video/generations",
+	})
+	if err != nil {
+		t.Fatalf("BuildRequestURL returned error: %v", err)
+	}
+	if url != "https://upstream.example/v1/video/generations" {
+		t.Fatalf("expected video generations URL, got %s", url)
+	}
+}
+
+func TestBuildRequestURLKeepsOpenAIVideosPath(t *testing.T) {
+	adaptor := &TaskAdaptor{baseURL: "https://upstream.example"}
+	url, err := adaptor.BuildRequestURL(&relaycommon.RelayInfo{
+		RequestURLPath: "/v1/videos",
+	})
+	if err != nil {
+		t.Fatalf("BuildRequestURL returned error: %v", err)
+	}
+	if url != "https://upstream.example/v1/videos" {
+		t.Fatalf("expected OpenAI videos URL, got %s", url)
+	}
+}
+
+func TestBuildTaskFetchURLUsesStoredVideoGenerationsPath(t *testing.T) {
+	url, err := buildTaskFetchURL("https://upstream.example", map[string]any{
+		"task_id":      "upstream-task",
+		"request_path": "/v1/video/generations",
+	})
+	if err != nil {
+		t.Fatalf("buildTaskFetchURL returned error: %v", err)
+	}
+	if url != "https://upstream.example/v1/video/generations/upstream-task" {
+		t.Fatalf("expected video generations fetch URL, got %s", url)
+	}
+}
+
+func TestBuildTaskFetchURLDefaultsToOpenAIVideosPath(t *testing.T) {
+	url, err := buildTaskFetchURL("https://upstream.example", map[string]any{
+		"task_id": "upstream-task",
+	})
+	if err != nil {
+		t.Fatalf("buildTaskFetchURL returned error: %v", err)
+	}
+	if url != "https://upstream.example/v1/videos/upstream-task" {
+		t.Fatalf("expected OpenAI videos fetch URL, got %s", url)
+	}
+}
+
+func TestParseTaskResultAcceptsFloatProgress(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+	taskInfo, err := adaptor.ParseTaskResult([]byte(`{"status":"completed","progress":100.0,"video_url":"https://cdn.example/video.mp4"}`))
+	if err != nil {
+		t.Fatalf("ParseTaskResult returned error: %v", err)
+	}
+	if taskInfo.Status != "SUCCESS" {
+		t.Fatalf("expected success status, got %s", taskInfo.Status)
+	}
+	if taskInfo.Url != "https://cdn.example/video.mp4" {
+		t.Fatalf("expected video url, got %s", taskInfo.Url)
 	}
 }
