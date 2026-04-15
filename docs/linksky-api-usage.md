@@ -38,6 +38,8 @@ curl https://linksky.top/v1/models \
 | `POST /v1/chat/completions` | Banana 系列图片生成/编辑 | 适合 `nano-banana-pro` / `nano-banana2` |
 | `POST /v1/video/generations` | 视频生成 | 异步任务，返回 `task_id` |
 | `GET /v1/video/generations/{task_id}` | 查询视频任务 | 轮询获取状态与结果 |
+| `POST /v1/video/async-generations` | 严格异步视频生成 | 立即返回本地 `task_id`，后台生成 |
+| `GET /v1/video/async-generations/{task_id}` | 查询严格异步视频任务 | 轮询获取状态与结果 |
 
 ## 3. 当前公开模型清单
 
@@ -333,6 +335,44 @@ curl https://linksky.top/v1/images/async-edits/<task_id> \
 
 视频接口是异步任务模式。  
 先 `POST /v1/video/generations` 获取 `task_id`，再轮询 `GET /v1/video/generations/{task_id}`。
+
+如果下游要求“提交后立刻返回，不等待上游生成完成”，请使用严格异步接口:
+
+```bash
+curl https://linksky.top/v1/video/async-generations \
+  -H "Authorization: Bearer $LINKSKY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "grok-imagine-1.0-video",
+    "prompt": "夜晚的海边公路，一辆复古跑车驶过，镜头平滑跟拍，电影感",
+    "duration": 8,
+    "width": 1280,
+    "height": 720
+  }'
+```
+
+提交成功会立即返回类似:
+
+```json
+{
+  "id": "task_xxx",
+  "task_id": "task_xxx",
+  "object": "video",
+  "model": "grok-imagine-1.0-video",
+  "status": "queued",
+  "progress": 10,
+  "created_at": 1776223000
+}
+```
+
+轮询查询:
+
+```bash
+curl https://linksky.top/v1/video/async-generations/<task_id> \
+  -H "Authorization: Bearer $LINKSKY_API_KEY"
+```
+
+完成后会返回 `status: "completed"`，并在 `url` 中带视频结果；失败时会返回 `status: "failed"` 和 `error.message`。
 
 #### 文生视频
 

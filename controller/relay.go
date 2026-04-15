@@ -487,6 +487,9 @@ func RelayTask(c *gin.Context) {
 		})
 		return
 	}
+	if relayInfo.TaskRelayInfo != nil {
+		relayInfo.PublicTaskID = strings.TrimSpace(c.GetString(relayTaskPublicTaskIDContextKey))
+	}
 
 	if taskErr := relay.ResolveOriginTask(c, relayInfo); taskErr != nil {
 		respondTaskError(c, taskErr)
