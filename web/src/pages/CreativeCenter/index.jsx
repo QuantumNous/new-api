@@ -3419,6 +3419,7 @@ export default function App() {
     currentModelName === 'veo31' ||
     currentModelName === 'veo31-ref' ||
     currentModelName === 'veo31-fast';
+  const isChatCompletionVideoModel = isAdobeSoraModel;
   const isChatTab = activeTab === 'chat';
   const isSubmitPending = (isChatTab && isGenerating) || isUploadingImage;
   const isVideoModel =
@@ -7085,7 +7086,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             );
             let data;
 
-            if (isAdobeVideoModel) {
+            if (isChatCompletionVideoModel) {
               basePayload.seed = requestSeed;
               basePayload.seeds = [requestSeed];
               basePayload.user = requestUser;
