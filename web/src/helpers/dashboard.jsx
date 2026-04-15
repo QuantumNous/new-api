@@ -349,12 +349,14 @@ export const aggregateDataByTimeAndModel = (data, dataExportDefaultTime) => {
         model: modelKey,
         quota: 0,
         count: 0,
+        tokenUsed: 0,
       });
     }
 
     const existing = aggregatedData.get(key);
     existing.quota += item.quota;
     existing.count += item.count;
+    existing.tokenUsed += item.token_used || 0;
   });
 
   return aggregatedData;
