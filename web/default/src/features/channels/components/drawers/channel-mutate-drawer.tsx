@@ -1395,30 +1395,82 @@ export function ChannelMutateDrawer({
                     )}
 
                     {currentType === 14 && (
-                      <FormField
-                        control={form.control}
-                        name='claude_beta_query'
-                        render={({ field }) => (
-                          <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
-                            <div className='space-y-0.5'>
-                              <FormLabel className='text-sm'>
-                                {t('Allow Claude beta query passthrough')}
-                              </FormLabel>
-                              <FormDescription>
-                                {t(
-                                  'Pass through the anthropic-beta header for beta features'
-                                )}
-                              </FormDescription>
-                            </div>
-                            <FormControl>
-                              <Switch
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
+                      <>
+                        <FormField
+                          control={form.control}
+                          name='allow_inference_geo'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Allow inference_geo passthrough')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Pass through the inference_geo field for Claude data residency region control'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='allow_speed'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Allow speed passthrough')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Pass through the speed field for Claude inference speed mode control'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='claude_beta_query'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Allow Claude beta query passthrough')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Pass through the anthropic-beta header for beta features'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </>
                     )}
                   </div>
                 )}

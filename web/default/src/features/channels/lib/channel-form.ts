@@ -53,7 +53,8 @@ export const channelFormSchema = z.object({
   disable_store: z.boolean().optional(), // OpenAI only
   allow_safety_identifier: z.boolean().optional(), // OpenAI only
   allow_include_obfuscation: z.boolean().optional(), // OpenAI: include usage obfuscation
-  allow_inference_geo: z.boolean().optional(), // OpenAI: inference geography
+  allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
+  allow_speed: z.boolean().optional(), // Anthropic: speed mode control
   claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
   // Upstream model update settings (stored in settings JSON)
   upstream_model_update_check_enabled: z.boolean().optional(),
@@ -110,6 +111,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_safety_identifier: false,
   allow_include_obfuscation: false,
   allow_inference_geo: false,
+  allow_speed: false,
   claude_beta_query: false,
 }
 
@@ -160,6 +162,7 @@ export function transformChannelToFormDefaults(
   let allowSafetyIdentifier = false
   let allowIncludeObfuscation = false
   let allowInferenceGeo = false
+  let allowSpeed = false
   let claudeBetaQuery = false
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
@@ -176,6 +179,7 @@ export function transformChannelToFormDefaults(
       allowSafetyIdentifier = parsed.allow_safety_identifier === true
       allowIncludeObfuscation = parsed.allow_include_obfuscation === true
       allowInferenceGeo = parsed.allow_inference_geo === true
+      allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
@@ -224,6 +228,7 @@ export function transformChannelToFormDefaults(
     disable_store: disableStore,
     allow_include_obfuscation: allowIncludeObfuscation,
     allow_inference_geo: allowInferenceGeo,
+    allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
@@ -312,15 +317,18 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       delete settingsObj.allow_safety_identifier
     if ('allow_include_obfuscation' in settingsObj)
       delete settingsObj.allow_include_obfuscation
-    if ('allow_inference_geo' in settingsObj)
+    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj)
       delete settingsObj.allow_inference_geo
   }
 
-  // Anthropic (type 14): claude_beta_query passthrough
+  // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed
   if (formData.type === 14) {
+    settingsObj.allow_inference_geo = formData.allow_inference_geo === true
+    settingsObj.allow_speed = formData.allow_speed === true
     settingsObj.claude_beta_query = formData.claude_beta_query === true
-  } else if ('claude_beta_query' in settingsObj) {
-    delete settingsObj.claude_beta_query
+  } else {
+    if ('allow_speed' in settingsObj) delete settingsObj.allow_speed
+    if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
   }
 
   // Upstream model update settings (for model-fetchable channel types)

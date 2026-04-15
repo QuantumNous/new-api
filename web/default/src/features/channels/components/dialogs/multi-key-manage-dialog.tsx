@@ -351,7 +351,7 @@ export function MultiKeyManageDialog({
                       {keys.map((key) => (
                         <TableRow key={key.index}>
                           <TableCell className='font-mono text-sm'>
-                            #{key.index}
+                            #{key.index + 1}
                           </TableCell>
                           <TableCell>{renderStatusBadge(key.status)}</TableCell>
                           <TableCell className='max-w-xs truncate text-sm'>
