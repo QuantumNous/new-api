@@ -712,3 +712,34 @@ func TestSettle_NonPerCall_AdaptorAdjustWorks(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
+
+func TestPreConsumeTokenQuota_SkipsUnlimitedToken(t *testing.T) {
+	truncate(t)
+
+	relayInfo := &relaycommon.RelayInfo{
+		TokenId:        0,
+		TokenKey:       "playground_1_playground-video",
+		TokenUnlimited: true,
+	}
+
+	require.NoError(t, PreConsumeTokenQuota(relayInfo, 1000))
+}
+
+func TestBillingSessionSettle_SkipsUnlimitedTokenAdjustment(t *testing.T) {
+	truncate(t)
+
+	const userID = 40
+	seedUser(t, userID, 10000)
+
+	session := &BillingSession{
+		relayInfo: &relaycommon.RelayInfo{
+			UserId:         userID,
+			TokenId:        0,
+			TokenKey:       "playground_1_playground-video",
+			TokenUnlimited: true,
+		},
+		funding: &WalletFunding{userId: userID},
+	}
+
+	require.NoError(t, session.Settle(1000))
+}
