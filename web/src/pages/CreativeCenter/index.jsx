@@ -1726,6 +1726,93 @@ const isTerminalImageTaskStatus = (status) => {
   return normalizedStatus === 'completed' || normalizedStatus === 'failed';
 };
 
+const parseImageFetchPayload = (rawResponse) => {
+  const rootPayload =
+    rawResponse?.data &&
+    (rawResponse?.headers || typeof rawResponse?.status === 'number')
+      ? rawResponse.data
+      : rawResponse;
+  const dataPayload =
+    rootPayload && typeof rootPayload === 'object' && rootPayload.data && typeof rootPayload.data === 'object'
+      ? rootPayload.data
+      : rootPayload;
+
+  if (!dataPayload || typeof dataPayload !== 'object') {
+    return {
+      status: 'submitted',
+      progress: null,
+      url: '',
+      error: '',
+    };
+  }
+
+  const status = String(
+    dataPayload.status ||
+      dataPayload.task_status ||
+      dataPayload.state ||
+      rootPayload?.status ||
+      'submitted',
+  )
+    .trim()
+    .toLowerCase();
+  const progress =
+    parseProgressValue(dataPayload.progress) ??
+    parseProgressValue(rootPayload?.progress);
+  const imageUrls = extractImageUrlsFromCreativeResponse(dataPayload);
+  const rootImageUrls =
+    dataPayload === rootPayload ? [] : extractImageUrlsFromCreativeResponse(rootPayload);
+  const url =
+    imageUrls[0] ||
+    rootImageUrls[0] ||
+    dataPayload.result_url ||
+    dataPayload.resultUrl ||
+    rootPayload?.result_url ||
+    rootPayload?.resultUrl ||
+    '';
+  const error =
+    dataPayload.error?.message ||
+    dataPayload.fail_reason ||
+    rootPayload?.error?.message ||
+    '';
+
+  return {
+    status,
+    progress,
+    url: typeof url === 'string' ? url.trim() : '',
+    error,
+  };
+};
+
+const buildResolvedImageTaskPatch = (queryTaskId, nextTaskState) => (currentTask) => {
+  const normalizedStatus = String(
+    nextTaskState?.status || currentTask?.status || 'submitted',
+  )
+    .trim()
+    .toLowerCase();
+  const resolvedUrl =
+    (typeof nextTaskState?.url === 'string' ? nextTaskState.url.trim() : '') ||
+    getImageTaskMediaUrl(currentTask);
+  const isFailed = normalizedStatus === 'failed';
+  const isCompleted = Boolean(resolvedUrl) && !isFailed;
+
+  return {
+    taskId: queryTaskId || currentTask?.taskId || '',
+    status: isCompleted ? 'completed' : isFailed ? 'failed' : normalizedStatus,
+    progress:
+      isCompleted || isFailed
+        ? 100
+        : nextTaskState?.progress ?? currentTask?.progress ?? 0,
+    url: isCompleted ? resolvedUrl : currentTask?.url || '',
+    resultUrl: isCompleted ? resolvedUrl : currentTask?.resultUrl || '',
+    error: isFailed
+      ? nextTaskState?.error || currentTask?.error || '图片生成失败'
+      : '',
+    finalizingAt: 0,
+    progressUnavailable: false,
+    requestPollable: Boolean(queryTaskId || currentTask?.taskId) && !isTerminalImageTaskStatus(isCompleted ? 'completed' : normalizedStatus),
+  };
+};
+
 const buildResolvedVideoTaskPatch = (queryTaskId, nextTaskState) => (currentTask) => {
   const normalizedStatus = normalizeVideoTaskStatus(
     nextTaskState?.status || currentTask?.status || '',
@@ -1926,6 +2013,7 @@ const normalizeImageTaskItem = (item, index = 0) => {
 
   return {
     id: item?.id || createCreativeRecordId(`image-task-${index}`),
+    taskId: item?.taskId || item?.task_id || '',
     url: resolvedImageUrl,
     status: resolvedImageUrl ? 'completed' : normalizedStatus,
     progress,
@@ -2281,6 +2369,7 @@ const collectRecoverableImageCandidatesFromSnapshot = (snapshot) => {
           recordId: record.id,
           imageId: image.id,
           itemIndex: imageIndex,
+          queryTaskId: getRecoverableImageTaskId(image),
           requestId: String(image?.requestId || '').trim(),
           hasMedia: Boolean(getImageTaskMediaUrl(image)),
           status: String(image?.status || '').trim().toLowerCase(),
@@ -2300,7 +2389,7 @@ const collectRecoverableImageCandidatesFromSnapshot = (snapshot) => {
       (item) =>
         !item.hasMedia &&
         !isTerminalImageTaskStatus(item.status) &&
-        Boolean(item.requestId),
+        Boolean(item.queryTaskId || item.requestId),
     )
     .sort((left, right) => right.sortTimestamp - left.sortTimestamp);
 };
@@ -2776,6 +2865,8 @@ export default function App() {
   const textareaRef = useRef(null);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
+  const imagePollingTimerRef = useRef(null);
+  const imagePollingInFlightRef = useRef(new Set());
   const videoPollingTimerRef = useRef(null);
   const videoPollingInFlightRef = useRef(new Set());
   const chatMessagesRef = useRef([]);
@@ -2792,6 +2883,7 @@ export default function App() {
   const creativeHistoryPersistBlockedUntilRef = useRef(0);
   const lastActiveImageReconcileSignatureRef = useRef('');
   const lastActiveVideoReconcileSignatureRef = useRef('');
+  const creativeImagePollingBlockedUntilRef = useRef(0);
   const creativeVideoPollingBlockedUntilRef = useRef(0);
   const isLoggedIn = Boolean(userState?.user);
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -2831,6 +2923,7 @@ export default function App() {
 
   useEffect(() => {
     creativeHistoryPersistBlockedUntilRef.current = 0;
+    creativeImagePollingBlockedUntilRef.current = 0;
     creativeVideoPollingBlockedUntilRef.current = 0;
   }, [isLoggedIn]);
 
@@ -2863,10 +2956,15 @@ export default function App() {
 
   useEffect(() => {
     return () => {
+      if (imagePollingTimerRef.current) {
+        window.clearTimeout(imagePollingTimerRef.current);
+      }
       if (videoPollingTimerRef.current) {
         window.clearTimeout(videoPollingTimerRef.current);
       }
+      imagePollingTimerRef.current = null;
       videoPollingTimerRef.current = null;
+      imagePollingInFlightRef.current.clear();
       videoPollingInFlightRef.current.clear();
       uploadedImagesRef.current.forEach((item) => {
         if (item?.previewUrl?.startsWith('blob:')) {
@@ -5120,6 +5218,132 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   useEffect(() => {
+    const collectPendingImageTasks = () =>
+      imageRecordsRef.current.flatMap((record) =>
+        record.images
+          .filter((image) => {
+            const queryTaskId = getRecoverableImageTaskId(image);
+            return (
+              Boolean(queryTaskId) &&
+              image.requestPollable !== false &&
+              !getImageTaskMediaUrl(image) &&
+              !isTerminalImageTaskStatus(image.status)
+            );
+          })
+          .map((image) => ({
+            recordId: record.id,
+            modelName: record.modelName,
+            localTaskId: image.id,
+            queryTaskId: getRecoverableImageTaskId(image),
+          })),
+      );
+
+    const clearImagePollingTimer = () => {
+      if (imagePollingTimerRef.current) {
+        window.clearTimeout(imagePollingTimerRef.current);
+        imagePollingTimerRef.current = null;
+      }
+    };
+
+    const scheduleImagePollingCycle = (delay = 0) => {
+      if (imagePollingTimerRef.current) {
+        return;
+      }
+
+      imagePollingTimerRef.current = window.setTimeout(async () => {
+        imagePollingTimerRef.current = null;
+
+        const now = Date.now();
+        if (creativeImagePollingBlockedUntilRef.current > now) {
+          scheduleImagePollingCycle(
+            creativeImagePollingBlockedUntilRef.current - now,
+          );
+          return;
+        }
+
+        const pendingTasks = collectPendingImageTasks();
+        if (pendingTasks.length === 0) {
+          imagePollingInFlightRef.current.clear();
+          return;
+        }
+
+        const activeTaskIds = new Set(
+          pendingTasks.map((task) => task.localTaskId),
+        );
+        imagePollingInFlightRef.current.forEach((taskId) => {
+          if (!activeTaskIds.has(taskId)) {
+            imagePollingInFlightRef.current.delete(taskId);
+          }
+        });
+
+        const tasksToPoll = pendingTasks
+          .filter(
+            (task) => !imagePollingInFlightRef.current.has(task.localTaskId),
+          )
+          .slice(0, CREATIVE_CENTER_VIDEO_POLL_CONCURRENCY);
+
+        if (tasksToPoll.length === 0) {
+          scheduleImagePollingCycle(CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS);
+          return;
+        }
+
+        await Promise.all(
+          tasksToPoll.map(async (task) => {
+            imagePollingInFlightRef.current.add(task.localTaskId);
+            try {
+              const response = await API.get(
+                `${API_ENDPOINTS.IMAGE_ASYNC_GENERATIONS}/${encodeURIComponent(task.queryTaskId)}`,
+                {
+                  skipErrorHandler: true,
+                  headers: {
+                    'New-API-User': getUserIdFromLocalStorage(),
+                  },
+                },
+              );
+              const nextTaskState = parseImageFetchPayload(response);
+              patchImageTask(
+                task.recordId,
+                task.localTaskId,
+                buildResolvedImageTaskPatch(task.queryTaskId, nextTaskState),
+              );
+            } catch (error) {
+              if (error?.response?.status === 429) {
+                creativeImagePollingBlockedUntilRef.current = Math.max(
+                  creativeImagePollingBlockedUntilRef.current,
+                  Date.now() + CREATIVE_CENTER_VIDEO_POLL_429_BACKOFF_MS,
+                );
+                return;
+              }
+              console.error('Failed to poll creative center image task:', error);
+            } finally {
+              imagePollingInFlightRef.current.delete(task.localTaskId);
+            }
+          }),
+        );
+
+        if (collectPendingImageTasks().length > 0) {
+          scheduleImagePollingCycle(CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS);
+        }
+      }, delay);
+    };
+
+    const pendingTasks = collectPendingImageTasks();
+    const activeTaskIds = new Set(pendingTasks.map((task) => task.localTaskId));
+    imagePollingInFlightRef.current.forEach((taskId) => {
+      if (!activeTaskIds.has(taskId)) {
+        imagePollingInFlightRef.current.delete(taskId);
+      }
+    });
+
+    if (pendingTasks.length === 0) {
+      clearImagePollingTimer();
+      return;
+    }
+
+    scheduleImagePollingCycle(0);
+  }, [imageRecords]);
+
+  useEffect(() => {
     const collectPendingVideoTasks = () =>
       videoRecordsRef.current.flatMap((record) =>
         record.tasks
@@ -5297,7 +5521,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               );
 
               const response = await API.get(
-                `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
+                `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
                 {
                   skipErrorHandler: true,
                   headers: {
@@ -5941,7 +6165,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
               try {
                 const response = await API.get(
-                  `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
+                  `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
                   {
                     skipErrorHandler: true,
                     headers: {
@@ -6401,7 +6625,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
             try {
               const response = await API.get(
-                `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
+                `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
                 {
                   skipErrorHandler: true,
                   headers: {
@@ -6597,6 +6821,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         sourceImages: currentUploadedImageSources,
         images: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`image-task-${index + 1}`),
+          taskId: '',
           url: '',
           status: useEstimatedImageProgress ? 'submitted' : 'generating',
           progress: useEstimatedImageProgress ? 3 : 0,
@@ -6647,78 +6872,49 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               'image',
               currentUploadedImageUrls,
             );
-            const useAdobeChatImageRequest =
-              ADOBE_CHAT_IMAGE_MODELS.has(currentModelName);
-            const payload = useAdobeChatImageRequest
-              ? {
-                  model: currentModelName,
-                  group: activeGroup,
-                  stream: false,
-                  messages: basePayload.messages,
-                  seed: requestSeed,
-                  seeds: [requestSeed],
-                  user: requestUser,
-                  request_id: requestId,
-                }
-              : isGrokImageEditModel
-                ? {
-                    model: currentModelName,
-                    group: activeGroup,
-                    prompt: currentPrompt || 'Edit the provided media.',
-                    n: 1,
-                    response_format: 'url',
-                    request_id: requestId,
-                    seed: requestSeed,
-                    seeds: [requestSeed],
-                    user: requestUser,
-                  }
-                : {
-                    model: currentModelName,
-                    group: activeGroup,
-                    prompt: currentPrompt,
-                    n: 1,
-                    response_format: 'url',
-                    request_id: requestId,
-                    seed: requestSeed,
-                    seeds: [requestSeed],
-                    user: requestUser,
-                  };
-            if (!isGrokImageEditModel && !useAdobeChatImageRequest && basePayload.size) {
+            const shouldUseImageEditEndpoint =
+              isGrokImageEditModel || currentUploadedImageUrls.length > 0;
+            const payload = {
+              model: currentModelName,
+              group: activeGroup,
+              prompt:
+                shouldUseImageEditEndpoint && !currentPrompt
+                  ? 'Edit the provided media.'
+                  : currentPrompt,
+              n: 1,
+              response_format: 'url',
+              request_id: requestId,
+              seed: requestSeed,
+              seeds: [requestSeed],
+              user: requestUser,
+            };
+            if (!isGrokImageEditModel && basePayload.size) {
               payload.size = basePayload.size;
             }
-            if (isGrokImageEditModel) {
+            if (shouldUseImageEditEndpoint) {
               if (currentUploadedImageUrls.length === 1) {
                 payload.image = currentUploadedImageUrls[0];
               } else if (currentUploadedImageUrls.length > 1) {
                 payload.image = currentUploadedImageUrls;
               }
-            } else if (useAdobeChatImageRequest) {
-              if (basePayload.extra_body) {
-                payload.extra_body = basePayload.extra_body;
-              }
-              if (basePayload.aspect_ratio) {
-                payload.aspect_ratio = basePayload.aspect_ratio;
-              }
-              if (basePayload.output_resolution) {
-                payload.output_resolution = basePayload.output_resolution;
-              }
             } else {
-              if (basePayload.aspect_ratio) {
-                payload.aspect_ratio = basePayload.aspect_ratio;
-              }
-              if (basePayload.output_resolution) {
-                payload.output_resolution = basePayload.output_resolution;
-              }
               if (currentUploadedImageUrls[0]) {
                 payload.image = currentUploadedImageUrls[0];
               }
             }
+            if (basePayload.extra_body) {
+              payload.extra_body = basePayload.extra_body;
+            }
+            if (basePayload.aspect_ratio) {
+              payload.aspect_ratio = basePayload.aspect_ratio;
+            }
+            if (basePayload.output_resolution) {
+              payload.output_resolution = basePayload.output_resolution;
+            }
 
             patchImageTask(recordId, taskId, {
               requestId,
-              requestPollable:
-                ADOBE_IMAGE_MODELS.has(currentModelName) &&
-                !useAdobeChatImageRequest,
+              requestPollable: true,
               submittedAt,
               estimateStartAt,
               finalizingAt: 0,
@@ -6733,17 +6929,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               });
             }
             const data = await postCreativeRequest(
-              isGrokImageEditModel
-                ? API_ENDPOINTS.IMAGE_EDITS
-                : useAdobeChatImageRequest
-                  ? API_ENDPOINTS.CHAT_COMPLETIONS
-                  : API_ENDPOINTS.IMAGE_GENERATIONS,
+              shouldUseImageEditEndpoint
+                ? API_ENDPOINTS.IMAGE_ASYNC_EDITS
+                : API_ENDPOINTS.IMAGE_ASYNC_GENERATIONS,
               payload,
               {
                 'X-Request-Id': requestId,
               },
             );
-            const imageUrls = extractImageUrlsFromCreativeResponse(data);
+            const remoteTaskId = data?.task_id || data?.id || '';
+            const nextTaskState = parseImageFetchPayload(data);
+            const imageUrl = nextTaskState.url || '';
+            const isSubmitFailed = nextTaskState.status === 'failed';
+            const imageUrls = imageUrl ? [imageUrl] : [];
 
             if (useEstimatedImageProgress && imageUrls[0]) {
               patchImageTask(recordId, taskId, {
@@ -6757,14 +6955,22 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               await waitForMs(180);
             }
             patchImageTask(recordId, taskId, {
+              taskId: remoteTaskId,
               url: imageUrls[0] || '',
-              status: imageUrls[0] ? 'completed' : 'failed',
-              progress: 100,
-              error: imageUrls[0] ? '' : '未获取到图片结果',
+              status: imageUrls[0]
+                ? 'completed'
+                : isSubmitFailed
+                  ? 'failed'
+                  : normalizeVideoTaskStatus(nextTaskState.status),
+              progress:
+                imageUrls[0] || isSubmitFailed
+                  ? 100
+                  : nextTaskState.progress ?? (useEstimatedImageProgress ? 5 : 0),
+              error: isSubmitFailed ? nextTaskState.error || 'image generation failed' : '',
               resultUrl: imageUrls[0] || '',
               finalizingAt: 0,
               progressUnavailable: false,
-              requestPollable: false,
+              requestPollable: Boolean(remoteTaskId) && !(imageUrls[0] || isSubmitFailed),
             });
           })()
             .catch((requestError) => {
@@ -7012,7 +7218,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 progress: 5,
               });
             }
-            data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload, {
+            data = await postCreativeRequest(API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS, payload, {
               'X-Request-Id': requestId,
             });
             const submitPayload =
