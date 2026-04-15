@@ -595,12 +595,7 @@ func applyTaskInfoToRelayTask(task *model.Task, taskInfo *relaycommon.TaskInfo, 
 		return
 	}
 
-	nextStatus := model.TaskStatus(taskInfo.Status)
-	if !task.Status.CanAdvanceTo(nextStatus) {
-		return
-	}
-
-	task.Status = nextStatus
+	task.Status = model.TaskStatus(taskInfo.Status)
 	switch task.Status {
 	case model.TaskStatusSubmitted:
 		task.Progress = taskcommon.ProgressSubmitted

@@ -1710,48 +1710,10 @@ const parseTaskDtoVideoState = (task) => {
         ? '任务生成失败'
         : typeof task?.fail_reason === 'string'
         ? task.fail_reason
-      : typeof task?.failReason === 'string'
+        : typeof task?.failReason === 'string'
           ? task.failReason
           : '',
   };
-};
-
-const shouldPromotePendingVideoStatus = (status, submittedAt) => {
-  const normalizedStatus = normalizeVideoTaskStatus(status);
-  const normalizedSubmittedAt = normalizeCreativeTimestampToSeconds(submittedAt);
-  return (
-    ['submitted', 'queued'].includes(normalizedStatus) &&
-    normalizedSubmittedAt > 0 &&
-    Date.now() - normalizedSubmittedAt * 1000 >=
-      CREATIVE_CENTER_VIDEO_PENDING_TO_GENERATING_MS
-  );
-};
-
-const resolveLiveVideoTaskStatus = ({
-  nextStatus,
-  currentStatus,
-  submittedAt,
-  hasUrl,
-  isFailed,
-}) => {
-  if (hasUrl) {
-    return 'completed';
-  }
-  if (isFailed) {
-    return 'failed';
-  }
-
-  const normalizedNextStatus = normalizeVideoTaskStatus(
-    nextStatus || currentStatus || 'submitted',
-  );
-  if (
-    shouldPromotePendingVideoStatus(normalizedNextStatus, submittedAt) ||
-    (['submitted', 'queued'].includes(normalizedNextStatus) &&
-      normalizeVideoTaskStatus(currentStatus) === 'generating')
-  ) {
-    return 'generating';
-  }
-  return normalizedNextStatus;
 };
 
 const isTerminalVideoTaskStatus = (status) => {
@@ -1861,13 +1823,11 @@ const buildResolvedVideoTaskPatch = (queryTaskId, nextTaskState) => (currentTask
   const completedWithoutVideo = normalizedStatus === 'completed' && !finalUrl;
   const isFailed = normalizedStatus === 'failed' || completedWithoutVideo;
   const isCompleted = Boolean(finalUrl) && !isFailed;
-  const nextStatus = resolveLiveVideoTaskStatus({
-    nextStatus: normalizedStatus,
-    currentStatus: currentTask?.status,
-    submittedAt: nextTaskState?.submittedAt || currentTask?.submittedAt,
-    hasUrl: isCompleted,
-    isFailed,
-  });
+  const nextStatus = isCompleted
+    ? 'completed'
+    : isFailed
+      ? 'failed'
+      : normalizedStatus;
   const nextUrl = isFailed ? '' : finalUrl;
 
   return {
@@ -2160,27 +2120,6 @@ const getTaskStatusLabel = (status) => {
     default:
       return '生成中';
   }
-};
-
-const getVideoRecordGeneratingLabel = (record) => {
-  const tasks = Array.isArray(record?.tasks) ? record.tasks : [];
-  if (
-    tasks.some((task) =>
-      ['generating', 'processing', 'in_progress', 'finalizing'].includes(
-        normalizeVideoTaskStatus(task?.status),
-      ),
-    )
-  ) {
-    return '正在生成视频任务';
-  }
-  if (
-    tasks.some((task) =>
-      ['submitted', 'queued'].includes(normalizeVideoTaskStatus(task?.status)),
-    )
-  ) {
-    return '正在提交视频任务';
-  }
-  return '视频任务处理中';
 };
 
 const normalizeImageHistoryRecords = (snapshot) => {
@@ -5355,8 +5294,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const response = await API.get(
                 `${API_ENDPOINTS.IMAGE_ASYNC_GENERATIONS}/${encodeURIComponent(task.queryTaskId)}`,
                 {
-                  disableDuplicate: true,
-                  disableStaleCache: true,
                   skipErrorHandler: true,
                   headers: {
                     'New-API-User': getUserIdFromLocalStorage(),
@@ -5547,9 +5484,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   task.localTaskId,
                   buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
                 );
-                if (!queryTaskId || isTerminalVideoTaskStatus(exactTaskState.status)) {
-                  return;
-                }
+                return;
               }
 
               const fallbackTask = fallbackTaskMatches.get(task.localTaskId);
@@ -5561,9 +5496,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   task.localTaskId,
                   buildResolvedVideoTaskPatch(queryTaskId, fallbackTaskState),
                 );
-                if (!queryTaskId || isTerminalVideoTaskStatus(fallbackTaskState.status)) {
-                  return;
-                }
+                return;
               }
 
               if (!queryTaskId) {
@@ -5578,9 +5511,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   task.localTaskId,
                   buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
                 );
-                if (isTerminalVideoTaskStatus(exactTaskState.status)) {
-                  return;
-                }
+                return;
               }
 
               patchVideoTask(
@@ -5592,8 +5523,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const response = await API.get(
                 `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
                 {
-                  disableDuplicate: true,
-                  disableStaleCache: true,
                   skipErrorHandler: true,
                   headers: {
                     'New-API-User': getUserIdFromLocalStorage(),
@@ -5641,13 +5570,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               } else {
                 patchVideoTask(task.recordId, task.localTaskId, (currentTask) => ({
                   taskId: queryTaskId,
-                  status: resolveLiveVideoTaskStatus({
-                    nextStatus,
-                    currentStatus: currentTask?.status,
-                    submittedAt: currentTask?.submittedAt,
-                    hasUrl: isCompleted,
-                    isFailed,
-                  }),
+                  status: isCompleted
+                    ? 'completed'
+                    : isFailed
+                      ? 'failed'
+                      : nextStatus,
                   progress: isCompleted
                     ? 100
                     : nextTaskState.progress ?? currentTask.progress ?? 0,
@@ -6240,8 +6167,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 const response = await API.get(
                   `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
                   {
-                    disableDuplicate: true,
-                    disableStaleCache: true,
                     skipErrorHandler: true,
                     headers: {
                       'New-API-User': getUserIdFromLocalStorage(),
@@ -6702,8 +6627,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const response = await API.get(
                 `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
                 {
-                  disableDuplicate: true,
-                  disableStaleCache: true,
                   skipErrorHandler: true,
                   headers: {
                     'New-API-User': getUserIdFromLocalStorage(),
@@ -6727,13 +6650,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 candidate,
                 {
                   taskId: queryTaskId,
-                  status: resolveLiveVideoTaskStatus({
-                    nextStatus,
-                    currentStatus: candidate.status,
-                    submittedAt: candidate.sortTimestamp,
-                    hasUrl: isCompleted,
-                    isFailed,
-                  }),
+                  status: isCompleted ? 'completed' : isFailed ? 'failed' : nextStatus,
                   progress: isCompleted ? 100 : nextTaskState.progress ?? 0,
                   url: isCompleted ? resolvedURL : '',
                   resultUrl: isCompleted ? resolvedURL : '',
@@ -8132,7 +8049,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                   <div className='flex items-center gap-3'>
                                     <Loader2 size={18} className='animate-spin' />
                                     <span className='text-sm font-semibold'>
-                                      {getVideoRecordGeneratingLabel(record)}，已完成 {record.completedCount || 0} / {record.total || 0}
+                                      正在提交视频任务，已完成 {record.completedCount || 0} / {record.total || 0}
                                     </span>
                                   </div>
                                   <div className='h-2 overflow-hidden rounded-full bg-white/70'>

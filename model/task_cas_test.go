@@ -244,29 +244,3 @@ func TestTaskGetUserTasksByIdentifiersMatchesClientRequestID(t *testing.T) {
 	require.Len(t, items, 1)
 	assert.Equal(t, task.TaskID, items[0].TaskID)
 }
-
-func TestTaskStatusCanAdvanceTo(t *testing.T) {
-	testCases := []struct {
-		name     string
-		current  TaskStatus
-		next     TaskStatus
-		expected bool
-	}{
-		{name: "not_start_to_submitted", current: TaskStatusNotStart, next: TaskStatusSubmitted, expected: true},
-		{name: "submitted_to_queued", current: TaskStatusSubmitted, next: TaskStatusQueued, expected: true},
-		{name: "queued_to_in_progress", current: TaskStatusQueued, next: TaskStatusInProgress, expected: true},
-		{name: "in_progress_to_success", current: TaskStatusInProgress, next: TaskStatusSuccess, expected: true},
-		{name: "in_progress_to_failure", current: TaskStatusInProgress, next: TaskStatusFailure, expected: true},
-		{name: "in_progress_to_submitted_regression", current: TaskStatusInProgress, next: TaskStatusSubmitted, expected: false},
-		{name: "queued_to_submitted_regression", current: TaskStatusQueued, next: TaskStatusSubmitted, expected: false},
-		{name: "success_to_in_progress_regression", current: TaskStatusSuccess, next: TaskStatusInProgress, expected: false},
-		{name: "failure_to_success_regression", current: TaskStatusFailure, next: TaskStatusSuccess, expected: false},
-		{name: "same_status_allowed", current: TaskStatusInProgress, next: TaskStatusInProgress, expected: true},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			assert.Equal(t, testCase.expected, testCase.current.CanAdvanceTo(testCase.next))
-		})
-	}
-}

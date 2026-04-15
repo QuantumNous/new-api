@@ -33,54 +33,6 @@ func (t TaskStatus) ToVideoStatus() string {
 	return status
 }
 
-func (t TaskStatus) IsTerminal() bool {
-	switch normalizeTaskStatus(t) {
-	case TaskStatusSuccess, TaskStatusFailure:
-		return true
-	default:
-		return false
-	}
-}
-
-func (t TaskStatus) CanAdvanceTo(next TaskStatus) bool {
-	current := normalizeTaskStatus(t)
-	target := normalizeTaskStatus(next)
-
-	if target == "" || target == TaskStatusUnknown {
-		return false
-	}
-	if current == "" || current == TaskStatusUnknown || current == TaskStatusNotStart {
-		return true
-	}
-	if current == target {
-		return true
-	}
-	if current.IsTerminal() {
-		return false
-	}
-	if target.IsTerminal() {
-		return true
-	}
-	return taskStatusOrder(target) >= taskStatusOrder(current)
-}
-
-func taskStatusOrder(status TaskStatus) int {
-	switch normalizeTaskStatus(status) {
-	case TaskStatusNotStart:
-		return 0
-	case TaskStatusSubmitted:
-		return 1
-	case TaskStatusQueued:
-		return 2
-	case TaskStatusInProgress:
-		return 3
-	case TaskStatusSuccess, TaskStatusFailure:
-		return 4
-	default:
-		return -1
-	}
-}
-
 const (
 	TaskStatusNotStart   TaskStatus = "NOT_START"
 	TaskStatusSubmitted             = "SUBMITTED"
