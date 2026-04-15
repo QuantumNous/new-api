@@ -16,7 +16,7 @@ export function useStreamRequest() {
       payload: ChatCompletionRequest,
       onUpdate: (type: 'reasoning' | 'content', chunk: string) => void,
       onComplete: () => void,
-      onError: (error: string) => void
+      onError: (error: string, errorCode?: string) => void
     ) => {
       const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
         headers: getCommonHeaders(),
@@ -32,9 +32,9 @@ export function useStreamRequest() {
         sseSourceRef.current = null
       }
 
-      const handleError = (errorMessage: string) => {
+      const handleError = (errorMessage: string, errorCode?: string) => {
         if (!isStreamCompleteRef.current) {
-          onError(errorMessage)
+          onError(errorMessage, errorCode)
           closeSource()
         }
       }
@@ -71,7 +71,22 @@ export function useStreamRequest() {
         if (source.readyState !== 2) {
           // eslint-disable-next-line no-console
           console.error('SSE Error:', e)
-          handleError(e.data || ERROR_MESSAGES.API_REQUEST_ERROR)
+          let errorMessage = e.data || ERROR_MESSAGES.API_REQUEST_ERROR
+          let errorCode: string | undefined
+          if (e.data) {
+            try {
+              const parsed = JSON.parse(e.data) as {
+                error?: { message?: string; code?: string }
+              }
+              if (parsed?.error) {
+                errorMessage = parsed.error.message || errorMessage
+                errorCode = parsed.error.code || undefined
+              }
+            } catch {
+              // not JSON, use raw string
+            }
+          }
+          handleError(errorMessage, errorCode)
         }
       })
 

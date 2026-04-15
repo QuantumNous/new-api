@@ -242,14 +242,25 @@ export function processChartData(
   })
   modelLineValues.sort((a, b) => a.Time.localeCompare(b.Time))
 
-  // Rank bar: model call count ranking
-  const rankValues = Array.from(modelTotalsMap.entries())
+  // Rank bar: model call count ranking (top 20 + "Other" bucket)
+  const MAX_RANK_MODELS = 20
+  const allRankValues = Array.from(modelTotalsMap.entries())
     .map(([model, stats]) => ({
       Model: model,
       Count: Number(stats.count) || 0,
     }))
     .sort((a, b) => b.Count - a.Count)
-  // No top10 truncation (legacy behavior)
+
+  let rankValues: typeof allRankValues
+  if (allRankValues.length > MAX_RANK_MODELS) {
+    const topModels = allRankValues.slice(0, MAX_RANK_MODELS)
+    const otherCount = allRankValues
+      .slice(MAX_RANK_MODELS)
+      .reduce((sum, item) => sum + item.Count, 0)
+    rankValues = [...topModels, { Model: tt('Other'), Count: otherCount }]
+  } else {
+    rankValues = allRankValues
+  }
 
   return {
     spec_pie: {
@@ -399,6 +410,36 @@ export function processChartData(
                 formatInt(Number(datum?.Count) || 0),
             },
           ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                Number(datum?.Count) || 0,
+            },
+          ],
+          updateContent: (
+            array: Array<{
+              key: string
+              value: string | number
+            }>
+          ) => {
+            array.sort(
+              (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
+            )
+            let sum = 0
+            for (let i = 0; i < array.length; i++) {
+              const v = Number(array[i].value) || 0
+              sum += v
+              array[i].value = formatInt(v)
+            }
+            array.unshift({
+              key: tt('Total:'),
+              value: formatInt(sum),
+            })
+            return array
+          },
         },
       },
       color: { specified: modelColorMap },
@@ -644,6 +685,36 @@ export function processUserChartData(
                 formatVal(Number(datum?.rawQuota) || 0),
             },
           ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.User,
+              value: (datum: Record<string, unknown>) =>
+                Number(datum?.rawQuota) || 0,
+            },
+          ],
+          updateContent: (
+            array: Array<{
+              key: string
+              value: string | number
+            }>
+          ) => {
+            array.sort(
+              (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
+            )
+            let sum = 0
+            for (let i = 0; i < array.length; i++) {
+              const v = Number(array[i].value) || 0
+              sum += v
+              array[i].value = formatVal(v)
+            }
+            array.unshift({
+              key: tt('Total:'),
+              value: formatVal(sum),
+            })
+            return array
+          },
         },
       },
       area: { style: { fillOpacity: 0.15 } },

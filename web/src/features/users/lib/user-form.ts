@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
+import { quotaUnitsToDollars } from '@/lib/format'
 import { DEFAULT_GROUP } from '../constants'
 import { type UserFormData, type User } from '../types'
 
@@ -54,8 +54,7 @@ export function transformFormDataToPayload(
   if (userId === undefined) {
     payload.role = data.role || 1 // Default to common user
   } else {
-    // For update: send fields that backend actually uses
-    payload.quota = parseQuotaFromDollars(data.quota_dollars || 0)
+    // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
     payload.id = userId

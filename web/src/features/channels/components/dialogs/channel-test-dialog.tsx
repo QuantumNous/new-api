@@ -8,7 +8,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -64,6 +64,7 @@ type TestResult = {
   status: TestStatus
   responseTime?: number
   error?: string
+  errorCode?: string
 }
 
 const endpointTypeOptions: Array<{ value: string; label: string }> = [
@@ -200,11 +201,12 @@ export function ChannelTestDialog({
             endpointType: endpointType === 'auto' ? undefined : endpointType,
             stream: isStreamTest || undefined,
           },
-          (success, responseTime, error) => {
+          (success, responseTime, error, errorCode) => {
             updateTestResult(model, {
               status: success ? 'success' : 'error',
               responseTime,
               error,
+              errorCode,
             })
           }
         )
@@ -340,7 +342,22 @@ export function ChannelTestDialog({
             <div className='flex flex-col gap-1 text-xs'>
               <StatusBadge label='Failed' variant='danger' copyable={false} />
               {result.error && (
-                <span className='text-muted-foreground'>{result.error}</span>
+                <span className='text-muted-foreground break-all'>
+                  {result.error}
+                </span>
+              )}
+              {result.errorCode === 'model_price_error' && (
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='w-fit'
+                  onClick={() =>
+                    window.open('/console/setting?tab=ratio', '_blank')
+                  }
+                >
+                  <Settings className='mr-1 h-3 w-3' />
+                  {t('Go to Settings')}
+                </Button>
               )}
             </div>
           )

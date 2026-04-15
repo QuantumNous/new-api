@@ -73,9 +73,11 @@ export function useChatHandler({
 
   // Handle stream error
   const handleStreamError = useCallback(
-    (error: string) => {
+    (error: string, errorCode?: string) => {
       toast.error(error)
-      onMessageUpdate((prev) => updateAssistantMessageWithError(prev, error))
+      onMessageUpdate((prev) =>
+        updateAssistantMessageWithError(prev, error, errorCode)
+      )
     },
     [onMessageUpdate]
   )
@@ -138,13 +140,16 @@ export function useChatHandler({
         )
       } catch (error: unknown) {
         const err = error as {
-          response?: { data?: { message?: string } }
+          response?: {
+            data?: { message?: string; error?: { code?: string } }
+          }
           message?: string
         }
         handleStreamError(
           err?.response?.data?.message ||
             err?.message ||
-            ERROR_MESSAGES.API_REQUEST_ERROR
+            ERROR_MESSAGES.API_REQUEST_ERROR,
+          err?.response?.data?.error?.code || undefined
         )
       }
     },

@@ -194,7 +194,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 									logger.LogQuota(preConsumedQuota),
 									taskResult.TotalTokens,
 								))
-								if err := model.DecreaseUserQuota(task.UserId, quotaDelta); err != nil {
+								if err := model.DecreaseUserQuota(task.UserId, quotaDelta, false); err != nil {
 									logger.LogError(ctx, fmt.Sprintf("补扣费失败: %s", err.Error()))
 								} else {
 									model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quotaDelta)

@@ -21,6 +21,7 @@ export interface Message {
   isReasoningComplete?: boolean
   isContentComplete?: boolean
   status?: MessageStatus
+  errorCode?: string | null
 }
 
 // API payload types

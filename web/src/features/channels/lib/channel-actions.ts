@@ -191,7 +191,8 @@ export async function handleTestChannel(
   onTestComplete?: (
     success: boolean,
     responseTime?: number,
-    error?: string
+    error?: string,
+    errorCode?: string
   ) => void
 ): Promise<void> {
   const payload =
@@ -212,7 +213,7 @@ export async function handleTestChannel(
       onTestComplete?.(true, response.data?.response_time)
     } else {
       toast.error(response.message || i18next.t(ERROR_MESSAGES.TEST_FAILED))
-      onTestComplete?.(false, undefined, response.message)
+      onTestComplete?.(false, undefined, response.message, response.error_code)
     }
   } catch (_error: unknown) {
     const err = _error as { response?: { data?: { message?: string } } }

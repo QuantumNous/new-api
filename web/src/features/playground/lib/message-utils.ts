@@ -200,7 +200,8 @@ export function parseThinkTags(content: string): {
  */
 export function updateAssistantMessageWithError(
   messages: Message[],
-  errorMessage: string
+  errorMessage: string,
+  errorCode?: string
 ): Message[] {
   return updateLastAssistantMessage(messages, (message) => {
     const updatedMessage = updateCurrentVersionContent(
@@ -211,6 +212,7 @@ export function updateAssistantMessageWithError(
       ...updatedMessage,
       status: MESSAGE_STATUS.ERROR,
       isReasoningStreaming: false,
+      errorCode: errorCode || null,
     }
   })
 }

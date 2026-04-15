@@ -115,6 +115,7 @@ export interface GetChannelResponse {
 export interface ChannelTestResponse {
   success: boolean
   message?: string
+  error_code?: string
   data?: {
     response_time?: number
     error?: string

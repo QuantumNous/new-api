@@ -384,6 +384,15 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                               (subscription?.end_time || 0) * 1000
                             ).toLocaleString()}
                           </div>
+                          {isActive &&
+                            (subscription?.next_reset_time ?? 0) > 0 && (
+                              <div className='text-muted-foreground mt-1'>
+                                {t('Next reset')}:{' '}
+                                {new Date(
+                                  subscription!.next_reset_time! * 1000
+                                ).toLocaleString()}
+                              </div>
+                            )}
                           <div className='text-muted-foreground mt-1'>
                             {t('Total Quota')}:{' '}
                             {totalAmount > 0 ? (
