@@ -2162,6 +2162,27 @@ const getTaskStatusLabel = (status) => {
   }
 };
 
+const getVideoRecordGeneratingLabel = (record) => {
+  const tasks = Array.isArray(record?.tasks) ? record.tasks : [];
+  if (
+    tasks.some((task) =>
+      ['generating', 'processing', 'in_progress', 'finalizing'].includes(
+        normalizeVideoTaskStatus(task?.status),
+      ),
+    )
+  ) {
+    return '正在生成视频任务';
+  }
+  if (
+    tasks.some((task) =>
+      ['submitted', 'queued'].includes(normalizeVideoTaskStatus(task?.status)),
+    )
+  ) {
+    return '正在提交视频任务';
+  }
+  return '视频任务处理中';
+};
+
 const normalizeImageHistoryRecords = (snapshot) => {
   const payload = snapshot?.payload || {};
 
@@ -5334,6 +5355,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const response = await API.get(
                 `${API_ENDPOINTS.IMAGE_ASYNC_GENERATIONS}/${encodeURIComponent(task.queryTaskId)}`,
                 {
+                  disableDuplicate: true,
+                  disableStaleCache: true,
                   skipErrorHandler: true,
                   headers: {
                     'New-API-User': getUserIdFromLocalStorage(),
@@ -5569,6 +5592,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const response = await API.get(
                 `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
                 {
+                  disableDuplicate: true,
+                  disableStaleCache: true,
                   skipErrorHandler: true,
                   headers: {
                     'New-API-User': getUserIdFromLocalStorage(),
@@ -6215,6 +6240,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 const response = await API.get(
                   `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
                   {
+                    disableDuplicate: true,
+                    disableStaleCache: true,
                     skipErrorHandler: true,
                     headers: {
                       'New-API-User': getUserIdFromLocalStorage(),
@@ -6675,6 +6702,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               const response = await API.get(
                 `${API_ENDPOINTS.VIDEO_ASYNC_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
                 {
+                  disableDuplicate: true,
+                  disableStaleCache: true,
                   skipErrorHandler: true,
                   headers: {
                     'New-API-User': getUserIdFromLocalStorage(),
@@ -8103,7 +8132,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                   <div className='flex items-center gap-3'>
                                     <Loader2 size={18} className='animate-spin' />
                                     <span className='text-sm font-semibold'>
-                                      正在提交视频任务，已完成 {record.completedCount || 0} / {record.total || 0}
+                                      {getVideoRecordGeneratingLabel(record)}，已完成 {record.completedCount || 0} / {record.total || 0}
                                     </span>
                                   </div>
                                   <div className='h-2 overflow-hidden rounded-full bg-white/70'>
