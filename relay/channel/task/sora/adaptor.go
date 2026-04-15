@@ -85,6 +85,23 @@ func usesVideoGenerationsTaskPath(path string) bool {
 	return path == videoGenerationsTaskPath || strings.HasPrefix(path, videoGenerationsTaskPath+"/")
 }
 
+func isVideoGenerationsTaskModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(model, "veo") || strings.Contains(model, "/veo")
+}
+
+func usesVideoGenerationsTaskEndpoint(path string, modelNames ...string) bool {
+	if !usesVideoGenerationsTaskPath(path) {
+		return false
+	}
+	for _, modelName := range modelNames {
+		if isVideoGenerationsTaskModel(modelName) {
+			return true
+		}
+	}
+	return false
+}
+
 func taskFetchRequestPath(body map[string]any) string {
 	if body == nil {
 		return ""
@@ -95,12 +112,33 @@ func taskFetchRequestPath(body map[string]any) string {
 	return ""
 }
 
+func taskFetchModel(body map[string]any, key string) string {
+	if body == nil {
+		return ""
+	}
+	if model, ok := body[key].(string); ok {
+		return model
+	}
+	return ""
+}
+
+func relayInfoUpstreamModelName(info *relaycommon.RelayInfo) string {
+	if info == nil || info.ChannelMeta == nil {
+		return ""
+	}
+	return info.UpstreamModelName
+}
+
 func buildTaskFetchURL(baseURL string, body map[string]any) (string, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return "", fmt.Errorf("invalid task_id")
 	}
-	if usesVideoGenerationsTaskPath(taskFetchRequestPath(body)) {
+	if usesVideoGenerationsTaskEndpoint(
+		taskFetchRequestPath(body),
+		taskFetchModel(body, "model"),
+		taskFetchModel(body, "origin_model"),
+	) {
 		return fmt.Sprintf("%s%s/%s", baseURL, videoGenerationsTaskPath, taskID), nil
 	}
 	return fmt.Sprintf("%s/v1/videos/%s", baseURL, taskID), nil
@@ -315,7 +353,7 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 	if info != nil && info.TaskRelayInfo != nil && info.Action == constant.TaskActionRemix {
 		return fmt.Sprintf("%s/v1/videos/%s/remix", a.baseURL, info.OriginTaskID), nil
 	}
-	if info != nil && usesVideoGenerationsTaskPath(info.RequestURLPath) {
+	if info != nil && usesVideoGenerationsTaskEndpoint(info.RequestURLPath, relayInfoUpstreamModelName(info), info.OriginModelName) {
 		return fmt.Sprintf("%s%s", a.baseURL, videoGenerationsTaskPath), nil
 	}
 	return fmt.Sprintf("%s/v1/videos", a.baseURL), nil

@@ -111,13 +111,34 @@ func TestNormalizeGrokVideoRequestPromotesImageReference(t *testing.T) {
 func TestBuildRequestURLUsesVideoGenerationsPath(t *testing.T) {
 	adaptor := &TaskAdaptor{baseURL: "https://upstream.example"}
 	url, err := adaptor.BuildRequestURL(&relaycommon.RelayInfo{
-		RequestURLPath: "/v1/video/generations",
+		RequestURLPath:  "/v1/video/generations",
+		OriginModelName: "veo31-fast",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "veo31-fast",
+		},
 	})
 	if err != nil {
 		t.Fatalf("BuildRequestURL returned error: %v", err)
 	}
 	if url != "https://upstream.example/v1/video/generations" {
 		t.Fatalf("expected video generations URL, got %s", url)
+	}
+}
+
+func TestBuildRequestURLKeepsGrokOnOpenAIVideosPath(t *testing.T) {
+	adaptor := &TaskAdaptor{baseURL: "https://upstream.example"}
+	url, err := adaptor.BuildRequestURL(&relaycommon.RelayInfo{
+		RequestURLPath:  "/v1/video/generations",
+		OriginModelName: "grok-imagine-1.0-video",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "grok-imagine-1.0-video",
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRequestURL returned error: %v", err)
+	}
+	if url != "https://upstream.example/v1/videos" {
+		t.Fatalf("expected OpenAI videos URL for Grok, got %s", url)
 	}
 }
 
@@ -137,6 +158,7 @@ func TestBuildRequestURLKeepsOpenAIVideosPath(t *testing.T) {
 func TestBuildTaskFetchURLUsesStoredVideoGenerationsPath(t *testing.T) {
 	url, err := buildTaskFetchURL("https://upstream.example", map[string]any{
 		"task_id":      "upstream-task",
+		"model":        "veo31-fast",
 		"request_path": "/v1/video/generations",
 	})
 	if err != nil {
@@ -144,6 +166,20 @@ func TestBuildTaskFetchURLUsesStoredVideoGenerationsPath(t *testing.T) {
 	}
 	if url != "https://upstream.example/v1/video/generations/upstream-task" {
 		t.Fatalf("expected video generations fetch URL, got %s", url)
+	}
+}
+
+func TestBuildTaskFetchURLKeepsGrokOnOpenAIVideosPath(t *testing.T) {
+	url, err := buildTaskFetchURL("https://upstream.example", map[string]any{
+		"task_id":      "upstream-task",
+		"model":        "grok-imagine-1.0-video",
+		"request_path": "/v1/video/generations",
+	})
+	if err != nil {
+		t.Fatalf("buildTaskFetchURL returned error: %v", err)
+	}
+	if url != "https://upstream.example/v1/videos/upstream-task" {
+		t.Fatalf("expected OpenAI videos fetch URL for Grok, got %s", url)
 	}
 }
 

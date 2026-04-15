@@ -406,6 +406,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		"task_id":      task.GetUpstreamTaskID(),
 		"action":       task.Action,
 		"model":        task.Properties.UpstreamModelName,
+		"origin_model": task.Properties.OriginModelName,
 		"request_path": strings.TrimSpace(task.PrivateData.UpstreamRequestPath),
 	}, proxy)
 	if err != nil {
