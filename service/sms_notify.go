@@ -32,7 +32,13 @@ func sendSmsNotify(phoneNumber string, data dto.Notify) error {
 		return fmt.Errorf("SMS provider is not configured, please contact the administrator")
 	}
 
-	// 处理占位符
+	// 提取模板变量值列表（用于模板类短信服务商）
+	var templateValues []string
+	for _, v := range data.Values {
+		templateValues = append(templateValues, fmt.Sprintf("%v", v))
+	}
+
+	// 生成纯文本 content（用于自定义HTTP接口）
 	content := data.Content
 	for _, value := range data.Values {
 		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
@@ -46,7 +52,7 @@ func sendSmsNotify(phoneNumber string, data dto.Notify) error {
 			common.SMSAliyunSignName,
 			common.SMSAliyunTemplateCode,
 			phoneNumber,
-			content,
+			templateValues,
 		)
 	case "sendcloud":
 		return sendSendCloudSms(
@@ -54,7 +60,7 @@ func sendSmsNotify(phoneNumber string, data dto.Notify) error {
 			common.SMSSendCloudSmsKey,
 			common.SMSSendCloudTemplateId,
 			phoneNumber,
-			content,
+			templateValues,
 		)
 	case "tencent":
 		return sendTencentSms(
@@ -64,7 +70,7 @@ func sendSmsNotify(phoneNumber string, data dto.Notify) error {
 			common.SMSTencentSignName,
 			common.SMSTencentTemplateId,
 			phoneNumber,
-			content,
+			templateValues,
 		)
 	case "custom":
 		return sendCustomSms(
@@ -90,10 +96,17 @@ func aliyunPercentEncode(s string) string {
 }
 
 // sendAliyunSms 通过阿里云短信服务发送短信 (POP v1 签名, HMAC-SHA1)
-func sendAliyunSms(accessKeyId, accessKeySecret, signName, templateCode, phoneNumber, content string) error {
-	templateParam, _ := json.Marshal(map[string]string{
-		"content": content,
-	})
+// templateValues: 模板变量值列表，按顺序映射为 user_money, balance_warn
+func sendAliyunSms(accessKeyId, accessKeySecret, signName, templateCode, phoneNumber string, templateValues []string) error {
+	// 构建模板参数 JSON
+	templateParamMap := map[string]string{}
+	paramNames := []string{"user_money", "balance_warn"}
+	for i, name := range paramNames {
+		if i < len(templateValues) {
+			templateParamMap[name] = templateValues[i]
+		}
+	}
+	templateParam, _ := json.Marshal(templateParamMap)
 
 	params := map[string]string{
 		"AccessKeyId":      accessKeyId,
@@ -158,7 +171,7 @@ func sendAliyunSms(accessKeyId, accessKeySecret, signName, templateCode, phoneNu
 
 // sendSendCloudSms 通过 SendCloud 短信服务发送短信
 // 使用 MD5 签名: signature = MD5(smsKey + "&" + 排序参数串 + "&" + smsKey)
-func sendSendCloudSms(smsUser, smsKey, templateId, phoneNumber, content string) error {
+func sendSendCloudSms(smsUser, smsKey, templateId, phoneNumber string, templateValues []string) error {
 	params := map[string]string{
 		"smsUser":    smsUser,
 		"templateId": templateId,
@@ -166,10 +179,15 @@ func sendSendCloudSms(smsUser, smsKey, templateId, phoneNumber, content string) 
 		"msgType":    "0",
 	}
 
-	// vars 传递通知内容
-	varsJSON, _ := json.Marshal(map[string]string{
-		"content": content,
-	})
+	// vars 传递模板变量
+	varsMap := map[string]string{}
+	paramNames := []string{"user_money", "balance_warn"}
+	for i, name := range paramNames {
+		if i < len(templateValues) {
+			varsMap[name] = templateValues[i]
+		}
+	}
+	varsJSON, _ := json.Marshal(varsMap)
 	params["vars"] = string(varsJSON)
 
 	// 按 key 排序生成签名字符串
@@ -238,7 +256,8 @@ func sha256Hex(data string) string {
 }
 
 // sendTencentSms 通过腾讯云短信服务发送短信 (TC3-HMAC-SHA256 签名)
-func sendTencentSms(secretId, secretKey, smsSdkAppId, signName, templateId, phoneNumber, content string) error {
+// templateValues: 模板变量值列表，按顺序对应模板中的 {1}, {2}, ...
+func sendTencentSms(secretId, secretKey, smsSdkAppId, signName, templateId, phoneNumber string, templateValues []string) error {
 	host := "sms.tencentcloudapi.com"
 	service := "sms"
 	action := "SendSms"
@@ -262,7 +281,7 @@ func sendTencentSms(secretId, secretKey, smsSdkAppId, signName, templateId, phon
 		SignName:         signName,
 		TemplateId:       templateId,
 		PhoneNumberSet:   []string{phoneNumber},
-		TemplateParamSet: []string{content},
+		TemplateParamSet: templateValues,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
