@@ -5484,7 +5484,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   task.localTaskId,
                   buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
                 );
-                return;
+                if (!queryTaskId || isTerminalVideoTaskStatus(exactTaskState.status)) {
+                  return;
+                }
               }
 
               const fallbackTask = fallbackTaskMatches.get(task.localTaskId);
@@ -5496,7 +5498,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   task.localTaskId,
                   buildResolvedVideoTaskPatch(queryTaskId, fallbackTaskState),
                 );
-                return;
+                if (!queryTaskId || isTerminalVideoTaskStatus(fallbackTaskState.status)) {
+                  return;
+                }
               }
 
               if (!queryTaskId) {
@@ -5511,7 +5515,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   task.localTaskId,
                   buildResolvedVideoTaskPatch(queryTaskId, exactTaskState),
                 );
-                return;
+                if (isTerminalVideoTaskStatus(exactTaskState.status)) {
+                  return;
+                }
               }
 
               patchVideoTask(
