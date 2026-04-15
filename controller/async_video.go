@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -95,6 +97,8 @@ func RelayAsyncVideoFetch(c *gin.Context) {
 		respondAsyncVideoOpenAIError(c, http.StatusNotFound, "task_not_exist", types.ErrorCodeInvalidRequest)
 		return
 	}
+
+	task = refreshAsyncVideoTaskIfNeeded(c.Request.Context(), task)
 	c.JSON(http.StatusOK, buildAsyncVideoTaskResponse(task))
 }
 
@@ -217,7 +221,10 @@ func runAsyncVideoJob(job asyncVideoJob) {
 	}
 	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
 		updateAsyncVideoTaskFailure(task, responseBody, extractPlaygroundTaskErrorMessage(responseBody, "async video request failed"))
+		return
 	}
+
+	promoteAsyncVideoTaskAccepted(job.TaskID)
 }
 
 func updateAsyncVideoTaskFailure(task *model.Task, responseBody []byte, failReason string) {
@@ -247,6 +254,55 @@ func updateAsyncVideoTaskRunning(task *model.Task) {
 	if err := task.Update(); err != nil {
 		common.SysError("update async video task running error: " + err.Error())
 	}
+}
+
+func promoteAsyncVideoTaskAccepted(taskID string) {
+	task, exist, err := model.GetByOnlyTaskId(taskID)
+	if err != nil {
+		common.SysError("get async video task after submit error: " + err.Error())
+		return
+	}
+	if !exist || task == nil {
+		return
+	}
+	if task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure {
+		return
+	}
+	task.Status = model.TaskStatusInProgress
+	task.Progress = taskcommon.ProgressInProgress
+	if task.StartTime == 0 {
+		task.StartTime = time.Now().Unix()
+	}
+	if err := task.Update(); err != nil {
+		common.SysError("promote async video task accepted error: " + err.Error())
+	}
+}
+
+func refreshAsyncVideoTaskIfNeeded(ctx context.Context, task *model.Task) *model.Task {
+	if task == nil {
+		return task
+	}
+	if task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure {
+		return task
+	}
+	if strings.TrimSpace(task.GetUpstreamTaskID()) == "" || task.ChannelId <= 0 || task.Platform == "" {
+		return task
+	}
+	if task.UpdatedAt > 0 && time.Now().Unix()-task.UpdatedAt < 3 {
+		return task
+	}
+
+	upstreamTaskID := task.GetUpstreamTaskID()
+	taskMap := map[string]*model.Task{
+		upstreamTaskID: task,
+	}
+	taskChannelMap := map[int][]string{
+		task.ChannelId: []string{upstreamTaskID},
+	}
+	if err := service.UpdateVideoTasks(ctx, task.Platform, taskChannelMap, taskMap); err != nil {
+		common.SysError("refresh async video task error: " + err.Error())
+	}
+	return task
 }
 
 func buildAsyncVideoTaskResponse(task *model.Task) *dto.AsyncVideoTaskResponse {
