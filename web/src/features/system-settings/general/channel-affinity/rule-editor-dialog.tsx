@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -27,6 +28,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { RULE_TEMPLATES } from './constants'
 import type { AffinityRule, KeySource } from './types'
 
 const KEY_SOURCE_TYPES = ['context_int', 'context_string', 'gjson'] as const
@@ -75,6 +77,7 @@ interface Props {
   onOpenChange: (open: boolean) => void
   rule: AffinityRule | null
   onSave: (rule: AffinityRule) => void
+  templateKey?: string | null
 }
 
 export function RuleEditorDialog(props: Props) {
@@ -101,30 +104,35 @@ export function RuleEditorDialog(props: Props) {
     },
   })
 
+  const resetFromRule = (r: Partial<AffinityRule>) => {
+    form.reset({
+      name: r.name || '',
+      model_regex_text: (r.model_regex || []).join('\n'),
+      path_regex_text: (r.path_regex || []).join('\n'),
+      user_agent_include_text: (r.user_agent_include || []).join('\n'),
+      value_regex: r.value_regex || '',
+      ttl_seconds: r.ttl_seconds || 0,
+      skip_retry_on_failure: !!r.skip_retry_on_failure,
+      include_using_group: r.include_using_group ?? true,
+      include_model_name: !!r.include_model_name,
+      include_rule_name: r.include_rule_name ?? true,
+      param_override_template_json: r.param_override_template
+        ? JSON.stringify(r.param_override_template, null, 2)
+        : '',
+    })
+    const sources = (r.key_sources || []).map(normalizeKeySource)
+    setKeySources(sources.length > 0 ? sources : [{ type: 'gjson', path: '' }])
+    if (r.param_override_template) setAdvancedOpen(true)
+  }
+
   useEffect(() => {
-    if (props.open && props.rule) {
-      const r = props.rule
-      form.reset({
-        name: r.name || '',
-        model_regex_text: (r.model_regex || []).join('\n'),
-        path_regex_text: (r.path_regex || []).join('\n'),
-        user_agent_include_text: (r.user_agent_include || []).join('\n'),
-        value_regex: r.value_regex || '',
-        ttl_seconds: r.ttl_seconds || 0,
-        skip_retry_on_failure: !!r.skip_retry_on_failure,
-        include_using_group: r.include_using_group ?? true,
-        include_model_name: !!r.include_model_name,
-        include_rule_name: r.include_rule_name ?? true,
-        param_override_template_json: r.param_override_template
-          ? JSON.stringify(r.param_override_template, null, 2)
-          : '',
-      })
-      setKeySources(
-        (r.key_sources || []).map(normalizeKeySource).length > 0
-          ? (r.key_sources || []).map(normalizeKeySource)
-          : [{ type: 'gjson', path: '' }]
-      )
-    } else if (props.open) {
+    if (!props.open) return
+
+    if (props.rule) {
+      resetFromRule(props.rule)
+    } else if (props.templateKey && RULE_TEMPLATES[props.templateKey]) {
+      resetFromRule(RULE_TEMPLATES[props.templateKey])
+    } else {
       form.reset({
         name: '',
         model_regex_text: '',
@@ -140,22 +148,39 @@ export function RuleEditorDialog(props: Props) {
       })
       setKeySources([{ type: 'gjson', path: '' }])
     }
-  }, [props.open, props.rule, form])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.open, props.rule, props.templateKey])
 
   const handleSave = (values: RuleFormValues) => {
     const modelRegex = normalizeStringList(values.model_regex_text)
-    if (modelRegex.length === 0) return
+    if (modelRegex.length === 0) {
+      toast.error(t('At least one model regex pattern is required'))
+      return
+    }
 
     const validKeySources = keySources
       .map(normalizeKeySource)
       .filter((s) => s.type && (s.type === 'gjson' ? s.path : s.key))
-    if (validKeySources.length === 0) return
+    if (validKeySources.length === 0) {
+      toast.error(t('At least one valid key source is required'))
+      return
+    }
 
     let paramTemplate: Record<string, unknown> | null = null
     if (values.param_override_template_json.trim()) {
       try {
-        paramTemplate = JSON.parse(values.param_override_template_json)
+        const parsed = JSON.parse(values.param_override_template_json)
+        if (
+          typeof parsed !== 'object' ||
+          Array.isArray(parsed) ||
+          parsed === null
+        ) {
+          toast.error(t('Parameter override template must be a JSON object'))
+          return
+        }
+        paramTemplate = parsed
       } catch {
+        toast.error(t('Invalid JSON in parameter override template'))
         return
       }
     }

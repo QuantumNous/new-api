@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Edit, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { Edit, FileText, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
@@ -22,6 +28,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { SettingsSection } from '../../components/settings-section'
 import { useUpdateOption } from '../../hooks/use-update-option'
 import { getCacheStats, clearAllCache, clearRuleCache } from './api'
+import { RULE_TEMPLATES, cloneTemplate, makeUniqueName } from './constants'
 import { RuleEditorDialog } from './rule-editor-dialog'
 import type { AffinityRule, CacheStats, ChannelAffinitySettings } from './types'
 
@@ -82,8 +89,10 @@ export function ChannelAffinitySection(props: Props) {
 
   const [ruleEditorOpen, setRuleEditorOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AffinityRule | null>(null)
+  const [ruleTemplateKey, setRuleTemplateKey] = useState<string | null>(null)
   const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false)
   const [clearRuleName, setClearRuleName] = useState<string | null>(null)
+  const [fillTemplateDialogOpen, setFillTemplateDialogOpen] = useState(false)
 
   useEffect(() => {
     setEnabled(props.defaultValues['channel_affinity_setting.enabled'])
@@ -122,6 +131,33 @@ export function ChannelAffinitySection(props: Props) {
   useEffect(() => {
     refreshCache()
   }, [refreshCache])
+
+  const appendCliTemplates = () => {
+    const existingNames = new Set(
+      rules.map((r) => (r.name || '').trim()).filter((x) => x.length > 0)
+    )
+
+    const templates = Object.values(RULE_TEMPLATES).map((tpl) => {
+      const base = cloneTemplate(tpl)
+      const name = makeUniqueName(existingNames, tpl.name)
+      existingNames.add(name)
+      return { ...base, name }
+    })
+
+    setRules((prev) =>
+      [...prev, ...templates].map((r, idx) => ({ ...r, id: idx }))
+    )
+    toast.success(t('Templates appended'))
+    setFillTemplateDialogOpen(false)
+  }
+
+  const handleFillTemplates = () => {
+    if (rules.length === 0) {
+      appendCliTemplates()
+    } else {
+      setFillTemplateDialogOpen(true)
+    }
+  }
 
   const handleSave = async () => {
     let rulesJson: string
@@ -350,16 +386,46 @@ export function ChannelAffinitySection(props: Props) {
           >
             JSON
           </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => {
-              setEditingRule(null)
-              setRuleEditorOpen(true)
-            }}
-          >
-            <Plus className='mr-1 h-3 w-3' />
-            {t('Add Rule')}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant='outline' size='sm'>
+                <Plus className='mr-1 h-3 w-3' />
+                {t('Add Rule')}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingRule(null)
+                  setRuleTemplateKey(null)
+                  setRuleEditorOpen(true)
+                }}
+              >
+                {t('Blank Rule')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingRule(null)
+                  setRuleTemplateKey('codexCli')
+                  setRuleEditorOpen(true)
+                }}
+              >
+                Codex CLI
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingRule(null)
+                  setRuleTemplateKey('claudeCli')
+                  setRuleEditorOpen(true)
+                }}
+              >
+                Claude CLI
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant='outline' size='sm' onClick={handleFillTemplates}>
+            <FileText className='mr-1 h-3 w-3' />
+            {t('Fill Templates')}
           </Button>
           <Button size='sm' onClick={handleSave} disabled={saving}>
             {saving ? t('Saving...') : t('Save')}
@@ -445,6 +511,11 @@ export function ChannelAffinitySection(props: Props) {
                                 )}
                               </span>
                             ))}
+                          {(rule.model_regex || []).length > 2 && (
+                            <span className='text-muted-foreground/50'>
+                              +{(rule.model_regex || []).length - 2}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -471,6 +542,11 @@ export function ChannelAffinitySection(props: Props) {
                                 )}
                               </span>
                             ))}
+                          {(rule.key_sources || []).length > 2 && (
+                            <span className='text-muted-foreground/50'>
+                              +{(rule.key_sources || []).length - 2}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>{rule.ttl_seconds || '-'}</TableCell>
@@ -488,33 +564,35 @@ export function ChannelAffinitySection(props: Props) {
                         />
                       </TableCell>
                       <TableCell>
-                        <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
-                          {[
+                        {(() => {
+                          const scopeItems = [
                             rule.include_using_group && t('Group'),
                             rule.include_model_name && t('Model'),
                             rule.include_rule_name && t('Rule'),
-                          ]
-                            .filter(Boolean)
-                            .map((item, idx, arr) => (
+                          ].filter(Boolean) as string[]
+                          if (scopeItems.length === 0) return '-'
+                          return (
+                            <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
                               <span
-                                key={idx}
-                                className='flex items-center gap-1.5'
-                              >
-                                {idx === 0 && (
-                                  <span
-                                    className='size-1.5 shrink-0 rounded-full bg-slate-400'
-                                    aria-hidden='true'
-                                  />
-                                )}
-                                {item}
-                                {idx < arr.length - 1 && (
-                                  <span className='text-muted-foreground/30'>
-                                    ·
-                                  </span>
-                                )}
-                              </span>
-                            )) || '-'}
-                        </div>
+                                className='size-1.5 shrink-0 rounded-full bg-slate-400'
+                                aria-hidden='true'
+                              />
+                              {scopeItems.map((item, idx, arr) => (
+                                <span
+                                  key={idx}
+                                  className='flex items-center gap-1.5'
+                                >
+                                  {item}
+                                  {idx < arr.length - 1 && (
+                                    <span className='text-muted-foreground/30'>
+                                      ·
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell>
                         {rule.include_rule_name && cacheStats?.by_rule_name
@@ -540,6 +618,7 @@ export function ChannelAffinitySection(props: Props) {
                             className='h-7 w-7'
                             onClick={() => {
                               setEditingRule(rule)
+                              setRuleTemplateKey(null)
                               setRuleEditorOpen(true)
                             }}
                           >
@@ -578,6 +657,7 @@ export function ChannelAffinitySection(props: Props) {
         onOpenChange={setRuleEditorOpen}
         rule={editingRule}
         onSave={handleRuleSave}
+        templateKey={ruleTemplateKey}
       />
 
       <ConfirmDialog
@@ -601,6 +681,16 @@ export function ChannelAffinitySection(props: Props) {
           destructive
         />
       )}
+
+      <ConfirmDialog
+        open={fillTemplateDialogOpen}
+        onOpenChange={setFillTemplateDialogOpen}
+        title={t('Fill Codex CLI / Claude CLI Templates')}
+        desc={t(
+          'This will append 2 template rules (Codex CLI and Claude CLI) to the existing rule list.'
+        )}
+        handleConfirm={appendCliTemplates}
+      />
     </>
   )
 }

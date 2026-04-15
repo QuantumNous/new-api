@@ -1,6 +1,7 @@
 import { useState, useMemo, memo, useCallback, useEffect } from 'react'
 import {
   type ColumnDef,
+  type PaginationState,
   type VisibilityState,
   type SortingState,
   flexRender,
@@ -34,6 +35,7 @@ type ModelRatioVisualEditorProps = {
   modelPrice: string
   modelRatio: string
   cacheRatio: string
+  createCacheRatio: string
   completionRatio: string
   imageRatio: string
   audioRatio: string
@@ -46,6 +48,7 @@ type ModelRow = {
   price?: string
   ratio?: string
   cacheRatio?: string
+  createCacheRatio?: string
   completionRatio?: string
   imageRatio?: string
   audioRatio?: string
@@ -65,6 +68,7 @@ export const ModelRatioVisualEditor = memo(
     modelPrice,
     modelRatio,
     cacheRatio,
+    createCacheRatio,
     completionRatio,
     imageRatio,
     audioRatio,
@@ -75,6 +79,10 @@ export const ModelRatioVisualEditor = memo(
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editData, setEditData] = useState<ModelRatioData | null>(null)
     const [sorting, setSorting] = useState<SortingState>([])
+    const [pagination, setPagination] = useState<PaginationState>({
+      pageIndex: 0,
+      pageSize: 10,
+    })
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
       () => {
         const saved = localStorage.getItem(STORAGE_KEY)
@@ -92,6 +100,7 @@ export const ModelRatioVisualEditor = memo(
           } catch {
             return {
               cacheRatio: false,
+              createCacheRatio: false,
               imageRatio: false,
               audioRatio: false,
               audioCompletionRatio: false,
@@ -100,6 +109,7 @@ export const ModelRatioVisualEditor = memo(
         }
         return {
           cacheRatio: false,
+          createCacheRatio: false,
           imageRatio: false,
           audioRatio: false,
           audioCompletionRatio: false,
@@ -124,6 +134,10 @@ export const ModelRatioVisualEditor = memo(
         fallback: {},
         context: 'cache ratios',
       })
+      const createCacheMap = safeJsonParse<Record<string, number>>(
+        createCacheRatio,
+        { fallback: {}, context: 'create cache ratios' }
+      )
       const completionMap = safeJsonParse<Record<string, number>>(
         completionRatio,
         { fallback: {}, context: 'completion ratios' }
@@ -145,6 +159,7 @@ export const ModelRatioVisualEditor = memo(
         ...Object.keys(priceMap),
         ...Object.keys(ratioMap),
         ...Object.keys(cacheMap),
+        ...Object.keys(createCacheMap),
         ...Object.keys(completionMap),
         ...Object.keys(imageMap),
         ...Object.keys(audioMap),
@@ -155,6 +170,7 @@ export const ModelRatioVisualEditor = memo(
         const price = priceMap[name]?.toString() || ''
         const ratio = ratioMap[name]?.toString() || ''
         const cache = cacheMap[name]?.toString() || ''
+        const createCache = createCacheMap[name]?.toString() || ''
         const completion = completionMap[name]?.toString() || ''
         const image = imageMap[name]?.toString() || ''
         const audio = audioMap[name]?.toString() || ''
@@ -165,6 +181,7 @@ export const ModelRatioVisualEditor = memo(
           price,
           ratio,
           cacheRatio: cache,
+          createCacheRatio: createCache,
           completionRatio: completion,
           imageRatio: image,
           audioRatio: audio,
@@ -174,6 +191,7 @@ export const ModelRatioVisualEditor = memo(
             (ratio !== '' ||
               completion !== '' ||
               cache !== '' ||
+              createCache !== '' ||
               image !== '' ||
               audio !== '' ||
               audioCompletion !== ''),
@@ -185,6 +203,7 @@ export const ModelRatioVisualEditor = memo(
       modelPrice,
       modelRatio,
       cacheRatio,
+      createCacheRatio,
       completionRatio,
       imageRatio,
       audioRatio,
@@ -215,6 +234,10 @@ export const ModelRatioVisualEditor = memo(
           fallback: {},
           silent: true,
         })
+        const createCacheMap = safeJsonParse<Record<string, number>>(
+          createCacheRatio,
+          { fallback: {}, silent: true }
+        )
         const completionMap = safeJsonParse<Record<string, number>>(
           completionRatio,
           { fallback: {}, silent: true }
@@ -235,6 +258,7 @@ export const ModelRatioVisualEditor = memo(
         delete priceMap[name]
         delete ratioMap[name]
         delete cacheMap[name]
+        delete createCacheMap[name]
         delete completionMap[name]
         delete imageMap[name]
         delete audioMap[name]
@@ -243,6 +267,7 @@ export const ModelRatioVisualEditor = memo(
         onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
         onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
         onChange('CacheRatio', JSON.stringify(cacheMap, null, 2))
+        onChange('CreateCacheRatio', JSON.stringify(createCacheMap, null, 2))
         onChange('CompletionRatio', JSON.stringify(completionMap, null, 2))
         onChange('ImageRatio', JSON.stringify(imageMap, null, 2))
         onChange('AudioRatio', JSON.stringify(audioMap, null, 2))
@@ -255,6 +280,7 @@ export const ModelRatioVisualEditor = memo(
         modelPrice,
         modelRatio,
         cacheRatio,
+        createCacheRatio,
         completionRatio,
         imageRatio,
         audioRatio,
@@ -329,6 +355,18 @@ export const ModelRatioVisualEditor = memo(
           meta: { label: 'Cache' },
         },
         {
+          accessorKey: 'createCacheRatio',
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('Create cache')} />
+          ),
+          cell: ({ row }) => (
+            <span className={row.original.price ? 'text-muted-foreground' : ''}>
+              {formatValue(row.getValue('createCacheRatio'))}
+            </span>
+          ),
+          meta: { label: 'Create cache' },
+        },
+        {
           accessorKey: 'imageRatio',
           header: ({ column }) => (
             <DataTableColumnHeader column={column} title={t('Image')} />
@@ -396,13 +434,12 @@ export const ModelRatioVisualEditor = memo(
       state: {
         sorting,
         columnVisibility,
-        pagination: {
-          pageIndex: 0,
-          pageSize: 10,
-        },
+        pagination,
       },
       onSortingChange: setSorting,
       onColumnVisibilityChange: setColumnVisibility,
+      onPaginationChange: setPagination,
+      autoResetPageIndex: false,
       getCoreRowModel: getCoreRowModel(),
       getFilteredRowModel: getFilteredRowModel(),
       getSortedRowModel: getSortedRowModel(),
@@ -427,6 +464,10 @@ export const ModelRatioVisualEditor = memo(
           fallback: {},
           silent: true,
         })
+        const createCacheMap = safeJsonParse<Record<string, number>>(
+          createCacheRatio,
+          { fallback: {}, silent: true }
+        )
         const completionMap = safeJsonParse<Record<string, number>>(
           completionRatio,
           { fallback: {}, silent: true }
@@ -444,16 +485,15 @@ export const ModelRatioVisualEditor = memo(
           { fallback: {}, silent: true }
         )
 
-        // Remove from all maps first (in case of edit or mode switch)
         delete priceMap[data.name]
         delete ratioMap[data.name]
         delete cacheMap[data.name]
+        delete createCacheMap[data.name]
         delete completionMap[data.name]
         delete imageMap[data.name]
         delete audioMap[data.name]
         delete audioCompletionMap[data.name]
 
-        // Add to appropriate maps based on data
         if (data.price && data.price !== '') {
           priceMap[data.name] = parseFloat(data.price)
         } else {
@@ -461,6 +501,8 @@ export const ModelRatioVisualEditor = memo(
             ratioMap[data.name] = parseFloat(data.ratio)
           if (data.cacheRatio && data.cacheRatio !== '')
             cacheMap[data.name] = parseFloat(data.cacheRatio)
+          if (data.createCacheRatio && data.createCacheRatio !== '')
+            createCacheMap[data.name] = parseFloat(data.createCacheRatio)
           if (data.completionRatio && data.completionRatio !== '')
             completionMap[data.name] = parseFloat(data.completionRatio)
           if (data.imageRatio && data.imageRatio !== '')
@@ -476,6 +518,7 @@ export const ModelRatioVisualEditor = memo(
         onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
         onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
         onChange('CacheRatio', JSON.stringify(cacheMap, null, 2))
+        onChange('CreateCacheRatio', JSON.stringify(createCacheMap, null, 2))
         onChange('CompletionRatio', JSON.stringify(completionMap, null, 2))
         onChange('ImageRatio', JSON.stringify(imageMap, null, 2))
         onChange('AudioRatio', JSON.stringify(audioMap, null, 2))
@@ -488,6 +531,7 @@ export const ModelRatioVisualEditor = memo(
         modelPrice,
         modelRatio,
         cacheRatio,
+        createCacheRatio,
         completionRatio,
         imageRatio,
         audioRatio,
@@ -571,6 +615,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.modelPrice === nextProps.modelPrice &&
       prevProps.modelRatio === nextProps.modelRatio &&
       prevProps.cacheRatio === nextProps.cacheRatio &&
+      prevProps.createCacheRatio === nextProps.createCacheRatio &&
       prevProps.completionRatio === nextProps.completionRatio &&
       prevProps.imageRatio === nextProps.imageRatio &&
       prevProps.audioRatio === nextProps.audioRatio &&

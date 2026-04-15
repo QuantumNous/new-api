@@ -37,6 +37,7 @@ const createModelDialogSchema = (t: (key: string) => string) =>
     price: z.string().optional(),
     ratio: z.string().optional(),
     cacheRatio: z.string().optional(),
+    createCacheRatio: z.string().optional(),
     completionRatio: z.string().optional(),
     imageRatio: z.string().optional(),
     audioRatio: z.string().optional(),
@@ -53,6 +54,7 @@ export type ModelRatioData = {
   price?: string
   ratio?: string
   cacheRatio?: string
+  createCacheRatio?: string
   completionRatio?: string
   imageRatio?: string
   audioRatio?: string
@@ -87,6 +89,7 @@ export function ModelRatioDialog({
       price: '',
       ratio: '',
       cacheRatio: '',
+      createCacheRatio: '',
       completionRatio: '',
       imageRatio: '',
       audioRatio: '',
@@ -119,6 +122,7 @@ export function ModelRatioDialog({
         price: '',
         ratio: '',
         cacheRatio: '',
+        createCacheRatio: '',
         completionRatio: '',
         imageRatio: '',
         audioRatio: '',
@@ -142,6 +146,7 @@ export function ModelRatioDialog({
     } else {
       data.ratio = values.ratio || ''
       data.cacheRatio = values.cacheRatio || ''
+      data.createCacheRatio = values.createCacheRatio || ''
       data.completionRatio = values.completionRatio || ''
       data.imageRatio = values.imageRatio || ''
       data.audioRatio = values.audioRatio || ''
@@ -477,6 +482,35 @@ export function ModelRatioDialog({
                           </FormControl>
                           <FormDescription>
                             {t('Discount ratio for cache hits.')}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='createCacheRatio'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Create cache ratio')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type='text'
+                              placeholder='1.25'
+                              {...field}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                if (validateNumber(value)) {
+                                  field.onChange(value)
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Ratio applied when creating cache entries for supported models.'
+                            )}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
