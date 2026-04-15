@@ -1710,10 +1710,48 @@ const parseTaskDtoVideoState = (task) => {
         ? '任务生成失败'
         : typeof task?.fail_reason === 'string'
         ? task.fail_reason
-        : typeof task?.failReason === 'string'
+      : typeof task?.failReason === 'string'
           ? task.failReason
           : '',
   };
+};
+
+const shouldPromotePendingVideoStatus = (status, submittedAt) => {
+  const normalizedStatus = normalizeVideoTaskStatus(status);
+  const normalizedSubmittedAt = normalizeCreativeTimestampToSeconds(submittedAt);
+  return (
+    ['submitted', 'queued'].includes(normalizedStatus) &&
+    normalizedSubmittedAt > 0 &&
+    Date.now() - normalizedSubmittedAt * 1000 >=
+      CREATIVE_CENTER_VIDEO_PENDING_TO_GENERATING_MS
+  );
+};
+
+const resolveLiveVideoTaskStatus = ({
+  nextStatus,
+  currentStatus,
+  submittedAt,
+  hasUrl,
+  isFailed,
+}) => {
+  if (hasUrl) {
+    return 'completed';
+  }
+  if (isFailed) {
+    return 'failed';
+  }
+
+  const normalizedNextStatus = normalizeVideoTaskStatus(
+    nextStatus || currentStatus || 'submitted',
+  );
+  if (
+    shouldPromotePendingVideoStatus(normalizedNextStatus, submittedAt) ||
+    (['submitted', 'queued'].includes(normalizedNextStatus) &&
+      normalizeVideoTaskStatus(currentStatus) === 'generating')
+  ) {
+    return 'generating';
+  }
+  return normalizedNextStatus;
 };
 
 const isTerminalVideoTaskStatus = (status) => {
@@ -1823,11 +1861,13 @@ const buildResolvedVideoTaskPatch = (queryTaskId, nextTaskState) => (currentTask
   const completedWithoutVideo = normalizedStatus === 'completed' && !finalUrl;
   const isFailed = normalizedStatus === 'failed' || completedWithoutVideo;
   const isCompleted = Boolean(finalUrl) && !isFailed;
-  const nextStatus = isCompleted
-    ? 'completed'
-    : isFailed
-      ? 'failed'
-      : normalizedStatus;
+  const nextStatus = resolveLiveVideoTaskStatus({
+    nextStatus: normalizedStatus,
+    currentStatus: currentTask?.status,
+    submittedAt: nextTaskState?.submittedAt || currentTask?.submittedAt,
+    hasUrl: isCompleted,
+    isFailed,
+  });
   const nextUrl = isFailed ? '' : finalUrl;
 
   return {
@@ -5576,11 +5616,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               } else {
                 patchVideoTask(task.recordId, task.localTaskId, (currentTask) => ({
                   taskId: queryTaskId,
-                  status: isCompleted
-                    ? 'completed'
-                    : isFailed
-                      ? 'failed'
-                      : nextStatus,
+                  status: resolveLiveVideoTaskStatus({
+                    nextStatus,
+                    currentStatus: currentTask?.status,
+                    submittedAt: currentTask?.submittedAt,
+                    hasUrl: isCompleted,
+                    isFailed,
+                  }),
                   progress: isCompleted
                     ? 100
                     : nextTaskState.progress ?? currentTask.progress ?? 0,
@@ -6656,7 +6698,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 candidate,
                 {
                   taskId: queryTaskId,
-                  status: isCompleted ? 'completed' : isFailed ? 'failed' : nextStatus,
+                  status: resolveLiveVideoTaskStatus({
+                    nextStatus,
+                    currentStatus: candidate.status,
+                    submittedAt: candidate.sortTimestamp,
+                    hasUrl: isCompleted,
+                    isFailed,
+                  }),
                   progress: isCompleted ? 100 : nextTaskState.progress ?? 0,
                   url: isCompleted ? resolvedURL : '',
                   resultUrl: isCompleted ? resolvedURL : '',
