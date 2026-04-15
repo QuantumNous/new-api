@@ -1971,6 +1971,8 @@
     "模型排行": "Xếp hạng mô hình",
     "模型支持的接口端点信息": "Thông tin điểm cuối API được mô hình hỗ trợ",
     "模型数据分析": "Phân tích dữ liệu mô hình",
+    "图表显示设置": "Cài đặt hiển thị biểu đồ",
+    "可见图表": "Biểu đồ hiển thị",
     "模型映射": "Ánh xạ mô hình",
     "模型映射关系": "Quan hệ ánh xạ mô hình",
     "模型映射必须是合法的 JSON 格式！": "Ánh xạ mô hình phải ở định dạng JSON hợp lệ!",

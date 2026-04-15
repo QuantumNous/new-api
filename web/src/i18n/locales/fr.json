@@ -1978,6 +1978,8 @@
     "模型排行": "Classement des modèles",
     "模型支持的接口端点信息": "Informations sur les points de terminaison de l'API pris en charge par le modèle",
     "模型数据分析": "Analyse des données du modèle",
+    "图表显示设置": "Paramètres d'affichage des graphiques",
+    "可见图表": "Graphiques visibles",
     "模型映射必须是合法的 JSON 格式！": "Le mappage de modèles doit être au format JSON valide !",
     "模型更新成功！": "Modèle mis à jour avec succès !",
     "模型未加入列表，可能无法调用": "Le modèle n'est pas dans la liste, il peut ne pas être disponible",

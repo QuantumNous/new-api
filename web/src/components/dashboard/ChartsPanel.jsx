@@ -17,10 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
-import { PieChart } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Card, Tabs, TabPane, Popover, Checkbox, CheckboxGroup, Button } from '@douyinfe/semi-ui';
+import { PieChart, Settings } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
+import { ALL_CHART_TABS, STORAGE_KEYS } from '../../constants/dashboard.constants';
+
+const SPEC_MAP = {
+  '1': 'spec_line',
+  '2': 'spec_model_line',
+  '3': 'spec_pie',
+  '4': 'spec_rank_bar',
+  '7': 'spec_token_bar',
+  '5': 'spec_user_rank',
+  '6': 'spec_user_trend',
+  '8': 'spec_user_token_rank',
+  '9': 'spec_user_token_trend',
+};
 
 const ChartsPanel = ({
   activeChartTab,
@@ -41,6 +54,67 @@ const ChartsPanel = ({
   hasApiInfoPanel,
   t,
 }) => {
+  const specs = {
+    spec_line,
+    spec_model_line,
+    spec_pie,
+    spec_rank_bar,
+    spec_token_bar,
+    spec_user_rank,
+    spec_user_trend,
+    spec_user_token_rank,
+    spec_user_token_trend,
+  };
+
+  // ========== Tab 可见性逻辑 ==========
+  const [userTabs, setUserTabs] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CHART_TABS_USER);
+    return saved ? saved.split(',') : null;
+  });
+
+  const visibleTabs = useMemo(() => {
+    const globalSetting = localStorage.getItem(STORAGE_KEYS.CHART_TABS_GLOBAL) || '';
+    const globalTabs = globalSetting ? globalSetting.split(',') : null;
+    const enabledKeys = userTabs || globalTabs || ALL_CHART_TABS.map((tab) => tab.key);
+
+    return ALL_CHART_TABS.filter((tab) => {
+      if (tab.adminOnly && !isAdminUser) return false;
+      return enabledKeys.includes(tab.key);
+    });
+  }, [userTabs, isAdminUser]);
+
+  // 如果当前激活的 tab 不在可见列表里，自动切到第一个
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.find((tab) => tab.key === activeChartTab)) {
+      setActiveChartTab(visibleTabs[0].key);
+    }
+  }, [visibleTabs, activeChartTab, setActiveChartTab]);
+
+  const handleUserTabsChange = useCallback((checkedValues) => {
+    if (checkedValues.length === 0) return;
+    setUserTabs(checkedValues);
+    localStorage.setItem(STORAGE_KEYS.CHART_TABS_USER, checkedValues.join(','));
+  }, []);
+
+  const handleResetUserTabs = useCallback(() => {
+    setUserTabs(null);
+    localStorage.removeItem(STORAGE_KEYS.CHART_TABS_USER);
+  }, []);
+
+  // 用户偏好设置的可选项（受管理员全局设置和权限限制）
+  const availableTabs = useMemo(() => {
+    const globalSetting = localStorage.getItem(STORAGE_KEYS.CHART_TABS_GLOBAL) || '';
+    const globalTabs = globalSetting ? globalSetting.split(',') : null;
+
+    return ALL_CHART_TABS.filter((tab) => {
+      if (tab.adminOnly && !isAdminUser) return false;
+      if (globalTabs && !globalTabs.includes(tab.key)) return false;
+      return true;
+    });
+  }, [isAdminUser]);
+
+  const checkedUserTabs = userTabs || visibleTabs.map((tab) => tab.key);
+
   return (
     <Card
       {...CARD_PROPS}
@@ -50,62 +124,67 @@ const ChartsPanel = ({
           <div className={FLEX_CENTER_GAP2}>
             <PieChart size={16} />
             {t('模型数据分析')}
+            <Popover
+              content={
+                <div className='p-3' style={{ maxWidth: 320 }}>
+                  <div className='text-sm font-medium mb-2'>{t('图表显示设置')}</div>
+                  <CheckboxGroup
+                    direction='vertical'
+                    value={checkedUserTabs}
+                    onChange={handleUserTabsChange}
+                  >
+                    {availableTabs.map((tab) => (
+                      <Checkbox key={tab.key} value={tab.key}>
+                        {t(tab.label)}
+                      </Checkbox>
+                    ))}
+                  </CheckboxGroup>
+                  {userTabs && (
+                    <Button
+                      size='small'
+                      type='tertiary'
+                      className='mt-2'
+                      onClick={handleResetUserTabs}
+                    >
+                      {t('重置为默认')}
+                    </Button>
+                  )}
+                </div>
+              }
+              trigger='click'
+              position='bottomLeft'
+            >
+              <Settings
+                size={14}
+                className='cursor-pointer text-gray-400 hover:text-gray-600'
+              />
+            </Popover>
           </div>
           <Tabs
             type='slash'
             activeKey={activeChartTab}
             onChange={setActiveChartTab}
           >
-            <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
-            <TabPane tab={<span>{t('调用趋势')}</span>} itemKey='2' />
-            <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
-            <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
-            <TabPane tab={<span>{t('Token消耗分布')}</span>} itemKey='7' />
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户消耗排行')}</span>} itemKey='5' />
-            )}
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户消耗趋势')}</span>} itemKey='6' />
-            )}
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户Token排行')}</span>} itemKey='8' />
-            )}
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户Token趋势')}</span>} itemKey='9' />
-            )}
+            {visibleTabs.map((tab) => (
+              <TabPane
+                key={tab.key}
+                tab={<span>{t(tab.label)}</span>}
+                itemKey={tab.key}
+              />
+            ))}
           </Tabs>
         </div>
       }
       bodyStyle={{ padding: 0 }}
     >
       <div className='h-96 p-2'>
-        {activeChartTab === '1' && (
-          <VChart spec={spec_line} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '2' && (
-          <VChart spec={spec_model_line} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '3' && (
-          <VChart spec={spec_pie} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '4' && (
-          <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '7' && (
-          <VChart spec={spec_token_bar} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '5' && isAdminUser && (
-          <VChart spec={spec_user_rank} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '6' && isAdminUser && (
-          <VChart spec={spec_user_trend} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '8' && isAdminUser && (
-          <VChart spec={spec_user_token_rank} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '9' && isAdminUser && (
-          <VChart spec={spec_user_token_trend} option={CHART_CONFIG} />
-        )}
+        {visibleTabs.map((tab) => {
+          if (activeChartTab !== tab.key) return null;
+          const specKey = SPEC_MAP[tab.key];
+          return (
+            <VChart key={tab.key} spec={specs[specKey]} option={CHART_CONFIG} />
+          );
+        })}
       </div>
     </Card>
   );

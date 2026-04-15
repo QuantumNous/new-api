@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, CheckboxGroup, Checkbox } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -27,6 +27,7 @@ import {
   showWarning,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { ALL_CHART_TABS } from '../../../constants/dashboard.constants';
 
 export default function DataDashboard(props) {
   const { t } = useTranslation();
@@ -41,6 +42,7 @@ export default function DataDashboard(props) {
     DataExportEnabled: false,
     DataExportInterval: '',
     DataExportDefaultTime: '',
+    DataDashboardChartTabs: '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -155,6 +157,37 @@ export default function DataDashboard(props) {
                     })
                   }
                 />
+              </Col>
+            </Row>
+            <Row>
+              <Col span={24}>
+                <Form.Slot label={t('可见图表')}>
+                  <CheckboxGroup
+                    direction='horizontal'
+                    value={
+                      inputs.DataDashboardChartTabs
+                        ? inputs.DataDashboardChartTabs.split(',')
+                        : ALL_CHART_TABS.map((tab) => tab.key)
+                    }
+                    onChange={(checkedValues) => {
+                      const allKeys = ALL_CHART_TABS.map((tab) => tab.key);
+                      const isAll = checkedValues.length === allKeys.length;
+                      setInputs({
+                        ...inputs,
+                        DataDashboardChartTabs: isAll
+                          ? ''
+                          : checkedValues.join(','),
+                      });
+                    }}
+                  >
+                    {ALL_CHART_TABS.map((tab) => (
+                      <Checkbox key={tab.key} value={tab.key}>
+                        {t(tab.label)}
+                        {tab.adminOnly ? ` (${t('管理员')})` : ''}
+                      </Checkbox>
+                    ))}
+                  </CheckboxGroup>
+                </Form.Slot>
               </Col>
             </Row>
             <Row>
