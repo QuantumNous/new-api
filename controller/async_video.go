@@ -207,7 +207,17 @@ func runAsyncVideoJob(job asyncVideoJob) {
 	ctx.Set(common.KeyBodyStorage, bodyStorage)
 	defer common.CleanupBodyStorage(ctx)
 
+	updateAsyncVideoTaskRunning(task)
 	RelayTask(ctx)
+
+	responseBody := recorder.Body.Bytes()
+	statusCode := recorder.Code
+	if statusCode == 0 {
+		statusCode = http.StatusOK
+	}
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		updateAsyncVideoTaskFailure(task, responseBody, extractPlaygroundTaskErrorMessage(responseBody, "async video request failed"))
+	}
 }
 
 func updateAsyncVideoTaskFailure(task *model.Task, responseBody []byte, failReason string) {
@@ -224,6 +234,18 @@ func updateAsyncVideoTaskFailure(task *model.Task, responseBody []byte, failReas
 	}
 	if err := task.Update(); err != nil {
 		common.SysError("update async video task failure error: " + err.Error())
+	}
+}
+
+func updateAsyncVideoTaskRunning(task *model.Task) {
+	if task == nil || task.Status != model.TaskStatusSubmitted {
+		return
+	}
+	task.Status = model.TaskStatusInProgress
+	task.Progress = taskcommon.ProgressInProgress
+	task.StartTime = time.Now().Unix()
+	if err := task.Update(); err != nil {
+		common.SysError("update async video task running error: " + err.Error())
 	}
 }
 
