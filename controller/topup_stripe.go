@@ -234,6 +234,11 @@ func sessionAsyncPaymentFailed(event stripe.Event) {
 		return
 	}
 
+	if topUp.PaymentMethod != PaymentMethodStripe {
+		log.Printf("异步支付失败，订单支付方式不匹配: %s, ref: %s", topUp.PaymentMethod, referenceId)
+		return
+	}
+
 	if topUp.Status != common.TopUpStatusPending {
 		log.Printf("异步支付失败，订单状态非pending: %s, ref: %s", topUp.Status, referenceId)
 		return
