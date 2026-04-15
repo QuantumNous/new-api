@@ -840,9 +840,11 @@ func setupPlaygroundTokenContext(c *gin.Context, tokenName string, tokenGroup st
 		tokenGroup = userCache.Group
 	}
 	tempToken := &model.Token{
-		UserId: userId,
-		Name:   tokenName,
-		Group:  tokenGroup,
+		UserId:         userId,
+		Name:           tokenName,
+		Key:            fmt.Sprintf("playground_%d_%s", userId, tokenName),
+		Group:          tokenGroup,
+		UnlimitedQuota: true,
 	}
 	_ = middleware.SetupContextForToken(c, tempToken)
 	return nil
