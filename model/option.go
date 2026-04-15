@@ -538,9 +538,11 @@ func handleConfigUpdate(key, value string) bool {
 	config.UpdateConfigFromMap(cfg, configMap)
 
 	// 特定配置的后处理
-	if configName == "performance_setting" {
-		// 同步磁盘缓存配置到 common 包
+	switch configName {
+	case "performance_setting":
 		performance_setting.UpdateAndSync()
+	case "theme":
+		system_setting.UpdateAndSyncTheme()
 	}
 
 	return true // 已处理

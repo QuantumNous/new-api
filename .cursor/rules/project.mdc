@@ -26,15 +26,15 @@ alwaysApply: true
 
 ## Frontend i18n (updated)
 
-- Translation files: `web/src/i18n/locales/{en,zh,fr,ja,ru,vi}.json`
+- Translation files: `web/default/src/i18n/locales/{en,zh,fr,ja,ru,vi}.json`
 - Format: flat JSON under `"translation"` key; **keys are English source strings**
 - Base locale: `en`, fallback: `zh`
 - Usage: `const { t } = useTranslation()` → `t('English key')`
-- Sync script: `bun run i18n:sync` (from `web/`)
+- Sync script: `bun run i18n:sync` (from `web/default/`)
 
 ## Frontend conventions
 
-Detailed frontend development standards (components, state, routing, forms, styling, accessibility, etc.) are in `web/AGENTS.md`. Key points:
+Detailed frontend development standards (components, state, routing, forms, styling, accessibility, etc.) are in `web/default/AGENTS.md`. Key points:
 
 - Always use `useTranslation()` in React components for i18n
 - Prefer `props.xxx` over destructuring for component props

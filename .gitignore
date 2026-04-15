@@ -8,7 +8,8 @@ upload
 build
 *.db-journal
 logs
-web/dist
+web/default/dist
+web/classic/dist
 .env
 one-api
 new-api
