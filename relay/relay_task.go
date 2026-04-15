@@ -77,8 +77,10 @@ func upsertPendingRelayTaskRecord(c *gin.Context, info *relaycommon.RelayInfo, p
 	}
 
 	task.Action = info.Action
-	task.Status = model.TaskStatusSubmitted
-	task.Progress = taskcommon.ProgressSubmitted
+	if !exist || task.Status == "" || task.Status == model.TaskStatusNotStart || task.Status == model.TaskStatusUnknown {
+		task.Status = model.TaskStatusSubmitted
+		task.Progress = taskcommon.ProgressSubmitted
+	}
 	task.PrivateData.RequestId = info.RequestId
 	task.PrivateData.BillingSource = info.BillingSource
 	task.PrivateData.SubscriptionId = info.SubscriptionId
