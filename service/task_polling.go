@@ -35,6 +35,14 @@ type TaskPollingAdaptor interface {
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
 
+func isTransientVideoNotFoundResponse(statusCode int, responseBody []byte) bool {
+	if statusCode != http.StatusNotFound {
+		return false
+	}
+	bodyLower := strings.ToLower(strings.TrimSpace(string(responseBody)))
+	return strings.Contains(bodyLower, "not found")
+}
+
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
 // 每次最多处理 100 条，剩余的下个周期继续处理。
 // 使用 per-task CAS (UpdateWithStatus) 防止覆盖被正常轮询已推进的任务。
@@ -413,7 +421,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
 				bodyLower := strings.ToLower(string(responseBody))
-				if resp.StatusCode == http.StatusNotFound || strings.Contains(bodyLower, "not found") {
+				if isTransientVideoNotFoundResponse(resp.StatusCode, responseBody) {
+					logger.LogInfo(ctx, fmt.Sprintf("Task %s upstream result not ready yet, keep polling, response: %s", taskId, string(responseBody)))
+					return nil
+				}
+				if strings.Contains(bodyLower, "not found") {
 					taskResult = relaycommon.FailTaskInfo("upstream task not found")
 					taskResult.Reason = strings.TrimSpace(string(responseBody))
 				} else {

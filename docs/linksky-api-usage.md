@@ -374,6 +374,8 @@ curl https://linksky.top/v1/video/async-generations/<task_id> \
 
 完成后会返回 `status: "completed"`，并在 `url` 中带视频结果；失败时会返回 `status: "failed"` 和 `error.message`。
 
+说明：部分上游在视频刚生成完成但结果文件还未就绪时，可能短暂返回 `Not Found`。严格异步接口会把任务创建后短时间内的这类临时错误继续视为处理中，避免下游误判失败。
+
 #### 文生视频
 
 ```bash

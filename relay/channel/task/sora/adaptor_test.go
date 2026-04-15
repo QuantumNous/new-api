@@ -46,6 +46,33 @@ func TestNormalizeGrokVideoRequestBackfillsQualityFromResolutionName(t *testing.
 	}
 }
 
+func TestNormalizeGrokVideoRequestBackfillsSecondsFromDuration(t *testing.T) {
+	body := map[string]interface{}{
+		"model":    "grok-imagine-1.0-video",
+		"duration": float64(10),
+	}
+
+	normalizeGrokVideoRequest(body, "grok-imagine-1.0-video")
+
+	if got := body["seconds"]; got != "10" {
+		t.Fatalf("expected seconds to be backfilled from duration, got %#v", got)
+	}
+}
+
+func TestNormalizeGrokVideoRequestKeepsExplicitSeconds(t *testing.T) {
+	body := map[string]interface{}{
+		"model":    "grok-imagine-1.0-video",
+		"duration": float64(10),
+		"seconds":  "8",
+	}
+
+	normalizeGrokVideoRequest(body, "grok-imagine-1.0-video")
+
+	if got := body["seconds"]; got != "8" {
+		t.Fatalf("expected explicit seconds to be preserved, got %#v", got)
+	}
+}
+
 func TestNormalizeGrokVideoRequestPromotesImageReference(t *testing.T) {
 	body := map[string]interface{}{
 		"model":  "grok-imagine-1.0-video",

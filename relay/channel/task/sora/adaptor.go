@@ -148,6 +148,8 @@ func normalizeGrokVideoRequest(bodyMap map[string]interface{}, upstreamModel str
 	quality := normalizeGrokVideoQuality(stringifyBodyValue(bodyMap["quality"]))
 	resolutionName := stringifyBodyValue(bodyMap["resolution_name"])
 	preset := stringifyBodyValue(bodyMap["preset"])
+	seconds := stringifyBodyValue(bodyMap["seconds"])
+	duration := stringifyBodyValue(bodyMap["duration"])
 
 	if videoConfig, ok := bodyMap["video_config"].(map[string]interface{}); ok {
 		if resolutionName == "" {
@@ -167,6 +169,9 @@ func normalizeGrokVideoRequest(bodyMap map[string]interface{}, upstreamModel str
 
 	if quality != "" {
 		bodyMap["quality"] = quality
+	}
+	if seconds == "" && duration != "" {
+		bodyMap["seconds"] = duration
 	}
 	imageReferences := make([]interface{}, 0)
 	imageReferences = appendGrokVideoImageReference(imageReferences, bodyMap["image_reference"])
@@ -308,13 +313,24 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)
 		writer.WriteField("model", info.UpstreamModelName)
+		hasSeconds := false
+		durationValue := ""
 		for key, values := range formData.Value {
 			if key == "model" {
 				continue
 			}
+			if key == "seconds" && len(values) > 0 && strings.TrimSpace(values[0]) != "" {
+				hasSeconds = true
+			}
+			if key == "duration" && len(values) > 0 && durationValue == "" {
+				durationValue = strings.TrimSpace(values[0])
+			}
 			for _, v := range values {
 				writer.WriteField(key, v)
 			}
+		}
+		if info.UpstreamModelName == "grok-imagine-1.0-video" && !hasSeconds && durationValue != "" {
+			writer.WriteField("seconds", durationValue)
 		}
 		for fieldName, fileHeaders := range formData.File {
 			for _, fh := range fileHeaders {

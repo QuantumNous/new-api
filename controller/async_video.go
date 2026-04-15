@@ -23,9 +23,10 @@ import (
 )
 
 const (
-	asyncVideoObject                = "video"
-	asyncVideoGeneration            = "/v1/video/generations"
-	relayTaskPublicTaskIDContextKey = "relay_task_public_task_id"
+	asyncVideoObject                  = "video"
+	asyncVideoGeneration              = "/v1/video/generations"
+	relayTaskPublicTaskIDContextKey   = "relay_task_public_task_id"
+	transientVideoFailureGraceSeconds = 120
 )
 
 type asyncVideoJob struct {
@@ -228,16 +229,27 @@ func updateAsyncVideoTaskFailure(task *model.Task, responseBody []byte, failReas
 }
 
 func buildAsyncVideoTaskResponse(task *model.Task) *dto.AsyncVideoTaskResponse {
+	status := task.Status
+	progress := task.Progress
+	failReason := strings.TrimSpace(task.FailReason)
+	completedAt := task.FinishTime
+	if isTransientAsyncVideoFailure(task) {
+		status = model.TaskStatusInProgress
+		progress = taskcommon.ProgressInProgress
+		failReason = ""
+		completedAt = 0
+	}
+
 	resp := &dto.AsyncVideoTaskResponse{
 		ID:          task.TaskID,
 		TaskID:      task.TaskID,
 		Object:      asyncVideoObject,
 		Model:       task.Properties.OriginModelName,
-		Status:      task.Status.ToVideoStatus(),
+		Status:      status.ToVideoStatus(),
 		URL:         strings.TrimSpace(task.PrivateData.ResultURL),
-		Progress:    parseAsyncImageProgress(task.Progress),
+		Progress:    parseAsyncImageProgress(progress),
 		CreatedAt:   task.SubmitTime,
-		CompletedAt: task.FinishTime,
+		CompletedAt: completedAt,
 	}
 
 	if len(task.Data) > 0 {
@@ -248,13 +260,27 @@ func buildAsyncVideoTaskResponse(task *model.Task) *dto.AsyncVideoTaskResponse {
 		resp.Size = strings.TrimSpace(gjson.GetBytes(task.Data, "size").String())
 	}
 
-	if task.Status == model.TaskStatusFailure {
+	if status == model.TaskStatusFailure {
 		resp.Error = &dto.AsyncVideoTaskError{
-			Message: strings.TrimSpace(task.FailReason),
+			Message: failReason,
 			Code:    string(types.ErrorCodeBadResponse),
 		}
 	}
 	return resp
+}
+
+func isTransientAsyncVideoFailure(task *model.Task) bool {
+	if task == nil || task.Status != model.TaskStatusFailure {
+		return false
+	}
+	failReason := strings.ToLower(strings.TrimSpace(task.FailReason))
+	if failReason == "" || !strings.Contains(failReason, "not found") {
+		return false
+	}
+	if task.SubmitTime <= 0 {
+		return false
+	}
+	return time.Now().Unix()-task.SubmitTime <= transientVideoFailureGraceSeconds
 }
 
 func respondAsyncVideoOpenAIError(c *gin.Context, statusCode int, message string, code any) {
