@@ -43,6 +43,7 @@ export default function SettingsMonitoring(props) {
     AutomaticRetryStatusCodes:
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
+    'monitor_setting.auto_test_channel_excluded_ids': '',
     'monitor_setting.auto_test_channel_minutes': 10,
   });
   const refForm = useRef();
@@ -162,6 +163,23 @@ export default function SettingsMonitoring(props) {
                         parseInt(value),
                     })
                   }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Input
+                  label={t('定时测试排除渠道 ID')}
+                  extraText={t(
+                    '多个渠道 ID 用英文逗号分隔，例如：12,35,48。留空则不排除。',
+                  )}
+                  placeholder={'12,35,48'}
+                  field={'monitor_setting.auto_test_channel_excluded_ids'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_channel_excluded_ids': value,
+                    })
+                  }
+                  showClear
                 />
               </Col>
             </Row>

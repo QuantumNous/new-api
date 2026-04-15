@@ -808,6 +808,7 @@ func testAllChannels(notify bool) error {
 	if disableThreshold == 0 {
 		disableThreshold = 10000000 // a impossible value
 	}
+	excludedChannelIds := operation_setting.GetMonitorSetting().GetAutoTestChannelExcludedIDMap()
 	gopool.Go(func() {
 		// 使用 defer 确保无论如何都会重置运行状态，防止死锁
 		defer func() {
@@ -818,6 +819,10 @@ func testAllChannels(notify bool) error {
 
 		for _, channel := range channels {
 			if channel.Status == common.ChannelStatusManuallyDisabled {
+				continue
+			}
+			if excludedChannelIds[channel.Id] {
+				common.SysLog(fmt.Sprintf("skip channel #%d in batch channel test because it is excluded by monitor setting", channel.Id))
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
