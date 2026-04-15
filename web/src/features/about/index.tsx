@@ -1,9 +1,23 @@
 import { useQuery } from '@tanstack/react-query'
-import { Code, Construction } from 'lucide-react'
+import { Construction } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Markdown } from '@/components/ui/markdown'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { getAboutContent } from './api'
+
+function isValidUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function isLikelyHtml(value: string) {
+  return /<\/?[a-z][\s\S]*>/i.test(value)
+}
 
 function EmptyAboutState() {
   const { t } = useTranslation()
@@ -97,42 +111,58 @@ export function About() {
     queryFn: getAboutContent,
   })
 
-  const aboutContent = data?.data || ''
-  const isUrl = aboutContent.startsWith('https://')
-  const trimmedContent = aboutContent.trim()
-  const isHtml =
-    trimmedContent.startsWith('<') ||
-    trimmedContent.endsWith('>') ||
-    /<\/?[a-z][\s\S]*>/i.test(trimmedContent)
+  const rawContent = data?.data?.trim() ?? ''
+  const hasContent = rawContent.length > 0
+  const isUrl = hasContent && isValidUrl(rawContent)
+  const isHtml = hasContent && !isUrl && isLikelyHtml(rawContent)
 
-  return (
-    <PublicLayout showMainContainer={!isUrl}>
-      {isLoading ? (
-        <div className='flex min-h-[60vh] items-center justify-center'>
-          <div className='flex items-center space-x-2'>
-            <Code className='h-6 w-6 animate-pulse' />
-            <span className='text-muted-foreground'>{t('Loading...')}</span>
-          </div>
+  if (isLoading) {
+    return (
+      <PublicLayout>
+        <div className='mx-auto flex max-w-4xl flex-col gap-4 py-12'>
+          <Skeleton className='h-8 w-[45%]' />
+          <Skeleton className='h-4 w-full' />
+          <Skeleton className='h-4 w-[90%]' />
+          <Skeleton className='h-4 w-[80%]' />
         </div>
-      ) : !aboutContent ? (
+      </PublicLayout>
+    )
+  }
+
+  if (!hasContent) {
+    return (
+      <PublicLayout>
         <EmptyAboutState />
-      ) : isUrl ? (
+      </PublicLayout>
+    )
+  }
+
+  if (isUrl) {
+    return (
+      <PublicLayout showMainContainer={false}>
         <iframe
-          src={aboutContent}
+          src={rawContent}
           className='h-[calc(100vh-3.5rem)] w-full border-0'
           title={t('About')}
         />
-      ) : isHtml ? (
-        <div
-          className='mx-auto max-w-6xl px-4 py-8'
-          style={{ fontSize: '16px' }}
-          dangerouslySetInnerHTML={{ __html: aboutContent }}
-        />
-      ) : (
-        <div className='mx-auto max-w-6xl px-4 py-8'>
-          <Markdown>{aboutContent}</Markdown>
-        </div>
-      )}
+      </PublicLayout>
+    )
+  }
+
+  return (
+    <PublicLayout>
+      <div className='mx-auto max-w-6xl px-4 py-8'>
+        {isHtml ? (
+          <div
+            className='prose prose-neutral dark:prose-invert max-w-none'
+            dangerouslySetInnerHTML={{ __html: rawContent }}
+          />
+        ) : (
+          <Markdown className='prose-neutral dark:prose-invert max-w-none'>
+            {rawContent}
+          </Markdown>
+        )}
+      </div>
     </PublicLayout>
   )
 }

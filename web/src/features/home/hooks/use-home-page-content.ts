@@ -57,7 +57,13 @@ export function useHomePageContent(): HomePageContentResult {
     }
   }, [])
 
-  const isUrl = content.startsWith('https://')
+  let isUrl = false
+  try {
+    const url = new URL(content)
+    isUrl = url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    // not a URL
+  }
 
   return { content, isLoaded, isUrl }
 }
