@@ -70,6 +70,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const formInitValues = {
     searchKeyword: '',
     searchToken: '',
+    searchGroup: '',
   };
 
   // Get form values helper function
@@ -78,6 +79,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     return {
       searchKeyword: formValues.searchKeyword || '',
       searchToken: formValues.searchToken || '',
+      searchGroup: formValues.searchGroup || '',
     };
   };
 
@@ -299,15 +301,15 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     const normalizedSize =
       Number.isInteger(size) && size > 0 ? size : pageSize;
 
-    const { searchKeyword, searchToken } = getFormValues();
-    if (searchKeyword === '' && searchToken === '') {
+    const { searchKeyword, searchToken, searchGroup } = getFormValues();
+    if (searchKeyword === '' && searchToken === '' && searchGroup === '') {
       setSearchMode(false);
       await loadTokens(1);
       return;
     }
     setSearching(true);
     const res = await API.get(
-      `/api/token/search?keyword=${encodeURIComponent(searchKeyword)}&token=${encodeURIComponent(searchToken)}&p=${normalizedPage}&size=${normalizedSize}`,
+      `/api/token/search?keyword=${encodeURIComponent(searchKeyword)}&token=${encodeURIComponent(searchToken)}&group=${encodeURIComponent(searchGroup)}&p=${normalizedPage}&size=${normalizedSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {
