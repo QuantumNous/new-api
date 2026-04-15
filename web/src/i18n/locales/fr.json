@@ -3060,6 +3060,8 @@
     "调用次数分布": "Distribution des appels de modèles",
     "调用次数排行": "Classement des appels de modèles",
     "Token消耗分布": "Distribution de la consommation de tokens",
+    "用户Token排行": "Classement des tokens par utilisateur",
+    "用户Token趋势": "Tendance des tokens par utilisateur",
     "调用趋势": "Tendance des appels",
     "调试信息": "Informations de débogage",
     "谨慎": "Prudent",

@@ -3087,6 +3087,8 @@
     "调用次数分布": "Models call distribution",
     "调用次数排行": "Models call ranking",
     "Token消耗分布": "Token Usage Distribution",
+    "用户Token排行": "User Token Ranking",
+    "用户Token趋势": "User Token Trend",
     "调用趋势": "Call trend",
     "调试信息": "Debug information",
     "谨慎": "Cautious",

@@ -3493,6 +3493,8 @@
     "调用次数分布": "Phân phối số lần gọi",
     "调用次数排行": "Xếp hạng số lần gọi",
     "Token消耗分布": "Phân bổ tiêu thụ Token",
+    "用户Token排行": "Xếp hạng Token theo người dùng",
+    "用户Token趋势": "Xu hướng Token theo người dùng",
     "调用趋势": "Xu hướng cuộc gọi",
     "调试信息": "Thông tin gỡ lỗi",
     "谨慎": "Thận trọng",

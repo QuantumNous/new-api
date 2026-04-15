@@ -393,9 +393,12 @@ export const generateChartTimePoints = (
 // ========== 用户维度数据处理 ==========
 export const processUserData = (data, dataExportDefaultTime, limit = 10) => {
   const userQuotaTotal = new Map();
+  const userTokenTotal = new Map();
   data.forEach((item) => {
-    const prev = userQuotaTotal.get(item.username) || 0;
-    userQuotaTotal.set(item.username, prev + item.quota);
+    const prevQuota = userQuotaTotal.get(item.username) || 0;
+    userQuotaTotal.set(item.username, prevQuota + item.quota);
+    const prevToken = userTokenTotal.get(item.username) || 0;
+    userTokenTotal.set(item.username, prevToken + (item.token_used || 0));
   });
 
   const sorted = Array.from(userQuotaTotal.entries()).sort(
@@ -409,9 +412,22 @@ export const processUserData = (data, dataExportDefaultTime, limit = 10) => {
     Quota: quota,
   }));
 
+  // Token 维度排行（按 token 用量排序取 top）
+  const sortedByToken = Array.from(userTokenTotal.entries()).sort(
+    (a, b) => b[1] - a[1],
+  );
+  const topTokenUsers = sortedByToken.slice(0, limit).map(([u]) => u);
+  const topTokenUserSet = new Set(topTokenUsers);
+
+  const tokenRankingData = sortedByToken.slice(0, limit).map(([username, tokens]) => ({
+    User: username,
+    Tokens: tokens,
+  }));
+
   const showYear = isDataCrossYear(data.map((item) => item.created_at));
 
   const timeUserMap = new Map();
+  const timeUserTokenMap = new Map();
   const allTimePoints = new Set();
 
   data.forEach((item) => {
@@ -421,11 +437,20 @@ export const processUserData = (data, dataExportDefaultTime, limit = 10) => {
       showYear,
     );
     allTimePoints.add(timeKey);
-    const user = topUserSet.has(item.username) ? item.username : null;
-    if (!user) return;
-    const key = `${timeKey}-${user}`;
-    const prev = timeUserMap.get(key) || { quota: 0 };
-    timeUserMap.set(key, { quota: prev.quota + item.quota });
+
+    // Quota 趋势
+    if (topUserSet.has(item.username)) {
+      const key = `${timeKey}-${item.username}`;
+      const prev = timeUserMap.get(key) || { quota: 0 };
+      timeUserMap.set(key, { quota: prev.quota + item.quota });
+    }
+
+    // Token 趋势
+    if (topTokenUserSet.has(item.username)) {
+      const key = `${timeKey}-${item.username}`;
+      const prev = timeUserTokenMap.get(key) || { tokens: 0 };
+      timeUserTokenMap.set(key, { tokens: prev.tokens + (item.token_used || 0) });
+    }
   });
 
   const sortedTimePoints = Array.from(allTimePoints).sort();
@@ -442,5 +467,18 @@ export const processUserData = (data, dataExportDefaultTime, limit = 10) => {
     });
   });
 
-  return { rankingData, trendData, topUsers };
+  const tokenTrendData = [];
+  sortedTimePoints.forEach((time) => {
+    topTokenUsers.forEach((user) => {
+      const key = `${time}-${user}`;
+      const val = timeUserTokenMap.get(key);
+      tokenTrendData.push({
+        Time: time,
+        User: user,
+        Tokens: val?.tokens || 0,
+      });
+    });
+  });
+
+  return { rankingData, trendData, topUsers, tokenRankingData, tokenTrendData, topTokenUsers };
 };
