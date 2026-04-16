@@ -1,6 +1,10 @@
 name: Terraform Validate (PR)
 
 on:
+  pull_request_target:
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/terraform-validate.yml'
   pull_request:
     paths:
       - 'infra/terraform/**'
@@ -106,6 +110,7 @@ jobs:
   plan:
     name: Terraform Plan
     needs: [validate, lint]
+    if: ${{ secrets.TENCENTCLOUD_SECRET_ID != '' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -115,6 +120,8 @@ jobs:
       TENCENTCLOUD_SECRET_KEY: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
