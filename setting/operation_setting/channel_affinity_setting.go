@@ -24,15 +24,19 @@ type ChannelAffinityRule struct {
 	SkipRetryOnFailure bool `json:"skip_retry_on_failure,omitempty"`
 
 	IncludeUsingGroup bool `json:"include_using_group"`
+	IncludeModelName  bool `json:"include_model_name"`
 	IncludeRuleName   bool `json:"include_rule_name"`
 }
 
 type ChannelAffinitySetting struct {
-	Enabled           bool                  `json:"enabled"`
-	SwitchOnSuccess   bool                  `json:"switch_on_success"`
-	MaxEntries        int                   `json:"max_entries"`
-	DefaultTTLSeconds int                   `json:"default_ttl_seconds"`
-	Rules             []ChannelAffinityRule `json:"rules"`
+	Enabled                     bool                  `json:"enabled"`
+	SwitchOnSuccess             bool                  `json:"switch_on_success"`
+	InvalidateStaleCacheEnabled bool                  `json:"invalidate_stale_cache_enabled"`
+	RetryOnDisabledChannel      bool                  `json:"retry_on_disabled_channel"`
+	RetryOnChannelQuotaExceeded bool                  `json:"retry_on_channel_quota_exceeded"`
+	MaxEntries                  int                   `json:"max_entries"`
+	DefaultTTLSeconds           int                   `json:"default_ttl_seconds"`
+	Rules                       []ChannelAffinityRule `json:"rules"`
 }
 
 var codexCliPassThroughHeaders = []string{
@@ -99,10 +103,13 @@ func buildClaudeCliHeaderTemplate(headers []string) map[string]interface{} {
 }
 
 var channelAffinitySetting = ChannelAffinitySetting{
-	Enabled:           true,
-	SwitchOnSuccess:   true,
-	MaxEntries:        100_000,
-	DefaultTTLSeconds: 3600,
+	Enabled:                     true,
+	SwitchOnSuccess:             true,
+	InvalidateStaleCacheEnabled: true,
+	RetryOnDisabledChannel:      true,
+	RetryOnChannelQuotaExceeded: true,
+	MaxEntries:                  100_000,
+	DefaultTTLSeconds:           3600,
 	Rules: []ChannelAffinityRule{
 		{
 			Name:       "codex cli trace",
