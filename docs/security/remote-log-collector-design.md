@@ -40,6 +40,7 @@
 - 新增 root-only 控制器和路由。
 - 新增用于构造取证包、检测异常用户、读取日志文件尾部和提交远端的 service。
 - 详细请求/响应见 `docs/security/remote-log-collector-api-contract.md`。
+- 提供本地只读快速取证脚本 `bin/collect_security_snapshot.sh`，在远端接口尚未部署或不方便外传时，先收集数据库和日志线索到本机压缩包。
 
 ## 异常判定
 
@@ -60,3 +61,4 @@
 - 两个余额约为 1000 美元且没有成功充值记录的用户会出现在 `suspicious_users` 中。
 - JSON 序列化使用 `common.Marshal`/`common.Unmarshal` 包装函数。
 - 数据库读取使用 GORM，兼容 SQLite、MySQL 和 PostgreSQL。
+- 本地快速取证脚本不修改数据库、不自动上传，输出目录默认仅当前用户可读。
