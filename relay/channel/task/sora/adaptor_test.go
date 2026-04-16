@@ -1,7 +1,15 @@
 package sora
 
 import (
+	"bytes"
+	"io"
+	"mime"
+	"mime/multipart"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
@@ -105,6 +113,112 @@ func TestNormalizeGrokVideoRequestPromotesImageReference(t *testing.T) {
 	}
 	if imageReference[1] != "https://example.com/frame-2.png" {
 		t.Fatalf("unexpected second image reference %#v", imageReference[1])
+	}
+}
+
+func TestNormalizeSoraVideoRequestBackfillsSecondsAndSize(t *testing.T) {
+	body := map[string]interface{}{
+		"model":        "sora-2",
+		"duration":     float64(10),
+		"aspect_ratio": "16:9",
+	}
+
+	normalizeSoraVideoRequest(body, "sora-2")
+
+	if got := body["seconds"]; got != "10" {
+		t.Fatalf("expected seconds to be backfilled from duration, got %#v", got)
+	}
+	if got := body["size"]; got != "1280x720" {
+		t.Fatalf("expected size to be backfilled from aspect_ratio, got %#v", got)
+	}
+	if _, exists := body["duration"]; exists {
+		t.Fatalf("expected duration to be removed after normalization")
+	}
+	if _, exists := body["aspect_ratio"]; exists {
+		t.Fatalf("expected aspect_ratio to be removed after normalization")
+	}
+}
+
+func TestNormalizeSoraVideoRequestKeepsExplicitSecondsAndSize(t *testing.T) {
+	body := map[string]interface{}{
+		"model":        "sora-2-pro",
+		"duration":     float64(10),
+		"seconds":      "8",
+		"aspect_ratio": "9:16",
+		"size":         "1024x1792",
+	}
+
+	normalizeSoraVideoRequest(body, "sora-2-pro")
+
+	if got := body["seconds"]; got != "8" {
+		t.Fatalf("expected explicit seconds to be preserved, got %#v", got)
+	}
+	if got := body["size"]; got != "1024x1792" {
+		t.Fatalf("expected explicit size to be preserved, got %#v", got)
+	}
+}
+
+func TestBuildRequestBodyConvertsSoraInputReferenceToMultipart(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/v1/video/async-generations", strings.NewReader(`{
+		"model": "sora2",
+		"prompt": "make it cinematic",
+		"duration": 10,
+		"aspect_ratio": "16:9",
+		"input_reference": "data:image/png;base64,aGVsbG8="
+	}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	adaptor := &TaskAdaptor{}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "sora-2",
+		},
+	}
+
+	bodyReader, err := adaptor.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody returned error: %v", err)
+	}
+
+	contentType := c.Request.Header.Get("Content-Type")
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		t.Fatalf("parse media type failed: %v", err)
+	}
+	if mediaType != "multipart/form-data" {
+		t.Fatalf("expected multipart/form-data content type, got %s", mediaType)
+	}
+
+	raw, err := io.ReadAll(bodyReader)
+	if err != nil {
+		t.Fatalf("read request body failed: %v", err)
+	}
+
+	reader := multipart.NewReader(bytes.NewReader(raw), params["boundary"])
+	form, err := reader.ReadForm(1024 * 1024)
+	if err != nil {
+		t.Fatalf("read multipart form failed: %v", err)
+	}
+	defer form.RemoveAll()
+
+	if got := form.Value["seconds"]; len(got) != 1 || got[0] != "10" {
+		t.Fatalf("expected seconds=10, got %#v", got)
+	}
+	if got := form.Value["size"]; len(got) != 1 || got[0] != "1280x720" {
+		t.Fatalf("expected size=1280x720, got %#v", got)
+	}
+	if got := form.Value["duration"]; len(got) != 0 {
+		t.Fatalf("expected duration to be removed from upstream payload, got %#v", got)
+	}
+	if got := form.Value["aspect_ratio"]; len(got) != 0 {
+		t.Fatalf("expected aspect_ratio to be removed from upstream payload, got %#v", got)
+	}
+	files := form.File["input_reference"]
+	if len(files) != 1 {
+		t.Fatalf("expected exactly one input_reference file, got %#v", files)
 	}
 }
 
