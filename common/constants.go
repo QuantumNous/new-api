@@ -21,7 +21,7 @@ var TopUpLink = ""
 var themeValue atomic.Value // stores string; safe for concurrent read/write
 
 func init() {
-	themeValue.Store("default")
+	themeValue.Store("classic")
 }
 
 func GetTheme() string {

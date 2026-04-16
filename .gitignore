@@ -22,6 +22,7 @@ tiktoken_cache
 .cache
 plans
 .claude
+.cursor
 
 electron/node_modules
 electron/dist

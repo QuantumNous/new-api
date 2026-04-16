@@ -10,7 +10,7 @@ type ThemeSettings struct {
 }
 
 var themeSettings = ThemeSettings{
-	Frontend: "default",
+	Frontend: "classic",
 }
 
 func init() {
