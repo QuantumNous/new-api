@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -55,8 +56,8 @@ func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	if err := db.AutoMigrate(&model.Token{}); err != nil {
-		t.Fatalf("failed to migrate token table: %v", err)
+	if err := db.AutoMigrate(&model.User{}, &model.Token{}); err != nil {
+		t.Fatalf("failed to migrate user/token table: %v", err)
 	}
 
 	t.Cleanup(func() {
@@ -67,6 +68,23 @@ func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 	})
 
 	return db
+}
+
+func seedUser(t *testing.T, db *gorm.DB, userID int, group string) *model.User {
+	t.Helper()
+
+	user := &model.User{
+		Id:       userID,
+		Username: fmt.Sprintf("user-%d", userID),
+		Password: "password123",
+		Group:    group,
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	return user
 }
 
 func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string) *model.Token {
@@ -88,6 +106,20 @@ func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string
 		t.Fatalf("failed to create token: %v", err)
 	}
 	return token
+}
+
+func setUserUsableGroupsForTest(t *testing.T, jsonStr string) {
+	t.Helper()
+
+	original := setting.UserUsableGroups2JSONString()
+	if err := setting.UpdateUserUsableGroupsByJSONString(jsonStr); err != nil {
+		t.Fatalf("failed to update usable groups: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := setting.UpdateUserUsableGroupsByJSONString(original); err != nil {
+			t.Fatalf("failed to restore usable groups: %v", err)
+		}
+	})
 }
 
 func newAuthenticatedContext(t *testing.T, method string, target string, body any, userID int) (*gin.Context, *httptest.ResponseRecorder) {
@@ -206,6 +238,7 @@ func TestGetTokenMasksKeyInResponse(t *testing.T) {
 
 func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
+	seedUser(t, db, 1, "default")
 	token := seedToken(t, db, 1, "editable-token", "yzab1234cdef5678")
 
 	body := map[string]any{
@@ -237,6 +270,112 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	}
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("update response leaked raw token key: %s", recorder.Body.String())
+	}
+}
+
+func TestAddTokenRejectsGroupNotAllowed(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setUserUsableGroupsForTest(t, `{"default":"默认分组"}`)
+	seedUser(t, db, 1, "default")
+
+	body := map[string]any{
+		"name":                 "forbidden-group-token",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "vip",
+		"cross_group_retry":    false,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected add token to fail for unauthorized group")
+	}
+	if response.Message != "token.group_not_allowed" {
+		t.Fatalf("expected message %q, got %q", "token.group_not_allowed", response.Message)
+	}
+
+	var count int64
+	if err := db.Model(&model.Token{}).Where("user_id = ? AND name = ?", 1, "forbidden-group-token").Count(&count).Error; err != nil {
+		t.Fatalf("failed to query tokens: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected forbidden token not to be created, got count %d", count)
+	}
+}
+
+func TestUpdateTokenRejectsGroupNotAllowed(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	setUserUsableGroupsForTest(t, `{"default":"默认分组"}`)
+	seedUser(t, db, 1, "default")
+	token := seedToken(t, db, 1, "token-to-update", "aaaa1234bbbb5678")
+
+	body := map[string]any{
+		"id":                   token.Id,
+		"name":                 "token-to-update",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "vip",
+		"cross_group_retry":    false,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	UpdateToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected update token to fail for unauthorized group")
+	}
+	if response.Message != "token.group_not_allowed" {
+		t.Fatalf("expected message %q, got %q", "token.group_not_allowed", response.Message)
+	}
+
+	updatedToken, err := model.GetTokenById(token.Id)
+	if err != nil {
+		t.Fatalf("failed to fetch token: %v", err)
+	}
+	if updatedToken.Group != "default" {
+		t.Fatalf("expected token group to remain default, got %q", updatedToken.Group)
+	}
+}
+
+func TestAddTokenAllowsAutoGroup(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	seedUser(t, db, 1, "default")
+
+	body := map[string]any{
+		"name":                 "auto-group-token",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "auto",
+		"cross_group_retry":    false,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected add token with auto group to succeed, got message: %s", response.Message)
+	}
+
+	var created model.Token
+	if err := db.Where("user_id = ? AND name = ?", 1, "auto-group-token").First(&created).Error; err != nil {
+		t.Fatalf("failed to fetch created token: %v", err)
+	}
+	if created.Group != "auto" {
+		t.Fatalf("expected created token group to be auto, got %q", created.Group)
 	}
 }
 
