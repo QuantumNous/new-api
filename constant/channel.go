@@ -119,7 +119,7 @@ var ChannelBaseURLs = []string{
 	"https://api.openai.com",                    //55
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
-	"https://api.qnaigc.com",                    //58
+	"https://api.qnaigc.com",                    //58 - Qiniu AI gateway
 }
 
 var ChannelTypeNames = map[int]string{
@@ -177,7 +177,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSora:           "Sora",
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "Codex",
-	ChannelTypeQiniu:          "Qiniu",
+	ChannelTypeQiniu:          "Qiniu", // 七牛 AI 网关
 }
 
 func GetChannelTypeName(channelType int) string {
