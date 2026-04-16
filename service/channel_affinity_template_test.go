@@ -202,6 +202,34 @@ func TestShouldSkipRetryAfterChannelAffinityDisabledChannel(t *testing.T) {
 	require.True(t, ShouldSkipRetryAfterChannelAffinityDisabledChannel(ctx))
 }
 
+func TestShouldSkipRetryAfterChannelAffinityError_DisabledChannel(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+
+	originalRetryOnDisabledChannel := setting.RetryOnDisabledChannel
+	setting.RetryOnDisabledChannel = true
+	t.Cleanup(func() {
+		setting.RetryOnDisabledChannel = originalRetryOnDisabledChannel
+	})
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		RuleName:   "rule-disabled-channel-error",
+		SkipRetry:  true,
+		UsingGroup: "default",
+		ModelName:  "gpt-5",
+	})
+	disabledErr := types.WithOpenAIError(types.OpenAIError{
+		Message: "该渠道已被禁用",
+		Type:    "forbidden",
+		Code:    "channel_disabled",
+	}, http.StatusForbidden)
+
+	require.False(t, ShouldSkipRetryAfterChannelAffinityError(ctx, disabledErr))
+
+	setting.RetryOnDisabledChannel = false
+	require.True(t, ShouldSkipRetryAfterChannelAffinityError(ctx, disabledErr))
+}
+
 func TestShouldSkipRetryAfterChannelAffinityError_QuotaExceeded(t *testing.T) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	require.NotNil(t, setting)

@@ -784,10 +784,38 @@ func shouldSkipRetryAfterChannelAffinityFailureWithReason(c *gin.Context, reason
 }
 
 func classifyChannelAffinityFailureReason(err *types.NewAPIError) channelAffinityFailureReason {
+	if isChannelAffinityDisabledChannelError(err) {
+		return channelAffinityFailureReasonDisabledChannel
+	}
 	if isChannelAffinityChannelQuotaExceededError(err) {
 		return channelAffinityFailureReasonChannelQuotaExceeded
 	}
 	return channelAffinityFailureReasonUnknown
+}
+
+func isChannelAffinityDisabledChannelError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	oaiErr := err.ToOpenAIError()
+	code := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", oaiErr.Code)))
+	errType := strings.ToLower(strings.TrimSpace(oaiErr.Type))
+	msg := strings.ToLower(strings.TrimSpace(oaiErr.Message))
+
+	if strings.Contains(code, "channel_disabled") || strings.Contains(code, "task_channel_disable") {
+		return true
+	}
+
+	switch errType {
+	case "channel_disabled":
+		return true
+	}
+
+	return strings.Contains(msg, "该渠道已被禁用") ||
+		strings.Contains(msg, "渠道已被禁用") ||
+		strings.Contains(msg, "the channel of the origin task is disabled") ||
+		strings.Contains(msg, "channel is disabled") ||
+		strings.Contains(msg, "disabled channel")
 }
 
 func isChannelAffinityChannelQuotaExceededError(err *types.NewAPIError) bool {
