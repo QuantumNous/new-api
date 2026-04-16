@@ -204,10 +204,11 @@ type ClaudeToolChoice struct {
 }
 
 type ClaudeRequest struct {
-	Model    string          `json:"model"`
-	Prompt   string          `json:"prompt,omitempty"`
-	System   any             `json:"system,omitempty"`
-	Messages []ClaudeMessage `json:"messages,omitempty"`
+	Model        string          `json:"model"`
+	Prompt       string          `json:"prompt,omitempty"`
+	System       any             `json:"system,omitempty"`
+	Messages     []ClaudeMessage `json:"messages,omitempty"`
+	CacheControl json.RawMessage `json:"cache_control,omitempty"`
 	// InferenceGeo controls Claude data residency region.
 	// This field is filtered by default and can be enabled via channel setting allow_inference_geo.
 	InferenceGeo      string          `json:"inference_geo,omitempty"`
@@ -227,6 +228,9 @@ type ClaudeRequest struct {
 	Thinking          *Thinking       `json:"thinking,omitempty"`
 	McpServers        json.RawMessage `json:"mcp_servers,omitempty"`
 	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	// Speed specifies the Claude inference speed mode.
+	// This field is filtered by default and can be enabled via channel setting allow_speed.
+	Speed json.RawMessage `json:"speed,omitempty"`
 	// ServiceTier specifies upstream service level and may affect billing.
 	// This field is filtered by default and can be enabled via channel setting allow_service_tier.
 	ServiceTier string `json:"service_tier,omitempty"`

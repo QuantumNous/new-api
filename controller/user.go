@@ -926,6 +926,7 @@ func ManageUser(c *gin.Context) {
 		}
 		user.Role = common.RoleCommonUser
 	case "add_quota":
+		adminName := c.GetString("username")
 		switch req.Mode {
 		case "add":
 			if req.Value <= 0 {
@@ -937,7 +938,7 @@ func ManageUser(c *gin.Context) {
 				return
 			}
 			model.RecordLog(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员增加用户额度 %s", logger.LogQuota(req.Value)))
+				fmt.Sprintf("管理员(%s)增加用户额度 %s", adminName, logger.LogQuota(req.Value)))
 		case "subtract":
 			if req.Value <= 0 {
 				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
@@ -948,7 +949,7 @@ func ManageUser(c *gin.Context) {
 				return
 			}
 			model.RecordLog(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(req.Value)))
+				fmt.Sprintf("管理员(%s)减少用户额度 %s", adminName, logger.LogQuota(req.Value)))
 		case "override":
 			oldQuota := user.Quota
 			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", req.Value).Error; err != nil {
@@ -956,7 +957,7 @@ func ManageUser(c *gin.Context) {
 				return
 			}
 			model.RecordLog(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员覆盖用户额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(req.Value)))
+				fmt.Sprintf("管理员(%s)覆盖用户额度从 %s 为 %s", adminName, logger.LogQuota(oldQuota), logger.LogQuota(req.Value)))
 		default:
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 			return
