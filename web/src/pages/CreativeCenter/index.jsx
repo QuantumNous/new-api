@@ -78,6 +78,8 @@ const CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS = {
   'nano-banana': 4,
   'nano-banana2': 6,
   'nano-banana-pro': 6,
+  'sora2': 1,
+  'sora2-pro': 1,
   'veo31-fast': 2,
   'veo31-ref': 3,
 };
@@ -3419,7 +3421,7 @@ export default function App() {
     currentModelName === 'veo31' ||
     currentModelName === 'veo31-ref' ||
     currentModelName === 'veo31-fast';
-  const isChatCompletionVideoModel = isAdobeSoraModel;
+  const isChatCompletionVideoModel = false;
   const isChatTab = activeTab === 'chat';
   const isSubmitPending = (isChatTab && isGenerating) || isUploadingImage;
   const isVideoModel =
@@ -7186,7 +7188,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 payload[key] = basePayload[key];
               }
             });
-            if (
+            if (isAdobeSoraModel && currentUploadedImageUrls[0]) {
+              payload.input_reference = currentUploadedImageUrls[0];
+            } else if (
               currentModelName === 'grok-imagine-1.0-video' &&
               currentUploadedImageUrls.length > 0
             ) {
