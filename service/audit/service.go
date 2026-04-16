@@ -137,100 +137,160 @@ func (al *AuditLogger) Close() error {
 }
 
 type LocalStorage struct {
-	basePath    string
-	mu          sync.Mutex
-	maxFileSize int64
-	currentFile string
-	currentSize int64
+    basePath       string
+    mu             sync.Mutex
+    maxFileSize    int64
+    currentFile    string
+    currentSize    int64
+    currentDateDir string
 }
 
+
 func NewLocalStorage() *LocalStorage {
-	basePath := filepath.Join("logs", "audit")
-	if err := os.MkdirAll(basePath, 0755); err != nil {
-		common.SysError(fmt.Sprintf("failed to create audit log directory: %v", err))
-	}
-	setting := operation_setting.GetAuditSetting()
-	maxSize := setting.MaxFileSize * 1024 * 1024
-	if maxSize <= 0 {
-		maxSize = 100 * 1024 * 1024
-	}
-	return &LocalStorage{
-		basePath:    basePath,
-		maxFileSize: maxSize,
-	}
+    basePath := filepath.Join("logs", "audit")
+    if err := os.MkdirAll(basePath, 0755); err != nil {
+        common.SysError(fmt.Sprintf("failed to create audit log directory: %v", err))
+    }
+    setting := operation_setting.GetAuditSetting()
+    maxSize := setting.MaxFileSize * 1024 * 1024
+    if maxSize <= 0 {
+        maxSize = 100 * 1024 * 1024
+    }
+    return &LocalStorage{
+        basePath:    basePath,
+        maxFileSize: maxSize,
+    }
 }
 
 func (ls *LocalStorage) Save(record *AuditRecord) error {
-	if record == nil {
-		return nil
-	}
+    if record == nil {
+        return nil
+    }
 
-	ls.mu.Lock()
-	defer ls.mu.Unlock()
+    ls.mu.Lock()
+    defer ls.mu.Unlock()
 
-	tokenDir := filepath.Join(ls.basePath, maskTokenKey(record.TokenKey))
-	if err := os.MkdirAll(tokenDir, 0755); err != nil {
-		return fmt.Errorf("failed to create token directory: %w", err)
-	}
+    tokenDir := filepath.Join(ls.basePath, maskTokenKey(record.TokenKey))
+    if err := os.MkdirAll(tokenDir, 0755); err != nil {
+        return fmt.Errorf("failed to create token directory: %w", err)
+    }
 
-	dateDir := filepath.Join(tokenDir, record.Timestamp.Format("2006-01-02"))
-	if err := os.MkdirAll(dateDir, 0755); err != nil {
-		return fmt.Errorf("failed to create date directory: %w", err)
-	}
+    dateDir := filepath.Join(tokenDir, record.Timestamp.Format("2006-01-02"))
+    if err := os.MkdirAll(dateDir, 0755); err != nil {
+        return fmt.Errorf("failed to create date directory: %w", err)
+    }
 
-	if ls.currentFile == "" || ls.currentSize >= ls.maxFileSize {
-		ls.currentFile = ls.getNewFilePath(dateDir)
-		ls.currentSize = 0
-	}
+    needNewFile := false
+    if ls.currentFile == "" || ls.currentDateDir != dateDir {
+        needNewFile = true
+    } else if ls.currentSize >= ls.maxFileSize {
+        needNewFile = true
+    }
 
-	data, err := json.Marshal(record)
-	if err != nil {
-		return fmt.Errorf("failed to marshal audit record: %w", err)
-	}
+    if needNewFile {
+        ls.currentFile = ls.getOrCreateCurrentFile(dateDir)
+        ls.currentDateDir = dateDir
+        
+        fileInfo, err := os.Stat(ls.currentFile)
+        if err == nil {
+            ls.currentSize = fileInfo.Size()
+            if ls.currentSize >= ls.maxFileSize {
+                ls.currentFile = ls.getNewFilePath(dateDir)
+                ls.currentSize = 0
+            }
+        } else {
+            ls.currentSize = 0
+        }
+    }
 
-	data = append(data, '\n')
+    data, err := json.Marshal(record)
+    if err != nil {
+        return fmt.Errorf("failed to marshal audit record: %w", err)
+    }
 
-	f, err := os.OpenFile(ls.currentFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open audit log file: %w", err)
-	}
-	defer f.Close()
+    data = append(data, '\n')
 
-	if _, err := f.Write(data); err != nil {
-		return fmt.Errorf("failed to write audit log: %w", err)
-	}
+    f, err := os.OpenFile(ls.currentFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+    if err != nil {
+        return fmt.Errorf("failed to open audit log file: %w", err)
+    }
+    defer f.Close()
 
-	ls.currentSize += int64(len(data))
+    if _, err := f.Write(data); err != nil {
+        return fmt.Errorf("failed to write audit log: %w", err)
+    }
 
-	if len(record.Files) > 0 {
-		filesDir := filepath.Join(dateDir, "files", record.RequestID)
-		if err := os.MkdirAll(filesDir, 0755); err != nil {
-			common.SysError(fmt.Sprintf("failed to create files directory: %v", err))
-		} else {
-			for i, file := range record.Files {
-				if file.Base64Data != "" {
-					filename := fmt.Sprintf("%d_%s", i, file.Filename)
-					fp := filepath.Join(filesDir, filename)
-					decoded, err := decodeBase64(file.Base64Data)
-					if err != nil {
-						common.SysError(fmt.Sprintf("failed to decode file %s: %v", file.Filename, err))
-						continue
-					}
-					if err := os.WriteFile(fp, decoded, 0644); err != nil {
-						common.SysError(fmt.Sprintf("failed to write file %s: %v", file.Filename, err))
-					}
-				}
-			}
-		}
-	}
+    ls.currentSize += int64(len(data))
 
-	return nil
+    if len(record.Files) > 0 {
+        filesDir := filepath.Join(dateDir, "files", record.RequestID)
+        if err := os.MkdirAll(filesDir, 0755); err != nil {
+            common.SysError(fmt.Sprintf("failed to create files directory: %v", err))
+        } else {
+            for i, file := range record.Files {
+                if file.Base64Data != "" {
+                    filename := fmt.Sprintf("%d_%s", i, file.Filename)
+                    fp := filepath.Join(filesDir, filename)
+                    decoded, err := decodeBase64(file.Base64Data)
+                    if err != nil {
+                        common.SysError(fmt.Sprintf("failed to decode file %s: %v", file.Filename, err))
+                        continue
+                    }
+                    if err := os.WriteFile(fp, decoded, 0644); err != nil {
+                        common.SysError(fmt.Sprintf("failed to write file %s: %v", file.Filename, err))
+                    }
+                }
+            }
+        }
+    }
+
+    return nil
+}
+
+func (ls *LocalStorage) getOrCreateCurrentFile(dateDir string) string {
+    entries, err := os.ReadDir(dateDir)
+    if err != nil {
+        return ls.getNewFilePath(dateDir)
+    }
+
+    var latestFile string
+    var latestTime time.Time
+
+    for _, entry := range entries {
+        if entry.IsDir() {
+            continue
+        }
+
+        name := entry.Name()
+        if !strings.HasPrefix(name, "audit_") || !strings.HasSuffix(name, ".jsonl") {
+            continue
+        }
+
+        timeStr := strings.TrimPrefix(name, "audit_")
+        timeStr = strings.TrimSuffix(timeStr, ".jsonl")
+
+        fileTime, err := time.Parse("150405.000", timeStr)
+        if err != nil {
+            continue
+        }
+
+        if latestFile == "" || fileTime.After(latestTime) {
+            latestFile = name
+            latestTime = fileTime
+        }
+    }
+
+    if latestFile != "" {
+        return filepath.Join(dateDir, latestFile)
+    }
+
+    return ls.getNewFilePath(dateDir)
 }
 
 func (ls *LocalStorage) getNewFilePath(dateDir string) string {
-	timestamp := time.Now().Format("150405.000")
-	filename := fmt.Sprintf("audit_%s.jsonl", timestamp)
-	return filepath.Join(dateDir, filename)
+    timestamp := time.Now().Format("150405.000")
+    filename := fmt.Sprintf("audit_%s.jsonl", timestamp)
+    return filepath.Join(dateDir, filename)
 }
 
 func (ls *LocalStorage) Close() error {
