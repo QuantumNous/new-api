@@ -34,6 +34,8 @@ Environment:
   SQL_DSN                  Main database DSN. Empty/local means SQLite.
   LOG_SQL_DSN              Log database DSN. Defaults to SQL_DSN.
   SQLITE_DB                SQLite database path override.
+  DOCKER_POSTGRES_CONTAINER
+                           Optional Postgres container name. Default auto-detects "postgres".
 
 The script is read-only. It writes local evidence files and never uploads them.
 USAGE
@@ -99,12 +101,20 @@ NOW_TS="$(date +%s)"
 SINCE_TS=$((NOW_TS - SINCE_HOURS * 3600))
 THRESHOLD_QUOTA="$(awk -v usd="$THRESHOLD_USD" -v qpu="$QUOTA_PER_UNIT" 'BEGIN { printf "%.0f", usd * qpu }')"
 SQL_DSN_VALUE="${SQL_DSN:-}"
+if [[ -z "$SQL_DSN_VALUE" && -z "$SQLITE_DB" && -z "${DISABLE_DOCKER_DB:-}" ]]; then
+  docker_postgres_container="${DOCKER_POSTGRES_CONTAINER:-postgres}"
+  if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$docker_postgres_container"; then
+    SQL_DSN_VALUE="docker-postgres://${docker_postgres_container}"
+  fi
+fi
 LOG_SQL_DSN_VALUE="${LOG_SQL_DSN:-$SQL_DSN_VALUE}"
 
 detect_db_type() {
   local dsn="$1"
   if [[ -z "$dsn" || "$dsn" == local* ]]; then
     echo "sqlite"
+  elif [[ "$dsn" == docker-postgres://* ]]; then
+    echo "docker_postgres"
   elif [[ "$dsn" == postgres://* || "$dsn" == postgresql://* ]]; then
     echo "postgres"
   else
@@ -171,6 +181,28 @@ run_postgres_query() {
   PGCONNECT_TIMEOUT="${PGCONNECT_TIMEOUT:-5}" psql "$dsn" -q -v ON_ERROR_STOP=1 -c "\\copy (${sql}) TO STDOUT WITH CSV HEADER" > "$out_file" 2> "${out_file}.error" || true
 }
 
+run_docker_postgres_query() {
+  local dsn="$1"
+  local query_file="$2"
+  local out_file="$3"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "docker not found" > "${out_file}.error"
+    return
+  fi
+
+  local container="${dsn#docker-postgres://}"
+  local user
+  local db
+  user="$(docker exec "$container" printenv POSTGRES_USER 2>/dev/null || true)"
+  db="$(docker exec "$container" printenv POSTGRES_DB 2>/dev/null || true)"
+  user="${user:-root}"
+  db="${db:-new-api}"
+
+  local sql
+  sql="$(sql_for_copy "$query_file")"
+  docker exec -i "$container" psql -U "$user" -d "$db" -q -v ON_ERROR_STOP=1 -c "\\copy (${sql}) TO STDOUT WITH CSV HEADER" > "$out_file" 2> "${out_file}.error" || true
+}
+
 run_mysql_query() {
   local dsn="$1"
   local query_file="$2"
@@ -218,6 +250,9 @@ run_query() {
       ;;
     postgres)
       run_postgres_query "$dsn" "$query_file" "${OUT_DIR}/db/${query_name}.csv"
+      ;;
+    docker_postgres)
+      run_docker_postgres_query "$dsn" "$query_file" "${OUT_DIR}/db/${query_name}.csv"
       ;;
     mysql)
       run_mysql_query "$dsn" "$query_file" "${OUT_DIR}/db/${query_name}.tsv"
@@ -327,6 +362,9 @@ LIMIT 1000;
   echo "since_timestamp=${SINCE_TS}"
   echo "main_db_type=$(detect_db_type "$SQL_DSN_VALUE")"
   echo "log_db_type=$(detect_db_type "$LOG_SQL_DSN_VALUE")"
+  if [[ "$SQL_DSN_VALUE" == docker-postgres://* ]]; then
+    echo "docker_postgres_container=${SQL_DSN_VALUE#docker-postgres://}"
+  fi
   if [[ "$(detect_db_type "$SQL_DSN_VALUE")" == "sqlite" ]]; then
     echo "sqlite_db=$(find_sqlite_db)"
   fi

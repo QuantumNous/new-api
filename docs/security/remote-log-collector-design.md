@@ -40,7 +40,7 @@
 - 新增 root-only 控制器和路由。
 - 新增用于构造取证包、检测异常用户、读取日志文件尾部和提交远端的 service。
 - 详细请求/响应见 `docs/security/remote-log-collector-api-contract.md`。
-- 提供本地只读快速取证脚本 `bin/collect_security_snapshot.sh`，在远端接口尚未部署或不方便外传时，先收集数据库和日志线索到本机压缩包。
+- 提供本地只读快速取证脚本 `bin/collect_security_snapshot.sh`，在远端接口尚未部署或不方便外传时，先收集数据库和日志线索到本机压缩包；默认 Docker Compose Postgres 未暴露端口时，可自动通过 `docker exec postgres psql` 查询。
 
 ## 异常判定
 
