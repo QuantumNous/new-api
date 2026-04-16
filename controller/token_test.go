@@ -275,7 +275,7 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 
 func TestAddTokenRejectsGroupNotAllowed(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
-	setUserUsableGroupsForTest(t, `{"default":"默认分组"}`)
+	setUserUsableGroupsForTest(t, `{"default":"Default Group"}`)
 	seedUser(t, db, 1, "default")
 
 	body := map[string]any{
@@ -311,7 +311,7 @@ func TestAddTokenRejectsGroupNotAllowed(t *testing.T) {
 
 func TestUpdateTokenRejectsGroupNotAllowed(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
-	setUserUsableGroupsForTest(t, `{"default":"默认分组"}`)
+	setUserUsableGroupsForTest(t, `{"default":"Default Group"}`)
 	seedUser(t, db, 1, "default")
 	token := seedToken(t, db, 1, "token-to-update", "aaaa1234bbbb5678")
 
