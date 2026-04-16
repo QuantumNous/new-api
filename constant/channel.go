@@ -55,7 +55,7 @@ const (
 	ChannelTypeSora           = 55
 	ChannelTypeReplicate      = 56
 	ChannelTypeCodex          = 57
-	ChannelTypeQiniu          = 58
+	ChannelTypeQiniu          = 58 // 七牛 AI（OpenAI 兼容协议），默认 Base URL: https://api.qnaigc.com
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )

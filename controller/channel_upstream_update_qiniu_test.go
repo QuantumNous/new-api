@@ -10,6 +10,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
+// TestFetchChannelUpstreamModelIDs_Qiniu 验证七牛渠道通过 /v1/models 接口拉取上游模型列表的逻辑，
+// 使用 httptest 模拟七牛 API 响应，确保请求路径、认证头和返回结果解析均正确。
 func TestFetchChannelUpstreamModelIDs_Qiniu(t *testing.T) {
 	t.Parallel()
 

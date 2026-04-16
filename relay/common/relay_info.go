@@ -305,7 +305,7 @@ func (info *RelayInfo) ToString() string {
 // 定义支持流式选项的通道类型
 var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeOpenAI:      true,
-	constant.ChannelTypeQiniu:       true,
+	constant.ChannelTypeQiniu:       true, // 七牛支持 stream_options 参数
 	constant.ChannelTypeAnthropic:   true,
 	constant.ChannelTypeAws:         true,
 	constant.ChannelTypeGemini:      true,

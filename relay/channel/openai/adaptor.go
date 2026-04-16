@@ -244,6 +244,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	// 仅对 streamSupportedChannels 中注册的渠道保留 StreamOptions，其余渠道置空以避免上游报错
 	if !info.SupportStreamOptions {
 		request.StreamOptions = nil
 	}
