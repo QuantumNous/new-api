@@ -98,6 +98,20 @@ func (c *ClaudeMediaMessage) ParseMediaContent() []ClaudeMediaMessage {
 	return mediaContent
 }
 
+func (m *ClaudeMediaMessage) ToFileSource() types.FileSource {
+	if m.Source == nil {
+		return nil
+	}
+	data := m.Source.Url
+	if data == "" {
+		data = common.Interface2String(m.Source.Data)
+	}
+	if data == "" {
+		return nil
+	}
+	return types.NewFileSourceFromData(data, m.Source.MediaType)
+}
+
 type ClaudeMessageSource struct {
 	Type      string `json:"type"`
 	MediaType string `json:"media_type,omitempty"`
@@ -190,10 +204,11 @@ type ClaudeToolChoice struct {
 }
 
 type ClaudeRequest struct {
-	Model    string          `json:"model"`
-	Prompt   string          `json:"prompt,omitempty"`
-	System   any             `json:"system,omitempty"`
-	Messages []ClaudeMessage `json:"messages,omitempty"`
+	Model        string          `json:"model"`
+	Prompt       string          `json:"prompt,omitempty"`
+	System       any             `json:"system,omitempty"`
+	Messages     []ClaudeMessage `json:"messages,omitempty"`
+	CacheControl json.RawMessage `json:"cache_control,omitempty"`
 	// InferenceGeo controls Claude data residency region.
 	// This field is filtered by default and can be enabled via channel setting allow_inference_geo.
 	InferenceGeo      string          `json:"inference_geo,omitempty"`
@@ -213,6 +228,9 @@ type ClaudeRequest struct {
 	Thinking          *Thinking       `json:"thinking,omitempty"`
 	McpServers        json.RawMessage `json:"mcp_servers,omitempty"`
 	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	// Speed specifies the Claude inference speed mode.
+	// This field is filtered by default and can be enabled via channel setting allow_speed.
+	Speed json.RawMessage `json:"speed,omitempty"`
 	// ServiceTier specifies upstream service level and may affect billing.
 	// This field is filtered by default and can be enabled via channel setting allow_service_tier.
 	ServiceTier string `json:"service_tier,omitempty"`
@@ -221,14 +239,6 @@ type ClaudeRequest struct {
 // OutputConfigForEffort just for extract effort
 type OutputConfigForEffort struct {
 	Effort string `json:"effort,omitempty"`
-}
-
-// createClaudeFileSource 根据数据内容创建正确类型的 FileSource
-func createClaudeFileSource(data string) *types.FileSource {
-	if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
-		return types.NewURLFileSource(data)
-	}
-	return types.NewBase64FileSource(data, "")
 }
 
 func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -258,17 +268,11 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				case "text":
 					texts = append(texts, media.GetText())
 				case "image":
-					if media.Source != nil {
-						data := media.Source.Url
-						if data == "" {
-							data = common.Interface2String(media.Source.Data)
-						}
-						if data != "" {
-							fileMeta = append(fileMeta, &types.FileMeta{
-								FileType: types.FileTypeImage,
-								Source:   createClaudeFileSource(data),
-							})
-						}
+					if source := media.ToFileSource(); source != nil {
+						fileMeta = append(fileMeta, &types.FileMeta{
+							FileType: types.FileTypeImage,
+							Source:   source,
+						})
 					}
 				}
 			}
@@ -293,17 +297,11 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 			case "text":
 				texts = append(texts, media.GetText())
 			case "image":
-				if media.Source != nil {
-					data := media.Source.Url
-					if data == "" {
-						data = common.Interface2String(media.Source.Data)
-					}
-					if data != "" {
-						fileMeta = append(fileMeta, &types.FileMeta{
-							FileType: types.FileTypeImage,
-							Source:   createClaudeFileSource(data),
-						})
-					}
+				if source := media.ToFileSource(); source != nil {
+					fileMeta = append(fileMeta, &types.FileMeta{
+						FileType: types.FileTypeImage,
+						Source:   source,
+					})
 				}
 			case "tool_use":
 				if media.Name != "" {
