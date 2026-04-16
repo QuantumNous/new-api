@@ -9,4 +9,4 @@
 9. 支付宝添加商家码
 10. 做一个基于文件系统的 todo list 应用
 11. 制作 vibe coding 的教学视频，参考 jyy 的理念；在评论区宣传一人公司的同时，侧面宣传 API 中转
-
+12. 远端日志收集与余额异常审计工具（[设计](docs/security/remote-log-collector-design.md)，[接口契约](docs/security/remote-log-collector-api-contract.md)）

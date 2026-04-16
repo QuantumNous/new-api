@@ -197,6 +197,11 @@ func SetApiRouter(router *gin.Engine) {
 			performanceRoute.GET("/logs", controller.GetLogFiles)
 			performanceRoute.DELETE("/logs", controller.CleanupLogFiles)
 		}
+		securityRoute := apiRouter.Group("/security")
+		securityRoute.Use(middleware.RootAuth(), middleware.CriticalRateLimit())
+		{
+			securityRoute.POST("/remote_log_export", controller.ExportRemoteSecurityLogs)
+		}
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
 		ratioSyncRoute.Use(middleware.RootAuth())
 		{
