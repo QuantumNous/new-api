@@ -26,6 +26,7 @@ import MobileMenuButton from './MobileMenuButton';
 import HeaderLogo from './HeaderLogo';
 import Navigation from './Navigation';
 import ActionButtons from './ActionButtons';
+import { getHeaderContainerClass } from './headerbarLayout';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const {
@@ -78,11 +79,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         id='nav'
         className='sticky top-0 z-50 w-full border-b border-[#f3f4f6] bg-white/90 backdrop-blur-md transition-all'
       >
-        <div
-          className={`mx-auto flex h-[60px] items-center justify-between gap-6 px-4 md:px-6 ${
-            isConsoleRoute ? 'max-w-[1400px]' : 'max-w-7xl'
-          }`}
-        >
+        <div className={getHeaderContainerClass(isConsoleRoute)}>
           <div className='flex min-w-0 items-center gap-4 xl:gap-8'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}

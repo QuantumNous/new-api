@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Building2,
   ChevronRight,
@@ -36,6 +37,7 @@ import {
   shouldRenderDefaultHomePage,
   trustMetrics,
   trustQuoteKey,
+  getDefaultHomePageLocaleAdjustments,
 } from './homeSections';
 
 const homeText = {
@@ -86,9 +88,11 @@ const DefaultHomePage = ({
   docsLink,
   isDemoSiteMode,
 }) => {
+  const { i18n } = useTranslation();
   const primaryLink = isDemoSiteMode ? '/console' : '/register';
   const enterpriseLink = docsLink || '/pricing';
   const docsHref = docsLink || '/docs';
+  const localeAdjustments = getDefaultHomePageLocaleAdjustments(i18n.language);
 
   return (
     <main id='homepage' data-homepage-default='true' className='pt-[60px]'>
@@ -144,7 +148,7 @@ const DefaultHomePage = ({
           </div>
 
           <div className='relative mt-10 lg:col-span-5 lg:mt-0'>
-            <div className='absolute -right-6 -top-6 bg-white text-indigo-600 font-black px-6 py-4 rounded-[20px] shadow-xl z-30 border border-indigo-50'>
+            <div className={localeAdjustments.floatingCardClass}>
               <div className='mb-1 text-[10px] uppercase tracking-widest text-gray-400'>
                 {t(homeText.floatingTag)}
               </div>
@@ -187,11 +191,11 @@ const DefaultHomePage = ({
       </section>
 
       <div className='border-y border-gray-100 bg-white py-12'>
-        <div className='mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-8 px-6 opacity-60 md:justify-between'>
+        <div className={localeAdjustments.trustMetricsContainerClass}>
           {trustMetrics.map((metric) => (
             <span
               key={metric.key}
-              className='text-lg font-black tracking-tight text-gray-900'
+              className={localeAdjustments.trustMetricClass}
             >
               {t(metric.textKey)}
             </span>

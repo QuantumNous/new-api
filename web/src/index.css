@@ -746,6 +746,109 @@ html.dark .sbg-variant-green {
   padding-right: 0 !important;
 }
 
+/* ==================== Auth Shell ==================== */
+.auth-shell {
+  background:
+    radial-gradient(
+      circle at 18% 20%,
+      rgba(99, 102, 241, 0.1),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 82% 12%,
+      rgba(6, 182, 212, 0.12),
+      transparent 32%
+    ),
+    linear-gradient(180deg, #fafbff 0%, #ffffff 42%);
+}
+
+.auth-shell-hero {
+  background:
+    radial-gradient(
+      circle at 25% 18%,
+      rgba(99, 102, 241, 0.18),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 84% 0%,
+      rgba(6, 182, 212, 0.16),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 8% 70%,
+      rgba(244, 114, 182, 0.12),
+      transparent 24%
+    ),
+    #f5f7fb;
+}
+
+html.dark .auth-shell {
+  background:
+    radial-gradient(
+      circle at 18% 20%,
+      rgba(99, 102, 241, 0.18),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 82% 12%,
+      rgba(6, 182, 212, 0.14),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #0b1020 0%, #0f1425 42%);
+}
+
+html.dark .auth-shell-hero {
+  background:
+    radial-gradient(
+      circle at 25% 18%,
+      rgba(99, 102, 241, 0.28),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 84% 0%,
+      rgba(6, 182, 212, 0.22),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 8% 70%,
+      rgba(244, 114, 182, 0.16),
+      transparent 24%
+    ),
+    #0f1425;
+}
+
+.auth-shell-glow {
+  pointer-events: none;
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.75;
+}
+
+.auth-shell-glow-primary {
+  top: 4rem;
+  left: -5rem;
+  width: 18rem;
+  height: 18rem;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.auth-shell-glow-secondary {
+  right: -4rem;
+  bottom: 3rem;
+  width: 16rem;
+  height: 16rem;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+html.dark .auth-shell-glow-primary {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+html.dark .auth-shell-glow-secondary {
+  background: rgba(6, 182, 212, 0.15);
+}
+
 /* ==================== Banner 背景模糊球 ==================== */
 .blur-ball {
   position: absolute;

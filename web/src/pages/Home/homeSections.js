@@ -97,3 +97,20 @@ export const shouldRenderDefaultHomePage = ({
   homePageContentLoaded,
   homePageContent,
 }) => homePageContentLoaded && homePageContent === '';
+
+export const getDefaultHomePageLocaleAdjustments = (language) => {
+  const isEnglish =
+    typeof language === 'string' && language.toLowerCase().startsWith('en');
+
+  return {
+    trustMetricsContainerClass: isEnglish
+      ? 'mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-4 px-6 opacity-60 md:justify-between lg:flex-nowrap'
+      : 'mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-8 px-6 opacity-60 md:justify-between',
+    trustMetricClass: isEnglish
+      ? 'text-base font-black tracking-tight text-gray-900 whitespace-nowrap lg:text-base'
+      : 'text-lg font-black tracking-tight text-gray-900',
+    floatingCardClass: isEnglish
+      ? 'absolute -right-6 -top-12 bg-white text-indigo-600 font-black px-6 py-4 rounded-[20px] shadow-xl z-30 border border-indigo-50'
+      : 'absolute -right-6 -top-6 bg-white text-indigo-600 font-black px-6 py-4 rounded-[20px] shadow-xl z-30 border border-indigo-50',
+  };
+};
