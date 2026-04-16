@@ -19,8 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Typography, Tag } from '@douyinfe/semi-ui';
 import SkeletonWrapper from '../components/SkeletonWrapper';
+
+const headerText = {
+  selfUse: '\u81ea\u7528\u6a21\u5f0f',
+  demoSite: '\u6f14\u793a\u7ad9\u70b9',
+};
 
 const HeaderLogo = ({
   isMobile,
@@ -37,42 +41,34 @@ const HeaderLogo = ({
     return null;
   }
 
+  const showBadge = (isSelfUseMode || isDemoSiteMode) && !isLoading;
+  const fallbackLabel = systemName?.trim()?.[0]?.toUpperCase() || 'N';
+
   return (
-    <Link to='/' className='group flex items-center gap-2'>
-      <div className='relative w-8 h-8 md:w-8 md:h-8'>
-        <SkeletonWrapper loading={isLoading || !logoLoaded} type='image' />
-        <img
-          src={logo}
-          alt='logo'
-          className={`absolute inset-0 w-full h-full transition-all duration-200 group-hover:scale-110 rounded-full ${!isLoading && logoLoaded ? 'opacity-100' : 'opacity-0'}`}
-        />
+    <Link
+      to='/'
+      data-header-brand='true'
+      className='text-xl flex shrink-0 items-center gap-3 font-bold tracking-tight text-gray-900'
+    >
+      <div className='relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-indigo-600 text-sm text-white shadow-sm'>
+        <SkeletonWrapper loading={isLoading || !logoLoaded} type='image'>
+          <span>{fallbackLabel}</span>
+        </SkeletonWrapper>
+        {logo && logoLoaded && !isLoading ? (
+          <img
+            src={logo}
+            alt='logo'
+            className='absolute inset-0 h-full w-full object-cover'
+          />
+        ) : null}
       </div>
-      <div className='hidden md:flex items-center gap-2'>
-        <div className='flex items-center gap-2'>
-          <SkeletonWrapper
-            loading={isLoading}
-            type='title'
-            width={120}
-            height={24}
-          >
-            <Typography.Title
-              heading={4}
-              className='!text-lg !font-semibold !mb-0'
-            >
-              {systemName}
-            </Typography.Title>
-          </SkeletonWrapper>
-          {(isSelfUseMode || isDemoSiteMode) && !isLoading && (
-            <Tag
-              color={isSelfUseMode ? 'purple' : 'blue'}
-              className='text-xs px-1.5 py-0.5 rounded whitespace-nowrap shadow-sm'
-              size='small'
-              shape='circle'
-            >
-              {isSelfUseMode ? t('自用模式') : t('演示站点')}
-            </Tag>
-          )}
-        </div>
+      <div className='flex min-w-0 items-center gap-2'>
+        <span className='truncate'>{systemName}</span>
+        {showBadge ? (
+          <span className='hidden rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600 xl:inline-flex'>
+            {isSelfUseMode ? t(headerText.selfUse) : t(headerText.demoSite)}
+          </span>
+        ) : null}
       </div>
     </Link>
   );

@@ -65,7 +65,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
 
   return (
-    <header className='text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg'>
+    <header className='text-semi-color-text-0'>
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
@@ -74,9 +74,16 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         unreadKeys={getUnreadKeys()}
       />
 
-      <div className='w-full px-2'>
-        <div className='flex items-center justify-between h-16'>
-          <div className='flex items-center'>
+      <nav
+        id='nav'
+        className='sticky top-0 z-50 w-full border-b border-[#f3f4f6] bg-white/90 backdrop-blur-md transition-all'
+      >
+        <div
+          className={`mx-auto flex h-[60px] items-center justify-between gap-6 px-4 md:px-6 ${
+            isConsoleRoute ? 'max-w-[1400px]' : 'max-w-7xl'
+          }`}
+        >
+          <div className='flex min-w-0 items-center gap-4 xl:gap-8'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}
@@ -97,15 +104,15 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
               isDemoSiteMode={isDemoSiteMode}
               t={t}
             />
-          </div>
 
-          <Navigation
-            mainNavLinks={mainNavLinks}
-            isMobile={isMobile}
-            isLoading={isLoading}
-            userState={userState}
-            pricingRequireAuth={pricingRequireAuth}
-          />
+            <Navigation
+              mainNavLinks={mainNavLinks}
+              isMobile={isMobile}
+              isLoading={isLoading}
+              userState={userState}
+              pricingRequireAuth={pricingRequireAuth}
+            />
+          </div>
 
           <ActionButtons
             isNewYear={isNewYear}
@@ -124,7 +131,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             t={t}
           />
         </div>
-      </div>
+      </nav>
     </header>
   );
 };

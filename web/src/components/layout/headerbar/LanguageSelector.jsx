@@ -20,55 +20,51 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button, Dropdown } from '@douyinfe/semi-ui';
 import { Languages } from 'lucide-react';
+import { useActualTheme } from '../../../context/Theme';
+
+const languageOptions = [
+  { key: 'zh-CN', label: '简体中文' },
+  { key: 'zh-TW', label: '繁體中文' },
+  { key: 'en', label: 'English' },
+];
 
 const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
+  const actualTheme = useActualTheme();
+  const isDark = actualTheme === 'dark';
+
   return (
     <Dropdown
       position='bottomRight'
       render={
-        <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
+        <Dropdown.Menu
+          className={`!shadow-lg !rounded-lg ${
+            isDark
+              ? '!bg-semi-color-bg-overlay !border-semi-color-border dark:!bg-gray-700 dark:!border-gray-600'
+              : '!bg-white !border-gray-200'
+          }`}
+        >
           {/* Language sorting: Order by English name (Chinese, English, French, Japanese, Russian) */}
-          <Dropdown.Item
-            onClick={() => onLanguageChange('zh-CN')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'zh-CN' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            简体中文
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('zh-TW')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'zh-TW' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-        	繁體中文
-          </Dropdown.Item>          <Dropdown.Item
-            onClick={() => onLanguageChange('en')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'en' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            English
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('fr')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'fr' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            Français
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('ja')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'ja' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            日本語
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('ru')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'ru' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            Русский
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('vi')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'vi' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            Tiếng Việt
-          </Dropdown.Item>
+          {languageOptions.map((option) => (
+            <Dropdown.Item
+              key={option.key}
+              onClick={() => onLanguageChange(option.key)}
+              className={`!px-3 !py-1.5 !text-sm ${
+                isDark
+                  ? `dark:!text-gray-200 ${
+                      currentLang === option.key
+                        ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold'
+                        : '!text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'
+                    }`
+                  : `${
+                      currentLang === option.key
+                        ? '!bg-semi-color-primary-light-default !font-semibold'
+                        : '!text-semi-color-text-0 hover:!bg-semi-color-fill-1'
+                    }`
+              }`}
+            >
+              {option.label}
+            </Dropdown.Item>
+          ))}
         </Dropdown.Menu>
       }
     >

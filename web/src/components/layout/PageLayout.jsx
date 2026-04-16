@@ -37,6 +37,7 @@ import {
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
+import { useActualTheme } from '../../context/Theme';
 import { useLocation } from 'react-router-dom';
 import { normalizeLanguage } from '../../i18n/language';
 const { Sider, Content, Header } = Layout;
@@ -48,6 +49,7 @@ const PageLayout = () => {
   const [collapsed, , setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { i18n } = useTranslation();
+  const actualTheme = useActualTheme();
   const location = useLocation();
 
   const cardProPages = [
@@ -118,6 +120,10 @@ const PageLayout = () => {
   }, []);
 
   useEffect(() => {
+    document.body.dataset.homeMode = actualTheme === 'dark' ? 'dark' : 'light';
+  }, [actualTheme]);
+
+  useEffect(() => {
     let preferredLang;
 
     if (userState?.user?.setting) {
@@ -182,7 +188,7 @@ const PageLayout = () => {
             style={{
               position: 'fixed',
               left: 0,
-              top: '64px',
+              top: '60px',
               zIndex: 99,
               border: 'none',
               paddingRight: '0',
