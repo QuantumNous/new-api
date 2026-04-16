@@ -88,7 +88,10 @@ func usesVideoGenerationsTaskPath(path string) bool {
 
 func isVideoGenerationsTaskModel(model string) bool {
 	model = strings.ToLower(strings.TrimSpace(model))
-	return strings.HasPrefix(model, "veo") || strings.Contains(model, "/veo")
+	return strings.HasPrefix(model, "veo") ||
+		strings.Contains(model, "/veo") ||
+		strings.HasPrefix(model, "sora-2") ||
+		strings.HasPrefix(model, "sora2")
 }
 
 func usesVideoGenerationsTaskEndpoint(path string, modelNames ...string) bool {

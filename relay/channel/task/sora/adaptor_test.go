@@ -239,6 +239,23 @@ func TestBuildRequestURLUsesVideoGenerationsPath(t *testing.T) {
 	}
 }
 
+func TestBuildRequestURLUsesVideoGenerationsPathForSora(t *testing.T) {
+	adaptor := &TaskAdaptor{baseURL: "https://upstream.example"}
+	url, err := adaptor.BuildRequestURL(&relaycommon.RelayInfo{
+		RequestURLPath:  "/v1/video/generations",
+		OriginModelName: "sora2",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "sora-2",
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRequestURL returned error: %v", err)
+	}
+	if url != "https://upstream.example/v1/video/generations" {
+		t.Fatalf("expected video generations URL for sora, got %s", url)
+	}
+}
+
 func TestBuildRequestURLKeepsGrokOnOpenAIVideosPath(t *testing.T) {
 	adaptor := &TaskAdaptor{baseURL: "https://upstream.example"}
 	url, err := adaptor.BuildRequestURL(&relaycommon.RelayInfo{
@@ -280,6 +297,21 @@ func TestBuildTaskFetchURLUsesStoredVideoGenerationsPath(t *testing.T) {
 	}
 	if url != "https://upstream.example/v1/video/generations/upstream-task" {
 		t.Fatalf("expected video generations fetch URL, got %s", url)
+	}
+}
+
+func TestBuildTaskFetchURLUsesStoredVideoGenerationsPathForSoraAlias(t *testing.T) {
+	url, err := buildTaskFetchURL("https://upstream.example", map[string]any{
+		"task_id":      "upstream-task",
+		"model":        "sora2",
+		"origin_model": "sora2",
+		"request_path": "/v1/video/generations",
+	})
+	if err != nil {
+		t.Fatalf("buildTaskFetchURL returned error: %v", err)
+	}
+	if url != "https://upstream.example/v1/video/generations/upstream-task" {
+		t.Fatalf("expected video generations fetch URL for sora alias, got %s", url)
 	}
 }
 
