@@ -18,13 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useState } from 'react';
-import {
-  Button,
-  Typography,
-  Input,
-  ScrollList,
-  ScrollItem,
-} from '@douyinfe/semi-ui';
+import { Button } from '@douyinfe/semi-ui';
 import { API, showError, copy, showSuccess } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { API_ENDPOINTS } from '../../constants/common.constant';
@@ -63,7 +57,28 @@ import {
   Xinference,
 } from '@lobehub/icons';
 
-const { Text } = Typography;
+const providerIcons = [
+  { key: 'moonshot', icon: <Moonshot size={26} /> },
+  { key: 'openai', icon: <OpenAI size={26} /> },
+  { key: 'xai', icon: <XAI size={26} /> },
+  { key: 'zhipu', icon: <Zhipu.Color size={26} /> },
+  { key: 'volcengine', icon: <Volcengine.Color size={26} /> },
+  { key: 'cohere', icon: <Cohere.Color size={26} /> },
+  { key: 'claude', icon: <Claude.Color size={26} /> },
+  { key: 'gemini', icon: <Gemini.Color size={26} /> },
+  { key: 'suno', icon: <Suno size={26} /> },
+  { key: 'minimax', icon: <Minimax.Color size={26} /> },
+  { key: 'wenxin', icon: <Wenxin.Color size={26} /> },
+  { key: 'spark', icon: <Spark.Color size={26} /> },
+  { key: 'qingyan', icon: <Qingyan.Color size={26} /> },
+  { key: 'deepseek', icon: <DeepSeek.Color size={26} /> },
+  { key: 'qwen', icon: <Qwen.Color size={26} /> },
+  { key: 'midjourney', icon: <Midjourney size={26} /> },
+  { key: 'grok', icon: <Grok size={26} /> },
+  { key: 'azure', icon: <AzureAI.Color size={26} /> },
+  { key: 'hunyuan', icon: <Hunyuan.Color size={26} /> },
+  { key: 'xinference', icon: <Xinference.Color size={26} /> },
+];
 
 const Home = () => {
   const { t, i18n } = useTranslation();
@@ -81,6 +96,42 @@ const Home = () => {
   const [endpointIndex, setEndpointIndex] = useState(0);
   const isChinese = i18n.language.startsWith('zh');
 
+  const heroEyebrow = isChinese
+    ? '更简单的模型接入体验'
+    : 'A calmer way to connect AI models';
+  const heroDescription = isChinese
+    ? '更少的干扰，更清晰的入口。保留统一网关能力，只把体验收敛得更干净。'
+    : 'A quieter interface with the same unified gateway power, designed to feel cleaner and easier to use.';
+  const featureCards = isChinese
+    ? [
+        {
+          title: '统一基址',
+          description: '保持兼容入口，切换上游时不用重写客户端。',
+        },
+        {
+          title: '稳定接入',
+          description: '把供应商、模型和密钥管理收进同一层。',
+        },
+        {
+          title: '更少噪音',
+          description: '去掉多余装饰，让首页更像一个清晰的起点。',
+        },
+      ]
+    : [
+        {
+          title: 'One base URL',
+          description: 'Keep clients stable while switching upstream providers.',
+        },
+        {
+          title: 'Controlled routing',
+          description: 'Bring providers, models, and keys into one clean layer.',
+        },
+        {
+          title: 'Less visual noise',
+          description: 'Make the homepage feel like a clear starting point.',
+        },
+      ];
+
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
     const res = await API.get('/api/home_page_content');
@@ -93,7 +144,6 @@ const Home = () => {
       setHomePageContent(content);
       localStorage.setItem('home_page_content', content);
 
-      // 如果内容是 URL，则发送主题模式
       if (data.startsWith('https://')) {
         const iframe = document.querySelector('iframe');
         if (iframe) {
@@ -156,69 +206,63 @@ const Home = () => {
         isMobile={isMobile}
       />
       {homePageContentLoaded && homePageContent === '' ? (
-        <div className='w-full overflow-x-hidden'>
-          {/* Banner 部分 */}
-          <div className='w-full border-b border-semi-color-border min-h-[500px] md:min-h-[600px] lg:min-h-[700px] relative overflow-x-hidden'>
-            {/* 背景模糊晕染球 */}
-            <div className='blur-ball blur-ball-indigo' />
-            <div className='blur-ball blur-ball-teal' />
-            <div className='flex items-center justify-center h-full px-4 py-20 md:py-24 lg:py-32 mt-10'>
-              {/* 居中内容区 */}
-              <div className='flex flex-col items-center justify-center text-center max-w-4xl mx-auto'>
-                <div className='flex flex-col items-center justify-center mb-6 md:mb-8'>
-                  <h1
-                    className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-semi-color-text-0 leading-tight ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
-                  >
-                    <>
-                      {t('统一的')}
-                      <br />
-                      <span className='shine-text'>{t('大模型接口网关')}</span>
-                    </>
-                  </h1>
-                  <p className='text-base md:text-lg lg:text-xl text-semi-color-text-1 mt-4 md:mt-6 max-w-xl'>
-                    {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
-                  </p>
-                  {/* BASE URL 与端点选择 */}
-                  <div className='flex flex-col md:flex-row items-center justify-center gap-4 w-full mt-4 md:mt-6 max-w-md'>
-                    <Input
-                      readonly
-                      value={serverAddress}
-                      className='flex-1 !rounded-full'
-                      size={isMobile ? 'default' : 'large'}
-                      suffix={
-                        <div className='flex items-center gap-2'>
-                          <ScrollList
-                            bodyHeight={32}
-                            style={{ border: 'unset', boxShadow: 'unset' }}
-                          >
-                            <ScrollItem
-                              mode='wheel'
-                              cycled={true}
-                              list={endpointItems}
-                              selectedIndex={endpointIndex}
-                              onSelect={({ index }) => setEndpointIndex(index)}
-                            />
-                          </ScrollList>
-                          <Button
-                            type='primary'
-                            onClick={handleCopyBaseURL}
-                            icon={<IconCopy />}
-                            className='!rounded-full'
-                          />
-                        </div>
-                      }
-                    />
+        <div className='home-apple-shell'>
+          <div className='home-apple-orb home-apple-orb-primary' />
+          <div className='home-apple-orb home-apple-orb-secondary' />
+          <div className='home-apple-grid' />
+
+          <div className='relative mx-auto flex min-h-[calc(100vh-60px)] max-w-6xl flex-col justify-center px-4 py-16 md:px-8 md:py-24'>
+            <div className='home-apple-panel mx-auto w-full max-w-5xl'>
+              <div className='flex flex-col items-center text-center'>
+                <div className='home-apple-chip mb-6'>{heroEyebrow}</div>
+
+                <h1
+                  className={`max-w-4xl text-4xl font-semibold leading-[1.05] text-semi-color-text-0 md:text-6xl lg:text-7xl ${isChinese ? 'tracking-[-0.04em]' : 'tracking-[-0.06em]'}`}
+                >
+                  {t('统一的')}
+                  <br />
+                  <span className='home-apple-gradient-text'>
+                    {t('大模型接口网关')}
+                  </span>
+                </h1>
+
+                <p className='mt-6 max-w-2xl text-base leading-7 text-semi-color-text-1 md:text-lg'>
+                  {heroDescription}
+                </p>
+
+                <div className='home-apple-url-bar mt-8 w-full max-w-3xl'>
+                  <div className='min-w-0 flex-1 text-left'>
+                    <div className='text-[11px] uppercase tracking-[0.24em] text-semi-color-text-3'>
+                      Base URL
+                    </div>
+                    <div className='truncate pt-2 text-base font-medium text-semi-color-text-0 md:text-lg'>
+                      {serverAddress}
+                    </div>
                   </div>
+                  <div className='home-apple-divider hidden md:block' />
+                  <div className='hidden min-w-[220px] text-left md:block'>
+                    <div className='text-[11px] uppercase tracking-[0.24em] text-semi-color-text-3'>
+                      Endpoint
+                    </div>
+                    <div className='truncate pt-2 text-base text-semi-color-text-1'>
+                      {endpointItems[endpointIndex].value}
+                    </div>
+                  </div>
+                  <Button
+                    theme='borderless'
+                    icon={<IconCopy />}
+                    onClick={handleCopyBaseURL}
+                    className='home-apple-copy-btn'
+                  />
                 </div>
 
-                {/* 操作按钮 */}
-                <div className='flex flex-row gap-4 justify-center items-center'>
+                <div className='mt-8 flex flex-wrap items-center justify-center gap-3'>
                   <Link to='/console'>
                     <Button
                       theme='solid'
                       type='primary'
                       size={isMobile ? 'default' : 'large'}
-                      className='!rounded-3xl px-8 py-2'
+                      className='!rounded-full px-8'
                       icon={<IconPlay />}
                     >
                       {t('获取密钥')}
@@ -227,7 +271,7 @@ const Home = () => {
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
                       size={isMobile ? 'default' : 'large'}
-                      className='flex items-center !rounded-3xl px-6 py-2'
+                      className='!rounded-full px-6'
                       icon={<IconGithubLogo />}
                       onClick={() =>
                         window.open(
@@ -242,7 +286,7 @@ const Home = () => {
                     docsLink && (
                       <Button
                         size={isMobile ? 'default' : 'large'}
-                        className='flex items-center !rounded-3xl px-6 py-2'
+                        className='!rounded-full px-6'
                         icon={<IconFile />}
                         onClick={() => window.open(docsLink, '_blank')}
                       >
@@ -252,84 +296,32 @@ const Home = () => {
                   )}
                 </div>
 
-                {/* 框架兼容性图标 */}
-                <div className='mt-12 md:mt-16 lg:mt-20 w-full'>
-                  <div className='flex items-center mb-6 md:mb-8 justify-center'>
-                    <Text
-                      type='tertiary'
-                      className='text-lg md:text-xl lg:text-2xl font-light'
-                    >
-                      {t('支持众多的大模型供应商')}
-                    </Text>
-                  </div>
-                  <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4'>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Moonshot size={40} />
+                <div className='mt-10 grid w-full max-w-4xl gap-3 md:grid-cols-3'>
+                  {featureCards.map((item) => (
+                    <div key={item.title} className='home-apple-subcard'>
+                      <div className='text-sm font-semibold text-semi-color-text-0'>
+                        {item.title}
+                      </div>
+                      <p className='mt-2 text-sm leading-6 text-semi-color-text-2'>
+                        {item.description}
+                      </p>
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <OpenAI size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <XAI size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Zhipu.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Volcengine.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Cohere.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Claude.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Gemini.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Suno size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Minimax.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Wenxin.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Spark.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Qingyan.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <DeepSeek.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Qwen.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Midjourney size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Grok size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <AzureAI.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Hunyuan.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Xinference.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Typography.Text className='!text-lg sm:!text-xl md:!text-2xl lg:!text-3xl font-bold'>
-                        30+
-                      </Typography.Text>
-                    </div>
-                  </div>
+                  ))}
                 </div>
+              </div>
+            </div>
+
+            <div className='mx-auto mt-8 w-full max-w-5xl'>
+              <div className='mb-4 text-center text-sm font-medium tracking-[0.2em] text-semi-color-text-3 uppercase'>
+                {t('支持众多的大模型供应商')}
+              </div>
+              <div className='home-apple-provider-panel'>
+                {providerIcons.map((provider) => (
+                  <div key={provider.key} className='home-apple-provider-item'>
+                    {provider.icon}
+                  </div>
+                ))}
+                <div className='home-apple-provider-count'>30+</div>
               </div>
             </div>
           </div>
