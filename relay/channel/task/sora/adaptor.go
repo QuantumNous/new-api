@@ -612,9 +612,9 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	upstreamID := dResp.ID
+	upstreamID := dResp.TaskID
 	if upstreamID == "" {
-		upstreamID = dResp.TaskID
+		upstreamID = dResp.ID
 	}
 	if upstreamID == "" {
 		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)

@@ -2,6 +2,7 @@ package sora
 
 import (
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -405,5 +406,39 @@ func TestParseTaskResultFailsCompletedWithoutURL(t *testing.T) {
 	}
 	if taskInfo.Reason == "" {
 		t.Fatalf("expected failure reason")
+	}
+}
+
+func TestDoResponsePrefersTaskIDForUpstreamPolling(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	resp := &http.Response{
+		StatusCode: http.StatusAccepted,
+		Body: io.NopCloser(strings.NewReader(`{
+			"id":"vidgen-abc123",
+			"object":"video.generation",
+			"created":1776410000,
+			"model":"sora2",
+			"status":"queued",
+			"task_id":"abc123def456",
+			"progress":0
+		}`)),
+	}
+
+	adaptor := &TaskAdaptor{}
+	info := &relaycommon.RelayInfo{
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{
+			PublicTaskID: "task_public_123",
+		},
+	}
+
+	upstreamID, _, taskErr := adaptor.DoResponse(c, resp, info)
+	if taskErr != nil {
+		t.Fatalf("DoResponse returned error: %v", taskErr)
+	}
+	if upstreamID != "abc123def456" {
+		t.Fatalf("expected upstream task_id to be preferred, got %s", upstreamID)
 	}
 }
