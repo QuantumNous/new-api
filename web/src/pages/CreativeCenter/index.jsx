@@ -6867,43 +6867,74 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               currentUploadedImageUrls,
             );
             const shouldUseImageEditEndpoint =
-              isGrokImageEditModel || currentUploadedImageUrls.length > 0;
-            const payload = {
-              model: currentModelName,
-              group: activeGroup,
-              prompt:
-                shouldUseImageEditEndpoint && !currentPrompt
-                  ? 'Edit the provided media.'
-                  : currentPrompt,
-              n: 1,
-              response_format: 'url',
-              request_id: requestId,
-              seed: requestSeed,
-              seeds: [requestSeed],
-              user: requestUser,
-            };
-            if (!isGrokImageEditModel && basePayload.size) {
-              payload.size = basePayload.size;
-            }
-            if (shouldUseImageEditEndpoint) {
-              if (currentUploadedImageUrls.length === 1) {
-                payload.image = currentUploadedImageUrls[0];
-              } else if (currentUploadedImageUrls.length > 1) {
-                payload.image = currentUploadedImageUrls;
+              !isAdobeImageModel &&
+              (isGrokImageEditModel || currentUploadedImageUrls.length > 0);
+            const payload = isAdobeImageModel
+              ? {
+                  model: currentModelName,
+                  group: activeGroup,
+                  prompt:
+                    currentPrompt ||
+                    (currentUploadedImageUrls.length > 0
+                      ? 'Edit the provided media.'
+                      : ''),
+                  output_resolution:
+                    basePayload.output_resolution ||
+                    currentParamsSnapshot.outputResolution ||
+                    '2K',
+                  request_id: requestId,
+                  seed: requestSeed,
+                  seeds: [requestSeed],
+                  user: requestUser,
+                }
+              : {
+                  model: currentModelName,
+                  group: activeGroup,
+                  prompt:
+                    shouldUseImageEditEndpoint && !currentPrompt
+                      ? 'Edit the provided media.'
+                      : currentPrompt,
+                  n: 1,
+                  response_format: 'url',
+                  request_id: requestId,
+                  seed: requestSeed,
+                  seeds: [requestSeed],
+                  user: requestUser,
+                };
+
+            if (isAdobeImageModel) {
+              if (basePayload.aspect_ratio) {
+                payload.aspect_ratio = basePayload.aspect_ratio;
+              } else if (basePayload.size) {
+                payload.size = basePayload.size;
+              }
+              if (currentUploadedImageUrls.length > 0) {
+                payload.image_urls = currentUploadedImageUrls;
               }
             } else {
-              if (currentUploadedImageUrls[0]) {
-                payload.image = currentUploadedImageUrls[0];
+              if (!isGrokImageEditModel && basePayload.size) {
+                payload.size = basePayload.size;
               }
-            }
-            if (basePayload.extra_body) {
-              payload.extra_body = basePayload.extra_body;
-            }
-            if (basePayload.aspect_ratio) {
-              payload.aspect_ratio = basePayload.aspect_ratio;
-            }
-            if (basePayload.output_resolution) {
-              payload.output_resolution = basePayload.output_resolution;
+              if (shouldUseImageEditEndpoint) {
+                if (currentUploadedImageUrls.length === 1) {
+                  payload.image = currentUploadedImageUrls[0];
+                } else if (currentUploadedImageUrls.length > 1) {
+                  payload.image = currentUploadedImageUrls;
+                }
+              } else {
+                if (currentUploadedImageUrls[0]) {
+                  payload.image = currentUploadedImageUrls[0];
+                }
+              }
+              if (basePayload.extra_body) {
+                payload.extra_body = basePayload.extra_body;
+              }
+              if (basePayload.aspect_ratio) {
+                payload.aspect_ratio = basePayload.aspect_ratio;
+              }
+              if (basePayload.output_resolution) {
+                payload.output_resolution = basePayload.output_resolution;
+              }
             }
 
             patchImageTask(recordId, taskId, {
@@ -6922,10 +6953,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 progress: 5,
               });
             }
-            const data = await postCreativeRequest(
-              shouldUseImageEditEndpoint
+            const imageSubmitEndpoint = isAdobeImageModel
+              ? API_ENDPOINTS.IMAGE_ASYNC_GENERATIONS
+              : shouldUseImageEditEndpoint
                 ? API_ENDPOINTS.IMAGE_ASYNC_EDITS
-                : API_ENDPOINTS.IMAGE_ASYNC_GENERATIONS,
+                : API_ENDPOINTS.IMAGE_ASYNC_GENERATIONS;
+            const data = await postCreativeRequest(
+              imageSubmitEndpoint,
               payload,
               {
                 'X-Request-Id': requestId,

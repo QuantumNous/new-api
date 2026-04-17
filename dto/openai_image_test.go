@@ -25,6 +25,25 @@ func TestImageRequestPreserveExplicitZeroSeed(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "seed").Exists())
 }
 
+func TestImageRequestPreservesImageUrls(t *testing.T) {
+	raw := []byte(`{
+		"model":"nano-banana-pro",
+		"prompt":"poster",
+		"image_urls":["https://example.com/1.png","https://example.com/2.png"]
+	}`)
+
+	var req ImageRequest
+	err := common.Unmarshal(raw, &req)
+	require.NoError(t, err)
+
+	encoded, err := common.Marshal(req)
+	require.NoError(t, err)
+
+	require.Equal(t, "https://example.com/1.png", gjson.GetBytes(encoded, "image_urls.0").String())
+	require.Equal(t, "https://example.com/2.png", gjson.GetBytes(encoded, "image_urls.1").String())
+	require.NotContains(t, req.Extra, "image_urls")
+}
+
 func TestImageRequestBananaUsesNeutralImagePriceRatio(t *testing.T) {
 	n := uint(3)
 	req := ImageRequest{
