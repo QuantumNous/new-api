@@ -124,3 +124,22 @@ When reading from or writing to files, you MUST explicitly specify the encoding.
 - When using scripts or shell commands to modify files, always pass an explicit encoding parameter (for example: Python `encoding='utf-8'`, PowerShell `-Encoding UTF8`).
 - Before batch rewriting existing files, confirm the current encoding first to avoid introducing mojibake/??.
 
+### Rule 7: Frontend UI Fixes — Work From the Real Render Source
+
+When fixing frontend UI, layout, translation, or theme issues:
+
+- First identify the actual render source file/component that produces the visible DOM. Do not modify only translation files, helper layers, or reference files if the real rendered node lives elsewhere.
+- If the user points to a specific file/line or DOM node, treat that location as the primary target and verify the fix there first.
+- Fix root cause before broad refactors. Do not use speculative “try this layer first” edits across multiple files.
+- Prefer minimal, local fixes over wide global rewrites. Respect existing project baselines such as established header height, page offsets, and layout rhythm unless a global change is explicitly required.
+- Before changing shared layout values (for example header height, top spacing, viewport height calculations), check all dependent pages/components first to avoid introducing cascade regressions.
+
+### Rule 8: Keep Working Tree Noise Low
+
+When implementing or debugging:
+
+- Do not create temporary directories, reference files, or extra test files unless they are clearly necessary for the user’s goal.
+- If temporary files are created for comparison/debugging, remove them before completion unless the user explicitly asks to keep them.
+- Prefer editing existing tests or verifying through existing project mechanisms instead of adding ad hoc files.
+- Before committing, review staged files and exclude unrelated artifacts such as lockfile churn, temp folders, cache files, or accidental byproducts unless they are intentionally part of the change.
+
