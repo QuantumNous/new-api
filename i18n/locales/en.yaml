@@ -2,7 +2,7 @@
 
 # Common messages
 common.invalid_params: "Invalid parameters"
-common.database_error: "Database error, please try again later"
+common.database_error: "Database error, please contact the administrator"
 common.retry_later: "Please try again later"
 common.generate_failed: "Generation failed"
 common.not_found: "Not found"
@@ -21,6 +21,17 @@ common.delete_success: "Deletion successful"
 common.delete_failed: "Deletion failed"
 common.already_exists: "Already exists"
 common.name_cannot_be_empty: "Name cannot be empty"
+common.batch_too_many: "Too many items in batch request, maximum is {{.Max}}"
+
+# Auth middleware messages
+auth.not_logged_in: "Unauthorized, not logged in and no access token provided"
+auth.access_token_invalid: "Unauthorized, invalid access token"
+auth.user_info_invalid: "Unauthorized, invalid user info"
+auth.user_id_not_provided: "Unauthorized, New-Api-User header not provided"
+auth.user_id_format_error: "Unauthorized, New-Api-User header format error"
+auth.user_id_mismatch: "Unauthorized, New-Api-User does not match logged in user"
+auth.user_banned: "User has been banned"
+auth.insufficient_privilege: "Unauthorized, insufficient privileges"
 
 # Token messages
 token.name_too_long: "Token name is too long"
@@ -90,6 +101,7 @@ user.wechat_id_empty: "WeChat ID is empty!"
 user.telegram_id_empty: "Telegram ID is empty!"
 user.telegram_not_bound: "This Telegram account is not bound"
 user.linux_do_id_empty: "Linux DO ID is empty!"
+user.quota_change_zero: "Quota change amount cannot be zero"
 
 # Quota messages
 quota.negative: "Quota cannot be negative!"

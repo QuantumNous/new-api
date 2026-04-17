@@ -37,7 +37,7 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	if amount <= 0 {
 		return nil
 	}
-	if err := model.DecreaseUserQuota(w.userId, amount); err != nil {
+	if err := model.DecreaseUserQuota(w.userId, amount, false); err != nil {
 		return err
 	}
 	w.consumed = amount
@@ -49,7 +49,7 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta)
+		return model.DecreaseUserQuota(w.userId, delta, false)
 	}
 	return model.IncreaseUserQuota(w.userId, -delta, false)
 }
