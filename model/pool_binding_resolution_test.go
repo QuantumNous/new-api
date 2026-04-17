@@ -111,3 +111,81 @@ func TestResolvePoolForContext_DisabledTokenBindingFallsBack(t *testing.T) {
 	require.Equal(t, userPool.Id, pool.Id)
 }
 
+func TestCreatePoolBinding_AllowsSameBindingAcrossDifferentPools(t *testing.T) {
+	ensurePoolBindingResolutionTables(t)
+	truncatePoolBindingResolutionTables(t)
+
+	poolA := seedPoolForResolution(t, "pool_a")
+	poolB := seedPoolForResolution(t, "pool_b")
+
+	err := CreatePoolBinding(&PoolBinding{
+		BindingType:  PoolBindingTypeToken,
+		BindingValue: "2001",
+		PoolId:       poolA.Id,
+		Priority:     0,
+		Enabled:      true,
+	})
+	require.NoError(t, err)
+
+	err = CreatePoolBinding(&PoolBinding{
+		BindingType:  PoolBindingTypeToken,
+		BindingValue: "2001",
+		PoolId:       poolB.Id,
+		Priority:     0,
+		Enabled:      true,
+	})
+	require.NoError(t, err)
+}
+
+func TestCreatePoolBinding_RejectsDuplicateWithinSamePool(t *testing.T) {
+	ensurePoolBindingResolutionTables(t)
+	truncatePoolBindingResolutionTables(t)
+
+	pool := seedPoolForResolution(t, "pool_dup")
+
+	err := CreatePoolBinding(&PoolBinding{
+		BindingType:  PoolBindingTypeToken,
+		BindingValue: "2002",
+		PoolId:       pool.Id,
+		Priority:     0,
+		Enabled:      true,
+	})
+	require.NoError(t, err)
+
+	err = CreatePoolBinding(&PoolBinding{
+		BindingType:  PoolBindingTypeToken,
+		BindingValue: "2002",
+		PoolId:       pool.Id,
+		Priority:     0,
+		Enabled:      true,
+	})
+	require.Error(t, err)
+}
+
+func TestUpdatePoolBinding_RejectsDuplicateWithinSamePool(t *testing.T) {
+	ensurePoolBindingResolutionTables(t)
+	truncatePoolBindingResolutionTables(t)
+
+	pool := seedPoolForResolution(t, "pool_update_dup")
+	first := &PoolBinding{
+		BindingType:  PoolBindingTypeToken,
+		BindingValue: "3001",
+		PoolId:       pool.Id,
+		Priority:     0,
+		Enabled:      true,
+	}
+	second := &PoolBinding{
+		BindingType:  PoolBindingTypeToken,
+		BindingValue: "3002",
+		PoolId:       pool.Id,
+		Priority:     0,
+		Enabled:      true,
+	}
+	require.NoError(t, DB.Create(first).Error)
+	require.NoError(t, DB.Create(second).Error)
+
+	second.BindingValue = "3001"
+	err := UpdatePoolBinding(second)
+	require.Error(t, err)
+}
+

@@ -104,9 +104,7 @@ describe('usePoolsData', () => {
     await waitFor(() => {
       expect(result.current.bindingItems).toHaveLength(1);
     });
-    expect(mockGet).toHaveBeenCalledWith(
-      '/api/pool/binding?p=1&page_size=20&binding_type=token',
-    );
+    expect(mockGet).toHaveBeenCalledWith('/api/pool/binding?p=1&page_size=20');
 
     await act(async () => {
       await result.current.handleTabChange('channel');
@@ -170,6 +168,39 @@ describe('usePoolsData', () => {
     expect(usageCall).toBeTruthy();
     expect(usageCall[0]).toContain('token_id=99');
     expect(usageCall[0]).toContain('user_id=99');
+  });
+
+  it('toggles create SideSheet states for all tabs', async () => {
+    const { result } = renderHook(() => usePoolsData());
+
+    expect(result.current.showPoolForm).toBe(false);
+    expect(result.current.showChannelForm).toBe(false);
+    expect(result.current.showPolicyForm).toBe(false);
+    expect(result.current.showBindingForm).toBe(false);
+
+    await act(async () => {
+      result.current.openCreatePool();
+      result.current.openCreateChannel();
+      result.current.openCreatePolicy();
+      result.current.openCreateBinding();
+    });
+
+    expect(result.current.showPoolForm).toBe(true);
+    expect(result.current.showChannelForm).toBe(true);
+    expect(result.current.showPolicyForm).toBe(true);
+    expect(result.current.showBindingForm).toBe(true);
+
+    await act(async () => {
+      result.current.closePoolForm();
+      result.current.closeChannelForm();
+      result.current.closePolicyForm();
+      result.current.closeBindingForm();
+    });
+
+    expect(result.current.showPoolForm).toBe(false);
+    expect(result.current.showChannelForm).toBe(false);
+    expect(result.current.showPolicyForm).toBe(false);
+    expect(result.current.showBindingForm).toBe(false);
   });
 });
 

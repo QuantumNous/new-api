@@ -409,12 +409,32 @@ func CreatePoolBinding(item *PoolBinding) error {
 	if item == nil {
 		return errors.New("pool binding is nil")
 	}
+	duplicateCount := int64(0)
+	if err := DB.Model(&PoolBinding{}).
+		Where("binding_type = ? AND binding_value = ? AND pool_id = ?",
+			item.BindingType, item.BindingValue, item.PoolId).
+		Count(&duplicateCount).Error; err != nil {
+		return err
+	}
+	if duplicateCount > 0 {
+		return errors.New("duplicate pool binding: binding_type + binding_value + pool_id already exists")
+	}
 	return DB.Create(item).Error
 }
 
 func UpdatePoolBinding(item *PoolBinding) error {
 	if item == nil || item.Id <= 0 {
 		return errors.New("invalid pool binding")
+	}
+	duplicateCount := int64(0)
+	if err := DB.Model(&PoolBinding{}).
+		Where("binding_type = ? AND binding_value = ? AND pool_id = ? AND id <> ?",
+			item.BindingType, item.BindingValue, item.PoolId, item.Id).
+		Count(&duplicateCount).Error; err != nil {
+		return err
+	}
+	if duplicateCount > 0 {
+		return errors.New("duplicate pool binding: binding_type + binding_value + pool_id already exists")
 	}
 	return DB.Model(&PoolBinding{}).Where("id = ?", item.Id).Updates(map[string]interface{}{
 		"binding_type":  item.BindingType,

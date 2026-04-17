@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Modal, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -45,6 +45,7 @@ export const usePoolsData = () => {
     description: '',
     status: 1,
   });
+  const [showPoolForm, setShowPoolForm] = useState(false);
 
   const [channelItems, setChannelItems] = useState([]);
   const [channelTotal, setChannelTotal] = useState(0);
@@ -58,6 +59,7 @@ export const usePoolsData = () => {
     priority: 0,
     enabled: true,
   });
+  const [showChannelForm, setShowChannelForm] = useState(false);
   const [channelPoolFilter, setChannelPoolFilter] = useState('');
 
   const [policyItems, setPolicyItems] = useState([]);
@@ -73,6 +75,7 @@ export const usePoolsData = () => {
     limit_count: 1000,
     enabled: true,
   });
+  const [showPolicyForm, setShowPolicyForm] = useState(false);
   const [policyPoolFilter, setPolicyPoolFilter] = useState('');
 
   const [bindingItems, setBindingItems] = useState([]);
@@ -87,7 +90,8 @@ export const usePoolsData = () => {
     priority: 0,
     enabled: true,
   });
-  const [bindingTypeFilter, setBindingTypeFilter] = useState('token');
+  const [showBindingForm, setShowBindingForm] = useState(false);
+  const [bindingTypeFilter, setBindingTypeFilter] = useState('');
   const [bindingValueFilter, setBindingValueFilter] = useState('');
   const [bindingNameFilter, setBindingNameFilter] = useState('');
 
@@ -126,10 +130,19 @@ export const usePoolsData = () => {
   );
 
   const loadPoolChannels = useCallback(
-    async (targetPage = channelPage) => {
+    async (
+      targetPage = channelPage,
+      overrides = {},
+    ) => {
       setChannelLoading(true);
       try {
-        const poolQuery = channelPoolFilter ? `&pool_id=${channelPoolFilter}` : '';
+        const effectivePoolFilter =
+          overrides.poolFilter !== undefined
+            ? overrides.poolFilter
+            : channelPoolFilter;
+        const poolQuery = effectivePoolFilter
+          ? `&pool_id=${effectivePoolFilter}`
+          : '';
         const res = await API.get(
           `/api/pool/channel?p=${targetPage}&page_size=${PAGE_SIZE}${poolQuery}`,
         );
@@ -151,10 +164,19 @@ export const usePoolsData = () => {
   );
 
   const loadPolicies = useCallback(
-    async (targetPage = policyPage) => {
+    async (
+      targetPage = policyPage,
+      overrides = {},
+    ) => {
       setPolicyLoading(true);
       try {
-        const poolQuery = policyPoolFilter ? `&pool_id=${policyPoolFilter}` : '';
+        const effectivePoolFilter =
+          overrides.poolFilter !== undefined
+            ? overrides.poolFilter
+            : policyPoolFilter;
+        const poolQuery = effectivePoolFilter
+          ? `&pool_id=${effectivePoolFilter}`
+          : '';
         const res = await API.get(
           `/api/pool/policy?p=${targetPage}&page_size=${PAGE_SIZE}${poolQuery}`,
         );
@@ -262,16 +284,101 @@ export const usePoolsData = () => {
       priority: 0,
       enabled: true,
     });
+  const openCreatePool = () => {
+    resetPoolForm();
+    setShowPoolForm(true);
+  };
+  const openEditPool = (record) => {
+    setPoolForm({
+      id: record.id,
+      name: record.name || '',
+      description: record.description || '',
+      status: Number(record.status) || 1,
+    });
+    setShowPoolForm(true);
+  };
+  const closePoolForm = () => {
+    setShowPoolForm(false);
+    resetPoolForm();
+  };
+  const openCreateChannel = () => {
+    resetChannelForm();
+    setShowChannelForm(true);
+  };
+  const openEditChannel = (record) => {
+    setChannelForm({
+      id: record.id,
+      pool_id: String(record.pool_id || ''),
+      channel_id: String(record.channel_id || ''),
+      weight: Number(record.weight || 0),
+      priority: Number(record.priority || 0),
+      enabled: Boolean(record.enabled),
+    });
+    setShowChannelForm(true);
+  };
+  const closeChannelForm = () => {
+    setShowChannelForm(false);
+    resetChannelForm();
+  };
+  const openCreatePolicy = () => {
+    resetPolicyForm();
+    setShowPolicyForm(true);
+  };
+  const openEditPolicy = (record) => {
+    setPolicyForm({
+      id: record.id,
+      pool_id: String(record.pool_id || ''),
+      metric: record.metric || 'request_count',
+      scope_type: record.scope_type || 'token',
+      window_seconds: Number(record.window_seconds || 0),
+      limit_count: Number(record.limit_count || 0),
+      enabled: Boolean(record.enabled),
+    });
+    setShowPolicyForm(true);
+  };
+  const closePolicyForm = () => {
+    setShowPolicyForm(false);
+    resetPolicyForm();
+  };
+  const openCreateBinding = () => {
+    resetBindingForm();
+    setShowBindingForm(true);
+  };
+  const openEditBinding = (record) => {
+    setBindingForm({
+      id: record.id,
+      binding_type: record.binding_type || 'token',
+      binding_value: record.binding_value || '',
+      pool_id: String(record.pool_id || ''),
+      priority: Number(record.priority || 0),
+      enabled: Boolean(record.enabled),
+    });
+    setShowBindingForm(true);
+  };
+  const closeBindingForm = () => {
+    setShowBindingForm(false);
+    resetBindingForm();
+  };
   const clearBindingFilters = async () => {
-    setBindingTypeFilter('token');
+    setBindingTypeFilter('');
     setBindingValueFilter('');
     setBindingNameFilter('');
     setBindingPage(1);
     await loadBindings(1, {
-      bindingType: 'token',
+      bindingType: '',
       bindingValue: '',
       bindingName: '',
     });
+  };
+  const clearChannelFilters = async () => {
+    setChannelPoolFilter('');
+    setChannelPage(1);
+    await loadPoolChannels(1, { poolFilter: '' });
+  };
+  const clearPolicyFilters = async () => {
+    setPolicyPoolFilter('');
+    setPolicyPage(1);
+    await loadPolicies(1, { poolFilter: '' });
   };
 
   const savePool = async () => {
@@ -290,7 +397,7 @@ export const usePoolsData = () => {
         return;
       }
       showSuccess(t('Saved successfully'));
-      resetPoolForm();
+      closePoolForm();
       await loadPools(poolPage);
     } catch (error) {
       showError(getErrorMessage(error, t('Failed to save pool')));
@@ -320,7 +427,7 @@ export const usePoolsData = () => {
         return;
       }
       showSuccess(t('Saved successfully'));
-      resetChannelForm();
+      closeChannelForm();
       await loadPoolChannels(channelPage);
     } catch (error) {
       showError(getErrorMessage(error, t('Failed to save pool channel')));
@@ -356,7 +463,7 @@ export const usePoolsData = () => {
         return;
       }
       showSuccess(t('Saved successfully'));
-      resetPolicyForm();
+      closePolicyForm();
       await loadPolicies(policyPage);
     } catch (error) {
       showError(getErrorMessage(error, t('Failed to save policy')));
@@ -389,8 +496,18 @@ export const usePoolsData = () => {
         return;
       }
       showSuccess(t('Saved successfully'));
-      resetBindingForm();
-      await loadBindings(bindingPage);
+      const isCreate = bindingForm.id <= 0;
+      if (isCreate) {
+        setBindingTypeFilter('');
+      }
+      closeBindingForm();
+      if (isCreate) {
+        await loadBindings(1, {
+          bindingType: '',
+        });
+      } else {
+        await loadBindings(bindingPage);
+      }
     } catch (error) {
       showError(getErrorMessage(error, t('Failed to save binding')));
     }
@@ -408,6 +525,15 @@ export const usePoolsData = () => {
     } catch (error) {
       showError(getErrorMessage(error, errMsg));
     }
+  };
+  const confirmDeleteItem = (endpoint, id, reloadFn, errMsg) => {
+    Modal.confirm({
+      title: t('Confirm delete?'),
+      content: t('This operation cannot be undone'),
+      onOk: async () => {
+        await deleteItem(endpoint, id, reloadFn, errMsg);
+      },
+    });
   };
 
   const queryUsage = async () => {
@@ -498,12 +624,7 @@ export const usePoolsData = () => {
               size='small'
               type='tertiary'
               onClick={() =>
-                setPoolForm({
-                  id: record.id,
-                  name: record.name || '',
-                  description: record.description || '',
-                  status: Number(record.status) || 1,
-                })
+                openEditPool(record)
               }
             >
               Edit
@@ -512,7 +633,12 @@ export const usePoolsData = () => {
               size='small'
               type='danger'
               onClick={() =>
-                deleteItem('/api/pool', record.id, () => loadPools(poolPage), t('Failed to delete pool'))
+                confirmDeleteItem(
+                  '/api/pool',
+                  record.id,
+                  () => loadPools(poolPage),
+                  t('Failed to delete pool'),
+                )
               }
             >
               Delete
@@ -541,14 +667,7 @@ export const usePoolsData = () => {
               size='small'
               type='tertiary'
               onClick={() =>
-                setChannelForm({
-                  id: record.id,
-                  pool_id: String(record.pool_id || ''),
-                  channel_id: String(record.channel_id || ''),
-                  weight: Number(record.weight || 0),
-                  priority: Number(record.priority || 0),
-                  enabled: Boolean(record.enabled),
-                })
+                openEditChannel(record)
               }
             >
               Edit
@@ -557,7 +676,7 @@ export const usePoolsData = () => {
               size='small'
               type='danger'
               onClick={() =>
-                deleteItem(
+                confirmDeleteItem(
                   '/api/pool/channel',
                   record.id,
                   () => loadPoolChannels(channelPage),
@@ -592,15 +711,7 @@ export const usePoolsData = () => {
               size='small'
               type='tertiary'
               onClick={() =>
-                setPolicyForm({
-                  id: record.id,
-                  pool_id: String(record.pool_id || ''),
-                  metric: record.metric || 'request_count',
-                  scope_type: record.scope_type || 'token',
-                  window_seconds: Number(record.window_seconds || 0),
-                  limit_count: Number(record.limit_count || 0),
-                  enabled: Boolean(record.enabled),
-                })
+                openEditPolicy(record)
               }
             >
               Edit
@@ -609,7 +720,7 @@ export const usePoolsData = () => {
               size='small'
               type='danger'
               onClick={() =>
-                deleteItem(
+                confirmDeleteItem(
                   '/api/pool/policy',
                   record.id,
                   () => loadPolicies(policyPage),
@@ -645,14 +756,7 @@ export const usePoolsData = () => {
               size='small'
               type='tertiary'
               onClick={() =>
-                setBindingForm({
-                  id: record.id,
-                  binding_type: record.binding_type || 'token',
-                  binding_value: record.binding_value || '',
-                  pool_id: String(record.pool_id || ''),
-                  priority: Number(record.priority || 0),
-                  enabled: Boolean(record.enabled),
-                })
+                openEditBinding(record)
               }
             >
               Edit
@@ -661,7 +765,7 @@ export const usePoolsData = () => {
               size='small'
               type='danger'
               onClick={() =>
-                deleteItem(
+                confirmDeleteItem(
                   '/api/pool/binding',
                   record.id,
                   () => loadBindings(bindingPage),
@@ -700,6 +804,9 @@ export const usePoolsData = () => {
     poolLoading,
     poolForm,
     setPoolForm,
+    showPoolForm,
+    openCreatePool,
+    closePoolForm,
     poolColumns,
     resetPoolForm,
     savePool,
@@ -710,9 +817,13 @@ export const usePoolsData = () => {
     channelLoading,
     channelForm,
     setChannelForm,
+    showChannelForm,
+    openCreateChannel,
+    closeChannelForm,
     channelColumns,
     channelPoolFilter,
     setChannelPoolFilter,
+    clearChannelFilters,
     resetChannelForm,
     savePoolChannel,
 
@@ -722,9 +833,13 @@ export const usePoolsData = () => {
     policyLoading,
     policyForm,
     setPolicyForm,
+    showPolicyForm,
+    openCreatePolicy,
+    closePolicyForm,
     policyColumns,
     policyPoolFilter,
     setPolicyPoolFilter,
+    clearPolicyFilters,
     resetPolicyForm,
     savePolicy,
 
@@ -734,6 +849,9 @@ export const usePoolsData = () => {
     bindingLoading,
     bindingForm,
     setBindingForm,
+    showBindingForm,
+    openCreateBinding,
+    closeBindingForm,
     bindingColumns,
     bindingTypeFilter,
     setBindingTypeFilter,

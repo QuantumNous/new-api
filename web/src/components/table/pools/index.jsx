@@ -23,17 +23,19 @@ import {
   Card,
   Divider,
   Empty,
-  Form,
   Input,
   Select,
   Space,
-  Switch,
   Table,
   Tabs,
   TabPane,
   Typography,
 } from '@douyinfe/semi-ui';
 import { usePoolsData } from '../../../hooks/pools/usePoolsData';
+import PoolFormSideSheet from './modals/PoolFormSideSheet';
+import PoolChannelFormSideSheet from './modals/PoolChannelFormSideSheet';
+import PoolPolicyFormSideSheet from './modals/PoolPolicyFormSideSheet';
+import PoolBindingFormSideSheet from './modals/PoolBindingFormSideSheet';
 
 const { Text } = Typography;
 
@@ -54,8 +56,10 @@ const PoolsTable = () => {
     poolLoading,
     poolForm,
     setPoolForm,
+    showPoolForm,
+    openCreatePool,
+    closePoolForm,
     poolColumns,
-    resetPoolForm,
     savePool,
 
     channelItems,
@@ -64,10 +68,13 @@ const PoolsTable = () => {
     channelLoading,
     channelForm,
     setChannelForm,
+    showChannelForm,
+    openCreateChannel,
+    closeChannelForm,
     channelColumns,
     channelPoolFilter,
     setChannelPoolFilter,
-    resetChannelForm,
+    clearChannelFilters,
     savePoolChannel,
 
     policyItems,
@@ -76,10 +83,13 @@ const PoolsTable = () => {
     policyLoading,
     policyForm,
     setPolicyForm,
+    showPolicyForm,
+    openCreatePolicy,
+    closePolicyForm,
     policyColumns,
     policyPoolFilter,
     setPolicyPoolFilter,
-    resetPolicyForm,
+    clearPolicyFilters,
     savePolicy,
 
     bindingItems,
@@ -88,6 +98,9 @@ const PoolsTable = () => {
     bindingLoading,
     bindingForm,
     setBindingForm,
+    showBindingForm,
+    openCreateBinding,
+    closeBindingForm,
     bindingColumns,
     bindingTypeFilter,
     setBindingTypeFilter,
@@ -96,7 +109,6 @@ const PoolsTable = () => {
     bindingNameFilter,
     setBindingNameFilter,
     clearBindingFilters,
-    resetBindingForm,
     saveBinding,
 
     usageLoading,
@@ -110,6 +122,38 @@ const PoolsTable = () => {
 
   return (
     <Card>
+      <PoolFormSideSheet
+        visible={showPoolForm}
+        formData={poolForm}
+        setFormData={setPoolForm}
+        onSubmit={savePool}
+        onCancel={closePoolForm}
+        t={t}
+      />
+      <PoolChannelFormSideSheet
+        visible={showChannelForm}
+        formData={channelForm}
+        setFormData={setChannelForm}
+        onSubmit={savePoolChannel}
+        onCancel={closeChannelForm}
+        t={t}
+      />
+      <PoolPolicyFormSideSheet
+        visible={showPolicyForm}
+        formData={policyForm}
+        setFormData={setPolicyForm}
+        onSubmit={savePolicy}
+        onCancel={closePolicyForm}
+        t={t}
+      />
+      <PoolBindingFormSideSheet
+        visible={showBindingForm}
+        formData={bindingForm}
+        setFormData={setBindingForm}
+        onSubmit={saveBinding}
+        onCancel={closeBindingForm}
+        t={t}
+      />
       <div className='flex items-center justify-between mb-4'>
         <div>
           <Text strong>{t('Coding Plan')}</Text>
@@ -134,68 +178,12 @@ const PoolsTable = () => {
 
       <Tabs activeKey={activeTab} onChange={handleTabChange} type='card'>
         <TabPane className='pt-4' tab={t('Pool Bindings')} itemKey='binding'>
-          <div className='grid grid-cols-1 md:grid-cols-7 gap-3 mb-3'>
-            <Select
-              value={bindingForm.binding_type}
-              onChange={(value) =>
-                setBindingForm((prev) => ({ ...prev, binding_type: value }))
-              }
-            >
-              <Select.Option value='token'>token</Select.Option>
-              <Select.Option value='user'>user</Select.Option>
-              <Select.Option value='group'>group</Select.Option>
-              <Select.Option value='default'>default</Select.Option>
-              <Select.Option value='subscription_plan'>subscription_plan</Select.Option>
-            </Select>
-            <Input
-              placeholder={
-                bindingForm.binding_type === 'token'
-                  ? 'token_id'
-                  : bindingForm.binding_type === 'user'
-                    ? 'user_id'
-                    : bindingForm.binding_type === 'group'
-                      ? 'group'
-                      : bindingForm.binding_type === 'subscription_plan'
-                        ? 'subscription_plan'
-                        : 'binding_value'
-              }
-              value={bindingForm.binding_value}
-              onChange={(value) =>
-                setBindingForm((prev) => ({ ...prev, binding_value: value }))
-              }
-            />
-            <Input
-              placeholder='pool_id'
-              value={bindingForm.pool_id}
-              onChange={(value) => setBindingForm((prev) => ({ ...prev, pool_id: value }))}
-            />
-            <Input
-              placeholder='priority'
-              value={String(bindingForm.priority)}
-              onChange={(value) =>
-                setBindingForm((prev) => ({ ...prev, priority: Number(value || 0) }))
-              }
-            />
-            <div className='flex items-center gap-2'>
-              <Text type='secondary'>Enabled</Text>
-              <Switch
-                checked={bindingForm.enabled}
-                onChange={(value) =>
-                  setBindingForm((prev) => ({ ...prev, enabled: Boolean(value) }))
-                }
-              />
-            </div>
-            <Space>
-              <Button type='primary' onClick={saveBinding}>
-                {bindingForm.id > 0 ? t('Update') : t('Create')}
-              </Button>
-              <Button onClick={resetBindingForm}>{t('Reset')}</Button>
-            </Space>
-          </div>
-          {/* <Text type='secondary' size='small'>
-            {t('Binding precedence: token > user > group > default.')}
-          </Text> */}
+          {/* <div className='flex justify-end mb-3'>
+          </div> */}
           <div className='flex gap-2 mb-3'>
+            <Button type='primary' onClick={openCreateBinding}>
+              {t('Create')}
+            </Button>
             <Input
               placeholder='filter binding_value'
               value={bindingValueFilter}
@@ -214,6 +202,7 @@ const PoolsTable = () => {
               style={{ maxWidth: 220 }}
               allowClear
             >
+              <Select.Option value=''>all</Select.Option>
               <Select.Option value='token'>token</Select.Option>
               <Select.Option value='user'>user</Select.Option>
             </Select>
@@ -235,37 +224,13 @@ const PoolsTable = () => {
         </TabPane>
 
         <TabPane className='pt-4' tab={t('Pools')} itemKey='pool'>
-          <Form layout='horizontal'>
-            <div className='grid grid-cols-1 md:grid-cols-4 gap-3 mb-3'>
-              <Input
-                placeholder='name'
-                value={poolForm.name}
-                onChange={(value) => setPoolForm((prev) => ({ ...prev, name: value }))}
-              />
-              <Input
-                placeholder='description'
-                value={poolForm.description}
-                onChange={(value) =>
-                  setPoolForm((prev) => ({ ...prev, description: value }))
-                }
-              />
-              <Select
-                value={String(poolForm.status)}
-                onChange={(value) =>
-                  setPoolForm((prev) => ({ ...prev, status: Number(value) }))
-                }
-              >
-                <Select.Option value='1'>Enabled</Select.Option>
-                <Select.Option value='2'>Disabled</Select.Option>
-              </Select>
-              <Space>
-                <Button type='primary' onClick={savePool}>
-                  {poolForm.id > 0 ? t('Update') : t('Create')}
-                </Button>
-                <Button onClick={resetPoolForm}>{t('Reset')}</Button>
-              </Space>
-            </div>
-          </Form>
+          {/* <div className='flex justify-end mb-3'>
+          </div> */}
+          <div className='flex gap-2 mb-3'>
+            <Button type='primary' onClick={openCreatePool}>
+              {t('Create')}
+            </Button>
+          </div>
           <Table
             rowKey='id'
             loading={poolLoading}
@@ -286,50 +251,12 @@ const PoolsTable = () => {
         </TabPane>
 
         <TabPane className='pt-4' tab={t('Pool Channels')} itemKey='channel'>
-          <div className='grid grid-cols-1 md:grid-cols-6 gap-3 mb-3'>
-            <Input
-              placeholder='pool_id'
-              value={channelForm.pool_id}
-              onChange={(value) => setChannelForm((prev) => ({ ...prev, pool_id: value }))}
-            />
-            <Input
-              placeholder='channel_id'
-              value={channelForm.channel_id}
-              onChange={(value) =>
-                setChannelForm((prev) => ({ ...prev, channel_id: value }))
-              }
-            />
-            <Input
-              placeholder='weight'
-              value={String(channelForm.weight)}
-              onChange={(value) =>
-                setChannelForm((prev) => ({ ...prev, weight: Number(value || 0) }))
-              }
-            />
-            <Input
-              placeholder='priority'
-              value={String(channelForm.priority)}
-              onChange={(value) =>
-                setChannelForm((prev) => ({ ...prev, priority: Number(value || 0) }))
-              }
-            />
-            <div className='flex items-center gap-2'>
-              <Text type='secondary'>Enabled</Text>
-              <Switch
-                checked={channelForm.enabled}
-                onChange={(value) =>
-                  setChannelForm((prev) => ({ ...prev, enabled: Boolean(value) }))
-                }
-              />
-            </div>
-            <Space>
-              <Button type='primary' onClick={savePoolChannel}>
-                {channelForm.id > 0 ? t('Update') : t('Create')}
-              </Button>
-              <Button onClick={resetChannelForm}>{t('Reset')}</Button>
-            </Space>
-          </div>
+          {/* <div className='flex justify-end mb-3'>
+          </div> */}
           <div className='flex gap-2 mb-3'>
+            <Button type='primary' onClick={openCreateChannel}>
+              {t('Create')}
+            </Button>
             <Input
               placeholder='filter pool_id'
               value={channelPoolFilter}
@@ -337,6 +264,7 @@ const PoolsTable = () => {
               style={{ maxWidth: 220 }}
             />
             <Button onClick={() => loadPoolChannels(1)}>{t('Apply Filter')}</Button>
+            <Button onClick={clearChannelFilters}>{t('Clear Filters')}</Button>
           </div>
           <Table
             rowKey='id'
@@ -353,68 +281,17 @@ const PoolsTable = () => {
         </TabPane>
 
         <TabPane className='pt-4' tab={t('Pool Policies')} itemKey='policy'>
-          <div className='grid grid-cols-1 md:grid-cols-7 gap-3 mb-3'>
-            <Input
-              placeholder='pool_id'
-              value={policyForm.pool_id}
-              onChange={(value) => setPolicyForm((prev) => ({ ...prev, pool_id: value }))}
-            />
-            <Input
-              placeholder='metric'
-              value={policyForm.metric}
-              onChange={(value) => setPolicyForm((prev) => ({ ...prev, metric: value }))}
-            />
-            <Select
-              value={policyForm.scope_type}
-              onChange={(value) =>
-                setPolicyForm((prev) => ({ ...prev, scope_type: value }))
-              }
-            >
-              <Select.Option value='token'>token</Select.Option>
-              <Select.Option value='user'>user</Select.Option>
-            </Select>
-            <Input
-              placeholder='window_seconds'
-              value={String(policyForm.window_seconds)}
-              onChange={(value) =>
-                setPolicyForm((prev) => ({
-                  ...prev,
-                  window_seconds: Number(value || 0),
-                }))
-              }
-            />
-            <Input
-              placeholder='limit_count'
-              value={String(policyForm.limit_count)}
-              onChange={(value) =>
-                setPolicyForm((prev) => ({
-                  ...prev,
-                  limit_count: Number(value || 0),
-                }))
-              }
-            />
-            <div className='flex items-center gap-2'>
-              <Text type='secondary'>Enabled</Text>
-              <Switch
-                checked={policyForm.enabled}
-                onChange={(value) =>
-                  setPolicyForm((prev) => ({ ...prev, enabled: Boolean(value) }))
-                }
-              />
-            </div>
-            <Space>
-              <Button type='primary' onClick={savePolicy}>
-                {policyForm.id > 0 ? t('Update') : t('Create')}
-              </Button>
-              <Button onClick={resetPolicyForm}>{t('Reset')}</Button>
-            </Space>
-          </div>
-          <Text type='secondary' size='small'>
+          {/* <div className='flex justify-end mb-3'>
+          </div> */}
+          {/* <Text type='secondary' size='small'>
             {t(
               'Scope precedence: token policies take priority over user policies for the same pool. If token identity is missing, token-scope falls back to user scope.',
             )}
-          </Text>
+          </Text> */}
           <div className='flex gap-2 mb-3'>
+            <Button type='primary' onClick={openCreatePolicy}>
+              {t('Create')}
+            </Button>
             <Input
               placeholder='filter pool_id'
               value={policyPoolFilter}
@@ -422,6 +299,7 @@ const PoolsTable = () => {
               style={{ maxWidth: 220 }}
             />
             <Button onClick={() => loadPolicies(1)}>{t('Apply Filter')}</Button>
+            <Button onClick={clearPolicyFilters}>{t('Clear Filters')}</Button>
           </div>
           <Table
             rowKey='id'
