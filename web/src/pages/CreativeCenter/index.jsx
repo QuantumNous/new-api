@@ -4849,6 +4849,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       dataPayload.resultUrl ||
       dataPayload.video_url ||
       dataPayload.output_url ||
+      dataPayload?.data?.[0]?.url ||
+      dataPayload?.data?.[0]?.video_url ||
       dataPayload?.metadata?.url ||
       dataPayload?.metadata?.remote_url ||
       rootPayload?.url ||
@@ -4858,6 +4860,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       rootPayload?.resultUrl ||
       rootPayload?.video_url ||
       rootPayload?.output_url ||
+      rootPayload?.data?.[0]?.url ||
+      rootPayload?.data?.[0]?.video_url ||
       rootPayload?.metadata?.url ||
       rootPayload?.metadata?.remote_url ||
       '';
@@ -7262,6 +7266,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             const immediateResultUrl =
               normalizeVideoMediaUrl(submitPayload?.url) ||
               normalizeVideoMediaUrl(submitPayload?.video_url) ||
+              normalizeVideoMediaUrl(submitPayload?.data?.[0]?.url) ||
+              normalizeVideoMediaUrl(submitPayload?.data?.[0]?.video_url) ||
               normalizeVideoMediaUrl(submitPayload?.result_url);
             const normalizedStatus = normalizeVideoTaskStatus(
               submitPayload?.status ||

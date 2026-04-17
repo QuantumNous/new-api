@@ -356,6 +356,8 @@ export const useApiRequest = (
       payload.data?.url,
       payload.data?.video_url,
       payload.data?.result_url,
+      payload.data?.[0]?.url,
+      payload.data?.[0]?.video_url,
       payload.data?.metadata?.url,
     ];
 
