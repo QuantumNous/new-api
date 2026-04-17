@@ -421,6 +421,16 @@ func (c *ClaudeRequest) GetEfforts() string {
 	return ""
 }
 
+func MergeEffortIntoOutputConfig(existing json.RawMessage, effort string) json.RawMessage {
+	oc := map[string]any{}
+	if len(existing) > 0 {
+		_ = common.Unmarshal(existing, &oc)
+	}
+	oc["effort"] = effort
+	b, _ := common.Marshal(oc)
+	return b
+}
+
 // ProcessTools 处理工具列表，支持类型断言
 func ProcessTools(tools []any) ([]*Tool, []*ClaudeWebSearchTool) {
 	var normalTools []*Tool

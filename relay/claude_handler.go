@@ -2,7 +2,6 @@ package relay
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,7 +57,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		request.Thinking = &dto.Thinking{
 			Type: "adaptive",
 		}
-		request.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, effortLevel))
+		request.OutputConfig = dto.MergeEffortIntoOutputConfig(request.OutputConfig, effortLevel)
 		if strings.HasPrefix(request.Model, "claude-opus-4-7") {
 			// Opus 4.7 rejects non-default temperature/top_p/top_k with 400
 			// and defaults display to "omitted"; restore the 4.6 visible summary.
@@ -77,7 +76,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			if strings.HasPrefix(baseModel, "claude-opus-4-7") {
 				// Opus 4.7 rejects thinking.type="enabled"; use adaptive at high effort.
 				request.Thinking = &dto.Thinking{Type: "adaptive", Display: "summarized"}
-				request.OutputConfig = json.RawMessage(`{"effort":"high"}`)
+				request.OutputConfig = dto.MergeEffortIntoOutputConfig(request.OutputConfig, "high")
 				request.Temperature = nil
 				request.TopP = nil
 				request.TopK = nil
