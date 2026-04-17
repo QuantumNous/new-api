@@ -1824,16 +1824,20 @@ const buildResolvedVideoTaskPatch = (queryTaskId, nextTaskState) => (currentTask
   );
   const resolvedUrl = normalizeVideoMediaUrl(nextTaskState?.url);
   const currentMediaUrl = getVideoTaskMediaUrl(currentTask);
-  const finalUrl = resolvedUrl || currentMediaUrl;
-  const completedWithoutVideo = normalizedStatus === 'completed' && !finalUrl;
+  const currentTaskId = getRecoverableVideoTaskId(currentTask);
+  const canReuseCurrentMediaUrl =
+    Boolean(currentMediaUrl) &&
+    (!queryTaskId || currentTaskId === queryTaskId);
+  const safeFinalUrl = resolvedUrl || (canReuseCurrentMediaUrl ? currentMediaUrl : '');
+  const completedWithoutVideo = normalizedStatus === 'completed' && !safeFinalUrl;
   const isFailed = normalizedStatus === 'failed' || completedWithoutVideo;
-  const isCompleted = Boolean(finalUrl) && !isFailed;
+  const isCompleted = Boolean(safeFinalUrl) && !isFailed;
   const nextStatus = isCompleted
     ? 'completed'
     : isFailed
       ? 'failed'
       : normalizedStatus;
-  const nextUrl = isFailed ? '' : finalUrl;
+  const nextUrl = isFailed ? '' : safeFinalUrl;
 
   return {
     taskId: queryTaskId || currentTask?.taskId || '',
@@ -4675,23 +4679,43 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   const getCreativeVideoCandidateKey = (candidate) =>
     String(candidate?.taskId || candidate?.localTaskId || '').trim();
 
+  const getCreativeVideoTaskMatchKey = (task) => {
+    const taskId = getCreativeVideoTaskDtoId(task);
+    if (taskId) {
+      return `task:${taskId}`;
+    }
+
+    const requestId = getTaskDtoRequestId(task);
+    if (requestId) {
+      return `request:${requestId}`;
+    }
+
+    const resultUrl = normalizeVideoMediaUrl(getTaskDtoResultUrl(task));
+    if (resultUrl) {
+      return `url:${resultUrl}`;
+    }
+
+    const id = String(task?.id || '').trim();
+    return id ? `id:${id}` : '';
+  };
+
   const mergeCreativeTaskDtoLists = (...lists) => {
-    const taskById = new Map();
+    const taskByKey = new Map();
     const anonymousTasks = [];
 
     lists.flat().forEach((task) => {
       if (!task) {
         return;
       }
-      const taskId = getCreativeVideoTaskDtoId(task);
-      if (taskId) {
-        taskById.set(taskId, task);
+      const matchKey = getCreativeVideoTaskMatchKey(task);
+      if (matchKey) {
+        taskByKey.set(matchKey, task);
         return;
       }
       anonymousTasks.push(task);
     });
 
-    return [...taskById.values(), ...anonymousTasks];
+    return [...taskByKey.values(), ...anonymousTasks];
   };
 
   const matchCreativeVideoTasksToCandidates = (candidates, tasks) => {
@@ -4706,17 +4730,22 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           normalizeCreativeTimestampToSeconds(right?.submit_time || right?.submitTime),
       );
     const matches = new Map();
-    const usedTaskIds = new Set();
+    const usedTaskKeys = new Set();
+
+    const isTaskAlreadyUsed = (task) => {
+      const taskKey = getCreativeVideoTaskMatchKey(task);
+      return Boolean(taskKey && usedTaskKeys.has(taskKey));
+    };
 
     const rememberMatch = (candidate, task) => {
       const candidateKey = getCreativeVideoCandidateKey(candidate);
-      if (!candidateKey || !task) {
+      if (!candidateKey || !task || isTaskAlreadyUsed(task)) {
         return;
       }
       matches.set(candidateKey, task);
-      const taskId = getCreativeVideoTaskDtoId(task);
-      if (taskId) {
-        usedTaskIds.add(taskId);
+      const taskKey = getCreativeVideoTaskMatchKey(task);
+      if (taskKey) {
+        usedTaskKeys.add(taskKey);
       }
     };
 
@@ -4726,7 +4755,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         return;
       }
       const matchedTask = videoTasks.find(
-        (task) => getCreativeVideoTaskDtoId(task) === queryTaskId,
+        (task) =>
+          !isTaskAlreadyUsed(task) &&
+          getCreativeVideoTaskDtoId(task) === queryTaskId,
       );
       if (matchedTask) {
         rememberMatch(candidate, matchedTask);
@@ -4742,7 +4773,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         return;
       }
       const matchedTask = videoTasks.find(
-        (task) => getTaskDtoRequestId(task) === requestId,
+        (task) =>
+          !isTaskAlreadyUsed(task) &&
+          getTaskDtoRequestId(task) === requestId,
       );
       if (matchedTask) {
         rememberMatch(candidate, matchedTask);
@@ -4752,6 +4785,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     const groupedCandidates = Array.from(
       safeCandidates.reduce((map, candidate) => {
         if (matches.has(getCreativeVideoCandidateKey(candidate))) {
+          return map;
+        }
+        if (String(candidate?.queryTaskId || '').trim()) {
           return map;
         }
         const key = candidate.recordId || 'default';
@@ -4782,8 +4818,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       const recordEnd = recordTimes.length > 0 ? Math.max(...recordTimes) + 1800 : 0;
 
       const matchedTasks = videoTasks.filter((task) => {
-        const taskId = getCreativeVideoTaskDtoId(task);
-        if (taskId && usedTaskIds.has(taskId)) {
+        if (isTaskAlreadyUsed(task)) {
           return false;
         }
         const taskModelName = getTaskDtoModelName(task).toLowerCase();
@@ -4876,13 +4911,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       dataPayload.fail_reason ||
       rootPayload?.error?.message ||
       '';
+    const completedWithoutVideo = status === 'completed' && !url;
 
     return {
-      status,
+      status: completedWithoutVideo ? 'failed' : status,
       progress,
       url,
       content,
-      error,
+      error: completedWithoutVideo ? error || 'video generation failed' : error,
     };
   };
 
@@ -5463,10 +5499,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
           const unresolvedTasks = tasksToPoll.filter(
             (task) =>
-              !(
-                task.queryTaskId &&
-                exactTaskByTaskId.has(task.queryTaskId)
-              ) &&
+              !task.queryTaskId &&
               !(
                 task.requestId &&
                 exactTaskByRequestId.has(task.requestId)
