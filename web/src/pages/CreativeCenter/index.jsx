@@ -7158,20 +7158,26 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               return;
             }
 
-            const payload = {
-              model: currentModelName,
-              group: activeGroup,
-              prompt: currentPrompt,
-              request_id: requestId,
-              seed: requestSeed,
-              seeds: [requestSeed],
-              user: requestUser,
-              metadata: {
-                creative_request_id: requestUser,
-                creative_seed: requestSeed,
-                creative_index: index + 1,
-              },
-            };
+            const payload = isAdobeSoraModel
+              ? {
+                  model: currentModelName,
+                  prompt: currentPrompt,
+                  async: true,
+                }
+              : {
+                  model: currentModelName,
+                  group: activeGroup,
+                  prompt: currentPrompt,
+                  request_id: requestId,
+                  seed: requestSeed,
+                  seeds: [requestSeed],
+                  user: requestUser,
+                  metadata: {
+                    creative_request_id: requestUser,
+                    creative_seed: requestSeed,
+                    creative_index: index + 1,
+                  },
+                };
             [
               'size',
               'seconds',
@@ -7189,7 +7195,23 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               }
             });
             if (isAdobeSoraModel && currentUploadedImageUrls[0]) {
-              payload.input_reference = currentUploadedImageUrls[0];
+              payload.messages = [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: currentPrompt,
+                    },
+                    {
+                      type: 'image_url',
+                      image_url: {
+                        url: currentUploadedImageUrls[0],
+                      },
+                    },
+                  ],
+                },
+              ];
             } else if (
               currentModelName === 'grok-imagine-1.0-video' &&
               currentUploadedImageUrls.length > 0

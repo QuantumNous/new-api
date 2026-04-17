@@ -2,7 +2,6 @@ package sora
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -19,7 +18,6 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
-
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
@@ -301,136 +299,79 @@ func soraSizeFromAspectRatio(value string) string {
 	}
 }
 
+func soraAspectRatioFromSize(value string) string {
+	switch strings.TrimSpace(value) {
+	case "1280x720", "1792x1024":
+		return "16:9"
+	case "720x1280", "1024x1792":
+		return "9:16"
+	default:
+		return ""
+	}
+}
+
+func soraDurationBodyValue(value string) interface{} {
+	if duration, err := strconv.Atoi(strings.TrimSpace(value)); err == nil {
+		return duration
+	}
+	return strings.TrimSpace(value)
+}
+
 func normalizeSoraVideoRequest(bodyMap map[string]interface{}, upstreamModel string) {
 	if !isSoraVideoModel(upstreamModel) {
 		return
 	}
 
-	seconds := stringifyBodyValue(bodyMap["seconds"])
 	duration := stringifyBodyValue(bodyMap["duration"])
-	size := stringifyBodyValue(bodyMap["size"])
 	aspectRatio := stringifyBodyValue(bodyMap["aspect_ratio"])
+	seconds := stringifyBodyValue(bodyMap["seconds"])
+	size := stringifyBodyValue(bodyMap["size"])
+	prompt := stringifyBodyValue(bodyMap["prompt"])
+	inputReference := stringifyBodyValue(bodyMap["input_reference"])
 
-	if seconds == "" {
-		if duration != "" {
-			seconds = duration
+	if duration == "" {
+		if seconds != "" {
+			duration = seconds
 		} else {
-			seconds = "4"
+			duration = "4"
 		}
 	}
-	if size == "" {
-		if mapped := soraSizeFromAspectRatio(aspectRatio); mapped != "" {
-			size = mapped
+	if aspectRatio == "" {
+		if mapped := soraAspectRatioFromSize(size); mapped != "" {
+			aspectRatio = mapped
 		} else {
-			size = "720x1280"
+			aspectRatio = "9:16"
 		}
 	}
 
-	bodyMap["seconds"] = seconds
-	bodyMap["size"] = size
-	delete(bodyMap, "duration")
-	delete(bodyMap, "aspect_ratio")
-}
+	bodyMap["duration"] = soraDurationBodyValue(duration)
+	bodyMap["aspect_ratio"] = aspectRatio
+	bodyMap["async"] = true
+	delete(bodyMap, "seconds")
+	delete(bodyMap, "size")
 
-func addMultipartField(writer *multipart.Writer, key string, value interface{}) error {
-	switch v := value.(type) {
-	case nil:
-		return nil
-	case []string:
-		for _, item := range v {
-			if err := addMultipartField(writer, key, item); err != nil {
-				return err
-			}
+	if _, exists := bodyMap["messages"]; !exists && inputReference != "" {
+		content := make([]map[string]interface{}, 0, 2)
+		if prompt != "" {
+			content = append(content, map[string]interface{}{
+				"type": "text",
+				"text": prompt,
+			})
 		}
-		return nil
-	case []interface{}:
-		for _, item := range v {
-			if err := addMultipartField(writer, key, item); err != nil {
-				return err
-			}
-		}
-		return nil
-	default:
-		str := stringifyBodyValue(v)
-		if str == "" {
-			return nil
-		}
-		return writer.WriteField(key, str)
-	}
-}
-
-func inputReferenceFilename(mimeType string) string {
-	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
-	switch mimeType {
-	case "image/jpeg":
-		return "input_reference.jpg"
-	case "image/png":
-		return "input_reference.png"
-	case "image/webp":
-		return "input_reference.webp"
-	case "image/gif":
-		return "input_reference.gif"
-	default:
-		return "input_reference"
-	}
-}
-
-func resolveInputReferenceFile(value string) (mimeType string, raw []byte, err error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return "", nil, nil
-	}
-
-	var encoded string
-	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
-		mimeType, encoded, err = service.GetImageFromUrl(value)
-		if err != nil {
-			return "", nil, err
-		}
-	} else {
-		mimeType, encoded, err = service.DecodeBase64FileData(value)
-		if err != nil {
-			return "", nil, err
+		content = append(content, map[string]interface{}{
+			"type": "image_url",
+			"image_url": map[string]interface{}{
+				"url": inputReference,
+			},
+		})
+		bodyMap["messages"] = []map[string]interface{}{
+			{
+				"role":    "user",
+				"content": content,
+			},
 		}
 	}
-
-	raw, err = base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return "", nil, err
-	}
-	return mimeType, raw, nil
-}
-
-func writeInputReferencePart(writer *multipart.Writer, value string) error {
-	mimeType, raw, err := resolveInputReferenceFile(value)
-	if err != nil {
-		return err
-	}
-	if len(raw) == 0 {
-		return nil
-	}
-
-	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, "input_reference", inputReferenceFilename(mimeType)))
-	h.Set("Content-Type", mimeType)
-	part, err := writer.CreatePart(h)
-	if err != nil {
-		return err
-	}
-	_, err = part.Write(raw)
-	return err
-}
-
-func buildMultipartBodyFromMap(writer *multipart.Writer, bodyMap map[string]interface{}, skipKeys map[string]struct{}) error {
-	for key, value := range bodyMap {
-		if _, skip := skipKeys[key]; skip {
-			continue
-		}
-		if err := addMultipartField(writer, key, value); err != nil {
-			return err
-		}
-	}
-	return nil
+	delete(bodyMap, "input_reference")
 }
 
 func extractVideoURL(respBody []byte) string {
@@ -535,27 +476,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			bodyMap["model"] = info.UpstreamModelName
 			normalizeGrokVideoRequest(bodyMap, info.UpstreamModelName)
 			normalizeSoraVideoRequest(bodyMap, info.UpstreamModelName)
-			if isSoraVideoModel(info.UpstreamModelName) {
-				inputReference := stringifyBodyValue(bodyMap["input_reference"])
-				if inputReference != "" {
-					var buf bytes.Buffer
-					writer := multipart.NewWriter(&buf)
-					if err := buildMultipartBodyFromMap(writer, bodyMap, map[string]struct{}{
-						"input_reference": {},
-					}); err != nil {
-						return nil, err
-					}
-					if err := writeInputReferencePart(writer, inputReference); err != nil {
-						return nil, err
-					}
-					if err := writer.Close(); err != nil {
-						return nil, err
-					}
-					c.Request.Header.Set("Content-Type", writer.FormDataContentType())
-					return &buf, nil
-				}
-			}
 			if newBody, err := common.Marshal(bodyMap); err == nil {
+				c.Request.Header.Set("Content-Type", "application/json")
 				return bytes.NewReader(newBody), nil
 			}
 		}
@@ -571,10 +493,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		writer := multipart.NewWriter(&buf)
 		writer.WriteField("model", info.UpstreamModelName)
 		hasSeconds := false
+		hasDuration := false
 		durationValue := ""
 		hasSize := false
+		sizeValue := ""
+		hasAspectRatio := false
 		aspectRatioValue := ""
-		inputReferenceValue := ""
 		for key, values := range formData.Value {
 			if key == "model" {
 				continue
@@ -582,19 +506,25 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			if key == "seconds" && len(values) > 0 && strings.TrimSpace(values[0]) != "" {
 				hasSeconds = true
 			}
+			if key == "duration" && len(values) > 0 && strings.TrimSpace(values[0]) != "" {
+				hasDuration = true
+			}
 			if key == "duration" && len(values) > 0 && durationValue == "" {
 				durationValue = strings.TrimSpace(values[0])
 			}
 			if key == "size" && len(values) > 0 && strings.TrimSpace(values[0]) != "" {
 				hasSize = true
+				if sizeValue == "" {
+					sizeValue = strings.TrimSpace(values[0])
+				}
+			}
+			if key == "aspect_ratio" && len(values) > 0 && strings.TrimSpace(values[0]) != "" {
+				hasAspectRatio = true
 			}
 			if key == "aspect_ratio" && len(values) > 0 && aspectRatioValue == "" {
 				aspectRatioValue = strings.TrimSpace(values[0])
 			}
-			if key == "input_reference" && len(values) > 0 && inputReferenceValue == "" {
-				inputReferenceValue = strings.TrimSpace(values[0])
-			}
-			if isSoraVideoModel(info.UpstreamModelName) && (key == "duration" || key == "aspect_ratio" || key == "input_reference") {
+			if isSoraVideoModel(info.UpstreamModelName) && (key == "seconds" || key == "size") {
 				continue
 			}
 			for _, v := range values {
@@ -605,21 +535,23 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			writer.WriteField("seconds", durationValue)
 		}
 		if isSoraVideoModel(info.UpstreamModelName) {
-			if !hasSeconds {
+			if !hasDuration {
 				if durationValue == "" {
 					durationValue = "4"
 				}
-				writer.WriteField("seconds", durationValue)
+				writer.WriteField("duration", durationValue)
 			}
-			if !hasSize {
-				sizeValue := soraSizeFromAspectRatio(aspectRatioValue)
-				if sizeValue == "" {
-					sizeValue = "720x1280"
+			if !hasAspectRatio {
+				if aspectRatioValue == "" && hasSize {
+					aspectRatioValue = soraAspectRatioFromSize(sizeValue)
 				}
-				writer.WriteField("size", sizeValue)
+				if aspectRatioValue == "" {
+					aspectRatioValue = "9:16"
+				}
+				writer.WriteField("aspect_ratio", aspectRatioValue)
 			}
+			writer.WriteField("async", "true")
 		}
-		hasInputReferenceFile := false
 		for fieldName, fileHeaders := range formData.File {
 			for _, fh := range fileHeaders {
 				f, err := fh.Open()
@@ -648,14 +580,6 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 				}
 				io.Copy(part, f)
 				f.Close()
-				if fieldName == "input_reference" {
-					hasInputReferenceFile = true
-				}
-			}
-		}
-		if isSoraVideoModel(info.UpstreamModelName) && !hasInputReferenceFile && inputReferenceValue != "" {
-			if err := writeInputReferencePart(writer, inputReferenceValue); err != nil {
-				return nil, err
 			}
 		}
 		writer.Close()

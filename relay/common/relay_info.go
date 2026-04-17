@@ -668,6 +668,7 @@ type TaskSubmitReq struct {
 	Model          string                 `json:"model,omitempty"`
 	RequestId      string                 `json:"request_id,omitempty"`
 	Mode           string                 `json:"mode,omitempty"`
+	Messages       json.RawMessage        `json:"messages,omitempty"`
 	Image          string                 `json:"image,omitempty"`
 	Images         []string               `json:"images,omitempty"`
 	ImageReference json.RawMessage        `json:"image_reference,omitempty"`
@@ -692,14 +693,57 @@ func (t *TaskSubmitReq) HasImage() bool {
 	if strings.TrimSpace(t.Image) != "" || strings.TrimSpace(t.InputReference) != "" {
 		return true
 	}
-	if len(t.ImageReference) == 0 || common.GetJsonType(t.ImageReference) != "array" {
+	if len(t.ImageReference) > 0 && common.GetJsonType(t.ImageReference) == "array" {
+		var refs []any
+		if err := common.Unmarshal(t.ImageReference, &refs); err == nil && len(refs) > 0 {
+			return true
+		}
+	}
+	return t.hasMessageImage()
+}
+
+func (t *TaskSubmitReq) hasMessageImage() bool {
+	if len(t.Messages) == 0 || common.GetJsonType(t.Messages) != "array" {
 		return false
 	}
-	var refs []any
-	if err := common.Unmarshal(t.ImageReference, &refs); err != nil {
+
+	var messages []any
+	if err := common.Unmarshal(t.Messages, &messages); err != nil {
 		return false
 	}
-	return len(refs) > 0
+
+	for _, message := range messages {
+		messageMap, ok := message.(map[string]any)
+		if !ok {
+			continue
+		}
+		contentItems, ok := messageMap["content"].([]any)
+		if !ok {
+			continue
+		}
+		for _, item := range contentItems {
+			itemMap, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			itemType := strings.ToLower(strings.TrimSpace(common.Interface2String(itemMap["type"])))
+			if itemType != "image_url" {
+				continue
+			}
+			if imageURL := strings.TrimSpace(common.Interface2String(itemMap["image_url"])); imageURL != "" {
+				return true
+			}
+			imageURLMap, ok := itemMap["image_url"].(map[string]any)
+			if !ok {
+				continue
+			}
+			if imageURL := strings.TrimSpace(common.Interface2String(imageURLMap["url"])); imageURL != "" {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {

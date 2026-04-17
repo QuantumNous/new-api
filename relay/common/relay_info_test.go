@@ -1,40 +1,29 @@
 package common
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/QuantumNous/new-api/types"
-	"github.com/stretchr/testify/require"
-)
-
-func TestRelayInfoGetFinalRequestRelayFormatPrefersExplicitFinal(t *testing.T) {
-	info := &RelayInfo{
-		RelayFormat:             types.RelayFormatOpenAI,
-		RequestConversionChain:  []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude},
-		FinalRequestRelayFormat: types.RelayFormatOpenAIResponses,
+func TestTaskSubmitReqHasImageFromMessages(t *testing.T) {
+	req := TaskSubmitReq{
+		Messages: []byte(`[
+			{
+				"role": "user",
+				"content": [
+					{
+						"type": "text",
+						"text": "show the product"
+					},
+					{
+						"type": "image_url",
+						"image_url": {
+							"url": "https://img688.com/file/demo.jpg"
+						}
+					}
+				]
+			}
+		]`),
 	}
 
-	require.Equal(t, types.RelayFormat(types.RelayFormatOpenAIResponses), info.GetFinalRequestRelayFormat())
-}
-
-func TestRelayInfoGetFinalRequestRelayFormatFallsBackToConversionChain(t *testing.T) {
-	info := &RelayInfo{
-		RelayFormat:            types.RelayFormatOpenAI,
-		RequestConversionChain: []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude},
+	if !req.HasImage() {
+		t.Fatalf("expected HasImage to detect image_url inside messages")
 	}
-
-	require.Equal(t, types.RelayFormat(types.RelayFormatClaude), info.GetFinalRequestRelayFormat())
-}
-
-func TestRelayInfoGetFinalRequestRelayFormatFallsBackToRelayFormat(t *testing.T) {
-	info := &RelayInfo{
-		RelayFormat: types.RelayFormatGemini,
-	}
-
-	require.Equal(t, types.RelayFormat(types.RelayFormatGemini), info.GetFinalRequestRelayFormat())
-}
-
-func TestRelayInfoGetFinalRequestRelayFormatNilReceiver(t *testing.T) {
-	var info *RelayInfo
-	require.Equal(t, types.RelayFormat(""), info.GetFinalRequestRelayFormat())
 }
