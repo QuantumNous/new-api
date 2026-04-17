@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
 	"github.com/QuantumNous/new-api/service"
@@ -45,6 +46,8 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 }
 
 func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
+	normalizeCompletionPromptForClaude(&textRequest)
+
 	claudeTools := make([]any, 0, len(textRequest.Tools))
 
 	for _, tool := range textRequest.Tools {
@@ -401,6 +404,48 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	return &claudeRequest, nil
 }
 
+func normalizeCompletionPromptForClaude(textRequest *dto.GeneralOpenAIRequest) {
+	if textRequest == nil || len(textRequest.Messages) > 0 || textRequest.Prompt == nil {
+		return
+	}
+
+	prefix := openAICompletionTextPart(textRequest.Prompt)
+	suffix := openAICompletionTextPart(textRequest.Suffix)
+	content := prefix
+	if suffix != "" {
+		content = fmt.Sprintf("Complete the code at <cursor>. Return only the text that should replace <cursor>.\n\nPrefix:\n%s<cursor>\n\nSuffix:\n%s", prefix, suffix)
+	}
+
+	textRequest.Messages = []dto.Message{
+		{
+			Role:    "user",
+			Content: content,
+		},
+	}
+}
+
+func openAICompletionTextPart(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case []string:
+		return strings.Join(v, "")
+	case []any:
+		var builder strings.Builder
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				builder.WriteString(s)
+			}
+		}
+		if builder.Len() > 0 {
+			return builder.String()
+		}
+	}
+	return common.Interface2String(value)
+}
+
 func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {
 	var response dto.ChatCompletionsStreamResponse
 	response.Object = "chat.completion.chunk"
@@ -483,6 +528,66 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 	response.Choices = append(response.Choices, choice)
 
 	return &response
+}
+
+func StreamResponseClaude2OpenAICompletion(claudeResponse *dto.ClaudeResponse) *dto.CompletionsStreamResponse {
+	chatResponse := StreamResponseClaude2OpenAI(claudeResponse)
+	if chatResponse == nil {
+		return nil
+	}
+
+	response := &dto.CompletionsStreamResponse{}
+	for _, choice := range chatResponse.Choices {
+		finishReason := ""
+		if choice.FinishReason != nil {
+			finishReason = *choice.FinishReason
+		}
+		response.Choices = append(response.Choices, struct {
+			Text         string `json:"text"`
+			FinishReason string `json:"finish_reason"`
+		}{
+			Text:         choice.Delta.GetContentString(),
+			FinishReason: finishReason,
+		})
+	}
+	return response
+}
+
+type openAICompletionResponseChoice struct {
+	Text         string `json:"text"`
+	Index        int    `json:"index"`
+	Logprobs     any    `json:"logprobs"`
+	FinishReason string `json:"finish_reason"`
+}
+
+type openAICompletionResponse struct {
+	Id      string                           `json:"id"`
+	Object  string                           `json:"object"`
+	Created any                              `json:"created"`
+	Model   string                           `json:"model"`
+	Choices []openAICompletionResponseChoice `json:"choices"`
+	Usage   dto.Usage                        `json:"usage"`
+}
+
+func ResponseClaude2OpenAICompletion(claudeResponse *dto.ClaudeResponse, usage dto.Usage) *openAICompletionResponse {
+	chatResponse := ResponseClaude2OpenAI(claudeResponse)
+	response := &openAICompletionResponse{
+		Id:      chatResponse.Id,
+		Object:  "text_completion",
+		Created: chatResponse.Created,
+		Model:   chatResponse.Model,
+		Choices: make([]openAICompletionResponseChoice, 0, len(chatResponse.Choices)),
+		Usage:   usage,
+	}
+	for _, choice := range chatResponse.Choices {
+		response.Choices = append(response.Choices, openAICompletionResponseChoice{
+			Text:         choice.Message.StringContent(),
+			Index:        choice.Index,
+			Logprobs:     nil,
+			FinishReason: choice.FinishReason,
+		})
+	}
+	return response
 }
 
 func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextResponse {
@@ -767,7 +872,11 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			return nil
 		}
 
-		err = helper.ObjectData(c, response)
+		if info.RelayMode == relayconstant.RelayModeCompletions {
+			err = helper.ObjectData(c, StreamResponseClaude2OpenAICompletion(&claudeResponse))
+		} else {
+			err = helper.ObjectData(c, response)
+		}
 		if err != nil {
 			logger.LogError(c, "send_stream_response_failed: "+err.Error())
 		}
@@ -854,9 +963,14 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	var responseData []byte
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
-		openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
-		openaiResponse.Usage = buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
-		responseData, err = json.Marshal(openaiResponse)
+		openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+		if info.RelayMode == relayconstant.RelayModeCompletions {
+			responseData, err = common.Marshal(ResponseClaude2OpenAICompletion(&claudeResponse, openAIUsage))
+		} else {
+			openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
+			openaiResponse.Usage = openAIUsage
+			responseData, err = json.Marshal(openaiResponse)
+		}
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}

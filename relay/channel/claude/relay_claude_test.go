@@ -7,6 +7,61 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 )
 
+func TestRequestOpenAI2ClaudeMessageBuildsMessagesFromCompletionPrompt(t *testing.T) {
+	req := dto.GeneralOpenAIRequest{
+		Model:  "claude-sonnet-4-6",
+		Prompt: "func add(a int, b int) int {",
+		Suffix: "\n}",
+	}
+
+	claudeReq, err := RequestOpenAI2ClaudeMessage(nil, req)
+	if err != nil {
+		t.Fatalf("RequestOpenAI2ClaudeMessage error = %v", err)
+	}
+	if len(claudeReq.Messages) != 1 {
+		t.Fatalf("messages len = %d, want 1", len(claudeReq.Messages))
+	}
+	if claudeReq.Messages[0].Role != "user" {
+		t.Fatalf("message role = %s, want user", claudeReq.Messages[0].Role)
+	}
+	content := claudeReq.Messages[0].GetStringContent()
+	if !strings.Contains(content, "func add(a int, b int) int {") {
+		t.Fatalf("message content missing prompt prefix: %q", content)
+	}
+	if !strings.Contains(content, "Suffix:\n\n}") {
+		t.Fatalf("message content missing suffix: %q", content)
+	}
+	if !strings.Contains(content, "Return only the text") {
+		t.Fatalf("message content missing completion instruction: %q", content)
+	}
+}
+
+func TestResponseClaude2OpenAICompletionUsesTextChoices(t *testing.T) {
+	text := "return a + b"
+	usage := dto.Usage{PromptTokens: 10, CompletionTokens: 4, TotalTokens: 14}
+	resp := ResponseClaude2OpenAICompletion(&dto.ClaudeResponse{
+		Id:         "msg_123",
+		Model:      "claude-sonnet-4-6",
+		StopReason: "end_turn",
+		Content: []dto.ClaudeMediaMessage{
+			{Type: "text", Text: &text},
+		},
+	}, usage)
+
+	if resp.Object != "text_completion" {
+		t.Fatalf("object = %s, want text_completion", resp.Object)
+	}
+	if len(resp.Choices) != 1 {
+		t.Fatalf("choices len = %d, want 1", len(resp.Choices))
+	}
+	if resp.Choices[0].Text != text {
+		t.Fatalf("choice text = %q, want %q", resp.Choices[0].Text, text)
+	}
+	if resp.Usage.TotalTokens != 14 {
+		t.Fatalf("usage total = %d, want 14", resp.Usage.TotalTokens)
+	}
+}
+
 func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
 	claudeInfo := &ClaudeResponseInfo{
 		Usage: &dto.Usage{},
