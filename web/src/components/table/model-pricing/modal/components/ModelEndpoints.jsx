@@ -39,23 +39,36 @@ const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
         path = path.replaceAll('{model}', modelName);
       }
       const method = info.method || 'POST';
+      const aliases = Array.isArray(info.aliases) ? info.aliases : [];
       return (
         <div
           key={type}
           className='flex justify-between border-b border-dashed last:border-0 py-2 last:pb-0'
           style={{ borderColor: 'var(--semi-color-border)' }}
         >
-          <span className='flex items-center pr-5'>
-            <Badge dot type='success' className='mr-2' />
-            {type}
-            {path && '：'}
-            {path && (
-              <span className='text-gray-500 md:ml-1 break-all'>{path}</span>
-            )}
-          </span>
-          {path && (
-            <span className='text-gray-500 text-xs md:ml-1'>{method}</span>
-          )}
+          <div className='flex-1 pr-5'>
+            <div className='flex items-center'>
+              <Badge dot type='success' className='mr-2' />
+              {type}
+              {path && '：'}
+              {path && (
+                <span className='text-gray-500 md:ml-1 break-all'>
+                  {path}
+                </span>
+              )}
+            </div>
+            {aliases.map((alias, index) => (
+              <div
+                key={`${type}-alias-${index}`}
+                className='text-xs text-gray-500 ml-5 mt-1 break-all'
+              >
+                {alias.method || method} {alias.path}
+              </div>
+            ))}
+          </div>
+          <div className='text-gray-500 text-xs md:ml-1'>
+            {path && method}
+          </div>
         </div>
       );
     });
