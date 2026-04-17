@@ -2,9 +2,12 @@ package claude
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,4 +70,52 @@ func TestOutputConfig_ThinkingSuffix47Merge(t *testing.T) {
 	require.Equal(t, "high", m["effort"], "thinking suffix should set effort=high for 4.7")
 	_, ok := m["task_budget"]
 	require.True(t, ok, "task_budget should survive thinking merge")
+}
+
+func TestEnsureBetaHeader_InjectsWhenTaskBudgetPresent(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = &http.Request{Header: http.Header{}}
+
+	req := dto.GeneralOpenAIRequest{
+		Model:        "claude-opus-4-7",
+		Messages:     []dto.Message{{Role: "user", Content: "hi"}},
+		OutputConfig: json.RawMessage(`{"task_budget":{"type":"tokens","total":50000}}`),
+	}
+	_, err := RequestOpenAI2ClaudeMessage(c, req)
+	require.NoError(t, err)
+	require.Contains(t, c.Request.Header.Get("anthropic-beta"), "task-budgets-2026-03-13")
+}
+
+func TestEnsureBetaHeader_NoInjectWithoutTaskBudget(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = &http.Request{Header: http.Header{}}
+
+	req := dto.GeneralOpenAIRequest{
+		Model:        "claude-opus-4-7",
+		Messages:     []dto.Message{{Role: "user", Content: "hi"}},
+		OutputConfig: json.RawMessage(`{"effort":"high"}`),
+	}
+	_, err := RequestOpenAI2ClaudeMessage(c, req)
+	require.NoError(t, err)
+	require.Empty(t, c.Request.Header.Get("anthropic-beta"))
+}
+
+func TestEnsureBetaHeader_AppendsToExisting(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = &http.Request{Header: http.Header{}}
+	c.Request.Header.Set("anthropic-beta", "some-other-beta-2025-01-01")
+
+	req := dto.GeneralOpenAIRequest{
+		Model:        "claude-opus-4-7",
+		Messages:     []dto.Message{{Role: "user", Content: "hi"}},
+		OutputConfig: json.RawMessage(`{"task_budget":{"type":"tokens","total":50000}}`),
+	}
+	_, err := RequestOpenAI2ClaudeMessage(c, req)
+	require.NoError(t, err)
+	beta := c.Request.Header.Get("anthropic-beta")
+	require.Contains(t, beta, "some-other-beta-2025-01-01")
+	require.Contains(t, beta, "task-budgets-2026-03-13")
 }

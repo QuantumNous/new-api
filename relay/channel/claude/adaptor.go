@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -77,6 +78,21 @@ func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relayc
 		req.Set("anthropic-beta", anthropicBeta)
 	}
 	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
+}
+
+func EnsureBetaHeader(c *gin.Context, beta string) {
+	if c == nil {
+		return
+	}
+	existing := c.Request.Header.Get("anthropic-beta")
+	if strings.Contains(existing, beta) {
+		return
+	}
+	if existing != "" {
+		c.Request.Header.Set("anthropic-beta", existing+","+beta)
+	} else {
+		c.Request.Header.Set("anthropic-beta", beta)
+	}
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {

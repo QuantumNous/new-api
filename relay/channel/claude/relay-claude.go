@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -435,6 +436,11 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages
+
+	if bytes.Contains(claudeRequest.OutputConfig, []byte(`"task_budget"`)) {
+		EnsureBetaHeader(c, "task-budgets-2026-03-13")
+	}
+
 	return &claudeRequest, nil
 }
 
