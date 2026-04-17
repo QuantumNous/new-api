@@ -283,7 +283,7 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 	}
 	switch relayMode {
 	case relayconstant.RelayModeCompletions:
-		if textRequest.Prompt == "" {
+		if isCompletionPromptMissing(textRequest.Prompt) {
 			return nil, errors.New("field prompt is required")
 		}
 	case relayconstant.RelayModeChatCompletions:
@@ -303,6 +303,25 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 		}
 	}
 	return textRequest, nil
+}
+
+func isCompletionPromptMissing(prompt any) bool {
+	switch v := prompt.(type) {
+	case nil:
+		return true
+	case string:
+		return v == ""
+	case []any:
+		return len(v) == 0
+	case []string:
+		return len(v) == 0
+	case []int:
+		return len(v) == 0
+	case [][]int:
+		return len(v) == 0
+	default:
+		return false
+	}
 }
 
 func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error) {

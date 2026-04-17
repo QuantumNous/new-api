@@ -33,6 +33,8 @@ type TextResponse struct {
 type OpenAITextResponseChoice struct {
 	Index        int `json:"index"`
 	Message      `json:"message"`
+	Text         string `json:"text,omitempty"`
+	Logprobs     any    `json:"logprobs,omitempty"`
 	FinishReason string `json:"finish_reason"`
 }
 

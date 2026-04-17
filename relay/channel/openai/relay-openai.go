@@ -246,7 +246,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		completionTokens := simpleResponse.Usage.CompletionTokens
 		if completionTokens == 0 {
 			for _, choice := range simpleResponse.Choices {
-				ctkm := service.CountTextToken(choice.Message.StringContent()+choice.Message.ReasoningContent+choice.Message.Reasoning, info.UpstreamModelName)
+				ctkm := service.CountTextToken(openAITextResponseChoiceContent(choice), info.UpstreamModelName)
 				completionTokens += ctkm
 			}
 		}
@@ -298,6 +298,13 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	return &simpleResponse.Usage, nil
+}
+
+func openAITextResponseChoiceContent(choice dto.OpenAITextResponseChoice) string {
+	if choice.Text != "" {
+		return choice.Text
+	}
+	return choice.Message.StringContent() + choice.Message.ReasoningContent + choice.Message.Reasoning
 }
 
 func streamTTSResponse(c *gin.Context, resp *http.Response) {

@@ -17,6 +17,8 @@ func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 		"top_p":0,
 		"top_k":0,
 		"n":0,
+		"best_of":0,
+		"echo":false,
 		"frequency_penalty":0,
 		"presence_penalty":0,
 		"seed":0,
@@ -40,6 +42,8 @@ func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
 	require.True(t, gjson.GetBytes(encoded, "top_k").Exists())
 	require.True(t, gjson.GetBytes(encoded, "n").Exists())
+	require.True(t, gjson.GetBytes(encoded, "best_of").Exists())
+	require.True(t, gjson.GetBytes(encoded, "echo").Exists())
 	require.True(t, gjson.GetBytes(encoded, "frequency_penalty").Exists())
 	require.True(t, gjson.GetBytes(encoded, "presence_penalty").Exists())
 	require.True(t, gjson.GetBytes(encoded, "seed").Exists())
@@ -48,6 +52,33 @@ func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "dimensions").Exists())
 	require.True(t, gjson.GetBytes(encoded, "return_images").Exists())
 	require.True(t, gjson.GetBytes(encoded, "return_related_questions").Exists())
+}
+
+func TestGeneralOpenAIRequestPreserveCompletionsLogprobsNumber(t *testing.T) {
+	raw := []byte(`{
+		"model":"code-model",
+		"prompt":"func add(a int, b int) int {",
+		"suffix":"\n}",
+		"logprobs":0,
+		"echo":false,
+		"best_of":0
+	}`)
+
+	var req GeneralOpenAIRequest
+	err := common.Unmarshal(raw, &req)
+	require.NoError(t, err)
+
+	encoded, err := common.Marshal(req)
+	require.NoError(t, err)
+
+	require.Equal(t, "func add(a int, b int) int {", gjson.GetBytes(encoded, "prompt").String())
+	require.Equal(t, "\n}", gjson.GetBytes(encoded, "suffix").String())
+	require.True(t, gjson.GetBytes(encoded, "logprobs").Exists())
+	require.Equal(t, int64(0), gjson.GetBytes(encoded, "logprobs").Int())
+	require.True(t, gjson.GetBytes(encoded, "echo").Exists())
+	require.False(t, gjson.GetBytes(encoded, "echo").Bool())
+	require.True(t, gjson.GetBytes(encoded, "best_of").Exists())
+	require.Equal(t, int64(0), gjson.GetBytes(encoded, "best_of").Int())
 }
 
 func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
