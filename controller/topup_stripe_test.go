@@ -52,24 +52,16 @@ func setupStripeWebhookTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func signedStripeCheckoutCompletedPayload(t *testing.T, referenceId string, amountTotal int64, secret string) (payload []byte, signature string) {
+func signedStripeEventPayload(t *testing.T, eventType string, object map[string]any, secret string) (payload []byte, signature string) {
 	t.Helper()
 
 	body, err := common.Marshal(map[string]any{
-		"id":          "evt_test_checkout_completed",
+		"id":          "evt_test_checkout",
 		"object":      "event",
 		"api_version": "2025-02-24.acacia",
-		"type":        "checkout.session.completed",
+		"type":        eventType,
 		"data": map[string]any{
-			"object": map[string]any{
-				"id":                  "cs_test_checkout",
-				"object":              "checkout.session",
-				"customer":            "cus_test",
-				"client_reference_id": referenceId,
-				"status":              "complete",
-				"amount_total":        amountTotal,
-				"currency":            "usd",
-			},
+			"object": object,
 		},
 	})
 	if err != nil {
@@ -82,6 +74,21 @@ func signedStripeCheckoutCompletedPayload(t *testing.T, referenceId string, amou
 		Timestamp: time.Now(),
 	})
 	return signed.Payload, signed.Header
+}
+
+func signedStripeCheckoutCompletedPayload(t *testing.T, referenceId string, amountTotal int64, secret string) (payload []byte, signature string) {
+	t.Helper()
+
+	return signedStripeEventPayload(t, "checkout.session.completed", map[string]any{
+		"id":                  "cs_test_checkout",
+		"object":              "checkout.session",
+		"customer":            "cus_test",
+		"client_reference_id": referenceId,
+		"status":              "complete",
+		"payment_status":      "paid",
+		"amount_total":        amountTotal,
+		"currency":            "usd",
+	}, secret)
 }
 
 func performStripeWebhook(t *testing.T, payload []byte, signature string) *httptest.ResponseRecorder {
@@ -214,5 +221,138 @@ func TestStripeWebhookRejectsEmptyWebhookSecret(t *testing.T) {
 	recorder := performStripeWebhook(t, payload, signature)
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("expected empty webhook secret to be rejected, got status %d", recorder.Code)
+	}
+}
+
+func TestStripeWebhookDefersUnpaidSessionUntilAsyncSuccess(t *testing.T) {
+	db := setupStripeWebhookTestDB(t)
+	oldSecret := setting.StripeWebhookSecret
+	setting.StripeWebhookSecret = "whsec_test"
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = oldSecret
+	})
+
+	user := model.User{
+		Username: "stripe-async-user",
+		Status:   common.UserStatusEnabled,
+		Quota:    0,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	topUp := model.TopUp{
+		UserId:        user.Id,
+		Amount:        10,
+		Money:         80,
+		TradeNo:       "ref_stripe_async_success",
+		PaymentMethod: PaymentMethodStripe,
+		CreateTime:    time.Now().Unix(),
+		Status:        common.TopUpStatusPending,
+	}
+	if err := db.Create(&topUp).Error; err != nil {
+		t.Fatalf("failed to create top-up: %v", err)
+	}
+
+	completedPayload, completedSignature := signedStripeEventPayload(t, "checkout.session.completed", map[string]any{
+		"id":                  "cs_test_async_pending",
+		"object":              "checkout.session",
+		"customer":            "cus_test",
+		"client_reference_id": topUp.TradeNo,
+		"status":              "complete",
+		"payment_status":      "unpaid",
+		"amount_total":        8000,
+		"currency":            "usd",
+	}, setting.StripeWebhookSecret)
+	recorder := performStripeWebhook(t, completedPayload, completedSignature)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected unpaid completed session to be acknowledged, got status %d", recorder.Code)
+	}
+
+	var pendingTopUp model.TopUp
+	if err := db.First(&pendingTopUp, topUp.Id).Error; err != nil {
+		t.Fatalf("failed to reload pending top-up: %v", err)
+	}
+	if pendingTopUp.Status != common.TopUpStatusPending {
+		t.Fatalf("expected top-up to remain pending before async success, got status %q", pendingTopUp.Status)
+	}
+
+	asyncPayload, asyncSignature := signedStripeEventPayload(t, "checkout.session.async_payment_succeeded", map[string]any{
+		"id":                  "cs_test_async_success",
+		"object":              "checkout.session",
+		"customer":            "cus_test",
+		"client_reference_id": topUp.TradeNo,
+		"amount_total":        8000,
+		"currency":            "usd",
+	}, setting.StripeWebhookSecret)
+	recorder = performStripeWebhook(t, asyncPayload, asyncSignature)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected async success event to be acknowledged, got status %d", recorder.Code)
+	}
+
+	var reloadedTopUp model.TopUp
+	if err := db.First(&reloadedTopUp, topUp.Id).Error; err != nil {
+		t.Fatalf("failed to reload top-up: %v", err)
+	}
+	if reloadedTopUp.Status != common.TopUpStatusSuccess {
+		t.Fatalf("expected async success to complete stripe top-up, got status %q", reloadedTopUp.Status)
+	}
+
+	var reloadedUser model.User
+	if err := db.First(&reloadedUser, user.Id).Error; err != nil {
+		t.Fatalf("failed to reload user: %v", err)
+	}
+	expectedQuota := int(topUp.Money * common.QuotaPerUnit)
+	if reloadedUser.Quota != expectedQuota {
+		t.Fatalf("expected user quota %d after async success, got %d", expectedQuota, reloadedUser.Quota)
+	}
+}
+
+func TestStripeWebhookAsyncPaymentFailedMarksTopUpFailed(t *testing.T) {
+	db := setupStripeWebhookTestDB(t)
+	oldSecret := setting.StripeWebhookSecret
+	setting.StripeWebhookSecret = "whsec_test"
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = oldSecret
+	})
+
+	user := model.User{
+		Username: "stripe-async-fail-user",
+		Status:   common.UserStatusEnabled,
+		Quota:    0,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	topUp := model.TopUp{
+		UserId:        user.Id,
+		Amount:        10,
+		Money:         80,
+		TradeNo:       "ref_stripe_async_failed",
+		PaymentMethod: PaymentMethodStripe,
+		CreateTime:    time.Now().Unix(),
+		Status:        common.TopUpStatusPending,
+	}
+	if err := db.Create(&topUp).Error; err != nil {
+		t.Fatalf("failed to create top-up: %v", err)
+	}
+
+	payload, signature := signedStripeEventPayload(t, "checkout.session.async_payment_failed", map[string]any{
+		"id":                  "cs_test_async_failed",
+		"object":              "checkout.session",
+		"client_reference_id": topUp.TradeNo,
+	}, setting.StripeWebhookSecret)
+	recorder := performStripeWebhook(t, payload, signature)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected async failure event to be acknowledged, got status %d", recorder.Code)
+	}
+
+	var reloadedTopUp model.TopUp
+	if err := db.First(&reloadedTopUp, topUp.Id).Error; err != nil {
+		t.Fatalf("failed to reload top-up: %v", err)
+	}
+	if reloadedTopUp.Status != common.TopUpStatusFailed {
+		t.Fatalf("expected async failure to mark top-up failed, got status %q", reloadedTopUp.Status)
 	}
 }
