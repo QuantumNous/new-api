@@ -20,6 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Link } from 'react-router-dom';
 import SkeletonWrapper from '../components/SkeletonWrapper';
+import {
+  getHeaderLogoFrameClassName,
+  getHeaderLogoImageClassName,
+} from './headerLogoStyles';
 
 const headerText = {
   selfUse: '\u81ea\u7528\u6a21\u5f0f',
@@ -43,6 +47,8 @@ const HeaderLogo = ({
 
   const showBadge = (isSelfUseMode || isDemoSiteMode) && !isLoading;
   const fallbackLabel = systemName?.trim()?.[0]?.toUpperCase() || 'N';
+  const hasLogoImage = Boolean(logo && logoLoaded && !isLoading);
+  const isDefaultLogo = logo === '/logo.png';
 
   return (
     <Link
@@ -50,15 +56,15 @@ const HeaderLogo = ({
       data-header-brand='true'
       className='text-xl flex shrink-0 items-center gap-3 font-bold tracking-tight text-gray-900'
     >
-      <div className='relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-indigo-600 text-sm text-white shadow-sm'>
+      <div className={getHeaderLogoFrameClassName({ hasLogoImage })}>
         <SkeletonWrapper loading={isLoading || !logoLoaded} type='image'>
           <span>{fallbackLabel}</span>
         </SkeletonWrapper>
-        {logo && logoLoaded && !isLoading ? (
+        {hasLogoImage ? (
           <img
             src={logo}
             alt='logo'
-            className='absolute inset-0 h-full w-full object-cover'
+            className={getHeaderLogoImageClassName({ isDefaultLogo })}
           />
         ) : null}
       </div>

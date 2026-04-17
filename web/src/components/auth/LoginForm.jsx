@@ -91,7 +91,6 @@ const LoginForm = () => {
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [wechatCodeSubmitLoading, setWechatCodeSubmitLoading] = useState(false);
   const [showTwoFA, setShowTwoFA] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(false);
@@ -440,12 +439,6 @@ const LoginForm = () => {
     }
   };
 
-  const handleResetPasswordClick = () => {
-    setResetPasswordLoading(true);
-    navigate('/reset');
-    setResetPasswordLoading(false);
-  };
-
   const handle2FASuccess = (data) => {
     userDispatch({ type: 'login', payload: data });
     setUserData(data);
@@ -728,19 +721,9 @@ const LoginForm = () => {
         </div>
 
         <div>
-          <div className='mb-2 flex items-center justify-between gap-4'>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-200'>
-              {t('密码')}
-            </label>
-            <button
-              type='button'
-              className='text-xs font-medium text-gray-500 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-              onClick={handleResetPasswordClick}
-              disabled={resetPasswordLoading}
-            >
-              {t('忘记密码？')}
-            </button>
-          </div>
+          <label className='mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200'>
+            {t('密码')}
+          </label>
           <input
             type='password'
             name='password'
