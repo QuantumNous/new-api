@@ -80,6 +80,7 @@ func Distribute() func(c *gin.Context) {
 					return
 				}
 				var selectGroup string
+				poolId := common.GetContextKeyInt(c, constant.ContextKeyPoolId)
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 				// check path is /pg/chat/completions
 				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
@@ -102,6 +103,18 @@ func Distribute() func(c *gin.Context) {
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil {
+						if poolId > 0 {
+							inPool, poolErr := model.IsChannelInPool(poolId, preferred.Id)
+							if poolErr != nil {
+								abortWithOpenAiMessage(c, http.StatusInternalServerError, "failed to check preferred channel in pool")
+								return
+							}
+							if !inPool {
+								preferred = nil
+							}
+						}
+					}
+					if preferred != nil {
 						if preferred.Status != common.ChannelStatusEnabled {
 							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
@@ -132,6 +145,7 @@ func Distribute() func(c *gin.Context) {
 						Ctx:        c,
 						ModelName:  modelRequest.Model,
 						TokenGroup: usingGroup,
+						PoolID:     poolId,
 						Retry:      common.GetPointer(0),
 					})
 					if err != nil {

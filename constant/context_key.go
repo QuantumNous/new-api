@@ -42,6 +42,11 @@ const (
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
 	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
 
+	/* pool related keys */
+	ContextKeyPoolId       ContextKey = "pool_id"
+	ContextKeyPoolName     ContextKey = "pool_name"
+	ContextKeyPoolScopeKey ContextKey = "pool_scope_key"
+
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"
 	ContextKeyUserSetting ContextKey = "user_setting"

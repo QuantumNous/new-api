@@ -269,6 +269,37 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		poolRoute := apiRouter.Group("/pool")
+		poolRoute.Use(middleware.AdminAuth())
+		{
+			poolRoute.GET("/", controller.GetPools)
+			poolRoute.POST("/", controller.CreatePool)
+			poolRoute.PUT("/", controller.UpdatePool)
+			poolRoute.DELETE("/:id", controller.DeletePool)
+
+			poolRoute.GET("/channel", controller.GetPoolChannels)
+			poolRoute.POST("/channel", controller.CreatePoolChannel)
+			poolRoute.PUT("/channel", controller.UpdatePoolChannel)
+			poolRoute.DELETE("/channel/:id", controller.DeletePoolChannel)
+
+			poolRoute.GET("/policy", controller.GetPoolPolicies)
+			poolRoute.POST("/policy", controller.CreatePoolPolicy)
+			poolRoute.PUT("/policy", controller.UpdatePoolPolicy)
+			poolRoute.DELETE("/policy/:id", controller.DeletePoolPolicy)
+
+			poolRoute.GET("/binding", controller.GetPoolBindings)
+			poolRoute.POST("/binding", controller.CreatePoolBinding)
+			poolRoute.PUT("/binding", controller.UpdatePoolBinding)
+			poolRoute.DELETE("/binding/:id", controller.DeletePoolBinding)
+			poolRoute.GET("/usage", controller.GetPoolRollingUsage)
+		}
+
+		poolSelfRoute := apiRouter.Group("/pool")
+		poolSelfRoute.Use(middleware.UserAuth())
+		{
+			poolSelfRoute.GET("/usage/self", controller.GetSelfPoolRollingUsage)
+		}
+
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
 		{

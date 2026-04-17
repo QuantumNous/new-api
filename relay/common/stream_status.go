@@ -67,6 +67,29 @@ func (s *StreamStatus) RecordError(msg string) {
 	}
 }
 
+// MergePriorSoftErrors adds soft-error counts (and retained error entries) from a
+// previous StreamStatus. Used when the scanner replaces info.StreamStatus but
+// upstream code already recorded soft errors on the old instance.
+func (s *StreamStatus) MergePriorSoftErrors(prior *StreamStatus) {
+	if s == nil || prior == nil {
+		return
+	}
+	prior.mu.Lock()
+	addCount := prior.ErrorCount
+	entries := append([]StreamErrorEntry(nil), prior.Errors...)
+	prior.mu.Unlock()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ErrorCount += addCount
+	for _, e := range entries {
+		if len(s.Errors) >= maxStreamErrorEntries {
+			break
+		}
+		s.Errors = append(s.Errors, e)
+	}
+}
+
 func (s *StreamStatus) HasErrors() bool {
 	if s == nil {
 		return false

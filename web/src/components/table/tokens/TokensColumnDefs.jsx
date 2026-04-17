@@ -472,6 +472,16 @@ export const getTokensColumns = ({
 }) => {
   return [
     {
+      title: t('Token ID'),
+      dataIndex: 'id',
+      width: 120,
+      render: (text, record) => (
+        <Typography.Text copyable={{ content: String(record.id) }}>
+          {record.id}
+        </Typography.Text>
+      ),
+    },
+    {
       title: t('名称'),
       dataIndex: 'name',
     },

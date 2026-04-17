@@ -128,6 +128,9 @@ func InitOptionMap() {
 	common.OptionMap["ModelRequestRateLimitDurationMinutes"] = strconv.Itoa(setting.ModelRequestRateLimitDurationMinutes)
 	common.OptionMap["ModelRequestRateLimitSuccessCount"] = strconv.Itoa(setting.ModelRequestRateLimitSuccessCount)
 	common.OptionMap["ModelRequestRateLimitGroup"] = setting.ModelRequestRateLimitGroup2JSONString()
+	common.OptionMap["PoolEnabled"] = strconv.FormatBool(common.PoolEnabled)
+	common.OptionMap["PoolQuotaEnabled"] = strconv.FormatBool(common.PoolQuotaEnabled)
+	common.OptionMap["PoolRollingWindowEnabled"] = strconv.FormatBool(common.PoolRollingWindowEnabled)
 	common.OptionMap["ModelRatio"] = ratio_setting.ModelRatio2JSONString()
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
@@ -314,6 +317,12 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case "PoolEnabled":
+			common.PoolEnabled = boolValue
+		case "PoolQuotaEnabled":
+			common.PoolQuotaEnabled = boolValue
+		case "PoolRollingWindowEnabled":
+			common.PoolRollingWindowEnabled = boolValue
 		}
 	}
 	switch key {

@@ -111,6 +111,11 @@ var PreConsumedQuota = 500
 
 var RetryTimes = 0
 
+// Pool feature flags (can be overridden by options/env).
+var PoolEnabled = false
+var PoolQuotaEnabled = false
+var PoolRollingWindowEnabled = false
+
 //var RootUserEmail = ""
 
 var IsMasterNode bool

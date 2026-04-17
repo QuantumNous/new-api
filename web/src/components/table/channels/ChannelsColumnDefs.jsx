@@ -333,6 +333,11 @@ export const getChannelsColumns = ({
       key: COLUMN_KEYS.ID,
       title: t('ID'),
       dataIndex: 'id',
+      render: (text, record) => (
+        <Typography.Text copyable={{ content: String(record.id) }}>
+          {record.id}
+        </Typography.Text>
+      ),
     },
     {
       key: COLUMN_KEYS.NAME,

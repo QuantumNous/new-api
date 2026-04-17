@@ -115,6 +115,47 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		return nil, nil
 	}
 
+	return getRandomChannelFromIDs(channels, retry)
+}
+
+func GetRandomSatisfiedChannelByPool(group string, model string, retry int, poolId int) (*Channel, error) {
+	if poolId <= 0 {
+		return GetRandomSatisfiedChannel(group, model, retry)
+	}
+	// if memory cache is disabled, get channel directly from database
+	if !common.MemoryCacheEnabled {
+		return GetChannelByPool(group, model, retry, poolId)
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	// First, try to find channels with the exact model name.
+	channels := group2model2channels[group][model]
+
+	// If no channels found, try to find channels with the normalized model name.
+	if len(channels) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		channels = group2model2channels[group][normalizedModel]
+	}
+
+	if len(channels) == 0 {
+		return nil, nil
+	}
+
+	filteredChannels, err := FilterChannelIDsByPool(poolId, channels)
+	if err != nil {
+		return nil, err
+	}
+	if len(filteredChannels) == 0 {
+		return nil, nil
+	}
+
+	return getRandomChannelFromIDs(filteredChannels, retry)
+}
+
+func getRandomChannelFromIDs(channels []int, retry int) (*Channel, error) {
+
 	if len(channels) == 1 {
 		if channel, ok := channelsIDM[channels[0]]; ok {
 			return channel, nil
@@ -156,7 +197,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 
 	if len(targetChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+		return nil, errors.New(fmt.Sprintf("no channel found for priority: %d", targetPriority))
 	}
 
 	// smoothing factor and adjustment
