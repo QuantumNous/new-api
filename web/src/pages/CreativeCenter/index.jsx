@@ -7229,23 +7229,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               }
             });
             if (isAdobeSoraModel && currentUploadedImageUrls[0]) {
-              payload.messages = [
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'text',
-                      text: currentPrompt,
-                    },
-                    {
-                      type: 'image_url',
-                      image_url: {
-                        url: currentUploadedImageUrls[0],
-                      },
-                    },
-                  ],
-                },
-              ];
+              payload.image_url = currentUploadedImageUrls[0];
             } else if (
               currentModelName === 'grok-imagine-1.0-video' &&
               currentUploadedImageUrls.length > 0

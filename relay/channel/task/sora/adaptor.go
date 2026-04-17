@@ -40,12 +40,14 @@ type ImageURL struct {
 
 type responseTask struct {
 	ID                 string  `json:"id"`
-	TaskID             string  `json:"task_id,omitempty"` //兼容旧接口
+	TaskID             string  `json:"task_id,omitempty"`
 	Object             string  `json:"object"`
 	Model              string  `json:"model"`
 	Status             string  `json:"status"`
 	URL                string  `json:"url,omitempty"`
+	VideoURL           string  `json:"video_url,omitempty"`
 	Progress           float64 `json:"progress"`
+	Created            int64   `json:"created,omitempty"`
 	CreatedAt          int64   `json:"created_at"`
 	CompletedAt        int64   `json:"completed_at,omitempty"`
 	ExpiresAt          int64   `json:"expires_at,omitempty"`
@@ -285,7 +287,7 @@ func normalizeGrokVideoRequest(bodyMap map[string]interface{}, upstreamModel str
 
 func isSoraVideoModel(upstreamModel string) bool {
 	upstreamModel = strings.ToLower(strings.TrimSpace(upstreamModel))
-	return strings.HasPrefix(upstreamModel, "sora-2")
+	return strings.HasPrefix(upstreamModel, "sora-2") || strings.HasPrefix(upstreamModel, "sora2")
 }
 
 func soraSizeFromAspectRatio(value string) string {
@@ -326,8 +328,9 @@ func normalizeSoraVideoRequest(bodyMap map[string]interface{}, upstreamModel str
 	aspectRatio := stringifyBodyValue(bodyMap["aspect_ratio"])
 	seconds := stringifyBodyValue(bodyMap["seconds"])
 	size := stringifyBodyValue(bodyMap["size"])
-	prompt := stringifyBodyValue(bodyMap["prompt"])
+	imageURL := stringifyBodyValue(bodyMap["image_url"])
 	inputReference := stringifyBodyValue(bodyMap["input_reference"])
+	image := stringifyBodyValue(bodyMap["image"])
 
 	if duration == "" {
 		if seconds != "" {
@@ -350,28 +353,24 @@ func normalizeSoraVideoRequest(bodyMap map[string]interface{}, upstreamModel str
 	delete(bodyMap, "seconds")
 	delete(bodyMap, "size")
 
-	if _, exists := bodyMap["messages"]; !exists && inputReference != "" {
-		content := make([]map[string]interface{}, 0, 2)
-		if prompt != "" {
-			content = append(content, map[string]interface{}{
-				"type": "text",
-				"text": prompt,
-			})
-		}
-		content = append(content, map[string]interface{}{
-			"type": "image_url",
-			"image_url": map[string]interface{}{
-				"url": inputReference,
-			},
-		})
-		bodyMap["messages"] = []map[string]interface{}{
-			{
-				"role":    "user",
-				"content": content,
-			},
+	if imageURL == "" {
+		switch {
+		case inputReference != "":
+			imageURL = inputReference
+		case image != "":
+			imageURL = image
+		default:
+			if images, ok := bodyMap["images"].([]interface{}); ok && len(images) > 0 {
+				imageURL = stringifyBodyValue(images[0])
+			}
 		}
 	}
+	if imageURL != "" {
+		bodyMap["image_url"] = imageURL
+	}
 	delete(bodyMap, "input_reference")
+	delete(bodyMap, "image")
+	delete(bodyMap, "images")
 }
 
 func extractVideoURL(respBody []byte) string {
@@ -381,6 +380,8 @@ func extractVideoURL(respBody []byte) string {
 		"metadata.url",
 		"data.url",
 		"data.video_url",
+		"data.0.url",
+		"data.0.video_url",
 		"output.video_url",
 		"task_result.videos.0.url",
 	} {
@@ -622,6 +623,12 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	if dResp.URL == "" {
 		dResp.URL = extractVideoURL(responseBody)
 	}
+	if dResp.VideoURL == "" {
+		dResp.VideoURL = dResp.URL
+	}
+	if dResp.URL == "" {
+		dResp.URL = dResp.VideoURL
+	}
 
 	// 使用公开 task_xxxx ID 返回给客户端
 	dResp.ID = info.PublicTaskID
@@ -667,22 +674,36 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	if resTask.URL == "" {
 		resTask.URL = extractVideoURL(respBody)
 	}
+	if resTask.VideoURL == "" {
+		resTask.VideoURL = resTask.URL
+	}
+	if resTask.URL == "" {
+		resTask.URL = resTask.VideoURL
+	}
+	createdAt := resTask.CreatedAt
+	if createdAt == 0 {
+		createdAt = resTask.Created
+	}
 
 	taskResult := relaycommon.TaskInfo{
 		Code:        0,
-		CreatedAt:   resTask.CreatedAt,
+		CreatedAt:   createdAt,
 		CompletedAt: resTask.CompletedAt,
 	}
 
-	switch resTask.Status {
+	switch strings.ToLower(strings.TrimSpace(resTask.Status)) {
 	case "queued", "pending":
 		taskResult.Status = model.TaskStatusQueued
-	case "processing", "in_progress":
+	case "processing", "in_progress", "running":
 		taskResult.Status = model.TaskStatusInProgress
 	case "completed":
-		taskResult.Status = model.TaskStatusSuccess
-		taskResult.Url = resTask.URL
-		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
+		if resTask.URL == "" {
+			taskResult.Status = model.TaskStatusFailure
+			taskResult.Reason = "video result url is empty"
+		} else {
+			taskResult.Status = model.TaskStatusSuccess
+			taskResult.Url = resTask.URL
+		}
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {

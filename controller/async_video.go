@@ -137,6 +137,7 @@ func readAsyncVideoTaskRequest(c *gin.Context, bodyBytes []byte) relaycommon.Tas
 			req.Prompt = strings.TrimSpace(firstAsyncVideoFormValue(form.Value, "prompt"))
 			req.Model = strings.TrimSpace(firstAsyncVideoFormValue(form.Value, "model"))
 			req.Image = strings.TrimSpace(firstAsyncVideoFormValue(form.Value, "image"))
+			req.ImageURL = strings.TrimSpace(firstAsyncVideoFormValue(form.Value, "image_url"))
 			req.Size = strings.TrimSpace(firstAsyncVideoFormValue(form.Value, "size"))
 			req.Seconds = strings.TrimSpace(firstAsyncVideoFormValue(form.Value, "seconds"))
 			if duration, err := strconv.Atoi(strings.TrimSpace(firstAsyncVideoFormValue(form.Value, "duration"))); err == nil {
@@ -292,7 +293,12 @@ func buildAsyncVideoTaskResponse(task *model.Task) *dto.AsyncVideoTaskResponse {
 
 	if len(task.Data) > 0 {
 		if resp.URL == "" {
-			resp.URL = strings.TrimSpace(gjson.GetBytes(task.Data, "url").String())
+			for _, path := range []string{"url", "video_url", "data.0.url", "data.0.video_url"} {
+				if url := strings.TrimSpace(gjson.GetBytes(task.Data, path).String()); url != "" {
+					resp.URL = url
+					break
+				}
+			}
 		}
 		resp.Seconds = strings.TrimSpace(gjson.GetBytes(task.Data, "seconds").String())
 		resp.Size = strings.TrimSpace(gjson.GetBytes(task.Data, "size").String())

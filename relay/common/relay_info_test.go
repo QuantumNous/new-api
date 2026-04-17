@@ -27,3 +27,13 @@ func TestTaskSubmitReqHasImageFromMessages(t *testing.T) {
 		t.Fatalf("expected HasImage to detect image_url inside messages")
 	}
 }
+
+func TestTaskSubmitReqHasImageFromTopLevelImageURL(t *testing.T) {
+	req := TaskSubmitReq{
+		ImageURL: "https://img688.com/file/demo.jpg",
+	}
+
+	if !req.HasImage() {
+		t.Fatalf("expected HasImage to detect top-level image_url")
+	}
+}

@@ -148,3 +148,11 @@ func TestTaskModel2DtoKeepsLegacySuccessResultURLFallback(t *testing.T) {
 
 	assert.Equal(t, task.FailReason, dtoTask.ResultURL)
 }
+
+func TestIsSuccessfulTaskSubmitStatusAcceptsAny2xx(t *testing.T) {
+	assert.True(t, isSuccessfulTaskSubmitStatus(200))
+	assert.True(t, isSuccessfulTaskSubmitStatus(202))
+	assert.True(t, isSuccessfulTaskSubmitStatus(299))
+	assert.False(t, isSuccessfulTaskSubmitStatus(199))
+	assert.False(t, isSuccessfulTaskSubmitStatus(300))
+}
