@@ -783,6 +783,210 @@ html:not(.dark) .blur-ball-teal {
   opacity: 0.2;
 }
 
+.home-apple-shell {
+  position: relative;
+  overflow: hidden;
+  min-height: calc(100vh - 60px);
+  background:
+    radial-gradient(circle at top, rgba(118, 149, 255, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 246, 251, 0.9));
+}
+
+html.dark .home-apple-shell {
+  background:
+    radial-gradient(circle at top, rgba(96, 130, 255, 0.18), transparent 34%),
+    linear-gradient(180deg, #0b0d12, #11141b 45%, #12151d 100%);
+}
+
+.home-apple-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(120, 130, 150, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 130, 150, 0.08) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.28), transparent 75%);
+}
+
+html.dark .home-apple-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+.home-apple-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(90px);
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.home-apple-orb-primary {
+  top: 72px;
+  left: 50%;
+  width: 420px;
+  height: 420px;
+  background: rgba(109, 142, 255, 0.26);
+  transform: translateX(-50%);
+}
+
+.home-apple-orb-secondary {
+  top: 280px;
+  right: 12%;
+  width: 280px;
+  height: 280px;
+  background: rgba(145, 224, 255, 0.18);
+}
+
+html.dark .home-apple-orb-primary {
+  background: rgba(95, 126, 246, 0.26);
+}
+
+html.dark .home-apple-orb-secondary {
+  background: rgba(82, 162, 203, 0.16);
+}
+
+.home-apple-panel,
+.home-apple-provider-panel,
+.home-apple-subcard,
+.home-apple-url-bar {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow:
+    0 30px 80px rgba(17, 24, 39, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(22px);
+}
+
+html.dark .home-apple-panel,
+html.dark .home-apple-provider-panel,
+html.dark .home-apple-subcard,
+html.dark .home-apple-url-bar {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(18, 22, 30, 0.66);
+  box-shadow:
+    0 24px 72px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.home-apple-panel {
+  border-radius: 36px;
+  padding: 28px;
+}
+
+@media (min-width: 768px) {
+  .home-apple-panel {
+    padding: 40px;
+  }
+}
+
+.home-apple-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.56);
+  color: var(--semi-color-text-1);
+  font-size: 12px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+html.dark .home-apple-chip {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.home-apple-gradient-text {
+  background: linear-gradient(180deg, #111827 0%, #384152 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+html.dark .home-apple-gradient-text {
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.72) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.home-apple-url-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-radius: 28px;
+  padding: 18px 18px 18px 22px;
+}
+
+.home-apple-divider {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(120, 130, 150, 0.18);
+}
+
+html.dark .home-apple-divider {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.home-apple-copy-btn {
+  min-width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.06);
+}
+
+html.dark .home-apple-copy-btn {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.home-apple-subcard {
+  border-radius: 24px;
+  padding: 18px 20px;
+  text-align: left;
+}
+
+.home-apple-provider-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 30px;
+  padding: 18px;
+}
+
+.home-apple-provider-item,
+.home-apple-provider-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 18px;
+  color: var(--semi-color-text-1);
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  opacity: 0.88;
+}
+
+html.dark .home-apple-provider-item,
+html.dark .home-apple-provider-count {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.home-apple-provider-count {
+  font-size: 14px;
+  font-weight: 700;
+}
+
 /* ==================== 卡片马卡龙模糊球（类封装） ==================== */
 /* 使用方式：给容器加上 with-pastel-balls 类即可，无需在 JSX 中插入额外节点 */
 .with-pastel-balls {
