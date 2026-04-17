@@ -56,9 +56,9 @@ const (
 
 func Path2RelayMode(path string) int {
 	relayMode := RelayModeUnknown
-	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") {
+	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") || strings.HasSuffix(path, "/chat/completions") {
 		relayMode = RelayModeChatCompletions
-	} else if strings.HasPrefix(path, "/v1/completions") {
+	} else if strings.HasPrefix(path, "/v1/completions") || strings.HasSuffix(path, "/completions") {
 		relayMode = RelayModeCompletions
 	} else if strings.HasPrefix(path, "/v1/embeddings") {
 		relayMode = RelayModeEmbeddings
