@@ -32,12 +32,13 @@ import {
   Select,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
-import { API, showError, showSuccess } from '../../../helpers';
+import { API, getSystemName, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { Plus, Trash2 } from 'lucide-react';
 
 export default function SettingsPaymentGatewayCreem(props) {
   const { t } = useTranslation();
+  const systemName = getSystemName();
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     CreemApiKey: '',
@@ -282,9 +283,7 @@ export default function SettingsPaymentGatewayCreem(props) {
               <Form.Input
                 field='CreemWebhookSecret'
                 label={t('Webhook 密钥')}
-                placeholder={t(
-                  '用于验证回调 new-api 的 webhook 请求的密钥，敏感信息不显示',
-                )}
+                placeholder={`用于验证回调 ${systemName} 的 webhook 请求的密钥，敏感信息不显示`}
                 type='password'
               />
             </Col>

@@ -316,7 +316,7 @@ export default function SettingsPerformance(props) {
                     field={'performance_setting.disk_cache_path'}
                     label={t('缓存目录')}
                     extraText={t('留空使用系统临时目录')}
-                    placeholder={t('例如 /var/cache/new-api')}
+                    placeholder='/var/cache/token-pool'
                     onChange={handleFieldChange(
                       'performance_setting.disk_cache_path',
                     )}

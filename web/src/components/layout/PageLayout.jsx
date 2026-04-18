@@ -93,6 +93,15 @@ const PageLayout = () => {
       if (success) {
         statusDispatch({ type: 'set', payload: data });
         setStatusData(data);
+        if (data.system_name) {
+          document.title = data.system_name;
+        }
+        if (data.logo) {
+          const linkElement = document.querySelector("link[rel~='icon']");
+          if (linkElement) {
+            linkElement.href = data.logo;
+          }
+        }
       } else {
         showError('Unable to connect to server');
       }

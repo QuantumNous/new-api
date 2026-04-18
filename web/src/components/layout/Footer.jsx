@@ -164,7 +164,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    new-api-horizon
+                    Horizon
                   </a>
                   <a
                     href='https://github.com/coaidev/coai'

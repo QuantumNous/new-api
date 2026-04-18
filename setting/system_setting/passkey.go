@@ -33,6 +33,9 @@ func init() {
 }
 
 func GetPasskeySettings() *PasskeySettings {
+	if strings.TrimSpace(defaultPasskeySettings.RPDisplayName) == "" || strings.EqualFold(strings.TrimSpace(defaultPasskeySettings.RPDisplayName), "New API") {
+		defaultPasskeySettings.RPDisplayName = common.SystemName
+	}
 	if defaultPasskeySettings.RPID == "" && ServerAddress != "" {
 		// 从ServerAddress提取域名作为RPID
 		// ServerAddress可能是 "https://newapi.pro" 这种格式

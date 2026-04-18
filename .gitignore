@@ -9,6 +9,7 @@ build
 *.db-journal
 logs
 web/dist
+# Keep the Bun lockfile versioned so fresh clones can build the frontend image.
 .env
 one-api
 new-api
@@ -19,7 +20,6 @@ tiktoken_cache
 .gocache
 .gomodcache/
 .cache
-web/bun.lock
 plans
 .claude
 
