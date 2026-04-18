@@ -98,10 +98,12 @@ const resolveRateLimitWindows = (data) => {
   }
 
   if (!fiveHourWindow) {
-    fiveHourWindow = windows.find((windowData) => windowData !== weeklyWindow) ?? null;
+    fiveHourWindow =
+      windows.find((windowData) => windowData !== weeklyWindow) ?? null;
   }
   if (!weeklyWindow) {
-    weeklyWindow = windows.find((windowData) => windowData !== fiveHourWindow) ?? null;
+    weeklyWindow =
+      windows.find((windowData) => windowData !== fiveHourWindow) ?? null;
   }
 
   return { fiveHourWindow, weeklyWindow };
@@ -262,12 +264,86 @@ const RateLimitWindowCard = ({ t, title, windowData }) => {
   );
 };
 
+const RateLimitWindowGrid = ({ t, fiveHourWindow, weeklyWindow }) => {
+  const tt = typeof t === 'function' ? t : (v) => v;
+
+  return (
+    <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+      <RateLimitWindowCard
+        t={tt}
+        title={tt('5小时窗口')}
+        windowData={fiveHourWindow}
+      />
+      <RateLimitWindowCard
+        t={tt}
+        title={tt('每周窗口')}
+        windowData={weeklyWindow}
+      />
+    </div>
+  );
+};
+
+const RateLimitGroupSection = ({
+  t,
+  title,
+  description,
+  rateLimitSource,
+  statusTag,
+  meteredFeature,
+}) => {
+  const tt = typeof t === 'function' ? t : (v) => v;
+  const { fiveHourWindow, weeklyWindow } =
+    resolveRateLimitWindows(rateLimitSource);
+  const featureText = getDisplayText(meteredFeature);
+
+  return (
+    <section className='space-y-3'>
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div className='min-w-0 space-y-2'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <div className='text-sm font-semibold text-semi-color-text-0'>
+              {title}
+            </div>
+            {statusTag}
+          </div>
+          {(description || featureText) && (
+            <div className='flex flex-wrap items-center gap-2 text-xs text-semi-color-text-2'>
+              {description ? <span>{description}</span> : null}
+              {featureText ? (
+                <div className='inline-flex max-w-full items-center gap-2 rounded-full bg-semi-color-fill-0 px-2 py-1'>
+                  <span className='text-[11px] uppercase text-semi-color-text-2'>
+                    metered_feature
+                  </span>
+                  <span className='min-w-0 break-all font-mono text-xs text-semi-color-text-0'>
+                    {featureText}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <RateLimitWindowGrid
+        t={tt}
+        fiveHourWindow={fiveHourWindow}
+        weeklyWindow={weeklyWindow}
+      />
+    </section>
+  );
+};
+
 const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
   const tt = typeof t === 'function' ? t : (v) => v;
   const [showRawJson, setShowRawJson] = useState(false);
   const data = payload?.data ?? null;
   const rateLimit = data?.rate_limit ?? {};
-  const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(data);
+  const additionalRateLimits = Array.isArray(data?.additional_rate_limits)
+    ? data.additional_rate_limits.filter(
+        (item) =>
+          item && typeof item === 'object' && Object.keys(item).length > 0,
+      )
+    : [];
   const upstreamStatus = payload?.upstream_status;
   const accountType = data?.plan_type ?? rateLimit?.plan_type;
   const accountTypeLabel = formatAccountTypeLabel(accountType, tt);
@@ -277,13 +353,15 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
   const email = data?.email;
   const accountId = data?.account_id;
   const errorMessage =
-    payload?.success === false ? getDisplayText(payload?.message) || tt('获取用量失败') : '';
+    payload?.success === false
+      ? getDisplayText(payload?.message) || tt('获取用量失败')
+      : '';
 
   const rawText =
     typeof data === 'string' ? data : JSON.stringify(data ?? payload, null, 2);
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex max-h-[72vh] flex-col gap-4 overflow-y-auto pr-1'>
       {errorMessage && (
         <div className='rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
           {errorMessage}
@@ -313,7 +391,12 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
               </Tag>
             </div>
           </div>
-          <Button size='small' type='tertiary' theme='outline' onClick={onRefresh}>
+          <Button
+            size='small'
+            type='tertiary'
+            theme='outline'
+            onClick={onRefresh}
+          >
             {tt('刷新')}
           </Button>
         </div>
@@ -355,22 +438,61 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
             {tt('额度窗口')}
           </div>
           <Text type='tertiary' size='small'>
-            {tt('用于观察当前帐号在 Codex 上游的限额使用情况')}
+            {tt(
+              '用于观察当前帐号在 Codex 上游的基础限额与附加计费能力使用情况',
+            )}
           </Text>
         </div>
       </div>
 
-      <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-        <RateLimitWindowCard
+      <div className='space-y-5'>
+        <RateLimitGroupSection
           t={tt}
-          title={tt('5小时窗口')}
-          windowData={fiveHourWindow}
+          title={tt('基础额度')}
+          description={tt('当前帐号的基础额度窗口')}
+          rateLimitSource={data}
+          statusTag={statusTag}
         />
-        <RateLimitWindowCard
-          t={tt}
-          title={tt('每周窗口')}
-          windowData={weeklyWindow}
-        />
+
+        {additionalRateLimits.length > 0 ? (
+          <div className='space-y-4 border-t border-semi-color-border pt-4'>
+            <div>
+              <div className='text-sm font-semibold text-semi-color-text-0'>
+                {tt('附加额度')}
+              </div>
+              <Text type='tertiary' size='small'>
+                {tt('按模型或能力拆分的附加计费能力窗口')}
+              </Text>
+            </div>
+
+            <div className='space-y-4'>
+              {additionalRateLimits.map((item, index) => {
+                const limitName =
+                  getDisplayText(item?.limit_name) ||
+                  getDisplayText(item?.metered_feature) ||
+                  `${tt('附加额度')} ${index + 1}`;
+
+                return (
+                  <div
+                    key={`${limitName}-${getDisplayText(item?.metered_feature)}-${index}`}
+                    className={
+                      index > 0 ? 'border-t border-semi-color-border pt-4' : ''
+                    }
+                  >
+                    <RateLimitGroupSection
+                      t={tt}
+                      title={limitName}
+                      description={tt('附加计费能力')}
+                      rateLimitSource={item}
+                      statusTag={resolveUsageStatusTag(tt, item?.rate_limit)}
+                      meteredFeature={item?.metered_feature}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <Collapse
