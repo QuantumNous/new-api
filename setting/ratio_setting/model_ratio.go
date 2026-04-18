@@ -146,6 +146,12 @@ var defaultModelRatio = map[string]float64{
 	"claude-opus-4-6-high":                      2.5,
 	"claude-opus-4-6-medium":                    2.5,
 	"claude-opus-4-6-low":                       2.5,
+	"claude-opus-4-7":                           2.5,
+	"claude-opus-4-7-max":                       2.5,
+	"claude-opus-4-7-xhigh":                     2.5,
+	"claude-opus-4-7-high":                      2.5,
+	"claude-opus-4-7-medium":                    2.5,
+	"claude-opus-4-7-low":                       2.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
 	"claude-opus-4-20250514":                    7.5,
 	"claude-opus-4-1-20250805":                  7.5,
@@ -361,6 +367,10 @@ func UpdateModelPriceByJSONString(jsonStr string) error {
 func GetModelPrice(name string, printErr bool) (float64, bool) {
 	name = FormatMatchingModelName(name)
 
+	if price, ok := modelPriceMap.Get(name); ok {
+		return price, true
+	}
+
 	if strings.HasSuffix(name, CompactModelSuffix) {
 		price, ok := modelPriceMap.Get(CompactWildcardModelKey)
 		if !ok {
@@ -372,14 +382,10 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 		return price, true
 	}
 
-	price, ok := modelPriceMap.Get(name)
-	if !ok {
-		if printErr {
-			common.SysError("model price not found: " + name)
-		}
-		return -1, false
+	if printErr {
+		common.SysError("model price not found: " + name)
 	}
-	return price, true
+	return -1, false
 }
 
 func UpdateModelRatioByJSONString(jsonStr string) error {

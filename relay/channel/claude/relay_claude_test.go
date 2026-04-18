@@ -258,6 +258,23 @@ func TestBuildOpenAIStyleUsageFromClaudeUsagePreservesCacheCreationRemainder(t *
 	}
 }
 
+func TestBuildOpenAIStyleUsageFromClaudeUsageDefaultsAggregateCacheCreationTo5m(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 20,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         30,
+			CachedCreationTokens: 50,
+		},
+		UsageSemantic: "anthropic",
+	}
+
+	openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
+
+	require.Equal(t, 50, openAIUsage.ClaudeCacheCreation5mTokens)
+	require.Equal(t, 0, openAIUsage.ClaudeCacheCreation1hTokens)
+}
+
 func TestRequestOpenAI2ClaudeMessage_IgnoresUnsupportedFileContent(t *testing.T) {
 	request := dto.GeneralOpenAIRequest{
 		Model: "claude-3-5-sonnet",

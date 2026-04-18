@@ -103,6 +103,7 @@ const RULES_JSON_PLACEHOLDER = `[
     },
     "skip_retry_on_failure": false,
     "include_using_group": true,
+    "include_model_name": false,
     "include_rule_name": true
   }
 ]`;
@@ -191,6 +192,36 @@ const parseOptionalObjectJson = (jsonString, label) => {
   }
 };
 
+const buildChannelAffinityRulePayload = ({
+  values,
+  isEdit,
+  editingRuleId,
+  rulesLength,
+  modelRegex,
+  pathRegex,
+  keySources,
+  userAgentInclude,
+  paramOverrideTemplate,
+}) => ({
+  id: isEdit ? editingRuleId : rulesLength,
+  name: (values?.name || '').trim(),
+  model_regex: modelRegex,
+  path_regex: pathRegex,
+  key_sources: keySources,
+  value_regex: (values?.value_regex || '').trim(),
+  ttl_seconds: Number(values?.ttl_seconds || 0),
+  include_using_group: !!values?.include_using_group,
+  include_model_name: !!values?.include_model_name,
+  include_rule_name: !!values?.include_rule_name,
+  skip_retry_on_failure: !!values?.skip_retry_on_failure,
+  ...(userAgentInclude.length > 0
+    ? { user_agent_include: userAgentInclude }
+    : {}),
+  ...(paramOverrideTemplate
+    ? { param_override_template: paramOverrideTemplate }
+    : {}),
+});
+
 export default function SettingsChannelAffinity(props) {
   const { t } = useTranslation();
   const { Text } = Typography;
@@ -246,6 +277,7 @@ export default function SettingsChannelAffinity(props) {
       ttl_seconds: Number(r.ttl_seconds || 0),
       skip_retry_on_failure: !!r.skip_retry_on_failure,
       include_using_group: r.include_using_group ?? true,
+      include_model_name: !!r.include_model_name,
       include_rule_name: r.include_rule_name ?? true,
       param_override_template_json: r.param_override_template
         ? stringifyPretty(r.param_override_template)
@@ -454,14 +486,12 @@ export default function SettingsChannelAffinity(props) {
       const templates = [
         CHANNEL_AFFINITY_RULE_TEMPLATES.codexCli,
         CHANNEL_AFFINITY_RULE_TEMPLATES.claudeCli,
-      ].map(
-        (tpl) => {
-          const baseTemplate = cloneChannelAffinityTemplate(tpl);
-          const name = makeUniqueName(existingNames, tpl.name);
-          existingNames.add(name);
-          return { ...baseTemplate, name };
-        },
-      );
+      ].map((tpl) => {
+        const baseTemplate = cloneChannelAffinityTemplate(tpl);
+        const name = makeUniqueName(existingNames, tpl.name);
+        existingNames.add(name);
+        return { ...baseTemplate, name };
+      });
 
       const next = [...(rules || []), ...templates].map((r, idx) => ({
         ...(r || {}),
@@ -581,8 +611,9 @@ export default function SettingsChannelAffinity(props) {
       title: t('作用域'),
       render: (_, record) => {
         const tags = [];
-        if (record?.include_using_group) tags.push('分组');
-        if (record?.include_rule_name) tags.push('规则');
+        if (record?.include_using_group) tags.push(t('分组'));
+        if (record?.include_model_name) tags.push(t('模型'));
+        if (record?.include_rule_name) tags.push(t('规则'));
         if (tags.length === 0) return '-';
         return tags.map((x) => (
           <Tag key={x} style={{ marginRight: 4 }}>
@@ -650,6 +681,7 @@ export default function SettingsChannelAffinity(props) {
       ttl_seconds: 0,
       skip_retry_on_failure: false,
       include_using_group: true,
+      include_model_name: false,
       include_rule_name: true,
     };
     setEditingRule(nextRule);
@@ -712,26 +744,17 @@ export default function SettingsChannelAffinity(props) {
         return showError(t(paramTemplateValidation.message));
       }
 
-      const rulePayload = {
-        id: isEdit ? editingRule.id : rules.length,
-        name: (values.name || '').trim(),
-        model_regex: modelRegex,
-        path_regex: normalizeStringList(values.path_regex_text),
-        key_sources: keySourcesValidation.value,
-        value_regex: (values.value_regex || '').trim(),
-        ttl_seconds: Number(values.ttl_seconds || 0),
-        include_using_group: !!values.include_using_group,
-        include_rule_name: !!values.include_rule_name,
-        ...(values.skip_retry_on_failure
-          ? { skip_retry_on_failure: true }
-          : {}),
-        ...(userAgentInclude.length > 0
-          ? { user_agent_include: userAgentInclude }
-          : {}),
-        ...(paramTemplateValidation.value
-          ? { param_override_template: paramTemplateValidation.value }
-          : {}),
-      };
+      const rulePayload = buildChannelAffinityRulePayload({
+        values,
+        isEdit,
+        editingRuleId: editingRule?.id,
+        rulesLength: rules.length,
+        modelRegex,
+        pathRegex: normalizeStringList(values.path_regex_text),
+        keySources: keySourcesValidation.value,
+        userAgentInclude,
+        paramOverrideTemplate: paramTemplateValidation.value,
+      });
 
       if (!rulePayload.name) return showError(t('名称不能为空'));
 
@@ -1251,7 +1274,7 @@ export default function SettingsChannelAffinity(props) {
               </Row>
 
               <Row gutter={16}>
-                <Col xs={24} sm={12}>
+                <Col xs={24} sm={8}>
                   <Form.Switch
                     field='include_using_group'
                     label={t('作用域：包含分组')}
@@ -1262,7 +1285,16 @@ export default function SettingsChannelAffinity(props) {
                     )}
                   </Text>
                 </Col>
-                <Col xs={24} sm={12}>
+                <Col xs={24} sm={8}>
+                  <Form.Switch
+                    field='include_model_name'
+                    label={t('作用域：包含模型名称')}
+                  />
+                  <Text type='tertiary' size='small'>
+                    {t('开启后，模型名称会参与 cache key（不同模型隔离）。')}
+                  </Text>
+                </Col>
+                <Col xs={24} sm={8}>
                   <Form.Switch
                     field='include_rule_name'
                     label={t('作用域：包含规则名称')}
