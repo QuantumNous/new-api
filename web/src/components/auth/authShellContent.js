@@ -62,39 +62,39 @@ export function getAuthPageCopy(mode, t, systemName) {
 
 export function getAuthShellThemeClasses() {
   return {
-    root: 'auth-shell relative min-h-screen overflow-hidden bg-white dark:bg-[#0b1020]',
-    layout: 'flex min-h-screen w-full overflow-hidden bg-white dark:bg-[#0f1425]',
+    root: 'auth-shell auth-theme-shell-root relative min-h-screen overflow-hidden',
+    layout: 'auth-theme-shell-layout flex min-h-screen w-full overflow-hidden',
     hero:
-      'auth-shell-hero relative hidden w-[54%] overflow-hidden border-r border-gray-200/70 dark:border-white/10 lg:flex lg:flex-col lg:justify-between lg:px-10 lg:pb-12 lg:pt-28 xl:px-14 xl:pb-14 xl:pt-32',
+      'auth-shell-hero auth-theme-hero relative hidden w-[54%] overflow-hidden lg:flex lg:flex-col lg:justify-between lg:px-10 lg:pb-12 lg:pt-28 xl:px-14 xl:pb-14 xl:pt-32',
     backLink:
-      'mb-16 inline-flex w-fit items-center gap-2 rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-gray-300 dark:hover:border-white/20 dark:hover:text-white',
+      'auth-theme-back-link mb-16 inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition',
     eyebrow:
-      'mb-4 text-xs font-bold uppercase tracking-[0.28em] text-indigo-600 dark:text-indigo-300',
+      'auth-theme-eyebrow mb-4 text-xs font-bold uppercase tracking-[0.28em]',
     headline:
-      'max-w-xl text-[40px] font-bold leading-[1.15] text-gray-900 dark:text-white xl:text-[46px]',
+      'auth-theme-headline max-w-xl text-[40px] font-bold leading-[1.15] xl:text-[46px]',
     storyCard:
-      'rounded-[28px] border border-white/80 bg-white/70 p-7 shadow-[0_20px_60px_rgba(99,102,241,0.14)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]',
+      'auth-theme-story-card rounded-[28px] p-7 backdrop-blur-xl',
     storyTag:
-      'inline-flex rounded-full border border-white bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-indigo-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-indigo-200',
+      'auth-theme-story-tag inline-flex rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em]',
     storyQuote:
-      'min-h-[96px] text-[15px] font-medium leading-7 text-gray-800 dark:text-gray-100',
+      'auth-theme-story-quote min-h-[96px] text-[15px] font-medium leading-7',
     storyAvatar:
-      'flex h-11 w-11 items-center justify-center rounded-full border border-white bg-gradient-to-br from-indigo-100 to-cyan-100 text-base font-bold text-indigo-600 dark:border-white/10 dark:from-indigo-500/30 dark:to-cyan-500/30 dark:text-indigo-100',
-    storyName: 'text-sm font-bold text-gray-900 dark:text-white',
-    storyRole: 'text-sm text-gray-500 dark:text-gray-400',
-    dotIdle: 'w-2 bg-gray-300 dark:bg-white/20',
-    dotActive: 'w-6 bg-indigo-600 dark:bg-indigo-400',
+      'auth-theme-story-avatar flex h-11 w-11 items-center justify-center rounded-full text-base font-bold',
+    storyName: 'auth-theme-story-name text-sm font-bold',
+    storyRole: 'auth-theme-story-role text-sm',
+    dotIdle: 'auth-theme-dot-idle w-2',
+    dotActive: 'auth-theme-dot-active w-6',
     surface:
-      'relative flex w-full flex-1 flex-col justify-center bg-white px-6 pb-10 pt-24 dark:bg-[#11162a] sm:px-10 lg:w-[46%] lg:px-12 lg:pb-12 lg:pt-28 xl:px-16 xl:pb-16 xl:pt-32',
+      'auth-theme-surface relative flex w-full flex-1 flex-col justify-center px-6 pb-10 pt-24 sm:px-10 lg:w-[46%] lg:px-12 lg:pb-12 lg:pt-28 xl:px-16 xl:pb-16 xl:pt-32',
     mobileBackLink:
-      'mb-8 inline-flex w-fit items-center gap-2 text-sm font-medium text-gray-500 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-white lg:hidden',
-    logoFallback: 'text-2xl text-gray-900 dark:text-white',
+      'auth-theme-mobile-back-link mb-8 inline-flex w-fit items-center gap-2 text-sm font-medium transition lg:hidden',
+    logoFallback: 'auth-theme-logo-fallback text-2xl',
     titleEyebrow:
-      'mb-3 text-xs font-bold uppercase tracking-[0.28em] text-gray-400 dark:text-gray-500',
-    title: 'text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-[34px]',
-    description: 'mt-3 text-[15px] leading-7 text-gray-500 dark:text-gray-400',
+      'auth-theme-title-eyebrow mb-3 text-xs font-bold uppercase tracking-[0.28em]',
+    title: 'auth-theme-title text-3xl font-bold tracking-tight sm:text-[34px]',
+    description: 'auth-theme-description mt-3 text-[15px] leading-7',
     formCard:
-      'rounded-[28px] border border-gray-200/80 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[#161c31] dark:shadow-[0_24px_70px_rgba(0,0,0,0.45)] sm:p-8',
+      'auth-theme-form-card rounded-[28px] p-6 sm:p-8',
   };
 }
 

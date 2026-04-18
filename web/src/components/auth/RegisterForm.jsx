@@ -38,10 +38,7 @@ import Turnstile from 'react-turnstile';
 import { Button, Checkbox, Divider, Icon, Modal } from '@douyinfe/semi-ui';
 import {
   IconGithubLogo,
-  IconMail,
   IconUser,
-  IconLock,
-  IconKey,
 } from '@douyinfe/semi-icons';
 import OIDCIcon from '../common/logo/OIDCIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
@@ -55,11 +52,13 @@ import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
 const inputClassName =
-  'w-full h-12 rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-400 dark:focus:bg-white/[0.07]';
+  'auth-theme-input w-full h-12 rounded-xl border px-4 text-sm outline-none transition-all focus:ring-4 focus:ring-indigo-500/10';
 const primaryButtonClassName =
-  '!h-12 !w-full !rounded-xl !border-0 !bg-gray-900 !text-white hover:!bg-gray-800 dark:!bg-white dark:!text-gray-900 dark:hover:!bg-gray-100';
+  'auth-theme-primary-button !h-12 !w-full !rounded-xl !border-0';
 const providerButtonClassName =
-  '!h-12 !w-full !justify-center !rounded-xl !border !border-gray-200 !bg-white !text-gray-700 hover:!bg-gray-50 dark:!border-white/10 dark:!bg-white/[0.04] dark:!text-gray-100 dark:hover:!bg-white/[0.08]';
+  'auth-theme-provider-button !h-12 !w-full !justify-center !rounded-xl !border';
+const secondaryButtonClassName =
+  'auth-theme-secondary-button !h-12 !shrink-0 !rounded-xl !px-4';
 
 const RegisterForm = () => {
   const navigate = useNavigate();
@@ -384,19 +383,19 @@ const RegisterForm = () => {
     }
 
     return (
-      <div className='rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]'>
+      <div className='auth-theme-terms-box rounded-2xl px-4 py-3'>
         <Checkbox
           checked={agreedToTerms}
           onChange={(e) => setAgreedToTerms(e.target.checked)}
         >
-          <span className='text-sm leading-6 text-gray-600 dark:text-gray-300'>
+          <span className='auth-theme-terms-text text-sm leading-6'>
             {t('我已阅读并同意')}
             {hasUserAgreement && (
               <a
                 href='/user-agreement'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='mx-1 text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200'
+                className='auth-theme-link mx-1'
               >
                 {t('用户协议')}
               </a>
@@ -407,7 +406,7 @@ const RegisterForm = () => {
                 href='/privacy-policy'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='mx-1 text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200'
+                className='auth-theme-link mx-1'
               >
                 {t('隐私政策')}
               </a>
@@ -426,7 +425,7 @@ const RegisterForm = () => {
     return (
       <>
         <Divider margin='28px' align='center'>
-          <span className='px-2 text-xs font-medium text-gray-400 dark:text-gray-500'>
+          <span className='auth-theme-divider-text px-2 text-xs font-medium'>
             {t('其他注册选项')}
           </span>
         </Divider>
@@ -526,7 +525,7 @@ const RegisterForm = () => {
             ))}
 
           {status.telegram_oauth && (
-            <div className='overflow-hidden rounded-xl border border-gray-200 bg-white p-2 dark:border-white/10 dark:bg-white/[0.04]'>
+            <div className='auth-theme-telegram-wrapper overflow-hidden rounded-xl border p-2'>
               <div className='flex justify-center'>
                 <TelegramLoginButton
                   dataOnauth={onTelegramLoginClicked}
@@ -563,7 +562,7 @@ const RegisterForm = () => {
         </div>
 
         <div>
-          <label className='mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200'>
+          <label className='auth-theme-field-label mb-2 block text-sm font-medium'>
             {t('验证码')}
           </label>
           <input
@@ -583,7 +582,7 @@ const RegisterForm = () => {
     <AuthShell mode='register'>
       <form className='space-y-5' onSubmit={handleSubmit}>
         <div>
-          <label className='mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200'>
+          <label className='auth-theme-field-label mb-2 block text-sm font-medium'>
             {t('用户名')}
           </label>
           <input
@@ -598,7 +597,7 @@ const RegisterForm = () => {
         </div>
 
         <div>
-          <label className='mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200'>
+          <label className='auth-theme-field-label mb-2 block text-sm font-medium'>
             {t('密码')}
           </label>
           <input
@@ -613,7 +612,7 @@ const RegisterForm = () => {
         </div>
 
         <div>
-          <label className='mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200'>
+          <label className='auth-theme-field-label mb-2 block text-sm font-medium'>
             {t('确认密码')}
           </label>
           <input
@@ -630,7 +629,7 @@ const RegisterForm = () => {
         {showEmailVerification && (
           <>
             <div>
-              <label className='mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200'>
+              <label className='auth-theme-field-label mb-2 block text-sm font-medium'>
                 {t('邮箱')}
               </label>
               <div className='flex items-center gap-2'>
@@ -646,7 +645,7 @@ const RegisterForm = () => {
                 <Button
                   type='primary'
                   theme='solid'
-                  className='!h-12 !shrink-0 !rounded-xl !bg-gray-100 !px-4 !text-gray-700 hover:!bg-gray-200 dark:!bg-white/10 dark:!text-gray-100 dark:hover:!bg-white/15'
+                  className={secondaryButtonClassName}
                   onClick={sendVerificationCode}
                   loading={verificationCodeLoading}
                   disabled={disableButton || verificationCodeLoading}
@@ -659,7 +658,7 @@ const RegisterForm = () => {
             </div>
 
             <div>
-              <label className='mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200'>
+              <label className='auth-theme-field-label mb-2 block text-sm font-medium'>
                 {t('验证码')}
               </label>
               <input
@@ -704,11 +703,11 @@ const RegisterForm = () => {
         </div>
       )}
 
-      <p className='mt-8 text-center text-sm text-gray-500 dark:text-gray-400'>
+      <p className='auth-theme-switch-text mt-8 text-center text-sm'>
         {pageCopy.switchPrefix}{' '}
         <Link
           to={pageCopy.switchHref}
-          className='font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200'
+          className='auth-theme-switch-link font-medium'
         >
           {pageCopy.switchText}
         </Link>

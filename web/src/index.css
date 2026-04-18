@@ -782,7 +782,234 @@ html.dark .sbg-variant-green {
     #f5f7fb;
 }
 
-html.dark .auth-shell {
+.auth-theme-shell-root {
+  --auth-theme-text-strong: #0f172a;
+  --auth-theme-text-secondary: #334155;
+  --auth-theme-text-muted: #64748b;
+  --auth-theme-border: rgba(148, 163, 184, 0.22);
+  --auth-theme-strong-border: rgba(99, 102, 241, 0.2);
+  --auth-theme-surface: rgba(255, 255, 255, 0.8);
+  --auth-theme-elevated-surface: rgba(255, 255, 255, 0.9);
+  --auth-theme-story-surface: rgba(255, 255, 255, 0.58);
+  --auth-theme-tag-bg: rgba(79, 70, 229, 0.1);
+  --auth-theme-tag-text: #4338ca;
+  --auth-theme-avatar-bg: rgba(79, 70, 229, 0.12);
+  --auth-theme-avatar-text: #312e81;
+  --auth-theme-link: #4f46e5;
+  --auth-theme-link-hover: #4338ca;
+  --auth-theme-input-bg: rgba(248, 250, 252, 0.92);
+  --auth-theme-input-focus-bg: #ffffff;
+  --auth-theme-input-border: rgba(148, 163, 184, 0.24);
+  --auth-theme-input-focus-border: #4f46e5;
+  --auth-theme-input-placeholder: #94a3b8;
+  --auth-theme-primary-bg: #111827;
+  --auth-theme-primary-bg-hover: #1f2937;
+  --auth-theme-primary-text: #ffffff;
+  --auth-theme-provider-bg: rgba(255, 255, 255, 0.92);
+  --auth-theme-provider-bg-hover: #ffffff;
+  --auth-theme-provider-text: #334155;
+  --auth-theme-secondary-bg: #e2e8f0;
+  --auth-theme-secondary-bg-hover: #cbd5e1;
+  --auth-theme-secondary-text: #334155;
+  --auth-theme-dot-idle: rgba(79, 70, 229, 0.18);
+  --auth-theme-dot-active: #4f46e5;
+  --auth-theme-twofa-icon-bg: #dcfce7;
+  --auth-theme-twofa-icon-text: #166534;
+  --auth-theme-panel-bg: rgba(248, 250, 252, 0.9);
+  --auth-theme-panel-shadow:
+    0 24px 60px -32px rgba(15, 23, 42, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+html.dark .auth-theme-shell-root,
+body[theme-mode='dark'] .auth-theme-shell-root {
+  --auth-theme-text-strong: #f8fafc;
+  --auth-theme-text-secondary: #e2e8f0;
+  --auth-theme-text-muted: #94a3b8;
+  --auth-theme-border: rgba(148, 163, 184, 0.18);
+  --auth-theme-strong-border: rgba(129, 140, 248, 0.3);
+  --auth-theme-surface: rgba(15, 23, 42, 0.72);
+  --auth-theme-elevated-surface: rgba(15, 23, 42, 0.82);
+  --auth-theme-story-surface: rgba(15, 23, 42, 0.55);
+  --auth-theme-tag-bg: rgba(129, 140, 248, 0.16);
+  --auth-theme-tag-text: #c7d2fe;
+  --auth-theme-avatar-bg: rgba(129, 140, 248, 0.2);
+  --auth-theme-avatar-text: #e0e7ff;
+  --auth-theme-link: #a5b4fc;
+  --auth-theme-link-hover: #c7d2fe;
+  --auth-theme-input-bg: rgba(15, 23, 42, 0.72);
+  --auth-theme-input-focus-bg: rgba(15, 23, 42, 0.92);
+  --auth-theme-input-border: rgba(148, 163, 184, 0.18);
+  --auth-theme-input-focus-border: #818cf8;
+  --auth-theme-input-placeholder: #64748b;
+  --auth-theme-primary-bg: #f8fafc;
+  --auth-theme-primary-bg-hover: #e2e8f0;
+  --auth-theme-primary-text: #111827;
+  --auth-theme-provider-bg: rgba(15, 23, 42, 0.82);
+  --auth-theme-provider-bg-hover: rgba(30, 41, 59, 0.92);
+  --auth-theme-provider-text: #f8fafc;
+  --auth-theme-secondary-bg: rgba(148, 163, 184, 0.16);
+  --auth-theme-secondary-bg-hover: rgba(148, 163, 184, 0.24);
+  --auth-theme-secondary-text: #e2e8f0;
+  --auth-theme-dot-idle: rgba(165, 180, 252, 0.26);
+  --auth-theme-dot-active: #a5b4fc;
+  --auth-theme-twofa-icon-bg: rgba(34, 197, 94, 0.18);
+  --auth-theme-twofa-icon-text: #86efac;
+  --auth-theme-panel-bg: rgba(15, 23, 42, 0.76);
+  --auth-theme-panel-shadow:
+    0 24px 60px -32px rgba(2, 6, 23, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.auth-theme-shell-layout,
+.auth-theme-surface {
+  color: var(--auth-theme-text-strong);
+}
+
+.auth-theme-back-link,
+.auth-theme-mobile-back-link {
+  color: var(--auth-theme-text-secondary);
+}
+
+.auth-theme-back-link:hover,
+.auth-theme-mobile-back-link:hover {
+  color: var(--auth-theme-text-strong);
+}
+
+.auth-theme-eyebrow,
+.auth-theme-title-eyebrow {
+  color: var(--auth-theme-link);
+}
+
+.auth-theme-headline,
+.auth-theme-title,
+.auth-theme-story-name {
+  color: var(--auth-theme-text-strong);
+}
+
+.auth-theme-description,
+.auth-theme-story-role,
+.auth-theme-field-label,
+.auth-theme-terms-text,
+.auth-theme-divider-text,
+.auth-theme-switch-text,
+.auth-theme-twofa-hint {
+  color: var(--auth-theme-text-muted);
+}
+
+.auth-theme-story-card,
+.auth-theme-form-card {
+  border: 1px solid var(--auth-theme-border);
+  box-shadow: var(--auth-theme-panel-shadow);
+}
+
+.auth-theme-story-card {
+  background: var(--auth-theme-story-surface);
+}
+
+.auth-theme-form-card {
+  background: var(--auth-theme-elevated-surface);
+}
+
+.auth-theme-story-tag {
+  background: var(--auth-theme-tag-bg);
+  color: var(--auth-theme-tag-text);
+}
+
+.auth-theme-story-quote {
+  color: var(--auth-theme-text-secondary);
+}
+
+.auth-theme-story-avatar {
+  background: var(--auth-theme-avatar-bg);
+  color: var(--auth-theme-avatar-text);
+}
+
+.auth-theme-dot-idle {
+  background-color: var(--auth-theme-dot-idle);
+}
+
+.auth-theme-dot-active {
+  background-color: var(--auth-theme-dot-active);
+}
+
+.auth-theme-logo-fallback,
+.auth-theme-link,
+.auth-theme-switch-link,
+.auth-theme-link-button.semi-button {
+  color: var(--auth-theme-link) !important;
+}
+
+.auth-theme-link:hover,
+.auth-theme-switch-link:hover,
+.auth-theme-link-button.semi-button:hover {
+  color: var(--auth-theme-link-hover) !important;
+}
+
+.auth-theme-terms-box,
+.auth-theme-telegram-wrapper,
+.auth-theme-twofa-panel {
+  background: var(--auth-theme-surface);
+  border: 1px solid var(--auth-theme-border);
+}
+
+.auth-theme-input {
+  border-color: var(--auth-theme-input-border);
+  background: var(--auth-theme-input-bg);
+  color: var(--auth-theme-text-strong);
+}
+
+.auth-theme-input::placeholder {
+  color: var(--auth-theme-input-placeholder);
+}
+
+.auth-theme-input:focus {
+  border-color: var(--auth-theme-input-focus-border);
+  background: var(--auth-theme-input-focus-bg);
+}
+
+.auth-theme-primary-button.semi-button {
+  background: var(--auth-theme-primary-bg) !important;
+  color: var(--auth-theme-primary-text) !important;
+}
+
+.auth-theme-primary-button.semi-button:hover,
+.auth-theme-primary-button.semi-button:focus {
+  background: var(--auth-theme-primary-bg-hover) !important;
+}
+
+.auth-theme-provider-button.semi-button {
+  border-color: var(--auth-theme-input-border) !important;
+  background: var(--auth-theme-provider-bg) !important;
+  color: var(--auth-theme-provider-text) !important;
+}
+
+.auth-theme-provider-button.semi-button:hover,
+.auth-theme-provider-button.semi-button:focus {
+  border-color: var(--auth-theme-strong-border) !important;
+  background: var(--auth-theme-provider-bg-hover) !important;
+}
+
+.auth-theme-secondary-button.semi-button {
+  background: var(--auth-theme-secondary-bg) !important;
+  color: var(--auth-theme-secondary-text) !important;
+}
+
+.auth-theme-secondary-button.semi-button:hover,
+.auth-theme-secondary-button.semi-button:focus {
+  background: var(--auth-theme-secondary-bg-hover) !important;
+}
+
+.auth-theme-twofa-icon {
+  background: var(--auth-theme-twofa-icon-bg);
+}
+
+.auth-theme-twofa-icon-svg {
+  color: var(--auth-theme-twofa-icon-text);
+}
+
+html.dark .auth-shell,
+body[theme-mode='dark'] .auth-shell {
   background:
     radial-gradient(
       circle at 18% 20%,
@@ -797,7 +1024,8 @@ html.dark .auth-shell {
     linear-gradient(180deg, #0b1020 0%, #0f1425 42%);
 }
 
-html.dark .auth-shell-hero {
+html.dark .auth-shell-hero,
+body[theme-mode='dark'] .auth-shell-hero {
   background:
     radial-gradient(
       circle at 25% 18%,
@@ -841,11 +1069,13 @@ html.dark .auth-shell-hero {
   background: rgba(255, 255, 255, 0.45);
 }
 
-html.dark .auth-shell-glow-primary {
+html.dark .auth-shell-glow-primary,
+body[theme-mode='dark'] .auth-shell-glow-primary {
   background: rgba(99, 102, 241, 0.2);
 }
 
-html.dark .auth-shell-glow-secondary {
+html.dark .auth-shell-glow-secondary,
+body[theme-mode='dark'] .auth-shell-glow-secondary {
   background: rgba(6, 182, 212, 0.15);
 }
 

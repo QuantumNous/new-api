@@ -80,7 +80,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
   if (isModal) {
     return (
       <div className='space-y-4'>
-        <Paragraph className='text-gray-600 dark:text-gray-300'>
+        <Paragraph className='auth-theme-twofa-hint'>
           请输入认证器应用显示的验证码完成登录
         </Paragraph>
 
@@ -115,11 +115,12 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
           <Button
             theme='borderless'
             type='tertiary'
+            className='auth-theme-link-button !px-0'
             onClick={() => {
               setUseBackupCode(!useBackupCode);
               setVerificationCode('');
             }}
-            style={{ marginRight: 16, color: '#1890ff', padding: 0 }}
+            style={{ marginRight: 16 }}
           >
             {useBackupCode ? '使用认证器验证码' : '使用备用码'}
           </Button>
@@ -128,15 +129,15 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
             <Button
               theme='borderless'
               type='tertiary'
+              className='auth-theme-link-button !px-0'
               onClick={onBack}
-              style={{ color: '#1890ff', padding: 0 }}
             >
               返回登录
             </Button>
           )}
         </div>
 
-        <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
+        <div className='auth-theme-twofa-panel rounded-lg p-3'>
           <Text size='small' type='secondary'>
             <strong>提示：</strong>
             <br />
@@ -198,11 +199,12 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
           <Button
             theme='borderless'
             type='tertiary'
+            className='auth-theme-link-button !px-0'
             onClick={() => {
               setUseBackupCode(!useBackupCode);
               setVerificationCode('');
             }}
-            style={{ marginRight: 16, color: '#1890ff', padding: 0 }}
+            style={{ marginRight: 16 }}
           >
             {useBackupCode ? '使用认证器验证码' : '使用备用码'}
           </Button>
@@ -211,8 +213,8 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
             <Button
               theme='borderless'
               type='tertiary'
+              className='auth-theme-link-button !px-0'
               onClick={onBack}
-              style={{ color: '#1890ff', padding: 0 }}
             >
               返回登录
             </Button>
@@ -220,10 +222,10 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
         </div>
 
         <div
+          className='auth-theme-twofa-panel'
           style={{
             marginTop: 24,
             padding: 16,
-            background: '#f6f8fa',
             borderRadius: 6,
           }}
         >
