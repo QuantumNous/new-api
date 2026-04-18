@@ -89,11 +89,8 @@ func normalizeWaffoPancakeTopUpAmount(amount int64) int64 {
 	return normalized
 }
 
-func waffoPancakeMoneyToMinorUnits(payMoney float64) int64 {
-	return decimal.NewFromFloat(payMoney).
-		Mul(decimal.NewFromInt(100)).
-		Round(0).
-		IntPart()
+func formatWaffoPancakeAmount(payMoney float64) string {
+	return decimal.NewFromFloat(payMoney).StringFixed(2)
 }
 
 func getWaffoPancakeBuyerEmail(user *model.User) string {
@@ -183,7 +180,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		ProductType: "onetime",
 		Currency:    strings.ToUpper(strings.TrimSpace(setting.WaffoPancakeCurrency)),
 		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
-			Amount:      fmt.Sprintf("%d", waffoPancakeMoneyToMinorUnits(payMoney)),
+			Amount:      formatWaffoPancakeAmount(payMoney),
 			TaxIncluded: false,
 			TaxCategory: "saas",
 		},
