@@ -45,6 +45,7 @@ import {
 } from '../../components/table/channels/codexUsageUtils';
 
 const CODEX_USAGE_CACHE_TTL_MS = 60 * 1000;
+const CODEX_USAGE_FETCH_CONCURRENCY = 4;
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -385,50 +386,60 @@ export const useChannelsData = () => {
       return;
     }
 
-    await Promise.all(
-      codexChannels.map(async (channel) => {
-        const cached = codexUsageCacheRef.current.get(channel.id);
-        const isFresh =
-          !!cached && now - cached.fetchedAt < CODEX_USAGE_CACHE_TTL_MS;
-        if (isFresh) {
-          return;
-        }
+    for (
+      let i = 0;
+      i < codexChannels.length;
+      i += CODEX_USAGE_FETCH_CONCURRENCY
+    ) {
+      const batch = codexChannels.slice(
+        i,
+        i + CODEX_USAGE_FETCH_CONCURRENCY,
+      );
+      await Promise.all(
+        batch.map(async (channel) => {
+          const cached = codexUsageCacheRef.current.get(channel.id);
+          const isFresh =
+            !!cached && now - cached.fetchedAt < CODEX_USAGE_CACHE_TTL_MS;
+          if (isFresh) {
+            return;
+          }
 
-        updateChannelProperty(channel.id, (currentChannel) => {
-          const currentUsage = currentChannel.codex_usage || {};
-          currentChannel.codex_usage = {
-            ...currentUsage,
-            loading: true,
-            error: '',
-            payload: currentUsage.payload || cached?.payload || null,
-            summary:
-              currentUsage.summary ||
-              (cached?.payload
-                ? extractCodexUsageSummary(cached.payload)
-                : null),
-            fetched_at: currentUsage.fetched_at || cached?.fetchedAt || 0,
-          };
-        });
+          updateChannelProperty(channel.id, (currentChannel) => {
+            const currentUsage = currentChannel.codex_usage || {};
+            currentChannel.codex_usage = {
+              ...currentUsage,
+              loading: true,
+              error: '',
+              payload: currentUsage.payload || cached?.payload || null,
+              summary:
+                currentUsage.summary ||
+                (cached?.payload
+                  ? extractCodexUsageSummary(cached.payload)
+                  : null),
+              fetched_at: currentUsage.fetched_at || cached?.fetchedAt || 0,
+            };
+          });
 
-        const payload = await fetchCodexUsageForChannel(channel.id);
-        const fetchedAt = Date.now();
-        codexUsageCacheRef.current.set(channel.id, {
-          payload,
-          fetchedAt,
-        });
-
-        updateChannelProperty(channel.id, (currentChannel) => {
-          currentChannel.codex_usage = {
-            loading: false,
-            error:
-              payload?.success === false ? payload?.message || '' : '',
+          const payload = await fetchCodexUsageForChannel(channel.id);
+          const fetchedAt = Date.now();
+          codexUsageCacheRef.current.set(channel.id, {
             payload,
-            summary: extractCodexUsageSummary(payload),
-            fetched_at: fetchedAt,
-          };
-        });
-      }),
-    );
+            fetchedAt,
+          });
+
+          updateChannelProperty(channel.id, (currentChannel) => {
+            currentChannel.codex_usage = {
+              loading: false,
+              error:
+                payload?.success === false ? payload?.message || '' : '',
+              payload,
+              summary: extractCodexUsageSummary(payload),
+              fetched_at: fetchedAt,
+            };
+          });
+        }),
+      );
+    }
   };
 
   // Get form values helper
@@ -721,21 +732,35 @@ export const useChannelsData = () => {
   // Update channel property
   const updateChannelProperty = (channelId, updateFn) => {
     setChannels((prevChannels) => {
-      const newChannels = [...prevChannels];
       let updated = false;
 
-      newChannels.forEach((channel) => {
+      const newChannels = prevChannels.map((channel) => {
         if (channel.children !== undefined) {
-          channel.children.forEach((child) => {
-            if (child.id === channelId) {
-              updateFn(child);
-              updated = true;
+          let childUpdated = false;
+          const children = channel.children.map((child) => {
+            if (child.id !== channelId) {
+              return child;
             }
+            const nextChild = { ...child };
+            updateFn(nextChild);
+            childUpdated = true;
+            updated = true;
+            return nextChild;
           });
-        } else if (channel.id === channelId) {
-          updateFn(channel);
-          updated = true;
+          if (childUpdated) {
+            return { ...channel, children };
+          }
+          return channel;
         }
+
+        if (channel.id === channelId) {
+          const nextChannel = { ...channel };
+          updateFn(nextChannel);
+          updated = true;
+          return nextChannel;
+        }
+
+        return channel;
       });
 
       return updated ? newChannels : prevChannels;

@@ -300,12 +300,15 @@ const renderCodexWindowUsage = (record, field, updateChannelBalance, t) => {
 
   const displayPercent = clampPercent(percent);
   const loadingTip = usage.loading ? ` · ${t('刷新中')}` : '';
+  const usageLabel = `${t('查看 Codex 帐号信息与用量')} (${displayPercent}%)`;
 
   return (
     <Tooltip content={`${t('点击查看 Codex 帐号信息与用量')}${loadingTip}`}>
-      <div
-        className='min-w-[120px] cursor-pointer'
+      <button
+        type='button'
+        className='min-w-[120px] cursor-pointer border-0 bg-transparent p-0 text-left'
         onClick={() => updateChannelBalance(record)}
+        aria-label={usageLabel}
       >
         <div className='mb-1 flex items-center justify-between gap-2 text-xs text-semi-color-text-2'>
           <span>{displayPercent}%</span>
@@ -317,7 +320,7 @@ const renderCodexWindowUsage = (record, field, updateChannelBalance, t) => {
           showInfo={false}
           size='small'
         />
-      </div>
+      </button>
     </Tooltip>
   );
 };

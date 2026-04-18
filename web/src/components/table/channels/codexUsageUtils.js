@@ -86,7 +86,10 @@ export const extractCodexUsageSummary = (payload) => {
     if (!windowData) {
       return null;
     }
-    return clampPercent(windowData?.used_percent ?? 0);
+    if (windowData?.used_percent == null) {
+      return null;
+    }
+    return clampPercent(windowData.used_percent);
   };
 
   return {
