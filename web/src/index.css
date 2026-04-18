@@ -1006,3 +1006,99 @@ html.dark .with-pastel-balls::before {
 }
 
 .ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
+
+/* ==================== 暖色主题样式 ==================== */
+/* 暖色主题：以暖卡其色/米色为主，搭配暖橙色强调色 */
+html.warm {
+  /* 主色调：暖橙色 */
+  --semi-color-primary: #d87c5a;
+  --semi-color-primary-light-default: rgba(216, 124, 90, 0.08);
+  --semi-color-primary-light-hover: rgba(216, 124, 90, 0.15);
+  --semi-color-primary-light-active: rgba(216, 124, 90, 0.22);
+  
+  /* 背景色：暖米色 */
+  --semi-color-bg-0: #fdf6e3;
+  --semi-color-bg-1: #f5e6c8;
+  --semi-color-bg-2: #e6d7b9;
+  
+  /* 文本色：深棕色/暖灰色 */
+  --semi-color-text-0: #5c4a3d;
+  --semi-color-text-1: #6b5a4a;
+  --semi-color-text-2: #8b7a6a;
+  
+  /* 边框色：浅米色 */
+  --semi-color-border: #e6d7b9;
+  
+  /* 填充色：暖色调浅色 */
+  --semi-color-fill-0: #f5e6c8;
+  --semi-color-fill-1: #e6d7b9;
+  --semi-color-fill-2: #d7c8aa;
+  
+  /* 灰色系：暖灰色调 */
+  --semi-grey-0: #f5e6c8;
+  --semi-grey-1: #e6d7b9;
+  --semi-grey-2: #d7c8aa;
+}
+
+/* 暖色主题下的颜色变体 */
+html.warm .sbg-variant-violet {
+  --semi-color-primary: #a78bfa;
+  --semi-color-primary-light-default: rgba(139, 92, 246, 0.14);
+  --semi-color-primary-light-hover: rgba(139, 92, 246, 0.22);
+  --semi-color-primary-light-active: rgba(139, 92, 246, 0.3);
+}
+
+html.warm .sbg-variant-teal {
+  --semi-color-primary: #2dd4bf;
+  --semi-color-primary-light-default: rgba(45, 212, 191, 0.14);
+  --semi-color-primary-light-hover: rgba(45, 212, 191, 0.22);
+  --semi-color-primary-light-active: rgba(45, 212, 191, 0.3);
+}
+
+html.warm .sbg-variant-amber {
+  --semi-color-primary: #f59e0b;
+  --semi-color-primary-light-default: rgba(245, 158, 11, 0.14);
+  --semi-color-primary-light-hover: rgba(245, 158, 11, 0.22);
+  --semi-color-primary-light-active: rgba(245, 158, 11, 0.3);
+}
+
+html.warm .sbg-variant-rose {
+  --semi-color-primary: #f43f5e;
+  --semi-color-primary-light-default: rgba(244, 63, 94, 0.14);
+  --semi-color-primary-light-hover: rgba(244, 63, 94, 0.22);
+  --semi-color-primary-light-active: rgba(244, 63, 94, 0.3);
+}
+
+html.warm .sbg-variant-green {
+  --semi-color-primary: #10b981;
+  --semi-color-primary-light-default: rgba(16, 185, 129, 0.14);
+  --semi-color-primary-light-hover: rgba(16, 185, 129, 0.22);
+  --semi-color-primary-light-active: rgba(16, 185, 129, 0.3);
+}
+
+/* 暖色主题下的马卡龙模糊球 */
+html.warm .with-pastel-balls {
+  --pb1: #ffd1dc; /* 粉 */
+  --pb2: #e5d4ff; /* 薰衣草 */
+  --pb3: #d1fff6; /* 薄荷 */
+  --pb4: #ffe5d9; /* 桃 */
+  --pb-opacity: 0.6;
+  --pb-blur: 60px;
+}
+
+/* 暖色主题下的闪光效果 */
+html.warm .shine-text {
+  background: linear-gradient(
+    90deg,
+    currentColor 0%,
+    currentColor 40%,
+    #fbbf24 50%,
+    currentColor 60%,
+    currentColor 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: sweep-shine 4s linear infinite;
+}

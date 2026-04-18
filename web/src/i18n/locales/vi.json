@@ -4020,6 +4020,8 @@
     "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Hiện tại chỉ hỗ trợ giao diện Epay, địa chỉ máy chủ phía trên được sử dụng làm địa chỉ gọi lại theo mặc định!)",
     "，当前无生效订阅，将自动使用钱包": ", hiện không có gói đăng ký hiệu lực, sẽ tự động dùng ví.",
     "，时间：": ", thời gian:",
-    "，点击更新": ", nhấn để cập nhật"
+    "，点击更新": ", nhấn để cập nhật",
+    "暖色模式": "Chế độ ấm",
+    "使用温暖色调的主题": "Sử dụng chủ đề với tông màu ấm"
   }
 }

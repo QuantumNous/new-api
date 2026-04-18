@@ -78,12 +78,18 @@ export const ThemeProvider = ({ children }) => {
   // 应用主题到DOM
   useEffect(() => {
     const body = document.body;
+    const html = document.documentElement;
+    
+    // 移除所有主题相关的类和属性
+    body.removeAttribute('theme-mode');
+    html.classList.remove('dark', 'warm');
+    
     if (actualTheme === 'dark') {
       body.setAttribute('theme-mode', 'dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      body.removeAttribute('theme-mode');
-      document.documentElement.classList.remove('dark');
+      html.classList.add('dark');
+    } else if (actualTheme === 'warm') {
+      body.setAttribute('theme-mode', 'warm');
+      html.classList.add('warm');
     }
   }, [actualTheme]);
 
