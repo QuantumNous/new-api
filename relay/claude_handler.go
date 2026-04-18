@@ -110,6 +110,15 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		request.TopK = nil
 	}
 
+	// Opus 4.7 rejects thinking.type="enabled"; convert to adaptive
+	if strings.HasPrefix(request.Model, "claude-opus-4-7") && request.Thinking != nil && request.Thinking.Type == "enabled" {
+		request.Thinking.Type = "adaptive"
+		request.Thinking.BudgetTokens = nil
+		if request.Thinking.Display == "" {
+			request.Thinking.Display = "summarized"
+		}
+	}
+
 	if info.ChannelSetting.SystemPrompt != "" {
 		if request.System == nil {
 			request.SetStringSystem(info.ChannelSetting.SystemPrompt)
