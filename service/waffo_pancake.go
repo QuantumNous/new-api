@@ -21,7 +21,6 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
-	"github.com/shopspring/decimal"
 )
 
 const (
@@ -51,6 +50,7 @@ type WaffoPancakeCheckoutSession struct {
 	SessionID   string `json:"sessionId"`
 	CheckoutURL string `json:"checkoutUrl"`
 	ExpiresAt   string `json:"expiresAt"`
+	OrderID     string `json:"orderId"`
 }
 
 type waffoPancakeAPIError struct {
@@ -149,7 +149,7 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 	if len(result.Errors) > 0 {
 		return nil, fmt.Errorf("Waffo Pancake error: %s", result.Errors[0].Message)
 	}
-	if result.Data == nil || result.Data.CheckoutURL == "" {
+	if result.Data == nil || result.Data.CheckoutURL == "" || strings.TrimSpace(result.Data.SessionID) == "" {
 		return nil, fmt.Errorf("Waffo Pancake returned empty checkout session")
 	}
 	return result.Data, nil
@@ -161,7 +161,19 @@ func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string)
 }
 
 func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error) {
-	return resolveWaffoPancakeTradeNoFallback(event)
+	if event == nil {
+		return "", fmt.Errorf("missing webhook event")
+	}
+
+	if tradeNo := strings.TrimSpace(event.Data.OrderID); tradeNo != "" {
+		topUp := model.GetTopUpByTradeNo(tradeNo)
+		if topUp != nil && topUp.PaymentMethod == model.PaymentMethodWaffoPancake {
+			return tradeNo, nil
+		}
+		return "", fmt.Errorf("waffo pancake order not found for webhook orderId=%s", tradeNo)
+	}
+
+	return "", fmt.Errorf("missing webhook orderId")
 }
 
 func normalizeRSAPrivateKey(raw string) (string, error) {
@@ -310,29 +322,26 @@ func parseWaffoPancakeSignatureHeader(header string) (string, string) {
 }
 
 func resolveWaffoPancakeWebhookEnvironment(payload string) string {
-	if mode := extractWaffoPancakeWebhookMode(payload); mode != "" {
-		return mode
-	}
-	if setting.WaffoPancakeSandbox {
-		return "test"
-	}
-	return "prod"
-}
-
-func extractWaffoPancakeWebhookMode(payload string) string {
 	var envelope struct {
 		Mode string `json:"mode"`
 	}
 	if err := common.Unmarshal([]byte(payload), &envelope); err != nil {
-		return ""
+		if setting.WaffoPancakeSandbox {
+			return "test"
+		}
+		return "prod"
 	}
+
 	switch strings.ToLower(strings.TrimSpace(envelope.Mode)) {
 	case "test":
 		return "test"
 	case "prod":
 		return "prod"
 	default:
-		return ""
+		if setting.WaffoPancakeSandbox {
+			return "test"
+		}
+		return "prod"
 	}
 }
 
@@ -386,75 +395,4 @@ func verifyWaffoPancakeWebhookWithKey(signatureInput string, signaturePart strin
 		return fmt.Errorf("verify webhook signature: %w", err)
 	}
 	return nil
-}
-
-func resolveWaffoPancakeTradeNoFallback(event *waffoPancakeWebhookEvent) (string, error) {
-	if event == nil {
-		return "", fmt.Errorf("missing webhook event")
-	}
-
-	userID, err := resolveWaffoPancakeUserIDByBuyerEmail(event.Data.BuyerEmail)
-	if err != nil {
-		return "", err
-	}
-
-	amountStr := strings.TrimSpace(string(event.Data.Amount))
-	if amountStr == "" {
-		return "", fmt.Errorf("missing webhook amount")
-	}
-	payMoney, err := decimal.NewFromString(amountStr)
-	if err != nil {
-		return "", fmt.Errorf("invalid webhook amount %q: %w", amountStr, err)
-	}
-
-	tolerance := decimal.NewFromFloat(0.000001)
-	minMoney := payMoney.Sub(tolerance).InexactFloat64()
-	maxMoney := payMoney.Add(tolerance).InexactFloat64()
-
-	var topUps []*model.TopUp
-	if err := model.DB.
-		Where("user_id = ? AND payment_method = ? AND status = ? AND money >= ? AND money <= ?",
-			userID, "waffo_pancake", common.TopUpStatusPending, minMoney, maxMoney).
-		Order("create_time desc").
-		Limit(2).
-		Find(&topUps).Error; err != nil {
-		return "", fmt.Errorf("query pending Waffo Pancake topup failed: %w", err)
-	}
-
-	if len(topUps) == 0 {
-		return "", fmt.Errorf("no pending Waffo Pancake topup matched buyerEmail=%s amount=%s", event.Data.BuyerEmail, amountStr)
-	}
-	if len(topUps) > 1 {
-		return "", fmt.Errorf("multiple pending Waffo Pancake topups matched buyerEmail=%s amount=%s", event.Data.BuyerEmail, amountStr)
-	}
-	return topUps[0].TradeNo, nil
-}
-
-func resolveWaffoPancakeUserIDByBuyerEmail(email string) (int, error) {
-	trimmedEmail := strings.TrimSpace(email)
-	if trimmedEmail == "" {
-		return 0, fmt.Errorf("missing buyerEmail")
-	}
-
-	const localSuffix = "@new-api.local"
-	if strings.HasSuffix(strings.ToLower(trimmedEmail), localSuffix) {
-		userIDStr := strings.TrimSpace(trimmedEmail[:len(trimmedEmail)-len(localSuffix)])
-		userID, err := strconv.Atoi(userIDStr)
-		if err != nil || userID <= 0 {
-			return 0, fmt.Errorf("invalid local buyerEmail %q", trimmedEmail)
-		}
-		return userID, nil
-	}
-
-	var users []*model.User
-	if err := model.DB.Select("id").Where("email = ?", trimmedEmail).Limit(2).Find(&users).Error; err != nil {
-		return 0, fmt.Errorf("query user by buyerEmail failed: %w", err)
-	}
-	if len(users) == 0 {
-		return 0, fmt.Errorf("user not found for buyerEmail=%s", trimmedEmail)
-	}
-	if len(users) > 1 {
-		return 0, fmt.Errorf("multiple users matched buyerEmail=%s", trimmedEmail)
-	}
-	return users[0].Id, nil
 }

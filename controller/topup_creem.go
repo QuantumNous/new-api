@@ -20,10 +20,7 @@ import (
 	"github.com/thanhpk/randstr"
 )
 
-const (
-	PaymentMethodCreem   = "creem"
-	CreemSignatureHeader = "creem-signature"
-)
+const CreemSignatureHeader = "creem-signature"
 
 var creemAdaptor = &CreemAdaptor{}
 
@@ -66,7 +63,7 @@ type CreemAdaptor struct {
 }
 
 func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
-	if req.PaymentMethod != PaymentMethodCreem {
+	if req.PaymentMethod != model.PaymentMethodCreem {
 		c.JSON(200, gin.H{"message": "error", "data": "不支持的支付渠道"})
 		return
 	}
@@ -112,7 +109,7 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 		Amount:        selectedProduct.Quota, // 充值额度
 		Money:         selectedProduct.Price, // 支付金额
 		TradeNo:       referenceId,
-		PaymentMethod: PaymentMethodCreem,
+		PaymentMethod: model.PaymentMethodCreem,
 		CreateTime:    time.Now().Unix(),
 		Status:        common.TopUpStatusPending,
 	}
@@ -303,7 +300,7 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 	// Try complete subscription order first
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
-	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(event)); err == nil {
+	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(event), model.PaymentMethodCreem); err == nil {
 		c.Status(http.StatusOK)
 		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {

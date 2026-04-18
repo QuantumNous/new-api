@@ -23,10 +23,6 @@ import (
 	"github.com/thanhpk/randstr"
 )
 
-const (
-	PaymentMethodStripe = "stripe"
-)
-
 var stripeAdaptor = &StripeAdaptor{}
 
 // StripePayRequest represents a payment request for Stripe checkout.
@@ -66,7 +62,7 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 }
 
 func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
-	if req.PaymentMethod != PaymentMethodStripe {
+	if req.PaymentMethod != model.PaymentMethodStripe {
 		c.JSON(200, gin.H{"message": "error", "data": "不支持的支付渠道"})
 		return
 	}
@@ -108,7 +104,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		Amount:        req.Amount,
 		Money:         chargedMoney,
 		TradeNo:       referenceId,
-		PaymentMethod: PaymentMethodStripe,
+		PaymentMethod: model.PaymentMethodStripe,
 		CreateTime:    time.Now().Unix(),
 		Status:        common.TopUpStatusPending,
 	}
@@ -235,7 +231,7 @@ func sessionAsyncPaymentFailed(event stripe.Event, callerIp string) {
 		return
 	}
 
-	if topUp.PaymentMethod != PaymentMethodStripe {
+	if topUp.PaymentMethod != model.PaymentMethodStripe {
 		log.Printf("异步支付失败，订单支付方式不匹配: %s, ref: %s", topUp.PaymentMethod, referenceId)
 		return
 	}
@@ -268,7 +264,7 @@ func fulfillOrder(event stripe.Event, referenceId string, customerId string, cal
 		"currency":     strings.ToUpper(event.GetObjectValue("currency")),
 		"event_type":   string(event.Type),
 	}
-	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload)); err == nil {
+	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), model.PaymentMethodStripe); err == nil {
 		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
 		log.Println("complete subscription order failed:", err.Error(), referenceId)
@@ -302,25 +298,18 @@ func sessionExpired(event stripe.Event) {
 	// Subscription order expiration
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
-	if err := model.ExpireSubscriptionOrder(referenceId); err == nil {
+	if err := model.ExpireSubscriptionOrder(referenceId, model.PaymentMethodStripe); err == nil {
 		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
 		log.Println("过期订阅订单失败", referenceId, ", err:", err.Error())
 		return
 	}
 
-	topUp := model.GetTopUpByTradeNo(referenceId)
-	if topUp == nil {
+	err := model.UpdatePendingTopUpStatus(referenceId, model.PaymentMethodStripe, common.TopUpStatusExpired)
+	if errors.Is(err, model.ErrTopUpNotFound) {
 		log.Println("充值订单不存在", referenceId)
 		return
 	}
-
-	if topUp.Status != common.TopUpStatusPending {
-		log.Println("充值订单状态错误", referenceId)
-	}
-
-	topUp.Status = common.TopUpStatusExpired
-	err := topUp.Update()
 	if err != nil {
 		log.Println("过期充值订单失败", referenceId, ", err:", err.Error())
 		return

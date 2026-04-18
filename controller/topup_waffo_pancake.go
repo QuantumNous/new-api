@@ -18,8 +18,6 @@ import (
 	"github.com/thanhpk/randstr"
 )
 
-const PaymentMethodWaffoPancake = "waffo_pancake"
-
 type WaffoPancakePayRequest struct {
 	Amount int64 `json:"amount"`
 }
@@ -167,7 +165,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		Amount:        normalizeWaffoPancakeTopUpAmount(req.Amount),
 		Money:         payMoney,
 		TradeNo:       tradeNo,
-		PaymentMethod: PaymentMethodWaffoPancake,
+		PaymentMethod: model.PaymentMethodWaffoPancake,
 		CreateTime:    time.Now().Unix(),
 		Status:        common.TopUpStatusPending,
 	}

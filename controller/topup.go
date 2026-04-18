@@ -62,7 +62,7 @@ func GetTopUpInfo(c *gin.Context) {
 	if enableWaffo {
 		hasWaffo := false
 		for _, method := range payMethods {
-			if method["type"] == "waffo" {
+			if method["type"] == model.PaymentMethodWaffo {
 				hasWaffo = true
 				break
 			}
@@ -71,7 +71,7 @@ func GetTopUpInfo(c *gin.Context) {
 		if !hasWaffo {
 			waffoMethod := map[string]string{
 				"name":      "Waffo (Global Payment)",
-				"type":      "waffo",
+				"type":      model.PaymentMethodWaffo,
 				"color":     "rgba(var(--semi-blue-5), 1)",
 				"min_topup": strconv.Itoa(setting.WaffoMinTopUp),
 			}
@@ -91,7 +91,7 @@ func GetTopUpInfo(c *gin.Context) {
 	if enableWaffoPancake {
 		hasWaffoPancake := false
 		for _, method := range payMethods {
-			if method["type"] == "waffo_pancake" {
+			if method["type"] == model.PaymentMethodWaffoPancake {
 				hasWaffoPancake = true
 				break
 			}
@@ -100,7 +100,7 @@ func GetTopUpInfo(c *gin.Context) {
 		if !hasWaffoPancake {
 			payMethods = append(payMethods, map[string]string{
 				"name":      "Waffo Pancake",
-				"type":      "waffo_pancake",
+				"type":      model.PaymentMethodWaffoPancake,
 				"color":     "rgba(var(--semi-orange-5), 1)",
 				"min_topup": strconv.Itoa(setting.WaffoPancakeMinTopUp),
 			})
@@ -138,6 +138,17 @@ type EpayRequest struct {
 
 type AmountRequest struct {
 	Amount int64 `json:"amount"`
+}
+
+var nonEpayPaymentMethodsForCallback = []string{
+	model.PaymentMethodStripe,
+	model.PaymentMethodCreem,
+	model.PaymentMethodWaffo,
+	model.PaymentMethodWaffoPancake,
+}
+
+func isNonEpayPaymentMethodForEpayCallback(paymentMethod string) bool {
+	return lo.Contains(nonEpayPaymentMethodsForCallback, paymentMethod)
 }
 
 func GetEpayClient() *epay.Client {
@@ -259,7 +270,7 @@ func RequestEpay(c *gin.Context) {
 		TradeNo:       tradeNo,
 		PaymentMethod: req.PaymentMethod,
 		CreateTime:    time.Now().Unix(),
-		Status:        "pending",
+		Status:        common.TopUpStatusPending,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -371,12 +382,16 @@ func EpayNotify(c *gin.Context) {
 			log.Printf("易支付回调未找到订单: %v", verifyInfo)
 			return
 		}
-		if topUp.PaymentMethod == "stripe" || topUp.PaymentMethod == "creem" || topUp.PaymentMethod == "waffo" {
+		if isNonEpayPaymentMethodForEpayCallback(topUp.PaymentMethod) {
 			log.Printf("易支付回调订单支付方式不匹配: %s, 订单号: %s", topUp.PaymentMethod, verifyInfo.ServiceTradeNo)
 			return
 		}
-		if topUp.Status == "pending" {
-			topUp.Status = "success"
+		if topUp.PaymentMethod != verifyInfo.Type {
+			log.Printf("易支付回调订单支付方式不匹配: order=%s callback=%s, 订单号: %s", topUp.PaymentMethod, verifyInfo.Type, verifyInfo.ServiceTradeNo)
+			return
+		}
+		if topUp.Status == common.TopUpStatusPending {
+			topUp.Status = common.TopUpStatusSuccess
 			err := topUp.Update()
 			if err != nil {
 				log.Printf("易支付回调更新订单失败: %v", topUp)
