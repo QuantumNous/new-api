@@ -148,7 +148,7 @@ const DefaultHomePage = ({
           </div>
 
           <div className='relative mt-10 lg:col-span-5 lg:mt-0'>
-            <div className={localeAdjustments.floatingCardClass}>
+            <div className={`home-floating-card ${localeAdjustments.floatingCardClass}`}>
               <div className='mb-1 text-[10px] uppercase tracking-widest text-gray-400'>
                 {t(homeText.floatingTag)}
               </div>

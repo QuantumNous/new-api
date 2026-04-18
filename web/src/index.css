@@ -1416,6 +1416,14 @@ body:not([data-home-mode='dark']) #homepage .border-indigo-200 {
   border-color: #c7d2fe !important;
 }
 
+body:not([data-home-mode='dark']) #homepage .home-floating-card {
+  background: #ffffff !important;
+}
+
+body[data-home-mode='dark'] #homepage .home-floating-card {
+  background: #0f172a !important;
+}
+
 body[data-home-mode='dark'] #nav {
   background: rgba(10, 14, 24, 0.88);
   border-color: rgba(71, 85, 105, 0.42);
