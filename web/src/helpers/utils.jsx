@@ -32,10 +32,27 @@ const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
 };
 export default HTMLToastContent;
+
+// 检查是否启用拼车模式
+export function isCarpoolModeEnabled() {
+  let status = localStorage.getItem('status');
+  if (!status) return false;
+  try {
+    status = JSON.parse(status);
+    return status.carpool_mode_enabled === true;
+  } catch {
+    return false;
+  }
+}
+
 export function isAdmin() {
   let user = localStorage.getItem('user');
   if (!user) return false;
   user = JSON.parse(user);
+  // 拼车模式下，只有超级管理员(role>=100)才被视为管理员
+  if (isCarpoolModeEnabled()) {
+    return user.role >= 100;
+  }
   return user.role >= 10;
 }
 

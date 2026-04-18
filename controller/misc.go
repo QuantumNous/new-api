@@ -117,6 +117,13 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+
+		// 拼车模式配置 - CARPOOL MODE START
+		"carpool_mode_enabled":         common.CarpoolModeEnabled,
+		"carpool_mode_close_register":  common.CarpoolModeCloseRegister,
+		"carpool_mode_hide_admin_menus": common.CarpoolModeHideAdminMenus,
+		"carpool_mode_hide_channel_info": common.CarpoolModeHideChannelInfo,
+		// 拼车模式配置 - CARPOOL MODE END
 	}
 
 	// 根据启用状态注入可选内容

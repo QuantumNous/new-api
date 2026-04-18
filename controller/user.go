@@ -134,6 +134,13 @@ func Logout(c *gin.Context) {
 }
 
 func Register(c *gin.Context) {
+	// 拼车模式下强制关闭注册 - CARPOOL MODE START
+	if common.CarpoolModeEnabled && common.CarpoolModeCloseRegister {
+		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+		return
+	}
+	// 拼车模式下强制关闭注册 - CARPOOL MODE END
+
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 		return

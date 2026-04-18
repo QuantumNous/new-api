@@ -220,3 +220,20 @@ const (
 	TopUpStatusFailed  = "failed"
 	TopUpStatusExpired = "expired"
 )
+
+var (
+	CarpoolModeEnabled         = false
+	CarpoolModeCloseRegister   = true
+	CarpoolModeHideAdminMenus  = true
+	CarpoolModeHideChannelInfo = true
+)
+
+var (
+	CarpoolDefaultDailyRequestLimit   = 1000
+	CarpoolDefaultDailyTokenLimit     = 1000000
+	CarpoolDefaultMonthlyTokenLimit   = 10000000
+	CarpoolDefaultRPM                 = 60
+	CarpoolDefaultTPM                 = 60000
+	CarpoolDefaultMaxIPCount          = 3
+	CarpoolDefaultAbnormalThreshold   = 100
+)
