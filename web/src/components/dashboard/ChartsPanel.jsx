@@ -21,7 +21,17 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, Tabs, TabPane, Popover, Checkbox, CheckboxGroup, Button } from '@douyinfe/semi-ui';
 import { PieChart, Settings } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
-import { ALL_CHART_TABS, STORAGE_KEYS } from '../../constants/dashboard.constants';
+import { ALL_CHART_TABS, CHART_TABS_NONE, STORAGE_KEYS } from '../../constants/dashboard.constants';
+
+// 解析 data_dashboard_chart_tabs 的取值：
+//   '' → null（未限制，调用方回退到"全部"）
+//   '__none__' → []（管理员显式全部隐藏）
+//   'k1,k2' → ['k1', 'k2']
+const parseGlobalChartTabs = (value) => {
+  if (value === CHART_TABS_NONE) return [];
+  if (value) return value.split(',');
+  return null;
+};
 
 const SPEC_MAP = {
   '1': 'spec_line',
@@ -74,7 +84,7 @@ const ChartsPanel = ({
 
   const visibleTabs = useMemo(() => {
     const globalSetting = localStorage.getItem(STORAGE_KEYS.CHART_TABS_GLOBAL) || '';
-    const globalTabs = globalSetting ? globalSetting.split(',') : null;
+    const globalTabs = parseGlobalChartTabs(globalSetting);
     const enabledKeys = userTabs || globalTabs || ALL_CHART_TABS.map((tab) => tab.key);
 
     return ALL_CHART_TABS.filter((tab) => {
@@ -104,7 +114,7 @@ const ChartsPanel = ({
   // 用户偏好设置的可选项（受管理员全局设置和权限限制）
   const availableTabs = useMemo(() => {
     const globalSetting = localStorage.getItem(STORAGE_KEYS.CHART_TABS_GLOBAL) || '';
-    const globalTabs = globalSetting ? globalSetting.split(',') : null;
+    const globalTabs = parseGlobalChartTabs(globalSetting);
 
     return ALL_CHART_TABS.filter((tab) => {
       if (tab.adminOnly && !isAdminUser) return false;
@@ -154,9 +164,13 @@ const ChartsPanel = ({
               trigger='click'
               position='bottomLeft'
             >
-              <Settings
-                size={14}
-                className='cursor-pointer text-gray-400 hover:text-gray-600'
+              <Button
+                icon={<Settings size={14} />}
+                size='small'
+                type='tertiary'
+                theme='borderless'
+                aria-label={t('图表显示设置')}
+                className='text-gray-400 hover:text-gray-600'
               />
             </Popover>
           </div>

@@ -27,7 +27,7 @@ import {
   showWarning,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { ALL_CHART_TABS } from '../../../constants/dashboard.constants';
+import { ALL_CHART_TABS, CHART_TABS_NONE } from '../../../constants/dashboard.constants';
 
 export default function DataDashboard(props) {
   const { t } = useTranslation();
@@ -165,18 +165,23 @@ export default function DataDashboard(props) {
                   <CheckboxGroup
                     direction='horizontal'
                     value={
-                      inputs.DataDashboardChartTabs
-                        ? inputs.DataDashboardChartTabs.split(',')
-                        : ALL_CHART_TABS.map((tab) => tab.key)
+                      inputs.DataDashboardChartTabs === CHART_TABS_NONE
+                        ? []
+                        : inputs.DataDashboardChartTabs
+                          ? inputs.DataDashboardChartTabs.split(',')
+                          : ALL_CHART_TABS.map((tab) => tab.key)
                     }
                     onChange={(checkedValues) => {
                       const allKeys = ALL_CHART_TABS.map((tab) => tab.key);
                       const isAll = checkedValues.length === allKeys.length;
                       setInputs({
                         ...inputs,
-                        DataDashboardChartTabs: isAll
-                          ? ''
-                          : checkedValues.join(','),
+                        DataDashboardChartTabs:
+                          checkedValues.length === 0
+                            ? CHART_TABS_NONE
+                            : isAll
+                              ? ''
+                              : checkedValues.join(','),
                       });
                     }}
                   >

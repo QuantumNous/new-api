@@ -142,6 +142,13 @@ export const STORAGE_KEYS = {
   CHART_TABS_GLOBAL: 'data_dashboard_chart_tabs',
 };
 
+// ========== 图表可见性编码 ==========
+// DataDashboardChartTabs 取值语义：
+//   ''         → 未设置，显示全部（向后兼容）
+//   '__none__' → 管理员显式选择全部隐藏
+//   'k1,k2'    → 显式白名单（逗号分隔 key）
+export const CHART_TABS_NONE = '__none__';
+
 // ========== 图表 Tab 元信息 ==========
 export const ALL_CHART_TABS = [
   { key: '1', label: '消耗分布', adminOnly: false },
