@@ -108,12 +108,13 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 
 	// 先创建订单记录，使用产品配置的金额和充值额度
 	topUp := &model.TopUp{
-		UserId:     id,
-		Amount:     selectedProduct.Quota, // 充值额度
-		Money:      selectedProduct.Price, // 支付金额
-		TradeNo:    referenceId,
-		CreateTime: time.Now().Unix(),
-		Status:     common.TopUpStatusPending,
+		UserId:        id,
+		Amount:        selectedProduct.Quota, // 充值额度
+		Money:         selectedProduct.Price, // 支付金额
+		TradeNo:       referenceId,
+		PaymentMethod: PaymentMethodCreem,
+		CreateTime:    time.Now().Unix(),
+		Status:        common.TopUpStatusPending,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -352,7 +353,7 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 		log.Printf("警告：Creem回调中客户姓名为空 - 订单号: %s", referenceId)
 	}
 
-	err := model.RechargeCreem(referenceId, customerEmail, customerName)
+	err := model.RechargeCreem(referenceId, customerEmail, customerName, c.ClientIP())
 	if err != nil {
 		log.Printf("Creem充值处理失败: %s, 订单号: %s", err.Error(), referenceId)
 		c.AbortWithStatus(http.StatusInternalServerError)

@@ -214,6 +214,29 @@ export const useDashboardCharts = (
           },
         ],
       },
+      dimension: {
+        content: [
+          {
+            key: (datum) => datum['Model'],
+            value: (datum) => datum['Count'] || 0,
+          },
+        ],
+        updateContent: (array) => {
+          array.sort((a, b) => b.value - a.value);
+          let sum = 0;
+          for (let i = 0; i < array.length; i++) {
+            let value = parseFloat(array[i].value);
+            if (isNaN(value)) value = 0;
+            sum += value;
+            array[i].value = renderNumber(value);
+          }
+          array.unshift({
+            key: t('总计'),
+            value: renderNumber(sum),
+          });
+          return array;
+        },
+      },
     },
     color: {
       specified: modelColorMap,
@@ -334,6 +357,27 @@ export const useDashboardCharts = (
           key: (datum) => datum['User'],
           value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
         }],
+      },
+      dimension: {
+        content: [{
+          key: (datum) => datum['User'],
+          value: (datum) => datum['rawQuota'] || 0,
+        }],
+        updateContent: (array) => {
+          array.sort((a, b) => b.value - a.value);
+          let sum = 0;
+          for (let i = 0; i < array.length; i++) {
+            let value = parseFloat(array[i].value);
+            if (isNaN(value)) value = 0;
+            sum += value;
+            array[i].value = renderQuota(value, 4);
+          }
+          array.unshift({
+            key: t('总计'),
+            value: renderQuota(sum, 4),
+          });
+          return array;
+        },
       },
     },
     color: { type: 'ordinal', range: USER_COLORS },
@@ -463,12 +507,24 @@ export const useDashboardCharts = (
       modelLineData.sort((a, b) => a.Time.localeCompare(b.Time));
 
       // ===== 模型调用次数排行柱状图 =====
-      const rankData = Array.from(modelTotals)
+      const MAX_RANK_MODELS = 20;
+      const allRankData = Array.from(modelTotals)
         .map(([model, count]) => ({
           Model: model,
           Count: count,
         }))
         .sort((a, b) => b.Count - a.Count);
+
+      let rankData;
+      if (allRankData.length > MAX_RANK_MODELS) {
+        const topModels = allRankData.slice(0, MAX_RANK_MODELS);
+        const otherCount = allRankData
+          .slice(MAX_RANK_MODELS)
+          .reduce((sum, item) => sum + item.Count, 0);
+        rankData = [...topModels, { Model: t('其他'), Count: otherCount }];
+      } else {
+        rankData = allRankData;
+      }
 
       updateChartSpec(
         setSpecModelLine,

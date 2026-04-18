@@ -136,8 +136,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			task = "chat/completions" + task
 		}
 
-		// 特殊处理 responses API
-		if info.RelayMode == relayconstant.RelayModeResponses {
+		// 特殊处理 responses API（包含 compact）
+		if info.RelayMode == relayconstant.RelayModeResponses || info.RelayMode == relayconstant.RelayModeResponsesCompact {
 			responsesApiVersion := "preview"
 
 			subUrl := "/openai/v1/responses"
@@ -148,6 +148,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 			if info.ChannelOtherSettings.AzureResponsesVersion != "" {
 				responsesApiVersion = info.ChannelOtherSettings.AzureResponsesVersion
+			}
+
+			// compact 模式追加 /compact
+			if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+				subUrl = subUrl + "/compact"
 			}
 
 			requestURL = fmt.Sprintf("%s?api-version=%s", subUrl, responsesApiVersion)

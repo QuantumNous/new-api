@@ -28,6 +28,18 @@ const (
 	MsgBatchTooMany      = "common.batch_too_many"
 )
 
+// Auth middleware messages
+const (
+	MsgAuthNotLoggedIn           = "auth.not_logged_in"
+	MsgAuthAccessTokenInvalid    = "auth.access_token_invalid"
+	MsgAuthUserInfoInvalid       = "auth.user_info_invalid"
+	MsgAuthUserIdNotProvided     = "auth.user_id_not_provided"
+	MsgAuthUserIdFormatError     = "auth.user_id_format_error"
+	MsgAuthUserIdMismatch        = "auth.user_id_mismatch"
+	MsgAuthUserBanned            = "auth.user_banned"
+	MsgAuthInsufficientPrivilege = "auth.insufficient_privilege"
+)
+
 // Token related messages
 const (
 	MsgTokenNameTooLong          = "token.name_too_long"

@@ -272,7 +272,7 @@ type OpenAIResponsesResponse struct {
 	Status             json.RawMessage    `json:"status"`
 	Error              any                `json:"error,omitempty"`
 	IncompleteDetails  *IncompleteDetails `json:"incomplete_details,omitempty"`
-	Instructions       string             `json:"instructions"`
+	Instructions       json.RawMessage    `json:"instructions"`
 	MaxOutputTokens    int                `json:"max_output_tokens"`
 	Model              string             `json:"model"`
 	Output             []ResponsesOutput  `json:"output"`
