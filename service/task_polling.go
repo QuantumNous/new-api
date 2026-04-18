@@ -70,12 +70,37 @@ func RefreshVideoTask(ctx context.Context, task *model.Task) error {
 	})
 }
 
-func isTransientVideoNotFoundResponse(statusCode int, responseBody []byte) bool {
+func isTransientVideoNotFoundResponse(statusCode int, responseBody []byte, submitTime int64, now int64) bool {
 	if statusCode != http.StatusNotFound {
 		return false
 	}
-	bodyLower := strings.ToLower(strings.TrimSpace(string(responseBody)))
-	return strings.Contains(bodyLower, "not found")
+	message := extractVideoPollingErrorMessage(responseBody)
+	if message == "" {
+		message = string(responseBody)
+	}
+	message = strings.Trim(strings.ToLower(strings.TrimSpace(message)), "\"' .")
+
+	// Some video providers briefly return a generic 404 while the result file is
+	// being published. Provider-specific "task/video generation not found"
+	// messages are terminal and must not keep the polling loop alive forever.
+	if message != "not found" && message != "404 not found" {
+		return false
+	}
+	if constant.TaskNotFoundGraceMinutes <= 0 {
+		return false
+	}
+	if submitTime <= 0 || now <= 0 {
+		return true
+	}
+	return now-submitTime <= int64(constant.TaskNotFoundGraceMinutes)*60
+}
+
+func extractVideoPollingErrorMessage(responseBody []byte) string {
+	errorResult := &dto.GeneralErrorResponse{}
+	if err := common.Unmarshal(responseBody, errorResult); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(errorResult.ToMessage())
 }
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
@@ -459,7 +484,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
 				bodyLower := strings.ToLower(string(responseBody))
-				if isTransientVideoNotFoundResponse(resp.StatusCode, responseBody) {
+				if isTransientVideoNotFoundResponse(resp.StatusCode, responseBody, task.SubmitTime, now) {
 					logger.LogInfo(ctx, fmt.Sprintf("Task %s upstream result not ready yet, keep polling, response: %s", taskId, string(responseBody)))
 					return nil
 				}
