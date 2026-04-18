@@ -192,7 +192,16 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
+	// 使用自定义 http.Server 设置超时参数，防止空闲连接堆积
+	httpServer := &http.Server{
+		Addr:              ":" + port,
+		Handler:           server,
+		IdleTimeout:       30 * time.Second,  // 空闲连接 30 秒后关闭（解决 FRP 代理下连接堆积问题）
+		ReadHeaderTimeout: 10 * time.Second,  // 读取请求头超时
+		WriteTimeout:      0,                 // 禁用写入超时
+	}
+
+	err = httpServer.ListenAndServe()
 	if err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
