@@ -64,12 +64,12 @@ type CreemAdaptor struct {
 
 func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 	if req.PaymentMethod != model.PaymentMethodCreem {
-		c.JSON(200, gin.H{"message": "error", "data": "不支持的支付渠道"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "不支持的支付渠道"})
 		return
 	}
 
 	if req.ProductId == "" {
-		c.JSON(200, gin.H{"message": "error", "data": "请选择产品"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "请选择产品"})
 		return
 	}
 
@@ -78,7 +78,7 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 	err := json.Unmarshal([]byte(setting.CreemProducts), &products)
 	if err != nil {
 		log.Println("解析Creem产品列表失败", err)
-		c.JSON(200, gin.H{"message": "error", "data": "产品配置错误"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "产品配置错误"})
 		return
 	}
 
@@ -92,7 +92,7 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 	}
 
 	if selectedProduct == nil {
-		c.JSON(200, gin.H{"message": "error", "data": "产品不存在"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "产品不存在"})
 		return
 	}
 
@@ -116,7 +116,7 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 	err = topUp.Insert()
 	if err != nil {
 		log.Printf("创建Creem订单失败: %v", err)
-		c.JSON(200, gin.H{"message": "error", "data": "创建订单失败"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return
 	}
 
@@ -124,14 +124,14 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 	checkoutUrl, err := genCreemLink(referenceId, selectedProduct, user.Email, user.Username)
 	if err != nil {
 		log.Printf("获取Creem支付链接失败: %v", err)
-		c.JSON(200, gin.H{"message": "error", "data": "拉起支付失败"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
 
 	log.Printf("Creem订单创建成功 - 用户ID: %d, 订单号: %s, 产品: %s, 充值额度: %d, 支付金额: %.2f",
 		id, referenceId, selectedProduct.Name, selectedProduct.Quota, selectedProduct.Price)
 
-	c.JSON(200, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
 			"checkout_url": checkoutUrl,
@@ -147,7 +147,7 @@ func RequestCreemPay(c *gin.Context) {
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Printf("read creem pay req body err: %v", err)
-		c.JSON(200, gin.H{"message": "error", "data": "read query error"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "read query error"})
 		return
 	}
 
@@ -159,7 +159,7 @@ func RequestCreemPay(c *gin.Context) {
 
 	err = c.ShouldBindJSON(&req)
 	if err != nil {
-		c.JSON(200, gin.H{"message": "error", "data": "参数错误"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
 		return
 	}
 	creemAdaptor.RequestPay(c, &req)
@@ -227,6 +227,12 @@ type CreemWebhookEvent struct {
 }
 
 func CreemWebhook(c *gin.Context) {
+	if !isCreemWebhookEnabled() {
+		log.Printf("Creem 支付未启用，拒绝处理 webhook")
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+
 	// 读取body内容用于打印，同时保留原始数据供后续使用
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
