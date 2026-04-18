@@ -5,7 +5,7 @@
 #   2. Access at http://localhost:6001
 #
 # Using MySQL instead of PostgreSQL:
-#   1. Comment out the new-api-postgres service and SQL_DSN for Postgres
+#   1. Comment out the koooyooo-newapi-postgres service and SQL_DSN for Postgres
 #   2. Uncomment the mysql service and MySQL SQL_DSN
 #   3. Uncomment mysql in depends_on and mysql_data in volumes
 #
@@ -14,9 +14,9 @@
 version: '3.4' # For compatibility with older Docker versions
 
 services:
-  new-api:
-    image: calciumion/new-api:latest
-    container_name: new-api-app
+  koooyooo-newapi:
+    image: harbor.circledigital.cn/koooyooo-api/koooyooo-newapi:latest
+    container_name: koooyooo-newapi-app
     restart: always
     command: --log-dir /app/logs
     ports:
@@ -25,13 +25,13 @@ services:
       - ./data:/data
       - ./logs:/app/logs
     environment:
-      - SQL_DSN=postgresql://root:u0HjoW0z9uHzHu84EFrM7OcKZthscsNi@new-api-postgres:5432/new-api # ⚠️ IMPORTANT: Change the password in production!
-#      - SQL_DSN=root:123456@tcp(new-api-mysql:3306)/new-api  # Point to the mysql service, uncomment if using MySQL
-      - REDIS_CONN_STRING=redis://:123456@new-api-redis:6379 # ⚠️ IMPORTANT: Change the password in production! (must match new-api-redis requirepass)
+      - SQL_DSN=postgresql://root:u0HjoW0z9uHzHu84EFrM7OcKZthscsNi@koooyooo-newapi-postgres:5432/new-api # ⚠️ IMPORTANT: Change the password in production!
+#      - SQL_DSN=root:123456qwerty@tcp(koooyooo-newapi-mysql:3306)/new-api  # Point to the mysql service, uncomment if using MySQL
+      - REDIS_CONN_STRING=redis://:123456qwerty@koooyooo-newapi-redis:6379 # ⚠️ IMPORTANT: Change the password in production! (must match koooyooo-newapi-redis requirepass)
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
       - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 (Whether to enable batch update)
-      - NODE_NAME=new-api-node-1  # 节点名称，用于审计日志中标识节点身份；多节点/容器部署时建议设置 (Node name used in audit logs; recommended when running multiple instances or in containers)
+      - NODE_NAME=koooyooo-newapi-node-1  # 节点名称，用于审计日志中标识节点身份；多节点/容器部署时建议设置 (Node name used in audit logs; recommended when running multiple instances or in containers)
 #      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值 （Streaming timeout in seconds, default is 120s. Increase if experiencing empty completions）
 #      - SESSION_SECRET=random_string  # 多机部署时设置，必须修改这个随机字符串！！ （multi-node deployment, set this to a random string!!!!!!!）
 #      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
@@ -40,28 +40,28 @@ services:
 #      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js  # Umami 脚本 URL，默认为官方地址 (Umami Script URL, defaults to official URL)
 
     depends_on:
-      - new-api-redis
-      - new-api-postgres
-#      - new-api-mysql  # Uncomment if using MySQL
+      - koooyooo-newapi-redis
+      - koooyooo-newapi-postgres
+#      - koooyooo-newapi-mysql  # Uncomment if using MySQL
     networks:
-      - new-api-network
+      - koooyooo-newapi-network
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  new-api-redis:
+  koooyooo-newapi-redis:
     image: redis:latest
-    container_name: new-api-redis
+    container_name: koooyooo-newapi-redis
     restart: always
-    command: ["redis-server", "--requirepass", "123456"]  # ⚠️ IMPORTANT: Change this password in production!
+    command: ["redis-server", "--requirepass", "123456qwerty"]  # ⚠️ IMPORTANT: Change this password in production!
     networks:
-      - new-api-network
+      - koooyooo-newapi-network
 
-  new-api-postgres:
+  koooyooo-newapi-postgres:
     image: postgres:15
-    container_name: new-api-postgres
+    container_name: koooyooo-newapi-postgres
     restart: always
     environment:
       POSTGRES_USER: root
@@ -70,13 +70,13 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
-      - new-api-network
+      - koooyooo-newapi-network
 #    ports:
 #      - "5432:5432"  # Uncomment if you need to access PostgreSQL from outside Docker
 
-#  new-api-mysql:
+#  koooyooo-newapi-mysql:
 #    image: mysql:8.2
-#    container_name: new-api-mysql
+#    container_name: koooyooo-newapi-mysql
 #    restart: always
 #    environment:
 #      MYSQL_ROOT_PASSWORD: change-me
@@ -84,7 +84,7 @@ services:
 #    volumes:
 #      - mysql_data:/var/lib/mysql
 #    networks:
-#      - new-api-network
+#      - koooyooo-newapi-network
 #    ports:
 #      - "3306:3306"  # Uncomment if you need to access MySQL from outside Docker
 
@@ -93,5 +93,5 @@ volumes:
 #  mysql_data:
 
 networks:
-  new-api-network:
+  koooyooo-newapi-network:
     driver: bridge
