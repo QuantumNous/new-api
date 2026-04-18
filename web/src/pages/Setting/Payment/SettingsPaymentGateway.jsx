@@ -127,7 +127,7 @@ export default function SettingsPaymentGateway(props) {
             type='info'
             icon={<Info size={16} />}
             description={t(
-              '当前仅支持易支付接口，默认使用上方服务器地址作为回调地址。',
+              '当前仅支持易支付接口，回调地址请在通用设置中配置。',
             )}
             style={{ marginBottom: 16 }}
           />
@@ -142,14 +142,14 @@ export default function SettingsPaymentGateway(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='EpayId'
-                label={t('易支付商户ID')}
+                label={t('商户 ID')}
                 placeholder={t('例如：0001')}
               />
             </Col>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='EpayKey'
-                label={t('易支付商户密钥')}
+                label={t('API 密钥')}
                 placeholder={t('敏感信息不会发送到前端显示')}
                 type='password'
               />

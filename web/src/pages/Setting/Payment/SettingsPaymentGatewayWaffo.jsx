@@ -65,7 +65,6 @@ export default function SettingsPaymentGatewayWaffo(props) {
   });
   const formApiRef = useRef(null);
   const iconFileInputRef = useRef(null);
-  const isSandboxMode = !!inputs.WaffoSandbox;
 
   const handleIconFileChange = (e) => {
     const file = e.target.files[0];
@@ -370,7 +369,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
                 </a>
                 进行配置，切换沙盒模式时请同步填写对应环境的密钥。
                 <br />
-                Webhook：
+                {t('回调地址')}：
                 {props.options.ServerAddress
                   ? removeTrailingSlash(props.options.ServerAddress)
                   : t('网站地址')}
@@ -382,11 +381,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
           <Banner
             type='warning'
             icon={<TriangleAlert size={16} />}
-            description={
-              isSandboxMode
-                ? t('当前显示的是测试环境配置，请确认商户和测试环境密钥一致。')
-                : t('当前显示的是生产环境配置，请确认商户和生产环境密钥一致。')
-            }
+            description={t('请确认商户和所选环境密钥一致。')}
             style={{ marginBottom: 16 }}
           />
 
@@ -543,9 +538,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
                 field='WaffoNotifyUrl'
-                label={t('Webhook 地址')}
+                label={t('回调地址')}
                 placeholder={t('例如：https://example.com/api/waffo/webhook')}
-                extraText={t('留空则自动使用当前站点的默认 Webhook 地址')}
+                extraText={t('留空则自动使用当前站点的默认回调地址')}
               />
             </Col>
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
@@ -667,7 +662,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
           </div>
           <div>
             <div style={{ marginBottom: 4 }}>
-              <Text strong>{t('Pay Method Type')}</Text>
+              <Text strong>{t('支付方式类型')}</Text>
             </div>
             <Input
               value={payMethodForm.payMethodType}
@@ -685,7 +680,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
           </div>
           <div>
             <div style={{ marginBottom: 4 }}>
-              <Text strong>{t('Pay Method Name')}</Text>
+              <Text strong>{t('支付方式名称')}</Text>
             </div>
             <Input
               value={payMethodForm.payMethodName}

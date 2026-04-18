@@ -289,7 +289,7 @@ export default function SettingsPaymentGatewayCreem(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
                 field='CreemWebhookSecret'
-                label={t('Webhook 密钥')}
+                label={t('Webhook 签名密钥')}
                 placeholder={t(
                   '用于验证回调 new-api 的 webhook 请求的密钥，敏感信息不显示',
                 )}
@@ -299,7 +299,7 @@ export default function SettingsPaymentGatewayCreem(props) {
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Switch
                 field='CreemTestMode'
-                label={t('测试模式')}
+                label={t('沙盒模式')}
                 extraText={t('启用后将使用 Creem Test Mode')}
               />
             </Col>

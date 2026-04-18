@@ -134,7 +134,7 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
     }
 
     if (values.WaffoPancakeEnabled && Number(values.WaffoPancakeMinTopUp) < 1) {
-      showError(t('最低充值数量必须大于 0'));
+      showError(t('最低充值美元数量必须大于 0'));
       return;
     }
 
@@ -247,7 +247,7 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
                 </a>
                 获取，建议先在测试环境完成联调。
                 <br />
-                Webhook：
+                {t('回调地址')}：
                 {props.options.ServerAddress
                   ? removeTrailingSlash(props.options.ServerAddress)
                   : t('网站地址')}
@@ -260,7 +260,7 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
             type='warning'
             icon={<TriangleAlert size={16} />}
             description={t(
-              '请确认 Merchant、Store、Product 和对应环境密钥一致。',
+              '请确认 Merchant、Store、Product 和所选环境密钥一致。',
             )}
             style={{ marginBottom: 16 }}
           />

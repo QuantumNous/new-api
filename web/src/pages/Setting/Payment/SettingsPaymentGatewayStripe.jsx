@@ -182,7 +182,7 @@ export default function SettingsPaymentGateway(props) {
                 </a>
                 完成联调。
                 <br />
-                Webhook：
+                {t('回调地址')}：
                 {props.options.ServerAddress
                   ? removeTrailingSlash(props.options.ServerAddress)
                   : t('网站地址')}
