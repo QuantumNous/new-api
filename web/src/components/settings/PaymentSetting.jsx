@@ -198,13 +198,13 @@ const PaymentSetting = () => {
                 hideSectionTitle
               />
             </Tabs.TabPane>
-            <Tabs.TabPane tab={t('Waffo Pancake 设置')} itemKey='waffo-pancake'>
-              <SettingsPaymentGatewayWaffoPancake
-                options={inputs}
-                refresh={onRefresh}
-                hideSectionTitle
-              />
-            </Tabs.TabPane>
+            {/*<Tabs.TabPane tab={t('Waffo Pancake 设置')} itemKey='waffo-pancake'>*/}
+            {/*  <SettingsPaymentGatewayWaffoPancake*/}
+            {/*    options={inputs}*/}
+            {/*    refresh={onRefresh}*/}
+            {/*    hideSectionTitle*/}
+            {/*  />*/}
+            {/*</Tabs.TabPane>*/}
           </Tabs>
         </Card>
       </Spin>
