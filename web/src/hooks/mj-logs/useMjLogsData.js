@@ -230,7 +230,7 @@ export const useMjLogsData = () => {
     let localEndTimestamp = Date.parse(end_timestamp);
     const url = isAdminUser
       ? `/api/mj/?p=${page}&page_size=${size}&channel_id=${channel_id}&mj_id=${mj_id}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`
-      : `/api/mj/self/?p=${page}&page_size=${size}&mj_id=${mj_id}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+      : `/api/mj/self?p=${page}&page_size=${size}&mj_id=${mj_id}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
     const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
