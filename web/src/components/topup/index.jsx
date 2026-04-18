@@ -75,6 +75,8 @@ const TopUp = () => {
   const [enableWaffoTopUp, setEnableWaffoTopUp] = useState(false);
   const [waffoPayMethods, setWaffoPayMethods] = useState([]);
   const [waffoMinTopUp, setWaffoMinTopUp] = useState(1);
+  const [enableWaffoPancakeTopUp, setEnableWaffoPancakeTopUp] = useState(false);
+  const [waffoPancakeMinTopUp, setWaffoPancakeMinTopUp] = useState(1);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
@@ -111,6 +113,39 @@ const TopUp = () => {
     amount_options: [],
     discount: {},
   });
+
+  const confirmPayMethods = [
+    ...payMethods,
+    ...waffoPayMethods.map((method, index) => ({
+      ...method,
+      type: `waffo:${index}`,
+      min_topup: waffoMinTopUp,
+      color: method.color || 'rgba(var(--semi-primary-5), 1)',
+    })),
+  ];
+
+  const getPayMethodConfig = (payment) =>
+    confirmPayMethods.find((method) => method.type === payment);
+
+  const getPaymentMinTopUp = (payment) => {
+    const configuredMinTopUp = Number(getPayMethodConfig(payment)?.min_topup);
+    return Number.isFinite(configuredMinTopUp) && configuredMinTopUp > 0
+      ? configuredMinTopUp
+      : minTopUp;
+  };
+
+  const requestAmountByPayment = async (payment, value) => {
+    if (payment === 'stripe') {
+      return getStripeAmount(value);
+    }
+    if (payment === 'waffo_pancake') {
+      return getWaffoPancakeAmount(value);
+    }
+    if (typeof payment === 'string' && payment.startsWith('waffo:')) {
+      return getWaffoAmount(value);
+    }
+    return getAmount(value);
+  };
 
   const topUp = async () => {
     if (redemptionCode === '') {
@@ -162,6 +197,16 @@ const TopUp = () => {
         showError(t('管理员未开启Stripe充值！'));
         return;
       }
+    } else if (payment === 'waffo_pancake') {
+      if (!enableWaffoPancakeTopUp) {
+        showError(t('管理员未开启 Waffo Pancake 充值！'));
+        return;
+      }
+    } else if (payment.startsWith('waffo:')) {
+      if (!enableWaffoTopUp) {
+        showError(t('管理员未开启 Waffo 充值！'));
+        return;
+      }
     } else {
       if (!enableOnlineTopUp) {
         showError(t('管理员未开启在线充值！'));
@@ -172,14 +217,11 @@ const TopUp = () => {
     setPayWay(payment);
     setPaymentLoading(true);
     try {
-      if (payment === 'stripe') {
-        await getStripeAmount();
-      } else {
-        await getAmount();
-      }
+      const selectedMinTopUp = getPaymentMinTopUp(payment);
+      await requestAmountByPayment(payment);
 
-      if (topUpCount < minTopUp) {
-        showError(t('充值数量不能小于') + minTopUp);
+      if (topUpCount < selectedMinTopUp) {
+        showError(t('充值数量不能小于') + selectedMinTopUp);
         return;
       }
       setOpen(true);
@@ -191,6 +233,29 @@ const TopUp = () => {
   };
 
   const onlineTopUp = async () => {
+    if (payWay === 'waffo_pancake') {
+      setConfirmLoading(true);
+      try {
+        await waffoPancakeTopUp();
+      } finally {
+        setOpen(false);
+        setConfirmLoading(false);
+      }
+      return;
+    }
+
+    if (payWay.startsWith('waffo:')) {
+      const payMethodIndex = Number(payWay.split(':')[1]);
+      setConfirmLoading(true);
+      try {
+        await waffoTopUp(Number.isFinite(payMethodIndex) ? payMethodIndex : 0);
+      } finally {
+        setOpen(false);
+        setConfirmLoading(false);
+      }
+      return;
+    }
+
     if (payWay === 'stripe') {
       // Stripe 支付处理
       if (amount === 0) {
@@ -317,32 +382,122 @@ const TopUp = () => {
 
   const waffoTopUp = async (payMethodIndex) => {
     try {
-        if (topUpCount < waffoMinTopUp) {
-            showError(t('充值数量不能小于') + waffoMinTopUp);
-            return;
-        }
-        setPaymentLoading(true);
-        const requestBody = {
-            amount: parseInt(topUpCount),
-        };
-        if (payMethodIndex != null) {
-            requestBody.pay_method_index = payMethodIndex;
-        }
-        const res = await API.post('/api/user/waffo/pay', requestBody);
-        if (res !== undefined) {
-            const { message, data } = res.data;
-            if (message === 'success' && data?.payment_url) {
-                window.open(data.payment_url, '_blank');
-            } else {
-                showError(data || t('支付请求失败'));
-            }
+      if (topUpCount < waffoMinTopUp) {
+        showError(t('充值数量不能小于') + waffoMinTopUp);
+        return;
+      }
+      setPaymentLoading(true);
+      const requestBody = {
+        amount: parseInt(topUpCount),
+      };
+      if (payMethodIndex != null) {
+        requestBody.pay_method_index = payMethodIndex;
+      }
+      const res = await API.post('/api/user/waffo/pay', requestBody);
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success' && data?.payment_url) {
+          window.open(data.payment_url, '_blank');
         } else {
-            showError(res);
+          showError(data || t('支付请求失败'));
         }
+      } else {
+        showError(res);
+      }
     } catch (e) {
-        showError(t('支付请求失败'));
+      showError(t('支付请求失败'));
     } finally {
-        setPaymentLoading(false);
+      setPaymentLoading(false);
+    }
+  };
+
+  const getWaffoAmount = async (value) => {
+    if (value === undefined) {
+      value = topUpCount;
+    }
+    setAmountLoading(true);
+    try {
+      const res = await API.post('/api/user/waffo/amount', {
+        amount: parseInt(value),
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success') {
+          setAmount(parseFloat(data));
+        } else {
+          setAmount(0);
+          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+        }
+      } else {
+        showError(res);
+      }
+    } catch (err) {
+      // amount fetch failed silently
+    } finally {
+      setAmountLoading(false);
+    }
+  };
+
+  const waffoPancakeTopUp = async () => {
+    const minTopUpValue = Number(waffoPancakeMinTopUp || 1);
+    if (topUpCount < minTopUpValue) {
+      showError(t('充值数量不能小于') + minTopUpValue);
+      return;
+    }
+
+    setPaymentLoading(true);
+    try {
+      const res = await API.post('/api/user/waffo-pancake/pay', {
+        amount: parseInt(topUpCount),
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success') {
+          const checkoutUrl = data?.checkout_url || '';
+          if (checkoutUrl) {
+            window.open(checkoutUrl, '_blank');
+          } else {
+            showError(t('支付请求失败'));
+          }
+        } else {
+          const errorMsg =
+            typeof data === 'string' ? data : message || t('支付请求失败');
+          showError(errorMsg);
+        }
+      } else {
+        showError(res);
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const getWaffoPancakeAmount = async (value) => {
+    if (value === undefined) {
+      value = topUpCount;
+    }
+    setAmountLoading(true);
+    try {
+      const res = await API.post('/api/user/waffo-pancake/amount', {
+        amount: parseInt(value),
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success') {
+          setAmount(parseFloat(data));
+        } else {
+          setAmount(0);
+          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+        }
+      } else {
+        showError(res);
+      }
+    } catch (err) {
+      // amount fetch failed silently
+    } finally {
+      setAmountLoading(false);
     }
   };
 
@@ -481,20 +636,26 @@ const TopUp = () => {
           const enableStripeTopUp = data.enable_stripe_topup || false;
           const enableOnlineTopUp = data.enable_online_topup || false;
           const enableCreemTopUp = data.enable_creem_topup || false;
+          const enableWaffoTopUp = data.enable_waffo_topup || false;
+          const enableWaffoPancakeTopUp =
+            data.enable_waffo_pancake_topup || false;
           const minTopUpValue = enableOnlineTopUp
             ? data.min_topup
             : enableStripeTopUp
               ? data.stripe_min_topup
-              : data.enable_waffo_topup
+              : enableWaffoTopUp
                 ? data.waffo_min_topup
+                : enableWaffoPancakeTopUp
+                  ? data.waffo_pancake_min_topup
                 : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
-          const enableWaffoTopUp = data.enable_waffo_topup || false;
           setEnableWaffoTopUp(enableWaffoTopUp);
           setWaffoPayMethods(data.waffo_pay_methods || []);
           setWaffoMinTopUp(data.waffo_min_topup || 1);
+          setEnableWaffoPancakeTopUp(enableWaffoPancakeTopUp);
+          setWaffoPancakeMinTopUp(data.waffo_pancake_min_topup || 1);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
@@ -739,7 +900,7 @@ const TopUp = () => {
         amountLoading={amountLoading}
         renderAmount={renderAmount}
         payWay={payWay}
-        payMethods={payMethods}
+        payMethods={confirmPayMethods}
         amountNumber={amount}
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
       />
@@ -789,8 +950,7 @@ const TopUp = () => {
           creemProducts={creemProducts}
           creemPreTopUp={creemPreTopUp}
           enableWaffoTopUp={enableWaffoTopUp}
-          waffoTopUp={waffoTopUp}
-          waffoPayMethods={waffoPayMethods}
+          enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
           presetAmounts={presetAmounts}
           selectedPreset={selectedPreset}
           selectPresetAmount={selectPresetAmount}
@@ -804,7 +964,7 @@ const TopUp = () => {
           setSelectedPreset={setSelectedPreset}
           renderAmount={renderAmount}
           amountLoading={amountLoading}
-          payMethods={payMethods}
+          payMethods={confirmPayMethods}
           preTopUp={preTopUp}
           paymentLoading={paymentLoading}
           payWay={payWay}

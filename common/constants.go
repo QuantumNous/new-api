@@ -116,6 +116,10 @@ var RetryTimes = 0
 
 var IsMasterNode bool
 
+// NodeName 节点名称，从 NODE_NAME 环境变量读取；
+// 用于审计日志中标识节点身份，在容器/K8s 部署时比自动探测到的容器内网 IP 更具可读性。
+var NodeName = ""
+
 var requestInterval int
 var RequestInterval time.Duration
 
