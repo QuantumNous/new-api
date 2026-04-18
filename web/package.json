@@ -11,7 +11,7 @@
     "@visactor/vchart": "~1.8.8",
     "@visactor/vchart-semi-theme": "~1.8.8",
     "antd": "^5.23.0",
-    "axios": "1.13.5",
+    "axios": "1.15.0",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.11",
     "history": "^5.3.0",

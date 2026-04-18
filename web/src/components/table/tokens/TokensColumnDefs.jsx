@@ -88,7 +88,7 @@ const renderStatus = (text, record, t) => {
 };
 
 // Render group column
-const renderGroupColumn = (text, record, t) => {
+const renderGroupColumn = (text, record, t, groupRatios = {}) => {
   if (text === 'auto') {
     return (
       <Tooltip
@@ -104,7 +104,17 @@ const renderGroupColumn = (text, record, t) => {
       </Tooltip>
     );
   }
-  return renderGroup(text);
+  const ratio = groupRatios[text];
+  return (
+    <span className='flex items-center gap-1'>
+      {renderGroup(text)}
+      {ratio !== undefined && (
+        <Tag size='small' color='green' shape='circle'>
+          {ratio}x
+        </Tag>
+      )}
+    </span>
+  );
 };
 
 // Render token key column with show/hide and copy functionality
@@ -469,6 +479,7 @@ export const getTokensColumns = ({
   setEditingToken,
   setShowEdit,
   refresh,
+  groupRatios = {},
 }) => {
   return [
     {
@@ -492,6 +503,17 @@ export const getTokensColumns = ({
       render: (text, record) => renderStatus(text, record, t),
     },
     {
+      title: t('剩余额度/总额度'),
+      key: 'quota_usage',
+      render: (text, record) => renderQuotaUsage(text, record, t),
+    },
+    {
+      title: t('分组'),
+      dataIndex: 'group',
+      key: 'group',
+      render: (text, record) => renderGroupColumn(text, record, t, groupRatios),
+    },
+    {
       title: t('密钥'),
       key: 'token_key',
       render: (text, record) =>
@@ -511,17 +533,6 @@ export const getTokensColumns = ({
       title: t('可用模型'),
       dataIndex: 'model_limits',
       render: (text, record) => renderModelLimits(text, record, t),
-    },
-    {
-      title: t('分组'),
-      dataIndex: 'group',
-      key: 'group',
-      render: (text, record) => renderGroupColumn(text, record, t),
-    },
-    {
-      title: t('剩余额度/总额度'),
-      key: 'quota_usage',
-      render: (text, record) => renderQuotaUsage(text, record, t),
     },
     {
       title: t('IP限制'),
