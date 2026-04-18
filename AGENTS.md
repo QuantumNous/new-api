@@ -134,7 +134,16 @@ When fixing frontend UI, layout, translation, or theme issues:
 - Prefer minimal, local fixes over wide global rewrites. Respect existing project baselines such as established header height, page offsets, and layout rhythm unless a global change is explicitly required.
 - Before changing shared layout values (for example header height, top spacing, viewport height calculations), check all dependent pages/components first to avoid introducing cascade regressions.
 
-### Rule 8: Keep Working Tree Noise Low
+### Rule 8: Tailwind Theme Safety — Do Not Change `web/tailwind.config.js` Lightly
+
+`web/tailwind.config.js` is part of the project's theme compatibility surface. Seemingly small config edits can break dark mode across many existing pages.
+
+- Do NOT move the custom color map from `theme.colors` to `theme.extend.colors` unless you have explicitly verified the impact on existing pages. This project intentionally overrides Tailwind's default palette so legacy classes like `text-gray-*`, `bg-white`, and `bg-gray-*` do not suddenly start applying new colors.
+- Do NOT add or restore `darkMode: 'class'` unless the change is explicitly required and verified end-to-end. The project already mixes Semi theme tokens, `html.dark` CSS, and Tailwind utilities; changing Tailwind dark mode strategy can create cross-page regressions.
+- After any `web/tailwind.config.js` change, you MUST verify the affected UI on real pages, not just by reading code. At minimum, check Dashboard, Playground, Home/Header, and any page the user reported.
+- After any `web/tailwind.config.js` change, run `bun run build` in `web/` before concluding the work is safe.
+
+### Rule 9: Keep Working Tree Noise Low
 
 When implementing or debugging:
 
