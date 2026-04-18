@@ -23,11 +23,11 @@ import {
   Dropdown,
   InputNumber,
   Modal,
+  Progress,
   Space,
   SplitButtonGroup,
   Tag,
   Tooltip,
-  Typography,
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
@@ -50,6 +50,10 @@ import {
   IconAlertTriangle,
 } from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
+import {
+  clampPercent,
+  CODEX_CHANNEL_TYPE,
+} from './codexUsageUtils';
 
 // Render functions
 const renderType = (type, record = {}, t) => {
@@ -251,6 +255,74 @@ const renderResponseTime = (responseTime, t) => {
       </Tag>
     );
   }
+};
+
+const pickCodexUsageStroke = (percent) => {
+  const parsed = clampPercent(percent);
+  if (parsed >= 95) {
+    return '#ef4444';
+  }
+  if (parsed >= 80) {
+    return '#f59e0b';
+  }
+  return '#3b82f6';
+};
+
+const renderCodexWindowUsage = (record, field, updateChannelBalance, t) => {
+  if (record.children !== undefined || record.type !== CODEX_CHANNEL_TYPE) {
+    return '-';
+  }
+
+  const usage = record.codex_usage || {};
+  const percent = usage?.summary?.[field];
+
+  if (usage.loading && percent == null) {
+    return (
+      <Tag color='grey' shape='circle'>
+        {t('加载中')}
+      </Tag>
+    );
+  }
+
+  if (usage.error && percent == null) {
+    return (
+      <Tooltip content={usage.error}>
+        <Tag color='red' shape='circle'>
+          {t('获取失败')}
+        </Tag>
+      </Tooltip>
+    );
+  }
+
+  if (percent == null) {
+    return '-';
+  }
+
+  const displayPercent = clampPercent(percent);
+  const loadingTip = usage.loading ? ` · ${t('刷新中')}` : '';
+  const usageLabel = `${t('查看 Codex 帐号信息与用量')} (${displayPercent}%)`;
+
+  return (
+    <Tooltip content={`${t('点击查看 Codex 帐号信息与用量')}${loadingTip}`}>
+      <button
+        type='button'
+        className='min-w-[120px] cursor-pointer border-0 bg-transparent p-0 text-left'
+        onClick={() => updateChannelBalance(record)}
+        aria-label={usageLabel}
+      >
+        <div className='mb-1 flex items-center justify-between gap-2 text-xs text-semi-color-text-2'>
+          <span>{displayPercent}%</span>
+          {usage.loading ? <span>{t('刷新中')}</span> : null}
+        </div>
+        <Progress
+          percent={displayPercent}
+          stroke={pickCodexUsageStroke(displayPercent)}
+          showInfo={false}
+          size='small'
+        />
+      </button>
+    </Tooltip>
+  );
 };
 
 const isRequestPassThroughEnabled = (record) => {
@@ -538,7 +610,7 @@ export const getChannelsColumns = ({
                 </Tooltip>
                 <Tooltip
                   content={
-                    record.type === 57
+                    record.type === CODEX_CHANNEL_TYPE
                       ? t('查看 Codex 帐号信息与用量')
                       : t('剩余额度') +
                         ': ' +
@@ -547,13 +619,21 @@ export const getChannelsColumns = ({
                   }
                 >
                   <Tag
-                    color={record.type === 57 ? 'light-blue' : 'white'}
-                    type={record.type === 57 ? 'light' : 'ghost'}
+                    color={
+                      record.type === CODEX_CHANNEL_TYPE
+                        ? 'light-blue'
+                        : 'white'
+                    }
+                    type={
+                      record.type === CODEX_CHANNEL_TYPE ? 'light' : 'ghost'
+                    }
                     shape='circle'
-                    className={record.type === 57 ? 'cursor-pointer' : ''}
+                    className={
+                      record.type === CODEX_CHANNEL_TYPE ? 'cursor-pointer' : ''
+                    }
                     onClick={() => updateChannelBalance(record)}
                   >
-                    {record.type === 57
+                    {record.type === CODEX_CHANNEL_TYPE
                       ? t('帐号信息')
                       : renderQuotaWithAmount(record.balance)}
                   </Tag>
@@ -571,6 +651,30 @@ export const getChannelsColumns = ({
           );
         }
       },
+    },
+    {
+      key: COLUMN_KEYS.CODEX_FIVE_HOUR,
+      title: t('Codex 5小时'),
+      dataIndex: 'codex_usage',
+      render: (text, record) =>
+        renderCodexWindowUsage(
+          record,
+          'fiveHourPercent',
+          updateChannelBalance,
+          t,
+        ),
+    },
+    {
+      key: COLUMN_KEYS.CODEX_WEEKLY,
+      title: t('Codex 每周'),
+      dataIndex: 'codex_usage',
+      render: (text, record) =>
+        renderCodexWindowUsage(
+          record,
+          'weeklyPercent',
+          updateChannelBalance,
+          t,
+        ),
     },
     {
       key: COLUMN_KEYS.PRIORITY,

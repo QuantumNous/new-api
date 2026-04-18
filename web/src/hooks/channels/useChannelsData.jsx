@@ -39,6 +39,13 @@ import { useChannelUpstreamUpdates } from './useChannelUpstreamUpdates';
 import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
+import {
+  CODEX_CHANNEL_TYPE,
+  extractCodexUsageSummary,
+} from '../../components/table/channels/codexUsageUtils';
+
+const CODEX_USAGE_CACHE_TTL_MS = 60 * 1000;
+const CODEX_USAGE_FETCH_CONCURRENCY = 4;
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -122,6 +129,8 @@ export const useChannelsData = () => {
   const requestCounter = useRef(0);
   const allSelectingRef = useRef(false);
   const [formApi, setFormApi] = useState(null);
+  const codexUsageCacheRef = useRef(new Map());
+  const codexUsageInflightRef = useRef(new Map());
 
   const formInitValues = {
     searchKeyword: '',
@@ -138,6 +147,8 @@ export const useChannelsData = () => {
     STATUS: 'status',
     RESPONSE_TIME: 'response_time',
     BALANCE: 'balance',
+    CODEX_FIVE_HOUR: 'codex_five_hour',
+    CODEX_WEEKLY: 'codex_weekly',
     PRIORITY: 'priority',
     WEIGHT: 'weight',
     OPERATE: 'operate',
@@ -178,6 +189,8 @@ export const useChannelsData = () => {
       [COLUMN_KEYS.STATUS]: true,
       [COLUMN_KEYS.RESPONSE_TIME]: true,
       [COLUMN_KEYS.BALANCE]: true,
+      [COLUMN_KEYS.CODEX_FIVE_HOUR]: true,
+      [COLUMN_KEYS.CODEX_WEEKLY]: true,
       [COLUMN_KEYS.PRIORITY]: true,
       [COLUMN_KEYS.WEIGHT]: true,
       [COLUMN_KEYS.OPERATE]: true,
@@ -231,6 +244,34 @@ export const useChannelsData = () => {
     setVisibleColumns(updatedColumns);
   };
 
+  const getCachedCodexUsage = (channelId) => {
+    const cached = codexUsageCacheRef.current.get(channelId);
+    if (!cached?.payload) {
+      return null;
+    }
+    return {
+      loading: false,
+      error:
+        cached.payload?.success === false ? cached.payload?.message || '' : '',
+      payload: cached.payload,
+      summary: extractCodexUsageSummary(cached.payload),
+      fetched_at: cached.fetchedAt,
+    };
+  };
+
+  const attachCodexUsageState = (channel) => {
+    if (!channel || channel.type !== CODEX_CHANNEL_TYPE) {
+      return;
+    }
+    channel.codex_usage = getCachedCodexUsage(channel.id) || {
+      loading: false,
+      error: '',
+      payload: null,
+      summary: null,
+      fetched_at: 0,
+    };
+  };
+
   // Data formatting
   const setChannelFormat = (channels, enableTagMode) => {
     let channelDates = [];
@@ -241,6 +282,7 @@ export const useChannelsData = () => {
         channels[i].settings,
       );
       channels[i].key = '' + channels[i].id;
+      attachCodexUsageState(channels[i]);
       if (!enableTagMode) {
         channelDates.push(channels[i]);
       } else {
@@ -306,6 +348,100 @@ export const useChannelsData = () => {
     setChannels(channelDates);
   };
 
+  const fetchCodexUsageForChannel = async (channelId) => {
+    const inflight = codexUsageInflightRef.current.get(channelId);
+    if (inflight) {
+      return inflight;
+    }
+
+    const request = API.get(`/api/channel/${channelId}/codex/usage`, {
+      skipErrorHandler: true,
+    })
+      .then((res) => res?.data ?? { success: false, message: t('获取用量失败') })
+      .catch((error) => ({
+        success: false,
+        message:
+          error?.response?.data?.message ||
+          error?.message ||
+          t('获取用量失败'),
+      }))
+      .finally(() => {
+        codexUsageInflightRef.current.delete(channelId);
+      });
+
+    codexUsageInflightRef.current.set(channelId, request);
+    return request;
+  };
+
+  const syncCodexUsage = async (items) => {
+    if (!Array.isArray(items) || items.length === 0) {
+      return;
+    }
+
+    const now = Date.now();
+    const codexChannels = items.filter(
+      (item) => item?.type === CODEX_CHANNEL_TYPE && item?.id,
+    );
+    if (codexChannels.length === 0) {
+      return;
+    }
+
+    for (
+      let i = 0;
+      i < codexChannels.length;
+      i += CODEX_USAGE_FETCH_CONCURRENCY
+    ) {
+      const batch = codexChannels.slice(
+        i,
+        i + CODEX_USAGE_FETCH_CONCURRENCY,
+      );
+      await Promise.all(
+        batch.map(async (channel) => {
+          const cached = codexUsageCacheRef.current.get(channel.id);
+          const isFresh =
+            !!cached && now - cached.fetchedAt < CODEX_USAGE_CACHE_TTL_MS;
+          if (isFresh) {
+            return;
+          }
+
+          updateChannelProperty(channel.id, (currentChannel) => {
+            const currentUsage = currentChannel.codex_usage || {};
+            currentChannel.codex_usage = {
+              ...currentUsage,
+              loading: true,
+              error: '',
+              payload: currentUsage.payload || cached?.payload || null,
+              summary:
+                currentUsage.summary ||
+                (cached?.payload
+                  ? extractCodexUsageSummary(cached.payload)
+                  : null),
+              fetched_at: currentUsage.fetched_at || cached?.fetchedAt || 0,
+            };
+          });
+
+          const payload = await fetchCodexUsageForChannel(channel.id);
+          const fetchedAt = Date.now();
+          codexUsageCacheRef.current.set(channel.id, {
+            payload,
+            fetchedAt,
+          });
+
+          updateChannelProperty(channel.id, (currentChannel) => {
+            currentChannel.codex_usage = {
+              loading: false,
+              error:
+                payload?.success === false ? payload?.message || '' : '',
+              payload,
+              summary: extractCodexUsageSummary(payload),
+              fetched_at: fetchedAt,
+            };
+          });
+        }),
+      );
+    }
+  };
+
   // Get form values helper
   const getFormValues = () => {
     const formValues = formApi ? formApi.getValues() : {};
@@ -365,6 +501,7 @@ export const useChannelsData = () => {
         setTypeCounts({ ...type_counts, all: sumAll });
       }
       setChannelFormat(items, enableTagMode);
+      syncCodexUsage(items).catch(() => {});
       setChannelCount(total);
     } else {
       showError(message);
@@ -410,6 +547,7 @@ export const useChannelsData = () => {
         );
         setTypeCounts({ ...type_counts, all: sumAll });
         setChannelFormat(items, enableTagMode);
+        syncCodexUsage(items).catch(() => {});
         setChannelCount(total);
         setActivePage(page);
       } else {
@@ -593,26 +731,40 @@ export const useChannelsData = () => {
 
   // Update channel property
   const updateChannelProperty = (channelId, updateFn) => {
-    const newChannels = [...channels];
-    let updated = false;
+    setChannels((prevChannels) => {
+      let updated = false;
 
-    newChannels.forEach((channel) => {
-      if (channel.children !== undefined) {
-        channel.children.forEach((child) => {
-          if (child.id === channelId) {
-            updateFn(child);
+      const newChannels = prevChannels.map((channel) => {
+        if (channel.children !== undefined) {
+          let childUpdated = false;
+          const children = channel.children.map((child) => {
+            if (child.id !== channelId) {
+              return child;
+            }
+            const nextChild = { ...child };
+            updateFn(nextChild);
+            childUpdated = true;
             updated = true;
+            return nextChild;
+          });
+          if (childUpdated) {
+            return { ...channel, children };
           }
-        });
-      } else if (channel.id === channelId) {
-        updateFn(channel);
-        updated = true;
-      }
-    });
+          return channel;
+        }
 
-    if (updated) {
-      setChannels(newChannels);
-    }
+        if (channel.id === channelId) {
+          const nextChannel = { ...channel };
+          updateFn(nextChannel);
+          updated = true;
+          return nextChannel;
+        }
+
+        return channel;
+      });
+
+      return updated ? newChannels : prevChannels;
+    });
   };
 
   // Tag edit
@@ -754,10 +906,11 @@ export const useChannelsData = () => {
   };
 
   const updateChannelBalance = async (record) => {
-    if (record?.type === 57) {
+    if (record?.type === CODEX_CHANNEL_TYPE) {
       openCodexUsageModal({
         t,
         record,
+        payload: record?.codex_usage?.payload ?? null,
         onCopy: async (text) => {
           const ok = await copy(text);
           if (ok) showSuccess(t('已复制'));

@@ -29,14 +29,12 @@ import {
   Collapse,
 } from '@douyinfe/semi-ui';
 import { API, showError } from '../../../../helpers';
+import {
+  clampPercent,
+  resolveRateLimitWindows,
+} from '../codexUsageUtils';
 
 const { Text } = Typography;
-
-const clampPercent = (value) => {
-  const v = Number(value);
-  if (!Number.isFinite(v)) return 0;
-  return Math.max(0, Math.min(100, v));
-};
 
 const pickStrokeColor = (percent) => {
   const p = clampPercent(percent);
@@ -48,63 +46,6 @@ const pickStrokeColor = (percent) => {
 const normalizePlanType = (value) => {
   if (value == null) return '';
   return String(value).trim().toLowerCase();
-};
-
-const getWindowDurationSeconds = (windowData) => {
-  const value = Number(windowData?.limit_window_seconds);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  return value;
-};
-
-const classifyWindowByDuration = (windowData) => {
-  const seconds = getWindowDurationSeconds(windowData);
-  if (seconds == null) return null;
-  return seconds >= 24 * 60 * 60 ? 'weekly' : 'fiveHour';
-};
-
-const resolveRateLimitWindows = (data) => {
-  const rateLimit = data?.rate_limit ?? {};
-  const primary = rateLimit?.primary_window ?? null;
-  const secondary = rateLimit?.secondary_window ?? null;
-  const windows = [primary, secondary].filter(Boolean);
-  const planType = normalizePlanType(data?.plan_type ?? rateLimit?.plan_type);
-
-  let fiveHourWindow = null;
-  let weeklyWindow = null;
-
-  for (const windowData of windows) {
-    const bucket = classifyWindowByDuration(windowData);
-    if (bucket === 'fiveHour' && !fiveHourWindow) {
-      fiveHourWindow = windowData;
-      continue;
-    }
-    if (bucket === 'weekly' && !weeklyWindow) {
-      weeklyWindow = windowData;
-    }
-  }
-
-  if (planType === 'free') {
-    if (!weeklyWindow) {
-      weeklyWindow = primary ?? secondary ?? null;
-    }
-    return { fiveHourWindow: null, weeklyWindow };
-  }
-
-  if (!fiveHourWindow && !weeklyWindow) {
-    return {
-      fiveHourWindow: primary ?? null,
-      weeklyWindow: secondary ?? null,
-    };
-  }
-
-  if (!fiveHourWindow) {
-    fiveHourWindow = windows.find((windowData) => windowData !== weeklyWindow) ?? null;
-  }
-  if (!weeklyWindow) {
-    weeklyWindow = windows.find((windowData) => windowData !== fiveHourWindow) ?? null;
-  }
-
-  return { fiveHourWindow, weeklyWindow };
 };
 
 const formatDurationSeconds = (seconds, t) => {
