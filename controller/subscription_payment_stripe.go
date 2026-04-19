@@ -2,12 +2,12 @@ package controller
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -78,7 +78,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 
 	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId)
 	if err != nil {
-		log.Println("获取Stripe Checkout支付链接失败", err)
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅支付链接创建失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
@@ -88,7 +88,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		PlanId:        plan.Id,
 		Money:         plan.PriceAmount,
 		TradeNo:       referenceId,
-		PaymentMethod: PaymentMethodStripe,
+		PaymentMethod: model.PaymentMethodStripe,
 		CreateTime:    time.Now().Unix(),
 		Status:        common.TopUpStatusPending,
 	}

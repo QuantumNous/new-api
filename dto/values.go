@@ -5,6 +5,28 @@ import (
 	"strconv"
 )
 
+type StringValue string
+
+func (s *StringValue) UnmarshalJSON(data []byte) error {
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		*s = StringValue(str)
+		return nil
+	}
+
+	var raw json.Number
+	if err := json.Unmarshal(data, &raw); err == nil {
+		*s = StringValue(raw.String())
+		return nil
+	}
+
+	return json.Unmarshal(data, &str)
+}
+
+func (s StringValue) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(s))
+}
+
 type IntValue int
 
 func (i *IntValue) UnmarshalJSON(b []byte) error {
