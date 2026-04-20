@@ -649,7 +649,38 @@ export default function ModelPricingEditor({
                                   'audioOutputPrice',
                                 )
                               ? t('当前未启用，需要时再打开即可。')
-                              : ''
+                            : ''
+                        }
+                      />
+                      <PriceInput
+                        label={t('Video Input Conditional Ratio')}
+                        value={selectedModel.videoInputRatio}
+                        placeholder={t(
+                          'Enter a multiplier such as 0.5 when requests contain video_url',
+                        )}
+                        onChange={(value) =>
+                          handleNumericFieldChange('videoInputRatio', value)
+                        }
+                        suffix='x'
+                        headerAction={
+                          <Switch
+                            size='small'
+                            checked={isOptionalFieldEnabled(
+                              selectedModel,
+                              'videoInputRatio',
+                            )}
+                            onChange={(checked) =>
+                              handleOptionalFieldToggle('videoInputRatio', checked)
+                            }
+                          />
+                        }
+                        hidden={!isOptionalFieldEnabled(selectedModel, 'videoInputRatio')}
+                        extraText={
+                          !isOptionalFieldEnabled(selectedModel, 'videoInputRatio')
+                            ? t('当前未启用，需要时再打开即可。')
+                            : t(
+                                'Applied only when task metadata.content contains video_url. Example: base input price 100 with ratio 0.5 becomes 50.',
+                              )
                         }
                       />
                     </Card>

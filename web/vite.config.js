@@ -26,6 +26,18 @@ const { vitePluginSemi } = pkg;
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  css: {
+    preprocessorOptions: {
+      scss: {
+        importer(url) {
+          if (url.startsWith('~')) {
+            return { file: url.slice(1) };
+          }
+          return null;
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

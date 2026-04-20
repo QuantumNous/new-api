@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -139,6 +140,9 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		return nil
 	}
 	if hasVideoInMetadata(req.Metadata) {
+		if ratio, ok := ratio_setting.GetTaskConditionRatio("video_input", info.OriginModelName); ok {
+			return map[string]float64{"video_input": ratio}
+		}
 		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
 			return map[string]float64{"video_input": ratio}
 		}
