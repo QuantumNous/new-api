@@ -155,12 +155,31 @@ func SetApiRouter(router *gin.Engine) {
 			// Subscription plans list (public)
 			clientRoute.GET("/subscription/plans", controller.GetSubscriptionPlans)
 
+			// Public skills list/detail for myclaw skills market
+			clientRoute.GET("/skills", controller.ClientListPublicSkills)
+			clientRoute.GET("/skills/:id", controller.ClientGetPublicSkill)
+			clientRoute.POST("/skills/download/:id", controller.ClientRecordSkillDownload)
+
 			// 客户端发起订阅支付（API Key 鉴权 + 限流）
 			// Client subscription pay (API Key auth + rate limited)
 			clientRoute.POST("/subscription/epay/pay",
 				middleware.TokenAuth(),
 				middleware.CriticalRateLimit(),
 				controller.SubscriptionRequestEpay)
+
+			// SkillHub 下载代理（公开技能下载入口，无需客户端直接访问外网）
+			clientRoute.GET("/skills/skillhub/download",
+				controller.ClientProxySkillHubDownload)
+		}
+
+		clientAdminRoute := apiRouter.Group("/client/admin")
+		clientAdminRoute.Use(middleware.AdminAuth())
+		{
+			clientAdminRoute.GET("/skills", controller.AdminListClientSkills)
+			clientAdminRoute.GET("/skills/:id", controller.AdminGetClientSkill)
+			clientAdminRoute.POST("/skills", controller.AdminCreateClientSkill)
+			clientAdminRoute.PUT("/skills/:id", controller.AdminUpdateClientSkill)
+			clientAdminRoute.PATCH("/skills/:id/status", controller.AdminUpdateClientSkillStatus)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

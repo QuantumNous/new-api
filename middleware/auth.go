@@ -74,32 +74,51 @@ func authHelper(c *gin.Context, minRole int) {
 		}
 	}
 	// get header New-Api-User
+	// 对 access token 方式保持严格校验；
+	// 对 session 登录方式做容错，避免前端本地缓存 userId 过期导致整页接口 401。
 	apiUserIdStr := c.Request.Header.Get("New-Api-User")
+	currentUserID, ok := id.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "无权进行此操作，登录用户 ID 无效",
+		})
+		c.Abort()
+		return
+	}
 	if apiUserIdStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "无权进行此操作，未提供 New-Api-User",
-		})
-		c.Abort()
-		return
-	}
-	apiUserId, err := strconv.Atoi(apiUserIdStr)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "无权进行此操作，New-Api-User 格式错误",
-		})
-		c.Abort()
-		return
-
-	}
-	if id != apiUserId {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "无权进行此操作，New-Api-User 与登录用户不匹配",
-		})
-		c.Abort()
-		return
+		if useAccessToken {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "无权进行此操作，未提供 New-Api-User",
+			})
+			c.Abort()
+			return
+		}
+		// session 登录场景缺失 header 时，自动回填，保证页面可用。
+		c.Request.Header.Set("New-Api-User", strconv.Itoa(currentUserID))
+	} else {
+		apiUserId, err := strconv.Atoi(apiUserIdStr)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "无权进行此操作，New-Api-User 格式错误",
+			})
+			c.Abort()
+			return
+		}
+		if currentUserID != apiUserId {
+			if useAccessToken {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"message": "无权进行此操作，New-Api-User 与登录用户不匹配",
+				})
+				c.Abort()
+				return
+			}
+			// session 登录场景容错并修正请求头，避免前端缓存错位导致 401。
+			c.Request.Header.Set("New-Api-User", strconv.Itoa(currentUserID))
+		}
 	}
 	if status.(int) == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -89,7 +90,15 @@ func rateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gi
 
 func GlobalWebRateLimit() func(c *gin.Context) {
 	if common.GlobalWebRateLimitEnable {
-		return rateLimitFactory(common.GlobalWebRateLimitNum, common.GlobalWebRateLimitDuration, "GW")
+		limiter := rateLimitFactory(common.GlobalWebRateLimitNum, common.GlobalWebRateLimitDuration, "GW")
+		return func(c *gin.Context) {
+			clientIP := c.ClientIP()
+			if clientIP == "127.0.0.1" || clientIP == "::1" || strings.HasPrefix(clientIP, "localhost") {
+				c.Next()
+				return
+			}
+			limiter(c)
+		}
 	}
 	return defNext
 }
