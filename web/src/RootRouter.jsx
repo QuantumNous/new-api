@@ -20,13 +20,14 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { lazy, Suspense, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
+import SetupCheck from './components/layout/SetupCheck';
+import { HomePage, isLightweightRoute } from './routeConfig';
 
-const Home = lazy(() => import('./pages/Home'));
 const PageLayout = lazy(() => import('./components/layout/PageLayout'));
 
 const RootRouter = () => {
   const location = useLocation();
-  const isHomeRoute = location.pathname === '/';
+  const isHomeRoute = isLightweightRoute(location.pathname);
 
   useEffect(() => {
     document.body.classList.toggle('home-route', isHomeRoute);
@@ -37,7 +38,13 @@ const RootRouter = () => {
 
   return (
     <Suspense fallback={<Loading />}>
-      {isHomeRoute ? <Home /> : <PageLayout />}
+      {isHomeRoute ? (
+        <SetupCheck>
+          <HomePage />
+        </SetupCheck>
+      ) : (
+        <PageLayout />
+      )}
     </Suspense>
   );
 };

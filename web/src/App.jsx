@@ -24,7 +24,6 @@ import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
 import { StatusContext } from './context/Status';
 import SetupCheck from './components/layout/SetupCheck';
 
-const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
@@ -101,7 +100,6 @@ function App() {
   return (
     <SetupCheck>
       <Routes>
-        <Route path='/' element={withSuspense(<Home />)} />
         <Route path='/setup' element={withSuspense(<Setup />)} />
         <Route path='/forbidden' element={withSuspense(<Forbidden />)} />
         <Route
