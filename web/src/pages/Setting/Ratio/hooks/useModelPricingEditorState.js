@@ -4,6 +4,10 @@ import {
   buildTaskConditionRatioValueFromVideoInputMap,
   extractVideoInputRatioMap,
 } from '../modelPricingTaskCondition';
+import {
+  buildTaskConditionPriceValueFromModelMap,
+  extractTaskConditionPriceMap,
+} from '../modelPricingTaskConditionPrice';
 
 export const PAGE_SIZE = 10;
 export const PRICE_SUFFIX = '$/1M tokens';
@@ -23,6 +27,10 @@ const EMPTY_MODEL = {
   audioInputPrice: '',
   audioOutputPrice: '',
   videoInputRatio: '',
+  taskConditionPrice720pTextOnly: '',
+  taskConditionPrice720pVideoInput: '',
+  taskConditionPrice1080pTextOnly: '',
+  taskConditionPrice1080pVideoInput: '',
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -117,6 +125,7 @@ const buildModelState = (name, sourceMaps) => {
     sourceMaps.AudioCompletionRatio[name],
   );
   const videoInputRatio = toNumericString(sourceMaps.TaskConditionRatio[name]);
+  const taskConditionPrice = sourceMaps.TaskConditionPrice?.[name] || {};
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
   const inputPrice = ratioToBasePrice(modelRatio);
   const inputPriceNumber = toNumberOrNull(inputPrice);
@@ -167,6 +176,18 @@ const buildModelState = (name, sourceMaps) => {
         ? formatNumber(Number(audioInputPrice) * Number(audioCompletionRatio))
         : '',
     videoInputRatio,
+    taskConditionPrice720pTextOnly: toNumericString(
+      taskConditionPrice['720p_text_only'],
+    ),
+    taskConditionPrice720pVideoInput: toNumericString(
+      taskConditionPrice['720p_video_input'],
+    ),
+    taskConditionPrice1080pTextOnly: toNumericString(
+      taskConditionPrice['1080p_text_only'],
+    ),
+    taskConditionPrice1080pVideoInput: toNumericString(
+      taskConditionPrice['1080p_video_input'],
+    ),
     rawRatios: {
       modelRatio,
       completionRatio,
@@ -208,6 +229,10 @@ export const getModelWarnings = (model, t) => {
     model.audioInputPrice,
     model.audioOutputPrice,
     model.videoInputRatio,
+    model.taskConditionPrice720pTextOnly,
+    model.taskConditionPrice720pVideoInput,
+    model.taskConditionPrice1080pTextOnly,
+    model.taskConditionPrice1080pVideoInput,
   ].some(hasValue);
 
   if (model.hasConflict) {
@@ -250,12 +275,54 @@ export const getModelWarnings = (model, t) => {
     warnings.push(t('填写音频补全价格前，需要先填写音频输入价格。'));
   }
 
+  if (
+    hasValue(model.videoInputRatio) &&
+    [
+      model.taskConditionPrice720pTextOnly,
+      model.taskConditionPrice720pVideoInput,
+      model.taskConditionPrice1080pTextOnly,
+      model.taskConditionPrice1080pVideoInput,
+    ].some(hasValue)
+  ) {
+    warnings.push(
+      t(
+        'TaskConditionPrice takes priority for billing and pricing plaza display. Video Input Conditional Ratio is only used as a fallback when no direct conditional price is configured.',
+      ),
+    );
+  }
+
   return warnings;
 };
 
 export const buildSummaryText = (model, t) => {
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
     return `${t('按次')} $${model.fixedPrice} / ${t('次')}`;
+  }
+
+  if (
+    hasValue(model.taskConditionPrice720pTextOnly) ||
+    hasValue(model.taskConditionPrice720pVideoInput) ||
+    hasValue(model.taskConditionPrice1080pTextOnly) ||
+    hasValue(model.taskConditionPrice1080pVideoInput)
+  ) {
+    const parts = [];
+    if (
+      hasValue(model.taskConditionPrice720pTextOnly) ||
+      hasValue(model.taskConditionPrice720pVideoInput)
+    ) {
+      parts.push(
+        `720p T $${model.taskConditionPrice720pTextOnly || '-'} / V $${model.taskConditionPrice720pVideoInput || '-'}`,
+      );
+    }
+    if (
+      hasValue(model.taskConditionPrice1080pTextOnly) ||
+      hasValue(model.taskConditionPrice1080pVideoInput)
+    ) {
+      parts.push(
+        `1080p T $${model.taskConditionPrice1080pTextOnly || '-'} / V $${model.taskConditionPrice1080pVideoInput || '-'}`,
+      );
+    }
+    return parts.join(' | ');
   }
 
   if (hasValue(model.inputPrice)) {
@@ -284,6 +351,16 @@ export const buildOptionalFieldToggles = (model) => ({
   audioInputPrice: hasValue(model.audioInputPrice),
   audioOutputPrice: hasValue(model.audioOutputPrice),
   videoInputRatio: hasValue(model.videoInputRatio),
+  taskConditionPrice720pTextOnly: hasValue(model.taskConditionPrice720pTextOnly),
+  taskConditionPrice720pVideoInput: hasValue(
+    model.taskConditionPrice720pVideoInput,
+  ),
+  taskConditionPrice1080pTextOnly: hasValue(
+    model.taskConditionPrice1080pTextOnly,
+  ),
+  taskConditionPrice1080pVideoInput: hasValue(
+    model.taskConditionPrice1080pVideoInput,
+  ),
 });
 
 const serializeModel = (model, t) => {
@@ -405,6 +482,38 @@ const serializeModel = (model, t) => {
 };
 
 export const buildPreviewRows = (model, t) => {
+  const appendTaskConditionPriceRows = (rows) => {
+    if (hasValue(model.taskConditionPrice720pTextOnly)) {
+      rows.push({
+        key: 'TaskConditionPrice.720p.input_text_only',
+        label: 'TaskConditionPrice.720p.input_text_only',
+        value: model.taskConditionPrice720pTextOnly,
+      });
+    }
+    if (hasValue(model.taskConditionPrice720pVideoInput)) {
+      rows.push({
+        key: 'TaskConditionPrice.720p.input_with_video',
+        label: 'TaskConditionPrice.720p.input_with_video',
+        value: model.taskConditionPrice720pVideoInput,
+      });
+    }
+    if (hasValue(model.taskConditionPrice1080pTextOnly)) {
+      rows.push({
+        key: 'TaskConditionPrice.1080p.input_text_only',
+        label: 'TaskConditionPrice.1080p.input_text_only',
+        value: model.taskConditionPrice1080pTextOnly,
+      });
+    }
+    if (hasValue(model.taskConditionPrice1080pVideoInput)) {
+      rows.push({
+        key: 'TaskConditionPrice.1080p.input_with_video',
+        label: 'TaskConditionPrice.1080p.input_with_video',
+        value: model.taskConditionPrice1080pVideoInput,
+      });
+    }
+    return rows;
+  };
+
   if (!model) return [];
 
   if (model.billingMode === 'per-request') {
@@ -419,7 +528,7 @@ export const buildPreviewRows = (model, t) => {
 
   const inputPrice = toNumberOrNull(model.inputPrice);
   if (inputPrice === null) {
-    return [
+    return appendTaskConditionPriceRows([
       {
         key: 'ModelRatio',
         label: 'ModelRatio',
@@ -476,7 +585,7 @@ export const buildPreviewRows = (model, t) => {
           ? model.rawRatios.videoInputRatio
           : t('空'),
       },
-    ];
+    ]);
   }
 
   const completionPrice = toNumberOrNull(model.completionPrice);
@@ -486,7 +595,7 @@ export const buildPreviewRows = (model, t) => {
   const audioInputPrice = toNumberOrNull(model.audioInputPrice);
   const audioOutputPrice = toNumberOrNull(model.audioOutputPrice);
 
-  return [
+  return appendTaskConditionPriceRows([
     {
       key: 'ModelRatio',
       label: 'ModelRatio',
@@ -544,7 +653,7 @@ export const buildPreviewRows = (model, t) => {
       label: 'TaskConditionRatio.video_input',
       value: hasValue(model.videoInputRatio) ? model.videoInputRatio : t('空'),
     },
-  ];
+  ]);
 };
 
 export function useModelPricingEditorState({
@@ -576,6 +685,7 @@ export function useModelPricingEditorState({
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
       TaskConditionRatio: extractVideoInputRatioMap(options.TaskConditionRatio),
+      TaskConditionPrice: extractTaskConditionPriceMap(options.TaskConditionPrice),
     };
 
     const names = new Set([
@@ -590,6 +700,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.AudioRatio),
       ...Object.keys(sourceMaps.AudioCompletionRatio),
       ...Object.keys(sourceMaps.TaskConditionRatio),
+      ...Object.keys(sourceMaps.TaskConditionPrice),
     ]);
 
     const nextModels = Array.from(names)
@@ -881,6 +992,14 @@ export function useModelPricingEditorState({
           audioInputPrice: selectedModel.audioInputPrice,
           audioOutputPrice: selectedModel.audioOutputPrice,
           videoInputRatio: selectedModel.videoInputRatio,
+          taskConditionPrice720pTextOnly:
+            selectedModel.taskConditionPrice720pTextOnly,
+          taskConditionPrice720pVideoInput:
+            selectedModel.taskConditionPrice720pVideoInput,
+          taskConditionPrice1080pTextOnly:
+            selectedModel.taskConditionPrice1080pTextOnly,
+          taskConditionPrice1080pVideoInput:
+            selectedModel.taskConditionPrice1080pVideoInput,
         };
 
         if (
@@ -915,6 +1034,18 @@ export function useModelPricingEditorState({
             Boolean(sourceToggles.audioInputPrice) &&
             Boolean(sourceToggles.audioOutputPrice),
           videoInputRatio: Boolean(sourceToggles.videoInputRatio),
+          taskConditionPrice720pTextOnly: Boolean(
+            sourceToggles.taskConditionPrice720pTextOnly,
+          ),
+          taskConditionPrice720pVideoInput: Boolean(
+            sourceToggles.taskConditionPrice720pVideoInput,
+          ),
+          taskConditionPrice1080pTextOnly: Boolean(
+            sourceToggles.taskConditionPrice1080pTextOnly,
+          ),
+          taskConditionPrice1080pVideoInput: Boolean(
+            sourceToggles.taskConditionPrice1080pVideoInput,
+          ),
         };
       });
       return next;
@@ -943,6 +1074,7 @@ export function useModelPricingEditorState({
         AudioCompletionRatio: {},
       };
       const videoInputRatioMap = {};
+      const taskConditionPriceMap = {};
 
       for (const model of models) {
         const serialized = serializeModel(model, t);
@@ -955,6 +1087,31 @@ export function useModelPricingEditorState({
           videoInputRatioMap[model.name] = toNormalizedNumber(
             model.videoInputRatio,
           );
+        }
+        if (
+          hasValue(model.taskConditionPrice720pTextOnly) ||
+          hasValue(model.taskConditionPrice720pVideoInput) ||
+          hasValue(model.taskConditionPrice1080pTextOnly) ||
+          hasValue(model.taskConditionPrice1080pVideoInput)
+        ) {
+          taskConditionPriceMap[model.name] = {
+            '720p_text_only': hasValue(model.taskConditionPrice720pTextOnly)
+              ? toNormalizedNumber(model.taskConditionPrice720pTextOnly)
+              : undefined,
+            '720p_video_input': hasValue(
+              model.taskConditionPrice720pVideoInput,
+            )
+              ? toNormalizedNumber(model.taskConditionPrice720pVideoInput)
+              : undefined,
+            '1080p_text_only': hasValue(model.taskConditionPrice1080pTextOnly)
+              ? toNormalizedNumber(model.taskConditionPrice1080pTextOnly)
+              : undefined,
+            '1080p_video_input': hasValue(
+              model.taskConditionPrice1080pVideoInput,
+            )
+              ? toNormalizedNumber(model.taskConditionPrice1080pVideoInput)
+              : undefined,
+          };
         }
       }
 
@@ -970,6 +1127,15 @@ export function useModelPricingEditorState({
           value: buildTaskConditionRatioValueFromVideoInputMap(
             options.TaskConditionRatio,
             videoInputRatioMap,
+          ),
+        }),
+      );
+      requestQueue.push(
+        API.put('/api/option/', {
+          key: 'TaskConditionPrice',
+          value: buildTaskConditionPriceValueFromModelMap(
+            options.TaskConditionPrice,
+            taskConditionPriceMap,
           ),
         }),
       );

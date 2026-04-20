@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -139,7 +140,11 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil
 	}
-	if hasVideoInMetadata(req.Metadata) {
+	hasVideoInput := hasVideoInMetadata(req.Metadata)
+	if conditionalPrice, ok := ratio_setting.GetTaskConditionalInputPrice(info.OriginModelName, getResolutionFromMetadata(req.Metadata), hasVideoInput); ok {
+		info.PriceData.ConditionalInputPrice = conditionalPrice
+	}
+	if hasVideoInput {
 		if ratio, ok := ratio_setting.GetTaskConditionRatio("video_input", info.OriginModelName); ok {
 			return map[string]float64{"video_input": ratio}
 		}
@@ -148,6 +153,16 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		}
 	}
 	return nil
+}
+
+func getResolutionFromMetadata(metadata map[string]interface{}) string {
+	if metadata == nil {
+		return ""
+	}
+	if resolution, ok := metadata["resolution"].(string); ok {
+		return strings.TrimSpace(resolution)
+	}
+	return ""
 }
 
 // hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，

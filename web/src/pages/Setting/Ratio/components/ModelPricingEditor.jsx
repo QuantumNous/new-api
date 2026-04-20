@@ -653,6 +653,134 @@ export default function ModelPricingEditor({
                         }
                       />
                       <PriceInput
+                        label={t('720p Text-Only Input Price')}
+                        value={selectedModel.taskConditionPrice720pTextOnly}
+                        placeholder={t('Enter USD price per 1M input tokens')}
+                        onChange={(value) =>
+                          handleNumericFieldChange(
+                            'taskConditionPrice720pTextOnly',
+                            value,
+                          )
+                        }
+                        headerAction={
+                          <Switch
+                            size='small'
+                            checked={isOptionalFieldEnabled(
+                              selectedModel,
+                              'taskConditionPrice720pTextOnly',
+                            )}
+                            onChange={(checked) =>
+                              handleOptionalFieldToggle(
+                                'taskConditionPrice720pTextOnly',
+                                checked,
+                              )
+                            }
+                          />
+                        }
+                        hidden={
+                          !isOptionalFieldEnabled(
+                            selectedModel,
+                            'taskConditionPrice720pTextOnly',
+                          )
+                        }
+                      />
+                      <PriceInput
+                        label={t('720p Video-Input Price')}
+                        value={selectedModel.taskConditionPrice720pVideoInput}
+                        placeholder={t('Enter USD price per 1M input tokens')}
+                        onChange={(value) =>
+                          handleNumericFieldChange(
+                            'taskConditionPrice720pVideoInput',
+                            value,
+                          )
+                        }
+                        headerAction={
+                          <Switch
+                            size='small'
+                            checked={isOptionalFieldEnabled(
+                              selectedModel,
+                              'taskConditionPrice720pVideoInput',
+                            )}
+                            onChange={(checked) =>
+                              handleOptionalFieldToggle(
+                                'taskConditionPrice720pVideoInput',
+                                checked,
+                              )
+                            }
+                          />
+                        }
+                        hidden={
+                          !isOptionalFieldEnabled(
+                            selectedModel,
+                            'taskConditionPrice720pVideoInput',
+                          )
+                        }
+                      />
+                      <PriceInput
+                        label={t('1080p Text-Only Input Price')}
+                        value={selectedModel.taskConditionPrice1080pTextOnly}
+                        placeholder={t('Enter USD price per 1M input tokens')}
+                        onChange={(value) =>
+                          handleNumericFieldChange(
+                            'taskConditionPrice1080pTextOnly',
+                            value,
+                          )
+                        }
+                        headerAction={
+                          <Switch
+                            size='small'
+                            checked={isOptionalFieldEnabled(
+                              selectedModel,
+                              'taskConditionPrice1080pTextOnly',
+                            )}
+                            onChange={(checked) =>
+                              handleOptionalFieldToggle(
+                                'taskConditionPrice1080pTextOnly',
+                                checked,
+                              )
+                            }
+                          />
+                        }
+                        hidden={
+                          !isOptionalFieldEnabled(
+                            selectedModel,
+                            'taskConditionPrice1080pTextOnly',
+                          )
+                        }
+                      />
+                      <PriceInput
+                        label={t('1080p Video-Input Price')}
+                        value={selectedModel.taskConditionPrice1080pVideoInput}
+                        placeholder={t('Enter USD price per 1M input tokens')}
+                        onChange={(value) =>
+                          handleNumericFieldChange(
+                            'taskConditionPrice1080pVideoInput',
+                            value,
+                          )
+                        }
+                        headerAction={
+                          <Switch
+                            size='small'
+                            checked={isOptionalFieldEnabled(
+                              selectedModel,
+                              'taskConditionPrice1080pVideoInput',
+                            )}
+                            onChange={(checked) =>
+                              handleOptionalFieldToggle(
+                                'taskConditionPrice1080pVideoInput',
+                                checked,
+                              )
+                            }
+                          />
+                        }
+                        hidden={
+                          !isOptionalFieldEnabled(
+                            selectedModel,
+                            'taskConditionPrice1080pVideoInput',
+                          )
+                        }
+                      />
+                      <PriceInput
                         label={t('Video Input Conditional Ratio')}
                         value={selectedModel.videoInputRatio}
                         placeholder={t(

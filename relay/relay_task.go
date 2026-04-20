@@ -192,12 +192,17 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 			info.PriceData.AddOtherRatio(k, v)
 		}
 	}
+	if !info.PriceData.UsePrice && info.PriceData.ConditionalInputPrice > 0 {
+		info.PriceData.Quota = int(info.PriceData.ConditionalInputPrice / 4 * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
+	}
 
 	// 6. 将 OtherRatios 应用到基础额度
 	if !common.StringsContains(constant.TaskPricePatches, modelName) {
-		for _, ra := range info.PriceData.OtherRatios {
-			if ra != 1.0 {
-				info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
+		if info.PriceData.ConditionalInputPrice <= 0 {
+			for _, ra := range info.PriceData.OtherRatios {
+				if ra != 1.0 {
+					info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
+				}
 			}
 		}
 	}

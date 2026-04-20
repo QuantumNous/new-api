@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -711,4 +712,41 @@ func TestSettle_NonPerCall_AdaptorAdjustWorks(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestRecalculateTaskQuotaByTokensPrefersConditionalInputPrice(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	t.Cleanup(func() {
+		if err := ratio_setting.UpdateModelRatioByJSONString(`{}`); err != nil {
+			t.Fatalf("cleanup model ratio failed: %v", err)
+		}
+		if err := ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`); err != nil {
+			t.Fatalf("cleanup group ratio failed: %v", err)
+		}
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"test-model":23}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`))
+
+	const userID, tokenID, channelID = 40, 40, 40
+	const initQuota, preConsumed = 10000, 1000
+	const tokenRemain = 9000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-conditional-input-price", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.BillingContext.ModelRatio = 23
+	task.PrivateData.BillingContext.GroupRatio = 1
+	task.PrivateData.BillingContext.ConditionalInputPrice = 31
+
+	RecalculateTaskQuotaByTokens(ctx, task, 1_000_000)
+
+	expectedQuota := int(31 * common.QuotaPerUnit)
+	assert.Equal(t, expectedQuota, task.Quota)
+	assert.Equal(t, initQuota-(expectedQuota-preConsumed), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain-(expectedQuota-preConsumed), getTokenRemainQuota(t, tokenID))
 }
