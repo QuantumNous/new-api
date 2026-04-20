@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next';
 import {
   API,
   getLogo,
+  getParsedUserFromLocalStorage,
   getSystemName,
   showError,
   setStatusData,
@@ -79,9 +80,8 @@ const PageLayout = () => {
   }, [isMobile, drawerOpen, collapsed, setCollapsed]);
 
   const loadUser = () => {
-    let user = localStorage.getItem('user');
-    if (user) {
-      let data = JSON.parse(user);
+    const data = getParsedUserFromLocalStorage();
+    if (data) {
       userDispatch({ type: 'login', payload: data });
     }
   };

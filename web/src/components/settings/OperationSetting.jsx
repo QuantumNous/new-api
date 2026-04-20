@@ -27,6 +27,7 @@ import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
+import SettingsInviteGroupUpgrade from '../../pages/Setting/Operation/SettingsInviteGroupUpgrade';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -37,6 +38,8 @@ const OperationSetting = () => {
     QuotaForInviter: 0,
     QuotaForInvitee: 0,
     'quota_setting.enable_free_model_pre_consume': true,
+    'invite_group_upgrade_setting.enabled': false,
+    'invite_group_upgrade_setting.rules': '[]',
 
     /* 通用设置 */
     TopUpLink: '',
@@ -153,6 +156,9 @@ const OperationSetting = () => {
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
+        </Card>
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsInviteGroupUpgrade options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>

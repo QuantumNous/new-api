@@ -33,6 +33,42 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
+func normalizeSessionUserID(id any) int {
+	switch v := id.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func resolveCurrentUserGroup(session sessions.Session, id any, useAccessToken bool) string {
+	userId := normalizeSessionUserID(id)
+	if userId <= 0 {
+		group, _ := session.Get("group").(string)
+		return group
+	}
+
+	group, err := model.GetUserGroup(userId, false)
+	if err != nil {
+		sessionGroup, _ := session.Get("group").(string)
+		return sessionGroup
+	}
+
+	if !useAccessToken {
+		if sessionGroup, _ := session.Get("group").(string); sessionGroup != group {
+			session.Set("group", group)
+			_ = session.Save()
+		}
+	}
+
+	return group
+}
+
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
 	username := session.Get("username")
@@ -146,11 +182,12 @@ func authHelper(c *gin.Context, minRole int) {
 	}
 	// 防止不同newapi版本冲突，导致数据不通用
 	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
+	currentGroup := resolveCurrentUserGroup(session, id, useAccessToken)
 	c.Set("username", username)
 	c.Set("role", role)
 	c.Set("id", id)
-	c.Set("group", session.Get("group"))
-	c.Set("user_group", session.Get("group"))
+	c.Set("group", currentGroup)
+	c.Set("user_group", currentGroup)
 	c.Set("use_access_token", useAccessToken)
 
 	c.Next()

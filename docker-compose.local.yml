@@ -1,0 +1,6 @@
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: new-api-local:latest
