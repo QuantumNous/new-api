@@ -1,6 +1,7 @@
 package doubao
 
 import (
+	"encoding/json"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -84,5 +85,68 @@ func TestEstimateBillingSetsConfiguredConditionalInputPrice(t *testing.T) {
 	_ = adaptor.EstimateBilling(c, info)
 	if info.PriceData.ConditionalInputPrice != 31 {
 		t.Fatalf("expected configured conditional input price 31, got %v", info.PriceData.ConditionalInputPrice)
+	}
+}
+
+func TestConvertToRequestPayloadFallsBackToDurationField(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+
+	body, err := adaptor.convertToRequestPayload(&relaycommon.TaskSubmitReq{
+		Model:    "doubao-seedance-1-0-pro-250528",
+		Prompt:   "make a video",
+		Duration: 10,
+	})
+	if err != nil {
+		t.Fatalf("convertToRequestPayload returned error: %v", err)
+	}
+
+	if body.Duration == nil {
+		t.Fatal("expected duration to be set from duration field")
+	}
+	if got := int(*body.Duration); got != 10 {
+		t.Fatalf("expected duration 10, got %d", got)
+	}
+}
+
+func TestConvertToRequestPayloadPrefersSecondsOverDuration(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+
+	body, err := adaptor.convertToRequestPayload(&relaycommon.TaskSubmitReq{
+		Model:    "doubao-seedance-1-0-pro-250528",
+		Prompt:   "make a video",
+		Duration: 10,
+		Seconds:  "5",
+	})
+	if err != nil {
+		t.Fatalf("convertToRequestPayload returned error: %v", err)
+	}
+
+	if body.Duration == nil {
+		t.Fatal("expected duration to be set")
+	}
+	if got := int(*body.Duration); got != 5 {
+		t.Fatalf("expected seconds to take precedence with duration 5, got %d", got)
+	}
+}
+
+func TestConvertToRequestPayloadPreservesMetadataDurationWhenMarshaled(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+
+	body, err := adaptor.convertToRequestPayload(&relaycommon.TaskSubmitReq{
+		Model:    "doubao-seedance-1-0-pro-250528",
+		Prompt:   "make a video",
+		Duration: 10,
+	})
+	if err != nil {
+		t.Fatalf("convertToRequestPayload returned error: %v", err)
+	}
+
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request payload failed: %v", err)
+	}
+
+	if string(raw) == "" {
+		t.Fatal("expected marshaled request payload to be non-empty")
 	}
 }
