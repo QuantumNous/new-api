@@ -146,6 +146,12 @@ func RequestStripePay(c *gin.Context) {
 }
 
 func StripeWebhook(c *gin.Context) {
+	// 检查 webhook secret 是否配置
+	if setting.StripeWebhookSecret == "" {
+		log.Println("⚠️ Stripe Webhook secret Error")
+		c.AbortWithStatus(http.StatusServiceUnavailable)
+		return
+	}
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		log.Printf("解析Stripe Webhook参数失败: %v\n", err)
