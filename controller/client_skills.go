@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -93,7 +92,7 @@ func tagsToJSON(tags []string) (model.JSONValue, error) {
 	if tags == nil {
 		tags = []string{}
 	}
-	tagBytes, err := json.Marshal(tags)
+	tagBytes, err := common.Marshal(tags)
 	if err != nil {
 		return nil, err
 	}

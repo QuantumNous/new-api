@@ -171,6 +171,7 @@ func SetApiRouter(router *gin.Engine) {
 
 			// SkillHub 下载代理（公开技能下载入口，无需客户端直接访问外网）
 			clientRoute.GET("/skills/skillhub/download",
+				middleware.DownloadRateLimit(),
 				controller.ClientProxySkillHubDownload)
 		}
 

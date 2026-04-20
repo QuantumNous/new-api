@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const skillHubDownloadBaseURL = "https://api.skillhub.cn/api/v1/download?slug="
+const skillHubDownloadBaseURL = "https://api.skillhub.cn/api/v1/download"
 
 // ClientProxySkillHubDownload 代理下载 SkillHub zip 包。
 //
@@ -29,7 +30,7 @@ func ClientProxySkillHubDownload(c *gin.Context) {
 		return
 	}
 
-	upstreamURL := skillHubDownloadBaseURL + slug
+	upstreamURL := skillHubDownloadBaseURL + "?slug=" + url.QueryEscape(slug)
 	resp, err := service.DoDownloadRequest(upstreamURL, "skillhub skill download proxy", slug)
 	if err != nil {
 		common.SysError(fmt.Sprintf("skillhub download proxy failed, slug=%s, err=%v", slug, err))
