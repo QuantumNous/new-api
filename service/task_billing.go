@@ -165,8 +165,8 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	taskAdjustTokenQuota(ctx, task, -quota)
 
 	//3. 更新用户和渠道的使用额度
-	model.UpdateUserUsedQuotaAndRequestCount(task.UserId, -quota)
-	model.UpdateChannelUsedQuota(task.ChannelId, -quota)
+	//model.UpdateUserUsedQuotaAndRequestCount(task.UserId, -quota)
+	//model.UpdateChannelUsedQuota(task.ChannelId, -quota)
 
 	// 4. 记录日志
 	other := taskBillingOther(task)
@@ -230,8 +230,8 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	} else {
 		logType = model.LogTypeRefund
 		logQuota = -quotaDelta
-		model.UpdateUserUsedQuotaAndRequestCount(task.UserId, -quotaDelta)
-		model.UpdateChannelUsedQuota(task.ChannelId, -quotaDelta)
+		//model.UpdateUserUsedQuotaAndRequestCount(task.UserId, -quotaDelta)
+		//model.UpdateChannelUsedQuota(task.ChannelId, -quotaDelta)
 	}
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
