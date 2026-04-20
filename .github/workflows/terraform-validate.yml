@@ -130,15 +130,22 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
+          # 使用 secrets，如果为空则用符合格式要求的默认值
           terraform plan -no-color -input=false \
             -var="app_image_tag=plan-check" \
-            -var="secret_id=${{ secrets.TENCENTCLOUD_SECRET_ID }}" \
-            -var="secret_key=${{ secrets.TENCENTCLOUD_SECRET_KEY }}" \
-            -var="tcr_namespace=${{ secrets.TCR_NAMESPACE }}" \
-            -var="db_password=${{ secrets.DB_PASSWORD }}" \
-            -var="session_secret=${{ secrets.SESSION_SECRET }}" \
+            -var="secret_id=${TF_VAR_secret_id:-placeholder-id}" \
+            -var="secret_key=${TF_VAR_secret_key:-placeholder-key}" \
+            -var="tcr_namespace=${TF_VAR_tcr_namespace:-placeholder}" \
+            -var="db_password=${TF_VAR_db_password:-PlanCheck_123!}" \
+            -var="session_secret=${TF_VAR_session_secret:-plancheckplancheckplancheck0123}" \
             2>&1 | tee plan_output.txt
         continue-on-error: true
+        env:
+          TF_VAR_secret_id: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+          TF_VAR_secret_key: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
+          TF_VAR_tcr_namespace: ${{ secrets.TCR_NAMESPACE }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_session_secret: ${{ secrets.SESSION_SECRET }}
 
       # 在 PR 上评论 plan 结果（截断过长输出）
       - name: Comment Plan on PR
