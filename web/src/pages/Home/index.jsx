@@ -47,7 +47,6 @@ const Home = () => {
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
   const actualTheme = useActualTheme();
-  const [homePageContentLoaded, setHomePageContentLoaded] = useState(false);
   const [homePageContent, setHomePageContent] = useState('');
   const [noticeVisible, setNoticeVisible] = useState(false);
   const isMobile = useIsMobile();
@@ -122,7 +121,6 @@ const Home = () => {
       showError(message);
       setHomePageContent('加载首页内容失败...');
     }
-    setHomePageContentLoaded(true);
   };
 
   const handleCopyBaseURL = async () => {
@@ -163,6 +161,8 @@ const Home = () => {
     return () => clearInterval(timer);
   }, [endpointItems.length]);
 
+  const shouldShowDefaultHome = homePageContent === '';
+
   return (
     <div className='w-full overflow-x-hidden'>
       {noticeVisible && (
@@ -174,7 +174,7 @@ const Home = () => {
           />
         </Suspense>
       )}
-      {homePageContentLoaded && homePageContent === '' ? (
+      {shouldShowDefaultHome ? (
         <div className='home-apple-shell'>
           <header className='fixed inset-x-0 top-0 z-40'>
             <div className='mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 md:px-8'>
