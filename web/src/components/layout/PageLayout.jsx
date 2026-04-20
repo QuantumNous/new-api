@@ -19,35 +19,23 @@ For commercial licensing, please contact support@quantumnous.com
 
 import HeaderBar from './headerbar';
 import { Layout } from '@douyinfe/semi-ui';
-import SiderBar from './SiderBar';
 import App from '../../App';
 import FooterBar from './Footer';
 import { ToastContainer } from 'react-toastify';
 import ErrorBoundary from '../common/ErrorBoundary';
-import React, { useContext, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useContext, useEffect, useState } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
-import { useTranslation } from 'react-i18next';
-import {
-  API,
-  getLogo,
-  getSystemName,
-  showError,
-  setStatusData,
-} from '../../helpers';
 import { UserContext } from '../../context/User';
-import { StatusContext } from '../../context/Status';
 import { useLocation } from 'react-router-dom';
-import { normalizeLanguage } from '../../i18n/language';
 const { Sider, Content, Header } = Layout;
+const SiderBar = lazy(() => import('./SiderBar'));
 
 const PageLayout = () => {
-  const [userState, userDispatch] = useContext(UserContext);
-  const [, statusDispatch] = useContext(StatusContext);
+  const [userState] = useContext(UserContext);
   const isMobile = useIsMobile();
   const [collapsed, , setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { i18n } = useTranslation();
   const location = useLocation();
 
   const cardProPages = [
@@ -77,72 +65,6 @@ const PageLayout = () => {
       setCollapsed(false);
     }
   }, [isMobile, drawerOpen, collapsed, setCollapsed]);
-
-  const loadUser = () => {
-    let user = localStorage.getItem('user');
-    if (user) {
-      let data = JSON.parse(user);
-      userDispatch({ type: 'login', payload: data });
-    }
-  };
-
-  const loadStatus = async () => {
-    try {
-      const res = await API.get('/api/status');
-      const { success, data } = res.data;
-      if (success) {
-        statusDispatch({ type: 'set', payload: data });
-        setStatusData(data);
-      } else {
-        showError('Unable to connect to server');
-      }
-    } catch (error) {
-      showError('Failed to load status');
-    }
-  };
-
-  useEffect(() => {
-    loadUser();
-    loadStatus().catch(console.error);
-    let systemName = getSystemName();
-    if (systemName) {
-      document.title = systemName;
-    }
-    let logo = getLogo();
-    if (logo) {
-      let linkElement = document.querySelector("link[rel~='icon']");
-      if (linkElement) {
-        linkElement.href = logo;
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    let preferredLang;
-
-    if (userState?.user?.setting) {
-      try {
-        const settings = JSON.parse(userState.user.setting);
-        preferredLang = normalizeLanguage(settings.language);
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-
-    if (!preferredLang) {
-      const savedLang = localStorage.getItem('i18nextLng');
-      if (savedLang) {
-        preferredLang = normalizeLanguage(savedLang);
-      }
-    }
-
-    if (preferredLang) {
-      localStorage.setItem('i18nextLng', preferredLang);
-      if (preferredLang !== i18n.language) {
-        i18n.changeLanguage(preferredLang);
-      }
-    }
-  }, [i18n, userState?.user?.setting]);
 
   return (
     <Layout
@@ -189,11 +111,13 @@ const PageLayout = () => {
               width: 'var(--sidebar-current-width)',
             }}
           >
-            <SiderBar
-              onNavigate={() => {
-                if (isMobile) setDrawerOpen(false);
-              }}
-            />
+            <Suspense fallback={null}>
+              <SiderBar
+                onNavigate={() => {
+                  if (isMobile) setDrawerOpen(false);
+                }}
+              />
+            </Suspense>
           </Sider>
         )}
         <Layout

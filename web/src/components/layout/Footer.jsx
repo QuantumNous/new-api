@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState, useMemo, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '@douyinfe/semi-ui';
-import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
+import { getFooterHTML, getLogo, getSystemName } from '../../helpers/utils';
 import { StatusContext } from '../../context/Status';
 
 const FooterBar = () => {
