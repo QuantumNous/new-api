@@ -38,6 +38,7 @@ import {
   renderModelPrice,
   renderTaskBillingProcess,
 } from '../../helpers';
+import { isTaskLog } from '../../helpers/taskBillingSummary.js';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
@@ -425,9 +426,13 @@ export const useLogsData = () => {
         });
       }
       if (logs[i].type === 2) {
+        const isTaskUsageLog = isTaskLog(other);
         expandDataLocal.push({
           key: t('日志详情'),
-          value: other?.claude
+          value: isTaskUsageLog
+            ? logs[i].content ||
+              t('任务预扣费（将在任务完成后按实际token重算）')
+            : other?.claude
             ? renderClaudeLogContent(
                 other?.model_ratio,
                 other.completion_ratio,

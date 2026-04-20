@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -12,7 +13,9 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -181,6 +184,53 @@ func countLogs(t *testing.T) int64 {
 	var count int64
 	model.LOG_DB.Model(&model.Log{}).Count(&count)
 	return count
+}
+
+func TestLogTaskConsumptionIncludesConditionalInputPrice(t *testing.T) {
+	truncate(t)
+
+	const userID, tokenID, channelID = 1, 1, 1
+	seedUser(t, userID, 100000)
+	seedToken(t, tokenID, userID, "sk-test-key", 100000)
+	seedChannel(t, channelID)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", nil)
+	ctx.Set("token_name", "test-token")
+
+	info := &relaycommon.RelayInfo{
+		UserId:          userID,
+		TokenId:         tokenID,
+		UsingGroup:      "default",
+		OriginModelName: "doubao-seedance-1-0-pro-250528",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId: channelID,
+		},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{
+			Action: "generate",
+		},
+		PriceData: types.PriceData{
+			ModelPrice:            -1,
+			ModelRatio:            1.027397260274,
+			ConditionalInputPrice: 46,
+			Quota:                 5750000,
+			GroupRatioInfo: types.GroupRatioInfo{
+				GroupRatio: 1,
+			},
+		},
+	}
+
+	LogTaskConsumption(ctx, info)
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeConsume, log.Type)
+
+	var other map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(log.Other), &other))
+	assert.Equal(t, float64(46), other["conditional_input_price"])
+	assert.Equal(t, "/v1/video/generations", other["request_path"])
 }
 
 // ===========================================================================
