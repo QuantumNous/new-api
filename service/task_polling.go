@@ -70,7 +70,7 @@ func RefreshVideoTask(ctx context.Context, task *model.Task) error {
 	})
 }
 
-func isTransientVideoNotFoundResponse(statusCode int, responseBody []byte, submitTime int64, now int64) bool {
+func isTransientVideoNotFoundResponse(statusCode int, responseBody []byte, submitTime int64, now int64, modelNames ...string) bool {
 	if statusCode != http.StatusNotFound {
 		return false
 	}
@@ -81,9 +81,12 @@ func isTransientVideoNotFoundResponse(statusCode int, responseBody []byte, submi
 	message = strings.Trim(strings.ToLower(strings.TrimSpace(message)), "\"' .")
 
 	// Some video providers briefly return a generic 404 while the result file is
-	// being published. Provider-specific "task/video generation not found"
-	// messages are terminal and must not keep the polling loop alive forever.
-	if message != "not found" && message != "404 not found" {
+	// being published. Sora2 and Veo can also return "video generation not found"
+	// before their tasks become queryable, so keep polling them within the same
+	// grace window.
+	isGenericNotFound := message == "not found" || message == "404 not found"
+	isGracefulVideoGenerationNotFound := message == "video generation not found" && isGracefulVideoGenerationNotFoundModel(modelNames...)
+	if !isGenericNotFound && !isGracefulVideoGenerationNotFound {
 		return false
 	}
 	if constant.TaskNotFoundGraceMinutes <= 0 {
@@ -101,6 +104,19 @@ func extractVideoPollingErrorMessage(responseBody []byte) string {
 		return ""
 	}
 	return strings.TrimSpace(errorResult.ToMessage())
+}
+
+func isGracefulVideoGenerationNotFoundModel(modelNames ...string) bool {
+	for _, modelName := range modelNames {
+		modelName = strings.ToLower(strings.TrimSpace(modelName))
+		if modelName == "sora2" || modelName == "sora-2" || strings.HasPrefix(modelName, "sora2-") || strings.HasPrefix(modelName, "sora-2-") {
+			return true
+		}
+		if strings.HasPrefix(modelName, "veo") || strings.Contains(modelName, "/veo") {
+			return true
+		}
+	}
+	return false
 }
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
@@ -484,7 +500,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
 				bodyLower := strings.ToLower(string(responseBody))
-				if isTransientVideoNotFoundResponse(resp.StatusCode, responseBody, task.SubmitTime, now) {
+				if isTransientVideoNotFoundResponse(resp.StatusCode, responseBody, task.SubmitTime, now, task.Properties.OriginModelName, task.Properties.UpstreamModelName) {
 					logger.LogInfo(ctx, fmt.Sprintf("Task %s upstream result not ready yet, keep polling, response: %s", taskId, string(responseBody)))
 					return nil
 				}
