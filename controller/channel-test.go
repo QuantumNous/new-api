@@ -42,6 +42,18 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+func isImageOrVideoGenerationModel(model string) bool {
+	lower := strings.ToLower(model)
+	return strings.Contains(model, "gpt-image") ||
+		strings.Contains(model, "dall-e") ||
+		strings.Contains(lower, "stable-diffusion") ||
+		strings.Contains(lower, "flux") ||
+		strings.HasPrefix(lower, "veo-") ||
+		strings.HasPrefix(lower, "sora-") ||
+		strings.Contains(lower, "imagen") ||
+		strings.Contains(lower, "seedream")
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -116,8 +128,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = "/v1/embeddings" // 修改请求路径
 		}
 
-		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+		// 通用图像/视频生成模型检测
+		if isImageOrVideoGenerationModel(testModel) {
 			requestPath = "/v1/images/generations"
 		}
 
@@ -682,6 +694,16 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
+		}
+	}
+
+	// 图像/视频生成模型
+	if isImageOrVideoGenerationModel(model) {
+		return &dto.ImageRequest{
+			Model:  model,
+			Prompt: "a cute cat",
+			N:      lo.ToPtr(uint(1)),
+			Size:   "1024x1024",
 		}
 	}
 
