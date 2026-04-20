@@ -73,6 +73,7 @@ import {
   Settings,
   CircleUser,
   Package,
+  Store,
   Server,
   CalendarClock,
 } from 'lucide-react';
@@ -89,7 +90,6 @@ import {
   SiGitlab,
   SiGoogle,
   SiKeycloak,
-  SiLinkedin,
   SiNextcloud,
   SiNotion,
   SiOkta,
@@ -101,6 +101,7 @@ import {
   SiWechat,
   SiX,
 } from 'react-icons/si';
+import { BsLinkedin } from 'react-icons/bs';
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -141,6 +142,8 @@ export function getLucideIcon(key, selected = false) {
       return <User {...commonProps} color={iconColor} />;
     case 'models':
       return <Package {...commonProps} color={iconColor} />;
+    case 'skill-market':
+      return <Store {...commonProps} color={iconColor} />;
     case 'deployment':
       return <Server {...commonProps} color={iconColor} />;
     case 'subscription':
@@ -504,7 +507,7 @@ const oauthProviderIconMap = {
   google: SiGoogle,
   discord: SiDiscord,
   facebook: SiFacebook,
-  linkedin: SiLinkedin,
+  linkedin: BsLinkedin,
   x: SiX,
   twitter: SiX,
   slack: SiSlack,

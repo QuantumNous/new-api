@@ -48,6 +48,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     enabled: true,
     channel: true,
     models: true,
+    'skill-market': true,
     deployment: true,
     redemption: true,
     user: true,

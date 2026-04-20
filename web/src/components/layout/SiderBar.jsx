@@ -47,6 +47,7 @@ const routerMap = {
   task: '/console/task',
   models: '/console/models',
   deployment: '/console/deployment',
+  'skill-market': '/console/skill-market',
   playground: '/console/playground',
   personal: '/console/personal',
 };
@@ -166,6 +167,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
+        text: t('技能管理'),
+        itemKey: 'skill-market',
+        to: '/console/skill-market',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
         text: t('模型部署'),
         itemKey: 'deployment',
         to: '/deployment',
@@ -193,6 +200,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
+      // 技能管理是本地扩展核心入口，管理员下始终显示，避免被配置误隐藏。
+      if (item.itemKey === 'skill-market') return isAdmin();
       const configVisible = isModuleVisible('admin', item.itemKey);
       return configVisible;
     });
@@ -475,8 +484,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             </>
           )}
 
-          {/* 管理员区域 - 只在管理员时显示且配置允许时显示 */}
-          {isAdmin() && hasSectionVisibleModules('admin') && (
+          {/* 管理员区域 - 管理员始终显示，避免配置误隐藏 */}
+          {isAdmin() && (
             <>
               <Divider className='sidebar-divider' />
               <div>
