@@ -36,11 +36,6 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import {
-  buildTaskConditionRatioValue,
-  extractVideoInputRatio,
-} from './taskConditionRatio';
-
 export default function ModelRatioSettings(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
@@ -50,7 +45,6 @@ export default function ModelRatioSettings(props) {
     CreateCacheRatio: '',
     CompletionRatio: '',
     ImageRatio: '',
-    VideoInputRatio: '',
     AudioRatio: '',
     AudioCompletionRatio: '',
     ExposeRatioEnabled: false,
@@ -69,15 +63,6 @@ export default function ModelRatioSettings(props) {
             return showWarning(t('你似乎并没有修改什么'));
 
           const requestQueue = updateArray.map((item) => {
-            if (item.key === 'VideoInputRatio') {
-              return API.put('/api/option/', {
-                key: 'TaskConditionRatio',
-                value: buildTaskConditionRatioValue(
-                  props.options.TaskConditionRatio,
-                  inputs.VideoInputRatio,
-                ),
-              });
-            }
             const value =
               typeof inputs[item.key] === 'boolean'
                 ? String(inputs[item.key])
@@ -143,9 +128,6 @@ export default function ModelRatioSettings(props) {
         currentInputs[key] = props.options[key];
       }
     }
-    currentInputs.VideoInputRatio = extractVideoInputRatio(
-      props.options.TaskConditionRatio,
-    );
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
@@ -177,32 +159,6 @@ export default function ModelRatioSettings(props) {
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, ModelPrice: value })}
-            />
-          </Col>
-        </Row>
-        <Row gutter={16}>
-          <Col xs={24} sm={16}>
-            <Form.TextArea
-              label={t('Video Input Conditional Ratio')}
-              extraText={t(
-                'Only applies when task request metadata.content contains video_url. Base pricing still comes from ModelRatio or ModelPrice.',
-              )}
-              placeholder={t(
-                'JSON object where keys are model names and values are video-input multipliers, for example: {"doubao-seedance-2-0-260128": 0.6087}',
-              )}
-              field={'VideoInputRatio'}
-              autosize={{ minRows: 6, maxRows: 12 }}
-              trigger='blur'
-              stopValidateWithError
-              rules={[
-                {
-                  validator: (rule, value) => verifyJSON(value),
-                  message: 'Invalid JSON string',
-                },
-              ]}
-              onChange={(value) =>
-                setInputs({ ...inputs, VideoInputRatio: value })
-              }
             />
           </Col>
         </Row>

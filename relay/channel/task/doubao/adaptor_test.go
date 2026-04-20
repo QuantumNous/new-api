@@ -11,17 +11,10 @@ import (
 
 func TestEstimateBillingUsesConfiguredVideoInputRatio(t *testing.T) {
 	t.Cleanup(func() {
-		if err := ratio_setting.UpdateTaskConditionRatioByJSONString(`{}`); err != nil {
-			t.Fatalf("cleanup failed: %v", err)
-		}
 		if err := ratio_setting.UpdateTaskConditionPriceByJSONString(`{}`); err != nil {
 			t.Fatalf("cleanup failed: %v", err)
 		}
 	})
-
-	if err := ratio_setting.UpdateTaskConditionRatioByJSONString(`{"video_input":{"doubao-seedance-2-0-260128":0.5}}`); err != nil {
-		t.Fatalf("unexpected config error: %v", err)
-	}
 
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(nil)
@@ -41,8 +34,8 @@ func TestEstimateBillingUsesConfiguredVideoInputRatio(t *testing.T) {
 	info := &relaycommon.RelayInfo{OriginModelName: "doubao-seedance-2-0-260128"}
 
 	ratios := adaptor.EstimateBilling(c, info)
-	if ratios["video_input"] != 0.5 {
-		t.Fatalf("expected configured ratio 0.5, got %v", ratios["video_input"])
+	if ratios["video_input"] != 28.0/46.0 {
+		t.Fatalf("expected built-in ratio %v, got %v", 28.0/46.0, ratios["video_input"])
 	}
 }
 

@@ -145,9 +145,6 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		info.PriceData.ConditionalInputPrice = conditionalPrice
 	}
 	if hasVideoInput {
-		if ratio, ok := ratio_setting.GetTaskConditionRatio("video_input", info.OriginModelName); ok {
-			return map[string]float64{"video_input": ratio}
-		}
 		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
 			return map[string]float64{"video_input": ratio}
 		}

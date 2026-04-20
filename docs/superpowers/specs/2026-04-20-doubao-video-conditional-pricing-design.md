@@ -21,7 +21,7 @@ This phase only applies to Doubao video task models and only supports the offici
 
 ## Current Problem
 
-The existing `TaskConditionRatio.video_input` option only represents a multiplier. That is not sufficient for the required official pricing model.
+The previous multiplier-based approach was not sufficient for the required official pricing model.
 
 Required pricing semantics are absolute conditional prices, not multipliers.
 
@@ -38,7 +38,7 @@ The current pricing plaza also cannot display this correctly because `/api/prici
 
 ## Constraints
 
-- Do not overload `TaskConditionRatio` with absolute-price semantics.
+- Do not overload ratio-based settings with absolute-price semantics.
 - Do not change existing non-video billing behavior.
 - Do not attempt a generic pricing rules engine in this phase.
 - Keep scope limited to Doubao video task models.
@@ -48,7 +48,7 @@ The current pricing plaza also cannot display this correctly because `/api/prici
 
 ### Approach A: Keep using conditional multipliers
 
-Use `TaskConditionRatio` and add resolution-specific multiplier entries.
+Use a multiplier-only configuration and add resolution-specific entries.
 
 #### Pros
 
@@ -120,7 +120,7 @@ This option stores absolute conditional prices for Doubao video models. It is th
 - admin-side price editing
 - pricing plaza display
 
-The existing `TaskConditionRatio` remains supported for backward compatibility, but the new billing path should prefer `TaskConditionPrice` when present.
+The billing path should use `TaskConditionPrice` directly.
 
 ## Data Model
 
@@ -175,12 +175,12 @@ Only Doubao video task models use this logic in this phase.
 5. Query `TaskConditionPrice[model][resolution][condition]`.
 6. If matched, use the returned absolute input token price for billing.
 7. If not matched, fall back in this order:
-   - existing `TaskConditionRatio.video_input`
+   - existing built-in video-input multiplier fallback
    - existing `ModelRatio` / `ModelPrice` path
 
 ### Why keep fallback
 
-This avoids breaking existing deployments that already configured `TaskConditionRatio`.
+This keeps the pricing model aligned with the official absolute-price configuration.
 
 ## Backend Changes
 
@@ -319,8 +319,8 @@ For models without `task_condition_price`, continue using the existing display l
 ## Migration and Compatibility
 
 - no forced migration is required
-- existing deployments can continue using `TaskConditionRatio`
-- if both `TaskConditionPrice` and `TaskConditionRatio` exist, `TaskConditionPrice` wins for supported Doubao video cases
+- Doubao video pricing is configured through `TaskConditionPrice`
+- the built-in video-input multiplier remains only as an internal fallback when no direct conditional price is configured
 - non-Doubao models remain unchanged
 
 ## Open Decision Settled In This Design

@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import {
-  buildTaskConditionRatioValueFromVideoInputMap,
-  extractVideoInputRatioMap,
-} from '../modelPricingTaskCondition';
-import {
   buildTaskConditionPriceValueFromModelMap,
   extractTaskConditionPriceMap,
 } from '../modelPricingTaskConditionPrice';
@@ -26,7 +22,6 @@ const EMPTY_MODEL = {
   imagePrice: '',
   audioInputPrice: '',
   audioOutputPrice: '',
-  videoInputRatio: '',
   taskConditionPrice720pTextOnly: '',
   taskConditionPrice720pVideoInput: '',
   taskConditionPrice1080pTextOnly: '',
@@ -39,7 +34,6 @@ const EMPTY_MODEL = {
     imageRatio: '',
     audioRatio: '',
     audioCompletionRatio: '',
-    videoInputRatio: '',
   },
   hasConflict: false,
 };
@@ -124,7 +118,6 @@ const buildModelState = (name, sourceMaps) => {
   const audioCompletionRatio = toNumericString(
     sourceMaps.AudioCompletionRatio[name],
   );
-  const videoInputRatio = toNumericString(sourceMaps.TaskConditionRatio[name]);
   const taskConditionPrice = sourceMaps.TaskConditionPrice?.[name] || {};
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
   const inputPrice = ratioToBasePrice(modelRatio);
@@ -175,7 +168,6 @@ const buildModelState = (name, sourceMaps) => {
       toNumberOrNull(audioInputPrice) !== null && hasValue(audioCompletionRatio)
         ? formatNumber(Number(audioInputPrice) * Number(audioCompletionRatio))
         : '',
-    videoInputRatio,
     taskConditionPrice720pTextOnly: toNumericString(
       taskConditionPrice['720p_text_only'],
     ),
@@ -196,7 +188,6 @@ const buildModelState = (name, sourceMaps) => {
       imageRatio,
       audioRatio,
       audioCompletionRatio,
-      videoInputRatio,
     },
     hasConflict:
       hasValue(fixedPrice) &&
@@ -228,7 +219,6 @@ export const getModelWarnings = (model, t) => {
     model.imagePrice,
     model.audioInputPrice,
     model.audioOutputPrice,
-    model.videoInputRatio,
     model.taskConditionPrice720pTextOnly,
     model.taskConditionPrice720pVideoInput,
     model.taskConditionPrice1080pTextOnly,
@@ -273,22 +263,6 @@ export const getModelWarnings = (model, t) => {
     !hasValue(model.audioInputPrice)
   ) {
     warnings.push(t('填写音频补全价格前，需要先填写音频输入价格。'));
-  }
-
-  if (
-    hasValue(model.videoInputRatio) &&
-    [
-      model.taskConditionPrice720pTextOnly,
-      model.taskConditionPrice720pVideoInput,
-      model.taskConditionPrice1080pTextOnly,
-      model.taskConditionPrice1080pVideoInput,
-    ].some(hasValue)
-  ) {
-    warnings.push(
-      t(
-        'TaskConditionPrice takes priority for billing and pricing plaza display. Video Input Conditional Ratio is only used as a fallback when no direct conditional price is configured.',
-      ),
-    );
   }
 
   return warnings;
@@ -350,7 +324,6 @@ export const buildOptionalFieldToggles = (model) => ({
   imagePrice: hasValue(model.imagePrice),
   audioInputPrice: hasValue(model.audioInputPrice),
   audioOutputPrice: hasValue(model.audioOutputPrice),
-  videoInputRatio: hasValue(model.videoInputRatio),
   taskConditionPrice720pTextOnly: hasValue(model.taskConditionPrice720pTextOnly),
   taskConditionPrice720pVideoInput: hasValue(
     model.taskConditionPrice720pVideoInput,
@@ -578,13 +551,6 @@ export const buildPreviewRows = (model, t) => {
           ? model.rawRatios.audioCompletionRatio
           : t('空'),
       },
-      {
-        key: 'TaskConditionRatio.video_input',
-        label: 'TaskConditionRatio.video_input',
-        value: hasValue(model.rawRatios.videoInputRatio)
-          ? model.rawRatios.videoInputRatio
-          : t('空'),
-      },
     ]);
   }
 
@@ -648,11 +614,6 @@ export const buildPreviewRows = (model, t) => {
           ? formatNumber(audioOutputPrice / audioInputPrice)
           : t('空'),
     },
-    {
-      key: 'TaskConditionRatio.video_input',
-      label: 'TaskConditionRatio.video_input',
-      value: hasValue(model.videoInputRatio) ? model.videoInputRatio : t('空'),
-    },
   ]);
 };
 
@@ -684,7 +645,6 @@ export function useModelPricingEditorState({
       ImageRatio: parseOptionJSON(options.ImageRatio),
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
-      TaskConditionRatio: extractVideoInputRatioMap(options.TaskConditionRatio),
       TaskConditionPrice: extractTaskConditionPriceMap(options.TaskConditionPrice),
     };
 
@@ -699,7 +659,6 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.ImageRatio),
       ...Object.keys(sourceMaps.AudioRatio),
       ...Object.keys(sourceMaps.AudioCompletionRatio),
-      ...Object.keys(sourceMaps.TaskConditionRatio),
       ...Object.keys(sourceMaps.TaskConditionPrice),
     ]);
 
@@ -841,7 +800,6 @@ export function useModelPricingEditorState({
             ...(prev[selectedModel.name] || {}),
             audioInputPrice: false,
             audioOutputPrice: false,
-            videoInputRatio: false,
           },
         }));
       }
@@ -991,7 +949,6 @@ export function useModelPricingEditorState({
           imagePrice: selectedModel.imagePrice,
           audioInputPrice: selectedModel.audioInputPrice,
           audioOutputPrice: selectedModel.audioOutputPrice,
-          videoInputRatio: selectedModel.videoInputRatio,
           taskConditionPrice720pTextOnly:
             selectedModel.taskConditionPrice720pTextOnly,
           taskConditionPrice720pVideoInput:
@@ -1033,7 +990,6 @@ export function useModelPricingEditorState({
           audioOutputPrice:
             Boolean(sourceToggles.audioInputPrice) &&
             Boolean(sourceToggles.audioOutputPrice),
-          videoInputRatio: Boolean(sourceToggles.videoInputRatio),
           taskConditionPrice720pTextOnly: Boolean(
             sourceToggles.taskConditionPrice720pTextOnly,
           ),
@@ -1073,7 +1029,6 @@ export function useModelPricingEditorState({
         AudioRatio: {},
         AudioCompletionRatio: {},
       };
-      const videoInputRatioMap = {};
       const taskConditionPriceMap = {};
 
       for (const model of models) {
@@ -1083,11 +1038,6 @@ export function useModelPricingEditorState({
             output[key][model.name] = value;
           }
         });
-        if (hasValue(model.videoInputRatio)) {
-          videoInputRatioMap[model.name] = toNormalizedNumber(
-            model.videoInputRatio,
-          );
-        }
         if (
           hasValue(model.taskConditionPrice720pTextOnly) ||
           hasValue(model.taskConditionPrice720pVideoInput) ||
@@ -1119,15 +1069,6 @@ export function useModelPricingEditorState({
         API.put('/api/option/', {
           key,
           value: JSON.stringify(value, null, 2),
-        }),
-      );
-      requestQueue.push(
-        API.put('/api/option/', {
-          key: 'TaskConditionRatio',
-          value: buildTaskConditionRatioValueFromVideoInputMap(
-            options.TaskConditionRatio,
-            videoInputRatioMap,
-          ),
         }),
       );
       requestQueue.push(
