@@ -36,6 +36,10 @@ body {
   body {
     overflow-y: hidden;
   }
+
+  body.home-route {
+    overflow-y: auto;
+  }
 }
 
 .app-layout {

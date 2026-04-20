@@ -17,14 +17,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useContext, useEffect, useState } from 'react';
 import { Button } from '@douyinfe/semi-ui';
-import { API, showError, copy, showSuccess } from '../../helpers';
+import { API } from '../../helpers/api';
+import {
+  copy,
+  getSystemName,
+  showError,
+  showSuccess,
+} from '../../helpers/utils';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { API_ENDPOINTS } from '../../constants/common.constant';
 import { StatusContext } from '../../context/Status';
+import { UserContext } from '../../context/User';
 import { useActualTheme } from '../../context/Theme';
-import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import {
   IconGithubLogo,
@@ -33,56 +39,13 @@ import {
   IconCopy,
 } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
-import NoticeModal from '../../components/layout/NoticeModal';
-import {
-  Moonshot,
-  OpenAI,
-  XAI,
-  Zhipu,
-  Volcengine,
-  Cohere,
-  Claude,
-  Gemini,
-  Suno,
-  Minimax,
-  Wenxin,
-  Spark,
-  Qingyan,
-  DeepSeek,
-  Qwen,
-  Midjourney,
-  Grok,
-  AzureAI,
-  Hunyuan,
-  Xinference,
-} from '@lobehub/icons';
 
-const providerIcons = [
-  { key: 'moonshot', icon: <Moonshot size={26} /> },
-  { key: 'openai', icon: <OpenAI size={26} /> },
-  { key: 'xai', icon: <XAI size={26} /> },
-  { key: 'zhipu', icon: <Zhipu.Color size={26} /> },
-  { key: 'volcengine', icon: <Volcengine.Color size={26} /> },
-  { key: 'cohere', icon: <Cohere.Color size={26} /> },
-  { key: 'claude', icon: <Claude.Color size={26} /> },
-  { key: 'gemini', icon: <Gemini.Color size={26} /> },
-  { key: 'suno', icon: <Suno size={26} /> },
-  { key: 'minimax', icon: <Minimax.Color size={26} /> },
-  { key: 'wenxin', icon: <Wenxin.Color size={26} /> },
-  { key: 'spark', icon: <Spark.Color size={26} /> },
-  { key: 'qingyan', icon: <Qingyan.Color size={26} /> },
-  { key: 'deepseek', icon: <DeepSeek.Color size={26} /> },
-  { key: 'qwen', icon: <Qwen.Color size={26} /> },
-  { key: 'midjourney', icon: <Midjourney size={26} /> },
-  { key: 'grok', icon: <Grok size={26} /> },
-  { key: 'azure', icon: <AzureAI.Color size={26} /> },
-  { key: 'hunyuan', icon: <Hunyuan.Color size={26} /> },
-  { key: 'xinference', icon: <Xinference.Color size={26} /> },
-];
+const NoticeModal = lazy(() => import('../../components/layout/NoticeModal'));
 
 const Home = () => {
   const { t, i18n } = useTranslation();
   const [statusState] = useContext(StatusContext);
+  const [userState] = useContext(UserContext);
   const actualTheme = useActualTheme();
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false);
   const [homePageContent, setHomePageContent] = useState('');
@@ -90,6 +53,7 @@ const Home = () => {
   const isMobile = useIsMobile();
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
   const docsLink = statusState?.status?.docs_link || '';
+  const systemName = statusState?.status?.system_name || getSystemName();
   const serverAddress =
     statusState?.status?.server_address || `${window.location.origin}`;
   const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
@@ -139,6 +103,7 @@ const Home = () => {
     if (success) {
       let content = data;
       if (!data.startsWith('https://')) {
+        const { marked } = await import('marked');
         content = marked.parse(data);
       }
       setHomePageContent(content);
@@ -200,18 +165,66 @@ const Home = () => {
 
   return (
     <div className='w-full overflow-x-hidden'>
-      <NoticeModal
-        visible={noticeVisible}
-        onClose={() => setNoticeVisible(false)}
-        isMobile={isMobile}
-      />
+      {noticeVisible && (
+        <Suspense fallback={null}>
+          <NoticeModal
+            visible={noticeVisible}
+            onClose={() => setNoticeVisible(false)}
+            isMobile={isMobile}
+          />
+        </Suspense>
+      )}
       {homePageContentLoaded && homePageContent === '' ? (
         <div className='home-apple-shell'>
+          <header className='fixed inset-x-0 top-0 z-40'>
+            <div className='mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 md:px-8'>
+              <Link
+                to='/'
+                className='rounded-full px-3 py-2 text-sm font-semibold text-semi-color-text-0 backdrop-blur-md'
+              >
+                {systemName}
+              </Link>
+
+              <div className='flex items-center gap-2'>
+                {docsLink && (
+                  <Button
+                    theme='borderless'
+                    className='!rounded-full'
+                    onClick={() => window.open(docsLink, '_blank')}
+                  >
+                    {t('文档')}
+                  </Button>
+                )}
+
+                {userState?.user ? (
+                  <Link to='/console'>
+                    <Button theme='solid' type='primary' className='!rounded-full px-5'>
+                      {t('控制台')}
+                    </Button>
+                  </Link>
+                ) : (
+                  <>
+                    <Link to='/login'>
+                      <Button theme='borderless' className='!rounded-full px-4'>
+                        {t('登录')}
+                      </Button>
+                    </Link>
+                    <Link to='/register'>
+                      <Button theme='solid' type='primary' className='!rounded-full px-5'>
+                        {t('注册')}
+                      </Button>
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
+          </header>
+
           <div className='home-apple-orb home-apple-orb-primary' />
           <div className='home-apple-orb home-apple-orb-secondary' />
           <div className='home-apple-grid' />
 
-          <div className='relative mx-auto flex min-h-[calc(100vh-60px)] max-w-6xl flex-col justify-center px-4 py-16 md:px-8 md:py-24'>
+          <div className='relative mx-auto flex min-h-[calc(100vh-60px)] max-w-6xl flex-col justify-center px-4 py-24 md:px-8 md:py-28'>
             <div className='home-apple-panel mx-auto w-full max-w-5xl'>
               <div className='flex flex-col items-center text-center'>
                 <div className='home-apple-chip mb-6'>{heroEyebrow}</div>
@@ -308,20 +321,6 @@ const Home = () => {
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-
-            <div className='mx-auto mt-8 w-full max-w-5xl'>
-              <div className='mb-4 text-center text-sm font-medium tracking-[0.2em] text-semi-color-text-3 uppercase'>
-                {t('支持众多的大模型供应商')}
-              </div>
-              <div className='home-apple-provider-panel'>
-                {providerIcons.map((provider) => (
-                  <div key={provider.key} className='home-apple-provider-item'>
-                    {provider.icon}
-                  </div>
-                ))}
-                <div className='home-apple-provider-count'>30+</div>
               </div>
             </div>
           </div>
