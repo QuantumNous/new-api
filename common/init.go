@@ -150,7 +150,7 @@ func initConstantEnv() {
 	// 任务轮询时查询的最大数量
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
 	// 异步任务超时时间（分钟），超过此时间未完成的任务将被标记为失败并退款。0 表示禁用。
-	constant.TaskTimeoutMinutes = GetEnvOrDefault("TASK_TIMEOUT_MINUTES", 30)
+	constant.TaskTimeoutMinutes = GetEnvOrDefault("TASK_TIMEOUT_MINUTES", 20)
 	// 视频轮询遇到泛化 404 Not Found 时的宽限时间（分钟）。0 表示立即失败。
 	constant.TaskNotFoundGraceMinutes = GetEnvOrDefault("TASK_NOT_FOUND_GRACE_MINUTES", 10)
 
