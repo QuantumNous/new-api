@@ -39,25 +39,39 @@ type ImageURL struct {
 }
 
 type responseTask struct {
-	ID                 string  `json:"id"`
-	TaskID             string  `json:"task_id,omitempty"`
-	Object             string  `json:"object"`
-	Model              string  `json:"model"`
-	Status             string  `json:"status"`
-	URL                string  `json:"url,omitempty"`
-	VideoURL           string  `json:"video_url,omitempty"`
-	Progress           float64 `json:"progress"`
-	Created            int64   `json:"created,omitempty"`
-	CreatedAt          int64   `json:"created_at"`
-	CompletedAt        int64   `json:"completed_at,omitempty"`
-	ExpiresAt          int64   `json:"expires_at,omitempty"`
-	Seconds            string  `json:"seconds,omitempty"`
-	Size               string  `json:"size,omitempty"`
-	RemixedFromVideoID string  `json:"remixed_from_video_id,omitempty"`
-	Error              *struct {
-		Message string `json:"message"`
-		Code    string `json:"code"`
-	} `json:"error,omitempty"`
+	ID                 string             `json:"id"`
+	TaskID             string             `json:"task_id,omitempty"`
+	Object             string             `json:"object"`
+	Model              string             `json:"model"`
+	Status             string             `json:"status"`
+	URL                string             `json:"url,omitempty"`
+	VideoURL           string             `json:"video_url,omitempty"`
+	Progress           float64            `json:"progress"`
+	Created            int64              `json:"created,omitempty"`
+	CreatedAt          int64              `json:"created_at"`
+	CompletedAt        int64              `json:"completed_at,omitempty"`
+	ExpiresAt          int64              `json:"expires_at,omitempty"`
+	Seconds            string             `json:"seconds,omitempty"`
+	Size               string             `json:"size,omitempty"`
+	RemixedFromVideoID string             `json:"remixed_from_video_id,omitempty"`
+	Error              *responseTaskError `json:"error,omitempty"`
+}
+
+type responseTaskError struct {
+	Message string `json:"message"`
+	Code    string `json:"code"`
+}
+
+func (e *responseTaskError) UnmarshalJSON(data []byte) error {
+	switch common.GetJsonType(data) {
+	case "object":
+		type responseTaskErrorAlias responseTaskError
+		return common.Unmarshal(data, (*responseTaskErrorAlias)(e))
+	case "string":
+		return common.Unmarshal(data, &e.Message)
+	default:
+		return nil
+	}
 }
 
 // ============================

@@ -52,9 +52,7 @@ type operationResponse struct {
 		Encoding              string           `json:"encoding"`
 		Video                 string           `json:"video"`
 	} `json:"response"`
-	Error struct {
-		Message string `json:"message"`
-	} `json:"error"`
+	Error geminitask.OperationError `json:"error"`
 }
 
 // ============================

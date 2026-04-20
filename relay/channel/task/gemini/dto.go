@@ -1,5 +1,7 @@
 package gemini
 
+import "github.com/QuantumNous/new-api/common"
+
 // VeoImageInput represents an image input for Veo image-to-video.
 // Used by both Gemini and Vertex adaptors.
 type VeoImageInput struct {
@@ -65,7 +67,22 @@ type operationResponse struct {
 			} `json:"generatedVideos"`
 		} `json:"generateVideoResponse"`
 	} `json:"response"`
-	Error struct {
-		Message string `json:"message"`
-	} `json:"error"`
+	Error OperationError `json:"error"`
+}
+
+type OperationError struct {
+	Message string `json:"message"`
+	Code    string `json:"code"`
+}
+
+func (e *OperationError) UnmarshalJSON(data []byte) error {
+	switch common.GetJsonType(data) {
+	case "object":
+		type operationErrorAlias OperationError
+		return common.Unmarshal(data, (*operationErrorAlias)(e))
+	case "string":
+		return common.Unmarshal(data, &e.Message)
+	default:
+		return nil
+	}
 }

@@ -409,6 +409,32 @@ func TestParseTaskResultFailsCompletedWithoutURL(t *testing.T) {
 	}
 }
 
+func TestParseTaskResultReadsStringError(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+	taskInfo, err := adaptor.ParseTaskResult([]byte(`{
+		"id": "vidgen-xxxxxxxxxxxxxxxxxxxxxxxx",
+		"object": "video.generation",
+		"created": 1776657884,
+		"model": "sora2",
+		"status": "failed",
+		"task_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"progress": 1.0,
+		"error": "video poll failed: 451 {\"error_code\":\"video_unsafe\",\"message\":\"The generated video appears to be unsafe. Try modifying the prompts or the seeds.\"}"
+	}`))
+	if err != nil {
+		t.Fatalf("ParseTaskResult returned error: %v", err)
+	}
+	if taskInfo.Status != "FAILURE" {
+		t.Fatalf("expected failure status, got %s", taskInfo.Status)
+	}
+	if !strings.Contains(taskInfo.Reason, "video poll failed: 451") {
+		t.Fatalf("expected string error reason, got %q", taskInfo.Reason)
+	}
+	if !strings.Contains(taskInfo.Reason, "video_unsafe") {
+		t.Fatalf("expected upstream error code in reason, got %q", taskInfo.Reason)
+	}
+}
+
 func TestDoResponsePrefersTaskIDForUpstreamPolling(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
