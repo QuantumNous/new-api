@@ -292,10 +292,25 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
-	if common2.DebugEnabled {
-		println("fullRequestURL:", fullRequestURL)
+
+	var bodyBytes []byte
+	if requestBody != nil {
+		bodyBytes, err = io.ReadAll(requestBody)
+		if err != nil {
+			return nil, fmt.Errorf("read request body failed: %w", err)
+		}
 	}
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+
+	if common2.DebugEnabled {
+		var sb strings.Builder
+		sb.WriteString("\n========== Upstream Request ==========\n")
+		sb.WriteString(fmt.Sprintf("URL: %s %s\n", c.Request.Method, fullRequestURL))
+		sb.WriteString(fmt.Sprintf("Body: %s\n", string(bodyBytes)))
+		sb.WriteString("======================================")
+		logger.LogDebug(c.Request.Context(), sb.String())
+	}
+
+	req, err := http.NewRequest(c.Request.Method, fullRequestURL, strings.NewReader(string(bodyBytes)))
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -311,6 +326,25 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
+
+	if common2.DebugEnabled {
+		var sb strings.Builder
+		sb.WriteString("\n========== Upstream Request Headers ==========\n")
+		for key, values := range req.Header {
+			for _, v := range values {
+				if strings.EqualFold(key, "Authorization") {
+					// mask the key, only show prefix
+					if len(v) > 12 {
+						v = v[:12] + "***"
+					}
+				}
+				sb.WriteString(fmt.Sprintf("%s: %s\n", key, v))
+			}
+		}
+		sb.WriteString("==============================================")
+		logger.LogDebug(c.Request.Context(), sb.String())
+	}
+
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
