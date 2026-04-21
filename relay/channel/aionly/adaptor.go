@@ -10,8 +10,10 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
+	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -20,8 +22,8 @@ import (
 type Adaptor struct{}
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	openaiAdaptor := openai.Adaptor{}
-	return openaiAdaptor.ConvertGeminiRequest(c, info, request)
+	geminiAdaptor := gemini.Adaptor{}
+	return geminiAdaptor.ConvertGeminiRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
@@ -118,6 +120,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if info.RelayFormat == types.RelayFormatClaude {
 		claudeAdaptor := claude.Adaptor{}
 		return claudeAdaptor.DoResponse(c, resp, info)
+	}
+	if info.RelayMode == relayconstant.RelayModeGemini {
+		geminiAdaptor := gemini.Adaptor{}
+		return geminiAdaptor.DoResponse(c, resp, info)
 	}
 	openaiAdaptor := openai.Adaptor{}
 	return openaiAdaptor.DoResponse(c, resp, info)
