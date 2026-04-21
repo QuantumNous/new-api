@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 
-const DOCS_URL = 'https://doc.zhang-liang.online';
+const DOCS_URL = '/docs-proxy/';
 
 const Docs = () => {
   return (
