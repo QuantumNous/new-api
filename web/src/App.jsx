@@ -334,7 +334,7 @@ function App() {
             )
           }
         />
-        <Route
+        {/* <Route
           path='/about'
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
@@ -342,8 +342,8 @@ function App() {
             </Suspense>
           }
         />
-        <Route
-          path='/user-agreement'
+        {/* <Route
+          path='/about'
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <UserAgreement />
@@ -367,7 +367,7 @@ function App() {
           }
         />
         {/* 方便使用chat2link直接跳转聊天... */}
-        <Route
+        {/* <Route
           path='/chat2link'
           element={
             <PrivateRoute>
@@ -376,7 +376,7 @@ function App() {
               </Suspense>
             </PrivateRoute>
           }
-        />
+        /> */}
         <Route path='*' element={<NotFound />} />
       </Routes>
     </SetupCheck>

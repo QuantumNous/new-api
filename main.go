@@ -191,7 +191,17 @@ func main() {
 
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
-
+	go func() {
+		var tls_port = os.Getenv("TLS_PORT")
+		tlsCert := os.Getenv("TLS_CERT")
+		tlsKey := os.Getenv("TLS_KEY")
+		if tlsCert != "" && tlsKey != "" && tls_port != "" {
+			err = server.RunTLS(":"+tls_port, tlsCert, tlsKey)
+			if err != nil {
+				common.FatalLog("failed to start HTTP TLS server: " + err.Error())
+			}
+		}
+	}()
 	err = server.Run(":" + port)
 	if err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
