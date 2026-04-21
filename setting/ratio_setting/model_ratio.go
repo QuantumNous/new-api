@@ -331,6 +331,8 @@ var defaultAudioCompletionRatio = map[string]float64{
 var modelPriceMap = types.NewRWMap[string, float64]()
 var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
+var modelDisplayNameMap = types.NewRWMap[string, string]()
+var modelModalitiesMap = types.NewRWMap[string, string]()
 
 var defaultCompletionRatio = map[string]float64{
 	"gpt-4-gizmo-*":  2,
@@ -692,6 +694,46 @@ func AudioCompletionRatio2JSONString() string {
 
 func UpdateAudioCompletionRatioByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(audioCompletionRatioMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func ModelDisplayName2JSONString() string {
+	return modelDisplayNameMap.MarshalJSONString()
+}
+
+func UpdateModelDisplayNameByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(modelDisplayNameMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetModelDisplayName(name string) string {
+	name = FormatMatchingModelName(name)
+	if displayName, ok := modelDisplayNameMap.Get(name); ok {
+		return displayName
+	}
+	return ""
+}
+
+func ModelModalities2JSONString() string {
+	return modelModalitiesMap.MarshalJSONString()
+}
+
+func UpdateModelModalitiesByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(modelModalitiesMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetModelModalities(name string) string {
+	name = FormatMatchingModelName(name)
+	if modalities, ok := modelModalitiesMap.Get(name); ok {
+		return modalities
+	}
+	return ""
+}
+
+func GetModelDisplayNameCopy() map[string]string {
+	return modelDisplayNameMap.ReadAll()
+}
+
+func GetModelModalitiesCopy() map[string]string {
+	return modelModalitiesMap.ReadAll()
 }
 
 func GetModelRatioCopy() map[string]float64 {
