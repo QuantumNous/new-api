@@ -1,19 +1,20 @@
 export function getHeaderLogoFrameClassName({ hasLogoImage }) {
   const baseClassName =
-    'relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl text-sm shadow-sm';
+    'relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl text-sm';
 
   if (hasLogoImage) {
-    return `${baseClassName} bg-white ring-1 ring-black/5 dark:bg-white dark:ring-white/10`;
+    return baseClassName;
   }
 
-  return `${baseClassName} bg-indigo-600 text-white`;
+  return `${baseClassName} bg-indigo-600 text-white shadow-sm`;
 }
 
 export function getHeaderLogoImageClassName({ isDefaultLogo }) {
-  const baseClassName = 'absolute inset-0 h-full w-full object-cover';
+  const baseClassName =
+    'absolute inset-0 m-auto h-[82%] w-[82%] object-contain';
 
   if (isDefaultLogo) {
-    return `${baseClassName} scale-[1.08]`;
+    return `${baseClassName} scale-[1.02]`;
   }
 
   return baseClassName;
