@@ -9,8 +9,8 @@ After=network.target
 
 [Service]
 User=ubuntu  # 注意修改用户名
-WorkingDirectory=/path/to/new-api  # 注意修改路径
-ExecStart=/path/to/new-api/new-api --port 3000 --log-dir /path/to/new-api/logs  # 注意修改路径和端口号
+WorkingDirectory=/Users/liuwenbo/code/new-api  # 注意修改路径
+ExecStart=/Users/liuwenbo/code/new-api/new-api --port 3000 --log-dir /path/to/new-api/logs  # 注意修改路径和端口号
 Restart=always
 RestartSec=5
 
