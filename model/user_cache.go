@@ -57,6 +57,12 @@ func invalidateUserCache(userId int) error {
 	return common.RedisDelKey(getUserCacheKey(userId))
 }
 
+// InvalidateUserCache is the exported version of invalidateUserCache.
+// 供 controller 等上层包在用户状态变更（如禁用、删除、角色变更）后主动清理缓存。
+func InvalidateUserCache(userId int) error {
+	return invalidateUserCache(userId)
+}
+
 // updateUserCache updates all user cache fields using hash
 func updateUserCache(user User) error {
 	if !common.RedisEnabled {
