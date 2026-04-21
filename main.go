@@ -188,11 +188,15 @@ func main() {
 	if port == "" {
 		port = strconv.Itoa(*common.Port)
 	}
+	bindAddress := os.Getenv("BIND_ADDRESS")
+	if bindAddress == "" {
+		bindAddress = "0.0.0.0"
+	}
 
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
+	err = server.Run(bindAddress + ":" + port)
 	if err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
