@@ -23,7 +23,46 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// extractImagePromptFromMessages returns the text content of the last user
+// message, used as a prompt field for models that require it.
+func extractImagePromptFromMessages(messages []dto.Message) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			return messages[i].StringContent()
+		}
+	}
+	return ""
+}
+
+// isChatOnlyImageModel returns true for image-generation models that do not
+// support the chat-completions endpoint (e.g. gpt-image-*, dall-e-*,
+// chatgpt-image-*). Requests for these models received on /v1/chat/completions
+// must be redirected to the images/generations handler.
+func isChatOnlyImageModel(model string) bool {
+	lower := strings.ToLower(model)
+	return strings.Contains(lower, "gpt-image") ||
+		strings.HasPrefix(lower, "dall-e") ||
+		strings.Contains(lower, "chatgpt-image")
+}
+
 func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
+	// Detect image-generation models submitted to chat-completions endpoint and
+	// redirect to ImageHelper so the correct upstream endpoint and response
+	// handler are used. This avoids OaiStreamHandler receiving image JSON.
+	if chatReq, ok := info.Request.(*dto.GeneralOpenAIRequest); ok && isChatOnlyImageModel(chatReq.Model) {
+		prompt := extractImagePromptFromMessages(chatReq.Messages)
+		imageReq := &dto.ImageRequest{
+			Model:  chatReq.Model,
+			Prompt: prompt,
+			N:      lo.ToPtr(uint(1)),
+		}
+		info.Request = imageReq
+		info.RelayMode = relayconstant.RelayModeImagesGenerations
+		info.RelayFormat = types.RelayFormatOpenAIImage
+		info.RequestURLPath = "/v1/images/generations"
+		return ImageHelper(c, info)
+	}
+
 	info.InitChannelMeta(c)
 
 	textReq, ok := info.Request.(*dto.GeneralOpenAIRequest)
@@ -43,6 +82,12 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+
+	// For playground requests, auto-populate prompt from the last user message
+	// when the client has not already provided one.
+	if info.IsPlayground && request.Prompt == nil {
+		request.Prompt = extractImagePromptFromMessages(request.Messages)
 	}
 
 	includeUsage := true

@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 
@@ -557,6 +558,60 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 	return err
 }
 
+// writePlaygroundImageSSE converts an image generation response into a proper
+// SSE chat-completion stream so the playground frontend can display results.
+func writePlaygroundImageSSE(c *gin.Context, responseBody []byte) {
+	helper.SetEventStreamHeaders(c)
+
+	var imageResp dto.ImageResponse
+	if err := common.Unmarshal(responseBody, &imageResp); err != nil || len(imageResp.Data) == 0 {
+		helper.Done(c)
+		return
+	}
+
+	var contentParts []string
+	for _, imgData := range imageResp.Data {
+		switch {
+		case imgData.B64Json != "":
+			contentParts = append(contentParts, "![Generated Image](data:image/png;base64,"+imgData.B64Json+")")
+		case imgData.Url != "":
+			contentParts = append(contentParts, "![Generated Image]("+imgData.Url+")")
+		}
+	}
+	if len(contentParts) == 0 {
+		helper.Done(c)
+		return
+	}
+	content := strings.Join(contentParts, "\n\n")
+
+	contentChunk := dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Index: 0,
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+				Role:    "assistant",
+				Content: &content,
+			},
+		}},
+	}
+	if chunkBytes, err := common.Marshal(contentChunk); err == nil {
+		_ = helper.StringData(c, string(chunkBytes))
+	}
+
+	finishReason := "stop"
+	finishChunk := dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Index:        0,
+			Delta:        dto.ChatCompletionsStreamResponseChoiceDelta{},
+			FinishReason: &finishReason,
+		}},
+	}
+	if finishBytes, err := common.Marshal(finishChunk); err == nil {
+		_ = helper.StringData(c, string(finishBytes))
+	}
+
+	helper.Done(c)
+}
+
 func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -571,8 +626,14 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
+	// For playground SSE image requests, wrap the response as a chat-completion
+	// stream so the frontend SSE client can parse and display it.
+	if info.IsPlayground && info.IsStream && info.RelayMode == relayconstant.RelayModeImagesGenerations {
+		writePlaygroundImageSSE(c, responseBody)
+	} else {
+		// 写入新的 response body
+		service.IOCopyBytesGracefully(c, resp, responseBody)
+	}
 
 	// Once we've written to the client, we should not return errors anymore
 	// because the upstream has already consumed resources and returned content

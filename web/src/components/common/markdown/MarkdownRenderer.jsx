@@ -414,9 +414,24 @@ function _MarkdownContent(props) {
     <ReactMarkdown
       remarkPlugins={[RemarkMath, RemarkGfm, RemarkBreaks]}
       rehypePlugins={rehypePluginsBase}
+      urlTransform={(url) => url}
       components={{
         pre: PreCode,
         code: CustomCode,
+        img: ({ src, alt, ...imgProps }) => (
+          <img
+            src={src}
+            alt={alt || ''}
+            style={{
+              maxWidth: '100%',
+              height: 'auto',
+              borderRadius: '8px',
+              margin: '8px 0',
+              display: 'block',
+            }}
+            {...imgProps}
+          />
+        ),
         p: (pProps) => (
           <p
             {...pProps}
