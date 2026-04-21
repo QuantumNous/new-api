@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-contrib/sessions"
@@ -104,11 +105,11 @@ func WeChatAuth(c *gin.Context) {
 				return
 			}
 			if err := createDefaultTokenForUser(user.Id, user.Username); err != nil {
-				switch err {
-				case errGenerateDefaultTokenKey:
-					common.ApiErrorMsg(c, "默认令牌生成失败")
-				case errCreateDefaultToken:
-					common.ApiErrorMsg(c, "默认令牌创建失败")
+				switch {
+				case errors.Is(err, errGenerateDefaultTokenKey):
+					common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenFailed)
+				case errors.Is(err, errCreateDefaultToken):
+					common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 				default:
 					common.ApiError(c, err)
 				}

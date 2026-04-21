@@ -146,7 +146,8 @@ func createDefaultTokenForUser(userId int, username string) error {
 		token.Group = "auto"
 	}
 	if err := token.Insert(); err != nil {
-		return errCreateDefaultToken
+		common.SysLog(fmt.Sprintf("failed to insert default token for user %d: %s", userId, err.Error()))
+		return fmt.Errorf("insert default token: %w", errCreateDefaultToken)
 	}
 	return nil
 }
@@ -231,10 +232,10 @@ func Register(c *gin.Context) {
 		return
 	}
 	if err := createDefaultTokenForUser(insertedUser.Id, cleanUser.Username); err != nil {
-		switch err {
-		case errGenerateDefaultTokenKey:
+		switch {
+		case errors.Is(err, errGenerateDefaultTokenKey):
 			common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenFailed)
-		case errCreateDefaultToken:
+		case errors.Is(err, errCreateDefaultToken):
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 		default:
 			common.ApiError(c, err)

@@ -119,10 +119,10 @@ func HandleOAuth(c *gin.Context) {
 
 	if created {
 		if err := createDefaultTokenForUser(user.Id, user.Username); err != nil {
-			switch err {
-			case errGenerateDefaultTokenKey:
+			switch {
+			case errors.Is(err, errGenerateDefaultTokenKey):
 				common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenFailed)
-			case errCreateDefaultToken:
+			case errors.Is(err, errCreateDefaultToken):
 				common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 			default:
 				common.ApiError(c, err)
