@@ -11,6 +11,20 @@ const parseTaskConditionPrice = (rawTaskConditionPrice) => {
   }
 };
 
+const CONTROLLED_TASK_CONDITION_FIELDS = {
+  '720p_text_only': ['720p', 'input_text_only'],
+  '720p_video_input': ['720p', 'input_with_video'],
+  '1080p_text_only': ['1080p', 'input_text_only'],
+  '1080p_video_input': ['1080p', 'input_with_video'],
+};
+
+const cloneTaskConditionResolutionMap = (value) => {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return JSON.parse(JSON.stringify(value));
+};
+
 export function extractTaskConditionPriceMap(rawTaskConditionPrice) {
   const parsed = parseTaskConditionPrice(rawTaskConditionPrice);
   const result = {};
@@ -33,57 +47,39 @@ export function buildTaskConditionPriceValueFromModelMap(
   modelMap,
 ) {
   const parsed = parseTaskConditionPrice(rawTaskConditionPrice);
-  const nextTaskConditionPrice = {};
-
-  Object.entries(parsed).forEach(([modelName, value]) => {
-    if (!modelMap[modelName]) {
-      nextTaskConditionPrice[modelName] = value;
-    }
-  });
+  const nextTaskConditionPrice = cloneTaskConditionResolutionMap(parsed);
 
   Object.entries(modelMap).forEach(([modelName, value]) => {
-    const nextModelValue = {};
-    if (
-      value['720p_text_only'] !== undefined ||
-      value['720p_video_input'] !== undefined
-    ) {
-      nextModelValue['720p'] = {};
-      if (value['720p_text_only'] !== undefined && value['720p_text_only'] !== null) {
-        nextModelValue['720p'].input_text_only = value['720p_text_only'];
-      }
-      if (
-        value['720p_video_input'] !== undefined &&
-        value['720p_video_input'] !== null
-      ) {
-        nextModelValue['720p'].input_with_video = value['720p_video_input'];
-      }
-      if (Object.keys(nextModelValue['720p']).length === 0) {
-        delete nextModelValue['720p'];
-      }
-    }
-    if (
-      value['1080p_text_only'] !== undefined ||
-      value['1080p_video_input'] !== undefined
-    ) {
-      nextModelValue['1080p'] = {};
-      if (
-        value['1080p_text_only'] !== undefined &&
-        value['1080p_text_only'] !== null
-      ) {
-        nextModelValue['1080p'].input_text_only = value['1080p_text_only'];
-      }
-      if (
-        value['1080p_video_input'] !== undefined &&
-        value['1080p_video_input'] !== null
-      ) {
-        nextModelValue['1080p'].input_with_video = value['1080p_video_input'];
-      }
-      if (Object.keys(nextModelValue['1080p']).length === 0) {
-        delete nextModelValue['1080p'];
-      }
-    }
+    const nextModelValue = cloneTaskConditionResolutionMap(parsed[modelName]);
+
+    Object.entries(CONTROLLED_TASK_CONDITION_FIELDS).forEach(
+      ([fieldKey, [resolution, conditionKey]]) => {
+        const fieldValue = value[fieldKey];
+        if (fieldValue === undefined) {
+          return;
+        }
+
+        if (fieldValue === null) {
+          if (nextModelValue[resolution] && typeof nextModelValue[resolution] === 'object') {
+            delete nextModelValue[resolution][conditionKey];
+            if (Object.keys(nextModelValue[resolution]).length === 0) {
+              delete nextModelValue[resolution];
+            }
+          }
+          return;
+        }
+
+        if (!nextModelValue[resolution] || typeof nextModelValue[resolution] !== 'object') {
+          nextModelValue[resolution] = {};
+        }
+        nextModelValue[resolution][conditionKey] = fieldValue;
+      },
+    );
+
     if (Object.keys(nextModelValue).length > 0) {
       nextTaskConditionPrice[modelName] = nextModelValue;
+    } else {
+      delete nextTaskConditionPrice[modelName];
     }
   });
 

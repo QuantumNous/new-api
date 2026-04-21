@@ -26,6 +26,7 @@ const EMPTY_MODEL = {
   taskConditionPrice720pVideoInput: '',
   taskConditionPrice1080pTextOnly: '',
   taskConditionPrice1080pVideoInput: '',
+  taskConditionPriceRaw: {},
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -119,6 +120,7 @@ const buildModelState = (name, sourceMaps) => {
     sourceMaps.AudioCompletionRatio[name],
   );
   const taskConditionPrice = sourceMaps.TaskConditionPrice?.[name] || {};
+  const taskConditionPriceRaw = sourceMaps.TaskConditionPriceRaw?.[name] || {};
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
   const inputPrice = ratioToBasePrice(modelRatio);
   const inputPriceNumber = toNumberOrNull(inputPrice);
@@ -180,6 +182,7 @@ const buildModelState = (name, sourceMaps) => {
     taskConditionPrice1080pVideoInput: toNumericString(
       taskConditionPrice['1080p_video_input'],
     ),
+    taskConditionPriceRaw,
     rawRatios: {
       modelRatio,
       completionRatio,
@@ -646,6 +649,7 @@ export function useModelPricingEditorState({
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
       TaskConditionPrice: extractTaskConditionPriceMap(options.TaskConditionPrice),
+      TaskConditionPriceRaw: parseOptionJSON(options.TaskConditionPrice),
     };
 
     const names = new Set([
@@ -1038,7 +1042,12 @@ export function useModelPricingEditorState({
             output[key][model.name] = value;
           }
         });
+        const hasTaskConditionPriceRaw =
+          model.taskConditionPriceRaw &&
+          typeof model.taskConditionPriceRaw === 'object' &&
+          Object.keys(model.taskConditionPriceRaw).length > 0;
         if (
+          hasTaskConditionPriceRaw ||
           hasValue(model.taskConditionPrice720pTextOnly) ||
           hasValue(model.taskConditionPrice720pVideoInput) ||
           hasValue(model.taskConditionPrice1080pTextOnly) ||
