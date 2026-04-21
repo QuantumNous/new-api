@@ -7618,7 +7618,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               </div>
               <div className='flex min-w-0 flex-1 flex-col items-start pr-1 lg:pr-2'>
                 <div className={`w-full truncate text-[13px] font-black transition-colors lg:text-[14px] ${activeModel === model.id ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'}`}>{model.name}</div>
-                <p className={`hidden text-[11px] leading-relaxed transition-colors lg:mt-0.5 lg:line-clamp-1 lg:block ${activeModel === model.id ? 'text-indigo-700/80' : 'text-slate-500 group-hover:text-slate-600'}`}>{model.desc}</p>
+                <p className={`hidden text-[11px] leading-relaxed transition-colors lg:mt-0.5 lg:line-clamp-2 ${activeModel === model.id ? 'text-indigo-700/80' : 'text-slate-500 group-hover:text-slate-600'}`}>{model.desc}</p>
                 {model.priceLabel ? (
                   <div
                     className={`mt-1 shrink-0 rounded-[6px] px-1.5 py-0.5 text-[9px] font-black tracking-wide transition-all lg:mt-1.5 lg:px-2 lg:text-[10px] ${
