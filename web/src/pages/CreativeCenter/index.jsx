@@ -7418,29 +7418,29 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
   if (isCreativeCenterBootstrapping) {
     return (
-      <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] mt-16 w-full bg-[#f0f5ff] bg-gradient-to-br from-[#eaf2ff] via-white to-[#f0f5ff] overflow-hidden'>
+      <div className='relative mt-16 flex h-[calc(100svh-64px)] min-h-[calc(100svh-64px)] w-full flex-col overflow-hidden bg-[#f0f5ff] bg-gradient-to-br from-[#eaf2ff] via-white to-[#f0f5ff] lg:h-[calc(100vh-64px)] lg:min-h-[calc(100vh-64px)] lg:flex-row'>
         <div className='absolute inset-0 z-0 overflow-hidden pointer-events-none'>
           <div className='absolute -top-[20%] -left-[10%] h-[50%] w-[50%] rounded-full bg-blue-400/10 blur-[120px]' />
           <div className='absolute top-[40%] -right-[10%] h-[60%] w-[40%] rounded-full bg-sky-300/10 blur-[150px]' />
         </div>
 
-        <aside className='relative z-10 flex w-[320px] shrink-0 flex-col border-r border-slate-200/50 bg-white/70 backdrop-blur-3xl shadow-[4px_0_24px_-16px_rgba(0,0,0,0.05)]'>
-          <div className='space-y-5 p-7 pt-9'>
-            <div className='h-10 w-44 animate-pulse rounded-2xl bg-blue-100/80' />
-            <div className='flex gap-4'>
+        <aside className='relative z-10 flex w-full shrink-0 flex-col border-b border-slate-200/50 bg-white/70 backdrop-blur-3xl shadow-[0_4px_24px_-18px_rgba(0,0,0,0.16)] lg:h-full lg:w-[320px] lg:border-b-0 lg:border-r lg:shadow-[4px_0_24px_-16px_rgba(0,0,0,0.05)]'>
+          <div className='space-y-4 p-4 lg:space-y-5 lg:p-7 lg:pt-9'>
+            <div className='h-8 w-36 animate-pulse rounded-2xl bg-blue-100/80 lg:h-10 lg:w-44' />
+            <div className='flex gap-3 lg:gap-4'>
               <div className='h-20 flex-1 animate-pulse rounded-[1.5rem] bg-white/80' />
               <div className='h-20 flex-1 animate-pulse rounded-[1.5rem] bg-white/70' />
             </div>
           </div>
-          <div className='space-y-4 px-5 py-6'>
+          <div className='flex gap-3 overflow-hidden px-4 py-3 lg:block lg:space-y-4 lg:px-5 lg:py-6'>
             {[0, 1, 2].map((index) => (
               <div
                 key={index}
-                className='h-24 animate-pulse rounded-[1.5rem] border border-slate-200/50 bg-white/65'
+                className='h-20 w-48 shrink-0 animate-pulse rounded-[1.5rem] border border-slate-200/50 bg-white/65 lg:h-24 lg:w-full'
               />
             ))}
           </div>
-          <div className='mt-auto p-5'>
+          <div className='hidden p-5 lg:mt-auto lg:block'>
             <div className='h-14 animate-pulse rounded-[1.25rem] bg-blue-200/70' />
           </div>
         </aside>
@@ -7463,20 +7463,20 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   }
 
   return (
-    <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] mt-16 w-full bg-[#f0f5ff] bg-gradient-to-br from-[#eaf2ff] via-white to-[#f0f5ff] text-slate-800 font-sans selection:bg-blue-500/20 selection:text-blue-900 overflow-hidden'>
+    <div className='relative mt-16 flex h-[calc(100svh-64px)] min-h-[calc(100svh-64px)] w-full flex-col overflow-hidden bg-[#f0f5ff] bg-gradient-to-br from-[#eaf2ff] via-white to-[#f0f5ff] font-sans text-slate-800 selection:bg-blue-500/20 selection:text-blue-900 lg:h-[calc(100vh-64px)] lg:min-h-[calc(100vh-64px)] lg:flex-row'>
       {/* 动态背景光效 */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-400/10 blur-[120px]" />
         <div className="absolute top-[40%] -right-[10%] w-[40%] h-[60%] rounded-full bg-sky-300/10 blur-[150px]" />
       </div>
-      <aside className='relative z-10 flex w-[320px] shrink-0 flex-col border-r border-slate-200/50 bg-white/70 backdrop-blur-3xl shadow-[4px_0_24px_-16px_rgba(0,0,0,0.05)]'>
-        <div className='shrink-0 p-7 pt-9 pb-6 flex items-center justify-center'>
-          <h1 className='text-[28px] font-black tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-br from-blue-700 via-sky-500 to-blue-500 drop-shadow-md'>
+      <aside className='relative z-10 flex w-full shrink-0 flex-col border-b border-slate-200/50 bg-white/75 shadow-[0_4px_24px_-18px_rgba(0,0,0,0.18)] backdrop-blur-3xl lg:h-full lg:w-[320px] lg:border-b-0 lg:border-r lg:shadow-[4px_0_24px_-16px_rgba(0,0,0,0.05)]'>
+        <div className='hidden shrink-0 items-center justify-center p-7 pb-6 pt-9 lg:flex'>
+          <h1 className='bg-gradient-to-br from-blue-700 via-sky-500 to-blue-500 bg-clip-text text-[28px] font-black tracking-[0.2em] text-transparent drop-shadow-md'>
             释放你的创造力
           </h1>
         </div>
 
-        <nav className='shrink-0 flex justify-around border-b border-slate-200/50 pb-5 px-5'>
+        <nav className='flex shrink-0 justify-around border-b border-slate-200/50 px-3 py-3 lg:px-5 lg:pb-5 lg:pt-0'>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -7487,27 +7487,27 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   setActiveTab(tab.id);
                   setOpenMenu(null);
                 }}
-                className={`group relative flex flex-col items-center gap-2.5 transition-all duration-500 ${active ? 'text-slate-900 scale-105' : 'text-slate-500 hover:text-slate-700 hover:-translate-y-0.5'}`}
+                className={`group relative flex min-w-0 flex-1 flex-col items-center gap-1.5 transition-all duration-500 lg:gap-2.5 ${active ? 'text-slate-900 scale-105' : 'text-slate-500 hover:text-slate-700 hover:-translate-y-0.5'}`}
               >
-                <div className={`p-3 rounded-[1rem] transition-all duration-500 ${active ? 'bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.4)] ring-1 ring-black/5' : 'bg-white/40 text-slate-500 group-hover:bg-white/80 group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]'}`}>
+                <div className={`rounded-[1rem] p-2.5 transition-all duration-500 lg:p-3 ${active ? 'bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.4)] ring-1 ring-black/5' : 'bg-white/40 text-slate-500 group-hover:bg-white/80 group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]'}`}>
                   <Icon size={22} strokeWidth={active ? 2.5 : 2} />
                 </div>
                 <span className={`text-[12px] font-bold transition-all ${active ? 'text-indigo-700' : 'text-slate-500'}`}>{tab.label}</span>
                 {tab.badge && <span className='absolute -right-2 -top-1.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-2 py-0.5 text-[9px] font-black text-white shadow-lg shadow-orange-500/30 border border-white/20'>{tab.badge}</span>}
-                {active && <div className="absolute -bottom-5 w-1/2 h-[3px] rounded-t-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />}
+                {active && <div className="absolute -bottom-3 h-[3px] w-1/2 rounded-t-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] lg:-bottom-5" />}
               </button>
             );
           })}
         </nav>
 
-        <div className='shrink-0 border-b border-slate-200/50 px-6 py-5'>
+        <div className='shrink-0 border-b border-slate-200/50 px-3 py-3 lg:px-6 lg:py-5'>
           <div className='relative flex flex-wrap items-center gap-3'>
             <button
               type='button'
               onClick={() => setIsSessionPanelOpen((prev) => !prev)}
               disabled={isSubmitPending}
               className={
-                'inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:border-blue-400/50 hover:bg-blue-50 hover:text-blue-600 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ' +
+                'inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md px-3 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:border-blue-400/50 hover:bg-blue-50 hover:text-blue-600 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm lg:px-4 ' +
                 (isSessionPanelOpen ? 'bg-blue-50 border-blue-300 text-indigo-700' : '')
               }
             >
@@ -7518,20 +7518,20 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               type='button'
               onClick={() => createCreativeSession(activeTab)}
               disabled={isSubmitPending}
-              className='inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white/90 to-white/60 backdrop-blur-md px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:border-purple-300 hover:from-purple-50 hover:to-white/80 hover:text-purple-700 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 group'
+              className='inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white/90 to-white/60 px-3 py-2.5 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md transition-all duration-300 hover:border-purple-300 hover:from-purple-50 hover:to-white/80 hover:text-purple-700 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm lg:px-4 group'
             >
               <Plus size={16} className="transition-transform duration-300 group-hover:rotate-90" />
               新建会话
             </button>
 
             {isSessionPanelOpen && (
-              <div className='absolute left-0 right-0 top-[3.5rem] z-30 rounded-[1.75rem] border border-slate-200/80 bg-white/95 backdrop-blur-3xl p-4 shadow-xl overflow-hidden'>
+              <div className='absolute left-0 right-0 top-[3.25rem] z-30 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 p-3 shadow-xl backdrop-blur-3xl lg:top-[3.5rem] lg:rounded-[1.75rem] lg:p-4'>
                 <div className='absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none' />
                 <div className='relative mb-4 px-2'>
                   <div className='text-sm font-black text-slate-900'>历史会话</div>
                   <div className='text-[11px] text-slate-500 mt-0.5'>仅删除会话，图片视频资源仍保留</div>
                 </div>
-                <div className='relative max-h-[420px] space-y-2 overflow-y-auto pr-1 custom-scrollbar'>
+                <div className='relative max-h-[min(420px,52vh)] space-y-2 overflow-y-auto pr-1 custom-scrollbar'>
                   {currentTabSessions
                     .slice()
                     .sort(
@@ -7598,8 +7598,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
         </div>
 
-        <div className='relative flex-1 min-h-0 overflow-y-auto px-5 py-6 space-y-3 custom-scrollbar custom-dark-scrollbar'>
-          <div className='text-[10px] font-bold text-blue-600/80 uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-2'>
+        <div className='relative flex shrink-0 gap-3 overflow-x-auto px-3 py-3 custom-scrollbar custom-dark-scrollbar lg:block lg:min-h-0 lg:flex-1 lg:space-y-3 lg:overflow-y-auto lg:px-5 lg:py-6'>
+          <div className='hidden px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600/80 lg:mb-4 lg:flex lg:items-center lg:gap-2'>
             <div className="h-[1px] w-4 bg-blue-500/30"></div>
             核心创作模型
           </div>
@@ -7609,8 +7609,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               onClick={() => setActiveModel(model.id)}
               onMouseEnter={() => setHoveredSidebarModelId(model.id)}
               onMouseLeave={() => setHoveredSidebarModelId((currentId) => (currentId === model.id ? '' : currentId))}
-              className={`relative w-full group flex items-start gap-4 rounded-[1.25rem] border p-4 text-left transition-all duration-500 backdrop-blur-sm ${
-                activeModel === model.id ? 'border-blue-400/50 bg-blue-50/60 shadow-[0_0_20px_rgba(59,130,246,0.1)] ring-1 ring-blue-300 translate-x-1' : 'border-slate-200/50 bg-white/40 hover:bg-white/80 hover:border-slate-300 hover:shadow-sm'
+              className={`relative flex w-[220px] shrink-0 items-start gap-3 rounded-[1.25rem] border p-3 text-left transition-all duration-500 backdrop-blur-sm lg:w-full lg:gap-4 lg:p-4 ${
+                activeModel === model.id ? 'border-blue-400/50 bg-blue-50/60 shadow-[0_0_20px_rgba(59,130,246,0.1)] ring-1 ring-blue-300 lg:translate-x-1' : 'border-slate-200/50 bg-white/40 hover:bg-white/80 hover:border-slate-300 hover:shadow-sm'
               }`}
             >
               <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] transition-all duration-500 ${activeModel === model.id ? 'bg-gradient-to-br from-blue-500 to-sky-500 shadow-sm text-white rotate-3 scale-110' : 'bg-slate-100 text-slate-500 border border-slate-200 group-hover:bg-white/80 group-hover:text-blue-600 group-hover:border-blue-300 group-hover:-rotate-3 group-hover:shadow-sm'}`}>
@@ -7636,7 +7636,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
         </div>
         
-        <div className='shrink-0 p-5 mt-auto border-t border-slate-200/50 bg-white/40 backdrop-blur-md'>
+        <div className='mt-auto hidden shrink-0 border-t border-slate-200/50 bg-white/40 p-5 backdrop-blur-md lg:block'>
           <button 
             onClick={() => window.location.href = '/console/assets'} 
             className="flex w-full items-center justify-center gap-3 rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-500 px-4 py-3.5 text-[14px] font-black tracking-[0.15em] text-white shadow-[0_8px_20px_rgba(59,130,246,0.2)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_12px_25px_rgba(59,130,246,0.3)] hover:brightness-110 active:scale-[0.98]"
@@ -7669,19 +7669,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
       </aside>
 
-      <main className='relative flex flex-1 flex-col overflow-hidden bg-slate-100/40 backdrop-blur-xl'>
+      <main className='relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-100/40 backdrop-blur-xl'>
         {activeTab === 'chat' && (
           <div className='flex flex-1 min-h-0 flex-col overflow-hidden'>
             <div
               ref={scrollRef}
-              className='flex-1 min-h-0 overflow-y-auto px-4 pb-10 pt-6 md:px-8 xl:px-12 custom-scrollbar'
+              className='min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-4 sm:px-4 md:px-8 md:pb-10 md:pt-6 xl:px-12 custom-scrollbar'
             >
               <div className='mx-auto flex w-full max-w-[1180px] flex-col gap-6'>
               {chatMessages.length === 0 && !isGenerating && (
-                <div className='flex min-h-full items-center justify-center py-8'>
-                  <div className='relative max-w-xl rounded-[3rem] border border-blue-100/50 bg-white/70 px-12 py-16 text-center shadow-[0_0_50px_rgba(59,130,246,0.05)] backdrop-blur-3xl overflow-hidden transition-all hover:bg-white/90 hover:shadow-[0_20px_80px_rgba(59,130,246,0.1)]'>
+                <div className='flex min-h-full items-center justify-center py-5 sm:py-8'>
+                  <div className='relative w-full max-w-xl overflow-hidden rounded-[2rem] border border-blue-100/50 bg-white/70 px-6 py-9 text-center shadow-[0_0_50px_rgba(59,130,246,0.05)] backdrop-blur-3xl transition-all hover:bg-white/90 hover:shadow-[0_20px_80px_rgba(59,130,246,0.1)] sm:rounded-[3rem] sm:px-12 sm:py-16'>
                     <div className='absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none' />
-                    <div className='relative mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-[1.75rem] bg-gradient-to-br from-blue-500 to-blue-400 text-white shadow-xl shadow-blue-500/20 ring-1 ring-blue-400'>
+                    <div className='relative mx-auto mb-6 flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-blue-500 to-blue-400 text-white shadow-xl shadow-blue-500/20 ring-1 ring-blue-400 sm:mb-8 sm:h-24 sm:w-24 sm:rounded-[1.75rem]'>
                       {selectedModel?.icon || <MessageSquare size={40} />}
                     </div>
                     <div className='relative text-[11px] font-black uppercase tracking-[0.3em] text-blue-500 flex items-center justify-center gap-3'>
@@ -7689,7 +7689,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                       当前模型
                       <div className="h-[2px] w-6 rounded-full bg-blue-500/30" />
                     </div>
-                    <h3 className='relative mt-6 text-4xl font-black tracking-tight text-slate-900 drop-shadow-sm'>
+                    <h3 className='relative mt-5 text-2xl font-black tracking-tight text-slate-900 drop-shadow-sm sm:mt-6 sm:text-4xl'>
                       {selectedModel?.name || '对话模型'}
                     </h3>
                     <p className='relative mt-6 text-[15px] leading-relaxed text-slate-500 font-medium'>
@@ -7746,7 +7746,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         )}
 
         {activeTab !== 'chat' && (
-          <div ref={scrollRef} className='relative flex-1 min-h-0 overflow-y-auto px-10 pb-10 pt-4 custom-scrollbar'>
+          <div ref={scrollRef} className='relative min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-3 sm:px-5 lg:px-10 lg:pb-10 lg:pt-4 custom-scrollbar'>
             {activeTab === 'image' && imageRecords.length > 0 ? (
               <div className='mx-auto flex w-full max-w-6xl flex-col gap-8'>
                 <div className='space-y-10'>
@@ -7767,18 +7767,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         className='space-y-4'
                         style={{ contentVisibility: 'auto', containIntrinsicSize: '960px' }}
                       >
-                        <div className='flex items-start gap-4'>
-                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-blue-50 border border-blue-200 text-blue-600 shadow-sm backdrop-blur-sm'>
+                        <div className='flex items-start gap-3 sm:gap-4'>
+                          <div className='hidden h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border border-blue-200 bg-blue-50 text-blue-600 shadow-sm backdrop-blur-sm sm:flex'>
                             {recordModel?.icon || <ImageIcon size={22} />}
                           </div>
                           <div className='min-w-0 flex-1 group'>
-                            <div className='rounded-[1.75rem] border border-slate-200/50 bg-white/60 px-5 py-4 shadow-sm backdrop-blur-xl transition-all duration-300 group-hover:bg-white/90 group-hover:border-slate-200 group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]'>
-                              <div className='flex items-start justify-between gap-4'>
+                            <div className='rounded-[1.35rem] border border-slate-200/50 bg-white/60 px-4 py-3.5 shadow-sm backdrop-blur-xl transition-all duration-300 group-hover:border-slate-200 group-hover:bg-white/90 group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] sm:rounded-[1.75rem] sm:px-5 sm:py-4'>
+                              <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
                                 <button
                                   onClick={() => toggleImageRecordCollapsed(record.id)}
                                   className='min-w-0 flex-1 text-left'
                                 >
-                                  <div className='flex items-start justify-between gap-4'>
+                                  <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
                                     <div className='min-w-0'>
                                       <p className='text-[15px] font-bold leading-7 text-slate-800 whitespace-pre-wrap transition-colors group-hover:text-slate-900'>
                                         {record.prompt || '未填写提示词'}
@@ -7793,7 +7793,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                         ) : null}
                                       </div>
                                     </div>
-                                    <div className='flex shrink-0 items-center gap-3 pl-3 text-xs text-slate-500'>
+                                    <div className='flex shrink-0 items-center gap-3 text-xs text-slate-500 sm:pl-3'>
                                       {recordTime ? <span>{recordTime}</span> : null}
                                       <ChevronDown
                                         size={16}
@@ -8083,18 +8083,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         className='space-y-4'
                         style={{ contentVisibility: 'auto', containIntrinsicSize: '960px' }}
                       >
-                        <div className='flex items-start gap-4'>
-                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-blue-50 border border-blue-200 text-blue-600 shadow-sm backdrop-blur-sm'>
+                        <div className='flex items-start gap-3 sm:gap-4'>
+                          <div className='hidden h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border border-blue-200 bg-blue-50 text-blue-600 shadow-sm backdrop-blur-sm sm:flex'>
                             {recordModel?.icon || <Video size={22} />}
                           </div>
                           <div className='min-w-0 flex-1 group'>
-                            <div className='rounded-[1.75rem] border border-slate-200/50 bg-white/60 px-5 py-4 shadow-sm backdrop-blur-xl transition-all duration-300 group-hover:bg-white/90 group-hover:border-slate-200 group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]'>
+                            <div className='rounded-[1.35rem] border border-slate-200/50 bg-white/60 px-4 py-3.5 shadow-sm backdrop-blur-xl transition-all duration-300 group-hover:border-slate-200 group-hover:bg-white/90 group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] sm:rounded-[1.75rem] sm:px-5 sm:py-4'>
                               <div className='flex items-start justify-between gap-4'>
                                 <button
                                   onClick={() => toggleVideoRecordCollapsed(record.id)}
                                   className='min-w-0 flex-1 text-left'
                                 >
-                                  <div className='flex items-start justify-between gap-4'>
+                                  <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
                                     <div className='min-w-0'>
                                       <p className='text-[15px] font-bold leading-7 text-slate-800 whitespace-pre-wrap transition-colors group-hover:text-slate-900'>
                                         {record.prompt || '未填写提示词'}
@@ -8109,7 +8109,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                         ) : null}
                                       </div>
                                     </div>
-                                    <div className='flex shrink-0 items-center gap-3 pl-3 text-xs text-slate-500'>
+                                    <div className='flex shrink-0 items-center gap-3 text-xs text-slate-500 sm:pl-3'>
                                       {recordTime ? <span>{recordTime}</span> : null}
                                       <ChevronDown
                                         size={16}
@@ -8435,9 +8435,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 </div>
               </div>
             ) : (
-              <div className='flex min-h-full items-center justify-center'>
-                <div className='max-w-xl rounded-[2.5rem] border border-blue-100/50 bg-white/70 px-10 py-12 text-center shadow-[0_20px_80px_rgba(59,130,246,0.08)] backdrop-blur-2xl transition-all hover:bg-white/90 hover:shadow-[0_20px_80px_rgba(59,130,246,0.12)]'>
-                  <div className='mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-blue-100 bg-gradient-to-br from-white to-blue-50 text-blue-600 shadow-xl shadow-blue-500/10'>
+              <div className='flex min-h-full items-center justify-center py-5'>
+                <div className='w-full max-w-xl rounded-[2rem] border border-blue-100/50 bg-white/70 px-6 py-9 text-center shadow-[0_20px_80px_rgba(59,130,246,0.08)] backdrop-blur-2xl transition-all hover:bg-white/90 hover:shadow-[0_20px_80px_rgba(59,130,246,0.12)] sm:rounded-[2.5rem] sm:px-10 sm:py-12'>
+                  <div className='mx-auto mb-5 flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-[1.5rem] border border-blue-100 bg-gradient-to-br from-white to-blue-50 text-blue-600 shadow-xl shadow-blue-500/10 sm:mb-6 sm:h-24 sm:w-24 sm:rounded-[1.75rem]'>
                     {selectedModel?.icon || (activeTab === 'image' ? <ImageIcon size={40} /> : <Video size={40} />)}
                   </div>
                   <div className='flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-[0.25em] text-blue-500'>
@@ -8445,7 +8445,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     当前模型
                     <div className="h-[2px] w-6 rounded-full bg-blue-500/30"></div>
                   </div>
-                  <h3 className='mt-5 text-3xl font-black tracking-tight text-slate-900'>
+                  <h3 className='mt-5 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl'>
                     {selectedModel?.name || (activeTab === 'image' ? '图片模型' : '视频模型')}
                   </h3>
                   <p className='mt-4 text-[15px] font-medium leading-relaxed text-slate-500'>
@@ -8457,10 +8457,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           </div>
         )}
 
-        <div className='px-4 pb-8 pt-6 md:px-8 bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent backdrop-blur-md'>
+        <div className='bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent px-3 pb-3 pt-3 backdrop-blur-md sm:px-4 md:px-8 lg:pb-8 lg:pt-6'>
           <div className={`mx-auto relative ${activeTab === 'chat' ? 'max-w-[1180px]' : 'max-w-4xl'}`}>
-            <div className='absolute -inset-1 rounded-[3rem] bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 opacity-[0.15] blur-xl transition-all duration-500 group-focus-within:opacity-[0.25] animate-pulse pb-4'></div>
-            <div className='relative flex flex-col rounded-[2.5rem] bg-white/60 backdrop-blur-2xl p-5 shadow-[0_20px_40px_-5px_rgba(0,0,0,0.05)] border border-white/60 focus-within:border-white focus-within:bg-white/80 transition-all duration-500 group'>
+            <div className='absolute -inset-1 rounded-[2rem] bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 pb-4 opacity-[0.15] blur-xl transition-all duration-500 animate-pulse group-focus-within:opacity-[0.25] sm:rounded-[3rem]'></div>
+            <div className='relative flex flex-col rounded-[1.75rem] border border-white/60 bg-white/70 p-3 shadow-[0_20px_40px_-5px_rgba(0,0,0,0.05)] backdrop-blur-2xl transition-all duration-500 focus-within:border-white focus-within:bg-white/85 sm:rounded-[2.5rem] sm:p-5 group'>
               <input
                 ref={fileInputRef}
                 type='file'
@@ -8469,7 +8469,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 className='hidden'
                 onChange={handleImageFileChange}
               />
-              <div className='flex items-end gap-5 px-3'>
+              <div className='flex flex-col gap-3 px-0 sm:flex-row sm:items-end sm:gap-5 sm:px-3'>
                 {isCurrentModelImageUploadEnabled ? (
                   <div className='shrink-0'>
                     <div
@@ -8484,7 +8484,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     <button
                       type='button'
                       onClick={handleUploadButtonClick}
-                      className={`flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed bg-white/50 text-slate-500 transition-all duration-300 hover:shadow-sm ${
+                      className={`flex h-16 w-full items-center justify-center rounded-[1.25rem] border border-dashed bg-white/50 text-slate-500 transition-all duration-300 hover:shadow-sm sm:h-24 sm:w-24 sm:rounded-[1.75rem] ${
                         isUploadDragActive
                           ? 'border-blue-500 bg-blue-50 text-blue-600 shadow-[0_12px_35px_-12px_rgba(58,117,246,0.45)]'
                           : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600'
@@ -8496,7 +8496,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         ) : (
                           <ImagePlus size={24} />
                         )}
-                        <span className='text-[11px] font-bold tracking-wide'>
+                        <span className='text-[11px] font-bold tracking-wide sm:whitespace-nowrap'>
                           {uploadedImages.length > 0 ? '继续上传' : '上传图片'}
                         </span>
                       </div>
@@ -8510,22 +8510,22 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   onChange={e => setPrompt(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSubmit())}
                   placeholder={!isLoggedIn ? "登录后即可开始对话、图片或视频创作..." : activeTab === 'chat' ? "发送消息..." : "描述你想要的画面，越详细越好..."}
-                  className='max-h-60 min-h-[70px] flex-1 resize-none bg-transparent py-3 text-[16px] font-medium leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 custom-scrollbar'
+                  className='max-h-48 min-h-[86px] w-full flex-1 resize-none bg-transparent px-1 py-2 text-[16px] font-medium leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 sm:max-h-60 sm:min-h-[70px] sm:px-0 sm:py-3 custom-scrollbar'
                 />
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitPending || (!prompt.trim() && uploadedImages.every((item) => !(item?.status === 'uploaded' && item?.url)))}
-                  className='group/btn flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-[#3A75F6] text-white shadow-[0_6px_20px_-6px_rgba(58,117,246,0.5)] transition-all duration-300 hover:bg-[#346AE0] hover:shadow-[0_8px_25px_-6px_rgba(58,117,246,0.6)] hover:scale-[1.05] active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:transform-none disabled:border-transparent'
+                  className='group/btn flex h-12 w-12 shrink-0 items-center justify-center self-end rounded-[1rem] bg-[#3A75F6] text-white shadow-[0_6px_20px_-6px_rgba(58,117,246,0.5)] transition-all duration-300 hover:scale-[1.05] hover:bg-[#346AE0] hover:shadow-[0_8px_25px_-6px_rgba(58,117,246,0.6)] active:scale-95 disabled:border-transparent disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:transform-none sm:h-14 sm:w-14 sm:rounded-[1.25rem]'
                 >
                   {isSubmitPending ? <Loader2 size={26} className='animate-spin' /> : <ArrowUp size={26} strokeWidth={2.5} className='transition-transform group-hover/btn:-translate-y-0.5' />}
                 </button>
               </div>
 
               {uploadedImages.length > 0 ? (
-                <div className='mt-5 flex flex-wrap gap-4 rounded-2xl border border-slate-200/50 bg-slate-50/50 px-5 py-4'>
+                <div className='mt-4 flex gap-3 overflow-x-auto rounded-2xl border border-slate-200/50 bg-slate-50/50 px-3 py-3 sm:mt-5 sm:flex-wrap sm:gap-4 sm:px-5 sm:py-4 custom-scrollbar'>
                   {uploadedImages.map((imageItem) => (
-                    <div key={imageItem.id} className='w-24 group/img'>
-                      <div className='relative h-24 w-24 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-sm transition-transform duration-300 group-hover/img:scale-105 group-hover/img:border-blue-300'>
+                    <div key={imageItem.id} className='w-20 shrink-0 sm:w-24 group/img'>
+                      <div className='relative h-20 w-20 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-100 shadow-sm transition-transform duration-300 group-hover/img:scale-105 group-hover/img:border-blue-300 sm:h-24 sm:w-24 sm:rounded-[1.5rem]'>
                         <img
                           src={imageItem.previewUrl || buildCreativeCenterImageDisplayUrl(imageItem.url)}
                           alt={imageItem.name}
@@ -8565,8 +8565,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               ) : null}
 
               {!isLoggedIn && (
-                <div className='mt-5 flex items-center justify-between gap-4 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-indigo-800 shadow-sm'>
-                  <div className='font-bold flex items-center gap-2'>
+                <div className='mt-5 flex flex-col gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-indigo-800 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5'>
+                  <div className='flex items-center gap-2 font-bold'>
                     <Sparkles size={16} className="text-blue-500" />
                     {'\u5f53\u524d\u4ec5\u5f00\u653e\u6d4f\u89c8\uff0c\u53d1\u9001\u5185\u5bb9\u524d\u9700\u8981\u5148\u767b\u5f55\u8d26\u53f7\u3002'}
                   </div>
@@ -8581,7 +8581,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 </div>
               )}
               {activeTab !== 'chat' && (
-                <div className='mt-6 flex flex-wrap items-center gap-3 border-t border-slate-200/50 pt-5 px-3'>
+                <div className='mt-5 flex flex-wrap items-center gap-2 border-t border-slate-200/50 px-0 pt-4 sm:mt-6 sm:gap-3 sm:px-3 sm:pt-5'>
                   <DropSelectButton
                     menuKey='generationCount'
                     icon={<Layers size={14} />}
@@ -8799,13 +8799,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     </>
                   )}
 
-                  <div className='ml-auto text-[10px] text-slate-500 font-black tracking-[0.2em] uppercase'>Enter 发送</div>
+                  <div className='ml-auto hidden text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 sm:block'>Enter 发送</div>
                 </div>
               )}
             </div>
           </div>
         </div>
-        <div className='pointer-events-none absolute bottom-8 right-8 z-20 group flex flex-col items-end'>
+        <div className='pointer-events-none absolute bottom-8 right-8 z-20 hidden flex-col items-end sm:flex group'>
           <div className='pointer-events-none mb-3 hidden w-max rounded-xl border border-white/50 bg-white/95 px-4 py-2 text-[12px] font-bold text-slate-700 shadow-[0_10px_30px_rgba(0,0,0,0.1)] backdrop-blur-3xl transition-all duration-300 group-hover:block animate-in fade-in slide-in-from-bottom-1'>
             只删除会话，图片视频资源仍保留
             <div className="absolute -bottom-1.5 right-6 h-3 w-3 rotate-45 border-b border-r border-white/50 bg-white/95"></div>
