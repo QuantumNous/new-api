@@ -2,6 +2,7 @@ package doubao
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -141,5 +142,62 @@ func TestConvertToRequestPayloadPreservesMetadataDurationWhenMarshaled(t *testin
 
 	if string(raw) == "" {
 		t.Fatal("expected marshaled request payload to be non-empty")
+	}
+}
+
+func TestConvertToRequestPayloadPreservesExistingContentAndUnknownFields(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+
+	body, err := adaptor.convertToRequestPayload(&relaycommon.TaskSubmitReq{
+		Model:  "doubao-seedance-2-0-260128",
+		Prompt: "primary prompt",
+		Metadata: map[string]any{
+			"camera_movement": "pan_left",
+			"tools": []any{
+				map[string]any{"type": "character_reference", "strength": "high"},
+			},
+			"content": []any{
+				map[string]any{
+					"type":  "text",
+					"text":  "primary prompt",
+					"role":  "system",
+					"style": "cinematic",
+				},
+				map[string]any{
+					"type": "text",
+					"text": "add heavy rain",
+					"role": "user",
+				},
+				map[string]any{
+					"type":      "video_url",
+					"video_url": map[string]any{"url": "https://example.com/input.mp4", "fps": 24},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("convertToRequestPayload returned error: %v", err)
+	}
+
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal request payload failed: %v", err)
+	}
+	rawText := string(raw)
+
+	if !strings.Contains(rawText, `"camera_movement":"pan_left"`) {
+		t.Fatalf("expected unknown top-level field to be preserved: %s", rawText)
+	}
+	if !strings.Contains(rawText, `"style":"cinematic"`) {
+		t.Fatalf("expected unknown content field to be preserved: %s", rawText)
+	}
+	if !strings.Contains(rawText, `"strength":"high"`) {
+		t.Fatalf("expected tool field to be preserved: %s", rawText)
+	}
+	if strings.Count(rawText, `"type":"text"`) != 2 {
+		t.Fatalf("expected both text content items to be preserved: %s", rawText)
+	}
+	if !strings.Contains(rawText, `"fps":24`) {
+		t.Fatalf("expected nested media extras to be preserved: %s", rawText)
 	}
 }

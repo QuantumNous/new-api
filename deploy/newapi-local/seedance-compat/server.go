@@ -114,8 +114,16 @@ func handleGetTask(w http.ResponseWriter, r *http.Request, client *http.Client, 
 		writeError(w, http.StatusBadGateway, "upstream_error", "failed to read NewAPI response")
 		return
 	}
-
-	forwardRawJSON(w, resp.StatusCode, respBody)
+	if resp.StatusCode >= 400 {
+		forwardRawJSON(w, resp.StatusCode, respBody)
+		return
+	}
+	translated, err := BuildSeedanceTaskResponseFromNewAPI(respBody)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "upstream_error", "failed to translate NewAPI response")
+		return
+	}
+	forwardRawJSON(w, http.StatusOK, translated)
 }
 
 func copyHeaders(src, dst http.Header) {
