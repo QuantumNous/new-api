@@ -55,10 +55,12 @@ func extractTaskPromptFromContext(c *gin.Context) string {
 
 func extractTaskClientRequestIDFromContext(c *gin.Context) string {
 	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
-		return ""
+	if err == nil {
+		if requestID := strings.TrimSpace(req.RequestId); requestID != "" {
+			return requestID
+		}
 	}
-	return strings.TrimSpace(req.RequestId)
+	return strings.TrimSpace(c.GetHeader("X-Request-Id"))
 }
 
 func upsertPendingRelayTaskRecord(c *gin.Context, info *relaycommon.RelayInfo, platform constant.TaskPlatform) {

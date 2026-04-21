@@ -7234,6 +7234,15 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   model: currentModelName,
                   prompt: currentPrompt,
                   async: true,
+                  request_id: requestId,
+                  seed: requestSeed,
+                  seeds: [requestSeed],
+                  user: requestUser,
+                  metadata: {
+                    creative_request_id: requestUser,
+                    creative_seed: requestSeed,
+                    creative_index: index + 1,
+                  },
                 }
               : {
                   model: currentModelName,
