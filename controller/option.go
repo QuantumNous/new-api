@@ -306,6 +306,22 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "ModelDisplayName":
+		if err = ratio_setting.UpdateModelDisplayNameByJSONString(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型显示名称设置失败: " + err.Error(),
+			})
+			return
+		}
+	case "ModelModalities":
+		if err = ratio_setting.UpdateModelModalitiesByJSONString(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型输出类型设置失败: " + err.Error(),
+			})
+			return
+		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {
