@@ -42,6 +42,67 @@ mermaid.initialize({
   securityLevel: 'loose',
 });
 
+function AudioPlayer({ src, title }) {
+  const { t } = useTranslation();
+  const [loadError, setLoadError] = useState(false);
+
+  if (loadError) {
+    return (
+      <div
+        style={{
+          padding: '12px 16px',
+          margin: '8px 0',
+          border: '1px solid var(--semi-color-danger-light-default)',
+          borderRadius: '8px',
+          color: 'var(--semi-color-danger)',
+          fontSize: '13px',
+        }}
+      >
+        {t('音频加载失败')}
+      </div>
+    );
+  }
+
+  return (
+    <figure
+      style={{
+        margin: '12px 0',
+        padding: '16px 20px',
+        border: '1px solid var(--semi-color-border)',
+        borderRadius: '10px',
+        backgroundColor: 'var(--semi-color-bg-1)',
+        minWidth: '320px',
+        width: '100%',
+        boxSizing: 'border-box',
+      }}
+    >
+      {title && (
+        <div
+          style={{
+            fontSize: '13px',
+            color: 'var(--semi-color-text-2)',
+            marginBottom: '10px',
+          }}
+        >
+          {title}
+        </div>
+      )}
+      <audio
+        controls
+        preload='auto'
+        src={src}
+        style={{
+          width: '100%',
+          minWidth: '280px',
+          height: '40px',
+          display: 'block',
+        }}
+        onError={() => setLoadError(true)}
+      />
+    </figure>
+  );
+}
+
 export function Mermaid(props) {
   const ref = useRef(null);
   const [hasError, setHasError] = useState(false);
@@ -446,11 +507,12 @@ function _MarkdownContent(props) {
           const href = aProps.href || '';
           const hrefPath = href.split('?')[0].split('#')[0];
           if (/\.(aac|mp3|opus|wav)$/.test(hrefPath)) {
-            return (
-              <figure style={{ margin: '12px 0' }}>
-                <audio controls src={href} style={{ width: '100%' }}></audio>
-              </figure>
-            );
+            const title =
+              typeof aProps.children === 'string' &&
+              aProps.children !== href
+                ? aProps.children
+                : null;
+            return <AudioPlayer src={href} title={title} />;
           }
           const isVideoUrl =
             /\.(3gp|3g2|webm|ogv|mpeg|mp4|avi)$/.test(hrefPath) ||

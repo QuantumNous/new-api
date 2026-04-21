@@ -55,6 +55,17 @@ func isVideoGenerationModel(model string) bool {
 		isChatOnlyImageModel(model)
 }
 
+// isTTSModel returns true for text-to-speech models submitted via the chat
+// completions endpoint from the playground.
+func isTTSModel(model string) bool {
+	lower := strings.ToLower(model)
+	return strings.HasPrefix(lower, "tts") ||
+		strings.Contains(lower, "speech") ||
+		strings.Contains(lower, "text-to-speech") ||
+		strings.Contains(lower, "cosyvoice") ||
+		strings.Contains(lower, "sambert")
+}
+
 func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	// Detect image-generation models submitted to chat-completions endpoint and
 	// redirect to ImageHelper so the correct upstream endpoint and response
@@ -71,6 +82,42 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		info.RelayFormat = types.RelayFormatOpenAIImage
 		info.RequestURLPath = "/v1/images/generations"
 		return ImageHelper(c, info)
+	}
+
+	// Detect TTS models from the playground and redirect to PlaygroundTTSHelper.
+	// Only applies to playground requests since the /v1/audio/speech endpoint handles
+	// direct API calls natively.
+	if info.IsPlayground {
+		if chatReq, ok := info.Request.(*dto.GeneralOpenAIRequest); ok && isTTSModel(chatReq.Model) {
+			// Re-read the body to pick up TTS-specific params (voice, speed, response_format)
+			// that don't exist on GeneralOpenAIRequest.
+			var ttsParams struct {
+				Voice          string   `json:"voice"`
+				Speed          *float64 `json:"speed"`
+				ResponseFormat string   `json:"response_format"`
+			}
+			_ = common.UnmarshalBodyReusable(c, &ttsParams)
+
+			voice := ttsParams.Voice
+			if voice == "" {
+				voice = "alloy"
+			}
+			responseFormat := ttsParams.ResponseFormat
+			if responseFormat == "" {
+				responseFormat = "mp3"
+			}
+
+			input := extractImagePromptFromMessages(chatReq.Messages)
+			audioReq := &dto.AudioRequest{
+				Model:          chatReq.Model,
+				Input:          input,
+				Voice:          voice,
+				ResponseFormat: responseFormat,
+				Speed:          ttsParams.Speed,
+			}
+			info.Request = audioReq
+			return PlaygroundTTSHelper(c, info)
+		}
 	}
 
 	info.InitChannelMeta(c)

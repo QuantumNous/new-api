@@ -68,10 +68,11 @@ func SetRelayRouter(router *gin.Engine) {
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 	}
 
-	// Video proxy route — no auth required (video IDs are unguessable)
+	// Video and audio proxy routes — no auth required (IDs are unguessable)
 	pgVideoRouter := router.Group("/pg")
 	{
 		pgVideoRouter.GET("/video/:channelId/:videoId/content", controller.PlaygroundVideoProxy)
+		pgVideoRouter.GET("/audio/:audioId", controller.PlaygroundAudioProxy)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))

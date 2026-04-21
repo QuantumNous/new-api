@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
@@ -134,5 +135,25 @@ func PlaygroundVideoProxy(c *gin.Context) {
 
 	c.Status(http.StatusOK)
 	io.Copy(c.Writer, resp.Body) //nolint:errcheck
+}
+
+// PlaygroundAudioProxy serves a cached TTS audio file by its UUID.
+// Route: GET /pg/audio/:audioId
+func PlaygroundAudioProxy(c *gin.Context) {
+	audioId := c.Param("audioId")
+
+	// Strip any file extension from the ID (e.g. "uuid.mp3" → "uuid")
+	if idx := strings.LastIndex(audioId, "."); idx != -1 {
+		audioId = audioId[:idx]
+	}
+
+	data, contentType, ok := relay.GetCachedAudio(audioId)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "audio not found or expired"})
+		return
+	}
+
+	c.Header("Cache-Control", "no-store")
+	c.Data(http.StatusOK, contentType, data)
 }
 
