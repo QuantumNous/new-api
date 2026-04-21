@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -20,47 +21,72 @@ import (
 	"github.com/google/uuid"
 )
 
-type audioCacheEntry struct {
-	Data        []byte
-	ContentType string
-	CreatedAt   time.Time
+func audioDir() string {
+	dir := filepath.Join(os.TempDir(), "new-api-audio")
+	_ = os.MkdirAll(dir, 0755)
+	return dir
 }
-
-var audioCache sync.Map // key: string (uuid), value: audioCacheEntry
 
 func init() {
 	go func() {
 		ticker := time.NewTicker(30 * time.Minute)
 		for range ticker.C {
-			now := time.Now()
-			audioCache.Range(func(k, v any) bool {
-				if entry, ok := v.(audioCacheEntry); ok {
-					if now.Sub(entry.CreatedAt) > time.Hour {
-						audioCache.Delete(k)
-					}
+			dir := audioDir()
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				continue
+			}
+			cutoff := time.Now().Add(-time.Hour)
+			for _, e := range entries {
+				if e.IsDir() {
+					continue
 				}
-				return true
-			})
+				info, err := e.Info()
+				if err != nil {
+					continue
+				}
+				if info.ModTime().Before(cutoff) {
+					_ = os.Remove(filepath.Join(dir, e.Name()))
+				}
+			}
 		}
 	}()
 }
 
-// GetCachedAudio retrieves a cached audio entry by ID.
+// GetCachedAudio retrieves a cached audio file by ID and extension.
+// If ext is empty, it searches for any file matching the ID prefix.
 func GetCachedAudio(id string) ([]byte, string, bool) {
-	v, ok := audioCache.Load(id)
-	if !ok {
+	dir := audioDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
 		return nil, "", false
 	}
-	entry, ok := v.(audioCacheEntry)
-	if !ok {
-		return nil, "", false
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		// match "uuid.ext" pattern
+		dotIdx := strings.LastIndex(name, ".")
+		if dotIdx == -1 {
+			continue
+		}
+		if name[:dotIdx] != id {
+			continue
+		}
+		ext := name[dotIdx:]
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, "", false
+		}
+		return data, inferAudioContentType(ext[1:]), true // ext[1:] strips the leading "."
 	}
-	return entry.Data, entry.ContentType, true
+	return nil, "", false
 }
 
 // PlaygroundTTSHelper handles TTS model requests from the playground.
 // It converts the chat-completion request into an audio/speech upstream call,
-// caches the returned audio bytes, and emits an SSE chunk with a local proxy URL.
+// persists the returned audio to disk, and emits an SSE chunk with a local proxy URL.
 func PlaygroundTTSHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	info.InitChannelMeta(c)
 	info.RelayMode = relayconstant.RelayModeAudioSpeech
@@ -120,14 +146,15 @@ func PlaygroundTTSHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.New
 		contentType = inferAudioContentType(request.ResponseFormat)
 	}
 
-	// Cache the audio and build a proxy URL.
 	audioID := uuid.New().String()
 	ext := audioExtFromContentType(contentType, request.ResponseFormat)
-	audioCache.Store(audioID, audioCacheEntry{
-		Data:        audioBytes,
-		ContentType: contentType,
-		CreatedAt:   time.Now(),
-	})
+
+	// Persist to disk so the file survives server restarts.
+	filePath := filepath.Join(audioDir(), audioID+ext)
+	if err := os.WriteFile(filePath, audioBytes, 0644); err != nil {
+		logger.LogError(c, "failed to write TTS audio to disk: "+err.Error())
+		return types.NewError(err, types.ErrorCodeReadResponseBodyFailed, types.ErrOptionWithSkipRetry())
+	}
 
 	// Consume quota (prompt tokens = input text length estimate).
 	usage := &dto.Usage{}
@@ -136,7 +163,6 @@ func PlaygroundTTSHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.New
 	service.PostTextConsumeQuota(c, info, usage, nil)
 
 	// Emit SSE chat-completion chunk with a markdown audio link.
-	// The .mp3/.wav/etc extension triggers audio player rendering in MarkdownRenderer.
 	audioURL := fmt.Sprintf("/pg/audio/%s%s", audioID, ext)
 	audioMarkdown := fmt.Sprintf("[Generated Audio](%s)", audioURL)
 
