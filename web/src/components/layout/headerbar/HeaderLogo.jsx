@@ -24,6 +24,7 @@ import {
   getHeaderLogoFrameClassName,
   getHeaderLogoImageClassName,
 } from './headerLogoStyles';
+import { shouldShowHeaderLogoFallback } from './headerLogoState';
 
 const headerText = {
   selfUse: '\u81ea\u7528\u6a21\u5f0f',
@@ -49,6 +50,10 @@ const HeaderLogo = ({
   const fallbackLabel = systemName?.trim()?.[0]?.toUpperCase() || 'N';
   const hasLogoImage = Boolean(logo && logoLoaded && !isLoading);
   const isDefaultLogo = logo === '/logo.png';
+  const showFallbackLabel = shouldShowHeaderLogoFallback({
+    hasLogoImage,
+    isLoading,
+  });
 
   return (
     <Link
@@ -58,7 +63,7 @@ const HeaderLogo = ({
     >
       <div className={getHeaderLogoFrameClassName({ hasLogoImage })}>
         <SkeletonWrapper loading={isLoading || !logoLoaded} type='image'>
-          <span>{fallbackLabel}</span>
+          {showFallbackLabel ? <span>{fallbackLabel}</span> : null}
         </SkeletonWrapper>
         {hasLogoImage ? (
           <img
