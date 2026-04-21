@@ -2781,10 +2781,10 @@ const GrokIcon = ({ size = 24, className = '' }) => (
 );
 
 const DropButton = ({ icon, label, open, onClick, children }) => (
-  <div className='relative'>
+  <div className='relative shrink-0'>
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] font-bold transition-all duration-300 backdrop-blur-md shadow-sm ${
+      className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 py-2 text-[12px] font-bold shadow-sm backdrop-blur-md transition-all duration-300 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-[13px] ${
         open 
           ? 'border-blue-200 bg-blue-50 text-blue-700' 
           : 'border-slate-200/50 bg-white/60 text-slate-600 hover:bg-white hover:border-blue-200 hover:text-blue-600'
@@ -7476,7 +7476,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           </h1>
         </div>
 
-        <nav className='flex shrink-0 justify-around border-b border-slate-200/50 px-3 py-3 lg:px-5 lg:pb-5 lg:pt-0'>
+        <nav className='flex shrink-0 gap-1 border-b border-slate-200/50 px-2 py-2 lg:justify-around lg:gap-0 lg:px-5 lg:pb-5 lg:pt-0'>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -7487,27 +7487,27 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   setActiveTab(tab.id);
                   setOpenMenu(null);
                 }}
-                className={`group relative flex min-w-0 flex-1 flex-col items-center gap-1.5 transition-all duration-500 lg:gap-2.5 ${active ? 'text-slate-900 scale-105' : 'text-slate-500 hover:text-slate-700 hover:-translate-y-0.5'}`}
+                className={`group relative flex min-w-0 flex-1 flex-row items-center justify-center gap-1.5 rounded-full px-2 py-1.5 transition-all duration-500 lg:flex-col lg:gap-2.5 lg:rounded-none lg:px-0 lg:py-0 ${active ? 'scale-[1.02] bg-white/85 text-slate-900 shadow-sm lg:scale-105 lg:bg-transparent lg:shadow-none' : 'text-slate-500 hover:bg-white/55 hover:text-slate-700 lg:hover:-translate-y-0.5 lg:hover:bg-transparent'}`}
               >
-                <div className={`rounded-[1rem] p-2.5 transition-all duration-500 lg:p-3 ${active ? 'bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.4)] ring-1 ring-black/5' : 'bg-white/40 text-slate-500 group-hover:bg-white/80 group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]'}`}>
-                  <Icon size={22} strokeWidth={active ? 2.5 : 2} />
+                <div className={`rounded-[0.8rem] p-1.5 transition-all duration-500 lg:rounded-[1rem] lg:p-3 ${active ? 'bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.4)] ring-1 ring-black/5' : 'bg-white/40 text-slate-500 group-hover:bg-white/80 group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]'}`}>
+                  <Icon size={22} className='h-[18px] w-[18px] lg:h-[22px] lg:w-[22px]' strokeWidth={active ? 2.5 : 2} />
                 </div>
                 <span className={`text-[12px] font-bold transition-all ${active ? 'text-indigo-700' : 'text-slate-500'}`}>{tab.label}</span>
-                {tab.badge && <span className='absolute -right-2 -top-1.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-2 py-0.5 text-[9px] font-black text-white shadow-lg shadow-orange-500/30 border border-white/20'>{tab.badge}</span>}
-                {active && <div className="absolute -bottom-3 h-[3px] w-1/2 rounded-t-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] lg:-bottom-5" />}
+                {tab.badge && <span className='absolute -right-1 -top-1 rounded-full border border-white/20 bg-gradient-to-r from-orange-500 to-pink-500 px-1.5 py-0.5 text-[8px] font-black text-white shadow-lg shadow-orange-500/30 lg:-right-2 lg:-top-1.5 lg:px-2 lg:text-[9px]'>{tab.badge}</span>}
+                {active && <div className="absolute -bottom-5 hidden h-[3px] w-1/2 rounded-t-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] lg:block" />}
               </button>
             );
           })}
         </nav>
 
-        <div className='shrink-0 border-b border-slate-200/50 px-3 py-3 lg:px-6 lg:py-5'>
-          <div className='relative flex flex-wrap items-center gap-3'>
+        <div className='shrink-0 border-b border-slate-200/50 px-2 py-2 lg:px-6 lg:py-5'>
+          <div className='relative flex flex-nowrap items-center gap-2 lg:flex-wrap lg:gap-3'>
             <button
               type='button'
               onClick={() => setIsSessionPanelOpen((prev) => !prev)}
               disabled={isSubmitPending}
               className={
-                'inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md px-3 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:border-blue-400/50 hover:bg-blue-50 hover:text-blue-600 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm lg:px-4 ' +
+                'inline-flex min-w-0 flex-1 justify-center items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white/60 backdrop-blur-md px-2.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:border-blue-400/50 hover:bg-blue-50 hover:text-blue-600 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm lg:gap-2 lg:rounded-2xl lg:px-4 lg:py-2.5 ' +
                 (isSessionPanelOpen ? 'bg-blue-50 border-blue-300 text-indigo-700' : '')
               }
             >
@@ -7518,20 +7518,20 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               type='button'
               onClick={() => createCreativeSession(activeTab)}
               disabled={isSubmitPending}
-              className='inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white/90 to-white/60 px-3 py-2.5 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md transition-all duration-300 hover:border-purple-300 hover:from-purple-50 hover:to-white/80 hover:text-purple-700 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm lg:px-4 group'
+              className='inline-flex min-w-0 flex-1 justify-center items-center gap-1.5 rounded-xl border border-slate-200/80 bg-gradient-to-b from-white/90 to-white/60 px-2.5 py-2 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md transition-all duration-300 hover:border-purple-300 hover:from-purple-50 hover:to-white/80 hover:text-purple-700 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm lg:gap-2 lg:rounded-2xl lg:px-4 lg:py-2.5 group'
             >
               <Plus size={16} className="transition-transform duration-300 group-hover:rotate-90" />
               新建会话
             </button>
 
             {isSessionPanelOpen && (
-              <div className='absolute left-0 right-0 top-[3.25rem] z-30 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 p-3 shadow-xl backdrop-blur-3xl lg:top-[3.5rem] lg:rounded-[1.75rem] lg:p-4'>
+              <div className='absolute left-0 right-0 top-[2.75rem] z-30 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 p-3 shadow-xl backdrop-blur-3xl lg:top-[3.5rem] lg:rounded-[1.75rem] lg:p-4'>
                 <div className='absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none' />
                 <div className='relative mb-4 px-2'>
                   <div className='text-sm font-black text-slate-900'>历史会话</div>
                   <div className='text-[11px] text-slate-500 mt-0.5'>仅删除会话，图片视频资源仍保留</div>
                 </div>
-                <div className='relative max-h-[min(420px,52vh)] space-y-2 overflow-y-auto pr-1 custom-scrollbar'>
+                <div className='relative max-h-[min(420px,48svh)] space-y-2 overflow-y-auto pr-1 custom-scrollbar'>
                   {currentTabSessions
                     .slice()
                     .sort(
@@ -7598,7 +7598,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
         </div>
 
-        <div className='relative flex shrink-0 gap-3 overflow-x-auto px-3 py-3 custom-scrollbar custom-dark-scrollbar lg:block lg:min-h-0 lg:flex-1 lg:space-y-3 lg:overflow-y-auto lg:px-5 lg:py-6'>
+        <div className='relative flex shrink-0 gap-2 overflow-x-auto px-2 py-2 custom-scrollbar custom-dark-scrollbar lg:block lg:min-h-0 lg:flex-1 lg:space-y-3 lg:overflow-y-auto lg:px-5 lg:py-6'>
           <div className='hidden px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600/80 lg:mb-4 lg:flex lg:items-center lg:gap-2'>
             <div className="h-[1px] w-4 bg-blue-500/30"></div>
             核心创作模型
@@ -7609,19 +7609,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               onClick={() => setActiveModel(model.id)}
               onMouseEnter={() => setHoveredSidebarModelId(model.id)}
               onMouseLeave={() => setHoveredSidebarModelId((currentId) => (currentId === model.id ? '' : currentId))}
-              className={`relative flex w-[220px] shrink-0 items-start gap-3 rounded-[1.25rem] border p-3 text-left transition-all duration-500 backdrop-blur-sm lg:w-full lg:gap-4 lg:p-4 ${
+              className={`relative flex w-[176px] shrink-0 items-center gap-2 rounded-[1rem] border p-2 text-left transition-all duration-500 backdrop-blur-sm lg:w-full lg:items-start lg:gap-4 lg:rounded-[1.25rem] lg:p-4 ${
                 activeModel === model.id ? 'border-blue-400/50 bg-blue-50/60 shadow-[0_0_20px_rgba(59,130,246,0.1)] ring-1 ring-blue-300 lg:translate-x-1' : 'border-slate-200/50 bg-white/40 hover:bg-white/80 hover:border-slate-300 hover:shadow-sm'
               }`}
             >
-              <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] transition-all duration-500 ${activeModel === model.id ? 'bg-gradient-to-br from-blue-500 to-sky-500 shadow-sm text-white rotate-3 scale-110' : 'bg-slate-100 text-slate-500 border border-slate-200 group-hover:bg-white/80 group-hover:text-blue-600 group-hover:border-blue-300 group-hover:-rotate-3 group-hover:shadow-sm'}`}>
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] transition-all duration-500 lg:mt-0.5 lg:h-11 lg:w-11 lg:rounded-[14px] ${activeModel === model.id ? 'bg-gradient-to-br from-blue-500 to-sky-500 shadow-sm text-white lg:rotate-3 lg:scale-110' : 'bg-slate-100 text-slate-500 border border-slate-200 group-hover:bg-white/80 group-hover:text-blue-600 group-hover:border-blue-300 lg:group-hover:-rotate-3 group-hover:shadow-sm'}`}>
                 {model.icon}
               </div>
-              <div className='min-w-0 flex-1 pr-2 flex flex-col items-start'>
-                <div className={`text-[14px] font-black truncate w-full transition-colors ${activeModel === model.id ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'}`}>{model.name}</div>
-                <p className={`mt-0.5 text-[11px] leading-relaxed line-clamp-1 transition-colors ${activeModel === model.id ? 'text-indigo-700/80' : 'text-slate-500 group-hover:text-slate-600'}`}>{model.desc}</p>
+              <div className='flex min-w-0 flex-1 flex-col items-start pr-1 lg:pr-2'>
+                <div className={`w-full truncate text-[13px] font-black transition-colors lg:text-[14px] ${activeModel === model.id ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'}`}>{model.name}</div>
+                <p className={`hidden text-[11px] leading-relaxed transition-colors lg:mt-0.5 lg:line-clamp-1 lg:block ${activeModel === model.id ? 'text-indigo-700/80' : 'text-slate-500 group-hover:text-slate-600'}`}>{model.desc}</p>
                 {model.priceLabel ? (
                   <div
-                    className={`mt-1.5 shrink-0 rounded-[6px] px-2 py-0.5 text-[10px] font-black tracking-wide transition-all ${
+                    className={`mt-1 shrink-0 rounded-[6px] px-1.5 py-0.5 text-[9px] font-black tracking-wide transition-all lg:mt-1.5 lg:px-2 lg:text-[10px] ${
                       activeModel === model.id
                         ? 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-700 border border-blue-200/50 shadow-sm'
                         : 'bg-white/80 text-slate-500 border border-slate-200/80 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200'
@@ -8457,10 +8457,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           </div>
         )}
 
-        <div className='bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent px-3 pb-3 pt-3 backdrop-blur-md sm:px-4 md:px-8 lg:pb-8 lg:pt-6'>
+        <div className='bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent px-2 pb-2 pt-2 backdrop-blur-md sm:px-4 sm:pb-3 sm:pt-3 md:px-8 lg:pb-8 lg:pt-6'>
           <div className={`mx-auto relative ${activeTab === 'chat' ? 'max-w-[1180px]' : 'max-w-4xl'}`}>
-            <div className='absolute -inset-1 rounded-[2rem] bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 pb-4 opacity-[0.15] blur-xl transition-all duration-500 animate-pulse group-focus-within:opacity-[0.25] sm:rounded-[3rem]'></div>
-            <div className='relative flex flex-col rounded-[1.75rem] border border-white/60 bg-white/70 p-3 shadow-[0_20px_40px_-5px_rgba(0,0,0,0.05)] backdrop-blur-2xl transition-all duration-500 focus-within:border-white focus-within:bg-white/85 sm:rounded-[2.5rem] sm:p-5 group'>
+            <div className='absolute -inset-0.5 rounded-[1.5rem] bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 pb-4 opacity-[0.12] blur-lg transition-all duration-500 animate-pulse group-focus-within:opacity-[0.22] sm:-inset-1 sm:rounded-[3rem] sm:blur-xl'></div>
+            <div className='relative flex flex-col rounded-[1.35rem] border border-white/60 bg-white/75 p-2.5 shadow-[0_20px_40px_-5px_rgba(0,0,0,0.05)] backdrop-blur-2xl transition-all duration-500 focus-within:border-white focus-within:bg-white/90 sm:rounded-[2.5rem] sm:p-5 group'>
               <input
                 ref={fileInputRef}
                 type='file'
@@ -8469,7 +8469,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 className='hidden'
                 onChange={handleImageFileChange}
               />
-              <div className='flex flex-col gap-3 px-0 sm:flex-row sm:items-end sm:gap-5 sm:px-3'>
+              <div className='flex items-end gap-2 px-0 sm:gap-5 sm:px-3'>
                 {isCurrentModelImageUploadEnabled ? (
                   <div className='shrink-0'>
                     <div
@@ -8484,19 +8484,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     <button
                       type='button'
                       onClick={handleUploadButtonClick}
-                      className={`flex h-16 w-full items-center justify-center rounded-[1.25rem] border border-dashed bg-white/50 text-slate-500 transition-all duration-300 hover:shadow-sm sm:h-24 sm:w-24 sm:rounded-[1.75rem] ${
+                      className={`flex h-12 w-12 items-center justify-center rounded-[1rem] border border-dashed bg-white/50 text-slate-500 transition-all duration-300 hover:shadow-sm sm:h-24 sm:w-24 sm:rounded-[1.75rem] ${
                         isUploadDragActive
                           ? 'border-blue-500 bg-blue-50 text-blue-600 shadow-[0_12px_35px_-12px_rgba(58,117,246,0.45)]'
                           : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600'
                       }`}
                     >
-                      <div className='flex flex-col items-center gap-2'>
+                      <div className='flex flex-col items-center gap-1 sm:gap-2'>
                         {isUploadingImage ? (
-                          <Loader2 size={24} className='animate-spin text-blue-400' />
+                          <Loader2 size={20} className='animate-spin text-blue-400 sm:h-6 sm:w-6' />
                         ) : (
-                          <ImagePlus size={24} />
+                          <ImagePlus size={20} className='sm:h-6 sm:w-6' />
                         )}
-                        <span className='text-[11px] font-bold tracking-wide sm:whitespace-nowrap'>
+                        <span className='hidden text-[11px] font-bold tracking-wide sm:block sm:whitespace-nowrap'>
                           {uploadedImages.length > 0 ? '继续上传' : '上传图片'}
                         </span>
                       </div>
@@ -8510,7 +8510,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   onChange={e => setPrompt(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSubmit())}
                   placeholder={!isLoggedIn ? "登录后即可开始对话、图片或视频创作..." : activeTab === 'chat' ? "发送消息..." : "描述你想要的画面，越详细越好..."}
-                  className='max-h-48 min-h-[86px] w-full flex-1 resize-none bg-transparent px-1 py-2 text-[16px] font-medium leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 sm:max-h-60 sm:min-h-[70px] sm:px-0 sm:py-3 custom-scrollbar'
+                  className='max-h-32 min-h-[48px] min-w-0 flex-1 resize-none bg-transparent px-1 py-1.5 text-[16px] font-medium leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 sm:max-h-60 sm:min-h-[70px] sm:px-0 sm:py-3 custom-scrollbar'
                 />
                 <button
                   onClick={handleSubmit}
@@ -8522,10 +8522,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               </div>
 
               {uploadedImages.length > 0 ? (
-                <div className='mt-4 flex gap-3 overflow-x-auto rounded-2xl border border-slate-200/50 bg-slate-50/50 px-3 py-3 sm:mt-5 sm:flex-wrap sm:gap-4 sm:px-5 sm:py-4 custom-scrollbar'>
+                <div className='mt-3 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200/50 bg-slate-50/50 px-2.5 py-2.5 sm:mt-5 sm:flex-wrap sm:gap-4 sm:px-5 sm:py-4 custom-scrollbar'>
                   {uploadedImages.map((imageItem) => (
-                    <div key={imageItem.id} className='w-20 shrink-0 sm:w-24 group/img'>
-                      <div className='relative h-20 w-20 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-100 shadow-sm transition-transform duration-300 group-hover/img:scale-105 group-hover/img:border-blue-300 sm:h-24 sm:w-24 sm:rounded-[1.5rem]'>
+                    <div key={imageItem.id} className='w-16 shrink-0 sm:w-24 group/img'>
+                      <div className='relative h-16 w-16 overflow-hidden rounded-[1rem] border border-slate-200 bg-slate-100 shadow-sm transition-transform duration-300 group-hover/img:scale-105 group-hover/img:border-blue-300 sm:h-24 sm:w-24 sm:rounded-[1.5rem]'>
                         <img
                           src={imageItem.previewUrl || buildCreativeCenterImageDisplayUrl(imageItem.url)}
                           alt={imageItem.name}
@@ -8581,7 +8581,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 </div>
               )}
               {activeTab !== 'chat' && (
-                <div className='mt-5 flex flex-wrap items-center gap-2 border-t border-slate-200/50 px-0 pt-4 sm:mt-6 sm:gap-3 sm:px-3 sm:pt-5'>
+                <div className='mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200/50 px-0 pt-3 sm:mt-6 sm:gap-3 sm:px-3 sm:pt-5'>
                   <DropSelectButton
                     menuKey='generationCount'
                     icon={<Layers size={14} />}
