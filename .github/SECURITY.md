@@ -1,86 +1,47 @@
 # Security Policy
 
-## Supported Versions
+This repository is a customized fork of upstream `new-api`. Please report security issues against this repository and its deployed customizations, not the upstream project.
 
-We provide security updates for the following versions:
+## Supported Branch
 
-| Version | Supported          |
-| ------- | ------------------ |
-| Latest  | :white_check_mark: |
-| Older   | :x:                |
+Security fixes are primarily maintained on:
 
-We strongly recommend that users always use the latest version for the best security and features.
+- `develop`
+
+If needed, fixes may later be merged into other maintained branches.
 
 ## Reporting a Vulnerability
 
-We take security vulnerability reports very seriously. If you discover a security issue, please follow the steps below for responsible disclosure.
+Do not report security vulnerabilities in public issues or pull requests.
 
-### How to Report
+Preferred reporting methods:
 
-**Do NOT** report security vulnerabilities in public GitHub Issues.
+1. Open a private GitHub security advisory for this repository
+2. Or email `support@quantumnous.com`
 
-To report a security issue, please use the GitHub Security Advisories tab to "[Open a draft security advisory](https://github.com/QuantumNous/new-api/security/advisories/new)". This is the preferred method as it provides a built-in private communication channel.
+Suggested email subject:
 
-Alternatively, you can report via email:
+- `[SECURITY] new-api custom fork vulnerability report`
 
-- **Email:** support@quantumnous.com
-- **Subject:** `[SECURITY] Security Vulnerability Report`
+## What to Include
 
-### What to Include
+Please include as much of the following as possible:
 
-To help us understand and resolve the issue more quickly, please include the following information in your report:
+- Vulnerability type
+- Affected files, routes, or features
+- Reproduction steps
+- Impact assessment
+- Proof of concept or screenshots if safe to share
+- Suggested remediation if available
+- Contact information for follow-up
 
-1. **Vulnerability Type** - Brief description of the vulnerability (e.g., SQL injection, XSS, authentication bypass, etc.)
-2. **Affected Component** - Affected file paths, endpoints, or functional modules
-3. **Reproduction Steps** - Detailed steps to reproduce
-4. **Impact Assessment** - Potential security impact and severity assessment
-5. **Proof of Concept** - If possible, provide proof of concept code or screenshots (do not test in production environments)
-6. **Suggested Fix** - If you have a fix suggestion, please provide it
-7. **Your Contact Information** - So we can communicate with you
+## Response Expectations
 
-## Response Process
+- Initial acknowledgment target: within 48 hours
+- Follow-up after initial assessment: as soon as practical
+- Fix priority depends on severity, exploitability, and deployment impact
 
-1. **Acknowledgment:** We will acknowledge receipt of your report within **48 hours**.
-2. **Initial Assessment:** We will complete an initial assessment and communicate with you within **7 days**.
-3. **Fix Development:** Based on the severity of the vulnerability, we will prioritize developing a fix.
-4. **Security Advisory:** After the fix is released, we will publish a security advisory (if applicable).
-5. **Credit:** If you wish, we will credit your contribution in the security advisory.
+## Notes
 
-## Security Best Practices
-
-When deploying and using New API, we recommend following these security best practices:
-
-### Deployment Security
-
-- **Use HTTPS:** Always serve over HTTPS to ensure transport layer security
-- **Firewall Configuration:** Only open necessary ports and restrict access to management interfaces
-- **Regular Updates:** Update to the latest version promptly to receive security patches
-- **Environment Isolation:** Use separate database and Redis instances in production
-
-### API Key Security
-
-- **Key Protection:** Do not expose API keys in client-side code or public repositories
-- **Least Privilege:** Create different API keys for different purposes, following the principle of least privilege
-- **Regular Rotation:** Rotate API keys regularly
-- **Monitor Usage:** Monitor API key usage and detect anomalies promptly
-
-### Database Security
-
-- **Strong Passwords:** Use strong passwords to protect database access
-- **Network Isolation:** Database should not be directly exposed to the public internet
-- **Regular Backups:** Regularly backup the database and verify backup integrity
-- **Access Control:** Limit database user permissions, following the principle of least privilege
-
-## Security-Related Configuration
-
-Please ensure the following security-related environment variables and settings are properly configured:
-
-- `SESSION_SECRET` - Use a strong random string
-- `SQL_DSN` - Ensure database connection uses secure configuration
-- `REDIS_CONN_STRING` - If using Redis, ensure secure connection
-
-For detailed configuration instructions, please refer to the project documentation.
-
-## Disclaimer
-
-This project is provided "as is" without any express or implied warranty. Users should assess the security risks of using this software in their environment.
+- If a vulnerability belongs to upstream `new-api` itself, maintainers may choose to report or coordinate with upstream separately
+- If a vulnerability is specific to this customized fork, fixes will be handled in this repository's maintenance flow
