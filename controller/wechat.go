@@ -103,6 +103,17 @@ func WeChatAuth(c *gin.Context) {
 				})
 				return
 			}
+			if err := createDefaultTokenForUser(user.Id, user.Username); err != nil {
+				switch err {
+				case errGenerateDefaultTokenKey:
+					common.ApiErrorMsg(c, "默认令牌生成失败")
+				case errCreateDefaultToken:
+					common.ApiErrorMsg(c, "默认令牌创建失败")
+				default:
+					common.ApiError(c, err)
+				}
+				return
+			}
 		} else {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
