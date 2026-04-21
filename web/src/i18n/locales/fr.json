@@ -3308,6 +3308,9 @@
     "输入价格：{{symbol}}{{price}} / 1M tokens": "Prix d'entrée : {{symbol}}{{price}} / 1M tokens",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "Prix de sortie {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Prix de sortie : {{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "Prix de sortie : {{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "Prix de sortie : {{symbol}}{{total}} / 1M tokens",
+    "修改渠道敏感配置": "Modifier les paramètres sensibles du canal",
+    "为了保护渠道密钥安全，请验证您的身份。": "Vérifiez votre identité pour protéger les clés du canal.",
+    "渠道更新失败": "Échec de la mise à jour du canal"
   }
 }

@@ -434,20 +434,32 @@ const EditChannelModal = (props) => {
     switchVerificationMethod,
   } = useSecureVerification({
     onSuccess: (result) => {
+      const payload = result?.config ? result.data : result;
+      if (
+        result?.config?.method === 'put' &&
+        result?.config?.url === '/api/channel/' &&
+        payload?.success
+      ) {
+        showSuccess(t('渠道更新成功！'));
+        props.refresh();
+        props.handleClose();
+        return;
+      }
+
       // 验证成功后显示密钥
       console.log('Verification success, result:', result);
-      if (result && result.success && result.data?.key) {
+      if (payload && payload.success && payload.data?.key) {
         showSuccess(t('密钥获取成功'));
         setKeyDisplayState({
           showModal: true,
-          keyData: result.data.key,
+          keyData: payload.data.key,
         });
-      } else if (result && result.key) {
+      } else if (payload && payload.key) {
         // 直接返回了 key（没有包装在 data 中）
         showSuccess(t('密钥获取成功'));
         setKeyDisplayState({
           showModal: true,
-          keyData: result.key,
+          keyData: payload.key,
         });
       }
     },
@@ -1787,11 +1799,32 @@ const EditChannelModal = (props) => {
     }
 
     if (isEdit) {
-      res = await API.put(`/api/channel/`, {
+      const updatePayload = {
         ...localInputs,
         id: parseInt(channelId),
         key_mode: isMultiKeyChannel ? keyMode : undefined, // 只在多key模式下传递
-      });
+      };
+      try {
+        res = await withVerification(
+          () =>
+            API.put(`/api/channel/`, updatePayload, {
+              skipErrorHandler: true,
+            }),
+          {
+            title: t('修改渠道敏感配置'),
+            description: t('为了保护渠道密钥安全，请验证您的身份。'),
+            preferredMethod: 'passkey',
+          },
+        );
+      } catch (error) {
+        showError(
+          error.response?.data?.message || error.message || t('渠道更新失败'),
+        );
+        return;
+      }
+      if (!res) {
+        return;
+      }
     } else {
       res = await API.post(`/api/channel/`, {
         mode: mode,

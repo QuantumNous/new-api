@@ -38,6 +38,7 @@ export function isVerificationRequiredError(error) {
       'VERIFICATION_REQUIRED',
       'VERIFICATION_EXPIRED',
       'VERIFICATION_INVALID',
+      'CHANNEL_SENSITIVE_UPDATE_REQUIRES_VERIFICATION',
     ];
 
     return verificationCodes.includes(data.code);

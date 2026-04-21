@@ -16,8 +16,11 @@ var (
 	maskURLPattern    = regexp.MustCompile(`(http|https)://[^\s/$.?#].[^\s]*`)
 	maskDomainPattern = regexp.MustCompile(`\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b`)
 	maskIPPattern     = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
-	// maskApiKeyPattern matches patterns like 'api_key:xxx' or "api_key:xxx" to mask the API key value
-	maskApiKeyPattern = regexp.MustCompile(`(['"]?)api_key:([^\s'"]+)(['"]?)`)
+	// maskNamedSecretPattern matches common header/key forms such as Authorization: Bearer xxx, x-api-key=xxx, or "api_key":"xxx".
+	maskNamedSecretPattern      = regexp.MustCompile(`(?i)(['"]?(?:authorization|api[_-]?key|x-api-key|x-goog-api-key|access[_-]?token|refresh[_-]?token|client[_-]?secret|key)['"]?\s*[:=]\s*['"]?(?:bearer\s+)?)([^'"\s,;&}]+)(['"]?)`)
+	maskStandaloneBearerPattern = regexp.MustCompile(`(?i)\b(bearer\s+)([A-Za-z0-9._~+/=-]{8,})`)
+	maskSecretKeyPattern        = regexp.MustCompile(`\b(?:sk-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{16,})\b`)
+	maskJWTPattern              = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b`)
 )
 
 func GetStringIfEmpty(str string, defaultValue string) string {
@@ -239,6 +242,11 @@ func MaskSensitiveInfo(str string) string {
 		return result
 	})
 
+	str = maskNamedSecretPattern.ReplaceAllString(str, "${1}***${3}")
+	str = maskStandaloneBearerPattern.ReplaceAllString(str, "${1}***")
+	str = maskJWTPattern.ReplaceAllString(str, "***")
+	str = maskSecretKeyPattern.ReplaceAllString(str, "***")
+
 	// Mask domain names without protocol (like openai.com, www.openai.com)
 	str = maskDomainPattern.ReplaceAllStringFunc(str, func(domain string) string {
 		return maskHostForPlainDomain(domain)
@@ -246,9 +254,6 @@ func MaskSensitiveInfo(str string) string {
 
 	// Mask IP addresses
 	str = maskIPPattern.ReplaceAllString(str, "***.***.***.***")
-
-	// Mask API keys (e.g., "api_key:AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70" -> "api_key:***")
-	str = maskApiKeyPattern.ReplaceAllString(str, "${1}api_key:***${3}")
 
 	return str
 }

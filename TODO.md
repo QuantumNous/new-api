@@ -11,3 +11,4 @@
 11. 制作 vibe coding 的教学视频，参考 jyy 的理念；在评论区宣传一人公司的同时，侧面宣传 API 中转
 12. 远端日志收集与余额异常审计工具（[设计](docs/security/remote-log-collector-design.md)，[接口契约](docs/security/remote-log-collector-api-contract.md)）
 13. 完善 Completions 代码补全兼容（[设计](docs/openapi/code-completions-design.md)，[接口契约](docs/openapi/code-completions-api-contract.md)）
+14. 修复渠道敏感配置导致上游 API Key 外发风险（[设计与验证记录](docs/security/upstream-api-key-exposure-design.md)）

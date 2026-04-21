@@ -3289,6 +3289,9 @@
     "输入价格：{{symbol}}{{price}} / 1M tokens": "入力価格：{{symbol}}{{price}} / 1M tokens",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "補完料金 {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "補完料金：{{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "補完料金：{{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "補完料金：{{symbol}}{{total}} / 1M tokens",
+    "修改渠道敏感配置": "チャネルの機密設定を変更",
+    "为了保护渠道密钥安全，请验证您的身份。": "チャネルキーを保護するため、本人確認を行ってください。",
+    "渠道更新失败": "チャネルの更新に失敗しました"
   }
 }

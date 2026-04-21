@@ -3859,6 +3859,9 @@
     "补全倍率 {{completionRatio}}": "Tỷ lệ hoàn thành {{completionRatio}}",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "Giá đầu ra {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Giá đầu ra: {{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "Giá đầu ra: {{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "Giá đầu ra: {{symbol}}{{total}} / 1M tokens",
+    "修改渠道敏感配置": "Sửa cấu hình nhạy cảm của kênh",
+    "为了保护渠道密钥安全，请验证您的身份。": "Vui lòng xác minh danh tính để bảo vệ khóa kênh.",
+    "渠道更新失败": "Cập nhật kênh thất bại"
   }
 }

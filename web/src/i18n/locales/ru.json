@@ -3322,6 +3322,9 @@
     "输入价格：{{symbol}}{{price}} / 1M tokens": "Цена ввода: {{symbol}}{{price}} / 1M tokens",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "Цена вывода {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Цена вывода: {{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "Цена вывода: {{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "Цена вывода: {{symbol}}{{total}} / 1M tokens",
+    "修改渠道敏感配置": "Изменить чувствительные настройки канала",
+    "为了保护渠道密钥安全，请验证您的身份。": "Подтвердите личность, чтобы защитить ключи канала.",
+    "渠道更新失败": "Не удалось обновить канал"
   }
 }

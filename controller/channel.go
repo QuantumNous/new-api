@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
@@ -66,6 +68,141 @@ func clearChannelInfo(channel *model.Channel) {
 		channel.ChannelInfo.MultiKeyDisabledReason = nil
 		channel.ChannelInfo.MultiKeyDisabledTime = nil
 	}
+}
+
+const (
+	channelSensitiveUpdateRequiresRootCode         = "CHANNEL_SENSITIVE_UPDATE_REQUIRES_ROOT"
+	channelSensitiveUpdateRequiresVerificationCode = "CHANNEL_SENSITIVE_UPDATE_REQUIRES_VERIFICATION"
+)
+
+func stringPtrValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func stringPtrChanged(next *string, origin *string) bool {
+	if next == nil {
+		return false
+	}
+	return *next != stringPtrValue(origin)
+}
+
+func parseChannelSettingForCompare(raw *string) dto.ChannelSettings {
+	setting := dto.ChannelSettings{}
+	if raw != nil && strings.TrimSpace(*raw) != "" {
+		_ = common.Unmarshal([]byte(*raw), &setting)
+	}
+	return setting
+}
+
+func parseChannelOtherSettingsForCompare(raw string) dto.ChannelOtherSettings {
+	setting := dto.ChannelOtherSettings{}
+	if strings.TrimSpace(raw) != "" {
+		_ = common.UnmarshalJsonStr(raw, &setting)
+	}
+	return setting
+}
+
+func boolPtrValue(value *bool) bool {
+	return value != nil && *value
+}
+
+func authSensitiveOtherSettingsChanged(next *model.Channel, origin *model.Channel) bool {
+	if strings.TrimSpace(next.OtherSettings) == "" {
+		return false
+	}
+	nextSetting := parseChannelOtherSettingsForCompare(next.OtherSettings)
+	originSetting := parseChannelOtherSettingsForCompare(origin.OtherSettings)
+	return nextSetting.VertexKeyType != originSetting.VertexKeyType ||
+		nextSetting.AwsKeyType != originSetting.AwsKeyType ||
+		nextSetting.ClaudeBetaQuery != originSetting.ClaudeBetaQuery ||
+		boolPtrValue(nextSetting.OpenRouterEnterprise) != boolPtrValue(originSetting.OpenRouterEnterprise)
+}
+
+func channelProxyChanged(next *model.Channel, origin *model.Channel) bool {
+	if next.Setting == nil {
+		return false
+	}
+	nextSetting := parseChannelSettingForCompare(next.Setting)
+	originSetting := parseChannelSettingForCompare(origin.Setting)
+	return nextSetting.Proxy != originSetting.Proxy
+}
+
+func collectSensitiveChannelUpdateChanges(next *PatchChannel, origin *model.Channel) []string {
+	changes := make([]string, 0, 8)
+
+	if next.Key != "" && next.Key != origin.Key {
+		changes = append(changes, "key")
+	}
+	if next.KeyMode != nil && strings.TrimSpace(next.Key) != "" {
+		changes = append(changes, "key_mode")
+	}
+	if next.Type != 0 && next.Type != origin.Type {
+		changes = append(changes, "type")
+	}
+	if stringPtrChanged(next.BaseURL, origin.BaseURL) {
+		changes = append(changes, "base_url")
+	}
+	if next.Other != "" && next.Other != origin.Other {
+		changes = append(changes, "other")
+	}
+	if stringPtrChanged(next.HeaderOverride, origin.HeaderOverride) {
+		changes = append(changes, "header_override")
+	}
+	if stringPtrChanged(next.ParamOverride, origin.ParamOverride) {
+		changes = append(changes, "param_override")
+	}
+	if channelProxyChanged(&next.Channel, origin) {
+		changes = append(changes, "setting.proxy")
+	}
+	if authSensitiveOtherSettingsChanged(&next.Channel, origin) {
+		changes = append(changes, "settings")
+	}
+
+	return changes
+}
+
+func requireChannelSensitiveUpdatePermission(c *gin.Context, changes []string) bool {
+	if len(changes) == 0 {
+		return true
+	}
+
+	if c.GetInt("role") < common.RoleRootUser {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "需要 root 权限才能修改渠道敏感配置",
+			"code":    channelSensitiveUpdateRequiresRootCode,
+			"data": gin.H{
+				"fields": changes,
+			},
+		})
+		return false
+	}
+
+	if failure := middleware.CheckSecureVerification(c); failure != nil {
+		c.JSON(failure.Status, gin.H{
+			"success": false,
+			"message": "需要 root 权限和安全验证才能修改渠道敏感配置",
+			"code":    channelSensitiveUpdateRequiresVerificationCode,
+			"data": gin.H{
+				"fields": changes,
+			},
+		})
+		return false
+	}
+
+	return true
+}
+
+func keyFingerprint(key string) string {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(key))
+	return fmt.Sprintf("sha256:%x", sum[:6])
 }
 
 func GetAllChannels(c *gin.Context) {
@@ -547,7 +684,7 @@ func getVertexArrayKeys(keys string) ([]string, error) {
 		case string:
 			keyStr = strings.TrimSpace(v)
 		default:
-			bytes, err := json.Marshal(v)
+			bytes, err := common.Marshal(v)
 			if err != nil {
 				return nil, fmt.Errorf("Vertex AI key JSON 编码失败: %w", err)
 			}
@@ -791,6 +928,16 @@ func EditTagChannels(c *gin.Context) {
 		}
 		channelTag.HeaderOverride = common.GetPointer[string](trimmed)
 	}
+	sensitiveChanges := make([]string, 0, 2)
+	if channelTag.ParamOverride != nil {
+		sensitiveChanges = append(sensitiveChanges, "param_override")
+	}
+	if channelTag.HeaderOverride != nil {
+		sensitiveChanges = append(sensitiveChanges, "header_override")
+	}
+	if !requireChannelSensitiveUpdatePermission(c, sensitiveChanges) {
+		return
+	}
 	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
 	if err != nil {
 		common.ApiError(c, err)
@@ -868,6 +1015,11 @@ func UpdateChannel(c *gin.Context) {
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
 
+	sensitiveChanges := collectSensitiveChannelUpdateChanges(&channel, originChannel)
+	if !requireChannelSensitiveUpdatePermission(c, sensitiveChanges) {
+		return
+	}
+
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
@@ -886,7 +1038,7 @@ func UpdateChannel(c *gin.Context) {
 				if strings.HasPrefix(strings.TrimSpace(originChannel.Key), "[") {
 					// JSON数组格式
 					var arr []json.RawMessage
-					if err := json.Unmarshal([]byte(strings.TrimSpace(originChannel.Key)), &arr); err == nil {
+					if err := common.Unmarshal([]byte(strings.TrimSpace(originChannel.Key)), &arr); err == nil {
 						existingKeys = make([]string, len(arr))
 						for i, v := range arr {
 							existingKeys[i] = string(v)
@@ -1235,7 +1387,7 @@ type KeyStatus struct {
 	Status       int    `json:"status"` // 1: enabled, 2: disabled
 	DisabledTime int64  `json:"disabled_time,omitempty"`
 	Reason       string `json:"reason,omitempty"`
-	KeyPreview   string `json:"key_preview"` // first 10 chars of key for identification
+	KeyPreview   string `json:"key_preview"` // irreversible fingerprint for identification
 }
 
 // ManageMultiKeys handles multi-key management operations
@@ -1317,18 +1469,12 @@ func ManageMultiKeys(c *gin.Context) {
 				}
 			}
 
-			// Create key preview (first 10 chars)
-			keyPreview := key
-			if len(key) > 10 {
-				keyPreview = key[:10] + "..."
-			}
-
 			allKeyStatusList = append(allKeyStatusList, KeyStatus{
 				Index:        i,
 				Status:       status,
 				DisabledTime: disabledTime,
 				Reason:       reason,
-				KeyPreview:   keyPreview,
+				KeyPreview:   keyFingerprint(key),
 			})
 		}
 
@@ -1817,7 +1963,7 @@ func OllamaPullModelStream(c *gin.Context) {
 
 	// 创建进度回调函数
 	progressCallback := func(progress ollama.OllamaPullResponse) {
-		data, _ := json.Marshal(progress)
+		data, _ := common.Marshal(progress)
 		fmt.Fprintf(c.Writer, "data: %s\n\n", string(data))
 		c.Writer.Flush()
 	}
@@ -1826,12 +1972,12 @@ func OllamaPullModelStream(c *gin.Context) {
 	err = ollama.PullOllamaModelStream(baseURL, key, req.ModelName, progressCallback)
 
 	if err != nil {
-		errorData, _ := json.Marshal(gin.H{
+		errorData, _ := common.Marshal(gin.H{
 			"error": err.Error(),
 		})
 		fmt.Fprintf(c.Writer, "data: %s\n\n", string(errorData))
 	} else {
-		successData, _ := json.Marshal(gin.H{
+		successData, _ := common.Marshal(gin.H{
 			"message": fmt.Sprintf("Model %s pulled successfully", req.ModelName),
 		})
 		fmt.Fprintf(c.Writer, "data: %s\n\n", string(successData))
