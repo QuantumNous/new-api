@@ -66,4 +66,8 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+
+	/* enterprise discount related keys */
+	ContextKeyOrgID           ContextKey = "org_id"
+	ContextKeyOrgDiscountRate ContextKey = "org_discount_rate"
 )

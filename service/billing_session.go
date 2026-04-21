@@ -25,11 +25,12 @@ import (
 type BillingSession struct {
 	relayInfo        *relaycommon.RelayInfo
 	funding          FundingSource
-	preConsumedQuota int  // 实际预扣额度（信任用户可能为 0）
-	tokenConsumed    int  // 令牌额度实际扣减量
-	fundingSettled   bool // funding.Settle 已成功，资金来源已提交
-	settled          bool // Settle 全部完成（资金 + 令牌）
-	refunded         bool // Refund 已调用
+	preConsumedQuota int     // 实际预扣额度（信任用户可能为 0，已应用企业折扣）
+	tokenConsumed    int     // 令牌额度实际扣减量
+	fundingSettled   bool    // funding.Settle 已成功，资金来源已提交
+	settled          bool    // Settle 全部完成（资金 + 令牌）
+	refunded         bool    // Refund 已调用
+	discountRate     float64 // 企业折扣率（0-1之间，1表示无折扣）
 	mu               sync.Mutex
 }
 
@@ -41,6 +42,13 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	defer s.mu.Unlock()
 	if s.settled {
 		return nil
+	}
+	if s.discountRate < 1.0 {
+		discountedActual := int(float64(actualQuota) * s.discountRate)
+		if discountedActual < 1 && actualQuota > 0 {
+			discountedActual = 1
+		}
+		actualQuota = discountedActual
 	}
 	delta := actualQuota - s.preConsumedQuota
 	if delta == 0 {
@@ -86,10 +94,11 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	s.refunded = true
 	s.mu.Unlock()
 
-	logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费（token_quota=%s, funding=%s）",
+	logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费（token_quota=%s, funding=%s, discount_rate=%.2f）",
 		s.relayInfo.UserId,
 		logger.FormatQuota(s.tokenConsumed),
 		s.funding.Source(),
+		s.discountRate,
 	))
 
 	// 复制需要的值到闭包中
@@ -109,6 +118,10 @@ func (s *BillingSession) Refund(c *gin.Context) {
 			if err := model.IncreaseTokenQuota(tokenId, tokenKey, tokenConsumed); err != nil {
 				common.SysLog("error refunding token quota: " + err.Error())
 			}
+		}
+		// 3) 退还用户已用额度（tokenConsumed已经是折扣后的值）
+		if tokenConsumed > 0 {
+			model.UpdateUserUsedQuotaAndRequestCount(s.relayInfo.UserId, -tokenConsumed)
 		}
 	})
 }
@@ -252,7 +265,8 @@ func (s *BillingSession) syncRelayInfo() {
 // ---------------------------------------------------------------------------
 
 // NewBillingSession 根据用户计费偏好创建 BillingSession，处理 subscription_first / wallet_first 的回退。
-func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preConsumedQuota int) (*BillingSession, *types.NewAPIError) {
+// discountRate 是企业折扣率（0-1之间，1表示无折扣）
+func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preConsumedQuota int, discountRate float64) (*BillingSession, *types.NewAPIError) {
 	if relayInfo == nil {
 		return nil, types.NewError(fmt.Errorf("relayInfo is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
@@ -280,8 +294,9 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		relayInfo.UserQuota = userQuota
 
 		session := &BillingSession{
-			relayInfo: relayInfo,
-			funding:   &WalletFunding{userId: relayInfo.UserId},
+			relayInfo:    relayInfo,
+			funding:      &WalletFunding{userId: relayInfo.UserId},
+			discountRate: discountRate,
 		}
 		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {
 			return nil, apiErr
@@ -295,7 +310,8 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 			subConsume = 1
 		}
 		session := &BillingSession{
-			relayInfo: relayInfo,
+			relayInfo:    relayInfo,
+			discountRate: discountRate,
 			funding: &SubscriptionFunding{
 				requestId: relayInfo.RequestId,
 				userId:    relayInfo.UserId,
