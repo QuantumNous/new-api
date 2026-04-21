@@ -32,6 +32,36 @@ import {
   processIncompleteThinkTags,
 } from '../../helpers';
 
+// formatVideoResponse converts a raw video-generation object into markdown content.
+// Returns null when the payload contains no useful information.
+function formatVideoResponse(payload) {
+  if (!payload) return null;
+
+  // Try to find a video URL in common locations
+  const url =
+    payload.url ||
+    payload.video_url ||
+    payload.data?.[0]?.url ||
+    payload.data?.[0]?.video_url;
+
+  const parts = [];
+  if (url) {
+    parts.push(`[Generated Video](${url})`);
+  }
+
+  const meta = [];
+  if (payload.model) meta.push(`模型: ${payload.model}`);
+  if (payload.size) meta.push(`分辨率: ${payload.size}`);
+  if (payload.seconds != null) meta.push(`时长: ${payload.seconds}s`);
+  if (payload.status) meta.push(`状态: ${payload.status}`);
+
+  if (meta.length > 0) {
+    parts.push(`**视频生成完成** — ${meta.join(' | ')}`);
+  }
+
+  return parts.length > 0 ? parts.join('\n\n') : null;
+}
+
 export const useApiRequest = (
   setMessage,
   setDebugData,
@@ -368,6 +398,14 @@ export const useApiRequest = (
             }
             if (delta.content) {
               streamMessageUpdate(delta.content, 'content');
+            }
+          }
+
+          // Handle video generation responses (object: "video")
+          if (payload.object === 'video' || payload.object === 'video.generation') {
+            const videoContent = formatVideoResponse(payload);
+            if (videoContent) {
+              streamMessageUpdate(videoContent, 'content');
             }
           }
         } catch (error) {

@@ -444,20 +444,25 @@ function _MarkdownContent(props) {
         ),
         a: (aProps) => {
           const href = aProps.href || '';
-          if (/\.(aac|mp3|opus|wav)$/.test(href)) {
+          const hrefPath = href.split('?')[0].split('#')[0];
+          if (/\.(aac|mp3|opus|wav)$/.test(hrefPath)) {
             return (
               <figure style={{ margin: '12px 0' }}>
                 <audio controls src={href} style={{ width: '100%' }}></audio>
               </figure>
             );
           }
-          if (/\.(3gp|3g2|webm|ogv|mpeg|mp4|avi)$/.test(href)) {
+          const isVideoUrl =
+            /\.(3gp|3g2|webm|ogv|mpeg|mp4|avi)$/.test(hrefPath) ||
+            /\/videos?\/[^/].*\/content$/.test(hrefPath);
+          if (isVideoUrl) {
             return (
               <video
                 controls
+                preload='auto'
                 style={{ width: '100%', maxWidth: '100%', margin: '12px 0' }}
               >
-                <source src={href} />
+                <source src={href} type='video/mp4' />
               </video>
             );
           }

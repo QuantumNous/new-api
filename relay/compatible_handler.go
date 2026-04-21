@@ -45,6 +45,16 @@ func isChatOnlyImageModel(model string) bool {
 		strings.Contains(lower, "chatgpt-image")
 }
 
+// isVideoGenerationModel returns true for models that require a prompt field
+// (video/image generation via chat-completions) but are not pure chat models.
+func isVideoGenerationModel(model string) bool {
+	lower := strings.ToLower(model)
+	return strings.Contains(lower, "veo") ||
+		strings.Contains(lower, "video") ||
+		strings.Contains(lower, "generate") ||
+		isChatOnlyImageModel(model)
+}
+
 func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	// Detect image-generation models submitted to chat-completions endpoint and
 	// redirect to ImageHelper so the correct upstream endpoint and response
@@ -84,9 +94,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
-	// For playground requests, auto-populate prompt from the last user message
-	// when the client has not already provided one.
-	if info.IsPlayground && request.Prompt == nil {
+	// For playground requests with video/image generation models, auto-populate
+	// prompt from the last user message when not already provided.
+	// Plain chat models do not use the prompt field.
+	if info.IsPlayground && request.Prompt == nil && isVideoGenerationModel(request.Model) {
 		request.Prompt = extractImagePromptFromMessages(request.Messages)
 	}
 

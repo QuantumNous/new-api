@@ -245,6 +245,20 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				continue
 			}
 			if data[:5] != "data:" && data[:6] != "[DONE]" {
+				// Also forward bare JSON objects (e.g. video generation results
+				// returned without SSE "data:" framing by some providers).
+				trimmed := strings.TrimSpace(data)
+				if strings.HasPrefix(trimmed, "{") {
+					info.SetFirstResponseTime()
+					info.ReceivedResponseCount++
+					select {
+					case dataChan <- trimmed:
+					case <-ctx.Done():
+						return
+					case <-stopChan:
+						return
+					}
+				}
 				continue
 			}
 			data = data[5:]

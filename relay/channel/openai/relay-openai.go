@@ -1,10 +1,12 @@
 package openai
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -104,6 +106,174 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	return helper.ObjectData(c, lastStreamResponse)
 }
 
+// videoStatusResponse is the shape of a GET /videos/{id} response.
+type videoStatusResponse struct {
+	ID     string `json:"id"`
+	Object string `json:"object"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+// pollVideoUntilComplete polls GET {baseURL}/videos/{id} with Bearer auth until
+// the video status is "completed" or "failed". It sends SSE progress chunks
+// via helper.ObjectData while polling, then returns the content URL on success.
+func pollVideoUntilComplete(c *gin.Context, info *relaycommon.RelayInfo, videoID string) (string, error) {
+	baseURL := strings.TrimRight(info.ChannelMeta.ChannelBaseUrl, "/")
+	apiKey := info.ChannelMeta.ApiKey
+	pollURL := fmt.Sprintf("%s/videos/%s", baseURL, videoID)
+
+	sendProgress := func(msg string) {
+		delta := dto.ChatCompletionsStreamResponseChoiceDelta{}
+		delta.SetContentString(msg)
+		chunk := dto.ChatCompletionsStreamResponse{
+			Id:      "video-poll",
+			Object:  "chat.completion.chunk",
+			Created: time.Now().Unix(),
+			Model:   info.UpstreamModelName,
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Delta: delta},
+			},
+		}
+		_ = helper.ObjectData(c, chunk)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	pollInterval := 3 * time.Second
+	prevStatus := ""
+
+	for {
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("video polling timed out")
+		case <-c.Request.Context().Done():
+			return "", fmt.Errorf("client disconnected")
+		default:
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, pollURL, nil)
+		if err != nil {
+			return "", fmt.Errorf("build poll request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		req.Header.Set("Accept", "application/json")
+
+		pollResp, err := client.Do(req)
+		if err != nil {
+			logger.LogError(c, "video poll request error: "+err.Error())
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		body, err := io.ReadAll(pollResp.Body)
+		pollResp.Body.Close()
+		if err != nil {
+			logger.LogError(c, "video poll read body error: "+err.Error())
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		var status videoStatusResponse
+		if err := common.Unmarshal(body, &status); err != nil {
+			logger.LogError(c, "video poll unmarshal error: "+err.Error())
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		if status.Status != prevStatus {
+			prevStatus = status.Status
+			switch status.Status {
+			case "queued":
+				sendProgress("⏳ 视频排队中...\n\n")
+			case "in_progress":
+				sendProgress("🎬 视频生成中...\n\n")
+			case "created":
+				sendProgress("📋 视频任务已创建...\n\n")
+			}
+		}
+
+		if status.Status == "completed" {
+			// Return the backend proxy URL instead of the authenticated upstream URL,
+			// so the frontend can fetch the video without needing the Bearer token.
+			proxyURL := fmt.Sprintf("/pg/video/%d/%s/content", info.ChannelMeta.ChannelId, videoID)
+			return proxyURL, nil
+		}
+		if status.Status == "failed" {
+			errMsg := status.Error
+			if errMsg == "" {
+				errMsg = "unknown error"
+			}
+			return "", fmt.Errorf("video generation failed: %s", errMsg)
+		}
+
+		time.Sleep(pollInterval)
+	}
+}
+
+// handleVideoStreamData checks if lastStreamData is a video object and, if so,
+// polls for completion and writes the final video SSE chunk. Returns true if
+// video handling was performed (caller should skip normal last-response logic).
+func handleVideoStreamData(c *gin.Context, info *relaycommon.RelayInfo, lastStreamData string) bool {
+	if lastStreamData == "" {
+		return false
+	}
+	var raw struct {
+		Object string `json:"object"`
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	if err := common.Unmarshal([]byte(lastStreamData), &raw); err != nil {
+		return false
+	}
+	if raw.Object != "video" && raw.Object != "video.generation" {
+		return false
+	}
+	if raw.ID == "" {
+		return false
+	}
+
+	logger.LogInfo(c, fmt.Sprintf("video generation started, id=%s status=%s, polling...", raw.ID, raw.Status))
+
+	contentURL, err := pollVideoUntilComplete(c, info, raw.ID)
+	if err != nil {
+		logger.LogError(c, "video polling failed: "+err.Error())
+		errDelta := dto.ChatCompletionsStreamResponseChoiceDelta{}
+		errDelta.SetContentString("❌ 视频生成失败: " + err.Error())
+		chunk := dto.ChatCompletionsStreamResponse{
+			Id:      raw.ID,
+			Object:  "chat.completion.chunk",
+			Created: time.Now().Unix(),
+			Model:   info.UpstreamModelName,
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Delta: errDelta},
+			},
+		}
+		_ = helper.ObjectData(c, chunk)
+		helper.Done(c)
+		return true
+	}
+
+	// Send video URL as a markdown video link so frontend renders an inline player.
+	videoMarkdown := fmt.Sprintf("[Generated Video](%s)", contentURL)
+	finishReason := "stop"
+	okDelta := dto.ChatCompletionsStreamResponseChoiceDelta{}
+	okDelta.SetContentString(videoMarkdown)
+	chunk := dto.ChatCompletionsStreamResponse{
+		Id:      raw.ID,
+		Object:  "chat.completion.chunk",
+		Created: time.Now().Unix(),
+		Model:   info.UpstreamModelName,
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Delta: okDelta, FinishReason: &finishReason},
+		},
+	}
+	_ = helper.ObjectData(c, chunk)
+	helper.Done(c)
+	return true
+}
+
 func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid response or response body")
@@ -163,15 +333,23 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 	}
 
+	// For video generation responses, poll until the video is ready and stream the URL.
+	// These are bare JSON objects (no data: prefix) forwarded by the scanner.
+	if info.IsPlayground && handleVideoStreamData(c, info, lastStreamData) {
+		return usage, nil
+	}
+
 	// 处理最后的响应
 	shouldSendLastResp := true
-	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
-		&containStreamUsage, info, &shouldSendLastResp); err != nil {
-		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
+	if lastStreamData != "" {
+		if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
+			&containStreamUsage, info, &shouldSendLastResp); err != nil {
+			logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
+		}
 	}
 
 	if info.RelayFormat == types.RelayFormatOpenAI {
-		if shouldSendLastResp {
+		if shouldSendLastResp && lastStreamData != "" {
 			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 		}
 	}
