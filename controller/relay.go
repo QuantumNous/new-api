@@ -221,6 +221,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			service.ResetChannelFailCount(channel.Id, common.GetContextKeyString(c, constant.ContextKeyChannelKey))
 			return
 		}
 
@@ -352,9 +353,19 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
-		gopool.Go(func() {
-			service.DisableChannel(channelError, err.ErrorWithStatusCode())
-		})
+		threshold := common.AutomaticDisableChannelThreshold
+		if threshold < 1 {
+			threshold = 1
+		}
+		count := service.IncrementChannelFailCount(channelError.ChannelId, channelError.UsingKey)
+		if count >= threshold {
+			service.ResetChannelFailCount(channelError.ChannelId, channelError.UsingKey)
+			gopool.Go(func() {
+				service.DisableChannel(channelError, err.ErrorWithStatusCode())
+			})
+		} else {
+			logger.LogInfo(c, fmt.Sprintf("通道 #%d 连续失败 %d/%d 次，尚未达到自动禁用阈值", channelError.ChannelId, count, threshold))
+		}
 	}
 
 	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {

@@ -1094,6 +1094,8 @@
     "失败后不重试": "No Retry on Failure",
     "失败后是否重试": "Retry on Failure",
     "失败时自动禁用通道": "Automatically disable channel on failure",
+    "连续失败次数阈值": "Consecutive failure threshold",
+    "连续失败达到此次数后才自动禁用通道，1 表示立即禁用（默认）": "Only auto-disable the channel after this many consecutive failures; 1 means disable immediately (default)",
     "失败重试次数": "Failed retry times",
     "奖励说明": "Reward description",
     "套餐": "Plan",

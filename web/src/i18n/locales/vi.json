@@ -1079,6 +1079,8 @@
     "失败后不重试": "Không thử lại sau khi thất bại",
     "失败后是否重试": "Thử lại khi thất bại",
     "失败时自动禁用通道": "Tự động vô hiệu hóa kênh khi thất bại",
+    "连续失败次数阈值": "Ngưỡng số lần thất bại liên tiếp",
+    "连续失败达到此次数后才自动禁用通道，1 表示立即禁用（默认）": "Chỉ tự động vô hiệu hóa kênh sau khi đạt đủ số lần thất bại liên tiếp này; 1 nghĩa là vô hiệu hóa ngay (mặc định)",
     "失败重试次数": "Số lần thử lại thất bại",
     "奖励说明": "Mô tả phần thưởng",
     "套餐": "Gói",

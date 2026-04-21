@@ -1087,6 +1087,8 @@
     "失败后不重试": "Pas de nouvelle tentative après échec",
     "失败后是否重试": "Réessayer après échec",
     "失败时自动禁用通道": "Désactiver automatiquement le canal en cas d'échec",
+    "连续失败次数阈值": "Seuil d'échecs consécutifs",
+    "连续失败达到此次数后才自动禁用通道，1 表示立即禁用（默认）": "Désactiver automatiquement le canal uniquement après ce nombre d'échecs consécutifs ; 1 signifie désactivation immédiate (par défaut)",
     "失败重试次数": "Nombre de tentatives en cas d'échec",
     "奖励说明": "Description de la récompense",
     "套餐": "Plan",

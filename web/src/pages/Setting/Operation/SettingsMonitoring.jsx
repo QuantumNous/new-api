@@ -37,6 +37,7 @@ export default function SettingsMonitoring(props) {
     ChannelDisableThreshold: '',
     QuotaRemindThreshold: '',
     AutomaticDisableChannelEnabled: false,
+    AutomaticDisableChannelThreshold: 1,
     AutomaticEnableChannelEnabled: false,
     AutomaticDisableKeywords: '',
     AutomaticDisableStatusCodes: '401',
@@ -230,6 +231,24 @@ export default function SettingsMonitoring(props) {
                     setInputs({
                       ...inputs,
                       AutomaticEnableChannelEnabled: value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('连续失败次数阈值')}
+                  step={1}
+                  min={1}
+                  extraText={t(
+                    '连续失败达到此次数后才自动禁用通道，1 表示立即禁用（默认）',
+                  )}
+                  placeholder={''}
+                  field={'AutomaticDisableChannelThreshold'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AutomaticDisableChannelThreshold: parseInt(value) || 1,
                     })
                   }
                 />
