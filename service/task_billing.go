@@ -194,13 +194,19 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		return
 	}
 
-	// 应用企业折扣
+	// 应用企业折扣（token重算场景已在 RecalculateTaskQuotaByTokens 中应用）
 	orgDiscountRate := 1.0
-	discountRate, err := getUserOrgDiscount(task.UserId, taskModelName(task))
-	if err == nil {
-		orgDiscountRate = discountRate
+	isTokenRecalc := strings.Contains(reason, "token重算")
+	if !isTokenRecalc {
+		discountRate, err := getUserOrgDiscount(task.UserId, taskModelName(task))
+		if err != nil {
+			logger.LogInfo(ctx, fmt.Sprintf("任务 %s 查询企业折扣失败：%s，使用折扣率=1.0", task.TaskID, err.Error()))
+		} else {
+			orgDiscountRate = discountRate
+			logger.LogInfo(ctx, fmt.Sprintf("任务 %s 查询企业折扣成功：折扣率=%.4f", task.TaskID, orgDiscountRate))
+		}
+		actualQuota = int(float64(actualQuota) * orgDiscountRate)
 	}
-	actualQuota = int(float64(actualQuota) * orgDiscountRate)
 
 	if orgDiscountRate != 1.0 {
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 应用企业折扣：原始额度=%s，折扣率=%.4f，折后额度=%s",
@@ -324,7 +330,16 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier
 	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
 
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
+	// 应用企业折扣
+	orgDiscountRate := 1.0
+	discountRate, err := getUserOrgDiscount(task.UserId, modelName)
+	if err == nil {
+		orgDiscountRate = discountRate
+		actualQuota = int(float64(actualQuota) * orgDiscountRate)
+	}
+
+	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f, orgDiscountRate=%.4f",
+		totalTokens, modelRatio, finalGroupRatio, otherMultiplier, orgDiscountRate)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)
 }
 
