@@ -460,7 +460,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			newAPIError: types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError),
 		}
 	}
-	if bodyErr := detectErrorFromTestResponseBody(respBody); bodyErr != nil {
+	if bodyErr := validateTestResponseBody(respBody, isStream); bodyErr != nil {
 		return testResult{
 			context:     c,
 			localErr:    bodyErr,
@@ -568,6 +568,42 @@ func detectErrorFromTestResponseBody(respBody []byte) error {
 	}
 
 	return nil
+}
+
+func validateStreamTestResponseBody(respBody []byte) error {
+	b := bytes.TrimSpace(respBody)
+	if len(b) == 0 {
+		return errors.New("stream response body is empty")
+	}
+
+	for _, line := range bytes.Split(b, []byte{'\n'}) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 || !bytes.HasPrefix(line, []byte("data:")) {
+			continue
+		}
+		payload := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
+		if len(payload) == 0 || bytes.Equal(payload, []byte("[DONE]")) {
+			continue
+		}
+
+		return nil
+	}
+
+	return errors.New("stream response body does not contain a valid stream event")
+}
+
+func validateTestResponseBody(respBody []byte, isStream bool) error {
+	if bodyErr := detectErrorFromTestResponseBody(respBody); bodyErr != nil {
+		return bodyErr
+	}
+	if isStream {
+		return validateStreamTestResponseBody(respBody)
+	}
+	return nil
+}
+
+func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {
+	return channel != nil && channel.Type == constant.ChannelTypeCodex
 }
 
 func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
@@ -848,7 +884,7 @@ func testAllChannels(notify bool) error {
 				tik := time.Now()
 				resultCh := make(chan testResult, 1)
 				go func() {
-					resultCh <- testChannel(channel, testModelName, "", false)
+					resultCh <- testChannel(channel, testModelName, "", shouldUseStreamForAutomaticChannelTest(channel))
 				}()
 				var result testResult
 				select {
