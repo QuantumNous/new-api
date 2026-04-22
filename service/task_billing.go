@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -192,6 +193,15 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	if actualQuota <= 0 {
 		return
 	}
+
+	// 应用企业折扣
+	orgDiscountRate := 1.0
+	discountRate, err := getUserOrgDiscount(task.UserId, taskModelName(task))
+	if err == nil {
+		orgDiscountRate = discountRate
+	}
+	actualQuota = int(float64(actualQuota) * orgDiscountRate)
+
 	preConsumedQuota := task.Quota
 	quotaDelta := actualQuota - preConsumedQuota
 
@@ -237,6 +247,9 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	other["task_id"] = task.TaskID
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
+	if orgDiscountRate != 1.0 {
+		other["org_discount_rate"] = orgDiscountRate
+	}
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   logType,
@@ -304,4 +317,43 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)
+}
+
+// BusinessDiscountRule 企业折扣规则模型
+type BusinessDiscountRule struct {
+	ID            uint    `gorm:"primaryKey"`
+	OrgID         int     `gorm:"column:org_id;not null"`
+	ModelName     string  `gorm:"column:model_name;not null"`
+	DiscountRate  float64 `gorm:"column:discount_rate;not null"`
+	EffectiveFrom int64   `gorm:"column:effective_from;not null"`
+	EffectiveTo   int64   `gorm:"column:effective_to;default:0"`
+}
+
+// getUserOrgDiscount 获取用户的企业折扣率
+// 如果用户不是企业成员，返回1；如果是企业成员但没有对应模型的折扣，也返回1
+func getUserOrgDiscount(userID int, modelName string) (float64, error) {
+	// 查询用户的企业ID
+	var userExt struct {
+		OrgID uint `gorm:"column:org_id"`
+	}
+	err := model.DB.Table("lc_user_ext").Where("user_id = ?", userID).Select("org_id").Scan(&userExt).Error
+	if err != nil {
+		return 1.0, err
+	}
+
+	// 如果用户不属于任何企业，返回折扣率1
+	if userExt.OrgID == 0 {
+		return 1.0, nil
+	}
+
+	// 查询该企业该模型的有效折扣规则
+	now := time.Now().Unix()
+	var rule BusinessDiscountRule
+	err = model.DB.Where("org_id = ? AND model_name = ? AND effective_from <= ? AND (effective_to = 0 OR effective_to >= ?)",
+		userExt.OrgID, modelName, now, now).Order("effective_from DESC").First(&rule).Error
+	if err != nil {
+		return 1.0, nil
+	}
+
+	return rule.DiscountRate, nil
 }
