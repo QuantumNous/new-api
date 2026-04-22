@@ -135,7 +135,7 @@ func UniversalVerify(c *gin.Context) {
 	}
 
 	// 记录日志
-	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("通用安全验证成功 (验证方式: %s)", verifyMethod))
+	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("Security verification successful (method: %s)", verifyMethod))
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
