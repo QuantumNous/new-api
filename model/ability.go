@@ -266,7 +266,11 @@ func UpdateAbilityStatus(channelId int, status bool) error {
 
 // UpdateAbilityModelStatus updates the enabled status of a specific model within a channel
 func UpdateAbilityModelStatus(channelId int, modelName string, status bool) error {
-	return DB.Model(&Ability{}).Where("channel_id = ? AND model = ?", channelId, modelName).Select("enabled").Update("enabled", status).Error
+	err := DB.Model(&Ability{}).Where("channel_id = ? AND model = ?", channelId, modelName).Select("enabled").Update("enabled", status).Error
+	if err == nil {
+		InitChannelCache()
+	}
+	return err
 }
 
 func IsAbilityModelEnabled(channelId int, modelName string) bool {

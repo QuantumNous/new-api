@@ -14,7 +14,7 @@ type ChannelTestHistory struct {
 	TestModel    string    `json:"test_model"`
 	Status       string    `json:"status"`        // operational, failed, timeout, unsupported
 	ResponseTime int64     `json:"response_time"` // ms
-	ErrorMessage string    `json:"error_message"`
+	ErrorMessage string    `json:"error_message" gorm:"type:text"`
 	TestedAt     time.Time `json:"tested_at" gorm:"index"`
 }
 

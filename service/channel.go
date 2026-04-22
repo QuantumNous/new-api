@@ -16,6 +16,10 @@ func formatNotifyType(channelId int, status int) string {
 	return fmt.Sprintf("%s_%d_%d", dto.NotifyTypeChannelUpdate, channelId, status)
 }
 
+func formatModelNotifyType(channelId int, modelName string, status int) string {
+	return fmt.Sprintf("%s_%d_%s_%d", dto.NotifyTypeChannelUpdate, channelId, modelName, status)
+}
+
 // disable & notify
 func DisableChannel(channelError types.ChannelError, reason string) {
 	common.SysLog(fmt.Sprintf("通道「%s」（#%d）发生错误，准备禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, reason))
@@ -70,7 +74,10 @@ func IsChannelLevelError(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
 	}
-	if err.StatusCode == http.StatusUnauthorized {
+	if types.IsChannelError(err) {
+		return true
+	}
+	if err.StatusCode == http.StatusUnauthorized || err.StatusCode == http.StatusForbidden {
 		return true
 	}
 	oaiErr := err.ToOpenAIError()
@@ -80,11 +87,6 @@ func IsChannelLevelError(err *types.NewAPIError) bool {
 	}
 	switch oaiErr.Type {
 	case "insufficient_quota", "insufficient_user_quota", "authentication_error", "permission_error", "forbidden":
-		return true
-	}
-	errorCode := err.GetErrorCode()
-	switch errorCode {
-	case types.ErrorCodeChannelNoAvailableKey, types.ErrorCodeChannelInvalidKey:
 		return true
 	}
 	return false
@@ -100,7 +102,7 @@ func DisableChannelModel(channelId int, channelName string, modelName string, re
 	}
 	subject := fmt.Sprintf("通道「%s」（#%d）的模型「%s」已被禁用", channelName, channelId, modelName)
 	content := fmt.Sprintf("通道「%s」（#%d）的模型「%s」已被禁用，原因：%s", channelName, channelId, modelName, reason)
-	NotifyRootUser(formatNotifyType(channelId, common.ChannelStatusAutoDisabled), subject, content)
+	NotifyRootUser(formatModelNotifyType(channelId, modelName, common.ChannelStatusAutoDisabled), subject, content)
 }
 
 // EnableChannelModel enables a single model's ability within a channel and sends notification
@@ -112,7 +114,7 @@ func EnableChannelModel(channelId int, channelName string, modelName string) {
 	}
 	subject := fmt.Sprintf("通道「%s」（#%d）的模型「%s」已被启用", channelName, channelId, modelName)
 	content := fmt.Sprintf("通道「%s」（#%d）的模型「%s」已被启用", channelName, channelId, modelName)
-	NotifyRootUser(formatNotifyType(channelId, common.ChannelStatusEnabled), subject, content)
+	NotifyRootUser(formatModelNotifyType(channelId, modelName, common.ChannelStatusEnabled), subject, content)
 }
 
 func ShouldEnableChannel(newAPIError *types.NewAPIError, status int) bool {
