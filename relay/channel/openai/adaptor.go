@@ -566,7 +566,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				}
 				_ = maskFile.Close()
 			}
-		} else if err := appendImagePartFromJSONPayload(writer, request.Image); err != nil {
+		} else if err := appendImagePartsFromJSONPayload(writer, request.Image); err != nil {
 			return nil, err
 		}
 
@@ -609,14 +609,32 @@ type openAIEditImagePayload struct {
 	MimeType string `json:"mime_type"`
 }
 
-func appendImagePartFromJSONPayload(writer *multipart.Writer, rawImage []byte) error {
+func appendImagePartsFromJSONPayload(writer *multipart.Writer, rawImage []byte) error {
+	var rawImages []json.RawMessage
+	if err := common.Unmarshal(rawImage, &rawImages); err == nil && len(rawImages) > 0 {
+		fieldName := "image"
+		if len(rawImages) > 1 {
+			fieldName = "image[]"
+		}
+		for _, item := range rawImages {
+			if err := appendImagePartFromJSONPayload(writer, fieldName, item); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	return appendImagePartFromJSONPayload(writer, "image", rawImage)
+}
+
+func appendImagePartFromJSONPayload(writer *multipart.Writer, fieldName string, rawImage []byte) error {
 	filename, mimeType, content, err := resolveOpenAIEditImagePayload(rawImage)
 	if err != nil {
 		return err
 	}
 
 	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="image"; filename="%s"`, filename))
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, filename))
 	h.Set("Content-Type", mimeType)
 	part, err := writer.CreatePart(h)
 	if err != nil {

@@ -81,6 +81,49 @@ func TestConvertImageRequestAllowsJSONEditPayload(t *testing.T) {
 	}
 }
 
+func TestConvertImageRequestSupportsMultipleJSONEditImages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/images/edits", nil)
+
+	adaptor := &Adaptor{}
+	converted, err := adaptor.ConvertImageRequest(ctx, &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+	}, dto.ImageRequest{
+		Model:  "gpt-image2",
+		Prompt: "combine these references",
+		Image: []byte(`[
+			{"data":"aGVsbG8=","filename":"first.png","mime_type":"image/png"},
+			{"data":"d29ybGQ=","filename":"second.png","mime_type":"image/png"}
+		]`),
+	})
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	body, ok := converted.(*bytes.Buffer)
+	if !ok {
+		t.Fatalf("expected *bytes.Buffer, got %T", converted)
+	}
+
+	mediaType, params, err := mime.ParseMediaType(ctx.Request.Header.Get("Content-Type"))
+	if err != nil {
+		t.Fatalf("parse content type failed: %v", err)
+	}
+	if mediaType != "multipart/form-data" {
+		t.Fatalf("unexpected media type: %s", mediaType)
+	}
+
+	form, err := multipart.NewReader(bytes.NewReader(body.Bytes()), params["boundary"]).ReadForm(1 << 20)
+	if err != nil {
+		t.Fatalf("read multipart form failed: %v", err)
+	}
+	files := form.File["image[]"]
+	if len(files) != 2 {
+		t.Fatalf("expected two image[] files, got %d", len(files))
+	}
+}
+
 func TestConvertImageRequestPreservesImageUrlsForGenerations(t *testing.T) {
 	adaptor := &Adaptor{}
 

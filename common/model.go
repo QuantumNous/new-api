@@ -13,6 +13,7 @@ var (
 		"dall-e-3",
 		"dall-e-2",
 		"gpt-image-1",
+		"gpt-image2",
 		"exact:grok-imagine-1.0",
 		"exact:grok-imagine-1.0-fast",
 		"prefix:imagen-",

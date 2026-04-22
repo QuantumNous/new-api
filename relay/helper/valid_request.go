@@ -1,7 +1,6 @@
 package helper
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -16,6 +15,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+var gptImage2AspectRatios = map[string]struct{}{
+	"1:1":  {},
+	"16:9": {},
+	"9:16": {},
+	"4:3":  {},
+	"3:4":  {},
+	"3:2":  {},
+	"2:3":  {},
+}
+
+const gptImage2MaxImages = 6
 
 func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dto.Request, err error) {
 	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
@@ -156,7 +167,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			imageRequest.Quality = formData.Get("quality")
 			imageRequest.Size = formData.Get("size")
 			if imageValue := formData.Get("image"); imageValue != "" {
-				imageRequest.Image, _ = json.Marshal(imageValue)
+				imageRequest.Image, _ = common.Marshal(imageValue)
 			}
 
 			if imageRequest.Model == "gpt-image-1" {
@@ -172,6 +183,9 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			if hasWatermark {
 				watermark := formData.Get("watermark") == "true"
 				imageRequest.Watermark = &watermark
+			}
+			if err := validateGPTImage2Request(c, imageRequest); err != nil {
+				return nil, err
 			}
 			break
 		}
@@ -214,6 +228,9 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				imageRequest.Quality = "auto"
 			}
 		}
+		if err := validateGPTImage2Request(c, imageRequest); err != nil {
+			return nil, err
+		}
 
 		//if imageRequest.Prompt == "" {
 		//	return nil, errors.New("prompt is required")
@@ -225,6 +242,69 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 	}
 
 	return imageRequest, nil
+}
+
+func validateGPTImage2Request(c *gin.Context, imageRequest *dto.ImageRequest) error {
+	if imageRequest == nil || !strings.EqualFold(strings.TrimSpace(imageRequest.Model), "gpt-image2") {
+		return nil
+	}
+
+	if err := validateGPTImage2AspectRatio("size", imageRequest.Size); err != nil {
+		return err
+	}
+	if err := validateGPTImage2AspectRatio("aspect_ratio", imageRequest.AspectRatio); err != nil {
+		return err
+	}
+	if strings.TrimSpace(imageRequest.AspectRatio) == "" && strings.Contains(imageRequest.Size, ":") {
+		imageRequest.AspectRatio = strings.TrimSpace(imageRequest.Size)
+	}
+
+	imageCount := countGPTImage2JSONImages(imageRequest.ImageUrls) + countGPTImage2JSONImages(imageRequest.Image)
+	if multipartCount := countGPTImage2MultipartImages(c); multipartCount > 0 {
+		imageCount = multipartCount
+	}
+	if imageCount > gptImage2MaxImages {
+		return fmt.Errorf("gpt-image2 supports at most %d uploaded images", gptImage2MaxImages)
+	}
+	return nil
+}
+
+func validateGPTImage2AspectRatio(fieldName string, value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if _, ok := gptImage2AspectRatios[value]; ok {
+		return nil
+	}
+	return fmt.Errorf("%s must be one of 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, or 2:3 for gpt-image2", fieldName)
+}
+
+func countGPTImage2JSONImages(raw []byte) int {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return 0
+	}
+
+	var items []any
+	if err := common.Unmarshal(raw, &items); err == nil {
+		return len(items)
+	}
+	return 1
+}
+
+func countGPTImage2MultipartImages(c *gin.Context) int {
+	if c == nil || c.Request == nil || c.Request.MultipartForm == nil {
+		return 0
+	}
+
+	count := 0
+	for fieldName, files := range c.Request.MultipartForm.File {
+		if fieldName == "image" || fieldName == "image[]" || strings.HasPrefix(fieldName, "image[") {
+			count += len(files)
+		}
+	}
+	return count
 }
 
 func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest, err error) {
