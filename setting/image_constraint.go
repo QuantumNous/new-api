@@ -11,11 +11,11 @@ import (
 // ImageConstraint 描述对单张图片做"缩放 + 降质量"压缩时的约束。
 // MaxBytes 指编码后文件字节阈值（对应 AWS Bedrock 文档 "images must be under 3.75 MB"）。
 type ImageConstraint struct {
-	Enabled       bool
-	MaxBytes      int64
-	MaxDim        int
-	QualitySteps  []int
-	PreserveAlpha bool
+	Enabled       bool  // false → Apply 直接跳过
+	MaxBytes      int64 // 编码后字节阈值
+	MaxDim        int   // 最长边像素阈值
+	QualitySteps  []int // JPEG 质量梯度，从高到低
+	PreserveAlpha bool  // true → 带 alpha 的 PNG/WebP 输出维持 alpha
 }
 
 // ImageCompressionOverride 允许渠道 otherSettings 对默认值做部分覆盖。
@@ -61,7 +61,7 @@ func (base ImageConstraint) MergeOverride(override *ImageCompressionOverride) Im
 		out.MaxDim = *override.MaxDim
 	}
 	if override.QualitySteps != nil {
-		out.QualitySteps = override.QualitySteps
+		out.QualitySteps = append([]int(nil), override.QualitySteps...)
 	}
 	if override.PreserveAlpha != nil {
 		out.PreserveAlpha = *override.PreserveAlpha
