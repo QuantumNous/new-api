@@ -102,6 +102,15 @@ func relayAsyncImage(c *gin.Context, action string, relayPath string) {
 		respondAsyncImageOpenAIError(c, http.StatusBadRequest, fmt.Sprintf("invalid image request type: %T", request), types.ErrorCodeInvalidRequest)
 		return
 	}
+	relayBodyBytes := bodyBytes
+	if !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+		normalizedBodyBytes, err := common.Marshal(imageReq)
+		if err != nil {
+			respondAsyncImageOpenAIError(c, http.StatusBadRequest, err.Error(), types.ErrorCodeInvalidRequest)
+			return
+		}
+		relayBodyBytes = normalizedBodyBytes
+	}
 
 	task := initAsyncImageTask(c, action, imageReq)
 	if err := task.Insert(); err != nil {
@@ -115,7 +124,7 @@ func relayAsyncImage(c *gin.Context, action string, relayPath string) {
 		RelayPath: relayPath,
 		Method:    c.Request.Method,
 		Header:    c.Request.Header.Clone(),
-		Body:      append([]byte(nil), bodyBytes...),
+		Body:      append([]byte(nil), relayBodyBytes...),
 		Keys:      cloneAsyncImageContextKeys(c),
 	}
 	if c.Request != nil && c.Request.URL != nil {

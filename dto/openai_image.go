@@ -37,6 +37,7 @@ type ImageRequest struct {
 	UserId           json.RawMessage `json:"user_id,omitempty"`
 	Image            json.RawMessage `json:"image,omitempty"`
 	ImageUrls        json.RawMessage `json:"image_urls,omitempty"`
+	Messages         json.RawMessage `json:"messages,omitempty"`
 	// 用匿名参数接收额外参数
 	Extra map[string]json.RawMessage `json:"-"`
 }

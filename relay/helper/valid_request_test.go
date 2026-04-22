@@ -10,6 +10,7 @@ import (
 
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,6 +40,10 @@ func TestGetAndValidOpenAIImageRequestAllowsGPTImage2SixImages(t *testing.T) {
 	require.Equal(t, "gpt-image2", req.Model)
 	require.Equal(t, "3:2", req.Size)
 	require.Equal(t, "3:2", req.AspectRatio)
+	require.Equal(t, "1K", req.OutputResolution)
+	require.Empty(t, req.ImageUrls)
+	require.Equal(t, "https://example.com/1.png", gjson.GetBytes(req.Messages, "0.content.1.image_url.url").String())
+	require.Equal(t, "https://example.com/6.png", gjson.GetBytes(req.Messages, "0.content.6.image_url.url").String())
 }
 
 func TestGetAndValidOpenAIImageRequestRejectsGPTImage2InvalidSize(t *testing.T) {
@@ -56,6 +61,24 @@ func TestGetAndValidOpenAIImageRequestRejectsGPTImage2InvalidSize(t *testing.T) 
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "size must be one of")
+}
+
+func TestGetAndValidOpenAIImageRequestRejectsGPTImage2InvalidOutputResolution(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := `{
+		"model":"gpt-image2",
+		"prompt":"make a campaign image",
+		"aspect_ratio":"1:1",
+		"output_resolution":"2K"
+	}`
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/images/generations", strings.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	_, err := GetAndValidOpenAIImageRequest(ctx, relayconstant.RelayModeImagesGenerations)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "output_resolution must be 1K")
 }
 
 func TestGetAndValidOpenAIImageRequestRejectsGPTImage2TooManyJSONImages(t *testing.T) {

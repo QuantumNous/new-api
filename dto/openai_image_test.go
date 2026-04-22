@@ -44,6 +44,31 @@ func TestImageRequestPreservesImageUrls(t *testing.T) {
 	require.NotContains(t, req.Extra, "image_urls")
 }
 
+func TestImageRequestPreservesMessages(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-image2",
+		"prompt":"poster",
+		"messages":[{
+			"role":"user",
+			"content":[
+				{"type":"text","text":"poster"},
+				{"type":"image_url","image_url":{"url":"https://example.com/1.png"}}
+			]
+		}]
+	}`)
+
+	var req ImageRequest
+	err := common.Unmarshal(raw, &req)
+	require.NoError(t, err)
+
+	encoded, err := common.Marshal(req)
+	require.NoError(t, err)
+
+	require.Equal(t, "user", gjson.GetBytes(encoded, "messages.0.role").String())
+	require.Equal(t, "https://example.com/1.png", gjson.GetBytes(encoded, "messages.0.content.1.image_url.url").String())
+	require.NotContains(t, req.Extra, "messages")
+}
+
 func TestImageRequestBananaUsesNeutralImagePriceRatio(t *testing.T) {
 	n := uint(3)
 	req := ImageRequest{

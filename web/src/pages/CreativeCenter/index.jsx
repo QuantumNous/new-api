@@ -1109,6 +1109,24 @@ const supportsAdobeAutoImageSize = (modelName) =>
     (option) => option.value === 'auto',
   );
 
+const buildGPTImage2ReferenceMessages = (prompt, imageUrls = []) => {
+  const normalizedPrompt = prompt?.trim() || 'Edit the provided media.';
+  return [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: normalizedPrompt },
+        ...imageUrls
+          .filter((url) => typeof url === 'string' && url.trim())
+          .map((url) => ({
+            type: 'image_url',
+            image_url: { url: url.trim() },
+          })),
+      ],
+    },
+  ];
+};
+
 const getCreativeCenterImageUploadLimit = (modelName) => {
   const normalizedModelName = typeof modelName === 'string' ? modelName.trim() : '';
   if (!normalizedModelName) {
@@ -6972,22 +6990,36 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 };
 
             if (isAdobeImageModel) {
-              if (basePayload.size) {
-                payload.size = basePayload.size;
-              }
-              if (supportsAdobeImageOutputResolution(currentModelName)) {
+              if (isCurrentGPTImage2Model) {
+                payload.output_resolution = '1K';
+                payload.aspect_ratio =
+                  basePayload.aspect_ratio ||
+                  (currentParamsSnapshot.aspectRatio === 'auto'
+                    ? ''
+                    : currentParamsSnapshot.aspectRatio) ||
+                  '1:1';
+                if (currentUploadedImageUrls.length > 0) {
+                  payload.messages = buildGPTImage2ReferenceMessages(
+                    currentPrompt,
+                    currentUploadedImageUrls,
+                  );
+                }
+              } else {
+                if (basePayload.size) {
+                  payload.size = basePayload.size;
+                }
                 payload.output_resolution =
                   basePayload.output_resolution ||
                   currentParamsSnapshot.outputResolution ||
                   '2K';
-              }
-              if (basePayload.aspect_ratio) {
-                payload.aspect_ratio = basePayload.aspect_ratio;
-              } else if (basePayload.size) {
-                payload.size = basePayload.size;
-              }
-              if (currentUploadedImageUrls.length > 0) {
-                payload.image_urls = currentUploadedImageUrls;
+                if (basePayload.aspect_ratio) {
+                  payload.aspect_ratio = basePayload.aspect_ratio;
+                } else if (basePayload.size) {
+                  payload.size = basePayload.size;
+                }
+                if (currentUploadedImageUrls.length > 0) {
+                  payload.image_urls = currentUploadedImageUrls;
+                }
               }
             } else {
               if (!isGrokImageEditModel && basePayload.size) {

@@ -366,15 +366,15 @@ export const buildApiPayload = (
     }
   }
   if (isAdobeImageModel) {
-    if (adobeAspectRatio) {
-      payload.aspect_ratio = adobeAspectRatio;
-      if (isGPTImage2Model) {
-        payload.size = adobeAspectRatio;
+    if (isGPTImage2Model) {
+      payload.aspect_ratio = adobeAspectRatio || '1:1';
+      payload.output_resolution = '1K';
+    } else {
+      if (adobeAspectRatio) {
+        payload.aspect_ratio = adobeAspectRatio;
+      } else if (inputs.autoImageSize) {
+        payload.size = inputs.autoImageSize;
       }
-    } else if (inputs.autoImageSize) {
-      payload.size = inputs.autoImageSize;
-    }
-    if (!isGPTImage2Model) {
       if (inputs.outputResolution) {
         payload.output_resolution = inputs.outputResolution;
       } else {
