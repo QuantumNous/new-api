@@ -828,6 +828,7 @@ func testAllChannels(notify bool) error {
 			}
 
 			var totalMs int64
+			var testedCount int64
 			channelLevelErrorOccurred := false
 
 			for _, testModelName := range models {
@@ -861,6 +862,7 @@ func testAllChannels(notify bool) error {
 				tok := time.Now()
 				milliseconds := tok.Sub(tik).Milliseconds()
 				totalMs += milliseconds
+				testedCount++
 
 				shouldBanModel := false
 				newAPIError := result.newAPIError
@@ -903,7 +905,7 @@ func testAllChannels(notify bool) error {
 					}
 				}
 
-				if isChannelEnabled && shouldBanModel && channel.GetAutoBan() && testStatus != "unsupported" {
+				if common.AutomaticDisableChannelEnabled && isChannelEnabled && shouldBanModel && channel.GetAutoBan() && testStatus != "unsupported" {
 					reason := "测试失败"
 					if newAPIError != nil {
 						reason = newAPIError.ErrorWithStatusCode()
@@ -938,8 +940,8 @@ func testAllChannels(notify bool) error {
 			}
 
 			// 使用所有模型的平均响应时间更新通道响应时间
-			if len(models) > 0 {
-				channel.UpdateResponseTime(totalMs / int64(len(models)))
+			if testedCount > 0 {
+				channel.UpdateResponseTime(totalMs / testedCount)
 			}
 		}
 
