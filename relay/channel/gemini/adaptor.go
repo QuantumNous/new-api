@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -161,6 +162,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	}
 
 	action := "generateContent"
+	if info.RelayMode == constant.RelayModeResponses {
+		// Force non-streaming for Gemini via New API for stability with Responses API.
+		info.IsStream = false
+	}
+
 	if info.IsStream {
 		action = "streamGenerateContent?alt=sse"
 		if info.RelayMode == constant.RelayModeGemini {
@@ -238,8 +244,61 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	// Bridge Responses API to standard OpenAI Chat format
+	oaiReq := &dto.GeneralOpenAIRequest{
+		Model:  request.Model,
+		Stream: lo.ToPtr(false),
+	}
+
+	if request.MaxOutputTokens != nil {
+		oaiReq.MaxTokens = request.MaxOutputTokens
+	}
+	if request.Temperature != nil {
+		oaiReq.Temperature = request.Temperature
+	}
+	if request.TopP != nil {
+		oaiReq.TopP = request.TopP
+	}
+
+	// Convert instructions into a system message
+	if len(request.Instructions) > 0 {
+		var instrStr string
+		if err := json.Unmarshal(request.Instructions, &instrStr); err == nil && instrStr != "" {
+			oaiReq.Messages = append(oaiReq.Messages, dto.Message{
+				Role:    "system",
+				Content: instrStr,
+			})
+		}
+	}
+
+	// Convert input into user messages
+	if len(request.Input) > 0 {
+		inputs := request.ParseInput()
+		var contentParts []dto.MediaContent
+		for _, inp := range inputs {
+			switch inp.Type {
+			case "input_text":
+				contentParts = append(contentParts, dto.MediaContent{Type: "text", Text: inp.Text})
+			case "input_image":
+				contentParts = append(contentParts, dto.MediaContent{
+					Type:     "image_url",
+					ImageUrl: &dto.MessageImageUrl{Url: inp.ImageUrl},
+				})
+			}
+		}
+		if len(contentParts) == 1 && contentParts[0].Type == "text" {
+			oaiReq.Messages = append(oaiReq.Messages, dto.Message{
+				Role:    "user",
+				Content: contentParts[0].Text,
+			})
+		} else if len(contentParts) > 0 {
+			msg := dto.Message{Role: "user"}
+			msg.SetMediaContent(contentParts)
+			oaiReq.Messages = append(oaiReq.Messages, msg)
+		}
+	}
+
+	return a.ConvertOpenAIRequest(c, info, oaiReq)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -247,6 +306,11 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	// Force non-streaming for Responses API stability
+	if info.RelayMode == constant.RelayModeResponses {
+		info.IsStream = false
+	}
+
 	if info.RelayMode == constant.RelayModeGemini {
 		if strings.Contains(info.RequestURLPath, ":embedContent") ||
 			strings.Contains(info.RequestURLPath, ":batchEmbedContents") {

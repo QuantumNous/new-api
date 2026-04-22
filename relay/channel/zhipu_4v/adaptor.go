@@ -1,6 +1,7 @@
 package zhipu_4v
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -44,6 +45,8 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	// Force non-streaming for GLM via New API for stability with Responses API.
+	info.IsStream = false
 	baseURL := info.ChannelBaseUrl
 	if baseURL == "" {
 		baseURL = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeZhipu_v4]
@@ -102,8 +105,55 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	// Bridge Responses API to standard OpenAI Chat format
+	oaiReq := &dto.GeneralOpenAIRequest{
+		Model:  request.Model,
+		Stream: lo.ToPtr(false),
+	}
+
+	if request.MaxOutputTokens != nil {
+		oaiReq.MaxTokens = request.MaxOutputTokens
+	}
+	if request.Temperature != nil {
+		oaiReq.Temperature = request.Temperature
+	}
+	if request.TopP != nil {
+		oaiReq.TopP = request.TopP
+	}
+
+	// Instructions -> System Message
+	if len(request.Instructions) > 0 {
+		var instrStr string
+		if err := json.Unmarshal(request.Instructions, &instrStr); err == nil && instrStr != "" {
+			oaiReq.Messages = append(oaiReq.Messages, dto.Message{
+				Role:    "system",
+				Content: instrStr,
+			})
+		}
+	}
+
+	// Input -> User Messages
+	if len(request.Input) > 0 {
+		inputs := request.ParseInput()
+		var contentParts []dto.MediaContent
+		for _, inp := range inputs {
+			if inp.Type == "input_text" {
+				contentParts = append(contentParts, dto.MediaContent{Type: "text", Text: inp.Text})
+			}
+		}
+		if len(contentParts) == 1 {
+			oaiReq.Messages = append(oaiReq.Messages, dto.Message{
+				Role:    "user",
+				Content: contentParts[0].Text,
+			})
+		} else if len(contentParts) > 1 {
+			msg := dto.Message{Role: "user"}
+			msg.SetMediaContent(contentParts)
+			oaiReq.Messages = append(oaiReq.Messages, msg)
+		}
+	}
+
+	return a.ConvertOpenAIRequest(c, info, oaiReq)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
