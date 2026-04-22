@@ -49,11 +49,16 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         itemKey: 'pricing',
         to: '/pricing',
       },
-      {
-        text: t('文档'),
-        itemKey: 'docs',
-        to: '/docs',
-      },
+      ...(docsLink
+        ? [
+            {
+              text: t('文档'),
+              itemKey: 'docs',
+              isExternal: true,
+              externalLink: docsLink,
+            },
+          ]
+        : []),
       {
         text: t('关于'),
         itemKey: 'about',
@@ -63,7 +68,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
 
     // 根据配置过滤导航链接
     return allLinks.filter((link) => {
+      if (link.itemKey === 'docs') {
+        return docsLink && modules.docs;
+      }
       if (link.itemKey === 'pricing') {
+        // 支持新的pricing配置格式
         return typeof modules.pricing === 'object'
           ? modules.pricing.enabled
           : modules.pricing;

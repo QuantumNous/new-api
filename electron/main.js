@@ -397,7 +397,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true
     },
-    title: 'New API',
+    title: 'GQ API',
     icon: path.join(__dirname, 'icon.png')
   });
 
