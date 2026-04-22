@@ -202,6 +202,15 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	}
 	actualQuota = int(float64(actualQuota) * orgDiscountRate)
 
+	if orgDiscountRate != 1.0 {
+		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 应用企业折扣：原始额度=%s，折扣率=%.4f，折后额度=%s",
+			task.TaskID,
+			logger.LogQuota(actualQuota/int(orgDiscountRate)),
+			orgDiscountRate,
+			logger.LogQuota(actualQuota),
+		))
+	}
+
 	preConsumedQuota := task.Quota
 	quotaDelta := actualQuota - preConsumedQuota
 
