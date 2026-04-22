@@ -67,8 +67,7 @@ const homeText = {
   footerTitle: '\u4ea7\u54c1\u4e0e\u6587\u6863',
   footerModels: '\u6a21\u578b\u8986\u76d6\u77e9\u9635',
   footerDocs: '\u6587\u6863',
-  footerCopy:
-    '\u00a9 2026 \u65e0\u9650\u661f\u6cb3 \uff5c {ICP\u5907\u6848\u53f7} \uff5c {\u516c\u5b89\u5907\u6848\u53f7}',
+  footerCopy: 'footer-copy',
   footerVersion: '\u5f53\u524d\u7248\u672c v2026.04 \u00b7 \u6700\u540e\u66f4\u65b0 2026-04-14',
 };
 
