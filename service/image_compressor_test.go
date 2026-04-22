@@ -427,3 +427,19 @@ func TestApply_InvalidConstraint_EmptyQualitySteps_Skips(t *testing.T) {
 	require.True(t, result.Info.Skipped)
 	require.Equal(t, raw, result.Bytes)
 }
+
+func TestApply_JPEG_RetryScaleMarksResized(t *testing.T) {
+	t.Parallel()
+	// 构造恰好在 MaxDim 以内（不触发首轮缩放）但编码后超 MaxBytes，需要 retry 缩尺寸才能达标的图。
+	raw := makeTestJPEG(t, 1568, 1568, 95)
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     30_000, // 在所有质量档 + 首轮缩之前的组合中，至少需要 1 轮 retry 才能达标
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+	result, err := Apply(raw, "image/jpeg", constraint)
+	require.NoError(t, err)
+	require.LessOrEqual(t, result.Info.FinalSize, constraint.MaxBytes)
+	require.True(t, result.Info.Resized, "retry-scale should mark Resized=true even if initial resizeIfNeeded was no-op")
+}

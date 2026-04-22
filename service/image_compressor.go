@@ -97,7 +97,7 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (result *Compress
 	case "png":
 		hasAlpha := imageHasAlpha(resized)
 		if hasAlpha && c.PreserveAlpha {
-			encoded, _, _, perr := compressPNGNoLossWithRetry(resized, c.MaxBytes)
+			encoded, retryScaled, perr := compressPNGNoLossWithRetry(resized, c.MaxBytes)
 			if perr != nil {
 				return nil, perr
 			}
@@ -105,7 +105,7 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (result *Compress
 				Bytes: encoded,
 				Mime:  "image/png",
 				Info: CompressionInfo{
-					Resized:      didResize,
+					Resized:      didResize || retryScaled,
 					OriginalSize: origSize,
 					FinalSize:    int64(len(encoded)),
 				},
@@ -121,7 +121,7 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (result *Compress
 	case "webp":
 		hasAlpha := imageHasAlpha(resized)
 		if hasAlpha && c.PreserveAlpha {
-			encoded, _, _, perr := compressPNGNoLossWithRetry(resized, c.MaxBytes)
+			encoded, retryScaled, perr := compressPNGNoLossWithRetry(resized, c.MaxBytes)
 			if perr != nil {
 				return nil, perr
 			}
@@ -129,7 +129,7 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (result *Compress
 				Bytes: encoded,
 				Mime:  "image/png",
 				Info: CompressionInfo{
-					Resized:       didResize,
+					Resized:       didResize || retryScaled,
 					OriginalSize:  origSize,
 					FinalSize:     int64(len(encoded)),
 					FormatChanged: true,
@@ -319,16 +319,15 @@ func compressJPEGLadderWithRetry(
 func compressPNGNoLossWithRetry(
 	initial image.Image,
 	maxBytes int64,
-) (encoded []byte, finalW int, finalH int, err error) {
+) (encoded []byte, retryScaled bool, err error) {
 	current := initial
 	for attempt := 0; attempt <= 2; attempt++ {
 		enc, encErr := encodePNG(current)
 		if encErr != nil {
-			return nil, 0, 0, encErr
+			return nil, false, encErr
 		}
 		if int64(len(enc)) <= maxBytes {
-			b := current.Bounds()
-			return enc, b.Dx(), b.Dy(), nil
+			return enc, attempt > 0, nil
 		}
 		b := current.Bounds()
 		newW := int(float64(b.Dx()) * 0.75)
@@ -340,7 +339,7 @@ func compressPNGNoLossWithRetry(
 		draw.CatmullRom.Scale(smaller, smaller.Bounds(), current, b, draw.Over, nil)
 		current = smaller
 	}
-	return nil, 0, 0, ErrImageTooLargeAfterCompression
+	return nil, false, ErrImageTooLargeAfterCompression
 }
 
 // runJPEGPath 是 JPEG 输出分支的共用通路。 formatChanged 描述本次是否发生
@@ -354,7 +353,7 @@ func runJPEGPath(
 	formatChanged bool,
 	warnings []string,
 ) (*CompressResult, error) {
-	encoded, q, _, _, _, err := compressJPEGLadderWithRetry(img, c.QualitySteps, c.MaxBytes)
+	encoded, q, _, _, retries, err := compressJPEGLadderWithRetry(img, c.QualitySteps, c.MaxBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -362,7 +361,7 @@ func runJPEGPath(
 		Bytes: encoded,
 		Mime:  "image/jpeg",
 		Info: CompressionInfo{
-			Resized:       didResize,
+			Resized:       didResize || retries > 0,
 			OriginalSize:  origSize,
 			FinalSize:     int64(len(encoded)),
 			QualityUsed:   q,
