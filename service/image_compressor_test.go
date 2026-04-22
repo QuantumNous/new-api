@@ -325,11 +325,12 @@ func TestApply_WebP_DecodesAndEncodesAsJPEG(t *testing.T) {
 	raw, err := base64.StdEncoding.DecodeString(tinyLossyWebPBase64)
 	require.NoError(t, err)
 
-	// WebP 下强制进入压缩路径：把 MaxBytes 设成比原字节小 1
+	// WebP 下通过 MaxDim=0 强制进入压缩路径（1×1 图宽度 1 > MaxDim 0）。
+	// MaxBytes 宽松（5 MB），确保 JPEG 编码结果（~600 B）不会触发重试失败。
 	constraint := setting.ImageConstraint{
 		Enabled:      true,
-		MaxBytes:     int64(len(raw) - 1),
-		MaxDim:       1568,
+		MaxBytes:     5_000_000,
+		MaxDim:       0,
 		QualitySteps: []int{85, 70, 55, 40},
 	}
 
@@ -337,4 +338,37 @@ func TestApply_WebP_DecodesAndEncodesAsJPEG(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "image/jpeg", result.Mime)
 	require.True(t, result.Info.FormatChanged)
+}
+
+func TestApply_JPEG_ImpossibleToCompress_ReturnsErrTooLarge(t *testing.T) {
+	t.Parallel()
+
+	raw := makeTestJPEG(t, 2000, 2000, 95)
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     500, // 极端小，任何合理质量都打不住
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	_, err := Apply(raw, "image/jpeg", constraint)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrImageTooLargeAfterCompression),
+		"want ErrImageTooLargeAfterCompression, got %v", err)
+}
+
+func TestApply_JPEG_FitsAfterRetryScale(t *testing.T) {
+	t.Parallel()
+
+	raw := makeTestJPEG(t, 3000, 3000, 92)
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     120_000, // 质量档可能够呛，第一轮尺寸缩了之后仍需 retry
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	result, err := Apply(raw, "image/jpeg", constraint)
+	require.NoError(t, err)
+	require.LessOrEqual(t, result.Info.FinalSize, constraint.MaxBytes)
 }

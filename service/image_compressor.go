@@ -65,74 +65,17 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 	if err != nil {
 		return nil, err
 	}
-
 	resized, didResize := resizeIfNeeded(img, c.MaxDim)
 
-	// 本 Task 只覆盖"JPEG 输入 → 质量梯度编码"路径；PNG/WebP/alpha 等分支
-	// 将在 Task 9-12 逐步扩展。
-	if format == "jpeg" {
-		encoded, q, exhausted, encErr := encodeJPEGWithLadder(resized, c.QualitySteps, c.MaxBytes)
-		if encErr != nil {
-			return nil, encErr
-		}
-		if !exhausted {
-			return &CompressResult{
-				Bytes: encoded,
-				Mime:  "image/jpeg",
-				Info: CompressionInfo{
-					Resized:      didResize,
-					OriginalSize: origSize,
-					FinalSize:    int64(len(encoded)),
-					QualityUsed:  q,
-				},
-			}, nil
-		}
-		// 所有质量档仍超标 —— 后续 Task 13 补重试缩尺寸；暂返回最后一次结果
-		return &CompressResult{
-			Bytes: encoded,
-			Mime:  "image/jpeg",
-			Info: CompressionInfo{
-				Resized:      didResize,
-				OriginalSize: origSize,
-				FinalSize:    int64(len(encoded)),
-				QualityUsed:  q,
-			},
-		}, nil
-	}
-
-	if format == "png" {
+	switch format {
+	case "jpeg":
+		return runJPEGPath(resized, didResize, origSize, c, false, nil)
+	case "png":
 		hasAlpha := imageHasAlpha(resized)
-		if !hasAlpha || !c.PreserveAlpha {
-			target := resized
-			var warnings []string
-			if hasAlpha {
-				target = flattenToWhiteBackground(resized)
-				warnings = append(warnings, "alpha channel flattened to white background (PNG → JPEG)")
-			}
-			encoded, q, _, encErr := encodeJPEGWithLadder(target, c.QualitySteps, c.MaxBytes)
-			if encErr != nil {
-				return nil, encErr
-			}
-			// 无论 exhausted 与否，都返回最后一次编码结果；Task 13 的重试由
-			// compressJPEGLadderWithRetry 统一处理。
-			return &CompressResult{
-				Bytes: encoded,
-				Mime:  "image/jpeg",
-				Info: CompressionInfo{
-					Resized:       didResize,
-					OriginalSize:  origSize,
-					FinalSize:     int64(len(encoded)),
-					QualityUsed:   q,
-					FormatChanged: true,
-					Warnings:      warnings,
-				},
-			}, nil
-		} else {
-			// PNG + alpha + PreserveAlpha：仅缩放 + BestCompression 重编码，不做有损降质。
-			// 编码后若仍超 MaxBytes，由 Task 13 的 retry scale 统一处理。
-			encoded, encErr := encodePNG(resized)
-			if encErr != nil {
-				return nil, encErr
+		if hasAlpha && c.PreserveAlpha {
+			encoded, _, _, perr := compressPNGNoLossWithRetry(resized, c.MaxBytes)
+			if perr != nil {
+				return nil, perr
 			}
 			return &CompressResult{
 				Bytes: encoded,
@@ -144,18 +87,19 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 				},
 			}, nil
 		}
-	}
-
-	if format == "webp" {
-		hasAlpha := imageHasAlpha(resized)
 		target := resized
 		var warnings []string
-
+		if hasAlpha {
+			target = flattenToWhiteBackground(resized)
+			warnings = append(warnings, "alpha channel flattened to white background (PNG → JPEG)")
+		}
+		return runJPEGPath(target, didResize, origSize, c, true, warnings)
+	case "webp":
+		hasAlpha := imageHasAlpha(resized)
 		if hasAlpha && c.PreserveAlpha {
-			// WebP lossless with alpha → 转 PNG 保留 alpha
-			encoded, encErr := encodePNG(target)
-			if encErr != nil {
-				return nil, encErr
+			encoded, _, _, perr := compressPNGNoLossWithRetry(resized, c.MaxBytes)
+			if perr != nil {
+				return nil, perr
 			}
 			return &CompressResult{
 				Bytes: encoded,
@@ -168,39 +112,17 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 				},
 			}, nil
 		}
-
+		target := resized
+		var warnings []string
 		if hasAlpha {
 			target = flattenToWhiteBackground(resized)
 			warnings = append(warnings, "alpha channel flattened to white background (WebP → JPEG)")
 		}
-		encoded, q, _, encErr := encodeJPEGWithLadder(target, c.QualitySteps, c.MaxBytes)
-		if encErr != nil {
-			return nil, encErr
-		}
-		return &CompressResult{
-			Bytes: encoded,
-			Mime:  "image/jpeg",
-			Info: CompressionInfo{
-				Resized:       didResize,
-				OriginalSize:  origSize,
-				FinalSize:     int64(len(encoded)),
-				QualityUsed:   q,
-				FormatChanged: true,
-				Warnings:      warnings,
-			},
-		}, nil
+		return runJPEGPath(target, didResize, origSize, c, true, warnings)
+	default:
+		// GIF/其他静态格式 —— 当前不支持静态 GIF 重编码，返回解码错误
+		return nil, ErrCannotDecode
 	}
-
-	// 其余格式 —— 暂返回原字节。Task 9-12 覆盖 PNG/WebP。
-	return &CompressResult{
-		Bytes: raw,
-		Mime:  mime,
-		Info: CompressionInfo{
-			Resized:      didResize,
-			OriginalSize: origSize,
-			FinalSize:    origSize,
-		},
-	}, nil
 }
 
 func skipped(raw []byte, mime string, origSize int64) *CompressResult {
@@ -216,9 +138,10 @@ func skipped(raw []byte, mime string, origSize int64) *CompressResult {
 }
 
 var (
-	ErrAnimatedImageTooLarge = errors.New("animated image exceeds channel limit and gateway does not recompress animated images")
-	ErrHEICNotSupported      = errors.New("HEIC/HEIF image exceeds channel limit; convert to JPEG/PNG before upload")
-	ErrCannotDecode          = errors.New("cannot decode image bytes")
+	ErrAnimatedImageTooLarge        = errors.New("animated image exceeds channel limit and gateway does not recompress animated images")
+	ErrHEICNotSupported             = errors.New("HEIC/HEIF image exceeds channel limit; convert to JPEG/PNG before upload")
+	ErrCannotDecode                 = errors.New("cannot decode image bytes")
+	ErrImageTooLargeAfterCompression = errors.New("image cannot be compressed below channel limit")
 )
 
 // isAnimated 根据 MIME 与字节内容判定是否为动图。
@@ -334,6 +257,95 @@ func encodeJPEGWithLadder(img image.Image, steps []int, maxBytes int64) (bytes [
 		lastQ = q
 	}
 	return lastEncoded, lastQ, true, nil
+}
+
+// compressJPEGLadderWithRetry 在给定初始 img 上，尝试质量梯度；
+// 失败则把图缩到 0.75×，最多重试 2 轮。返回 Err 或成功结果。
+func compressJPEGLadderWithRetry(
+	initial image.Image,
+	steps []int,
+	maxBytes int64,
+) (encoded []byte, quality int, finalW int, finalH int, retries int, err error) {
+	current := initial
+	for attempt := 0; attempt <= 2; attempt++ {
+		enc, q, exhausted, encErr := encodeJPEGWithLadder(current, steps, maxBytes)
+		if encErr != nil {
+			return nil, 0, 0, 0, attempt, encErr
+		}
+		if !exhausted {
+			b := current.Bounds()
+			return enc, q, b.Dx(), b.Dy(), attempt, nil
+		}
+		// 缩 0.75× 再来
+		b := current.Bounds()
+		newW := int(float64(b.Dx()) * 0.75)
+		newH := int(float64(b.Dy()) * 0.75)
+		if newW < 1 || newH < 1 {
+			break
+		}
+		smaller := image.NewRGBA(image.Rect(0, 0, newW, newH))
+		draw.CatmullRom.Scale(smaller, smaller.Bounds(), current, b, draw.Over, nil)
+		current = smaller
+	}
+	b := current.Bounds()
+	return nil, 0, b.Dx(), b.Dy(), 2, ErrImageTooLargeAfterCompression
+}
+
+// compressPNGNoLossWithRetry 处理 PNG alpha 保留路径：尺寸缩到 0.75×，最多 2 轮。
+func compressPNGNoLossWithRetry(
+	initial image.Image,
+	maxBytes int64,
+) (encoded []byte, finalW int, finalH int, err error) {
+	current := initial
+	for attempt := 0; attempt <= 2; attempt++ {
+		enc, encErr := encodePNG(current)
+		if encErr != nil {
+			return nil, 0, 0, encErr
+		}
+		if int64(len(enc)) <= maxBytes {
+			b := current.Bounds()
+			return enc, b.Dx(), b.Dy(), nil
+		}
+		b := current.Bounds()
+		newW := int(float64(b.Dx()) * 0.75)
+		newH := int(float64(b.Dy()) * 0.75)
+		if newW < 1 || newH < 1 {
+			break
+		}
+		smaller := image.NewRGBA(image.Rect(0, 0, newW, newH))
+		draw.CatmullRom.Scale(smaller, smaller.Bounds(), current, b, draw.Over, nil)
+		current = smaller
+	}
+	return nil, 0, 0, ErrImageTooLargeAfterCompression
+}
+
+// runJPEGPath 是 JPEG 输出分支的共用通路。 formatChanged 描述本次是否发生
+// 格式转换（源即 JPEG 传 false；PNG→JPEG / WebP→JPEG 传 true）。
+// warnings 为空切片或 nil 表示无告警。
+func runJPEGPath(
+	img image.Image,
+	didResize bool,
+	origSize int64,
+	c setting.ImageConstraint,
+	formatChanged bool,
+	warnings []string,
+) (*CompressResult, error) {
+	encoded, q, _, _, _, err := compressJPEGLadderWithRetry(img, c.QualitySteps, c.MaxBytes)
+	if err != nil {
+		return nil, err
+	}
+	return &CompressResult{
+		Bytes: encoded,
+		Mime:  "image/jpeg",
+		Info: CompressionInfo{
+			Resized:       didResize,
+			OriginalSize:  origSize,
+			FinalSize:     int64(len(encoded)),
+			QualityUsed:   q,
+			FormatChanged: formatChanged,
+			Warnings:      warnings,
+		},
+	}, nil
 }
 
 // imageHasAlpha 判断图像是否包含非 opaque 像素。
