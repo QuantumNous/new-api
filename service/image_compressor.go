@@ -146,6 +146,51 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 		}
 	}
 
+	if format == "webp" {
+		hasAlpha := imageHasAlpha(resized)
+		target := resized
+		var warnings []string
+
+		if hasAlpha && c.PreserveAlpha {
+			// WebP lossless with alpha → 转 PNG 保留 alpha
+			encoded, encErr := encodePNG(target)
+			if encErr != nil {
+				return nil, encErr
+			}
+			return &CompressResult{
+				Bytes: encoded,
+				Mime:  "image/png",
+				Info: CompressionInfo{
+					Resized:       didResize,
+					OriginalSize:  origSize,
+					FinalSize:     int64(len(encoded)),
+					FormatChanged: true,
+				},
+			}, nil
+		}
+
+		if hasAlpha {
+			target = flattenToWhiteBackground(resized)
+			warnings = append(warnings, "alpha channel flattened to white background (WebP → JPEG)")
+		}
+		encoded, q, _, encErr := encodeJPEGWithLadder(target, c.QualitySteps, c.MaxBytes)
+		if encErr != nil {
+			return nil, encErr
+		}
+		return &CompressResult{
+			Bytes: encoded,
+			Mime:  "image/jpeg",
+			Info: CompressionInfo{
+				Resized:       didResize,
+				OriginalSize:  origSize,
+				FinalSize:     int64(len(encoded)),
+				QualityUsed:   q,
+				FormatChanged: true,
+				Warnings:      warnings,
+			},
+		}, nil
+	}
+
 	// 其余格式 —— 暂返回原字节。Task 9-12 覆盖 PNG/WebP。
 	return &CompressResult{
 		Bytes: raw,

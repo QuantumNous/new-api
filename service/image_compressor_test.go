@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"image"
 	"image/color"
@@ -312,4 +313,28 @@ func TestApply_PNGWithAlpha_Preserve_StaysPNGResizedOnly(t *testing.T) {
 	require.Equal(t, "png", format)
 	require.LessOrEqual(t, cfg.Width, constraint.MaxDim)
 	require.LessOrEqual(t, cfg.Height, constraint.MaxDim)
+}
+
+// tinyLossyWebPBase64 是一个 1x1 lossy WebP 文件（约 26 字节），用于验证
+// WebP 解码分派与 JPEG 输出编码。
+const tinyLossyWebPBase64 = "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
+
+func TestApply_WebP_DecodesAndEncodesAsJPEG(t *testing.T) {
+	t.Parallel()
+
+	raw, err := base64.StdEncoding.DecodeString(tinyLossyWebPBase64)
+	require.NoError(t, err)
+
+	// WebP 下强制进入压缩路径：把 MaxBytes 设成比原字节小 1
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     int64(len(raw) - 1),
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	result, err := Apply(raw, "image/webp", constraint)
+	require.NoError(t, err)
+	require.Equal(t, "image/jpeg", result.Mime)
+	require.True(t, result.Info.FormatChanged)
 }
