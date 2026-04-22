@@ -66,6 +66,7 @@ const SettingsPanel = ({
     'nano-banana',
     'nano-banana2',
     'nano-banana-pro',
+    'gpt-image2',
   ]);
   const chatAdobeImageModels = new Set(['nano-banana2', 'nano-banana-pro']);
   const adobeVideoModels = new Set([
@@ -147,6 +148,15 @@ const SettingsPanel = ({
     { label: '4:3', value: '4:3' },
     { label: '3:4', value: '3:4' },
   ];
+  const gptImage2SizeOptions = [
+    { label: '1:1', value: '1:1' },
+    { label: '16:9', value: '16:9' },
+    { label: '9:16', value: '9:16' },
+    { label: '4:3', value: '4:3' },
+    { label: '3:4', value: '3:4' },
+    { label: '3:2', value: '3:2' },
+    { label: '2:3', value: '2:3' },
+  ];
   const adobeAutoImageSizeOptions = [
     { label: 'Square (1024x1024)', value: '1024x1024' },
     { label: 'Landscape (1792x1024)', value: '1792x1024' },
@@ -200,9 +210,12 @@ const SettingsPanel = ({
     { label: 'Frame', value: 'frame' },
     { label: 'Image', value: 'image' },
   ];
-  const currentAdobeAspectRatioOptions = chatAdobeImageModels.has(inputs.model)
-    ? chatAdobeAspectRatioOptions
-    : defaultAdobeAspectRatioOptions;
+  const isGPTImage2Model = inputs.model === 'gpt-image2';
+  const currentAdobeAspectRatioOptions = isGPTImage2Model
+    ? gptImage2SizeOptions
+    : chatAdobeImageModels.has(inputs.model)
+      ? chatAdobeAspectRatioOptions
+      : defaultAdobeAspectRatioOptions;
   const currentAdobeSupportsAutoImageSize = currentAdobeAspectRatioOptions.some(
     (option) => option.value === 'auto',
   );
@@ -451,18 +464,20 @@ const SettingsPanel = ({
                   />
                 </div>
               )}
-              <div>
-                <Typography.Text strong className='text-sm'>
-                  Output Resolution
-                </Typography.Text>
-                <Select
-                  className='!rounded-lg mt-2'
-                  optionList={adobeOutputResolutionOptions}
-                  value={inputs.outputResolution || '2K'}
-                  onChange={(value) => onInputChange('outputResolution', value)}
-                  disabled={customRequestMode}
-                />
-              </div>
+              {!isGPTImage2Model && (
+                <div>
+                  <Typography.Text strong className='text-sm'>
+                    Output Resolution
+                  </Typography.Text>
+                  <Select
+                    className='!rounded-lg mt-2'
+                    optionList={adobeOutputResolutionOptions}
+                    value={inputs.outputResolution || '2K'}
+                    onChange={(value) => onInputChange('outputResolution', value)}
+                    disabled={customRequestMode}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -60,7 +60,9 @@ const ADOBE_IMAGE_MODELS = new Set([
   'nano-banana',
   'nano-banana2',
   'nano-banana-pro',
+  'gpt-image2',
 ]);
+const GPT_IMAGE2_MODEL = 'gpt-image2';
 const ADOBE_CHAT_IMAGE_MODELS = new Set([
   'nano-banana2',
   'nano-banana-pro',
@@ -78,6 +80,7 @@ const CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS = {
   'nano-banana': 4,
   'nano-banana2': 6,
   'nano-banana-pro': 6,
+  'gpt-image2': 6,
   'sora2': 1,
   'sora2-pro': 1,
   'veo31-fast': 2,
@@ -105,6 +108,15 @@ const CHAT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
   { label: '9:16', value: '9:16' },
   { label: '4:3', value: '4:3' },
   { label: '3:4', value: '3:4' },
+];
+const GPT_IMAGE2_SIZE_OPTIONS = [
+  { label: '1:1', value: '1:1' },
+  { label: '16:9', value: '16:9' },
+  { label: '9:16', value: '9:16' },
+  { label: '4:3', value: '4:3' },
+  { label: '3:4', value: '3:4' },
+  { label: '3:2', value: '3:2' },
+  { label: '2:3', value: '2:3' },
 ];
 const ADOBE_AUTO_IMAGE_SIZE_OPTIONS = [
   { label: '1024x1024', value: '1024x1024' },
@@ -1078,10 +1090,19 @@ const revokeCreativeCenterPreviewURL = (previewUrl) => {
   }
 };
 
-const getAdobeImageAspectRatioOptions = (modelName) =>
-  ADOBE_CHAT_IMAGE_MODELS.has(modelName)
+const isGPTImage2Model = (modelName) => modelName === GPT_IMAGE2_MODEL;
+
+const getAdobeImageAspectRatioOptions = (modelName) => {
+  if (isGPTImage2Model(modelName)) {
+    return GPT_IMAGE2_SIZE_OPTIONS;
+  }
+  return ADOBE_CHAT_IMAGE_MODELS.has(modelName)
     ? CHAT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS
     : DEFAULT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS;
+};
+
+const supportsAdobeImageOutputResolution = (modelName) =>
+  !isGPTImage2Model(modelName);
 
 const supportsAdobeAutoImageSize = (modelName) =>
   getAdobeImageAspectRatioOptions(modelName).some(
@@ -2808,38 +2829,48 @@ const DropSelectButton = ({
   setOpenMenu,
   onSelect,
   widthClass = 'w-40',
-}) => (
-  <DropButton
-    icon={icon}
-    label={label}
-    open={openMenu === menuKey}
-    onClick={() => setOpenMenu(openMenu === menuKey ? null : menuKey)}
-  >
-    {openMenu === menuKey && (
-      <div className={`absolute bottom-[110%] left-0 z-20 mb-2 ${widthClass} rounded-[1.25rem] border border-blue-100/50 bg-white/95 backdrop-blur-3xl p-1.5 shadow-[0_12px_40px_-10px_rgba(59,130,246,0.15)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200`}>
-        <div className='relative flex flex-col'>
-          {options.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => {
-                onSelect(option.value);
-                setOpenMenu(null);
-              }}
-              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-bold transition-all duration-200 ${
-                value === option.value
-                  ? 'bg-blue-50 text-blue-600 shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-blue-500'
-              }`}
-            >
-              <span>{option.label}</span>
-              {value === option.value && <Check size={14} className="text-blue-500" />}
-            </button>
-          ))}
+}) => {
+  if (!Array.isArray(options) || options.length === 0) {
+    return null;
+  }
+
+  return (
+    <DropButton
+      icon={icon}
+      label={label}
+      open={openMenu === menuKey}
+      onClick={() => setOpenMenu(openMenu === menuKey ? null : menuKey)}
+    >
+      {openMenu === menuKey && (
+        <div
+          className={`absolute bottom-[110%] left-0 z-20 mb-2 ${widthClass} rounded-[1.25rem] border border-blue-100/50 bg-white/95 backdrop-blur-3xl p-1.5 shadow-[0_12px_40px_-10px_rgba(59,130,246,0.15)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200`}
+        >
+          <div className='relative flex flex-col'>
+            {options.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  onSelect(option.value);
+                  setOpenMenu(null);
+                }}
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-bold transition-all duration-200 ${
+                  value === option.value
+                    ? 'bg-blue-50 text-blue-600 shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-blue-500'
+                }`}
+              >
+                <span>{option.label}</span>
+                {value === option.value && (
+                  <Check size={14} className='text-blue-500' />
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-    )}
-  </DropButton>
-);
+      )}
+    </DropButton>
+  );
+};
 
 export default function App() {
   const [userState] = useContext(UserContext);
@@ -3418,6 +3449,7 @@ export default function App() {
   const isGrokImageGenerationModel =
     GROK_IMAGE_GENERATION_MODELS.has(currentModelName);
   const isAdobeImageModel = ADOBE_IMAGE_MODELS.has(currentModelName);
+  const isCurrentGPTImage2Model = isGPTImage2Model(currentModelName);
   const isAdobeVideoModel = ADOBE_VIDEO_MODELS.has(currentModelName);
   const isAdobeSoraModel =
     currentModelName === 'sora2' || currentModelName === 'sora2-pro';
@@ -3556,7 +3588,9 @@ export default function App() {
         ) {
           snapshot.autoImageSize = sourceParams.autoImageSize;
         }
-        snapshot.outputResolution = sourceParams.outputResolution || '2K';
+        if (supportsAdobeImageOutputResolution(modelName)) {
+          snapshot.outputResolution = sourceParams.outputResolution || '2K';
+        }
       }
     }
 
@@ -3739,12 +3773,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         ) {
           next.autoImageSize = '1024x1024';
         }
-        if (
-          !ADOBE_OUTPUT_RESOLUTION_OPTIONS.some(
-            (option) => option.value === next.outputResolution,
-          )
-        ) {
-          next.outputResolution = '2K';
+        if (supportsAdobeImageOutputResolution(currentModelName)) {
+          if (
+            !ADOBE_OUTPUT_RESOLUTION_OPTIONS.some(
+              (option) => option.value === next.outputResolution,
+            )
+          ) {
+            next.outputResolution = '2K';
+          }
         }
       }
 
@@ -6915,10 +6951,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     (currentUploadedImageUrls.length > 0
                       ? 'Edit the provided media.'
                       : ''),
-                  output_resolution:
-                    basePayload.output_resolution ||
-                    currentParamsSnapshot.outputResolution ||
-                    '2K',
                   request_id: requestId,
                   seed: requestSeed,
                   seeds: [requestSeed],
@@ -6940,6 +6972,15 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 };
 
             if (isAdobeImageModel) {
+              if (basePayload.size) {
+                payload.size = basePayload.size;
+              }
+              if (supportsAdobeImageOutputResolution(currentModelName)) {
+                payload.output_resolution =
+                  basePayload.output_resolution ||
+                  currentParamsSnapshot.outputResolution ||
+                  '2K';
+              }
               if (basePayload.aspect_ratio) {
                 payload.aspect_ratio = basePayload.aspect_ratio;
               } else if (basePayload.size) {
@@ -8642,7 +8683,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         icon={<ImageIcon size={14} />}
                         label={`分辨率 ${params.outputResolution}`}
                         value={params.outputResolution}
-                        options={ADOBE_OUTPUT_RESOLUTION_OPTIONS}
+                        options={
+                          isCurrentGPTImage2Model
+                            ? []
+                            : ADOBE_OUTPUT_RESOLUTION_OPTIONS
+                        }
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>

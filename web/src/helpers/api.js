@@ -288,6 +288,7 @@ export const buildApiPayload = (
     'nano-banana',
     'nano-banana2',
     'nano-banana-pro',
+    'gpt-image2',
   ]);
   const adobeVideoModels = new Set([
     'sora2',
@@ -344,6 +345,7 @@ export const buildApiPayload = (
   const isGrokImagineImageEditModel = grokImagineImageEditModels.has(inputs.model);
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
   const isAdobeImageModel = adobeImageModels.has(inputs.model);
+  const isGPTImage2Model = inputs.model === 'gpt-image2';
   const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
   const isAdobeVeoModel =
     inputs.model === 'veo31' ||
@@ -366,31 +368,38 @@ export const buildApiPayload = (
   if (isAdobeImageModel) {
     if (adobeAspectRatio) {
       payload.aspect_ratio = adobeAspectRatio;
+      if (isGPTImage2Model) {
+        payload.size = adobeAspectRatio;
+      }
     } else if (inputs.autoImageSize) {
       payload.size = inputs.autoImageSize;
     }
-    if (inputs.outputResolution) {
-      payload.output_resolution = inputs.outputResolution;
-    } else {
-      payload.output_resolution = '2K';
+    if (!isGPTImage2Model) {
+      if (inputs.outputResolution) {
+        payload.output_resolution = inputs.outputResolution;
+      } else {
+        payload.output_resolution = '2K';
+      }
     }
     if (Number.isFinite(normalizedSeed)) {
       payload.seeds = [Math.trunc(normalizedSeed)];
     }
-    payload.extra_body = {
-      ...(payload.extra_body || {}),
-      google: {
-        ...((payload.extra_body && payload.extra_body.google) || {}),
-        image_config: {
-          ...(((payload.extra_body && payload.extra_body.google) || {})
-            .image_config || {}),
-          ...(adobeAspectRatio ? { aspect_ratio: adobeAspectRatio } : {}),
-          ...(payload.output_resolution
-            ? { image_size: payload.output_resolution }
-            : {}),
+    if (!isGPTImage2Model) {
+      payload.extra_body = {
+        ...(payload.extra_body || {}),
+        google: {
+          ...((payload.extra_body && payload.extra_body.google) || {}),
+          image_config: {
+            ...(((payload.extra_body && payload.extra_body.google) || {})
+              .image_config || {}),
+            ...(adobeAspectRatio ? { aspect_ratio: adobeAspectRatio } : {}),
+            ...(payload.output_resolution
+              ? { image_size: payload.output_resolution }
+              : {}),
+          },
         },
-      },
-    };
+      };
+    }
   }
   if (isVideoModel) {
     payload.stream = false;
