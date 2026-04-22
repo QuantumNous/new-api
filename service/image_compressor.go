@@ -61,6 +61,11 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (result *Compress
 		return skipped(raw, mime, origSize), nil
 	}
 
+	// 运维失误防护：MaxDim/QualitySteps 非法时，把约束视同未启用而非让流水线产出退化结果。
+	if c.MaxDim <= 0 || len(c.QualitySteps) == 0 {
+		return skipped(raw, mime, origSize), nil
+	}
+
 	// 低成本尺寸探测：DecodeConfig 仅读文件头，不展开像素。
 	cfg, _, cfgErr := image.DecodeConfig(bytes.NewReader(raw))
 	widthOK, heightOK := true, true

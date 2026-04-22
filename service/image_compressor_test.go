@@ -319,25 +319,28 @@ func TestApply_PNGWithAlpha_Preserve_StaysPNGResizedOnly(t *testing.T) {
 // WebP 解码分派与 JPEG 输出编码。
 const tinyLossyWebPBase64 = "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA=="
 
-func TestApply_WebP_DecodesAndEncodesAsJPEG(t *testing.T) {
+func TestApply_WebP_SmallImageIsSkipped(t *testing.T) {
 	t.Parallel()
 
 	raw, err := base64.StdEncoding.DecodeString(tinyLossyWebPBase64)
 	require.NoError(t, err)
 
-	// WebP 下通过 MaxDim=0 强制进入压缩路径（1×1 图宽度 1 > MaxDim 0）。
-	// MaxBytes 宽松（5 MB），确保 JPEG 编码结果（~600 B）不会触发重试失败。
+	// 1x1 WebP 在任何合理约束下都应直通，测试主要验证 WebP 被 DecodeConfig 识别
+	// 且 threshold short-circuit 正常工作。WebP → JPEG 编码路径未在此处单元测试，
+	// 因 x/image/webp 不提供 encode、且无法用纯 Go 构造更大的 WebP 作为 fixture；
+	// 该路径由 AWS 端到端测试间接覆盖。
 	constraint := setting.ImageConstraint{
 		Enabled:      true,
 		MaxBytes:     5_000_000,
-		MaxDim:       0,
+		MaxDim:       1568,
 		QualitySteps: []int{85, 70, 55, 40},
 	}
 
 	result, err := Apply(raw, "image/webp", constraint)
 	require.NoError(t, err)
-	require.Equal(t, "image/jpeg", result.Mime)
-	require.True(t, result.Info.FormatChanged)
+	require.True(t, result.Info.Skipped)
+	require.Equal(t, raw, result.Bytes)
+	require.Equal(t, "image/webp", result.Mime)
 }
 
 func TestApply_JPEG_ImpossibleToCompress_ReturnsErrTooLarge(t *testing.T) {
@@ -395,4 +398,32 @@ func TestApply_DecoderPanic_FallsBackToOriginal(t *testing.T) {
 	require.True(t, result.Info.Skipped, "panic fallback should mark Skipped=true")
 	require.Equal(t, raw, result.Bytes)
 	require.NotEmpty(t, result.Info.Warnings, "panic fallback should record a warning")
+}
+
+func TestApply_InvalidConstraint_MaxDimZero_Skips(t *testing.T) {
+	t.Parallel()
+	raw := makeTestJPEG(t, 2000, 2000, 85)
+	result, err := Apply(raw, "image/jpeg", setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     100,
+		MaxDim:       0, // 非法
+		QualitySteps: []int{85, 70},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Info.Skipped)
+	require.Equal(t, raw, result.Bytes)
+}
+
+func TestApply_InvalidConstraint_EmptyQualitySteps_Skips(t *testing.T) {
+	t.Parallel()
+	raw := makeTestJPEG(t, 2000, 2000, 85)
+	result, err := Apply(raw, "image/jpeg", setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     100,
+		MaxDim:       1568,
+		QualitySteps: nil, // 非法
+	})
+	require.NoError(t, err)
+	require.True(t, result.Info.Skipped)
+	require.Equal(t, raw, result.Bytes)
 }
