@@ -82,10 +82,11 @@ func shouldPassThroughAionlyImageGeneration(c *gin.Context, info *relaycommon.Re
 	if info == nil || info.RelayMode != relayconstant.RelayModeImagesGenerations {
 		return false
 	}
+	path := info.RequestURLPath
 	if c != nil && c.Request != nil && c.Request.URL != nil {
-		return c.Request.URL.Path == "/v1/images/generations"
+		path = c.Request.URL.Path
 	}
-	return info.RequestURLPath == "/v1/images/generations"
+	return strings.HasPrefix(path, "/v1/images/generations")
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -105,6 +106,20 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		query.Set("beta", "true")
 		parsedURL.RawQuery = query.Encode()
 		return parsedURL.String(), nil
+	}
+	if info != nil {
+		if info.RelayMode == relayconstant.RelayModeImagesGenerations {
+			if strings.HasPrefix(info.RequestURLPath, "/openai/v1/images/generations") {
+				return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/openai/v1/images/generations", info.ChannelType), nil
+			}
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/images/generations", info.ChannelType), nil
+		}
+		if info.RelayMode == relayconstant.RelayModeImagesEdits {
+			if strings.HasPrefix(info.RequestURLPath, "/openai/v1/images/edits") {
+				return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/openai/v1/images/edits", info.ChannelType), nil
+			}
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/images/edits", info.ChannelType), nil
+		}
 	}
 	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
 }

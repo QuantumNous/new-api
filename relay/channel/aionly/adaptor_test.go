@@ -64,6 +64,39 @@ func TestGetRequestURL_OpenAIFormat(t *testing.T) {
 	assert.Equal(t, "https://api.aiionly.com/v1/chat/completions", got)
 }
 
+func TestGetRequestURL_AionlyImageGenerationLegacyPath(t *testing.T) {
+	a := &Adaptor{}
+	info := newRelayInfo(types.RelayFormatOpenAIImage, "/v1/images/generations")
+	info.RelayMode = relayconstant.RelayModeImagesGenerations
+
+	got, err := a.GetRequestURL(info)
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.aiionly.com/v1/images/generations", got)
+}
+
+func TestGetRequestURL_AionlyImageGenerationOpenAIV1Path(t *testing.T) {
+	a := &Adaptor{}
+	info := newRelayInfo(types.RelayFormatOpenAIImage, "/openai/v1/images/generations")
+	info.RelayMode = relayconstant.RelayModeImagesGenerations
+
+	got, err := a.GetRequestURL(info)
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.aiionly.com/openai/v1/images/generations", got)
+}
+
+func TestGetRequestURL_AionlyImageEditsUsesOpenAIV1Path(t *testing.T) {
+	a := &Adaptor{}
+	info := newRelayInfo(types.RelayFormatOpenAIImage, "/openai/v1/images/edits")
+	info.RelayMode = relayconstant.RelayModeImagesEdits
+
+	got, err := a.GetRequestURL(info)
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.aiionly.com/openai/v1/images/edits", got)
+}
+
 // GetChannelName returns the expected name
 func TestGetChannelName(t *testing.T) {
 	a := &Adaptor{}
@@ -140,6 +173,33 @@ func TestConvertImageRequest_AionlyNestedFormatCompat(t *testing.T) {
 	assert.Equal(t, float64(100), gjson.Get(payload, "parameters.output_compression").Float())
 	assert.Equal(t, "png", gjson.Get(payload, "parameters.output_format").String())
 	assert.Equal(t, float64(1), gjson.Get(payload, "parameters.n").Float())
+}
+
+func TestConvertImageRequest_AionlyNestedFormatCompatWithOpenAIV1Path(t *testing.T) {
+	a := &Adaptor{}
+	gin.SetMode(gin.TestMode)
+	rawBody := `{
+		"model": "gpt-image-1",
+		"prompt": "一只猫"
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/openai/v1/images/generations", strings.NewReader(rawBody))
+	req.Header.Set("Content-Type", "application/json")
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = req
+	info := newRelayInfo(types.RelayFormatOpenAIImage, "/openai/v1/images/generations")
+	info.RelayMode = relayconstant.RelayModeImagesGenerations
+
+	request := dto.ImageRequest{}
+	err := common.UnmarshalBodyReusable(c, &request)
+	require.NoError(t, err)
+
+	converted, err := a.ConvertImageRequest(c, info, request)
+	require.NoError(t, err)
+
+	convertedReq, ok := converted.(dto.ImageRequest)
+	require.True(t, ok)
+	assert.Equal(t, "gpt-image-1", convertedReq.Model)
+	assert.Equal(t, "一只猫", convertedReq.Prompt)
 }
 
 func TestConvertImageRequest_AionlyNestedFormatOnlyForGenerationsURL(t *testing.T) {

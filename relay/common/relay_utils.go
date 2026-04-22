@@ -23,6 +23,9 @@ type HasImage interface {
 }
 
 func GetFullRequestURL(baseURL string, requestURL string, channelType int) string {
+	if strings.HasPrefix(requestURL, "/openai/v1/images/") && channelType != constant.ChannelTypeAionly {
+		requestURL = strings.TrimPrefix(requestURL, "/openai")
+	}
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
 
 	if strings.HasPrefix(baseURL, "https://gateway.ai.cloudflare.com") {

@@ -170,6 +170,21 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.DELETE("/models/:model", controller.RelayNotImplemented)
 	}
 
+	relayOpenAIV1Router := router.Group("/openai/v1")
+	relayOpenAIV1Router.Use(middleware.RouteTag("relay"))
+	relayOpenAIV1Router.Use(middleware.SystemPerformanceCheck())
+	relayOpenAIV1Router.Use(middleware.TokenAuth())
+	relayOpenAIV1Router.Use(middleware.ModelRequestRateLimit())
+	relayOpenAIV1Router.Use(middleware.Distribute())
+	{
+		relayOpenAIV1Router.POST("/images/generations", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIImage)
+		})
+		relayOpenAIV1Router.POST("/images/edits", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIImage)
+		})
+	}
+
 	relayMjRouter := router.Group("/mj")
 	relayMjRouter.Use(middleware.RouteTag("relay"))
 	relayMjRouter.Use(middleware.SystemPerformanceCheck())
