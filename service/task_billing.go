@@ -155,6 +155,16 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 		return
 	}
 
+	// 获取企业折扣率用于日志
+	modelName := taskModelName(task)
+	discountRate, err := GetUserOrgDiscountRate(task.UserId, modelName)
+	if err != nil {
+		discountRate = 1.0
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("任务 %s 退款：user_id=%d, model=%s, quota=%d, discount_rate=%.2f, reason=%s",
+		task.TaskID, task.UserId, modelName, quota, discountRate, reason))
+
 	// 1. 退还资金来源（钱包或订阅）
 	if err := taskAdjustFunding(task, -quota); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("退还资金来源失败 task %s: %s", task.TaskID, err.Error()))
@@ -302,6 +312,21 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier
 	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
 
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
+	// 应用企业折扣
+	discountRate, err := GetUserOrgDiscountRate(task.UserId, modelName)
+	if err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("获取企业折扣率失败 task %s, user_id=%d, model=%s, err=%v", task.TaskID, task.UserId, modelName, err))
+		discountRate = 1.0
+	} else if discountRate < 1.0 {
+		originalQuota := actualQuota
+		actualQuota = int(float64(actualQuota) * discountRate)
+		if actualQuota < 1 && originalQuota > 0 {
+			actualQuota = 1
+		}
+		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 企业折扣应用：user_id=%d, model=%s, discount_rate=%.2f, quota: %d -> %d",
+			task.TaskID, task.UserId, modelName, discountRate, originalQuota, actualQuota))
+	}
+
+	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f, discountRate=%.2f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier, discountRate)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)
 }
