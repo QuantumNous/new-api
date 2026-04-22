@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -604,4 +605,85 @@ func guessMimeTypeFromURL(url string) string {
 	}
 
 	return "application/octet-stream"
+}
+
+// GetBase64DataWithConstraint 在 GetBase64Data 基础上，根据 constraint
+// 对图像做"缩放 + 降质量"压缩。constraint.Enabled=false 时等价于 GetBase64Data。
+// 对同一请求内相同的 source+constraint，压缩只做一次。
+func GetBase64DataWithConstraint(
+	c *gin.Context,
+	source types.FileSource,
+	constraint setting.ImageConstraint,
+	reason ...string,
+) (string, string, error) {
+	if !constraint.Enabled {
+		return GetBase64Data(c, source, reason...)
+	}
+
+	cachedData, err := LoadFileSource(c, source, reason...)
+	if err != nil {
+		return "", "", err
+	}
+
+	rawBase64, err := cachedData.GetBase64Data()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get base64 data: %w", err)
+	}
+
+	// 仅对图像走压缩；非图像 MIME 直接返回原 base64。
+	if !strings.HasPrefix(cachedData.MimeType, "image/") {
+		return rawBase64, cachedData.MimeType, nil
+	}
+
+	// 副本缓存 key
+	cacheKey := compressedCacheKey(source.GetIdentifier(), constraint)
+	if c != nil {
+		if v, exists := c.Get(cacheKey); exists {
+			entry := v.(compressedEntry)
+			return entry.base64, entry.mime, nil
+		}
+	}
+
+	rawBytes, err := base64.StdEncoding.DecodeString(rawBase64)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decode base64 for compression: %w", err)
+	}
+
+	result, err := Apply(rawBytes, cachedData.MimeType, constraint)
+	if err != nil {
+		return "", "", err
+	}
+
+	// 输出日志：压缩/跳过/告警
+	if common.DebugEnabled {
+		logger.LogDebug(c, fmt.Sprintf(
+			"image_compressor: id=%s mime=%s orig=%d final=%d resized=%t quality=%d format_changed=%t",
+			source.GetIdentifier(), cachedData.MimeType,
+			result.Info.OriginalSize, result.Info.FinalSize,
+			result.Info.Resized, result.Info.QualityUsed, result.Info.FormatChanged,
+		))
+	}
+	for _, w := range result.Info.Warnings {
+		logger.LogWarn(c, fmt.Sprintf("image_compressor: %s (id=%s)", w, source.GetIdentifier()))
+	}
+
+	outBase64 := base64.StdEncoding.EncodeToString(result.Bytes)
+	entry := compressedEntry{base64: outBase64, mime: result.Mime}
+
+	if c != nil {
+		c.Set(cacheKey, entry)
+	}
+	return entry.base64, entry.mime, nil
+}
+
+type compressedEntry struct {
+	base64 string
+	mime   string
+}
+
+func compressedCacheKey(identifier string, c setting.ImageConstraint) string {
+	return fmt.Sprintf("compressed_%s_%s",
+		common.GenerateHMAC(identifier),
+		common.GenerateHMAC(c.Fingerprint()),
+	)
 }
