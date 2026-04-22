@@ -369,6 +369,12 @@ func GenRelayInfoOpenAIAudio(c *gin.Context, request dto.Request) *RelayInfo {
 	return info
 }
 
+func GenRelayInfoAionlyAudio(c *gin.Context, request dto.Request) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayFormat = types.RelayFormatAionlyAudio
+	return info
+}
+
 func GenRelayInfoEmbedding(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatEmbedding
@@ -535,6 +541,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoOpenAI(c, request)
 	case types.RelayFormatOpenAIAudio:
 		info = GenRelayInfoOpenAIAudio(c, request)
+	case types.RelayFormatAionlyAudio:
+		info = GenRelayInfoAionlyAudio(c, request)
 	case types.RelayFormatOpenAIImage:
 		info = GenRelayInfoImage(c, request)
 	case types.RelayFormatOpenAIRealtime:

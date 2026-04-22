@@ -132,6 +132,11 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
 		})
 
+		// aiionly synthesis route
+		httpRouter.POST("/synthesis", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatAionlyAudio)
+		})
+
 		// rerank related routes
 		httpRouter.POST("/rerank", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatRerank)

@@ -36,6 +36,8 @@ const (
 	RelayModeAudioTranscription // whisper
 	RelayModeAudioTranslation   // whisper
 
+	RelayModeAionlySynthesis  // aiionly tts via /v1/synthesis
+
 	RelayModeSunoFetch
 	RelayModeSunoFetchByID
 	RelayModeSunoSubmit
@@ -76,6 +78,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeResponsesCompact
 	} else if strings.HasPrefix(path, "/v1/responses") {
 		relayMode = RelayModeResponses
+	} else if strings.HasPrefix(path, "/v1/synthesis") {
+		relayMode = RelayModeAionlySynthesis
 	} else if strings.HasPrefix(path, "/v1/audio/speech") {
 		relayMode = RelayModeAudioSpeech
 	} else if strings.HasPrefix(path, "/v1/audio/transcriptions") {

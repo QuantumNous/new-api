@@ -44,6 +44,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateEmbeddingRequest(c, relayMode)
 	case types.RelayFormatRerank:
 		request, err = GetAndValidateRerankRequest(c)
+	case types.RelayFormatAionlyAudio:
+		request, err = getAndValidSynthesisRequest(c)
 	case types.RelayFormatOpenAIAudio:
 		request, err = GetAndValidAudioRequest(c, relayMode)
 	case types.RelayFormatOpenAIRealtime:
@@ -74,6 +76,45 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 		}
 	}
 	return audioRequest, nil
+}
+
+func getAndValidSynthesisRequest(c *gin.Context) (*dto.AudioRequest, error) {
+	var raw map[string]json.RawMessage
+	if err := common.UnmarshalBodyReusable(c, &raw); err != nil {
+		return nil, err
+	}
+
+	req := &dto.AudioRequest{}
+
+	if v, ok := raw["model"]; ok {
+		if err := common.Unmarshal(v, &req.Model); err != nil {
+			return nil, fmt.Errorf("invalid model field: %w", err)
+		}
+	}
+	if req.Model == "" {
+		return nil, errors.New("model is required")
+	}
+
+	if inputRaw, ok := raw["input"]; ok {
+		var inputObj struct {
+			Text  string `json:"text"`
+			Voice string `json:"voice"`
+		}
+		if err := common.Unmarshal(inputRaw, &inputObj); err != nil {
+			return nil, fmt.Errorf("invalid input field: %w", err)
+		}
+		req.Input = inputObj.Text
+		req.Voice = inputObj.Voice
+	}
+
+	if req.Input == "" {
+		return nil, errors.New("input.text is required")
+	}
+	if req.Voice == "" {
+		return nil, errors.New("input.voice is required")
+	}
+
+	return req, nil
 }
 
 func GetAndValidateRerankRequest(c *gin.Context) (*dto.RerankRequest, error) {

@@ -1,12 +1,14 @@
 package aionly
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
@@ -18,6 +20,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func isSynthesisMode(info *relaycommon.RelayInfo) bool {
+	return info.RelayMode == relayconstant.RelayModeAionlySynthesis
+}
 
 type Adaptor struct{}
 
@@ -32,6 +38,20 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+	if isSynthesisMode(info) {
+		synthesisReq := aionlySynthesisRequest{
+			Model: request.Model,
+			Input: aionlySynthesisInput{
+				Text:  request.Input,
+				Voice: request.Voice,
+			},
+		}
+		jsonData, err := common.Marshal(synthesisReq)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling aiionly synthesis request: %w", err)
+		}
+		return bytes.NewReader(jsonData), nil
+	}
 	openaiAdaptor := openai.Adaptor{}
 	return openaiAdaptor.ConvertAudioRequest(c, info, request)
 }
@@ -45,6 +65,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if isSynthesisMode(info) {
+		return info.ChannelBaseUrl + "/v1/synthesis", nil
+	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		requestURL := fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
 		if !shouldAppendClaudeBetaQuery(info) {
@@ -117,6 +140,9 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if isSynthesisMode(info) {
+		return AionlyTTSHandler(c, resp, info)
+	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		claudeAdaptor := claude.Adaptor{}
 		return claudeAdaptor.DoResponse(c, resp, info)
