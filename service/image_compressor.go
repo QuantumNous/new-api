@@ -2,8 +2,9 @@ package service
 
 import (
 	"bytes"
+	"errors"
 	"image"
-	_ "image/gif"
+	"image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 
@@ -49,8 +50,11 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 		return skipped(raw, mime, origSize), nil
 	}
 
-	// 进入完整压缩路径。下一 Task 起逐步展开。
-	// 临时实现：仅标记 Resized=true 让当前测试通过。
+	if isAnimated(raw, mime) {
+		return nil, ErrAnimatedImageTooLarge
+	}
+
+	// 进入完整压缩路径——占位（后续 Task 替换）
 	return &CompressResult{
 		Bytes: raw,
 		Mime:  mime,
@@ -72,4 +76,31 @@ func skipped(raw []byte, mime string, origSize int64) *CompressResult {
 			FinalSize:    origSize,
 		},
 	}
+}
+
+var (
+	ErrAnimatedImageTooLarge = errors.New("animated image exceeds channel limit and gateway does not recompress animated images")
+)
+
+// isAnimated 根据 MIME 与字节内容判定是否为动图。
+// 不解码完整像素，只做"帧数/标志位"级别的轻检查。
+func isAnimated(raw []byte, mime string) bool {
+	switch mime {
+	case "image/gif":
+		g, err := gif.DecodeAll(bytes.NewReader(raw))
+		if err != nil {
+			return false
+		}
+		return len(g.Image) > 1
+	case "image/apng":
+		return true
+	case "image/png":
+		// APNG 在 IHDR 之后、IDAT 之前会有一个 acTL chunk
+		return bytes.Contains(raw, []byte("acTL"))
+	case "image/webp":
+		// Animated WebP: VP8X chunk with bit 1 (animation flag) set.
+		// 最简检测：文件内含 "ANIM" chunk。
+		return bytes.Contains(raw, []byte("ANIM"))
+	}
+	return false
 }

@@ -2,8 +2,11 @@ package service
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/color"
+	"image/color/palette"
+	"image/gif"
 	"image/jpeg"
 	"image/png"
 	"testing"
@@ -109,4 +112,42 @@ func TestApply_OverMaxDim_EntersCompressionPath(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, result.Info.Skipped, "image exceeding MaxDim must be resized, not skipped")
 	require.True(t, result.Info.Resized)
+}
+
+func makeAnimatedGIF(t *testing.T, frames, widthPerFrame int) []byte {
+	t.Helper()
+	anim := &gif.GIF{LoopCount: 0}
+	for i := 0; i < frames; i++ {
+		paletted := image.NewPaletted(
+			image.Rect(0, 0, widthPerFrame, widthPerFrame),
+			palette.Plan9,
+		)
+		// 填充一个色块，确保每帧有非零字节
+		for y := 0; y < widthPerFrame; y++ {
+			for x := 0; x < widthPerFrame; x++ {
+				paletted.Set(x, y, palette.Plan9[(i+x+y)%len(palette.Plan9)])
+			}
+		}
+		anim.Image = append(anim.Image, paletted)
+		anim.Delay = append(anim.Delay, 10)
+	}
+	var buf bytes.Buffer
+	require.NoError(t, gif.EncodeAll(&buf, anim))
+	return buf.Bytes()
+}
+
+func TestApply_AnimatedGIFOverThreshold_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	raw := makeAnimatedGIF(t, 5, 800) // 多帧大 GIF，易超阈值
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     1000,
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	_, err := Apply(raw, "image/gif", constraint)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrAnimatedImageTooLarge), "want ErrAnimatedImageTooLarge, got %v", err)
 }
