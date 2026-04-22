@@ -1,10 +1,13 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -1033,6 +1036,22 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
+	if req.Type == constant.ChannelTypeRunningHub {
+		models, err := fetchRunningHubModels(baseURL, key)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取RunningHub模型失败: %s", err.Error()),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
+		})
+		return
+	}
+
 	client := &http.Client{}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 
@@ -1088,6 +1107,266 @@ func FetchModels(c *gin.Context) {
 		"success": true,
 		"data":    models,
 	})
+}
+
+func fetchRunningHubModels(baseURL, key string) ([]string, error) {
+	payload, err := common.Marshal(map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+	url := fmt.Sprintf("%s/openapi/v2/resource/list", strings.TrimRight(baseURL, "/"))
+	request, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+key)
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", response.StatusCode)
+	}
+
+	var result struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			Records []struct {
+				ResourceName string `json:"resourceName"`
+			} `json:"records"`
+		} `json:"data"`
+	}
+	if err = common.DecodeJson(response.Body, &result); err != nil {
+		return nil, err
+	}
+	if result.Code != 0 {
+		return nil, fmt.Errorf("runninghub error code=%d msg=%s", result.Code, result.Msg)
+	}
+	models := make([]string, 0, len(result.Data.Records))
+	for _, record := range result.Data.Records {
+		name := strings.TrimSpace(record.ResourceName)
+		if name == "" {
+			continue
+		}
+		models = append(models, name)
+	}
+	return models, nil
+}
+
+func RunningHubRunAIAppTask(c *gin.Context) {
+	var req struct {
+		BaseURL      string `json:"base_url"`
+		Key          string `json:"key"`
+		WebAppID     int64  `json:"webapp_id"`
+		APIKey       string `json:"api_key"`
+		NodeInfoList []any  `json:"node_info_list"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if req.WebAppID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "webapp_id is required"})
+		return
+	}
+	baseURL := strings.TrimRight(req.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(constant.ChannelBaseURLs[constant.ChannelTypeRunningHub], "/")
+	}
+	key := strings.Split(strings.TrimSpace(req.Key), "\n")[0]
+	apiKey := strings.TrimSpace(req.APIKey)
+	if apiKey == "" {
+		apiKey = key
+	}
+	payload := map[string]any{
+		"webappId": req.WebAppID,
+		"apiKey":   apiKey,
+	}
+	if len(req.NodeInfoList) > 0 {
+		payload["nodeInfoList"] = req.NodeInfoList
+	}
+	raw, err := common.Marshal(payload)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	respBody, err := doRunningHubRequest(http.MethodPost, baseURL+"/task/openapi/ai-app/run", key, bytes.NewReader(raw))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "application/json", respBody)
+}
+
+func RunningHubGetAIAppCallDemo(c *gin.Context) {
+	var req struct {
+		BaseURL  string `json:"base_url"`
+		Key      string `json:"key"`
+		WebAppID int64  `json:"webapp_id"`
+		APIKey   string `json:"api_key"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if req.WebAppID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "webapp_id is required"})
+		return
+	}
+	baseURL := strings.TrimRight(req.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(constant.ChannelBaseURLs[constant.ChannelTypeRunningHub], "/")
+	}
+	key := strings.Split(strings.TrimSpace(req.Key), "\n")[0]
+	apiKey := strings.TrimSpace(req.APIKey)
+	if apiKey == "" {
+		apiKey = key
+	}
+	query := url.Values{}
+	query.Set("apiKey", apiKey)
+	query.Set("webappId", strconv.FormatInt(req.WebAppID, 10))
+	reqURL := fmt.Sprintf("%s/api/webapp/apiCallDemo?%s", baseURL, query.Encode())
+	respBody, err := doRunningHubRequest(http.MethodGet, reqURL, key, nil)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "application/json", respBody)
+}
+
+func RunningHubGetPublicModelList(c *gin.Context) {
+	var req struct {
+		BaseURL string         `json:"base_url"`
+		Key     string         `json:"key"`
+		Filter  map[string]any `json:"filter"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	baseURL := strings.TrimRight(req.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(constant.ChannelBaseURLs[constant.ChannelTypeRunningHub], "/")
+	}
+	key := strings.Split(strings.TrimSpace(req.Key), "\n")[0]
+	if req.Filter == nil {
+		req.Filter = map[string]any{}
+	}
+	raw, err := common.Marshal(req.Filter)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	respBody, err := doRunningHubRequest(http.MethodPost, baseURL+"/openapi/v2/resource/list", key, bytes.NewReader(raw))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "application/json", respBody)
+}
+
+func RunningHubGetAccountInfo(c *gin.Context) {
+	var req struct {
+		BaseURL string `json:"base_url"`
+		Key     string `json:"key"`
+		APIKey  string `json:"api_key"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	baseURL := strings.TrimRight(req.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(constant.ChannelBaseURLs[constant.ChannelTypeRunningHub], "/")
+	}
+	key := strings.Split(strings.TrimSpace(req.Key), "\n")[0]
+	apiKey := strings.TrimSpace(req.APIKey)
+	if apiKey == "" {
+		apiKey = key
+	}
+	raw, err := common.Marshal(map[string]string{
+		"apikey": apiKey,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	respBody, err := doRunningHubRequest(http.MethodPost, baseURL+"/uc/openapi/accountStatus", key, bytes.NewReader(raw))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "application/json", respBody)
+}
+
+func RunningHubListAPIKeys(c *gin.Context) {
+	var req struct {
+		BaseURL string `json:"base_url"`
+		Key     string `json:"key"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	baseURL := strings.TrimRight(req.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(constant.ChannelBaseURLs[constant.ChannelTypeRunningHub], "/")
+	}
+	key := strings.Split(strings.TrimSpace(req.Key), "\n")[0]
+	respBody, err := doRunningHubRequest(http.MethodGet, baseURL+"/openapi/v2/api-key/list", key, nil)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "application/json", respBody)
+}
+
+func RunningHubGetAPIKeyQueueStatus(c *gin.Context) {
+	var req struct {
+		BaseURL string `json:"base_url"`
+		Key     string `json:"key"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	baseURL := strings.TrimRight(req.BaseURL, "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(constant.ChannelBaseURLs[constant.ChannelTypeRunningHub], "/")
+	}
+	key := strings.Split(strings.TrimSpace(req.Key), "\n")[0]
+	respBody, err := doRunningHubRequest(http.MethodGet, baseURL+"/openapi/v2/queue/status", key, nil)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "application/json", respBody)
+}
+
+func doRunningHubRequest(method, reqURL, key string, body io.Reader) ([]byte, error) {
+	req, err := http.NewRequest(method, reqURL, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("runninghub request failed, status=%d, body=%s", resp.StatusCode, string(respBody))
+	}
+	return respBody, nil
 }
 
 func BatchSetChannelTag(c *gin.Context) {
