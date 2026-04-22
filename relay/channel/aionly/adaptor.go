@@ -65,9 +65,6 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if isSynthesisMode(info) {
-		return info.ChannelBaseUrl + "/v1/synthesis", nil
-	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		requestURL := fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
 		if !shouldAppendClaudeBetaQuery(info) {
