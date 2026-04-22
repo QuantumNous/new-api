@@ -66,14 +66,14 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 
 	resized, didResize := resizeIfNeeded(img, c.MaxDim)
 
-	// 本 Task 只覆盖"JPEG 输入 → 固定质量 85 编码"路径；PNG/WebP/alpha 等分支
-	// 将在 Task 8-12 逐步扩展。
+	// 本 Task 只覆盖"JPEG 输入 → 质量梯度编码"路径；PNG/WebP/alpha 等分支
+	// 将在 Task 9-12 逐步扩展。
 	if format == "jpeg" {
-		encoded, encErr := encodeJPEG(resized, 85)
+		encoded, q, exhausted, encErr := encodeJPEGWithLadder(resized, c.QualitySteps, c.MaxBytes)
 		if encErr != nil {
 			return nil, encErr
 		}
-		if int64(len(encoded)) <= c.MaxBytes {
+		if !exhausted {
 			return &CompressResult{
 				Bytes: encoded,
 				Mime:  "image/jpeg",
@@ -81,13 +81,24 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 					Resized:      didResize,
 					OriginalSize: origSize,
 					FinalSize:    int64(len(encoded)),
-					QualityUsed:  85,
+					QualityUsed:  q,
 				},
 			}, nil
 		}
+		// 所有质量档仍超标 —— 后续 Task 13 补重试缩尺寸；暂返回最后一次结果
+		return &CompressResult{
+			Bytes: encoded,
+			Mime:  "image/jpeg",
+			Info: CompressionInfo{
+				Resized:      didResize,
+				OriginalSize: origSize,
+				FinalSize:    int64(len(encoded)),
+				QualityUsed:  q,
+			},
+		}, nil
 	}
 
-	// 其余格式 + 未命中质量的情况 —— 暂返回原字节。后续 Task 覆盖。
+	// 其余格式 —— 暂返回原字节。Task 9-12 覆盖 PNG/WebP。
 	return &CompressResult{
 		Bytes: raw,
 		Mime:  mime,
@@ -201,4 +212,23 @@ func encodeJPEG(img image.Image, quality int) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// encodeJPEGWithLadder 依次尝试 QualitySteps，返回第一个 <= maxBytes 的编码结果。
+// 全部超标时返回最后一次的结果与 didExhaust=true。
+func encodeJPEGWithLadder(img image.Image, steps []int, maxBytes int64) (bytes []byte, quality int, didExhaust bool, err error) {
+	var lastEncoded []byte
+	var lastQ int
+	for _, q := range steps {
+		enc, encErr := encodeJPEG(img, q)
+		if encErr != nil {
+			return nil, 0, false, encErr
+		}
+		if int64(len(enc)) <= maxBytes {
+			return enc, q, false, nil
+		}
+		lastEncoded = enc
+		lastQ = q
+	}
+	return lastEncoded, lastQ, true, nil
 }

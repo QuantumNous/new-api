@@ -223,3 +223,22 @@ func TestApply_LargeJPEG_ResizedToMaxDim(t *testing.T) {
 	require.LessOrEqual(t, cfg.Width, constraint.MaxDim)
 	require.LessOrEqual(t, cfg.Height, constraint.MaxDim)
 }
+
+func TestApply_JPEG_QualityLadderIterates(t *testing.T) {
+	t.Parallel()
+
+	// 构造一张恰好 MaxDim 尺寸（跳过缩放）的图，使 q=85 超出 MaxBytes、q=70 满足。
+	// 1568×1568: q=85 ≈ 70 KB，q=70 ≈ 45 KB；MaxBytes=65_000 介于两者之间。
+	raw := makeTestJPEG(t, 1568, 1568, 95)
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     65_000, // q=85 超标，q=70 满足
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	result, err := Apply(raw, "image/jpeg", constraint)
+	require.NoError(t, err)
+	require.LessOrEqual(t, result.Info.FinalSize, constraint.MaxBytes)
+	require.Contains(t, []int{85, 70, 55, 40}, result.Info.QualityUsed)
+}
