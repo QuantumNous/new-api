@@ -75,7 +75,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		ws          *websocket.Conn
 	)
 
-	if relayFormat == types.RelayFormatOpenAIRealtime {
+	if relayFormat == types.RelayFormatOpenAIRealtime || (relayFormat == types.RelayFormatOpenAIResponses && c.Request.Method == http.MethodGet) {
 		var err error
 		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
@@ -211,6 +211,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
+		case types.RelayFormatOpenAIResponses:
+			if relayInfo.ClientWs != nil {
+				newAPIError = relay.WssResponsesHelper(c, relayInfo)
+			} else {
+				newAPIError = relayHandler(c, relayInfo)
+			}
 		case types.RelayFormatClaude:
 			newAPIError = relay.ClaudeHelper(c, relayInfo)
 		case types.RelayFormatGemini:
