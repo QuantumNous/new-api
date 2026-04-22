@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/pkg/errors"
@@ -39,6 +40,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	constraint := resolveConstraintForChannel(info)
 	for i, message := range request.Messages {
 		updated := false
 		if !message.IsStringContent() {
@@ -51,7 +53,7 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 					if mediaMessage.Source.Type == "url" {
 						// 使用统一的文件服务获取图片数据
 						source := types.NewURLFileSource(mediaMessage.Source.Url)
-						base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Claude")
+						base64Data, mimeType, err := service.GetBase64DataWithConstraint(c, source, constraint, "formatting image for Claude")
 						if err != nil {
 							return nil, fmt.Errorf("get file base64 from url failed: %s", err.Error())
 						}
@@ -181,4 +183,21 @@ func (a *Adaptor) GetModelList() (models []string) {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+// resolveConstraintForChannel 组装当前渠道的图片压缩约束：
+// 先查 setting.DefaultConstraintFor(info.ChannelType)，再合并 otherSettings 覆盖。
+func resolveConstraintForChannel(info *relaycommon.RelayInfo) setting.ImageConstraint {
+	base := setting.DefaultConstraintFor(info.ChannelType)
+	override := info.ChannelOtherSettings.ImageCompression
+	if override == nil {
+		return base
+	}
+	return base.MergeOverride(&setting.ImageCompressionOverride{
+		Enabled:       override.Enabled,
+		MaxBytes:      override.MaxBytes,
+		MaxDim:        override.MaxDim,
+		QualitySteps:  override.QualitySteps,
+		PreserveAlpha: override.PreserveAlpha,
+	})
 }
