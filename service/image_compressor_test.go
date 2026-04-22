@@ -261,3 +261,29 @@ func TestApply_PNGWithoutAlpha_ConvertsToJPEG(t *testing.T) {
 	require.Equal(t, "image/jpeg", result.Mime)
 	require.LessOrEqual(t, result.Info.FinalSize, constraint.MaxBytes)
 }
+
+func TestApply_PNGWithAlpha_NoPreserve_FlattensToJPEG(t *testing.T) {
+	t.Parallel()
+
+	raw := makeTestPNG(t, 2000, 2000, true) // withAlpha=true
+	constraint := setting.ImageConstraint{
+		Enabled:       true,
+		MaxBytes:      500_000,
+		MaxDim:        1568,
+		QualitySteps:  []int{85, 70, 55, 40},
+		PreserveAlpha: false,
+	}
+
+	result, err := Apply(raw, "image/png", constraint)
+	require.NoError(t, err)
+	require.True(t, result.Info.FormatChanged)
+	require.Equal(t, "image/jpeg", result.Mime)
+
+	// 验证输出 JPEG 不含 alpha 信息（所有像素应 opaque）
+	out, _, err := image.Decode(bytes.NewReader(result.Bytes))
+	require.NoError(t, err)
+	require.False(t, imageHasAlpha(out), "flattened output should be opaque")
+
+	require.NotEmpty(t, result.Info.Warnings, "alpha-loss path should record a warning")
+	require.Contains(t, result.Info.Warnings[0], "alpha")
+}

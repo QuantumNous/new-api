@@ -31,6 +31,7 @@ type CompressionInfo struct {
 	FinalSize     int64
 	QualityUsed   int
 	FormatChanged bool
+	Warnings      []string
 }
 
 // Apply 对单张静态图片执行"缩放 + 降质量"级联压缩。
@@ -102,29 +103,18 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 	if format == "png" {
 		hasAlpha := imageHasAlpha(resized)
 		if !hasAlpha || !c.PreserveAlpha {
-			// 无 alpha 或允许丢 alpha —— 转 JPEG
 			target := resized
+			var warnings []string
 			if hasAlpha {
 				target = flattenToWhiteBackground(resized)
-				// Task 10 进一步添加 WARN 日志
+				warnings = append(warnings, "alpha channel flattened to white background (PNG → JPEG)")
 			}
-			encoded, q, exhausted, encErr := encodeJPEGWithLadder(target, c.QualitySteps, c.MaxBytes)
+			encoded, q, _, encErr := encodeJPEGWithLadder(target, c.QualitySteps, c.MaxBytes)
 			if encErr != nil {
 				return nil, encErr
 			}
-			if !exhausted {
-				return &CompressResult{
-					Bytes: encoded,
-					Mime:  "image/jpeg",
-					Info: CompressionInfo{
-						Resized:       didResize,
-						OriginalSize:  origSize,
-						FinalSize:     int64(len(encoded)),
-						QualityUsed:   q,
-						FormatChanged: true,
-					},
-				}, nil
-			}
+			// 无论 exhausted 与否，都返回最后一次编码结果；Task 13 的重试由
+			// compressJPEGLadderWithRetry 统一处理。
 			return &CompressResult{
 				Bytes: encoded,
 				Mime:  "image/jpeg",
@@ -134,6 +124,7 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 					FinalSize:     int64(len(encoded)),
 					QualityUsed:   q,
 					FormatChanged: true,
+					Warnings:      warnings,
 				},
 			}, nil
 		}
