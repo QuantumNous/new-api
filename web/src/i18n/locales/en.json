@@ -652,7 +652,7 @@
     "允许重试": "Allow Retry",
     "元": "CNY",
     "充值": "Top Up",
-    "充值价格（x元/美金）": "Top Up price (x yuan/dollar)",
+    "充值价格（x元/美金）": "Stripe unit price (USD per quota unit)",
     "充值价格显示": "Top Up price",
     "充值分组倍率": "Top Up group ratio",
     "充值分组倍率不是合法的 JSON 字符串": "Top Up group ratio is not a valid JSON string",
@@ -744,7 +744,7 @@
     "再次输入部署名称": "Enter Deployment Name Again",
     "最低": "lowest",
     "最低充值数量": "",
-    "最低充值美元数量": "Minimum recharge dollar amount",
+    "最低充值美元数量": "Minimum topup amount (quota units)",
     "最低充值美元数量必须大于 0": "Minimum recharge dollar amount must be greater than 0",
     "留空则自动使用当前站点的默认回调地址": "Leave blank to use the default callback address of the current site",
     "最后使用时间": "Last used time",
@@ -3761,6 +3761,11 @@
     "待支付": "Pending Payment",
     "当前没有可用的启用令牌，请确认是否有令牌处于启用状态！": "There are currently no enabled tokens available. Please confirm that at least one token is enabled.",
     "密码长度不得小于 8 位！": "Password must be at least 8 characters long!",
-    "注册成功！": "Registration successful!"
+    "注册成功！": "Registration successful!",
+    "充值价格（美金）": "Top-up Price (USD)",
+    "例如：7，就是7美金": "e.g.: 7 means $7 USD",
+    "按 1 美金对应的站内价格填写": "Enter the site price corresponding to $1 USD",
+    "例如：2，就是最低充值2": "e.g.: 2 means minimum top-up is 2",
+    "用户单次最少可充值的数量": "Minimum number of units per top-up"
   }
 }
