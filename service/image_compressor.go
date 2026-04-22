@@ -157,9 +157,9 @@ func skipped(raw []byte, mime string, origSize int64) *CompressResult {
 }
 
 var (
-	ErrAnimatedImageTooLarge        = errors.New("animated image exceeds channel limit and gateway does not recompress animated images")
-	ErrHEICNotSupported             = errors.New("HEIC/HEIF image exceeds channel limit; convert to JPEG/PNG before upload")
-	ErrCannotDecode                 = errors.New("cannot decode image bytes")
+	ErrAnimatedImageTooLarge         = errors.New("animated image exceeds channel limit and gateway does not recompress animated images")
+	ErrHEICNotSupported              = errors.New("HEIC/HEIF image exceeds channel limit; convert to JPEG/PNG before upload")
+	ErrCannotDecode                  = errors.New("cannot decode image bytes")
 	ErrImageTooLargeAfterCompression = errors.New("image cannot be compressed below channel limit")
 )
 
