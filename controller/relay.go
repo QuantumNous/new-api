@@ -91,7 +91,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime, types.RelayFormatOpenAIResponses:
-				helper.WssError(c, ws, newAPIError.ToOpenAIError())
+				if ws != nil {
+					helper.WssError(c, ws, newAPIError.ToOpenAIError())
+				} else {
+					c.JSON(newAPIError.StatusCode, gin.H{
+						"error": newAPIError.ToOpenAIError(),
+					})
+				}
 			case types.RelayFormatClaude:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"type":  "error",

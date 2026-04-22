@@ -2,7 +2,6 @@ package relay
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,13 +53,28 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 	timeout := 5 * time.Minute
 	info.ClientWs.SetReadDeadline(time.Now().Add(timeout))
 	info.ClientWs.SetWriteDeadline(time.Now().Add(timeout))
-	
-	// Default Ping handler in Gorilla responds with a Pong. 
+
+	// Default Ping handler in Gorilla responds with a Pong.
 	info.ClientWs.SetPingHandler(func(appData string) error {
 		info.ClientWs.SetReadDeadline(time.Now().Add(timeout))
 		info.ClientWs.SetWriteDeadline(time.Now().Add(timeout))
 		return info.ClientWs.WriteMessage(websocket.PongMessage, []byte(appData))
 	})
+
+	responseID := "resp_" + common.GetUUID()
+	now := common.GetTimestamp()
+
+	defer func() {
+		if newAPIError != nil && info.ClientWs != nil {
+			_ = sendWsResponseEvent(info.ClientWs, 999, "response.failed", gin.H{
+				"response": gin.H{
+					"id":     responseID,
+					"status": "failed",
+					"error":  newAPIError.ToOpenAIError(),
+				},
+			})
+		}
+	}()
 
 	// 1. Read the first message from WebSocket
 	var message []byte
@@ -76,7 +90,7 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 	}
 
 	var responsesReq dto.OpenAIResponsesRequest
-	if err := json.Unmarshal(message, &responsesReq); err != nil {
+	if err := common.Unmarshal(message, &responsesReq); err != nil {
 		return types.NewError(err, types.ErrorCodeInvalidRequest)
 	}
 	info.Request = &responsesReq
@@ -109,9 +123,6 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 	}
 
 	// 3. Send initial events
-	responseID := "resp_" + common.GetUUID()
-	now := common.GetTimestamp()
-	
 	// event 0: response.created
 	if err := sendWsResponseEvent(info.ClientWs, 0, "response.created", gin.H{
 		"response": gin.H{
@@ -148,7 +159,10 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
-	httpResp := resp.(*http.Response)
+	httpResp, ok := resp.(*http.Response)
+	if !ok {
+		return types.NewError(fmt.Errorf("invalid response type from adaptor"), types.ErrorCodeDoRequestFailed)
+	}
 	defer service.CloseResponseBodyGracefully(httpResp)
 
 	if httpResp.StatusCode != http.StatusOK {
@@ -160,22 +174,22 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 		ResponseWriter: c.Writer,
 		Body:           bytes.NewBuffer(nil),
 	}
-	originalWriter := c.Writer
-	c.Writer = capture
-	
+
 	// Ensure the adaptor knows this is NOT a streaming response for the capture to work
 	info.IsStream = false
-	
-	// Temporarily set method to POST since many adaptors validate it, 
-	// but WebSocket handshakes are GET.
-	originalMethod := c.Request.Method
-	c.Request.Method = "POST"
-	
-	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
-	
-	c.Request.Method = originalMethod
-	c.Writer = originalWriter
 
+	// Backup and restore context fields
+	originalWriter := c.Writer
+	originalMethod := c.Request.Method
+	defer func() {
+		c.Writer = originalWriter
+		c.Request.Method = originalMethod
+	}()
+
+	c.Writer = capture
+	c.Request.Method = "POST"
+
+	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		return newAPIError
 	}
@@ -186,16 +200,16 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 	}
 
 	usageData := gin.H{
-		"total_tokens":       u.TotalTokens,
-		"input_tokens":       u.PromptTokens,
-		"prompt_tokens":      u.PromptTokens,
-		"output_tokens":      u.CompletionTokens,
-		"completion_tokens":  u.CompletionTokens,
+		"total_tokens":      u.TotalTokens,
+		"input_tokens":      u.PromptTokens,
+		"prompt_tokens":     u.PromptTokens,
+		"output_tokens":     u.CompletionTokens,
+		"completion_tokens": u.CompletionTokens,
 		"input_tokens_details": map[string]interface{}{
-			"cached_tokens":  0,
-			"text_tokens":    u.PromptTokens,
-			"audio_tokens":   0,
-			"image_tokens":   0,
+			"cached_tokens": 0,
+			"text_tokens":   u.PromptTokens,
+			"audio_tokens":  0,
+			"image_tokens":  0,
 		},
 		"output_tokens_details": map[string]interface{}{
 			"reasoning_tokens": 0,
@@ -204,15 +218,13 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 		},
 	}
 
-	fmt.Printf("[DEBUG] usageData: %+v\n", usageData)
-
 	// 5. Build and send full sequence of events to ensure client compatibility
 	if capture.Body.Len() > 0 {
 		var chatResp dto.OpenAITextResponse
-		if err := json.Unmarshal(capture.Body.Bytes(), &chatResp); err == nil && len(chatResp.Choices) > 0 {
+		if err := common.Unmarshal(capture.Body.Bytes(), &chatResp); err == nil && len(chatResp.Choices) > 0 {
 			content := chatResp.Choices[0].Message.StringContent()
 			itemID := "item_" + common.GetUUID()
-			
+
 			// response.output_item.added (seq 2)
 			if err := sendWsResponseEvent(info.ClientWs, 2, "response.output_item.added", gin.H{
 				"output_index": 0,
@@ -313,7 +325,35 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 			}); err != nil {
 				return types.NewError(err, types.ErrorCodeWssWriteFailed)
 			}
+		} else {
+			// Fallback for empty or unmarshalable content
+			_ = sendWsResponseEvent(info.ClientWs, 8, "response.completed", gin.H{
+				"response": gin.H{
+					"id":           responseID,
+					"object":       "response",
+					"created_at":   now,
+					"status":       "completed",
+					"completed_at": now,
+					"model":        responsesReq.Model,
+					"output":       []any{},
+					"usage":        usageData,
+				},
+			})
 		}
+	} else {
+		// Terminal event for empty response
+		_ = sendWsResponseEvent(info.ClientWs, 8, "response.completed", gin.H{
+			"response": gin.H{
+				"id":           responseID,
+				"object":       "response",
+				"created_at":   now,
+				"status":       "completed",
+				"completed_at": now,
+				"model":        responsesReq.Model,
+				"output":       []any{},
+				"usage":        usageData,
+			},
+		})
 	}
 
 	// Usage handling (internal New API consumption)
