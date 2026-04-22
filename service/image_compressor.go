@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"image"
+	imagedraw "image/draw"
 	"image/gif"
 	"image/jpeg"
 	_ "image/png"
@@ -96,6 +97,47 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 				QualityUsed:  q,
 			},
 		}, nil
+	}
+
+	if format == "png" {
+		hasAlpha := imageHasAlpha(resized)
+		if !hasAlpha || !c.PreserveAlpha {
+			// 无 alpha 或允许丢 alpha —— 转 JPEG
+			target := resized
+			if hasAlpha {
+				target = flattenToWhiteBackground(resized)
+				// Task 10 进一步添加 WARN 日志
+			}
+			encoded, q, exhausted, encErr := encodeJPEGWithLadder(target, c.QualitySteps, c.MaxBytes)
+			if encErr != nil {
+				return nil, encErr
+			}
+			if !exhausted {
+				return &CompressResult{
+					Bytes: encoded,
+					Mime:  "image/jpeg",
+					Info: CompressionInfo{
+						Resized:       didResize,
+						OriginalSize:  origSize,
+						FinalSize:     int64(len(encoded)),
+						QualityUsed:   q,
+						FormatChanged: true,
+					},
+				}, nil
+			}
+			return &CompressResult{
+				Bytes: encoded,
+				Mime:  "image/jpeg",
+				Info: CompressionInfo{
+					Resized:       didResize,
+					OriginalSize:  origSize,
+					FinalSize:     int64(len(encoded)),
+					QualityUsed:   q,
+					FormatChanged: true,
+				},
+			}, nil
+		}
+		// PNG + alpha + PreserveAlpha —— Task 11 覆盖
 	}
 
 	// 其余格式 —— 暂返回原字节。Task 9-12 覆盖 PNG/WebP。
@@ -231,4 +273,36 @@ func encodeJPEGWithLadder(img image.Image, steps []int, maxBytes int64) (bytes [
 		lastQ = q
 	}
 	return lastEncoded, lastQ, true, nil
+}
+
+// imageHasAlpha 判断图像是否包含非 opaque 像素。
+// 对支持 Opaque() 的类型（包括 *image.RGBA、*image.NRGBA）先走 O(1) 快速路径；
+// 否则退化为按像素扫描。
+func imageHasAlpha(img image.Image) bool {
+	type opaqueChecker interface {
+		Opaque() bool
+	}
+	if o, ok := img.(opaqueChecker); ok {
+		return !o.Opaque()
+	}
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			_, _, _, a := img.At(x, y).RGBA()
+			if a < 0xFFFF {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// flattenToWhiteBackground 把带 alpha 的图像复合到白色底，返回不含 alpha 的 RGBA。
+func flattenToWhiteBackground(src image.Image) image.Image {
+	b := src.Bounds()
+	dst := image.NewRGBA(b)
+	white := image.NewUniform(image.White)
+	imagedraw.Draw(dst, b, white, image.Point{}, imagedraw.Src)
+	imagedraw.Draw(dst, b, src, b.Min, imagedraw.Over)
+	return dst
 }

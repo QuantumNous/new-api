@@ -242,3 +242,22 @@ func TestApply_JPEG_QualityLadderIterates(t *testing.T) {
 	require.LessOrEqual(t, result.Info.FinalSize, constraint.MaxBytes)
 	require.Contains(t, []int{85, 70, 55, 40}, result.Info.QualityUsed)
 }
+
+func TestApply_PNGWithoutAlpha_ConvertsToJPEG(t *testing.T) {
+	t.Parallel()
+
+	raw := makeTestPNG(t, 2000, 2000, false) // withAlpha=false
+	constraint := setting.ImageConstraint{
+		Enabled:       true,
+		MaxBytes:      500_000,
+		MaxDim:        1568,
+		QualitySteps:  []int{85, 70, 55, 40},
+		PreserveAlpha: true, // 即便 PreserveAlpha=true，没 alpha 也应转 JPEG
+	}
+
+	result, err := Apply(raw, "image/png", constraint)
+	require.NoError(t, err)
+	require.True(t, result.Info.FormatChanged)
+	require.Equal(t, "image/jpeg", result.Mime)
+	require.LessOrEqual(t, result.Info.FinalSize, constraint.MaxBytes)
+}
