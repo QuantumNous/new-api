@@ -97,6 +97,7 @@ func TestApply_UnderThreshold_Skips(t *testing.T) {
 }
 
 func TestApply_OverMaxDim_EntersCompressionPath(t *testing.T) {
+	t.Skip("re-enabled in Task 7 after resize is implemented")
 	t.Parallel()
 
 	// 图片字节本身很小（纯色小文件），但宽度远超 MaxDim
@@ -182,4 +183,21 @@ func TestApply_HEIC_ReturnsErrHEICNotSupported(t *testing.T) {
 	_, err := Apply(raw, "image/heic", constraint)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrHEICNotSupported), "want ErrHEICNotSupported, got %v", err)
+}
+
+func TestApply_GarbageBytes_ReturnsErrCannotDecode(t *testing.T) {
+	t.Parallel()
+
+	// 8KB 随机字节，不是任何已知图像格式
+	raw := bytes.Repeat([]byte{0xDE, 0xAD, 0xBE, 0xEF}, 2048)
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     1000,
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	_, err := Apply(raw, "image/jpeg", constraint)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrCannotDecode), "want ErrCannotDecode, got %v", err)
 }

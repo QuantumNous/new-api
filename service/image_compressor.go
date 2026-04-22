@@ -58,12 +58,19 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 		return nil, ErrHEICNotSupported
 	}
 
-	// 进入完整压缩路径——占位（后续 Task 替换）
+	img, format, err := decodeImage(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	// 下一 Task 展开：resize、编码选择、降质
+	_ = img
+	_ = format
 	return &CompressResult{
 		Bytes: raw,
 		Mime:  mime,
 		Info: CompressionInfo{
-			Resized:      true,
+			Resized:      false,
 			OriginalSize: origSize,
 			FinalSize:    origSize,
 		},
@@ -85,6 +92,7 @@ func skipped(raw []byte, mime string, origSize int64) *CompressResult {
 var (
 	ErrAnimatedImageTooLarge = errors.New("animated image exceeds channel limit and gateway does not recompress animated images")
 	ErrHEICNotSupported      = errors.New("HEIC/HEIF image exceeds channel limit; convert to JPEG/PNG before upload")
+	ErrCannotDecode          = errors.New("cannot decode image bytes")
 )
 
 // isAnimated 根据 MIME 与字节内容判定是否为动图。
@@ -126,4 +134,15 @@ func detectHEICMagic(raw []byte) bool {
 		return true
 	}
 	return false
+}
+
+// decodeImage 尝试解码为 image.Image。成功时返回图像、源格式名（"jpeg"/"png"/"gif"/"webp"）。
+// 失败时返回 ErrCannotDecode 包装。
+// 使用包级变量以便测试注入 panic（见 Task 14）。
+var decodeImage = func(raw []byte) (image.Image, string, error) {
+	img, format, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, "", errors.Join(ErrCannotDecode, err)
+	}
+	return img, format, nil
 }
