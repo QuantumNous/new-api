@@ -29,6 +29,7 @@ import {
   Collapse,
 } from '@douyinfe/semi-ui';
 import { API, showError } from '../../../../helpers';
+import { MOBILE_BREAKPOINT } from '../../../../hooks/common/useIsMobile';
 
 const { Text } = Typography;
 
@@ -137,6 +138,40 @@ const getDisplayText = (value) => {
   return String(value).trim();
 };
 
+const isMobileViewport = () =>
+  typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT;
+
+const getCodexUsageModalLayout = () => {
+  if (isMobileViewport()) {
+    return {
+      width: 'calc(100vw - 16px)',
+      style: {
+        top: 8,
+        maxWidth: 'calc(100vw - 16px)',
+        margin: '0 auto',
+      },
+      bodyStyle: {
+        maxHeight: 'calc(100vh - 148px)',
+        overflowY: 'auto',
+        padding: '16px 16px 12px',
+      },
+    };
+  }
+
+  return {
+    width: 900,
+    style: {
+      top: 24,
+      maxWidth: 'min(900px, 92vw)',
+    },
+    bodyStyle: {
+      maxHeight: 'calc(100vh - 172px)',
+      overflowY: 'auto',
+      padding: '20px 24px 16px',
+    },
+  };
+};
+
 const formatAccountTypeLabel = (value, t) => {
   const tt = typeof t === 'function' ? t : (v) => v;
   const normalized = normalizePlanType(value);
@@ -226,7 +261,7 @@ const RateLimitWindowCard = ({ t, title, windowData }) => {
 
   return (
     <div className='rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-3'>
-      <div className='flex items-center justify-between gap-2'>
+      <div className='flex flex-wrap items-start justify-between gap-x-3 gap-y-1'>
         <div className='font-medium'>{title}</div>
         <Text type='tertiary' size='small'>
           {tt('重置时间：')}
@@ -311,7 +346,7 @@ const RateLimitGroupSection = ({
               {description ? <span>{description}</span> : null}
               {featureText ? (
                 <div className='inline-flex max-w-full items-center gap-2 rounded-full bg-semi-color-fill-0 px-2 py-1'>
-                  <span className='text-[11px] uppercase text-semi-color-text-2'>
+                  <span className='text-[11px] text-semi-color-text-2'>
                     metered_feature
                   </span>
                   <span className='min-w-0 break-all font-mono text-xs text-semi-color-text-0'>
@@ -361,7 +396,7 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
     typeof data === 'string' ? data : JSON.stringify(data ?? payload, null, 2);
 
   return (
-    <div className='flex max-h-[72vh] flex-col gap-4 overflow-y-auto pr-1'>
+    <div className='flex flex-col gap-4'>
       {errorMessage && (
         <div className='rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
           {errorMessage}
@@ -611,12 +646,14 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
 
 export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
   const tt = typeof t === 'function' ? t : (v) => v;
+  const layout = getCodexUsageModalLayout();
 
   Modal.info({
     title: tt('Codex 帐号与用量'),
-    centered: true,
-    width: 900,
-    style: { maxWidth: '95vw' },
+    centered: false,
+    width: layout.width,
+    style: layout.style,
+    bodyStyle: layout.bodyStyle,
     content: (
       <CodexUsageLoader
         t={tt}
