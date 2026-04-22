@@ -122,3 +122,28 @@ func TestGetBase64DataWithConstraint_SameConstraint_CachedOnSecondCall(t *testin
 	require.NoError(t, err)
 	require.Equal(t, b64a, b64b)
 }
+
+func TestGetBase64DataWithConstraint_Base64WithSamePrefix_DoNotCollide(t *testing.T) {
+	bodyA := makeJPEGBytes(t, 100, 100, 85)
+	bodyB := makeJPEGBytes(t, 120, 100, 85) // same leading JPEG magic, different content
+	require.NotEqual(t, bodyA, bodyB, "test fixtures must actually differ")
+
+	ctx := mkCtx()
+	srcA := types.NewBase64FileSource(base64.StdEncoding.EncodeToString(bodyA), "image/jpeg")
+	srcB := types.NewBase64FileSource(base64.StdEncoding.EncodeToString(bodyB), "image/jpeg")
+
+	// 让两张图都进入压缩路径，同时 MaxBytes 足够大让压缩能成功
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     5_000,
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	b64A, _, err := GetBase64DataWithConstraint(ctx, srcA, constraint, "A")
+	require.NoError(t, err)
+	b64B, _, err := GetBase64DataWithConstraint(ctx, srcB, constraint, "B")
+	require.NoError(t, err)
+
+	require.NotEqual(t, b64A, b64B, "different base64 sources must get independent cache entries")
+}

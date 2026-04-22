@@ -636,7 +636,7 @@ func GetBase64DataWithConstraint(
 	}
 
 	// 副本缓存 key
-	cacheKey := compressedCacheKey(source.GetIdentifier(), constraint)
+	cacheKey := compressedCacheKey(source.GetIdentifier(), rawBase64, constraint)
 	if c != nil {
 		if v, exists := c.Get(cacheKey); exists {
 			entry := v.(compressedEntry)
@@ -681,9 +681,10 @@ type compressedEntry struct {
 	mime   string
 }
 
-func compressedCacheKey(identifier string, c setting.ImageConstraint) string {
-	return fmt.Sprintf("compressed_%s_%s",
+func compressedCacheKey(identifier, rawBase64 string, c setting.ImageConstraint) string {
+	return fmt.Sprintf("compressed_%s_%s_%s",
 		common.GenerateHMAC(identifier),
+		common.GenerateHMAC(rawBase64),
 		common.GenerateHMAC(c.Fingerprint()),
 	)
 }
