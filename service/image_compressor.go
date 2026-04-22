@@ -7,7 +7,7 @@ import (
 	imagedraw "image/draw"
 	"image/gif"
 	"image/jpeg"
-	_ "image/png"
+	"image/png"
 
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
@@ -127,8 +127,23 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 					Warnings:      warnings,
 				},
 			}, nil
+		} else {
+			// PNG + alpha + PreserveAlpha：仅缩放 + BestCompression 重编码，不做有损降质。
+			// 编码后若仍超 MaxBytes，由 Task 13 的 retry scale 统一处理。
+			encoded, encErr := encodePNG(resized)
+			if encErr != nil {
+				return nil, encErr
+			}
+			return &CompressResult{
+				Bytes: encoded,
+				Mime:  "image/png",
+				Info: CompressionInfo{
+					Resized:      didResize,
+					OriginalSize: origSize,
+					FinalSize:    int64(len(encoded)),
+				},
+			}, nil
 		}
-		// PNG + alpha + PreserveAlpha —— Task 11 覆盖
 	}
 
 	// 其余格式 —— 暂返回原字节。Task 9-12 覆盖 PNG/WebP。
@@ -242,6 +257,16 @@ func resizeIfNeeded(img image.Image, maxDim int) (image.Image, bool) {
 func encodeJPEG(img image.Image, quality int) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// encodePNG 使用 BestCompression 编码 PNG。
+func encodePNG(img image.Image) ([]byte, error) {
+	enc := png.Encoder{CompressionLevel: png.BestCompression}
+	var buf bytes.Buffer
+	if err := enc.Encode(&buf, img); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

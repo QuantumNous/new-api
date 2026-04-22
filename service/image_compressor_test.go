@@ -287,3 +287,29 @@ func TestApply_PNGWithAlpha_NoPreserve_FlattensToJPEG(t *testing.T) {
 	require.NotEmpty(t, result.Info.Warnings, "alpha-loss path should record a warning")
 	require.Contains(t, result.Info.Warnings[0], "alpha")
 }
+
+func TestApply_PNGWithAlpha_Preserve_StaysPNGResizedOnly(t *testing.T) {
+	t.Parallel()
+
+	raw := makeTestPNG(t, 3000, 3000, true)
+	constraint := setting.ImageConstraint{
+		Enabled:       true,
+		MaxBytes:      10_000_000, // 放宽字节阈值，确保缩放足够
+		MaxDim:        1568,
+		QualitySteps:  []int{85, 70, 55, 40},
+		PreserveAlpha: true,
+	}
+
+	result, err := Apply(raw, "image/png", constraint)
+	require.NoError(t, err)
+	require.Equal(t, "image/png", result.Mime)
+	require.False(t, result.Info.FormatChanged)
+	require.True(t, result.Info.Resized)
+
+	// 验证输出尺寸 <= MaxDim 且仍是 PNG（有 alpha）
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(result.Bytes))
+	require.NoError(t, err)
+	require.Equal(t, "png", format)
+	require.LessOrEqual(t, cfg.Width, constraint.MaxDim)
+	require.LessOrEqual(t, cfg.Height, constraint.MaxDim)
+}
