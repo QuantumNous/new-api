@@ -372,3 +372,27 @@ func TestApply_JPEG_FitsAfterRetryScale(t *testing.T) {
 	require.NoError(t, err)
 	require.LessOrEqual(t, result.Info.FinalSize, constraint.MaxBytes)
 }
+
+func TestApply_DecoderPanic_FallsBackToOriginal(t *testing.T) {
+	// 不 Parallel —— 需要改包级变量
+	original := decodeImage
+	decodeImage = func(raw []byte) (image.Image, string, error) {
+		panic("simulated decoder panic")
+	}
+	t.Cleanup(func() { decodeImage = original })
+
+	raw := makeTestJPEG(t, 2000, 2000, 85)
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     100, // 强制进入压缩路径
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	result, err := Apply(raw, "image/jpeg", constraint)
+	require.NoError(t, err, "panic must be recovered, not propagated")
+	require.NotNil(t, result)
+	require.True(t, result.Info.Skipped, "panic fallback should mark Skipped=true")
+	require.Equal(t, raw, result.Bytes)
+	require.NotEmpty(t, result.Info.Warnings, "panic fallback should record a warning")
+}

@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"image"
 	imagedraw "image/draw"
 	"image/gif"
@@ -36,7 +37,25 @@ type CompressionInfo struct {
 
 // Apply 对单张静态图片执行"缩放 + 降质量"级联压缩。
 // 约束未启用或图像已在阈值内时，直接返回原字节 (Skipped=true)。
-func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult, error) {
+func Apply(raw []byte, mime string, c setting.ImageConstraint) (result *CompressResult, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = &CompressResult{
+				Bytes: raw,
+				Mime:  mime,
+				Info: CompressionInfo{
+					Skipped:      true,
+					OriginalSize: int64(len(raw)),
+					FinalSize:    int64(len(raw)),
+					Warnings: []string{
+						fmt.Sprintf("image compression panicked and was bypassed: %v", r),
+					},
+				},
+			}
+			err = nil
+		}
+	}()
+
 	origSize := int64(len(raw))
 	if !c.Enabled {
 		return skipped(raw, mime, origSize), nil
