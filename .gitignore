@@ -31,3 +31,4 @@ data/
 .gopath
 
 token_estimator_test.go
+tmp/

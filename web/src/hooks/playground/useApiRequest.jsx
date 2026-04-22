@@ -39,7 +39,7 @@ export const useApiRequest = (
   sseSourceRef,
   saveMessages,
 ) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // 处理消息自动关闭逻辑的公共函数
   const applyAutoCollapseLogic = useCallback(
@@ -190,6 +190,8 @@ export const useApiRequest = (
           headers: {
             'Content-Type': 'application/json',
             'New-Api-User': getUserIdFromLocalStorage(),
+            'Accept-Language':
+              localStorage.getItem('i18nextLng') || i18n.language || 'en',
           },
           body: JSON.stringify(payload),
         });
@@ -205,7 +207,7 @@ export const useApiRequest = (
             }
           } catch (e) {
             if (!errorBody) {
-              errorBody = '无法读取错误响应体';
+              errorBody = t('无法读取错误响应体');
             }
           }
 
@@ -297,7 +299,14 @@ export const useApiRequest = (
         });
       }
     },
-    [setDebugData, setActiveDebugTab, setMessage, t, applyAutoCollapseLogic],
+    [
+      setDebugData,
+      setActiveDebugTab,
+      setMessage,
+      t,
+      i18n.language,
+      applyAutoCollapseLogic,
+    ],
   );
 
   // SSE请求
@@ -317,6 +326,8 @@ export const useApiRequest = (
         headers: {
           'Content-Type': 'application/json',
           'New-Api-User': getUserIdFromLocalStorage(),
+          'Accept-Language':
+            localStorage.getItem('i18nextLng') || i18n.language || 'en',
         },
         method: 'POST',
         payload: JSON.stringify(payload),
@@ -444,7 +455,7 @@ export const useApiRequest = (
           source.status !== 200 &&
           !isStreamComplete
         ) {
-          const errorInfo = handleApiError(new Error('HTTP状态错误'));
+          const errorInfo = handleApiError(new Error('HTTP error'));
           errorInfo.status = source.status;
           errorInfo.readyState = source.readyState;
 
@@ -471,7 +482,7 @@ export const useApiRequest = (
 
         setDebugData((prev) => ({
           ...prev,
-          response: 'Stream启动失败:\n' + JSON.stringify(errorInfo, null, 2),
+          response: t('流启动失败：') + '\n' + JSON.stringify(errorInfo, null, 2),
         }));
         setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
@@ -486,6 +497,7 @@ export const useApiRequest = (
       streamMessageUpdate,
       completeMessage,
       t,
+      i18n.language,
       applyAutoCollapseLogic,
     ],
   );

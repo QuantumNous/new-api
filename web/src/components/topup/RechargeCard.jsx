@@ -252,7 +252,8 @@ const RechargeCard = ({
                         !enableWaffoPancakeTopUp
                       }
                       placeholder={
-                        t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
+                        t('充值数量，最低 ') +
+                        renderQuotaWithAmount(minTopUp)
                       }
                       value={topUpCount}
                       min={minTopUp}
@@ -539,7 +540,7 @@ const RechargeCard = ({
                           {product.name}
                         </div>
                         <div className='text-sm text-gray-600 mb-2'>
-                          {t('充值额度')}: {product.quota}
+                          {t('充值额度')}：{product.quota}
                         </div>
                         <div className='text-lg font-semibold text-blue-600'>
                           {product.currency === 'EUR' ? '€' : '$'}
@@ -631,7 +632,9 @@ const RechargeCard = ({
             <Typography.Text className='text-lg font-medium'>
               {t('账户充值')}
             </Typography.Text>
-            <div className='text-xs'>{t('多种充值方式，安全便捷')}</div>
+            <div className='text-xs'>
+              {t('多种充值方式，安全便捷')}
+            </div>
           </div>
         </div>
         <Button

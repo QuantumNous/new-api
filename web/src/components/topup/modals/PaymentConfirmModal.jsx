@@ -21,6 +21,7 @@ import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
+import { getCurrencyConfig } from '../../../helpers/render';
 
 const { Text } = Typography;
 
@@ -40,6 +41,7 @@ const PaymentConfirmModal = ({
   amountNumber,
   discountRate,
 }) => {
+  const { symbol } = getCurrencyConfig();
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
   const originalAmount = hasDiscount ? amountNumber / discountRate : 0;
@@ -97,7 +99,7 @@ const PaymentConfirmModal = ({
                     {t('原价')}：
                   </Text>
                   <Text delete className='text-slate-500 dark:text-slate-400'>
-                    {`${originalAmount.toFixed(2)} ${t('元')}`}
+                    {`${symbol}${originalAmount.toFixed(2)}`}
                   </Text>
                 </div>
                 <div className='flex justify-between items-center'>
@@ -105,7 +107,7 @@ const PaymentConfirmModal = ({
                     {t('优惠')}：
                   </Text>
                   <Text className='text-emerald-600 dark:text-emerald-400'>
-                    {`- ${discountAmount.toFixed(2)} ${t('元')}`}
+                    {`- ${symbol}${discountAmount.toFixed(2)}`}
                   </Text>
                 </div>
               </>

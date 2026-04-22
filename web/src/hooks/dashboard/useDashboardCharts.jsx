@@ -160,7 +160,7 @@ export const useDashboardCharts = (
           array.sort((a, b) => b.value - a.value);
           let sum = 0;
           for (let i = 0; i < array.length; i++) {
-            if (array[i].key == '其他') {
+            if (array[i].key == t('其他')) {
               continue;
             }
             let value = parseFloat(array[i].value);
