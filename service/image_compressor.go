@@ -54,6 +54,10 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 		return nil, ErrAnimatedImageTooLarge
 	}
 
+	if mime == "image/heic" || mime == "image/heif" || detectHEICMagic(raw) {
+		return nil, ErrHEICNotSupported
+	}
+
 	// 进入完整压缩路径——占位（后续 Task 替换）
 	return &CompressResult{
 		Bytes: raw,
@@ -80,6 +84,7 @@ func skipped(raw []byte, mime string, origSize int64) *CompressResult {
 
 var (
 	ErrAnimatedImageTooLarge = errors.New("animated image exceeds channel limit and gateway does not recompress animated images")
+	ErrHEICNotSupported      = errors.New("HEIC/HEIF image exceeds channel limit; convert to JPEG/PNG before upload")
 )
 
 // isAnimated 根据 MIME 与字节内容判定是否为动图。
@@ -101,6 +106,24 @@ func isAnimated(raw []byte, mime string) bool {
 		// Animated WebP: VP8X chunk with bit 1 (animation flag) set.
 		// 最简检测：文件内含 "ANIM" chunk。
 		return bytes.Contains(raw, []byte("ANIM"))
+	}
+	return false
+}
+
+// detectHEICMagic 检查 ISOBMFF ftyp box，判断是否为 HEIC/HEIF。
+// 与 file_service.go 的 detectHEIF 逻辑一致，这里独立一份以避免跨模块依赖。
+func detectHEICMagic(raw []byte) bool {
+	if len(raw) < 12 {
+		return false
+	}
+	if string(raw[4:8]) != "ftyp" {
+		return false
+	}
+	brand := string(raw[8:12])
+	switch brand {
+	case "heic", "heix", "hevc", "hevx", "heim", "heis",
+		"mif1", "msf1":
+		return true
 	}
 	return false
 }

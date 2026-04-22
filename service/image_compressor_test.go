@@ -151,3 +151,35 @@ func TestApply_AnimatedGIFOverThreshold_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrAnimatedImageTooLarge), "want ErrAnimatedImageTooLarge, got %v", err)
 }
+
+// makeMinimalHEIC 构造最小合法 ISOBMFF 头：ftyp box with major_brand=heic。
+// 足以让 detectHEIF 识别为 HEIC，但不是有效图像（不应被试图解码）。
+func makeMinimalHEIC(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	// ftyp box: size=32, type=ftyp, major=heic, minor=0, compat=heic,mif1
+	buf.Write([]byte{0, 0, 0, 32})
+	buf.Write([]byte("ftyp"))
+	buf.Write([]byte("heic"))
+	buf.Write([]byte{0, 0, 0, 0})
+	buf.Write([]byte("heicmif1"))
+	// 追加一些填充让长度看起来合理
+	buf.Write(make([]byte, 4*1024))
+	return buf.Bytes()
+}
+
+func TestApply_HEIC_ReturnsErrHEICNotSupported(t *testing.T) {
+	t.Parallel()
+
+	raw := makeMinimalHEIC(t)
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     1000,
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	_, err := Apply(raw, "image/heic", constraint)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrHEICNotSupported), "want ErrHEICNotSupported, got %v", err)
+}
