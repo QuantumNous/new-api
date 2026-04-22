@@ -5,9 +5,10 @@ import (
 	"errors"
 	"image"
 	"image/gif"
-	_ "image/jpeg"
+	"image/jpeg"
 	_ "image/png"
 
+	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 
 	"github.com/QuantumNous/new-api/setting"
@@ -63,14 +64,35 @@ func Apply(raw []byte, mime string, c setting.ImageConstraint) (*CompressResult,
 		return nil, err
 	}
 
-	// 下一 Task 展开：resize、编码选择、降质
-	_ = img
-	_ = format
+	resized, didResize := resizeIfNeeded(img, c.MaxDim)
+
+	// 本 Task 只覆盖"JPEG 输入 → 固定质量 85 编码"路径；PNG/WebP/alpha 等分支
+	// 将在 Task 8-12 逐步扩展。
+	if format == "jpeg" {
+		encoded, encErr := encodeJPEG(resized, 85)
+		if encErr != nil {
+			return nil, encErr
+		}
+		if int64(len(encoded)) <= c.MaxBytes {
+			return &CompressResult{
+				Bytes: encoded,
+				Mime:  "image/jpeg",
+				Info: CompressionInfo{
+					Resized:      didResize,
+					OriginalSize: origSize,
+					FinalSize:    int64(len(encoded)),
+					QualityUsed:  85,
+				},
+			}, nil
+		}
+	}
+
+	// 其余格式 + 未命中质量的情况 —— 暂返回原字节。后续 Task 覆盖。
 	return &CompressResult{
 		Bytes: raw,
 		Mime:  mime,
 		Info: CompressionInfo{
-			Resized:      false,
+			Resized:      didResize,
 			OriginalSize: origSize,
 			FinalSize:    origSize,
 		},
@@ -145,4 +167,38 @@ var decodeImage = func(raw []byte) (image.Image, string, error) {
 		return nil, "", errors.Join(ErrCannotDecode, err)
 	}
 	return img, format, nil
+}
+
+// resizeIfNeeded 把图像最长边约束到 maxDim（等比缩放）。返回新图与是否发生了缩放。
+func resizeIfNeeded(img image.Image, maxDim int) (image.Image, bool) {
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	longest := w
+	if h > longest {
+		longest = h
+	}
+	if longest <= maxDim {
+		return img, false
+	}
+	scale := float64(maxDim) / float64(longest)
+	newW := int(float64(w) * scale)
+	newH := int(float64(h) * scale)
+	if newW < 1 {
+		newW = 1
+	}
+	if newH < 1 {
+		newH = 1
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), img, b, draw.Over, nil)
+	return dst, true
+}
+
+// encodeJPEG 以指定质量编码为 JPEG 字节。
+func encodeJPEG(img image.Image, quality int) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

@@ -97,7 +97,6 @@ func TestApply_UnderThreshold_Skips(t *testing.T) {
 }
 
 func TestApply_OverMaxDim_EntersCompressionPath(t *testing.T) {
-	t.Skip("re-enabled in Task 7 after resize is implemented")
 	t.Parallel()
 
 	// 图片字节本身很小（纯色小文件），但宽度远超 MaxDim
@@ -200,4 +199,27 @@ func TestApply_GarbageBytes_ReturnsErrCannotDecode(t *testing.T) {
 	_, err := Apply(raw, "image/jpeg", constraint)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrCannotDecode), "want ErrCannotDecode, got %v", err)
+}
+
+func TestApply_LargeJPEG_ResizedToMaxDim(t *testing.T) {
+	t.Parallel()
+
+	raw := makeTestJPEG(t, 4000, 3000, 90)
+	constraint := setting.ImageConstraint{
+		Enabled:      true,
+		MaxBytes:     3_750_000,
+		MaxDim:       1568,
+		QualitySteps: []int{85, 70, 55, 40},
+	}
+
+	result, err := Apply(raw, "image/jpeg", constraint)
+	require.NoError(t, err)
+	require.True(t, result.Info.Resized)
+	require.LessOrEqual(t, result.Info.FinalSize, constraint.MaxBytes)
+
+	// 反向解码验证尺寸 <= MaxDim
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(result.Bytes))
+	require.NoError(t, err)
+	require.LessOrEqual(t, cfg.Width, constraint.MaxDim)
+	require.LessOrEqual(t, cfg.Height, constraint.MaxDim)
 }
