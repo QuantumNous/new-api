@@ -63,16 +63,34 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 
 	responseID := "resp_" + common.GetUUID()
 	now := common.GetTimestamp()
+	seqCounter := 0
+	responseOpened := false
+	var responsesReq dto.OpenAIResponsesRequest
 
 	defer func() {
 		if newAPIError != nil && info.ClientWs != nil {
-			_ = sendWsResponseEvent(info.ClientWs, 999, "response.failed", gin.H{
+			if !responseOpened {
+				// Ensure response.created is sent before response.failed
+				_ = sendWsResponseEvent(info.ClientWs, seqCounter, "response.created", gin.H{
+					"response": gin.H{
+						"id":         responseID,
+						"object":     "response",
+						"created_at":  now,
+						"status":     "in_progress",
+						"model":      responsesReq.Model,
+					},
+				})
+				seqCounter++
+				responseOpened = true
+			}
+			_ = sendWsResponseEvent(info.ClientWs, seqCounter, "response.failed", gin.H{
 				"response": gin.H{
 					"id":     responseID,
 					"status": "failed",
 					"error":  newAPIError.ToOpenAIError(),
 				},
 			})
+			seqCounter++
 		}
 	}()
 
@@ -89,7 +107,6 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 		}
 	}
 
-	var responsesReq dto.OpenAIResponsesRequest
 	if err := common.Unmarshal(message, &responsesReq); err != nil {
 		return types.NewError(err, types.ErrorCodeInvalidRequest)
 	}
@@ -124,35 +141,42 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 
 	// 3. Send initial events
 	// event 0: response.created
-	if err := sendWsResponseEvent(info.ClientWs, 0, "response.created", gin.H{
-		"response": gin.H{
-			"id":                responseID,
-			"object":            "response",
-			"created_at":         now,
-			"status":            "in_progress",
-			"background":        false,
-			"frequency_penalty": 0.0,
-			"model":             responsesReq.Model,
-			"presence_penalty":  0.0,
-			"temperature":       1.0,
-			"top_p":             1.0,
-		},
-	}); err != nil {
-		return types.NewError(err, types.ErrorCodeWssWriteFailed)
+	respCreatedData := gin.H{
+		"id":         responseID,
+		"object":     "response",
+		"created_at":  now,
+		"status":     "in_progress",
+		"background": false,
+		"model":      responsesReq.Model,
+	}
+	if responsesReq.Temperature != nil {
+		respCreatedData["temperature"] = *responsesReq.Temperature
+	}
+	if responsesReq.TopP != nil {
+		respCreatedData["top_p"] = *responsesReq.TopP
 	}
 
+	if err := sendWsResponseEvent(info.ClientWs, seqCounter, "response.created", gin.H{
+		"response": respCreatedData,
+	}); err != nil {
+		return types.NewError(err, types.ErrorCodeWssWriteFailed)
+	}
+	seqCounter++
+	responseOpened = true
+
 	// event 1: response.in_progress
-	if err := sendWsResponseEvent(info.ClientWs, 1, "response.in_progress", gin.H{
+	if err := sendWsResponseEvent(info.ClientWs, seqCounter, "response.in_progress", gin.H{
 		"response": gin.H{
-			"id":                responseID,
-			"object":            "response",
-			"created_at":         now,
-			"status":            "in_progress",
-			"model":             responsesReq.Model,
+			"id":         responseID,
+			"object":     "response",
+			"created_at":  now,
+			"status":     "in_progress",
+			"model":      responsesReq.Model,
 		},
 	}); err != nil {
 		return types.NewError(err, types.ErrorCodeWssWriteFailed)
 	}
+	seqCounter++
 
 	// 4. Perform the actual HTTP request
 	resp, err := adaptor.DoRequest(c, info, io.NopCloser(bytes.NewReader(jsonData)))
@@ -190,13 +214,21 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 	c.Request.Method = "POST"
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
+
+	// Usage handling & mandatory quota settlement
+	u, ok := usage.(*dto.Usage)
+	if !ok || u == nil {
+		u = &dto.Usage{
+			PromptTokens:     info.GetEstimatePromptTokens(),
+			CompletionTokens: 0,
+			TotalTokens:      info.GetEstimatePromptTokens(),
+		}
+	}
+	// Force quota consumption
+	service.PostTextConsumeQuota(c, info, u, nil)
+
 	if newAPIError != nil {
 		return newAPIError
-	}
-
-	u, _ := usage.(*dto.Usage)
-	if u == nil {
-		u = &dto.Usage{}
 	}
 
 	usageData := gin.H{
@@ -226,7 +258,7 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 			itemID := "item_" + common.GetUUID()
 
 			// response.output_item.added (seq 2)
-			if err := sendWsResponseEvent(info.ClientWs, 2, "response.output_item.added", gin.H{
+			if err := sendWsResponseEvent(info.ClientWs, seqCounter, "response.output_item.added", gin.H{
 				"output_index": 0,
 				"item": gin.H{
 					"id":      itemID,
@@ -239,9 +271,10 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 			}); err != nil {
 				return types.NewError(err, types.ErrorCodeWssWriteFailed)
 			}
+			seqCounter++
 
 			// response.content_part.added (seq 3)
-			if err := sendWsResponseEvent(info.ClientWs, 3, "response.content_part.added", gin.H{
+			if err := sendWsResponseEvent(info.ClientWs, seqCounter, "response.content_part.added", gin.H{
 				"item_id":      itemID,
 				"output_index": 0,
 				"part": gin.H{
@@ -251,9 +284,10 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 			}); err != nil {
 				return types.NewError(err, types.ErrorCodeWssWriteFailed)
 			}
+			seqCounter++
 
 			// response.output_text.delta (seq 4)
-			if err := sendWsResponseEvent(info.ClientWs, 4, "response.output_text.delta", gin.H{
+			if err := sendWsResponseEvent(info.ClientWs, seqCounter, "response.output_text.delta", gin.H{
 				"content_index": 0,
 				"item_id":       itemID,
 				"output_index":  0,
@@ -261,9 +295,10 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 			}); err != nil {
 				return types.NewError(err, types.ErrorCodeWssWriteFailed)
 			}
+			seqCounter++
 
 			// response.output_text.done (seq 5)
-			if err := sendWsResponseEvent(info.ClientWs, 5, "response.output_text.done", gin.H{
+			if err := sendWsResponseEvent(info.ClientWs, seqCounter, "response.output_text.done", gin.H{
 				"content_index": 0,
 				"item_id":       itemID,
 				"output_index":  0,
@@ -271,9 +306,10 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 			}); err != nil {
 				return types.NewError(err, types.ErrorCodeWssWriteFailed)
 			}
+			seqCounter++
 
 			// response.content_part.done (seq 6)
-			if err := sendWsResponseEvent(info.ClientWs, 6, "response.content_part.done", gin.H{
+			if err := sendWsResponseEvent(info.ClientWs, seqCounter, "response.content_part.done", gin.H{
 				"item_id":      itemID,
 				"output_index": 0,
 				"part": gin.H{
@@ -283,9 +319,10 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 			}); err != nil {
 				return types.NewError(err, types.ErrorCodeWssWriteFailed)
 			}
+			seqCounter++
 
 			// response.output_item.done (seq 7)
-			if err := sendWsResponseEvent(info.ClientWs, 7, "response.output_item.done", gin.H{
+			if err := sendWsResponseEvent(info.ClientWs, seqCounter, "response.output_item.done", gin.H{
 				"output_index": 0,
 				"item": gin.H{
 					"id":     itemID,
@@ -303,9 +340,10 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 			}); err != nil {
 				return types.NewError(err, types.ErrorCodeWssWriteFailed)
 			}
+			seqCounter++
 
 			// response.completed (seq 8)
-			if err := sendWsResponseEvent(info.ClientWs, 8, "response.completed", gin.H{
+			if err := sendWsResponseEvent(info.ClientWs, seqCounter, "response.completed", gin.H{
 				"response": gin.H{
 					"id":                responseID,
 					"object":            "response",
@@ -325,9 +363,10 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 			}); err != nil {
 				return types.NewError(err, types.ErrorCodeWssWriteFailed)
 			}
+			seqCounter++
 		} else {
 			// Fallback for empty or unmarshalable content
-			_ = sendWsResponseEvent(info.ClientWs, 8, "response.completed", gin.H{
+			_ = sendWsResponseEvent(info.ClientWs, seqCounter, "response.completed", gin.H{
 				"response": gin.H{
 					"id":           responseID,
 					"object":       "response",
@@ -339,10 +378,11 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 					"usage":        usageData,
 				},
 			})
+			seqCounter++
 		}
 	} else {
 		// Terminal event for empty response
-		_ = sendWsResponseEvent(info.ClientWs, 8, "response.completed", gin.H{
+		_ = sendWsResponseEvent(info.ClientWs, seqCounter, "response.completed", gin.H{
 			"response": gin.H{
 				"id":           responseID,
 				"object":       "response",
@@ -354,15 +394,10 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 				"usage":        usageData,
 			},
 		})
+		seqCounter++
 	}
 
-	// Usage handling (internal New API consumption)
-	if usage != nil {
-		if usageDto, ok := usage.(*dto.Usage); ok {
-			service.PostTextConsumeQuota(c, info, usageDto, nil)
-		}
-	}
-
+	// service.PostTextConsumeQuota moved up to enforce settlement
 	return nil
 }
 
