@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -57,8 +58,34 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if shouldPassThroughAionlyImageGeneration(c, info) {
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get request body storage for aionly image generation: %w", err)
+		}
+		requestBody, err := storage.Bytes()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read request body for aionly image generation: %w", err)
+		}
+		return bytes.NewBuffer(requestBody), nil
+	}
+
+	if info.RelayMode == relayconstant.RelayModeImagesEdits &&
+		!strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+		return request, nil
+	}
 	openaiAdaptor := openai.Adaptor{}
 	return openaiAdaptor.ConvertImageRequest(c, info, request)
+}
+
+func shouldPassThroughAionlyImageGeneration(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	if info == nil || info.RelayMode != relayconstant.RelayModeImagesGenerations {
+		return false
+	}
+	if c != nil && c.Request != nil && c.Request.URL != nil {
+		return c.Request.URL.Path == "/v1/images/generations"
+	}
+	return info.RequestURLPath == "/v1/images/generations"
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -133,6 +160,10 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if info.RelayMode == relayconstant.RelayModeImagesEdits &&
+		strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+		return channel.DoFormRequest(a, c, info, requestBody)
+	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
@@ -147,6 +178,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if info.RelayMode == relayconstant.RelayModeGemini {
 		geminiAdaptor := gemini.Adaptor{}
 		return geminiAdaptor.DoResponse(c, resp, info)
+	}
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
+		return AionlyImageHandler(c, resp, info)
 	}
 	openaiAdaptor := openai.Adaptor{}
 	return openaiAdaptor.DoResponse(c, resp, info)

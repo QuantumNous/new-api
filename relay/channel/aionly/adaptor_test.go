@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -13,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func newRelayInfo(format types.RelayFormat, path string) *relaycommon.RelayInfo {
@@ -96,6 +99,66 @@ func TestDoResponse_GeminiRelayRoute(t *testing.T) {
 	_, newErr := a.DoResponse(c, resp, info)
 
 	assert.Nil(t, newErr)
+}
+
+func TestConvertImageRequest_AionlyNestedFormatCompat(t *testing.T) {
+	a := &Adaptor{}
+	gin.SetMode(gin.TestMode)
+	rawBody := `{
+		"model": "gpt-image-2-c",
+		"input": {
+			"prompt": "一条狗"
+		},
+		"parameters": {
+			"size": "1024x1024",
+			"quality": "medium",
+			"output_compression": 100,
+			"output_format": "png",
+			"n": 1
+		}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(rawBody))
+	req.Header.Set("Content-Type", "application/json")
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = req
+	info := newRelayInfo(types.RelayFormatOpenAIImage, "/v1/images/generations")
+	info.RelayMode = relayconstant.RelayModeImagesGenerations
+
+	request := dto.ImageRequest{}
+	err := common.UnmarshalBodyReusable(c, &request)
+	require.NoError(t, err)
+
+	converted, err := a.ConvertImageRequest(c, info, request)
+	require.NoError(t, err)
+
+	buffer, ok := converted.(*bytes.Buffer)
+	require.True(t, ok)
+	payload := buffer.String()
+	assert.Equal(t, "一条狗", gjson.Get(payload, "input.prompt").String())
+	assert.Equal(t, "1024x1024", gjson.Get(payload, "parameters.size").String())
+	assert.Equal(t, "medium", gjson.Get(payload, "parameters.quality").String())
+	assert.Equal(t, float64(100), gjson.Get(payload, "parameters.output_compression").Float())
+	assert.Equal(t, "png", gjson.Get(payload, "parameters.output_format").String())
+	assert.Equal(t, float64(1), gjson.Get(payload, "parameters.n").Float())
+}
+
+func TestConvertImageRequest_AionlyNestedFormatOnlyForGenerationsURL(t *testing.T) {
+	a := &Adaptor{}
+	gin.SetMode(gin.TestMode)
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = req
+	info := newRelayInfo(types.RelayFormatOpenAIImage, "/v1/images/edits")
+	info.RelayMode = relayconstant.RelayModeImagesGenerations
+
+	request := dto.ImageRequest{Model: "gpt-image-2-c"}
+
+	converted, err := a.ConvertImageRequest(c, info, request)
+	require.NoError(t, err)
+
+	convertedReq, ok := converted.(dto.ImageRequest)
+	require.True(t, ok)
+	assert.Equal(t, "gpt-image-2-c", convertedReq.Model)
 }
 
 func ioNopCloser(s string) *readCloser {
