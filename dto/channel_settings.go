@@ -40,7 +40,18 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastCheckTime      int64         `json:"upstream_model_update_last_check_time,omitempty"`      // 上次检测时间
 	UpstreamModelUpdateLastDetectedModels []string      `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
 	UpstreamModelUpdateLastRemovedModels  []string      `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
-	UpstreamModelUpdateIgnoredModels      []string      `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
+	UpstreamModelUpdateIgnoredModels      []string                  `json:"upstream_model_update_ignored_models,omitempty"` // 手动忽略的模型
+	ImageCompression                      *ImageCompressionOverride `json:"image_compression,omitempty"`
+}
+
+// ImageCompressionOverride 是与 setting.ImageCompressionOverride 同形的 DTO 层定义，
+// 用于从渠道配置 JSON 反序列化。运行时由 setting 层读取并合并到 ImageConstraint。
+type ImageCompressionOverride struct {
+	Enabled       *bool  `json:"enabled,omitempty"`
+	MaxBytes      *int64 `json:"max_bytes,omitempty"`
+	MaxDim        *int   `json:"max_dim,omitempty"`
+	QualitySteps  []int  `json:"quality_steps,omitempty"`
+	PreserveAlpha *bool  `json:"preserve_alpha,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
