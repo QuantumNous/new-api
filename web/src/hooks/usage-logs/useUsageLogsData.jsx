@@ -61,6 +61,7 @@ export const useLogsData = () => {
     RETRY: 'retry',
     IP: 'ip',
     DETAILS: 'details',
+    REQUEST_DETAIL: 'request_detail',
   };
 
   // Basic state
@@ -124,6 +125,7 @@ export const useLogsData = () => {
       [COLUMN_KEYS.RETRY]: isAdminUser,
       [COLUMN_KEYS.IP]: true,
       [COLUMN_KEYS.DETAILS]: true,
+      [COLUMN_KEYS.REQUEST_DETAIL]: true,
     };
   };
 
@@ -185,6 +187,42 @@ export const useLogsData = () => {
     useState(null);
   const [showParamOverrideModal, setShowParamOverrideModal] = useState(false);
   const [paramOverrideTarget, setParamOverrideTarget] = useState(null);
+
+  // Request detail modal state
+  const [showRequestDetailModal, setShowRequestDetailModal] = useState(false);
+  const [requestDetailData, setRequestDetailData] = useState(null);
+  const [requestDetailLoading, setRequestDetailLoading] = useState(false);
+
+  const showRequestDetailFunc = async (requestId) => {
+    if (!requestId) return;
+    setShowRequestDetailModal(true);
+    setRequestDetailLoading(true);
+    try {
+      const url = isAdminUser
+        ? `/api/request_detail/?request_id=${encodeURIComponent(requestId)}&page_size=1`
+        : `/api/request_detail/self?request_id=${encodeURIComponent(requestId)}&page_size=1`;
+      const res = await API.get(url);
+      const { success, data } = res.data;
+      if (success && data?.items?.length > 0) {
+        const item = data.items[0];
+        const detailUrl = isAdminUser
+          ? `/api/request_detail/${item.id}`
+          : `/api/request_detail/self/${item.id}`;
+        const detailRes = await API.get(detailUrl);
+        if (detailRes.data.success) {
+          setRequestDetailData(detailRes.data.data);
+        } else {
+          showError(detailRes.data.message);
+        }
+      } else {
+        setRequestDetailData(null);
+      }
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setRequestDetailLoading(false);
+    }
+  };
 
   // Initialize default column visibility
   const initDefaultColumns = () => {
@@ -953,6 +991,13 @@ export const useLogsData = () => {
     showParamOverrideModal,
     setShowParamOverrideModal,
     paramOverrideTarget,
+
+    // Request detail modal
+    showRequestDetailModal,
+    setShowRequestDetailModal,
+    requestDetailData,
+    requestDetailLoading,
+    showRequestDetailFunc,
 
     // Functions
     loadLogs,

@@ -216,21 +216,19 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return newApiErr
 	}
 
-	go func() {
-		respHeadersForLog := ""
-		if httpResp != nil {
-			respHeadersForLog = model.MarshalHeaders(httpResp.Header)
+	respHeadersForLog := ""
+	if httpResp != nil {
+		respHeadersForLog = model.MarshalHeaders(httpResp.Header)
+	}
+	respBodyForLog := ""
+	if !info.IsStream {
+		if v, exists := c.Get("upstream_response_body"); exists {
+			respBodyForLog, _ = v.(string)
 		}
-		respBodyForLog := ""
-		if !info.IsStream {
-			if v, exists := c.Get("upstream_response_body"); exists {
-				respBodyForLog, _ = v.(string)
-			}
-		}
-		requestId := c.GetString(common.RequestIdKey)
-		userId := c.GetInt("id")
-		model.RecordRequestDetail(requestId, userId, reqHeadersForLog, reqBodyForLog, respHeadersForLog, respBodyForLog)
-	}()
+	}
+	requestId := c.GetString(common.RequestIdKey)
+	userId := c.GetInt("id")
+	go model.RecordRequestDetail(requestId, userId, reqHeadersForLog, reqBodyForLog, respHeadersForLog, respBodyForLog)
 
 	var containAudioTokens = usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0
 	var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)

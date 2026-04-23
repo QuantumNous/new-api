@@ -25,6 +25,7 @@ import {
   Tooltip,
   Popover,
   Typography,
+  Button,
 } from '@douyinfe/semi-ui';
 import {
   renderGroup,
@@ -35,7 +36,7 @@ import {
   renderModelPriceSimple,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
-import { CircleAlert, Route, Sparkles } from 'lucide-react';
+import { CircleAlert, Route, Sparkles, FileSearch } from 'lucide-react';
 
 const colors = [
   'amber',
@@ -513,6 +514,7 @@ export const getLogsColumns = ({
   openChannelAffinityUsageCacheModal,
   isAdminUser,
   billingDisplayMode = 'price',
+  showRequestDetailFunc,
 }) => {
   return [
     {
@@ -961,6 +963,37 @@ export const getLogsColumns = ({
         }
 
         return renderCompactDetailSummary(detailSummary.segments);
+      },
+    },
+    {
+      key: COLUMN_KEYS.REQUEST_DETAIL,
+      title: t('请求详情'),
+      dataIndex: 'request_id',
+      width: 90,
+      render: (text, record) => {
+        if (
+          !(
+            record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6
+          ) ||
+          !record.request_id
+        ) {
+          return <></>;
+        }
+        return (
+          <Button
+            theme='borderless'
+            type='tertiary'
+            size='small'
+            icon={<FileSearch size={14} />}
+            onClick={(e) => {
+              e.stopPropagation();
+              showRequestDetailFunc?.(record.request_id);
+            }}
+          />
+        );
       },
     },
   ];
