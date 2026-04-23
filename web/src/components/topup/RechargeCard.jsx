@@ -52,6 +52,22 @@ import SubscriptionPlansCard from './SubscriptionPlansCard';
 
 const { Text } = Typography;
 const WAFFO_PANCAKE_LOGO = '/waffo-pancake-logo.svg';
+const WAFFO_PANCAKE_ICON_BOX_STYLE = {
+  display: 'inline-flex',
+  width: 18,
+  height: 18,
+  overflow: 'hidden',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  flex: '0 0 18px',
+};
+const WAFFO_PANCAKE_ICON_IMAGE_STYLE = {
+  display: 'block',
+  height: 22,
+  width: 'auto',
+  maxWidth: 'none',
+  transform: 'translateY(-2px)',
+};
 
 const RechargeCard = ({
   t,
@@ -345,15 +361,16 @@ const RechargeCard = ({
                                   ) : payMethod.type === 'stripe' ? (
                                     <SiStripe size={18} color='#635BFF' />
                                   ) : payMethod.type === 'waffo_pancake' ? (
-                                    <img
-                                      src={WAFFO_PANCAKE_LOGO}
-                                      alt='Waffo Pancake'
-                                      style={{
-                                        width: 18,
-                                        height: 18,
-                                        objectFit: 'contain',
-                                      }}
-                                    />
+                                    <span style={WAFFO_PANCAKE_ICON_BOX_STYLE}>
+                                      <img
+                                        src={WAFFO_PANCAKE_LOGO}
+                                        alt=''
+                                        aria-hidden='true'
+                                        style={
+                                          WAFFO_PANCAKE_ICON_IMAGE_STYLE
+                                        }
+                                      />
+                                    </span>
                                   ) : payMethod.icon ? (
                                     <img
                                       src={payMethod.icon}
