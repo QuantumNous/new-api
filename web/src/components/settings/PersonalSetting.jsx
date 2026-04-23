@@ -45,6 +45,8 @@ import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
+import SecureVerificationModal from '../common/modals/SecureVerificationModal';
+import { useSecureVerification } from '../../hooks/common/useSecureVerification';
 
 const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
@@ -76,6 +78,10 @@ const PersonalSetting = () => {
   const [passkeyRegisterLoading, setPasskeyRegisterLoading] = useState(false);
   const [passkeyDeleteLoading, setPasskeyDeleteLoading] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(false);
+  const [
+    passkeyRequiredVerificationMethod,
+    setPasskeyRequiredVerificationMethod,
+  ] = useState(null);
   const [notificationSettings, setNotificationSettings] = useState({
     warningType: 'email',
     warningThreshold: 100000,
@@ -90,6 +96,34 @@ const PersonalSetting = () => {
     acceptUnsetModelRatioModel: false,
     recordIpLog: false,
   });
+
+  const {
+    isModalVisible: isPasskeyVerificationModalVisible,
+    verificationMethods: passkeyVerificationMethods,
+    verificationState: passkeyVerificationState,
+    startVerification: startPasskeyVerification,
+    executeVerification: executePasskeyVerification,
+    cancelVerification: cancelPasskeyVerification,
+    setVerificationCode: setPasskeyVerificationCode,
+    switchVerificationMethod: switchPasskeyVerificationMethod,
+    checkVerificationMethods: checkPasskeyVerificationMethods,
+  } = useSecureVerification({
+    onSuccess: () => {
+      setPasskeyRequiredVerificationMethod(null);
+    },
+  });
+
+  const visiblePasskeyVerificationMethods = passkeyRequiredVerificationMethod
+    ? {
+        ...passkeyVerificationMethods,
+        has2FA:
+          passkeyRequiredVerificationMethod === '2fa' &&
+          passkeyVerificationMethods.has2FA,
+        hasPasskey:
+          passkeyRequiredVerificationMethod === 'passkey' &&
+          passkeyVerificationMethods.hasPasskey,
+      }
+    : passkeyVerificationMethods;
 
   useEffect(() => {
     let saved = localStorage.getItem('status');
@@ -203,18 +237,57 @@ const PersonalSetting = () => {
     }
   };
 
-  const handleRegisterPasskey = async () => {
-    if (!passkeySupported || !window.PublicKeyCredential) {
+  const startPasskeyManagementVerification = async (apiCall, options = {}) => {
+    const methods = await checkPasskeyVerificationMethods();
+    const requiredMethod = methods.has2FA
+      ? '2fa'
+      : methods.hasPasskey
+        ? 'passkey'
+        : null;
+
+    if (!requiredMethod) {
+      showError(t('您需要先启用两步验证或 Passkey 才能执行此操作'));
+      return;
+    }
+
+    if (requiredMethod === 'passkey' && !methods.passkeySupported) {
       showInfo(t('当前设备不支持 Passkey'));
       return;
     }
+
+    setPasskeyRequiredVerificationMethod(requiredMethod);
+    await startPasskeyVerification(apiCall, {
+      preferredMethod: requiredMethod,
+      title: t('安全验证'),
+      ...options,
+    });
+  };
+
+  const startPasskeyRegistration = async () => {
+    const methods = await checkPasskeyVerificationMethods();
+    if (!methods.has2FA) {
+      try {
+        await registerPasskey();
+      } catch (error) {
+        showError(error.message || t('Passkey 注册失败，请重试'));
+      }
+      return;
+    }
+
+    setPasskeyRequiredVerificationMethod('2fa');
+    await startPasskeyVerification(registerPasskey, {
+      preferredMethod: '2fa',
+      title: t('安全验证'),
+    });
+  };
+
+  const registerPasskey = async () => {
     setPasskeyRegisterLoading(true);
     try {
       const beginRes = await API.post('/api/user/passkey/register/begin');
       const { success, message, data } = beginRes.data;
       if (!success) {
-        showError(message || t('无法发起 Passkey 注册'));
-        return;
+        throw new Error(message || t('无法发起 Passkey 注册'));
       }
 
       const publicKey = prepareCredentialCreationOptions(
@@ -223,47 +296,67 @@ const PersonalSetting = () => {
       const credential = await navigator.credentials.create({ publicKey });
       const payload = buildRegistrationResult(credential);
       if (!payload) {
-        showError(t('Passkey 注册失败，请重试'));
-        return;
+        throw new Error(t('Passkey 注册失败，请重试'));
       }
 
       const finishRes = await API.post(
         '/api/user/passkey/register/finish',
         payload,
       );
-      if (finishRes.data.success) {
-        showSuccess(t('Passkey 注册成功'));
-        await loadPasskeyStatus();
-      } else {
-        showError(finishRes.data.message || t('Passkey 注册失败，请重试'));
+      if (!finishRes.data.success) {
+        throw new Error(
+          finishRes.data.message || t('Passkey 注册失败，请重试'),
+        );
       }
+
+      showSuccess(t('Passkey 注册成功'));
+      await loadPasskeyStatus();
+      return finishRes.data;
     } catch (error) {
       if (error?.name === 'AbortError') {
         showInfo(t('已取消 Passkey 注册'));
-      } else {
-        showError(t('Passkey 注册失败，请重试'));
+        return { cancelled: true };
       }
+      throw new Error(error?.message || t('Passkey 注册失败，请重试'));
     } finally {
       setPasskeyRegisterLoading(false);
     }
   };
 
-  const handleRemovePasskey = async () => {
+  const handleRegisterPasskey = async () => {
+    if (!passkeySupported || !window.PublicKeyCredential) {
+      showInfo(t('当前设备不支持 Passkey'));
+      return;
+    }
+    await startPasskeyRegistration();
+  };
+
+  const removePasskey = async () => {
     setPasskeyDeleteLoading(true);
     try {
       const res = await API.delete('/api/user/passkey');
       const { success, message } = res.data;
-      if (success) {
-        showSuccess(t('Passkey 已解绑'));
-        await loadPasskeyStatus();
-      } else {
-        showError(message || t('操作失败，请重试'));
+      if (!success) {
+        throw new Error(message || t('操作失败，请重试'));
       }
+
+      showSuccess(t('Passkey 已解绑'));
+      await loadPasskeyStatus();
+      return res.data;
     } catch (error) {
-      showError(t('操作失败，请重试'));
+      throw new Error(error?.message || t('操作失败，请重试'));
     } finally {
       setPasskeyDeleteLoading(false);
     }
+  };
+
+  const handleRemovePasskey = async () => {
+    await startPasskeyManagementVerification(removePasskey);
+  };
+
+  const handlePasskeyVerificationCancel = () => {
+    setPasskeyRequiredVerificationMethod(null);
+    cancelPasskeyVerification();
   };
 
   const getUserData = async () => {
@@ -555,6 +648,18 @@ const PersonalSetting = () => {
         turnstileEnabled={turnstileEnabled}
         turnstileSiteKey={turnstileSiteKey}
         setTurnstileToken={setTurnstileToken}
+      />
+
+      <SecureVerificationModal
+        visible={isPasskeyVerificationModalVisible}
+        verificationMethods={visiblePasskeyVerificationMethods}
+        verificationState={passkeyVerificationState}
+        onVerify={executePasskeyVerification}
+        onCancel={handlePasskeyVerificationCancel}
+        onCodeChange={setPasskeyVerificationCode}
+        onMethodSwitch={switchPasskeyVerificationMethod}
+        title={passkeyVerificationState.title}
+        description={passkeyVerificationState.description}
       />
     </div>
   );
