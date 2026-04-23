@@ -18,6 +18,13 @@ func TestAionlyTTSHandler_ReturnsSynthesisResponseJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
+	originalEstimator := estimateAionlyAudioTokensFn
+	estimateAionlyAudioTokensFn = func(_ *gin.Context, _ string) int {
+		return 250
+	}
+	t.Cleanup(func() {
+		estimateAionlyAudioTokensFn = originalEstimator
+	})
 
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -36,7 +43,9 @@ func TestAionlyTTSHandler_ReturnsSynthesisResponseJSON(t *testing.T) {
 	usageData, ok := usage.(*dto.Usage)
 	require.True(t, ok)
 	assert.Equal(t, 12, usageData.PromptTokens)
-	assert.Equal(t, 12, usageData.TotalTokens)
+	assert.Equal(t, 250, usageData.CompletionTokens)
+	assert.Equal(t, 250, usageData.CompletionTokenDetails.AudioTokens)
+	assert.Equal(t, 262, usageData.TotalTokens)
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
 
@@ -67,4 +76,16 @@ func TestAionlyTTSHandler_ReturnsErrorWhenSynthesisFailed(t *testing.T) {
 	require.NotNil(t, newErr)
 	assert.Equal(t, http.StatusOK, newErr.StatusCode)
 	assert.True(t, strings.Contains(newErr.Error(), "aiionly synthesis failed"))
+}
+
+func TestCompletionTokensFromDuration(t *testing.T) {
+	assert.Equal(t, 1000, completionTokensFromDuration(60))
+	assert.Equal(t, 1017, completionTokensFromDuration(61))
+	assert.Equal(t, 1, completionTokensFromDuration(0))
+}
+
+func TestCompletionTokensFromSize(t *testing.T) {
+	assert.Equal(t, 1, completionTokensFromSize(1))
+	assert.Equal(t, 2, completionTokensFromSize(1500))
+	assert.Equal(t, 1, completionTokensFromSize(0))
 }
