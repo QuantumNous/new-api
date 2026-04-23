@@ -2062,10 +2062,12 @@ const EditChannelModal = (props) => {
     () =>
       CHANNEL_OPTIONS.map((opt) => ({
         ...opt,
-        // 保持 label 为纯文本以支持搜索
-        label: opt.label,
+        // Keep original label for search filtering
+        label: t(opt.label),
+        // Store original Chinese label for search
+        originalLabel: opt.label,
       })),
-    [],
+    [t],
   );
 
   const renderChannelOption = (renderProps) => {

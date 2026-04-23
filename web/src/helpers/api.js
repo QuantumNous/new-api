@@ -25,6 +25,10 @@ import {
 } from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
+import i18n from '../i18n/i18n';
+
+const getRequestLanguage = () =>
+  localStorage.getItem('i18nextLng') || i18n.language || 'en';
 
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
@@ -33,6 +37,7 @@ export let API = axios.create({
   headers: {
     'New-API-User': getUserIdFromLocalStorage(),
     'Cache-Control': 'no-store',
+    'Accept-Language': getRequestLanguage(),
   },
 });
 
@@ -78,7 +83,29 @@ function patchAPIInstance(instance) {
   };
 }
 
+function attachAPIInterceptors(instance) {
+  instance.interceptors.request.use((config) => {
+    config.headers = config.headers || {};
+    config.headers['New-API-User'] = getUserIdFromLocalStorage();
+    config.headers['Accept-Language'] = getRequestLanguage();
+    return config;
+  });
+
+  instance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      // 如果请求配置中显式要求跳过全局错误处理，则不弹出默认错误提示
+      if (error.config && error.config.skipErrorHandler) {
+        return Promise.reject(error);
+      }
+      showError(error);
+      return Promise.reject(error);
+    },
+  );
+}
+
 patchAPIInstance(API);
+attachAPIInterceptors(API);
 
 export function updateAPI() {
   API = axios.create({
@@ -88,23 +115,13 @@ export function updateAPI() {
     headers: {
       'New-API-User': getUserIdFromLocalStorage(),
       'Cache-Control': 'no-store',
+      'Accept-Language': getRequestLanguage(),
     },
   });
 
   patchAPIInstance(API);
+  attachAPIInterceptors(API);
 }
-
-API.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // 如果请求配置中显式要求跳过全局错误处理，则不弹出默认错误提示
-    if (error.config && error.config.skipErrorHandler) {
-      return Promise.reject(error);
-    }
-    showError(error);
-    return Promise.reject(error);
-  },
-);
 
 // playground
 
@@ -172,7 +189,7 @@ export const buildApiPayload = (
 // 处理API错误响应
 export const handleApiError = (error, response = null) => {
   const errorInfo = {
-    error: error.message || '未知错误',
+    error: error.message || i18n.t('未知错误'),
     timestamp: new Date().toISOString(),
     stack: error.stack,
   };
@@ -183,9 +200,9 @@ export const handleApiError = (error, response = null) => {
   }
 
   if (error.message.includes('HTTP error')) {
-    errorInfo.details = '服务器返回了错误状态码';
+    errorInfo.details = i18n.t('服务器返回了错误状态码');
   } else if (error.message.includes('Failed to fetch')) {
-    errorInfo.details = '网络连接失败或服务器无响应';
+    errorInfo.details = i18n.t('网络连接失败或服务器无响应');
   }
 
   return errorInfo;
@@ -222,7 +239,7 @@ export const processGroupsData = (data, userGroup) => {
   if (groupOptions.length === 0) {
     groupOptions = [
       {
-        label: '用户分组',
+        label: i18n.t('用户分组'),
         value: '',
         ratio: 1,
       },
@@ -346,7 +363,9 @@ export async function onCustomOAuthClicked(provider, options = {}) {
         provider.authorization_endpoint,
       );
       showError(
-        'OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）',
+        i18n.t(
+          'OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）',
+        ),
       );
       return;
     }
@@ -363,7 +382,9 @@ export async function onCustomOAuthClicked(provider, options = {}) {
     redirectToOAuthUrl(authUrl);
   } catch (error) {
     console.error('Failed to initiate custom OAuth:', error);
-    showError('OAuth 登录失败：' + (error.message || '未知错误'));
+    showError(
+      i18n.t('OAuth 登录失败：') + (error.message || i18n.t('未知错误')),
+    );
   }
 }
 

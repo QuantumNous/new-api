@@ -27,8 +27,8 @@ import { normalizeLanguage } from "../../../../i18n/language";
 
 // Language options with native names
 const languageOptions = [
-	{ value: "zh-CN", label: "简体中文" },
-	{ value: "zh-TW", label: "繁體中文" },
+	{ value: "zh-CN", label: "简体中文", translatable: true },
+	{ value: "zh-TW", label: "繁體中文", translatable: true },
 	{ value: "en", label: "English" },
 	{ value: 'fr', label: 'Français'},
 	{ value: 'ru', label: 'Русский'},
@@ -40,7 +40,7 @@ const PreferencesSettings = ({ t }) => {
 	const { i18n } = useTranslation();
 	const [userState, userDispatch] = useContext(UserContext);
 	const [currentLanguage, setCurrentLanguage] = useState(
-		normalizeLanguage(i18n.language) || "zh-CN",
+		normalizeLanguage(i18n.language) || "en",
 	);
 	const [loading, setLoading] = useState(false);
 
@@ -161,7 +161,7 @@ const PreferencesSettings = ({ t }) => {
 						loading={loading}
 						optionList={languageOptions.map((opt) => ({
 							value: opt.value,
-							label: opt.label,
+							label: opt.translatable ? t(opt.label) : opt.label,
 						}))}
 					/>
 				</div>

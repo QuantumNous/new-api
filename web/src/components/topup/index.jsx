@@ -29,6 +29,7 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
+import { getCurrencyConfig } from '../../helpers/render';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
@@ -185,7 +186,9 @@ const TopUp = () => {
 
   const openTopUpLink = () => {
     if (!topUpLink) {
-      showError(t('超级管理员未设置充值链接！'));
+      showError(
+        t('超级管理员未配置充值链接！'),
+      );
       return;
     }
     window.open(topUpLink, '_blank');
@@ -199,7 +202,9 @@ const TopUp = () => {
       }
     } else if (payment === 'waffo_pancake') {
       if (!enableWaffoPancakeTopUp) {
-        showError(t('管理员未开启 Waffo Pancake 充值！'));
+        showError(
+          t('管理员未开启 Waffo Pancake 充值！'),
+        );
         return;
       }
     } else if (payment.startsWith('waffo:')) {
@@ -221,7 +226,11 @@ const TopUp = () => {
       await requestAmountByPayment(payment);
 
       if (topUpCount < selectedMinTopUp) {
-        showError(t('充值数量不能小于') + selectedMinTopUp);
+        showError(
+          t('充值数量不能小于 {{min}}', {
+            min: selectedMinTopUp,
+          }),
+        );
         return;
       }
       setOpen(true);
@@ -269,7 +278,9 @@ const TopUp = () => {
     }
 
     if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+      showError(
+        t('充值数量不能小于 {{min}}', { min: minTopUp }),
+      );
       return;
     }
     setConfirmLoading(true);
@@ -351,7 +362,9 @@ const TopUp = () => {
     }
     // Validate product has required fields
     if (!selectedCreemProduct.productId) {
-      showError(t('产品配置错误，请联系管理员'));
+      showError(
+        t('产品配置错误，请联系管理员'),
+      );
       return;
     }
     setConfirmLoading(true);
@@ -383,7 +396,11 @@ const TopUp = () => {
   const waffoTopUp = async (payMethodIndex) => {
     try {
       if (topUpCount < waffoMinTopUp) {
-        showError(t('充值数量不能小于') + waffoMinTopUp);
+        showError(
+          t('充值数量不能小于 {{min}}', {
+            min: waffoMinTopUp,
+          }),
+        );
         return;
       }
       setPaymentLoading(true);
@@ -426,7 +443,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -441,7 +458,11 @@ const TopUp = () => {
   const waffoPancakeTopUp = async () => {
     const minTopUpValue = Number(waffoPancakeMinTopUp || 1);
     if (topUpCount < minTopUpValue) {
-      showError(t('充值数量不能小于') + minTopUpValue);
+      showError(
+        t('充值数量不能小于 {{min}}', {
+          min: minTopUpValue,
+        }),
+      );
       return;
     }
 
@@ -461,7 +482,9 @@ const TopUp = () => {
           }
         } else {
           const errorMsg =
-            typeof data === 'string' ? data : message || t('支付请求失败');
+            typeof data === 'string'
+              ? data
+              : message || t('支付请求失败');
           showError(errorMsg);
         }
       } else {
@@ -489,7 +512,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -647,7 +670,7 @@ const TopUp = () => {
                 ? data.waffo_min_topup
                 : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
-                : 1;
+                  : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
@@ -709,7 +732,9 @@ const TopUp = () => {
   // 划转邀请额度
   const transfer = async () => {
     if (transferAmount < getQuotaPerUnit()) {
-      showError(t('划转金额最低为') + ' ' + renderQuota(getQuotaPerUnit()));
+      showError(
+        t('划转金额最低为') + ' ' + renderQuota(getQuotaPerUnit()),
+      );
       return;
     }
     const res = await API.post(`/api/user/aff_transfer`, {
@@ -772,7 +797,8 @@ const TopUp = () => {
   }, [statusState?.status]);
 
   const renderAmount = () => {
-    return amount + ' ' + t('元');
+    const { symbol } = getCurrencyConfig();
+    return `${symbol}${amount}`;
   };
 
   const getAmount = async (value) => {
@@ -790,7 +816,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -816,7 +842,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -914,7 +940,7 @@ const TopUp = () => {
 
       {/* Creem 充值确认模态框 */}
       <Modal
-        title={t('确定要充值 $')}
+        title={t('充值确认')}
         visible={creemOpen}
         onOk={onlineCreemTopUp}
         onCancel={handleCreemCancel}
@@ -929,7 +955,8 @@ const TopUp = () => {
               {t('产品名称')}：{selectedCreemProduct.name}
             </p>
             <p>
-              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
+              {t('价格')}：{' '}
+              {selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
               {selectedCreemProduct.price}
             </p>
             <p>
