@@ -72,6 +72,9 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 		}
 		logger.LogInfo(c, fmt.Sprintf("企业折扣应用：user_id=%d, model=%s, discount_rate=%.2f, quota: %d -> %d",
 			relayInfo.UserId, relayInfo.OriginModelName, discountRate, originalQuota, preConsumedQuota))
+		
+		// 更新 PriceData.Quota 为折扣后的值，确保消耗日志也使用折扣后的额度
+		relayInfo.PriceData.Quota = preConsumedQuota
 	}
 	session, apiErr := NewBillingSession(c, relayInfo, preConsumedQuota, discountRate)
 	if apiErr != nil {
