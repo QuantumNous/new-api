@@ -141,6 +141,7 @@ func ListModels(c *gin.Context, modelType int) {
 			}
 			if oaiModel, ok := openAIModelsMap[allowModel]; ok {
 				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(allowModel)
+				oaiModel.Modalities = ratio_setting.GetModelModalities(allowModel)
 				userOpenAiModels = append(userOpenAiModels, oaiModel)
 			} else {
 				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
@@ -149,6 +150,7 @@ func ListModels(c *gin.Context, modelType int) {
 					Created:                1626777600,
 					OwnedBy:                "custom",
 					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(allowModel),
+					Modalities:             ratio_setting.GetModelModalities(allowModel),
 				})
 			}
 		}
@@ -189,6 +191,7 @@ func ListModels(c *gin.Context, modelType int) {
 			}
 			if oaiModel, ok := openAIModelsMap[modelName]; ok {
 				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+				oaiModel.Modalities = ratio_setting.GetModelModalities(modelName)
 				userOpenAiModels = append(userOpenAiModels, oaiModel)
 			} else {
 				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
@@ -197,6 +200,7 @@ func ListModels(c *gin.Context, modelType int) {
 					Created:                1626777600,
 					OwnedBy:                "custom",
 					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
+					Modalities:             ratio_setting.GetModelModalities(modelName),
 				})
 			}
 		}
@@ -273,6 +277,8 @@ func RetrieveModel(c *gin.Context, modelType int) {
 				Type:        "model",
 			})
 		default:
+			aiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelId)
+			aiModel.Modalities = ratio_setting.GetModelModalities(modelId)
 			c.JSON(200, aiModel)
 		}
 	} else {

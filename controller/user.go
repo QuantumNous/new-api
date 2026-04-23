@@ -91,13 +91,20 @@ func Login(c *gin.Context) {
 
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
+	// 每次登录都轮换会话令牌，确保同账号仅保留最新设备会话
+	sessionToken, err := model.RotateUserSessionToken(user.Id)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
+		return
+	}
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
 	session.Set("group", user.Group)
-	err := session.Save()
+	session.Set("session_token", sessionToken)
+	err = session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
@@ -577,6 +584,13 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 管理员修改密码后，强制该账号所有旧设备会话失效
+	if updatePassword {
+		if _, err := model.RotateUserSessionToken(updatedUser.Id); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -725,6 +739,20 @@ func UpdateSelf(c *gin.Context) {
 	if err := cleanUser.Update(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	// 用户自行修改密码后，轮换会话令牌并更新当前设备会话
+	if updatePassword {
+		sessionToken, err := model.RotateUserSessionToken(cleanUser.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		session := sessions.Default(c)
+		session.Set("session_token", sessionToken)
+		if err := session.Save(); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

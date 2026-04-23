@@ -247,6 +247,14 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dImageGenerationCallQuota)
 
+		// 应用企业折扣
+		orgDiscountRate := 1.0
+		discountRate, err := getUserOrgDiscount(relayInfo.UserId, relayInfo.OriginModelName)
+		if err == nil {
+			orgDiscountRate = discountRate
+			quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(orgDiscountRate))
+		}
+
 		if len(relayInfo.PriceData.OtherRatios) > 0 {
 			for _, otherRatio := range relayInfo.PriceData.OtherRatios {
 				quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(otherRatio))
@@ -264,6 +272,15 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dFileSearchQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dImageGenerationCallQuota)
+
+		// 应用企业折扣
+		orgDiscountRate := 1.0
+		discountRate, err := getUserOrgDiscount(relayInfo.UserId, relayInfo.OriginModelName)
+		if err == nil {
+			orgDiscountRate = discountRate
+			quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(orgDiscountRate))
+		}
+
 		if len(relayInfo.PriceData.OtherRatios) > 0 {
 			for _, otherRatio := range relayInfo.PriceData.OtherRatios {
 				quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(otherRatio))
