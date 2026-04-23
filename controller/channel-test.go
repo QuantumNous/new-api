@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -232,6 +233,15 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	info.IsChannelTest = true
 	info.InitChannelMeta(c)
+
+	err = attachTestBillingRequestInput(info, request)
+	if err != nil {
+		return testResult{
+			context:     c,
+			localErr:    err,
+			newAPIError: types.NewError(err, types.ErrorCodeJsonMarshalFailed),
+		}
+	}
 
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
@@ -460,7 +470,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			newAPIError: types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError),
 		}
 	}
-	if bodyErr := detectErrorFromTestResponseBody(respBody); bodyErr != nil {
+	if bodyErr := validateTestResponseBody(respBody, isStream); bodyErr != nil {
 		return testResult{
 			context:     c,
 			localErr:    bodyErr,
@@ -469,21 +479,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	}
 	info.SetEstimatePromptTokens(usage.PromptTokens)
 
-	quota := 0
-	if !priceData.UsePrice {
-		quota = usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
-		quota = int(math.Round(float64(quota) * priceData.ModelRatio))
-		if priceData.ModelRatio != 0 && quota <= 0 {
-			quota = 1
-		}
-	} else {
-		quota = int(priceData.ModelPrice * common.QuotaPerUnit)
-	}
+	quota, tieredResult := settleTestQuota(info, priceData, usage)
 	tok := time.Now()
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
-	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
-		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
+	other := buildTestLogOther(c, info, priceData, usage, tieredResult)
 	model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
 		ChannelId:        channel.Id,
 		PromptTokens:     usage.PromptTokens,
@@ -503,6 +503,50 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		localErr:    nil,
 		newAPIError: nil,
 	}
+}
+
+func attachTestBillingRequestInput(info *relaycommon.RelayInfo, request dto.Request) error {
+	if info == nil {
+		return nil
+	}
+
+	input, err := helper.BuildBillingExprRequestInputFromRequest(request, info.RequestHeaders)
+	if err != nil {
+		return err
+	}
+	info.BillingRequestInput = &input
+	return nil
+}
+
+func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage) (int, *billingexpr.TieredResult) {
+	if usage != nil && info != nil && info.TieredBillingSnapshot != nil {
+		isClaudeUsageSemantic := usage.UsageSemantic == "anthropic" || info.GetFinalRequestRelayFormat() == types.RelayFormatClaude
+		usedVars := billingexpr.UsedVars(info.TieredBillingSnapshot.ExprString)
+		if ok, quota, result := service.TryTieredSettle(info, service.BuildTieredTokenParams(usage, isClaudeUsageSemantic, usedVars)); ok {
+			return quota, result
+		}
+	}
+
+	quota := 0
+	if !priceData.UsePrice {
+		quota = usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
+		quota = int(math.Round(float64(quota) * priceData.ModelRatio))
+		if priceData.ModelRatio != 0 && quota <= 0 {
+			quota = 1
+		}
+		return quota, nil
+	}
+
+	return int(priceData.ModelPrice * common.QuotaPerUnit), nil
+}
+
+func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
+	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
+		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
+	if tieredResult != nil {
+		service.InjectTieredBillingInfo(other, info, tieredResult)
+	}
+	return other
 }
 
 func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dto.Usage, error) {
@@ -568,6 +612,42 @@ func detectErrorFromTestResponseBody(respBody []byte) error {
 	}
 
 	return nil
+}
+
+func validateStreamTestResponseBody(respBody []byte) error {
+	b := bytes.TrimSpace(respBody)
+	if len(b) == 0 {
+		return errors.New("stream response body is empty")
+	}
+
+	for _, line := range bytes.Split(b, []byte{'\n'}) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 || !bytes.HasPrefix(line, []byte("data:")) {
+			continue
+		}
+		payload := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
+		if len(payload) == 0 || bytes.Equal(payload, []byte("[DONE]")) {
+			continue
+		}
+
+		return nil
+	}
+
+	return errors.New("stream response body does not contain a valid stream event")
+}
+
+func validateTestResponseBody(respBody []byte, isStream bool) error {
+	if bodyErr := detectErrorFromTestResponseBody(respBody); bodyErr != nil {
+		return bodyErr
+	}
+	if isStream {
+		return validateStreamTestResponseBody(respBody)
+	}
+	return nil
+}
+
+func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {
+	return channel != nil && channel.Type == constant.ChannelTypeCodex
 }
 
 func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
@@ -822,7 +902,7 @@ func testAllChannels(notify bool) error {
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
-			result := testChannel(channel, "", "", false)
+			result := testChannel(channel, "", "", shouldUseStreamForAutomaticChannelTest(channel))
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 

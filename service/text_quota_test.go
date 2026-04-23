@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
@@ -315,4 +316,126 @@ func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T
 	require.True(t, summary.IsClaudeUsageSemantic)
 	require.Equal(t, 172, summary.PromptTokens)
 	require.Equal(t, 798, summary.Quota)
+}
+
+func TestComposeTieredTextQuotaKeepsToolCallSurcharges(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("image_generation_call", true)
+	ctx.Set("image_generation_call_quality", "low")
+	ctx.Set("image_generation_call_size", "1024x1024")
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "o1",
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+		},
+		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{
+			BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
+				dto.BuildInToolWebSearchPreview: &relaycommon.BuildInToolInfo{
+					CallCount: 1,
+				},
+				dto.BuildInToolFileSearch: &relaycommon.BuildInToolInfo{
+					CallCount: 2,
+				},
+			},
+		},
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:               "tiered_expr",
+			GroupRatio:                1,
+			EstimatedQuotaBeforeGroup: 1000,
+		},
+		StartTime: time.Now(),
+	}
+
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		TotalTokens:      150,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+	quota := composeTieredTextQuota(relayInfo, summary, 1000, &billingexpr.TieredResult{
+		ActualQuotaBeforeGroup: 1000,
+		ActualQuotaAfterGroup:  1000,
+	})
+
+	require.Equal(t, int64(13000), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+	require.Equal(t, 14000, quota)
+}
+
+func TestComposeTieredTextQuotaFallbackKeepsToolCallSurcharges(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("claude_web_search_requests", 2)
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "claude-3-7-sonnet",
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1.25},
+		},
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:               "tiered_expr",
+			GroupRatio:                1.25,
+			EstimatedQuotaBeforeGroup: 1000,
+		},
+		StartTime: time.Now(),
+	}
+
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		TotalTokens:      150,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+	quota := composeTieredTextQuota(relayInfo, summary, 1250, nil)
+
+	require.Equal(t, int64(12500), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+	require.Equal(t, 13750, quota)
+}
+
+func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("claude_web_search_requests", 2)
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "claude-3-7-sonnet",
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1.25},
+		},
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode:               "tiered_expr",
+			GroupRatio:                1.25,
+			EstimatedQuotaBeforeGroup: 1000,
+		},
+		StartTime: time.Now(),
+	}
+
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		TotalTokens:      150,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	// tieredResult=nil simulates a settlement error where TryTieredSettle
+	// falls back to FinalPreConsumedQuota (2000), which differs from
+	// EstimatedQuotaBeforeGroup * GroupRatio (1250).
+	preConsumedFallback := 2000
+	quota := composeTieredTextQuota(relayInfo, summary, preConsumedFallback, nil)
+
+	require.Equal(t, int64(12500), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+	require.Equal(t, 14500, quota)
 }

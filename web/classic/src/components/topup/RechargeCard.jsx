@@ -21,7 +21,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Avatar,
   Typography,
-  Tag,
   Card,
   Button,
   Banner,
@@ -32,6 +31,7 @@ import {
   Col,
   Spin,
   Tooltip,
+  Tag,
   Tabs,
   TabPane,
 } from '@douyinfe/semi-ui';
@@ -88,8 +88,7 @@ const RechargeCard = ({
   topupInfo,
   onOpenHistory,
   enableWaffoTopUp,
-  waffoTopUp,
-  waffoPayMethods,
+  enableWaffoPancakeTopUp,
   subscriptionLoading = false,
   subscriptionPlans = [],
   billingPreference,
@@ -105,6 +104,7 @@ const RechargeCard = ({
   const [activeTab, setActiveTab] = useState('topup');
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
+  const regularPayMethods = payMethods || [];
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
@@ -227,19 +227,31 @@ const RechargeCard = ({
           <div className='py-8 flex justify-center'>
             <Spin size='large' />
           </div>
-        ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp || enableWaffoTopUp ? (
+        ) : enableOnlineTopUp ||
+          enableStripeTopUp ||
+          enableCreemTopUp ||
+          enableWaffoTopUp ||
+          enableWaffoPancakeTopUp ? (
           <Form
             getFormApi={(api) => (onlineFormApiRef.current = api)}
             initValues={{ topUpCount: topUpCount }}
           >
             <div className='space-y-6'>
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp ||
+                enableStripeTopUp ||
+                enableWaffoTopUp ||
+                enableWaffoPancakeTopUp) && (
                 <Row gutter={12}>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.InputNumber
                       field='topUpCount'
                       label={t('充值数量')}
-                      disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp}
+                      disabled={
+                        !enableOnlineTopUp &&
+                        !enableStripeTopUp &&
+                        !enableWaffoTopUp &&
+                        !enableWaffoPancakeTopUp
+                      }
                       placeholder={
                         t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
                       }
@@ -291,16 +303,27 @@ const RechargeCard = ({
                       style={{ width: '100%' }}
                     />
                   </Col>
-                  {payMethods && payMethods.filter(m => m.type !== 'waffo').length > 0 && (
-                  <Col xs={24} sm={24} md={24} lg={14} xl={14}>
-                    <Form.Slot label={t('选择支付方式')}>
+                  {regularPayMethods.length > 0 && (
+                    <Col xs={24} sm={24} md={24} lg={14} xl={14}>
+                      <Form.Slot label={t('选择支付方式')}>
                         <Space wrap>
-                          {payMethods.filter(m => m.type !== 'waffo').map((payMethod) => {
-                            const minTopupVal = Number(payMethod.min_topup) || 0;
+                          {regularPayMethods.map((payMethod) => {
+                            const minTopupVal =
+                              Number(payMethod.min_topup) || 0;
                             const isStripe = payMethod.type === 'stripe';
+                            const isWaffo =
+                              typeof payMethod.type === 'string' &&
+                              payMethod.type.startsWith('waffo:');
+                            const isWaffoPancake =
+                              payMethod.type === 'waffo_pancake';
                             const disabled =
-                              (!enableOnlineTopUp && !isStripe) ||
+                              (!enableOnlineTopUp &&
+                                !isStripe &&
+                                !isWaffo &&
+                                !isWaffoPancake) ||
                               (!enableStripeTopUp && isStripe) ||
+                              (!enableWaffoTopUp && isWaffo) ||
+                              (!enableWaffoPancakeTopUp && isWaffoPancake) ||
                               minTopupVal > Number(topUpCount || 0);
 
                             const buttonEl = (
@@ -320,6 +343,21 @@ const RechargeCard = ({
                                     <SiWechat size={18} color='#07C160' />
                                   ) : payMethod.type === 'stripe' ? (
                                     <SiStripe size={18} color='#635BFF' />
+                                  ) : payMethod.icon ? (
+                                    <img
+                                      src={payMethod.icon}
+                                      alt={payMethod.name}
+                                      style={{
+                                        width: 18,
+                                        height: 18,
+                                        objectFit: 'contain',
+                                      }}
+                                    />
+                                  ) : payMethod.type === 'waffo_pancake' ? (
+                                    <CreditCard
+                                      size={18}
+                                      color='var(--semi-color-primary)'
+                                    />
                                   ) : (
                                     <CreditCard
                                       size={18}
@@ -355,8 +393,8 @@ const RechargeCard = ({
                             );
                           })}
                         </Space>
-                    </Form.Slot>
-                  </Col>
+                      </Form.Slot>
+                    </Col>
                   )}
                 </Row>
               )}
@@ -388,7 +426,9 @@ const RechargeCard = ({
                   <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
                     {presetAmounts.map((preset, index) => {
                       const discount =
-                        preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
+                        preset.discount ||
+                        topupInfo?.discount?.[preset.value] ||
+                        1.0;
                       const originalPrice = preset.value * priceRatio;
                       const discountedPrice = originalPrice * discount;
                       const hasDiscount = discount < 1.0;
@@ -404,7 +444,7 @@ const RechargeCard = ({
                           const s = JSON.parse(statusStr);
                           usdRate = s?.usd_exchange_rate || 7;
                         }
-                      } catch (e) { }
+                      } catch (e) {}
 
                       let displayValue = preset.value; // 显示的数量
                       let displayActualPay = actualPay;
@@ -455,7 +495,10 @@ const RechargeCard = ({
                               {hasDiscount && (
                                 <Tag style={{ marginLeft: 4 }} color='green'>
                                   {t('折').includes('off')
-                                    ? ((1 - parseFloat(discount)) * 100).toFixed(1)
+                                    ? (
+                                        (1 - parseFloat(discount)) *
+                                        100
+                                      ).toFixed(1)
                                     : (discount * 10).toFixed(1)}
                                   {t('折')}
                                 </Tag>
@@ -481,46 +524,6 @@ const RechargeCard = ({
                   </div>
                 </Form.Slot>
               )}
-
-              {/* Waffo 充值区域 */}
-              {enableWaffoTopUp &&
-                waffoPayMethods &&
-                waffoPayMethods.length > 0 && (
-                  <Form.Slot label={t('Waffo 充值')}>
-                    <Space wrap>
-                      {waffoPayMethods.map((method, index) => (
-                        <Button
-                          key={index}
-                          theme='outline'
-                          type='tertiary'
-                          onClick={() => waffoTopUp(index)}
-                          loading={paymentLoading}
-                          icon={
-                            method.icon ? (
-                              <img
-                                src={method.icon}
-                                alt={method.name}
-                                style={{
-                                  width: 36,
-                                  height: 36,
-                                  objectFit: 'contain',
-                                }}
-                              />
-                            ) : (
-                              <CreditCard
-                                size={18}
-                                color='var(--semi-color-text-2)'
-                              />
-                            )
-                          }
-                          className='!rounded-lg !px-4 !py-2'
-                        >
-                          {method.name}
-                        </Button>
-                      ))}
-                    </Space>
-                  </Form.Slot>
-                )}
 
               {/* Creem 充值区域 */}
               {enableCreemTopUp && creemProducts.length > 0 && (

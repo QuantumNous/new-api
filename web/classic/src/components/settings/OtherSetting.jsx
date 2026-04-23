@@ -40,7 +40,6 @@ const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
 const OtherSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
-    'theme.frontend': 'default',
     Notice: '',
     [LEGAL_USER_AGREEMENT_KEY]: '',
     [LEGAL_PRIVACY_POLICY_KEY]: '',
@@ -74,7 +73,6 @@ const OtherSetting = () => {
   };
 
   const [loadingInput, setLoadingInput] = useState({
-    'theme.frontend': false,
     Notice: false,
     [LEGAL_USER_AGREEMENT_KEY]: false,
     [LEGAL_PRIVACY_POLICY_KEY]: false,
@@ -216,19 +214,6 @@ const OtherSetting = () => {
       setLoadingInput((loadingInput) => ({ ...loadingInput, About: false }));
     }
   };
-  const submitTheme = async () => {
-    try {
-      setLoadingInput((prev) => ({ ...prev, 'theme.frontend': true }));
-      await updateOption('theme.frontend', inputs['theme.frontend']);
-      showSuccess(t('主题已更新，刷新页面后生效'));
-    } catch (error) {
-      console.error(t('主题更新失败'), error);
-      showError(t('主题更新失败'));
-    } finally {
-      setLoadingInput((prev) => ({ ...prev, 'theme.frontend': false }));
-    }
-  };
-
   // 个性化设置 - 页脚
   const submitFooter = async () => {
     try {
@@ -438,26 +423,6 @@ const OtherSetting = () => {
         >
           <Card>
             <Form.Section text={t('个性化设置')}>
-              <Form.Select
-                field='theme.frontend'
-                label={t('前端主题')}
-                optionList={[
-                  { label: t('新版前端（默认）'), value: 'default' },
-                  { label: t('经典前端'), value: 'classic' },
-                ]}
-                onChange={(value) =>
-                  setInputs((inputs) => ({ ...inputs, 'theme.frontend': value }))
-                }
-                extraText={t(
-                  '切换新版前端和经典前端，保存后刷新页面生效',
-                )}
-              />
-              <Button
-                onClick={submitTheme}
-                loading={loadingInput['theme.frontend']}
-              >
-                {t('设置主题')}
-              </Button>
               <Form.Input
                 label={t('系统名称')}
                 placeholder={t('在此输入系统名称')}

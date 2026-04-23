@@ -46,6 +46,7 @@ func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 type ToolConfig struct {
 	FunctionCallingConfig *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
 	RetrievalConfig       *RetrievalConfig       `json:"retrievalConfig,omitempty"`
+	IncludeServerSideToolInvocations *bool       `json:"includeServerSideToolInvocations,omitempty"`
 }
 
 type FunctionCallingConfig struct {
@@ -468,6 +469,7 @@ type GeminiUsageMetadata struct {
 	CachedContentTokenCount    int                         `json:"cachedContentTokenCount"`
 	PromptTokensDetails        []GeminiPromptTokensDetails `json:"promptTokensDetails"`
 	ToolUsePromptTokensDetails []GeminiPromptTokensDetails `json:"toolUsePromptTokensDetails"`
+	CandidatesTokensDetails    []GeminiPromptTokensDetails `json:"candidatesTokensDetails"`
 }
 
 type GeminiPromptTokensDetails struct {
