@@ -1,0 +1,199 @@
+name: Terraform Validate (PR)
+
+on:
+  pull_request:
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/terraform-validate.yml'
+
+permissions:
+  contents: read
+  pull-requests: write    # 允许在 PR 上评论 plan 结果
+
+env:
+  TF_WORKING_DIR: infra/terraform
+
+jobs:
+  # ========================================================
+  # 1. 格式检查 + 静态验证（不需要云凭证）
+  # ========================================================
+  validate:
+    name: Format & Validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      # 格式检查 — 确保代码风格一致
+      - name: Terraform fmt
+        id: fmt
+        run: terraform fmt -check -recursive -diff
+        continue-on-error: true
+
+      # 初始化（仅下载 provider，不连接 backend）
+      - name: Terraform init
+        run: terraform init -backend=false
+
+      # 语法 + 类型验证
+      - name: Terraform validate
+        id: validate
+        run: terraform validate -no-color
+
+      # 在 PR 上评论验证结果
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fmt = '${{ steps.fmt.outcome }}';
+            const validate = '${{ steps.validate.outcome }}';
+
+            const body = `### Terraform 验证结果
+
+            | 检查项 | 结果 |
+            |--------|------|
+            | **fmt** (格式) | ${fmt === 'success' ? '✅ 通过' : '❌ 格式不一致，请运行 `terraform fmt`'} |
+            | **validate** (语法) | ${validate === 'success' ? '✅ 通过' : '❌ 验证失败'} |
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      # 格式不通过则失败
+      - name: Check fmt result
+        if: steps.fmt.outcome == 'failure'
+        run: |
+          echo "::error::Terraform 格式不一致，请运行 'cd infra/terraform && terraform fmt -recursive' 后重新提交"
+          exit 1
+
+  # ========================================================
+  # 2. tflint — Terraform 代码规范检查
+  # ========================================================
+  lint:
+    name: TFLint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Init TFLint
+        run: tflint --init
+
+      - name: Run TFLint
+        run: tflint --no-color --format compact
+
+  # ========================================================
+  # 3. Terraform Plan（需要云凭证，展示变更预览）
+  # ========================================================
+  plan:
+    name: Terraform Plan
+    needs: [validate, lint]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    env:
+      TENCENTCLOUD_SECRET_ID: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+      TENCENTCLOUD_SECRET_KEY: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: Terraform Init
+        run: |
+          terraform init -input=false \
+            -backend-config="secret_id=${{ secrets.TENCENTCLOUD_SECRET_ID }}" \
+            -backend-config="secret_key=${{ secrets.TENCENTCLOUD_SECRET_KEY }}"
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          # 使用 secrets，如果为空则用符合格式要求的默认值
+          terraform plan -no-color -input=false \
+            -var="app_image_tag=plan-check" \
+            -var="secret_id=${TF_VAR_secret_id:-placeholder-id}" \
+            -var="secret_key=${TF_VAR_secret_key:-placeholder-key}" \
+            -var="tcr_namespace=${TF_VAR_tcr_namespace:-placeholder}" \
+            -var="db_password=${TF_VAR_db_password:-PlanCheck_123!}" \
+            -var="session_secret=${TF_VAR_session_secret:-plancheckplancheckplancheck0123}" \
+            2>&1 | tee plan_output.txt
+        continue-on-error: true
+        env:
+          TF_VAR_secret_id: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+          TF_VAR_secret_key: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
+          TF_VAR_tcr_namespace: ${{ secrets.TCR_NAMESPACE }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_session_secret: ${{ secrets.SESSION_SECRET }}
+
+      # 在 PR 上评论 plan 结果（截断过长输出）
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planPath = '${{ env.TF_WORKING_DIR }}/plan_output.txt';
+            let plan = '';
+            try {
+              plan = fs.readFileSync(planPath, 'utf8');
+            } catch (e) {
+              plan = 'Plan output not available';
+            }
+
+            // 截断过长输出（GitHub comment 限制 65536 字符）
+            const maxLen = 60000;
+            if (plan.length > maxLen) {
+              plan = plan.substring(0, maxLen) + '\n\n... (输出过长，已截断)';
+            }
+
+            const outcome = '${{ steps.plan.outcome }}';
+            const emoji = outcome === 'success' ? '✅' : '⚠️';
+
+            const body = `### ${emoji} Terraform Plan
+
+            <details>
+            <summary>点击展开 Plan 结果</summary>
+
+            \`\`\`
+            ${plan}
+            \`\`\`
+
+            </details>
+
+            > ⚠️ 这是 PR 验证用的 plan（image_tag=plan-check），实际部署时 tag 由 CI 自动传入。
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Check plan result
+        if: steps.plan.outcome == 'failure'
+        run: |
+          echo "::error::Terraform plan 失败，请检查配置"
+          exit 1

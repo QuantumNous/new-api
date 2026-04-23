@@ -1,0 +1,17 @@
+# 复制此文件为 terraform.tfvars 并填入实际值
+# ⚠️ terraform.tfvars 包含敏感信息，已在 .gitignore 中排除
+
+secret_id  = "your-tencent-cloud-secret-id"
+secret_key = "your-tencent-cloud-secret-key"
+
+region            = "ap-guangzhou"
+availability_zone = "ap-guangzhou-3"
+
+tcr_namespace  = "your-tcr-namespace"
+app_image_tag  = "latest"
+app_replicas   = 1
+
+db_password    = "change-me-strong-password"
+session_secret = "change-me-random-hex-string"
+
+cluster_version = "1.28.3"

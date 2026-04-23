@@ -1,0 +1,130 @@
+name: Build & Deploy (Terraform)
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '!*-alpha*'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: '手动指定镜像 tag（留空则自动生成）'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TCR_REGISTRY: ccr.ccs.tencentyun.com
+  TCR_NAMESPACE: ${{ secrets.TCR_NAMESPACE }}
+  TF_WORKING_DIR: infra/terraform
+
+jobs:
+  # ========================================================
+  # Stage 1: Build & Push Docker Image to TCR
+  # ========================================================
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine version
+        id: version
+        run: |
+          # 优先使用手动输入的 tag
+          if [[ -n "${{ inputs.image_tag }}" ]]; then
+            VERSION="${{ inputs.image_tag }}"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="manual-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
+          fi
+          echo "$VERSION" > VERSION
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "::notice::Image version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to TCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.TCR_REGISTRY }}
+          username: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+          password: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/new-api:${{ steps.version.outputs.value }}
+            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/new-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ========================================================
+  # Stage 2: Terraform Apply — 声明式更新 K8s Deployment
+  # ========================================================
+  deploy:
+    name: Terraform Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production   # 可在 GitHub Settings 设置审批保护
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    env:
+      # Terraform 通过环境变量读取腾讯云凭证
+      TENCENTCLOUD_SECRET_ID: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+      TENCENTCLOUD_SECRET_KEY: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: Terraform Init
+        run: |
+          terraform init -input=false \
+            -backend-config="secret_id=${{ secrets.TENCENTCLOUD_SECRET_ID }}" \
+            -backend-config="secret_key=${{ secrets.TENCENTCLOUD_SECRET_KEY }}"
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -input=false \
+            -var="app_image_tag=${{ needs.build.outputs.version }}" \
+            -var="secret_id=${{ secrets.TENCENTCLOUD_SECRET_ID }}" \
+            -var="secret_key=${{ secrets.TENCENTCLOUD_SECRET_KEY }}" \
+            -var="tcr_namespace=${{ secrets.TCR_NAMESPACE }}" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -var="session_secret=${{ secrets.SESSION_SECRET }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false tfplan
+
+      - name: Verify deployment
+        run: |
+          APP_URL=$(terraform output -raw app_url 2>/dev/null || echo "")
+          IMAGE=$(terraform output -raw app_image 2>/dev/null || echo "")
+
+          echo "### 🚀 Deploy Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Item | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Version** | \`${{ needs.build.outputs.version }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Image** | \`${IMAGE}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **URL** | ${APP_URL} |" >> "$GITHUB_STEP_SUMMARY"
