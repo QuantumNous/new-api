@@ -168,22 +168,37 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		requestBody = bytes.NewReader(jsonData)
 	}
 
+	var reqBodyForLog string
+	if r, ok := requestBody.(*bytes.Reader); ok {
+		data := make([]byte, r.Len())
+		_, _ = r.Read(data)
+		_, _ = r.Seek(0, 0)
+		reqBodyForLog = string(data)
+	} else if storage, sErr := common.GetBodyStorage(c); sErr == nil {
+		if raw, bErr := storage.Bytes(); bErr == nil {
+			reqBodyForLog = string(raw)
+		}
+	}
+
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		logger.LogError(c, "Do gemini request failed: "+err.Error())
+		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
-	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			recordDetail()
 			return newAPIError
 		}
 	}
@@ -191,9 +206,11 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	usage, openaiErr := adaptor.DoResponse(c, resp.(*http.Response), info)
 	if openaiErr != nil {
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
+		recordDetail()
 		return openaiErr
 	}
 
+	recordDetail()
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	return nil
 }
@@ -265,19 +282,31 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 	logger.LogDebug(c, "Gemini embedding request body: "+string(jsonData))
 	requestBody = bytes.NewReader(jsonData)
 
+	var reqBodyForLogEmbed string
+	if r, ok := requestBody.(*bytes.Reader); ok {
+		data := make([]byte, r.Len())
+		_, _ = r.Read(data)
+		_, _ = r.Seek(0, 0)
+		reqBodyForLogEmbed = string(data)
+	}
+
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLogEmbed, &httpResp)
+
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		logger.LogError(c, "Do gemini request failed: "+err.Error())
+		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
-	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			recordDetail()
 			return newAPIError
 		}
 	}
@@ -285,9 +314,11 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 	usage, openaiErr := adaptor.DoResponse(c, resp.(*http.Response), info)
 	if openaiErr != nil {
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
+		recordDetail()
 		return openaiErr
 	}
 
+	recordDetail()
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	return nil
 }

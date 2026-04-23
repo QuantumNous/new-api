@@ -59,29 +59,36 @@ func EmbeddingHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 	logger.LogDebug(c, fmt.Sprintf("converted embedding request body: %s", string(jsonData)))
 	requestBody := bytes.NewBuffer(jsonData)
+
+	reqBodyForLog := requestBody.String()
+
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
-	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			recordDetail()
 			return newAPIError
 		}
 	}
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
-		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		recordDetail()
 		return newAPIError
 	}
+	recordDetail()
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	return nil
 }

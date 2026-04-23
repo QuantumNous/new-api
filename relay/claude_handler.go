@@ -183,10 +183,22 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		requestBody = bytes.NewBuffer(jsonData)
 	}
 
+	var reqBodyForLog string
+	if buf, ok := requestBody.(*bytes.Buffer); ok {
+		reqBodyForLog = buf.String()
+	} else if storage, sErr := common.GetBodyStorage(c); sErr == nil {
+		if raw, bErr := storage.Bytes(); bErr == nil {
+			reqBodyForLog = string(raw)
+		}
+	}
+
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
@@ -195,20 +207,20 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			recordDetail()
 			return newAPIError
 		}
 	}
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
-	//log.Printf("usage: %v", usage)
 	if newAPIError != nil {
-		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		recordDetail()
 		return newAPIError
 	}
 
+	recordDetail()
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	return nil
 }

@@ -44,29 +44,41 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 
+	var reqBodyForLog string
+	if storage, sErr := common.GetBodyStorage(c); sErr == nil {
+		if raw, bErr := storage.Bytes(); bErr == nil {
+			reqBodyForLog = string(raw)
+		}
+	}
+
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+
 	resp, err := adaptor.DoRequest(c, info, ioReader)
 	if err != nil {
+		recordDetail()
 		return types.NewError(err, types.ErrorCodeDoRequestFailed)
 	}
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
-	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			recordDetail()
 			return newAPIError
 		}
 	}
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
-		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		recordDetail()
 		return newAPIError
 	}
+
+	recordDetail()
 	if usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0 {
 		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
 	} else {

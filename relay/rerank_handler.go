@@ -73,29 +73,42 @@ func RerankHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		requestBody = bytes.NewBuffer(jsonData)
 	}
 
+	var reqBodyForLog string
+	if buf, ok := requestBody.(*bytes.Buffer); ok {
+		reqBodyForLog = buf.String()
+	} else if storage, sErr := common.GetBodyStorage(c); sErr == nil {
+		if raw, bErr := storage.Bytes(); bErr == nil {
+			reqBodyForLog = string(raw)
+		}
+	}
+
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
-	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			recordDetail()
 			return newAPIError
 		}
 	}
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
-		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		recordDetail()
 		return newAPIError
 	}
+	recordDetail()
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	return nil
 }

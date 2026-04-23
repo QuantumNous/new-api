@@ -83,13 +83,24 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		}
 	}
 
+	var reqBodyForLog string
+	if buf, ok := requestBody.(*bytes.Buffer); ok {
+		reqBodyForLog = buf.String()
+	} else if storage, sErr := common.GetBodyStorage(c); sErr == nil {
+		if raw, bErr := storage.Bytes(); bErr == nil {
+			reqBodyForLog = string(raw)
+		}
+	}
+
 	statusCodeMappingStr := c.GetString("status_code_mapping")
+	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
-	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
@@ -99,8 +110,8 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				httpResp.StatusCode = http.StatusOK
 			} else {
 				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-				// reset status code 重置状态码
 				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+				recordDetail()
 				return newAPIError
 			}
 		}
@@ -108,10 +119,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
-		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		recordDetail()
 		return newAPIError
 	}
+
+	recordDetail()
 
 	imageN := uint(1)
 	if request.N != nil {

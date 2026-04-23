@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -515,6 +516,8 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	c.Set("upstream_request_headers", req.Header.Clone())
+
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogError(c, "do request failed: "+err.Error())
@@ -522,6 +525,12 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
+	}
+
+	if !info.IsStream {
+		var buf bytes.Buffer
+		resp.Body = io.NopCloser(io.TeeReader(resp.Body, &buf))
+		c.Set("upstream_response_body_buf", &buf)
 	}
 
 	_ = req.Body.Close()

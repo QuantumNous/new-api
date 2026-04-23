@@ -735,6 +735,21 @@ export const getLogsColumns = ({
         if (!(record.type === 2 || record.type === 5)) {
           return <></>;
         }
+        const detailBtn = record.request_id ? (
+          <Tooltip content={t('请求详情')}>
+            <Button
+              theme='borderless'
+              type='tertiary'
+              size='small'
+              style={{ padding: 2, height: 'auto' }}
+              icon={<FileSearch size={14} />}
+              onClick={(e) => {
+                e.stopPropagation();
+                showRequestDetailFunc?.(record.request_id);
+              }}
+            />
+          </Tooltip>
+        ) : null;
         if (record.is_stream) {
           let other = getLogOther(record.other);
           return (
@@ -743,6 +758,7 @@ export const getLogsColumns = ({
                 {renderUseTime(text, t)}
                 {renderFirstUseTime(other?.frt, t)}
                 {renderIsStream(record.is_stream, t, other?.stream_status)}
+                {detailBtn}
               </Space>
             </>
           );
@@ -752,6 +768,7 @@ export const getLogsColumns = ({
               <Space>
                 {renderUseTime(text, t)}
                 {renderIsStream(record.is_stream, t)}
+                {detailBtn}
               </Space>
             </>
           );
@@ -963,37 +980,6 @@ export const getLogsColumns = ({
         }
 
         return renderCompactDetailSummary(detailSummary.segments);
-      },
-    },
-    {
-      key: COLUMN_KEYS.REQUEST_DETAIL,
-      title: t('请求详情'),
-      dataIndex: 'request_id',
-      width: 90,
-      render: (text, record) => {
-        if (
-          !(
-            record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6
-          ) ||
-          !record.request_id
-        ) {
-          return <></>;
-        }
-        return (
-          <Button
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            icon={<FileSearch size={14} />}
-            onClick={(e) => {
-              e.stopPropagation();
-              showRequestDetailFunc?.(record.request_id);
-            }}
-          />
-        );
       },
     },
   ];

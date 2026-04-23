@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -188,11 +187,12 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			reqBodyForLog = string(raw)
 		}
 	}
-	reqHeadersForLog := model.MarshalHeaders(c.Request.Header)
-
 	var httpResp *http.Response
+	recordDetail := buildRecordDetailFunc(c, info, reqBodyForLog, &httpResp)
+
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		recordDetail()
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
@@ -205,6 +205,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			recordDetail()
 			return newApiErr
 		}
 	}
@@ -213,22 +214,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if newApiErr != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+		recordDetail()
 		return newApiErr
 	}
 
-	respHeadersForLog := ""
-	if httpResp != nil {
-		respHeadersForLog = model.MarshalHeaders(httpResp.Header)
-	}
-	respBodyForLog := ""
-	if !info.IsStream {
-		if v, exists := c.Get("upstream_response_body"); exists {
-			respBodyForLog, _ = v.(string)
-		}
-	}
-	requestId := c.GetString(common.RequestIdKey)
-	userId := c.GetInt("id")
-	go model.RecordRequestDetail(requestId, userId, reqHeadersForLog, reqBodyForLog, respHeadersForLog, respBodyForLog)
+	recordDetail()
 
 	var containAudioTokens = usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0
 	var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)

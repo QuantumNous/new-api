@@ -162,6 +162,9 @@ func DeleteHistoryLogs(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	go func() {
+		_, _ = model.DeleteOldRequestDetail(targetTimestamp)
+	}()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
