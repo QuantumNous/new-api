@@ -66,4 +66,9 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+
+	// ContextKeyHasActiveSubscription caches the subscription check result from Distributor.
+	// Values: 1 = has active subscription, 0 = no active subscription.
+	// If not set, the caller must fall back to a DB query.
+	ContextKeyHasActiveSubscription ContextKey = "has_active_subscription"
 )

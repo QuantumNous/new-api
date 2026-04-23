@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -328,9 +329,17 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "subscription_first":
 		fallthrough
 	default:
-		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId)
-		if subCheckErr != nil {
-			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+		// 优先从 context 读取 Distributor 缓存的订阅检查结果，避免重复查 DB
+		var hasSub bool
+		if cached, ok := common.GetContextKeyType[int](c, constant.ContextKeyHasActiveSubscription); ok {
+			hasSub = cached == 1
+		} else {
+			// context 中没有缓存（非 relay 路由等），回退查 DB
+			var subCheckErr error
+			hasSub, subCheckErr = model.HasActiveUserSubscription(relayInfo.UserId)
+			if subCheckErr != nil {
+				return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+			}
 		}
 		if !hasSub {
 			return tryWallet()

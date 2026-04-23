@@ -94,6 +94,8 @@ func Distribute() func(c *gin.Context) {
 						activePlan, err := model.GetUserActiveSubscriptionPlan(userId)
 						if err == nil && activePlan != nil {
 							cachedActivePlan = activePlan
+							// 缓存订阅检查结果到 context，避免 billing 阶段重复查 DB
+							common.SetContextKey(c, constant.ContextKeyHasActiveSubscription, 1)
 							allowedGroups := activePlan.GetAllowedGroupsList()
 							if len(allowedGroups) > 0 {
 								if usingGroup == "auto" {
@@ -106,6 +108,9 @@ func Distribute() func(c *gin.Context) {
 									return
 								}
 							}
+						} else {
+							// 无活跃订阅，也缓存结果
+							common.SetContextKey(c, constant.ContextKeyHasActiveSubscription, 0)
 						}
 					}
 				}
