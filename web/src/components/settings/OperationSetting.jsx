@@ -27,6 +27,7 @@ import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
+import SettingsCDN from '../../pages/Setting/Operation/SettingsCDN';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -81,6 +82,11 @@ const OperationSetting = () => {
 
     /* 令牌设置 */
     'token_setting.max_user_tokens': 1000,
+
+    /* CDN 设置 */
+    'cdn_setting.enabled': false,
+    'cdn_setting.detect_header': 'X-GeoIP-Country',
+    'cdn_setting.rules': '{}',
   });
 
   let [loading, setLoading] = useState(false);
@@ -153,6 +159,10 @@ const OperationSetting = () => {
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* CDN 加速设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsCDN options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
