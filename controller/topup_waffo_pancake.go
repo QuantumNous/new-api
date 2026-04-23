@@ -53,9 +53,6 @@ func RequestWaffoPancakeAmount(c *gin.Context) {
 
 func getWaffoPancakePayMoney(amount int64, group string) float64 {
 	dAmount := decimal.NewFromInt(amount)
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		dAmount = dAmount.Div(decimal.NewFromFloat(common.QuotaPerUnit))
-	}
 
 	topupGroupRatio := common.GetTopupGroupRatio(group)
 	if topupGroupRatio == 0 {
@@ -73,20 +70,6 @@ func getWaffoPancakePayMoney(amount int64, group string) float64 {
 		Mul(decimal.NewFromFloat(discount))
 
 	return payMoney.InexactFloat64()
-}
-
-func normalizeWaffoPancakeTopUpAmount(amount int64) int64 {
-	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
-		return amount
-	}
-
-	normalized := decimal.NewFromInt(amount).
-		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
-		IntPart()
-	if normalized < 1 {
-		return 1
-	}
-	return normalized
 }
 
 func formatWaffoPancakeAmount(payMoney float64) string {
@@ -158,9 +141,10 @@ func RequestWaffoPancakePay(c *gin.Context) {
 	}
 
 	tradeNo := fmt.Sprintf("WAFFO_PANCAKE-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(6))
+	currency := strings.ToUpper(strings.TrimSpace(setting.WaffoPancakeCurrency))
 	topUp := &model.TopUp{
 		UserId:        id,
-		Amount:        normalizeWaffoPancakeTopUpAmount(req.Amount),
+		Amount:        req.Amount,
 		Money:         payMoney,
 		TradeNo:       tradeNo,
 		PaymentMethod: model.PaymentMethodWaffoPancake,
@@ -178,7 +162,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		StoreID:     setting.WaffoPancakeStoreID,
 		ProductID:   setting.WaffoPancakeProductID,
 		ProductType: "onetime",
-		Currency:    strings.ToUpper(strings.TrimSpace(setting.WaffoPancakeCurrency)),
+		Currency:    currency,
 		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
 			Amount:      formatWaffoPancakeAmount(payMoney),
 			TaxIncluded: false,
@@ -187,6 +171,14 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		BuyerEmail:       getWaffoPancakeBuyerEmail(user),
 		SuccessURL:       getWaffoPancakeReturnURL(),
 		ExpiresInSeconds: &expiresInSeconds,
+		Metadata: buildWaffoPancakeOrderMetadata(
+			id,
+			tradeNo,
+			req.Amount,
+			req.Amount,
+			payMoney,
+			currency,
+		),
 	})
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 创建结账会话失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
@@ -206,6 +198,26 @@ func RequestWaffoPancakePay(c *gin.Context) {
 			"order_id":     tradeNo,
 		},
 	})
+}
+
+func buildWaffoPancakeOrderMetadata(userID int, tradeNo string, requestedAmount int64, storedAmount int64, money float64, currency string) *service.WaffoPancakeOrderMetadata {
+	mode := "prod"
+	if setting.WaffoPancakeSandbox {
+		mode = "test"
+	}
+
+	return &service.WaffoPancakeOrderMetadata{
+		TradeNo:         tradeNo,
+		UserID:          userID,
+		PaymentMethod:   model.PaymentMethodWaffoPancake,
+		RequestedAmount: requestedAmount,
+		StoredAmount:    storedAmount,
+		Money:           formatWaffoPancakeAmount(money),
+		Currency:        currency,
+		StoreID:         setting.WaffoPancakeStoreID,
+		ProductID:       setting.WaffoPancakeProductID,
+		Mode:            mode,
+	}
 }
 
 func WaffoPancakeWebhook(c *gin.Context) {

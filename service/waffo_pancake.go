@@ -35,6 +35,19 @@ type WaffoPancakePriceSnapshot struct {
 	TaxCategory string `json:"taxCategory"`
 }
 
+type WaffoPancakeOrderMetadata struct {
+	TradeNo         string `json:"trade_no"`
+	UserID          int    `json:"user_id"`
+	PaymentMethod   string `json:"payment_method"`
+	RequestedAmount int64  `json:"requested_amount"`
+	StoredAmount    int64  `json:"stored_amount"`
+	Money           string `json:"money"`
+	Currency        string `json:"currency"`
+	StoreID         string `json:"store_id"`
+	ProductID       string `json:"product_id"`
+	Mode            string `json:"mode"`
+}
+
 type WaffoPancakeCreateSessionParams struct {
 	StoreID          string                     `json:"storeId"`
 	ProductID        string                     `json:"productId"`
@@ -44,6 +57,7 @@ type WaffoPancakeCreateSessionParams struct {
 	BuyerEmail       string                     `json:"buyerEmail,omitempty"`
 	SuccessURL       string                     `json:"successUrl,omitempty"`
 	ExpiresInSeconds *int                       `json:"expiresInSeconds,omitempty"`
+	Metadata         *WaffoPancakeOrderMetadata `json:"metadata,omitempty"`
 }
 
 type WaffoPancakeCheckoutSession struct {
@@ -64,13 +78,14 @@ type waffoPancakeCreateSessionResponse struct {
 }
 
 type waffoPancakeWebhookData struct {
-	ID          string          `json:"id"`
-	OrderID     string          `json:"orderId"`
-	BuyerEmail  string          `json:"buyerEmail"`
-	Currency    string          `json:"currency"`
-	Amount      dto.StringValue `json:"amount"`
-	TaxAmount   dto.StringValue `json:"taxAmount"`
-	ProductName string          `json:"productName"`
+	ID            string                    `json:"id"`
+	OrderID       string                    `json:"orderId"`
+	BuyerEmail    string                    `json:"buyerEmail"`
+	Currency      string                    `json:"currency"`
+	Amount        dto.StringValue           `json:"amount"`
+	TaxAmount     dto.StringValue           `json:"taxAmount"`
+	ProductName   string                    `json:"productName"`
+	OrderMetadata WaffoPancakeOrderMetadata `json:"orderMetadata"`
 }
 
 type waffoPancakeWebhookEvent struct {
@@ -165,15 +180,24 @@ func ResolveWaffoPancakeTradeNo(event *waffoPancakeWebhookEvent) (string, error)
 		return "", fmt.Errorf("missing webhook event")
 	}
 
-	if tradeNo := strings.TrimSpace(event.Data.OrderID); tradeNo != "" {
-		topUp := model.GetTopUpByTradeNo(tradeNo)
-		if topUp != nil && topUp.PaymentMethod == model.PaymentMethodWaffoPancake {
-			return tradeNo, nil
-		}
-		return "", fmt.Errorf("waffo pancake order not found for webhook orderId=%s", tradeNo)
+	metadata := event.Data.OrderMetadata
+	tradeNo := strings.TrimSpace(metadata.TradeNo)
+	if tradeNo == "" {
+		return "", fmt.Errorf("missing webhook orderMetadata.trade_no")
 	}
 
-	return "", fmt.Errorf("missing webhook orderId")
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	if topUp == nil {
+		return "", fmt.Errorf("waffo pancake order not found for metadata trade_no=%s", tradeNo)
+	}
+	if topUp.PaymentMethod != model.PaymentMethodWaffoPancake {
+		return "", fmt.Errorf("waffo pancake payment method mismatch trade_no=%s", tradeNo)
+	}
+	if metadata.UserID != topUp.UserId {
+		return "", fmt.Errorf("webhook orderMetadata.user_id mismatch")
+	}
+
+	return tradeNo, nil
 }
 
 func normalizeRSAPrivateKey(raw string) (string, error) {

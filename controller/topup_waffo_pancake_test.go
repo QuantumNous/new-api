@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,34 @@ func TestFormatWaffoPancakeAmount_UsesDisplayPriceString(t *testing.T) {
 			require.Equal(t, tc.expected, formatWaffoPancakeAmount(tc.amount))
 		})
 	}
+}
+
+func TestBuildWaffoPancakeOrderMetadata(t *testing.T) {
+	originalSandbox := setting.WaffoPancakeSandbox
+	originalStoreID := setting.WaffoPancakeStoreID
+	originalProductID := setting.WaffoPancakeProductID
+	t.Cleanup(func() {
+		setting.WaffoPancakeSandbox = originalSandbox
+		setting.WaffoPancakeStoreID = originalStoreID
+		setting.WaffoPancakeProductID = originalProductID
+	})
+
+	setting.WaffoPancakeSandbox = true
+	setting.WaffoPancakeStoreID = "store_123"
+	setting.WaffoPancakeProductID = "product_456"
+
+	metadata := buildWaffoPancakeOrderMetadata(42, "WAFFO_PANCAKE-42-123456-abc123", 1000, 10, 29, "USD")
+
+	require.Equal(t, "WAFFO_PANCAKE-42-123456-abc123", metadata.TradeNo)
+	require.Equal(t, 42, metadata.UserID)
+	require.Equal(t, model.PaymentMethodWaffoPancake, metadata.PaymentMethod)
+	require.Equal(t, int64(1000), metadata.RequestedAmount)
+	require.Equal(t, int64(10), metadata.StoredAmount)
+	require.Equal(t, "29.00", metadata.Money)
+	require.Equal(t, "USD", metadata.Currency)
+	require.Equal(t, "store_123", metadata.StoreID)
+	require.Equal(t, "product_456", metadata.ProductID)
+	require.Equal(t, "test", metadata.Mode)
 }
 
 func TestGetWaffoPancakePayMoney(t *testing.T) {
@@ -66,11 +95,11 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 			expected:         24,
 		},
 		{
-			name:             "tokens display converts quota to display units before pricing",
-			amount:           int64(common.QuotaPerUnit * 3),
+			name:             "quota display type does not affect Waffo Pancake pricing",
+			amount:           10,
 			group:            "vip",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeTokens,
-			expected:         4.5,
+			expected:         24,
 		},
 		{
 			name:             "non-positive discount falls back to no discount",
