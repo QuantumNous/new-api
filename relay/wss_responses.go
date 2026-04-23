@@ -110,6 +110,20 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 	if err := common.Unmarshal(message, &responsesReq); err != nil {
 		return types.NewError(err, types.ErrorCodeInvalidRequest)
 	}
+
+	// Model consistency check
+	if responsesReq.Model == "" {
+		responsesReq.Model = info.OriginModelName
+	}
+	if responsesReq.Model != info.OriginModelName {
+		return types.NewError(fmt.Errorf("model mismatch: expected %s, got %s", info.OriginModelName, responsesReq.Model), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	// Required field validation
+	if len(responsesReq.Input) == 0 || string(responsesReq.Input) == "null" {
+		return types.NewError(fmt.Errorf("input is required"), types.ErrorCodeInvalidRequest)
+	}
+
 	info.Request = &responsesReq
 
 	// 2. Setup adaptor
