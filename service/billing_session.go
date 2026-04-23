@@ -275,6 +275,14 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	modelName := relayInfo.OriginModelName
 	logger.LogInfo(c, fmt.Sprintf("开始应用企业折扣：用户ID=%d, 模型名称=%s", relayInfo.UserId, modelName))
 
+	// 增加兜底逻辑，当OriginModelName为空时尝试从其他字段获取
+	if modelName == "" {
+		// 尝试从UpstreamModelName获取
+		if relayInfo.UpstreamModelName != "" {
+			modelName = relayInfo.UpstreamModelName
+			logger.LogInfo(c, fmt.Sprintf("用户 %d 从UpstreamModelName获取模型名称：%s", relayInfo.UserId, modelName))
+		}
+	}
 	if modelName != "" {
 		discountRate, err := getUserOrgDiscount(relayInfo.UserId, modelName)
 		logger.LogInfo(c, fmt.Sprintf("获取企业折扣结果：折扣率=%.4f, 错误=%v", discountRate, err))
