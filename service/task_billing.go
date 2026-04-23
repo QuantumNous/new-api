@@ -353,6 +353,8 @@ type BusinessDiscountRule struct {
 	EffectiveTo   int64   `gorm:"column:effective_to;default:0"`
 }
 
+func (BusinessDiscountRule) TableName() string { return "lc_business_discount_rules" }
+
 // getUserOrgDiscount 获取用户的企业折扣率
 // 如果用户不是企业成员，返回1；如果是企业成员但没有对应模型的折扣，也返回1
 func getUserOrgDiscount(userID int, modelName string) (float64, error) {
