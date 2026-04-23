@@ -464,6 +464,7 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     segments: other?.claude
       ? renderModelPriceSimple(
           other.model_ratio,
+          other?.completion_ratio,
           other.model_price,
           other.group_ratio,
           other?.user_group_ratio,
@@ -484,6 +485,7 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
         )
       : renderModelPriceSimple(
           other.model_ratio,
+          other?.completion_ratio,
           other.model_price,
           other.group_ratio,
           other?.user_group_ratio,

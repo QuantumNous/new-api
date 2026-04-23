@@ -1298,6 +1298,7 @@ function renderBillingArticle(lines, { showReferenceNote = true } = {}) {
 // Shared core for simple price rendering (used by OpenAI-like and Claude-like variants)
 function renderPriceSimpleCore({
   modelRatio,
+  completionRatio,
   modelPrice = -1,
   groupRatio,
   user_group_ratio,
@@ -1358,6 +1359,17 @@ function renderPriceSimpleCore({
           price: formatCompactDisplayPrice(modelRatio * 2.0),
         }),
       });
+
+      if (completionRatio) {
+        segments.push({
+          tone: 'secondary',
+          text: i18next.t('补全 {{price}} / 1M tokens', {
+            price: formatCompactDisplayPrice(
+              modelRatio * 2.0 * Number(completionRatio),
+            ),
+          }),
+        });
+      }
 
       if (shouldShowCache) {
         segments.push({
@@ -2222,6 +2234,7 @@ export function renderLogContent(
 
 export function renderModelPriceSimple(
   modelRatio,
+  completionRatio,
   modelPrice = -1,
   groupRatio,
   user_group_ratio,
@@ -2242,6 +2255,7 @@ export function renderModelPriceSimple(
 ) {
   return renderPriceSimpleCore({
     modelRatio,
+    completionRatio,
     modelPrice,
     groupRatio,
     user_group_ratio,
