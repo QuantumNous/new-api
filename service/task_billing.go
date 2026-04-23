@@ -362,11 +362,13 @@ func getUserOrgDiscount(userID int, modelName string) (float64, error) {
 	}
 	err := model.DB.Table("lc_user_ext").Where("user_id = ?", userID).Select("org_id").Scan(&userExt).Error
 	if err != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("查询用户企业ID失败 userID=%d: %s", userID, err.Error()))
 		return 1.0, err
 	}
 
 	// 如果用户不属于任何企业，返回折扣率1
 	if userExt.OrgID == 0 {
+		logger.LogInfo(context.Background(), fmt.Sprintf("用户 %d 不属于任何企业，跳过企业折扣", userID))
 		return 1.0, nil
 	}
 
@@ -376,8 +378,13 @@ func getUserOrgDiscount(userID int, modelName string) (float64, error) {
 	err = model.DB.Where("org_id = ? AND model_name = ? AND effective_from <= ? AND (effective_to = 0 OR effective_to >= ?)",
 		userExt.OrgID, modelName, now, now).Order("effective_from DESC").First(&rule).Error
 	if err != nil {
+		logger.LogInfo(context.Background(), fmt.Sprintf("用户 %d 企业 %d 模型 %s 查询折扣规则失败: %s",
+			userID, userExt.OrgID, modelName, err.Error()))
 		return 1.0, nil
 	}
+
+	logger.LogInfo(context.Background(), fmt.Sprintf("用户 %d 企业 %d 模型 %s 折扣率: %.4f",
+		userID, userExt.OrgID, modelName, rule.DiscountRate))
 
 	return rule.DiscountRate, nil
 }
