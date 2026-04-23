@@ -51,6 +51,7 @@ import { getCurrencyConfig } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 
 const { Text } = Typography;
+const WAFFO_PANCAKE_LOGO = '/waffo-pancake-logo.svg';
 
 const RechargeCard = ({
   t,
@@ -343,6 +344,16 @@ const RechargeCard = ({
                                     <SiWechat size={18} color='#07C160' />
                                   ) : payMethod.type === 'stripe' ? (
                                     <SiStripe size={18} color='#635BFF' />
+                                  ) : payMethod.type === 'waffo_pancake' ? (
+                                    <img
+                                      src={WAFFO_PANCAKE_LOGO}
+                                      alt='Waffo Pancake'
+                                      style={{
+                                        width: 18,
+                                        height: 18,
+                                        objectFit: 'contain',
+                                      }}
+                                    />
                                   ) : payMethod.icon ? (
                                     <img
                                       src={payMethod.icon}
@@ -352,11 +363,6 @@ const RechargeCard = ({
                                         height: 18,
                                         objectFit: 'contain',
                                       }}
-                                    />
-                                  ) : payMethod.type === 'waffo_pancake' ? (
-                                    <CreditCard
-                                      size={18}
-                                      color='var(--semi-color-primary)'
                                     />
                                   ) : (
                                     <CreditCard
