@@ -386,6 +386,20 @@ func GetSelf(c *gin.Context) {
 
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()
+	affCount := user.AffCount
+	reconciledAffCount, err := model.GetInviteeCountByInviterId(user.Id)
+	if err != nil {
+		common.SysError(fmt.Sprintf("获取用户 %d 的邀请人数失败: %v", user.Id, err))
+	} else {
+		affCount = reconciledAffCount
+		if reconciledAffCount != user.AffCount {
+			if err := model.UpdateUserAffCount(user.Id, reconciledAffCount); err != nil {
+				common.SysError(fmt.Sprintf("回写用户 %d 的邀请人数失败: %v", user.Id, err))
+			} else {
+				user.AffCount = reconciledAffCount
+			}
+		}
+	}
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
@@ -405,7 +419,7 @@ func GetSelf(c *gin.Context) {
 		"used_quota":        user.UsedQuota,
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,
-		"aff_count":         user.AffCount,
+		"aff_count":         affCount,
 		"aff_quota":         user.AffQuota,
 		"aff_history_quota": user.AffHistoryQuota,
 		"inviter_id":        user.InviterId,

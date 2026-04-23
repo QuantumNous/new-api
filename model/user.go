@@ -329,14 +329,49 @@ func HardDeleteUserById(id int) error {
 }
 
 func inviteUser(inviterId int) (err error) {
-	user, err := GetUserById(inviterId, true)
-	if err != nil {
-		return err
+	if inviterId == 0 {
+		return errors.New("id 为空！")
 	}
-	user.AffCount++
-	user.AffQuota += common.QuotaForInviter
-	user.AffHistoryQuota += common.QuotaForInviter
-	return DB.Save(user).Error
+
+	return DB.Model(&User{}).
+		Where("id = ?", inviterId).
+		Updates(map[string]interface{}{
+			"aff_count":   gorm.Expr("aff_count + ?", 1),
+			"aff_quota":   gorm.Expr("aff_quota + ?", common.QuotaForInviter),
+			"aff_history": gorm.Expr("aff_history + ?", common.QuotaForInviter),
+		}).Error
+}
+
+func GetInviteeCountByInviterId(inviterId int) (int, error) {
+	if inviterId == 0 {
+		return 0, nil
+	}
+	var count int64
+	err := DB.Model(&User{}).Where("inviter_id = ?", inviterId).Count(&count).Error
+	return int(count), err
+}
+
+func UpdateUserAffCount(userId int, affCount int) error {
+	if userId == 0 {
+		return errors.New("id 为空！")
+	}
+
+	return DB.Model(&User{}).
+		Where("id = ? AND aff_count <> ?", userId, affCount).
+		Update("aff_count", affCount).Error
+}
+
+func applyInviterRewards(inviterId int) {
+	if inviterId == 0 {
+		return
+	}
+	if err := inviteUser(inviterId); err != nil {
+		common.SysError(fmt.Sprintf("更新邀请人 %d 的邀请统计失败: %v", inviterId, err))
+		return
+	}
+	if common.QuotaForInviter > 0 {
+		RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+	}
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
@@ -423,11 +458,7 @@ func (user *User) Insert(inviterId int) error {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
-		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
-		}
+		applyInviterRewards(inviterId)
 	}
 	return nil
 }
@@ -484,10 +515,7 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
-		if common.QuotaForInviter > 0 {
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
-		}
+		applyInviterRewards(inviterId)
 	}
 }
 
