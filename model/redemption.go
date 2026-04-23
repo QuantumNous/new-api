@@ -12,9 +12,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// ErrRedeemFailed is returned when redemption fails due to database error
-var ErrRedeemFailed = errors.New("redeem.failed")
-
 // ErrSubscriptionPurchaseLimit is returned when user has reached the max purchase limit for a plan
 var ErrSubscriptionPurchaseLimit = errors.New("subscription.purchase_limit")
 

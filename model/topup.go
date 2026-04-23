@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -575,4 +576,15 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	return nil
+}
+
+// GetUserRecentTopUpMoney 获取用户最近N天的成功充值总金额
+func GetUserRecentTopUpMoney(userId int, days int) (float64, error) {
+	var totalMoney float64
+	since := time.Now().AddDate(0, 0, -days).Unix()
+	err := DB.Model(&TopUp{}).
+		Where("user_id = ? AND status = ? AND create_time >= ?", userId, common.TopUpStatusSuccess, since).
+		Select("COALESCE(SUM(money), 0)").
+		Scan(&totalMoney).Error
+	return totalMoney, err
 }

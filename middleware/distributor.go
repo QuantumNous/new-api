@@ -81,6 +81,33 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+
+				// 检查订阅套餐分组限制（如果用户使用仅钱包计费则跳过）
+				userId := c.GetInt("id")
+				if userId > 0 {
+					var billingPreference string
+					if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
+						billingPreference = common.NormalizeBillingPreference(userSetting.BillingPreference)
+					}
+					if billingPreference != "wallet_only" {
+						activePlan, err := model.GetUserActiveSubscriptionPlan(userId)
+						if err == nil && activePlan != nil {
+							allowedGroups := activePlan.GetAllowedGroupsList()
+							if len(allowedGroups) > 0 {
+								if usingGroup == "auto" {
+									// 对于 auto 分组，稍后在实际选择分组时再验证
+								} else if !activePlan.IsGroupAllowed(usingGroup) {
+									abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorSubscriptionGroupRestricted, map[string]any{
+										"AllowedGroups": strings.Join(allowedGroups, ", "),
+										"CurrentGroup":  usingGroup,
+									}))
+									return
+								}
+							}
+						}
+					}
+				}
+
 				// check path is /pg/chat/completions
 				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
 					playgroundRequest := &dto.PlayGroundRequest{}
@@ -151,6 +178,30 @@ func Distribute() func(c *gin.Context) {
 					if channel == nil {
 						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 						return
+					}
+
+					// 验证自动选择分组的订阅套餐分组限制（如果用户使用仅钱包计费则跳过）
+					if usingGroup == "auto" && selectGroup != "" {
+						userId := c.GetInt("id")
+						if userId > 0 {
+							var billingPreference string
+							if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
+								billingPreference = common.NormalizeBillingPreference(userSetting.BillingPreference)
+							}
+							if billingPreference != "wallet_only" {
+								activePlan, err := model.GetUserActiveSubscriptionPlan(userId)
+								if err == nil && activePlan != nil {
+									if !activePlan.IsGroupAllowed(selectGroup) {
+										allowedGroups := activePlan.GetAllowedGroupsList()
+										abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorSubscriptionGroupRestricted, map[string]any{
+											"AllowedGroups": strings.Join(allowedGroups, ", "),
+											"CurrentGroup":  selectGroup,
+										}))
+										return
+									}
+								}
+							}
+						}
 					}
 				}
 			}
