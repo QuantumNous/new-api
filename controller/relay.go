@@ -195,6 +195,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		// 检查渠道是否支持当前请求路径（SupportedPaths 过滤）
+		channelSettings := channel.GetOtherSettings()
+		if !channelSettings.IsPathSupported(relayInfo.RequestURLPath) {
+			logger.LogInfo(c, fmt.Sprintf("渠道 %d (%s) 不支持路径 %s，跳过", channel.Id, channel.Name, relayInfo.RequestURLPath))
+			continue
+		}
+
 		addUsedChannel(c, channel.Id)
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {

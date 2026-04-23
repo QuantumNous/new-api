@@ -1,5 +1,7 @@
 package dto
 
+import "strings"
+
 type ChannelSettings struct {
 	ForceFormat            bool   `json:"force_format,omitempty"`
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
@@ -41,6 +43,7 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastDetectedModels []string      `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
 	UpstreamModelUpdateLastRemovedModels  []string      `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string      `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
+	SupportedPaths                        []string      `json:"supported_paths,omitempty"`                            // 渠道支持的请求路径前缀，如 ["/v1/images/generations"]。空值=全部路径支持
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
@@ -48,4 +51,19 @@ func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 		return false
 	}
 	return *s.OpenRouterEnterprise
+}
+
+// IsPathSupported 检查渠道是否支持指定的请求路径。
+// SupportedPaths 为空时表示支持所有路径（向后兼容）。
+// 匹配规则：请求路径以配置的任一前缀开头即视为支持。
+func (s *ChannelOtherSettings) IsPathSupported(requestPath string) bool {
+	if s == nil || len(s.SupportedPaths) == 0 {
+		return true
+	}
+	for _, prefix := range s.SupportedPaths {
+		if strings.HasPrefix(requestPath, prefix) {
+			return true
+		}
+	}
+	return false
 }
