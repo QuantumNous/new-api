@@ -67,7 +67,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
     ];
 
     // 根据配置过滤导航链接
-    return allLinks.filter((link) => {
+    const filteredLinks = allLinks.filter((link) => {
       if (link.itemKey === 'docs') {
         return docsLink && modules.docs;
       }
@@ -79,6 +79,23 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       }
       return modules[link.itemKey] === true;
     });
+
+    // 添加自定义菜单链接
+    if (Array.isArray(modules.customLinks)) {
+      modules.customLinks.forEach((link, index) => {
+        if (link.name && link.url) {
+          filteredLinks.push({
+            text: link.name,
+            itemKey: `custom-${index}`,
+            isExternal: link.url.startsWith('http'),
+            externalLink: link.url.startsWith('http') ? link.url : undefined,
+            to: link.url.startsWith('http') ? undefined : link.url,
+          });
+        }
+      });
+    }
+
+    return filteredLinks;
   }, [t, docsLink, headerNavModules]);
 
   return {

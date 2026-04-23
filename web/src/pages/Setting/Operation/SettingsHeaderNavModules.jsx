@@ -26,7 +26,16 @@ import {
   Row,
   Switch,
   Typography,
+  Input,
+  Space,
+  Popconfirm,
+  Toast,
 } from '@douyinfe/semi-ui';
+import {
+  IconPlus,
+  IconDelete,
+  IconLink,
+} from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../context/Status';
@@ -48,7 +57,12 @@ export default function SettingsHeaderNavModules(props) {
     },
     docs: true,
     about: true,
+    customLinks: [],
   });
+
+  // 自定义链接编辑状态
+  const [newLinkName, setNewLinkName] = useState('');
+  const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
@@ -88,8 +102,11 @@ export default function SettingsHeaderNavModules(props) {
       },
       docs: true,
       about: true,
+      customLinks: [],
     };
     setHeaderNavModules(defaultModules);
+    setNewLinkName('');
+    setNewLinkUrl('');
     showSuccess(t('已重置为默认配置'));
   }
 
@@ -142,6 +159,11 @@ export default function SettingsHeaderNavModules(props) {
           };
         }
 
+        // 确保 customLinks 是数组
+        if (!Array.isArray(modules.customLinks)) {
+          modules.customLinks = [];
+        }
+
         setHeaderNavModules(modules);
       } catch (error) {
         // 使用默认配置
@@ -154,6 +176,7 @@ export default function SettingsHeaderNavModules(props) {
           },
           docs: true,
           about: true,
+          customLinks: [],
         };
         setHeaderNavModules(defaultModules);
       }
@@ -314,6 +337,143 @@ export default function SettingsHeaderNavModules(props) {
             </Col>
           ))}
         </Row>
+
+        {/* 自定义链接管理 */}
+        <div style={{ marginBottom: '24px' }}>
+          <div
+            style={{
+              fontWeight: '600',
+              fontSize: '14px',
+              color: 'var(--semi-color-text-0)',
+              marginBottom: '12px',
+            }}
+          >
+            {t('自定义菜单')}
+            <span
+              style={{
+                fontWeight: '400',
+                fontSize: '12px',
+                color: 'var(--semi-color-text-2)',
+                marginLeft: '8px',
+              }}
+            >
+              {t('添加自定义导航链接，支持内部路径和外部链接')}
+            </span>
+          </div>
+
+          {/* 已有链接列表 */}
+          {(headerNavModules.customLinks || []).map((link, index) => (
+            <div
+              key={link.id || index}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid var(--semi-color-border)',
+                background: 'var(--semi-color-bg-1)',
+              }}
+            >
+              <IconLink
+                size='small'
+                style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    color: 'var(--semi-color-text-0)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {link.name}
+                </div>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--semi-color-text-2)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {link.url}
+                </div>
+              </div>
+              <Popconfirm
+                title={t('确定删除该菜单？')}
+                onConfirm={() => {
+                  const newModules = { ...headerNavModules };
+                  const newLinks = [...(newModules.customLinks || [])];
+                  newLinks.splice(index, 1);
+                  newModules.customLinks = newLinks;
+                  setHeaderNavModules(newModules);
+                }}
+              >
+                <Button
+                  icon={<IconDelete />}
+                  type='danger'
+                  theme='borderless'
+                  size='small'
+                />
+              </Popconfirm>
+            </div>
+          ))}
+
+          {/* 添加新链接 */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <Input
+              placeholder={t('菜单名称')}
+              value={newLinkName}
+              onChange={setNewLinkName}
+              style={{ width: '140px' }}
+              size='default'
+            />
+            <Input
+              placeholder={t('链接地址，如 https://docs.example.com 或 /about')}
+              value={newLinkUrl}
+              onChange={setNewLinkUrl}
+              style={{ flex: 1 }}
+              size='default'
+            />
+            <Button
+              icon={<IconPlus />}
+              theme='light'
+              type='primary'
+              size='default'
+              disabled={!newLinkName.trim() || !newLinkUrl.trim()}
+              onClick={() => {
+                const name = newLinkName.trim();
+                const url = newLinkUrl.trim();
+                if (!name || !url) return;
+                const newModules = { ...headerNavModules };
+                const newLinks = [...(newModules.customLinks || [])];
+                newLinks.push({
+                  id: Date.now().toString(36),
+                  name,
+                  url,
+                });
+                newModules.customLinks = newLinks;
+                setHeaderNavModules(newModules);
+                setNewLinkName('');
+                setNewLinkUrl('');
+              }}
+            >
+              {t('添加')}
+            </Button>
+          </div>
+        </div>
 
         <div
           style={{
