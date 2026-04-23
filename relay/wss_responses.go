@@ -230,16 +230,18 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 
 	// Usage handling & mandatory quota settlement
-	u, ok := usage.(*dto.Usage)
-	if !ok || u == nil {
+	u, _ := usage.(*dto.Usage)
+	// Force quota consumption (pass u directly, even if nil, to allow service layer fallback)
+	service.PostTextConsumeQuota(c, info, u, nil)
+
+	// Fallback for frontend display only
+	if u == nil {
 		u = &dto.Usage{
 			PromptTokens:     info.GetEstimatePromptTokens(),
 			CompletionTokens: 0,
 			TotalTokens:      info.GetEstimatePromptTokens(),
 		}
 	}
-	// Force quota consumption
-	service.PostTextConsumeQuota(c, info, u, nil)
 
 	if newAPIError != nil {
 		return newAPIError
@@ -305,7 +307,7 @@ func WssResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 				"content_index": 0,
 				"item_id":       itemID,
 				"output_index":  0,
-				"text":          content,
+				"delta":         content,
 			}); err != nil {
 				return types.NewError(err, types.ErrorCodeWssWriteFailed)
 			}
