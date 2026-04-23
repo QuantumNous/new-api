@@ -17,7 +17,7 @@ import (
 
 var (
 	httpClient      *http.Client
-	proxyClientLock sync.Mutex
+	proxyClientLock sync.RWMutex
 	proxyClients    = make(map[string]*http.Client)
 )
 
@@ -39,6 +39,12 @@ func InitHttpClient() {
 		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
 		ForceAttemptHTTP2:   true,
 		Proxy:               http.ProxyFromEnvironment, // Support HTTP_PROXY, HTTPS_PROXY, NO_PROXY env vars
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
 	}
 	if common.TLSInsecureSkipVerify {
 		transport.TLSClientConfig = common.InsecureTLSConfig
@@ -91,12 +97,12 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		return http.DefaultClient, nil
 	}
 
-	proxyClientLock.Lock()
+	proxyClientLock.RLock()
 	if client, ok := proxyClients[proxyURL]; ok {
-		proxyClientLock.Unlock()
+		proxyClientLock.RUnlock()
 		return client, nil
 	}
-	proxyClientLock.Unlock()
+	proxyClientLock.RUnlock()
 
 	parsedURL, err := url.Parse(proxyURL)
 	if err != nil {

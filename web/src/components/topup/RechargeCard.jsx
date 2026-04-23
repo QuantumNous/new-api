@@ -32,9 +32,6 @@ import {
   Col,
   Spin,
   Tooltip,
-  Tag,
-  Tabs,
-  TabPane,
 } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import {

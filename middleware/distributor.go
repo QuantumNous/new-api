@@ -84,6 +84,7 @@ func Distribute() func(c *gin.Context) {
 
 				// 检查订阅套餐分组限制（如果用户使用仅钱包计费则跳过）
 				userId := c.GetInt("id")
+				var cachedActivePlan *model.SubscriptionPlan
 				if userId > 0 {
 					var billingPreference string
 					if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
@@ -92,6 +93,7 @@ func Distribute() func(c *gin.Context) {
 					if billingPreference != "wallet_only" {
 						activePlan, err := model.GetUserActiveSubscriptionPlan(userId)
 						if err == nil && activePlan != nil {
+							cachedActivePlan = activePlan
 							allowedGroups := activePlan.GetAllowedGroupsList()
 							if len(allowedGroups) > 0 {
 								if usingGroup == "auto" {
@@ -181,26 +183,14 @@ func Distribute() func(c *gin.Context) {
 					}
 
 					// 验证自动选择分组的订阅套餐分组限制（如果用户使用仅钱包计费则跳过）
-					if usingGroup == "auto" && selectGroup != "" {
-						userId := c.GetInt("id")
-						if userId > 0 {
-							var billingPreference string
-							if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
-								billingPreference = common.NormalizeBillingPreference(userSetting.BillingPreference)
-							}
-							if billingPreference != "wallet_only" {
-								activePlan, err := model.GetUserActiveSubscriptionPlan(userId)
-								if err == nil && activePlan != nil {
-									if !activePlan.IsGroupAllowed(selectGroup) {
-										allowedGroups := activePlan.GetAllowedGroupsList()
-										abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorSubscriptionGroupRestricted, map[string]any{
-											"AllowedGroups": strings.Join(allowedGroups, ", "),
-											"CurrentGroup":  selectGroup,
-										}))
-										return
-									}
-								}
-							}
+					if usingGroup == "auto" && selectGroup != "" && cachedActivePlan != nil {
+						if !cachedActivePlan.IsGroupAllowed(selectGroup) {
+							allowedGroups := cachedActivePlan.GetAllowedGroupsList()
+							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorSubscriptionGroupRestricted, map[string]any{
+								"AllowedGroups": strings.Join(allowedGroups, ", "),
+								"CurrentGroup":  selectGroup,
+							}))
+							return
 						}
 					}
 				}
