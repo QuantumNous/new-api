@@ -537,6 +537,13 @@ export const getTokensColumns = ({
       },
     },
     {
+      title: t('最后使用时间'),
+      dataIndex: 'accessed_time',
+      render: (text, record, index) => {
+        return <div>{text ? renderTimestamp(text) : '-'}</div>;
+      },
+    },
+    {
       title: t('过期时间'),
       dataIndex: 'expired_time',
       render: (text, record, index) => {

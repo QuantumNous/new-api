@@ -3281,6 +3281,13 @@
               }
             ]
           },
+          "cache_control": {
+            "type": "object",
+            "properties": {}
+          },
+          "inference_geo": {
+            "type": "string"
+          },
           "max_tokens": {
             "type": "integer",
             "minimum": 1
@@ -3333,7 +3340,8 @@
                     "enum": [
                       "auto",
                       "any",
-                      "tool"
+                      "tool",
+                      "none"
                     ]
                   },
                   "name": {
@@ -3358,6 +3366,36 @@
               }
             }
           },
+          "context_management": {
+            "type": "object",
+            "properties": {}
+          },
+          "output_config": {
+            "type": "object",
+            "properties": {}
+          },
+          "output_format": {
+            "type": "object",
+            "properties": {}
+          },
+          "container": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "mcp_servers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
           "metadata": {
             "type": "object",
             "properties": {
@@ -3365,6 +3403,20 @@
                 "type": "string"
               }
             }
+          },
+          "speed": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "fast"
+            ]
+          },
+          "service_tier": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "standard_only"
+            ]
           }
         }
       },

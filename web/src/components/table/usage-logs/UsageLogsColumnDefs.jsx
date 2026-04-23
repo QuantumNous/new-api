@@ -876,7 +876,12 @@ export const getLogsColumns = ({
       ),
       dataIndex: 'ip',
       render: (text, record, index) => {
-        return (record.type === 2 || record.type === 5) && text ? (
+        const showIp =
+          (record.type === 2 ||
+            record.type === 5 ||
+            (isAdminUser && record.type === 1)) &&
+          text;
+        return showIp ? (
           <Tooltip content={text}>
             <span>
               <Tag
