@@ -374,6 +374,21 @@ func TestVerifyConfiguredWaffoPancakeWebhook_RejectsExpiredTimestamp(t *testing.
 	require.Contains(t, err.Error(), "webhook timestamp outside tolerance window")
 }
 
+func TestVerifyConfiguredWaffoPancakeWebhook_RejectsSandboxModeMismatch(t *testing.T) {
+	privateKey, publicKey := generateWaffoPancakeWebhookKeyPair(t)
+	restoreWaffoPancakeWebhookSettings(t)
+	setting.WaffoPancakeSandbox = false
+	setting.WaffoPancakeWebhookTestKey = publicKey
+
+	payload := strings.Replace(testWaffoPancakeWebhookPayload(), `"mode": "prod"`, `"mode": "test"`, 2)
+	signature := signWaffoPancakeWebhookPayload(t, payload, privateKey, strconv.FormatInt(time.Now().UnixMilli(), 10))
+
+	event, err := VerifyConfiguredWaffoPancakeWebhook(payload, signature)
+	require.Error(t, err)
+	require.Nil(t, event)
+	require.Contains(t, err.Error(), "webhook environment mismatch")
+}
+
 func generateWaffoPancakeWebhookKeyPair(t *testing.T) (*rsa.PrivateKey, string) {
 	t.Helper()
 

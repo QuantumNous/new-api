@@ -172,6 +172,9 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 
 func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string) (*waffoPancakeWebhookEvent, error) {
 	environment := resolveWaffoPancakeWebhookEnvironment(payload)
+	if !isWaffoPancakeWebhookEnvironmentAllowed(environment) {
+		return nil, fmt.Errorf("webhook environment mismatch")
+	}
 	return verifyWaffoPancakeWebhook(payload, signatureHeader, environment)
 }
 
@@ -374,6 +377,13 @@ func resolveWaffoPancakeWebhookPublicKey(environment string) string {
 		return strings.TrimSpace(setting.WaffoPancakeWebhookPublicKey)
 	}
 	return strings.TrimSpace(setting.WaffoPancakeWebhookTestKey)
+}
+
+func isWaffoPancakeWebhookEnvironmentAllowed(environment string) bool {
+	if setting.WaffoPancakeSandbox {
+		return environment == "test"
+	}
+	return environment == "prod"
 }
 
 func verifyWaffoPancakeWebhookWithKey(signatureInput string, signaturePart string, rawPublicKey string) error {
