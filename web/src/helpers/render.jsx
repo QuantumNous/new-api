@@ -919,17 +919,13 @@ export const renderGroupOption = (item) => {
   const {
     disabled,
     selected,
-    label,
     value,
     focused,
-    className,
-    style,
     onMouseEnter,
     onClick,
-    empty,
-    emptyContent,
     ...rest
   } = item;
+  const desc = rest.desc;
 
   const baseStyle = {
     display: 'flex',
@@ -969,9 +965,11 @@ export const renderGroupOption = (item) => {
         <Typography.Text strong type={disabled ? 'tertiary' : undefined}>
           {value}
         </Typography.Text>
-        <Typography.Text type='secondary' size='small'>
-          {label}
-        </Typography.Text>
+        {desc && desc !== value && (
+          <Typography.Text type='secondary' size='small'>
+            {desc}
+          </Typography.Text>
+        )}
       </div>
       {item.ratio && renderRatio(item.ratio)}
     </div>
