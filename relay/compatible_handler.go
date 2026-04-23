@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -179,6 +180,16 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		requestBody = bytes.NewBuffer(jsonData)
 	}
 
+	var reqBodyForLog string
+	if buf, ok := requestBody.(*bytes.Buffer); ok {
+		reqBodyForLog = buf.String()
+	} else if storage, sErr := common.GetBodyStorage(c); sErr == nil {
+		if raw, bErr := storage.Bytes(); bErr == nil {
+			reqBodyForLog = string(raw)
+		}
+	}
+	reqHeadersForLog := model.MarshalHeaders(c.Request.Header)
+
 	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
@@ -204,6 +215,22 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 		return newApiErr
 	}
+
+	go func() {
+		respHeadersForLog := ""
+		if httpResp != nil {
+			respHeadersForLog = model.MarshalHeaders(httpResp.Header)
+		}
+		respBodyForLog := ""
+		if !info.IsStream {
+			if v, exists := c.Get("upstream_response_body"); exists {
+				respBodyForLog, _ = v.(string)
+			}
+		}
+		requestId := c.GetString(common.RequestIdKey)
+		userId := c.GetInt("id")
+		model.RecordRequestDetail(requestId, userId, reqHeadersForLog, reqBodyForLog, respHeadersForLog, respBodyForLog)
+	}()
 
 	var containAudioTokens = usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0
 	var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)

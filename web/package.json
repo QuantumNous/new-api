@@ -91,6 +91,5 @@
   "prettier": {
     "singleQuote": true,
     "jsxSingleQuote": true
-  },
-  "proxy": "http://localhost:3000"
+  }
 }
