@@ -36,6 +36,7 @@ type User struct {
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
 	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
+	SessionToken     string         `json:"-" gorm:"type:char(32);column:session_token;default:'';index"`
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
@@ -74,6 +75,37 @@ func (user *User) GetAccessToken() string {
 
 func (user *User) SetAccessToken(token string) {
 	user.AccessToken = &token
+}
+
+func generateSessionToken() string {
+	// uuid 去掉连字符，保持紧凑定长 token
+	return strings.ReplaceAll(common.GetUUID(), "-", "")
+}
+
+// RotateUserSessionToken rotates current valid dashboard session token for the user.
+// After rotating, previous session cookies on other devices will fail auth checks.
+func RotateUserSessionToken(userId int) (string, error) {
+	token := generateSessionToken()
+	if err := DB.Model(&User{}).Where("id = ?", userId).Update("session_token", token).Error; err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// ValidateUserSessionToken checks whether the session token matches the latest one in DB.
+func ValidateUserSessionToken(userId int, sessionToken string) (bool, error) {
+	if userId <= 0 || sessionToken == "" {
+		return false, nil
+	}
+	var current string
+	err := DB.Model(&User{}).Where("id = ?", userId).Select("session_token").Scan(&current).Error
+	if err != nil {
+		return false, err
+	}
+	if current == "" {
+		return false, nil
+	}
+	return current == sessionToken, nil
 }
 
 func (user *User) GetSetting() dto.UserSetting {
@@ -713,7 +745,15 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	if err != nil {
 		return err
 	}
-	err = DB.Model(&User{}).Where("email = ?", email).Update("password", hashedPassword).Error
+	var user User
+	if err = DB.Where("email = ?", email).Select("id").First(&user).Error; err != nil {
+		return err
+	}
+	if err = DB.Model(&User{}).Where("email = ?", email).Update("password", hashedPassword).Error; err != nil {
+		return err
+	}
+	// 重置密码后立即轮换会话令牌，强制所有旧设备会话失效
+	_, err = RotateUserSessionToken(user.Id)
 	return err
 }
 

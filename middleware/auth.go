@@ -33,6 +33,37 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
+func sessionNumberToInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int8:
+		return int(n), true
+	case int16:
+		return int(n), true
+	case int32:
+		return int(n), true
+	case int64:
+		return int(n), true
+	case uint:
+		return int(n), true
+	case uint8:
+		return int(n), true
+	case uint16:
+		return int(n), true
+	case uint32:
+		return int(n), true
+	case uint64:
+		return int(n), true
+	case float32:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
 	username := session.Get("username")
@@ -92,6 +123,42 @@ func authHelper(c *gin.Context, minRole int) {
 			return
 		}
 	}
+	// Session 登录态下，校验会话令牌是否仍为最新（单设备登录策略）
+	if !useAccessToken {
+		sessionToken, _ := session.Get("session_token").(string)
+		idInt, ok := sessionNumberToInt(id)
+		if !ok || idInt <= 0 || sessionToken == "" {
+			session.Clear()
+			_ = session.Save()
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
+			})
+			c.Abort()
+			return
+		} else {
+			valid, err := model.ValidateUserSessionToken(idInt, sessionToken)
+			if err != nil {
+				common.SysLog("ValidateUserSessionToken database error: " + err.Error())
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
+				})
+				c.Abort()
+				return
+			}
+			if !valid {
+				session.Clear()
+				_ = session.Save()
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"message": "登录状态已失效：该账号已在其他设备登录，请重新登录",
+				})
+				c.Abort()
+				return
+			}
+		}
+	}
 	// get header New-Api-User
 	apiUserIdStr := c.Request.Header.Get("New-Api-User")
 	if apiUserIdStr == "" {
@@ -112,7 +179,8 @@ func authHelper(c *gin.Context, minRole int) {
 		return
 
 	}
-	if id != apiUserId {
+	idInt, ok := sessionNumberToInt(id)
+	if !ok || idInt != apiUserId {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdMismatch),
