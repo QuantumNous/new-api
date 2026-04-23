@@ -142,6 +142,14 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    if (!homePageContent || !homePageContent.startsWith('https://')) return;
+    const iframe = document.querySelector('iframe');
+    if (!iframe || !iframe.contentWindow) return;
+    iframe.contentWindow.postMessage({ lang: i18n.language }, '*');
+    iframe.contentWindow.postMessage({ themeMode: actualTheme }, '*');
+  }, [i18n.language, actualTheme, homePageContent]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setEndpointIndex((prev) => (prev + 1) % endpointItems.length);
     }, 3000);
