@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/monitor"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
@@ -165,6 +166,7 @@ func main() {
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
+	server.Use(monitor.PrometheusMiddleware())
 	server.Use(middleware.PoweredBy())
 	server.Use(middleware.I18n())
 	middleware.SetUpLogger(server)
@@ -252,6 +254,12 @@ func InitResources() error {
 	// 加载环境变量
 	common.InitEnv()
 
+	// Initialize Prometheus metrics
+	if os.Getenv("PROMETHEUS_ENABLED") != "false" {
+		monitor.InitMetrics()
+		go monitor.StartMetricsServer()
+	}
+
 	logger.SetupLogger()
 
 	// Initialize model settings
@@ -289,6 +297,11 @@ func InitResources() error {
 	err = common.InitRedisClient()
 	if err != nil {
 		return err
+	}
+
+	// Register Prometheus metrics hook for Redis
+	if common.RedisEnabled {
+		monitor.RegisterRedisHook(common.RDB)
 	}
 
 	// 启动系统监控

@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/monitor"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -221,6 +222,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			monitor.RecordRelayRequest(&monitor.RelayMetricsData{
+				ChannelId:      relayInfo.ChannelId,
+				ChannelType:    relayInfo.ChannelType,
+				Model:          relayInfo.OriginModelName,
+				RelayMode:      relayInfo.RelayMode,
+				StatusCode:     200,
+				StartTime:      relayInfo.StartTime,
+				FirstTokenTime: relayInfo.FirstResponseTime,
+				IsStream:       relayInfo.IsStream,
+			})
+			monitor.RecordTokenRequest(relayInfo.UserId, relayInfo.TokenId)
 			return
 		}
 
@@ -232,6 +244,22 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+		monitor.RecordRelayRetry(relayInfo.ChannelId, relayInfo.ChannelType)
+	}
+
+	// Record metrics for failed relay
+	if newAPIError != nil {
+		monitor.RecordRelayRequest(&monitor.RelayMetricsData{
+			ChannelId:   relayInfo.ChannelId,
+			ChannelType: relayInfo.ChannelType,
+			Model:       relayInfo.OriginModelName,
+			RelayMode:   relayInfo.RelayMode,
+			StatusCode:  newAPIError.StatusCode,
+			StartTime:   relayInfo.StartTime,
+			IsStream:    relayInfo.IsStream,
+			ErrorType:   string(newAPIError.GetErrorCode()),
+		})
+		monitor.RecordTokenRequest(relayInfo.UserId, relayInfo.TokenId)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")

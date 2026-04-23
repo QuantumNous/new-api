@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/monitor"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
@@ -194,6 +195,10 @@ func InitDB() (err error) {
 		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+
+		// Register Prometheus DB metrics
+		monitor.RegisterDBCallbacks(DB)
+		monitor.StartDBPoolCollector(sqlDB)
 
 		if !common.IsMasterNode {
 			return nil
