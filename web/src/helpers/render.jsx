@@ -20,7 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import i18next from 'i18next';
 import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
-import { buildTaskBillingSummaryLines, isTaskLog } from './taskBillingSummary.js';
+import {
+  buildTaskBillingSummaryLines,
+  isTaskLog,
+} from './taskBillingSummary';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import { visit } from 'unist-util-visit';
 import * as LobeIcons from '@lobehub/icons';

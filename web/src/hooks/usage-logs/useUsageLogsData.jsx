@@ -37,8 +37,10 @@ import {
   renderClaudeModelPrice,
   renderModelPrice,
   renderTaskBillingProcess,
+  isTaskLog,
+  localizeTaskLogLine,
+  localizeTaskLogContent,
 } from '../../helpers';
-import { isTaskLog } from '../../helpers/taskBillingSummary.js';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
@@ -430,8 +432,11 @@ export const useLogsData = () => {
         expandDataLocal.push({
           key: t('日志详情'),
           value: isTaskUsageLog
-            ? logs[i].content ||
-              t('任务预扣费（将在任务完成后按实际token重算）')
+            ? localizeTaskLogContent(logs[i].content, t) ||
+              localizeTaskLogLine(
+                '任务预扣费（将在任务完成后按实际token重算）',
+                t,
+              )
             : other?.claude
             ? renderClaudeLogContent(
                 other?.model_ratio,
@@ -470,7 +475,7 @@ export const useLogsData = () => {
         if (logs[i]?.content) {
           expandDataLocal.push({
             key: t('其他详情'),
-            value: logs[i].content,
+            value: localizeTaskLogContent(logs[i].content, t),
           });
         }
         if (isAdminUser && other?.reject_reason) {
