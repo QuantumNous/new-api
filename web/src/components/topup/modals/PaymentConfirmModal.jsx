@@ -140,6 +140,17 @@ const PaymentConfirmModal = ({
                             size={16}
                             color='#635BFF'
                           />
+                        ) : payMethod.icon ? (
+                          <img
+                            src={payMethod.icon}
+                            alt={payMethod.name}
+                            className='mr-2'
+                            style={{
+                              width: 16,
+                              height: 16,
+                              objectFit: 'contain',
+                            }}
+                          />
                         ) : (
                           <CreditCard
                             className='mr-2'

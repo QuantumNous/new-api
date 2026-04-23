@@ -701,6 +701,44 @@ export const calculateModelPrice = ({
       return `${symbol}${numericPrice.toFixed(precision)}`;
     };
 
+    if (
+      quotaDisplayType !== 'TOKENS' &&
+      record.task_condition_price &&
+      typeof record.task_condition_price === 'object'
+    ) {
+      const taskConditionalPrices = {};
+      Object.entries(record.task_condition_price).forEach(
+        ([resolution, conditionPrices]) => {
+          if (!conditionPrices || typeof conditionPrices !== 'object') {
+            return;
+          }
+          taskConditionalPrices[resolution] = {
+            inputTextOnly:
+              conditionPrices.input_text_only !== undefined
+                ? formatTokenPrice(
+                    Number(conditionPrices.input_text_only) * usedGroupRatio,
+                  )
+                : null,
+            inputWithVideo:
+              conditionPrices.input_with_video !== undefined
+                ? formatTokenPrice(
+                    Number(conditionPrices.input_with_video) * usedGroupRatio,
+                  )
+                : null,
+          };
+        },
+      );
+      return {
+        taskConditionalPrices,
+        unitLabel,
+        isPerToken: true,
+        isTokensDisplay: false,
+        isTaskConditionalPricing: true,
+        usedGroup,
+        usedGroupRatio,
+      };
+    }
+
     const inputPrice = formatTokenPrice(inputRatioPriceUSD);
     const audioInputPrice = hasRatioValue(record.audio_ratio)
       ? formatTokenPrice(inputRatioPriceUSD * Number(record.audio_ratio))
@@ -767,6 +805,30 @@ export const getModelPriceItems = (
   quotaDisplayType = 'USD',
 ) => {
   if (priceData.isPerToken) {
+    if (priceData.isTaskConditionalPricing) {
+      const unitSuffix = ` / 1${priceData.unitLabel} Tokens`;
+      return Object.entries(priceData.taskConditionalPrices || {}).flatMap(
+        ([resolution, prices]) =>
+          [
+            prices.inputTextOnly
+              ? {
+                  key: `${resolution}-text-only`,
+                  label: `${resolution} ${t('Text Only')}`,
+                  value: prices.inputTextOnly,
+                  suffix: unitSuffix,
+                }
+              : null,
+            prices.inputWithVideo
+              ? {
+                  key: `${resolution}-video-input`,
+                  label: `${resolution} ${t('Video Input')}`,
+                  value: prices.inputWithVideo,
+                  suffix: unitSuffix,
+                }
+              : null,
+          ].filter(Boolean),
+      );
+    }
     if (quotaDisplayType === 'TOKENS' || priceData.isTokensDisplay) {
       return [
         {

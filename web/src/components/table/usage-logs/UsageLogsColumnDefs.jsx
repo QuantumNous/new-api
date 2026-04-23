@@ -33,7 +33,12 @@ import {
   getLogOther,
   renderModelTag,
   renderModelPriceSimple,
+  renderQuotaWithAmount,
 } from '../../../helpers';
+import {
+  buildTaskBillingSummaryLines,
+  isTaskLog,
+} from '../../../helpers/taskBillingSummary.js';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { CircleAlert, Route, Sparkles } from 'lucide-react';
 
@@ -460,6 +465,29 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
+  if (isTaskLog(other)) {
+    const groupText = getUsageLogGroupSummary(
+      other?.group_ratio,
+      other?.user_group_ratio,
+      t,
+    );
+    const lines = buildTaskBillingSummaryLines({
+      other,
+      content: text,
+      t,
+      formatPrice: (value) => renderQuotaWithAmount(value),
+    });
+    return {
+      segments: [
+        groupText ? { text: groupText, tone: 'primary' } : null,
+        ...lines.map((line, index) => ({
+          text: line,
+          tone: groupText || index > 0 ? 'secondary' : 'primary',
+        })),
+      ].filter(Boolean),
+    };
+  }
+
   return {
     segments: other?.claude
       ? renderModelPriceSimple(
@@ -876,7 +904,12 @@ export const getLogsColumns = ({
       ),
       dataIndex: 'ip',
       render: (text, record, index) => {
-        return (record.type === 2 || record.type === 5) && text ? (
+        const showIp =
+          (record.type === 2 ||
+            record.type === 5 ||
+            (isAdminUser && record.type === 1)) &&
+          text;
+        return showIp ? (
           <Tooltip content={text}>
             <span>
               <Tag

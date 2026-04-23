@@ -11,8 +11,9 @@ import "github.com/QuantumNous/new-api/constant"
 // 例如：{"path":"/v1/chat/completions","method":"POST"}
 
 type EndpointInfo struct {
-	Path   string `json:"path"`
-	Method string `json:"method"`
+	Path    string         `json:"path"`
+	Method  string         `json:"method"`
+	Aliases []EndpointInfo `json:"aliases,omitempty"`
 }
 
 // defaultEndpointInfoMap 保存内置端点的默认 Path 与 Method
@@ -25,6 +26,14 @@ var defaultEndpointInfoMap = map[constant.EndpointType]EndpointInfo{
 	constant.EndpointTypeJinaRerank:            {Path: "/v1/rerank", Method: "POST"},
 	constant.EndpointTypeImageGeneration:       {Path: "/v1/images/generations", Method: "POST"},
 	constant.EndpointTypeEmbeddings:            {Path: "/v1/embeddings", Method: "POST"},
+	constant.EndpointTypeOpenAIVideo:           {Path: "/v1/videos", Method: "POST"},
+	constant.EndpointTypeSeedanceVideoNative: {
+		Path:   "/api/v3/contents/generations/tasks",
+		Method: "POST",
+		Aliases: []EndpointInfo{
+			{Path: "/api/v3/contents/generations/tasks/{task_id}", Method: "GET"},
+		},
+	},
 }
 
 // GetDefaultEndpointInfo 返回指定端点类型的默认信息以及是否存在
