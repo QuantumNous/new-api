@@ -306,9 +306,9 @@ const PersonalSetting = () => {
 
   const bindWeChat = async () => {
     if (inputs.wechat_verification_code === '') return;
-    const res = await API.get(
-      `/api/oauth/wechat/bind?code=${inputs.wechat_verification_code}`,
-    );
+    const res = await API.post('/api/oauth/wechat/bind', {
+      code: inputs.wechat_verification_code,
+    });
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('微信账户绑定成功！'));
@@ -378,9 +378,10 @@ const PersonalSetting = () => {
       return;
     }
     setLoading(true);
-    const res = await API.get(
-      `/api/oauth/email/bind?email=${inputs.email}&code=${inputs.email_verification_code}`,
-    );
+    const res = await API.post('/api/oauth/email/bind', {
+      email: inputs.email,
+      code: inputs.email_verification_code,
+    });
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('邮箱账户绑定成功！'));
@@ -452,7 +453,7 @@ const PersonalSetting = () => {
       <div className='flex justify-center'>
         <div className='w-full max-w-7xl mx-auto px-2'>
           {/* 顶部用户信息区域 */}
-          <UserInfoHeader t={t} userState={userState} onRefresh={getUserData} />
+          <UserInfoHeader t={t} userState={userState} />
 
           {/* 签到日历 - 仅在启用时显示 */}
           {status?.checkin_enabled && (

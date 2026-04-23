@@ -38,8 +38,8 @@ const HeaderLogo = ({
   }
 
   return (
-    <Link to='/' className='group flex items-center gap-3 min-w-0 text-inherit no-underline'>
-      <div className='relative h-8 w-8 shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.03]'>
+    <Link to='/' className='group flex items-center gap-2'>
+      <div className='relative w-8 h-8 md:w-8 md:h-8'>
         <SkeletonWrapper loading={isLoading || !logoLoaded} type='image' />
         <img
           src={logo}
@@ -47,8 +47,8 @@ const HeaderLogo = ({
           className={`absolute inset-0 w-full h-full transition-all duration-200 group-hover:scale-110 rounded-full ${!isLoading && logoLoaded ? 'opacity-100' : 'opacity-0'}`}
         />
       </div>
-      <div className='hidden min-w-0 md:flex md:flex-col md:items-start md:gap-0.5'>
-        <div className='flex items-center gap-2 min-w-0'>
+      <div className='hidden md:flex items-center gap-2'>
+        <div className='flex items-center gap-2'>
           <SkeletonWrapper
             loading={isLoading}
             type='title'
@@ -57,7 +57,7 @@ const HeaderLogo = ({
           >
             <Typography.Title
               heading={4}
-              className='!mb-0 !bg-gradient-to-r !from-[#111827] !via-[#2563eb] !to-[#38bdf8] !bg-clip-text !text-lg !font-black !tracking-[0.08em] !text-transparent drop-shadow-[0_8px_18px_rgba(37,99,235,0.18)] dark:!from-white dark:!via-[#93c5fd] dark:!to-[#67e8f9]'
+              className='!text-lg !font-semibold !mb-0'
             >
               {systemName}
             </Typography.Title>
@@ -73,9 +73,6 @@ const HeaderLogo = ({
             </Tag>
           )}
         </div>
-        <span className='text-[11px] uppercase tracking-[0.18em] text-semi-color-text-2'>
-          All In One API Gateway
-        </span>
       </div>
     </Link>
   );

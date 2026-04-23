@@ -1,7 +1,6 @@
 package router
 
 import (
-	"bytes"
 	"embed"
 	"net/http"
 	"strings"
@@ -9,7 +8,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
@@ -27,20 +25,6 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 			return
 		}
 		c.Header("Cache-Control", "no-cache")
-
-		cdnSettings := operation_setting.GetCDNSetting()
-		if cdnSettings.Enabled {
-			country := c.GetHeader(cdnSettings.DetectHeader)
-			if country != "" {
-				cdnUrl := operation_setting.GetCDNUrlForCountry(country)
-				if cdnUrl != "" {
-					modifiedPage := bytes.ReplaceAll(indexPage, []byte("/assets/"), []byte(cdnUrl+"/assets/"))
-					c.Data(http.StatusOK, "text/html; charset=utf-8", modifiedPage)
-					return
-				}
-			}
-		}
-
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
 	})
 }

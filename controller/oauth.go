@@ -190,7 +190,9 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 		}
 	}
 
-	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, nil)
+	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{
+		"action": "bind",
+	})
 }
 
 // findOrCreateOAuthUser finds existing user or creates new user
@@ -259,8 +261,6 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
-	user.RegisterIP = c.ClientIP()
-	user.RegisterUA = c.Request.UserAgent()
 
 	// Handle affiliate code
 	affCode := session.Get("aff")

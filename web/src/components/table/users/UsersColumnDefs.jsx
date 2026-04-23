@@ -265,6 +265,10 @@ const renderIpInfo = (text, record, t) => {
     </Popover>
   );
 };
+
+/**
+ * Render operations column
+ */
 const renderOperations = (
   text,
   record,

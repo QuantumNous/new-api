@@ -327,7 +327,7 @@ const SubscriptionPlansCard = ({
           )}
           {/* 套餐列表骨架屏 */}
           {showPlansList && (
-            <>
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full px-1'>
               {[1, 2, 3].map((i) => (
                 <Card
                   key={i}
@@ -357,7 +357,7 @@ const SubscriptionPlansCard = ({
                   />
                 </Card>
               ))}
-            </>
+            </div>
           )}
         </div>
       ) : (
@@ -529,6 +529,14 @@ const SubscriptionPlansCard = ({
                             (subscription?.end_time || 0) * 1000,
                           ).toLocaleString()}
                         </div>
+                        {isActive && subscription?.next_reset_time > 0 && (
+                          <div className='text-xs text-gray-500 mb-2'>
+                            {t('下一次重置')}:{' '}
+                            {new Date(
+                              subscription.next_reset_time * 1000,
+                            ).toLocaleString()}
+                          </div>
+                        )}
                         <div className='text-xs text-gray-500 mb-2'>
                           {t('总额度')}:{' '}
                           {totalAmount > 0 ? (

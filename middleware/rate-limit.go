@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -90,15 +89,7 @@ func rateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gi
 
 func GlobalWebRateLimit() func(c *gin.Context) {
 	if common.GlobalWebRateLimitEnable {
-		normalLimiter := rateLimitFactory(common.GlobalWebRateLimitNum, common.GlobalWebRateLimitDuration, "GW")
-		assetLimiter := rateLimitFactory(common.GlobalWebRateLimitNum*5, common.GlobalWebRateLimitDuration, "GWA")
-		return func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.URL.Path, "/assets/") {
-				assetLimiter(c)
-			} else {
-				normalLimiter(c)
-			}
-		}
+		return rateLimitFactory(common.GlobalWebRateLimitNum, common.GlobalWebRateLimitDuration, "GW")
 	}
 	return defNext
 }
@@ -205,7 +196,10 @@ func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key
 }
 
 // SearchRateLimit returns a per-user rate limiter for search endpoints.
-// 10 requests per 60 seconds per user (by user ID, not IP).
+// Configurable via SEARCH_RATE_LIMIT_ENABLE / SEARCH_RATE_LIMIT / SEARCH_RATE_LIMIT_DURATION.
 func SearchRateLimit() func(c *gin.Context) {
+	if !common.SearchRateLimitEnable {
+		return defNext
+	}
 	return userRateLimitFactory(common.SearchRateLimitNum, common.SearchRateLimitDuration, "SR")
 }

@@ -62,6 +62,7 @@ func InitOptionMap() {
 	common.OptionMap["SMTPAccount"] = ""
 	common.OptionMap["SMTPToken"] = ""
 	common.OptionMap["SMTPSSLEnabled"] = strconv.FormatBool(common.SMTPSSLEnabled)
+	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -89,6 +90,34 @@ func InitOptionMap() {
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
 	common.OptionMap["CreemWebhookSecret"] = setting.CreemWebhookSecret
+	common.OptionMap["WaffoEnabled"] = strconv.FormatBool(setting.WaffoEnabled)
+	common.OptionMap["WaffoApiKey"] = setting.WaffoApiKey
+	common.OptionMap["WaffoPrivateKey"] = setting.WaffoPrivateKey
+	common.OptionMap["WaffoPublicCert"] = setting.WaffoPublicCert
+	common.OptionMap["WaffoSandboxPublicCert"] = setting.WaffoSandboxPublicCert
+	common.OptionMap["WaffoSandboxApiKey"] = setting.WaffoSandboxApiKey
+	common.OptionMap["WaffoSandboxPrivateKey"] = setting.WaffoSandboxPrivateKey
+	common.OptionMap["WaffoSandbox"] = strconv.FormatBool(setting.WaffoSandbox)
+	common.OptionMap["WaffoMerchantId"] = setting.WaffoMerchantId
+	common.OptionMap["WaffoNotifyUrl"] = setting.WaffoNotifyUrl
+	common.OptionMap["WaffoReturnUrl"] = setting.WaffoReturnUrl
+	common.OptionMap["WaffoSubscriptionReturnUrl"] = setting.WaffoSubscriptionReturnUrl
+	common.OptionMap["WaffoCurrency"] = setting.WaffoCurrency
+	common.OptionMap["WaffoUnitPrice"] = strconv.FormatFloat(setting.WaffoUnitPrice, 'f', -1, 64)
+	common.OptionMap["WaffoMinTopUp"] = strconv.Itoa(setting.WaffoMinTopUp)
+	common.OptionMap["WaffoPayMethods"] = setting.WaffoPayMethods2JsonString()
+	common.OptionMap["WaffoPancakeEnabled"] = strconv.FormatBool(setting.WaffoPancakeEnabled)
+	common.OptionMap["WaffoPancakeSandbox"] = strconv.FormatBool(setting.WaffoPancakeSandbox)
+	common.OptionMap["WaffoPancakeMerchantID"] = setting.WaffoPancakeMerchantID
+	common.OptionMap["WaffoPancakePrivateKey"] = setting.WaffoPancakePrivateKey
+	common.OptionMap["WaffoPancakeWebhookPublicKey"] = setting.WaffoPancakeWebhookPublicKey
+	common.OptionMap["WaffoPancakeWebhookTestKey"] = setting.WaffoPancakeWebhookTestKey
+	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
+	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["WaffoPancakeReturnURL"] = setting.WaffoPancakeReturnURL
+	common.OptionMap["WaffoPancakeCurrency"] = setting.WaffoPancakeCurrency
+	common.OptionMap["WaffoPancakeUnitPrice"] = strconv.FormatFloat(setting.WaffoPancakeUnitPrice, 'f', -1, 64)
+	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -217,7 +246,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
@@ -292,6 +321,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.StopOnSensitiveEnabled = boolValue
 		case "SMTPSSLEnabled":
 			common.SMTPSSLEnabled = boolValue
+		case "SMTPForceAuthLogin":
+			common.SMTPForceAuthLogin = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
 			system_setting.WorkerAllowHttpImageRequestEnabled = boolValue
 		case "DefaultUseAutoGroup":
@@ -358,6 +389,60 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.CreemTestMode = value == "true"
 	case "CreemWebhookSecret":
 		setting.CreemWebhookSecret = value
+	case "WaffoEnabled":
+		setting.WaffoEnabled = value == "true"
+	case "WaffoApiKey":
+		setting.WaffoApiKey = value
+	case "WaffoPrivateKey":
+		setting.WaffoPrivateKey = value
+	case "WaffoPublicCert":
+		setting.WaffoPublicCert = value
+	case "WaffoSandboxPublicCert":
+		setting.WaffoSandboxPublicCert = value
+	case "WaffoSandboxApiKey":
+		setting.WaffoSandboxApiKey = value
+	case "WaffoSandboxPrivateKey":
+		setting.WaffoSandboxPrivateKey = value
+	case "WaffoSandbox":
+		setting.WaffoSandbox = value == "true"
+	case "WaffoMerchantId":
+		setting.WaffoMerchantId = value
+	case "WaffoNotifyUrl":
+		setting.WaffoNotifyUrl = value
+	case "WaffoReturnUrl":
+		setting.WaffoReturnUrl = value
+	case "WaffoSubscriptionReturnUrl":
+		setting.WaffoSubscriptionReturnUrl = value
+	case "WaffoCurrency":
+		setting.WaffoCurrency = value
+	case "WaffoUnitPrice":
+		setting.WaffoUnitPrice, _ = strconv.ParseFloat(value, 64)
+	case "WaffoMinTopUp":
+		setting.WaffoMinTopUp, _ = strconv.Atoi(value)
+	case "WaffoPancakeEnabled":
+		setting.WaffoPancakeEnabled = value == "true"
+	case "WaffoPancakeSandbox":
+		setting.WaffoPancakeSandbox = value == "true"
+	case "WaffoPancakeMerchantID":
+		setting.WaffoPancakeMerchantID = value
+	case "WaffoPancakePrivateKey":
+		setting.WaffoPancakePrivateKey = value
+	case "WaffoPancakeWebhookPublicKey":
+		setting.WaffoPancakeWebhookPublicKey = value
+	case "WaffoPancakeWebhookTestKey":
+		setting.WaffoPancakeWebhookTestKey = value
+	case "WaffoPancakeStoreID":
+		setting.WaffoPancakeStoreID = value
+	case "WaffoPancakeProductID":
+		setting.WaffoPancakeProductID = value
+	case "WaffoPancakeReturnURL":
+		setting.WaffoPancakeReturnURL = value
+	case "WaffoPancakeCurrency":
+		setting.WaffoPancakeCurrency = value
+	case "WaffoPancakeUnitPrice":
+		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
+	case "WaffoPancakeMinTopUp":
+		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":
@@ -458,6 +543,10 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
 	case "PayMethods":
 		err = operation_setting.UpdatePayMethodsByJsonString(value)
+	case "WaffoPayMethods":
+		// WaffoPayMethods is read directly from OptionMap via setting.GetWaffoPayMethods().
+		// The value is already stored in OptionMap at the top of this function (line: common.OptionMap[key] = value).
+		// No additional in-memory variable to update.
 	}
 	return err
 }

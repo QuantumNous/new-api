@@ -61,20 +61,11 @@ const UsersFilters = ({
       className='w-full md:w-auto order-1 md:order-2'
     >
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
-        <div className='relative w-full md:w-56'>
+        <div className='relative w-full md:w-64'>
           <Form.Input
             field='searchKeyword'
             prefix={<IconSearch />}
-            placeholder={t('搜索 ID、用户名、显示名称、邮箱')}
-            showClear
-            pure
-            size='small'
-          />
-        </div>
-        <div className='relative w-full md:w-40'>
-          <Form.Input
-            field='searchIP'
-            placeholder={t('搜索 IP 地址')}
+            placeholder={t('支持搜索用户的 ID、用户名、显示名称和邮箱地址')}
             showClear
             pure
             size='small'

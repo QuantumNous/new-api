@@ -76,7 +76,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if strings.HasPrefix(request.Model, "grok-3-mini") {
 		if lo.FromPtrOr(request.MaxCompletionTokens, uint(0)) == 0 && lo.FromPtrOr(request.MaxTokens, uint(0)) != 0 {
 			request.MaxCompletionTokens = request.MaxTokens
-			request.MaxTokens = lo.ToPtr(uint(0))
+			request.MaxTokens = nil
 		}
 		if strings.HasSuffix(request.Model, "-high") {
 			request.ReasoningEffort = "high"

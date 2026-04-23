@@ -26,14 +26,6 @@ export function setStatusData(data) {
   // 兼容：保留旧字段，同时写入新的额度展示类型
   localStorage.setItem('display_in_currency', data.display_in_currency);
   localStorage.setItem('quota_display_type', data.quota_display_type || 'USD');
-  localStorage.setItem(
-    'custom_currencies',
-    JSON.stringify(data.custom_currencies || []),
-  );
-  localStorage.setItem(
-    'enabled_currencies',
-    JSON.stringify(data.enabled_currencies || ['USD']),
-  );
   localStorage.setItem('enable_drawing', data.enable_drawing);
   localStorage.setItem('enable_task', data.enable_task);
   localStorage.setItem('enable_data_export', data.enable_data_export);
@@ -66,15 +58,4 @@ export function setStatusData(data) {
 
 export function setUserData(data) {
   localStorage.setItem('user', JSON.stringify(data));
-  // 同步用户货币偏好到 localStorage
-  if (data?.setting) {
-    try {
-      const settings = typeof data.setting === 'string' ? JSON.parse(data.setting) : data.setting;
-      if (settings.currency_preference) {
-        localStorage.setItem('user_currency_preference', settings.currency_preference);
-      }
-    } catch (e) {
-      // Ignore parse errors
-    }
-  }
 }

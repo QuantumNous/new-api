@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const Navigation = ({
@@ -28,32 +28,16 @@ const Navigation = ({
   userState,
   pricingRequireAuth,
 }) => {
-  const [hoveredItemKey, setHoveredItemKey] = useState(null);
-
   const renderNavLinks = () => {
     const baseClasses =
-      'flex-shrink-0 flex items-center gap-1.5 text-sm font-semibold text-[#0f172a] transition-colors duration-200 ease-in-out dark:text-white';
-    const hoverClasses = 'hover:text-[#2563eb] dark:hover:text-[#93c5fd]';
-    const spacingClasses = isMobile ? 'px-2 py-1' : 'px-2.5 py-1.5 lg:px-3';
-    const activeClasses = 'text-[#2563eb] dark:text-[#93c5fd]';
+      'flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
+    const hoverClasses = 'hover:text-semi-color-primary';
+    const spacingClasses = isMobile ? 'p-1' : 'p-2';
 
     const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
 
     return mainNavLinks.map((link) => {
-      const renderLinkContent = (isActive = false) => {
-        const showDot = isActive || hoveredItemKey === link.itemKey;
-
-        return (
-          <>
-            <span
-              className={`h-1.5 w-1.5 flex-shrink-0 rounded-full bg-semi-color-primary transition-opacity duration-200 ${
-                showDot ? 'opacity-100' : 'opacity-0'
-              }`}
-            />
-            <span>{link.text}</span>
-          </>
-        );
-      };
+      const linkContent = <span>{link.text}</span>;
 
       if (link.isExternal) {
         return (
@@ -63,10 +47,8 @@ const Navigation = ({
             target='_blank'
             rel='noopener noreferrer'
             className={commonLinkClasses}
-            onMouseEnter={() => setHoveredItemKey(link.itemKey)}
-            onMouseLeave={() => setHoveredItemKey(null)}
           >
-            {renderLinkContent()}
+            {linkContent}
           </a>
         );
       }
@@ -80,26 +62,15 @@ const Navigation = ({
       }
 
       return (
-        <NavLink
-          key={link.itemKey}
-          to={targetPath}
-          end={link.itemKey === 'home'}
-          onMouseEnter={() => setHoveredItemKey(link.itemKey)}
-          onMouseLeave={() => setHoveredItemKey(null)}
-          className={({ isActive }) =>
-            isActive
-              ? `${commonLinkClasses} ${activeClasses}`
-              : commonLinkClasses
-          }
-        >
-          {({ isActive }) => renderLinkContent(isActive)}
-        </NavLink>
+        <Link key={link.itemKey} to={targetPath} className={commonLinkClasses}>
+          {linkContent}
+        </Link>
       );
     });
   };
 
   return (
-    <nav className='hidden md:flex items-center gap-1 lg:gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide'>
+    <nav className='flex flex-1 items-center gap-1 lg:gap-2 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide'>
       <SkeletonWrapper
         loading={isLoading}
         type='navigation'

@@ -229,7 +229,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, ip string, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -248,37 +248,30 @@ func SearchUsers(keyword string, group string, ip string, startIdx int, num int)
 	// 构建基础查询
 	query := tx.Unscoped().Model(&User{})
 
-	// IP 独立搜索
-	if ip != "" {
-		// 从汇总表查活跃 IP 匹配的用户 ID
-		activeIPUserIDs, _ := SearchUserIDsByIP(ip)
-		if len(activeIPUserIDs) > 0 {
-			query = query.Where("register_ip = ? OR id IN ?", ip, activeIPUserIDs)
+	// 构建搜索条件
+	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
+
+	// 尝试将关键字转换为整数ID
+	keywordInt, err := strconv.Atoi(keyword)
+	if err == nil {
+		// 如果是数字，同时搜索ID和其他字段
+		likeCondition = "id = ? OR " + likeCondition
+		if group != "" {
+			query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
+				keywordInt, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", group)
 		} else {
-			query = query.Where("register_ip = ?", ip)
+			query = query.Where(likeCondition,
+				keywordInt, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 		}
-	}
-
-	// 关键字搜索
-	if keyword != "" {
-		likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
-		likeArgs := []interface{}{
-			"%" + keyword + "%", "%" + keyword + "%", "%" + keyword + "%",
+	} else {
+		// 非数字关键字，只搜索字符串字段
+		if group != "" {
+			query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
+				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", group)
+		} else {
+			query = query.Where(likeCondition,
+				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 		}
-
-		// 尝试将关键字转换为整数ID
-		keywordInt, convErr := strconv.Atoi(keyword)
-		if convErr == nil {
-			likeCondition = "id = ? OR " + likeCondition
-			likeArgs = append([]interface{}{keywordInt}, likeArgs...)
-		}
-
-		query = query.Where(likeCondition, likeArgs...)
-	}
-
-	// 分组过滤
-	if group != "" {
-		query = query.Where(commonGroupCol+" = ?", group)
 	}
 
 	// 获取总数
@@ -404,9 +397,7 @@ func (user *User) Insert(inviterId int) error {
 
 	// 初始化用户设置，包括默认的边栏配置
 	if user.Setting == "" {
-		defaultSetting := dto.UserSetting{
-			RecordIpLog: true,
-		}
+		defaultSetting := dto.UserSetting{}
 		// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
 		user.SetSetting(defaultSetting)
 	}
@@ -461,13 +452,10 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	}
 	user.Quota = common.QuotaForNewUser
 	user.AffCode = common.GetRandomString(4)
-	user.InviterId = inviterId
 
 	// 初始化用户设置
 	if user.Setting == "" {
-		defaultSetting := dto.UserSetting{
-			RecordIpLog: true,
-		}
+		defaultSetting := dto.UserSetting{}
 		user.SetSetting(defaultSetting)
 	}
 
@@ -543,7 +531,6 @@ func (user *User) Edit(updatePassword bool) error {
 		"display_name": newUser.DisplayName,
 		"group":        newUser.Group,
 		"base_level":   newUser.Group,
-		"quota":        newUser.Quota,
 		"remark":       newUser.Remark,
 	}
 	if updatePassword {
@@ -557,18 +544,6 @@ func (user *User) Edit(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
-}
-
-// UpgradeUserGroup 升级用户分组
-func UpgradeUserGroup(userId int, group string) error {
-	err := DB.Model(&User{}).Where("id = ?", userId).Updates(map[string]interface{}{
-		"group":      group,
-		"base_level": group,
-	}).Error
-	if err != nil {
-		return err
-	}
-	return UpdateUserGroupCache(userId, group)
 }
 
 func (user *User) ClearBinding(bindingType string) error {
@@ -630,13 +605,19 @@ func (user *User) ValidateAndFill() (err error) {
 	password := user.Password
 	username := strings.TrimSpace(user.Username)
 	if username == "" || password == "" {
-		return errors.New("用户名或密码为空")
+		return ErrUserEmptyCredentials
 	}
-	// find buy username or email
-	DB.Where("username = ? OR email = ?", username, username).First(user)
+	// find by username or email
+	err = DB.Where("username = ? OR email = ?", username, username).First(user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvalidCredentials
+		}
+		return fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
 	okay := common.ValidatePasswordAndHash(password, user.Password)
 	if !okay || user.Status != common.UserStatusEnabled {
-		return errors.New("用户名或密码错误，或用户已被封禁")
+		return ErrInvalidCredentials
 	}
 	return nil
 }
@@ -787,16 +768,20 @@ func IsAdmin(userId int) bool {
 //	return user.Status == common.UserStatusEnabled, nil
 //}
 
-func ValidateAccessToken(token string) (user *User) {
+func ValidateAccessToken(token string) (*User, error) {
 	if token == "" {
-		return nil
+		return nil, nil
 	}
 	token = strings.Replace(token, "Bearer ", "", 1)
-	user = &User{}
-	if DB.Where("access_token = ?", token).First(user).RowsAffected == 1 {
-		return user
+	user := &User{}
+	err := DB.Where("access_token = ?", token).First(user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
 	}
-	return nil
+	return user, nil
 }
 
 // GetUserQuota gets quota from Redis first, falls back to DB if needed
@@ -928,7 +913,7 @@ func increaseUserQuota(id int, quota int) (err error) {
 	return err
 }
 
-func DecreaseUserQuota(id int, quota int) (err error) {
+func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -938,7 +923,7 @@ func DecreaseUserQuota(id int, quota int) (err error) {
 			common.SysLog("failed to decrease user quota: " + err.Error())
 		}
 	})
-	if common.BatchUpdateEnabled {
+	if !db && common.BatchUpdateEnabled {
 		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
 		return nil
 	}
@@ -960,7 +945,7 @@ func DeltaUpdateUserQuota(id int, delta int) (err error) {
 	if delta > 0 {
 		return IncreaseUserQuota(id, delta, false)
 	} else {
-		return DecreaseUserQuota(id, -delta)
+		return DecreaseUserQuota(id, -delta, false)
 	}
 }
 
@@ -1068,6 +1053,18 @@ func RootUserExists() bool {
 		return false
 	}
 	return true
+}
+
+// UpgradeUserGroup 升级用户分组
+func UpgradeUserGroup(userId int, group string) error {
+	err := DB.Model(&User{}).Where("id = ?", userId).Updates(map[string]interface{}{
+		"group":      group,
+		"base_level": group,
+	}).Error
+	if err != nil {
+		return err
+	}
+	return UpdateUserGroupCache(userId, group)
 }
 
 func GetUserInvitees(userId int) ([]User, error) {

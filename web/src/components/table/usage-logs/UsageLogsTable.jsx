@@ -102,7 +102,7 @@ const LogsTable = (logsData) => {
       loading={loading}
       scroll={compactMode ? undefined : { x: 'max-content' }}
       className='rounded-xl overflow-hidden'
-      size='middle'
+      size='small'
       empty={
         <Empty
           image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}

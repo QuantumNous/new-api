@@ -49,7 +49,6 @@ const ModelPricingTable = ({
       .filter((g) => modelEnableGroups.includes(g));
 
     // 准备表格数据
-    const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
     const tableData = availableGroups.map((group) => {
       const priceData = modelData
         ? calculateModelPrice({
@@ -61,7 +60,7 @@ const ModelPricingTable = ({
             currency,
             quotaDisplayType: siteDisplayType,
           })
-        : { inputPrice: '-', outputPrice: '-', price: '-', cacheReadPrice: '-', cacheWritePrice: '-' };
+        : { inputPrice: '-', outputPrice: '-', price: '-' };
 
       // 获取分组倍率
       const groupRatioValue =

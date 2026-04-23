@@ -33,9 +33,8 @@ func (a *outlookAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 }
 
 func isOutlookServer(server string) bool {
-	// 兼容多地区的outlook邮箱、ofb邮箱、hotmail邮箱和live邮箱
+	// 兼容多地区的outlook邮箱和ofb邮箱
 	// 其实应该加一个Option来区分是否用LOGIN的方式登录
 	// 先临时兼容一下
-	return strings.Contains(server, "outlook") || strings.Contains(server, "onmicrosoft") ||
-		strings.Contains(server, "hotmail") || strings.Contains(server, "live")
+	return strings.Contains(server, "outlook") || strings.Contains(server, "onmicrosoft")
 }

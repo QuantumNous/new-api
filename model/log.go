@@ -58,7 +58,8 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		if otherMap != nil {
 			// Remove admin-only debug fields.
 			delete(otherMap, "admin_info")
-			delete(otherMap, "reject_reason")
+			// delete(otherMap, "reject_reason")
+			delete(otherMap, "stream_status")
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = startIdx + i + 1
@@ -86,6 +87,58 @@ func RecordLog(userId int, logType int, content string) {
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record log: " + err.Error())
+	}
+}
+
+// RecordLogWithAdminInfo 记录操作日志，并将管理员相关信息存入 Other.admin_info，
+func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo map[string]interface{}) {
+	if logType == LogTypeConsume && !common.LogConsumeEnabled {
+		return
+	}
+	username, _ := GetUsernameById(userId, false)
+	log := &Log{
+		UserId:    userId,
+		Username:  username,
+		CreatedAt: common.GetTimestamp(),
+		Type:      logType,
+		Content:   content,
+	}
+	if len(adminInfo) > 0 {
+		other := map[string]interface{}{
+			"admin_info": adminInfo,
+		}
+		log.Other = common.MapToJsonStr(other)
+	}
+	if err := LOG_DB.Create(log).Error; err != nil {
+		common.SysLog("failed to record log: " + err.Error())
+	}
+}
+
+func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
+	username, _ := GetUsernameById(userId, false)
+	adminInfo := map[string]interface{}{
+		"server_ip":               common.GetIp(),
+		"node_name":               common.NodeName,
+		"caller_ip":               callerIp,
+		"payment_method":          paymentMethod,
+		"callback_payment_method": callbackPaymentMethod,
+		"version":                 common.Version,
+	}
+	other := map[string]interface{}{
+		"admin_info": adminInfo,
+	}
+	log := &Log{
+		UserId:    userId,
+		Username:  username,
+		CreatedAt: common.GetTimestamp(),
+		Type:      LogTypeTopup,
+		Content:   content,
+		Ip:        callerIp,
+		Other:     common.MapToJsonStr(other),
+	}
+	err := LOG_DB.Create(log).Error
+	if err != nil {
+		common.SysLog("failed to record topup log: " + err.Error())
 	}
 }
 
@@ -130,10 +183,6 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
-	}
-	// 异步写入活跃 IP 汇总表（通过 Redis 队列）
-	if log.Ip != "" {
-		PublishActiveIP(log.UserId, log.Ip)
 	}
 }
 
@@ -195,10 +244,6 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
-	}
-	// 异步写入活跃 IP 汇总表（通过 Redis 队列）
-	if log.Ip != "" {
-		PublishActiveIP(log.UserId, log.Ip)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {

@@ -116,6 +116,66 @@ func TestApplyChannelAffinityOverrideTemplate_MergeOperations(t *testing.T) {
 	require.Equal(t, "trim_prefix", secondOp["mode"])
 }
 
+func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  func() *gin.Context
+		want bool
+	}{
+		{
+			name: "nil context",
+			ctx: func() *gin.Context {
+				return nil
+			},
+			want: false,
+		},
+		{
+			name: "explicit skip retry flag in context",
+			ctx: func() *gin.Context {
+				ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+					RuleName:   "rule-explicit-flag",
+					SkipRetry:  false,
+					UsingGroup: "default",
+					ModelName:  "gpt-5",
+				})
+				ctx.Set(ginKeyChannelAffinitySkipRetry, true)
+				return ctx
+			},
+			want: true,
+		},
+		{
+			name: "fallback to matched rule meta",
+			ctx: func() *gin.Context {
+				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+					RuleName:   "rule-skip-retry",
+					SkipRetry:  true,
+					UsingGroup: "default",
+					ModelName:  "gpt-5",
+				})
+			},
+			want: true,
+		},
+		{
+			name: "no flag and no skip retry meta",
+			ctx: func() *gin.Context {
+				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+					RuleName:   "rule-no-skip-retry",
+					SkipRetry:  false,
+					UsingGroup: "default",
+					ModelName:  "gpt-5",
+				})
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, ShouldSkipRetryAfterChannelAffinityFailure(tt.ctx()))
+		})
+	}
+}
+
 func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -133,7 +193,7 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.NotNil(t, codexRule)
 
 	affinityValue := fmt.Sprintf("pc-hit-%d", time.Now().UnixNano())
-	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "default", affinityValue)
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*codexRule, "gpt-5", "default", affinityValue)
 
 	cache := getChannelAffinityCache()
 	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 9527, time.Minute))

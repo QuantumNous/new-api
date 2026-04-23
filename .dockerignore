@@ -8,5 +8,3 @@ docs
 .eslintcache
 .gocache
 /web/node_modules
-nginx.conf
-deploy.sh

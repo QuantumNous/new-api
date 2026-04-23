@@ -67,7 +67,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
     ];
 
     // 根据配置过滤导航链接
-    const filteredLinks = allLinks.filter((link) => {
+    return allLinks.filter((link) => {
       if (link.itemKey === 'docs') {
         return docsLink && modules.docs;
       }
@@ -79,25 +79,6 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       }
       return modules[link.itemKey] === true;
     });
-
-    // 追加自定义链接
-    const customLinks = Array.isArray(modules.customLinks)
-      ? modules.customLinks
-      : [];
-    customLinks.forEach((item) => {
-      if (!item.name || !item.url) return;
-      const isExternal =
-        item.url.startsWith('http://') || item.url.startsWith('https://');
-      filteredLinks.push({
-        text: item.name,
-        itemKey: `custom_${item.id || item.name}`,
-        ...(isExternal
-          ? { isExternal: true, externalLink: item.url }
-          : { to: item.url }),
-      });
-    });
-
-    return filteredLinks;
   }, [t, docsLink, headerNavModules]);
 
   return {

@@ -29,13 +29,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // @lobehub/icons v2 和 antd-style 依赖 antd（项目用 Semi Design），
-      // 将 antd 指向空 stub 避免安装完整的 antd 包
-      'antd': path.resolve(__dirname, './src/antd-stub.js'),
-      '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
-        __dirname,
-        'node_modules/@douyinfe/semi-ui/dist/css/semi.css',
-      ),
     },
   },
   plugins: [
@@ -90,24 +83,6 @@ export default defineConfig({
             'react-i18next',
             'i18next-browser-languagedetector',
           ],
-          markdown: [
-            'react-markdown',
-            'rehype-highlight',
-            'rehype-katex',
-            'remark-breaks',
-            'remark-gfm',
-            'remark-math',
-            'unist-util-visit',
-          ],
-          katex: ['katex'],
-          mermaid: ['mermaid'],
-          charts: [
-            '@visactor/react-vchart',
-            '@visactor/vchart',
-            '@visactor/vchart-semi-theme',
-          ],
-          'lobehub-icons': ['@lobehub/icons'],
-          'lucide-icons': ['lucide-react'],
         },
       },
     },

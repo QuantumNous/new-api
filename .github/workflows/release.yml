@@ -19,14 +19,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
       - name: Determine Version
         run: |
           VERSION=$(git describe --tags)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
       - name: Build Frontend
@@ -38,7 +38,7 @@ jobs:
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '>=1.25.1'
       - name: Build Backend (amd64)
@@ -50,12 +50,16 @@ jobs:
           sudo apt-get update
           DEBIAN_FRONTEND=noninteractive sudo apt-get install -y gcc-aarch64-linux-gnu
           CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-arm64-$VERSION
+      - name: Generate checksums
+        run: sha256sum new-api-* > checksums-linux.txt
+
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             new-api-*
+            checksums-linux.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -64,14 +68,14 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
       - name: Determine Version
         run: |
           VERSION=$(git describe --tags)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
       - name: Build Frontend
@@ -84,18 +88,23 @@ jobs:
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '>=1.25.1'
       - name: Build Backend
         run: |
           go mod download
           go build -ldflags "-X 'new-api/common.Version=$VERSION'" -o new-api-macos-$VERSION
+      - name: Generate checksums
+        run: shasum -a 256 new-api-macos-* > checksums-macos.txt
+
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: new-api-macos-*
+          files: |
+            new-api-macos-*
+            checksums-macos.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -107,14 +116,14 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
       - name: Determine Version
         run: |
           VERSION=$(git describe --tags)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
       - name: Build Frontend
@@ -126,17 +135,22 @@ jobs:
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '>=1.25.1'
       - name: Build Backend
         run: |
           go mod download
           go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION'" -o new-api-$VERSION.exe
+      - name: Generate checksums
+        run: sha256sum new-api-*.exe > checksums-windows.txt
+
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: new-api-*.exe
+          files: |
+            new-api-*.exe
+            checksums-windows.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

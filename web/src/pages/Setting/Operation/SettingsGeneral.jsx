@@ -41,6 +41,8 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
+const { Text } = Typography;
+
 export default function GeneralSettings(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -272,6 +274,49 @@ export default function GeneralSettings(props) {
       });
   }
 
+  // Upstream's improved rate/preview helpers
+  const combinedRate = useMemo(() => {
+    const type = inputs['general_setting.quota_display_type'];
+    if (type === 'USD') return '1';
+    if (type === 'CNY') return String(inputs['USDExchangeRate'] || '');
+    if (type === 'TOKENS') return String(inputs['QuotaPerUnit'] || '');
+    if (type === 'CUSTOM')
+      return String(
+        inputs['general_setting.custom_currency_exchange_rate'] || '',
+      );
+    return '';
+  }, [inputs]);
+
+  const showTokensOption = useMemo(() => {
+    const initialType = props.options?.['general_setting.quota_display_type'];
+    const initialQuotaPerUnit = parseFloat(props.options?.QuotaPerUnit);
+    const legacyTokensMode =
+      initialType === undefined &&
+      props.options?.DisplayInCurrencyEnabled !== undefined &&
+      !props.options.DisplayInCurrencyEnabled;
+    return (
+      initialType === 'TOKENS' ||
+      legacyTokensMode ||
+      (!isNaN(initialQuotaPerUnit) && initialQuotaPerUnit !== 500000)
+    );
+  }, [props.options]);
+
+  const quotaDisplayType = inputs['general_setting.quota_display_type'];
+
+  const previewText = useMemo(() => {
+    if (quotaDisplayType === 'USD') return '$1.00';
+    const rate = parseFloat(combinedRate);
+    if (!rate || isNaN(rate)) return t('请输入汇率');
+    if (quotaDisplayType === 'CNY') return `$1.00 → ¥${rate.toFixed(2)}`;
+    if (quotaDisplayType === 'TOKENS')
+      return `$1.00 → ${Number(rate).toLocaleString()} Tokens`;
+    if (quotaDisplayType === 'CUSTOM') {
+      const symbol = inputs['general_setting.custom_currency_symbol'] || '¤';
+      return `$1.00 → ${symbol}${rate.toFixed(2)}`;
+    }
+    return '';
+  }, [quotaDisplayType, combinedRate, inputs, t]);
+
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
@@ -366,6 +411,7 @@ export default function GeneralSettings(props) {
                   showClear
                 />
               </Col>
+              {/* 单位美元额度已合入汇率组合控件（TOKENS 模式下编辑），不再单独展示 */}
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Input
                   field={'RetryTimes'}
@@ -526,6 +572,9 @@ export default function GeneralSettings(props) {
                       </Button>
                     </div>
                   </div>
+                  <Text type='tertiary' size='small' style={{ marginTop: 8, display: 'block' }}>
+                    {t('预览效果')}：{previewText}
+                  </Text>
                 </Form.Slot>
               </Col>
             </Row>

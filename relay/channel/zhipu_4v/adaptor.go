@@ -64,6 +64,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			}
 			return fmt.Sprintf("%s/api/paas/v4/embeddings", baseURL), nil
 		case relayconstant.RelayModeImagesGenerations:
+			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+				return fmt.Sprintf("%s/images/generations", specialPlan.OpenAIBaseURL), nil
+			}
 			return fmt.Sprintf("%s/api/paas/v4/images/generations", baseURL), nil
 		default:
 			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {

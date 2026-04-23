@@ -291,10 +291,6 @@ func InitResources() error {
 		return err
 	}
 
-	// 预热活跃 IP 缓存 & 启动 Redis 队列消费者
-	model.InitActiveIPCache()
-	model.StartActiveIPConsumer()
-
 	// 启动系统监控
 	common.StartSystemMonitor()
 

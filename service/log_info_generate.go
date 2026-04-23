@@ -73,8 +73,45 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
 	appendRequestConversionChain(relayInfo, other)
+	appendFinalRequestFormat(relayInfo, other)
 	appendBillingInfo(relayInfo, other)
+	appendParamOverrideInfo(relayInfo, other)
+	appendStreamStatus(relayInfo, other)
 	return other
+}
+
+func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil || len(relayInfo.ParamOverrideAudit) == 0 {
+		return
+	}
+	other["po"] = relayInfo.ParamOverrideAudit
+}
+
+func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil || !relayInfo.IsStream || relayInfo.StreamStatus == nil {
+		return
+	}
+	ss := relayInfo.StreamStatus
+	status := "ok"
+	if !ss.IsNormalEnd() || ss.HasErrors() {
+		status = "error"
+	}
+	streamInfo := map[string]interface{}{
+		"status":     status,
+		"end_reason": string(ss.EndReason),
+	}
+	if ss.EndError != nil {
+		streamInfo["end_error"] = ss.EndError.Error()
+	}
+	if ss.ErrorCount > 0 {
+		streamInfo["error_count"] = ss.ErrorCount
+		messages := make([]string, 0, len(ss.Errors))
+		for _, e := range ss.Errors {
+			messages = append(messages, e.Message)
+		}
+		streamInfo["errors"] = messages
+	}
+	other["stream_status"] = streamInfo
 }
 
 func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
@@ -157,6 +194,17 @@ func appendRequestConversionChain(relayInfo *relaycommon.RelayInfo, other map[st
 		return
 	}
 	other["request_conversion"] = chain
+}
+
+func appendFinalRequestFormat(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil {
+		return
+	}
+	if relayInfo.GetFinalRequestRelayFormat() == types.RelayFormatClaude {
+		// claude indicates the final upstream request format is Claude Messages.
+		// Frontend log rendering uses this to keep the original Claude input display.
+		other["claude"] = true
+	}
 }
 
 func GenerateWssOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage, modelRatio, groupRatio, completionRatio, audioRatio, audioCompletionRatio, modelPrice, userGroupRatio float64) map[string]interface{} {

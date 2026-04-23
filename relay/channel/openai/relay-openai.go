@@ -126,11 +126,11 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	// 检查是否为音频模型
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
-	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
-			err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
-			if err != nil {
+			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
+				sr.Error(err)
 			}
 		}
 		if len(data) > 0 {
@@ -142,7 +142,6 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			lastStreamData = data
 			streamItems = append(streamItems, data)
 		}
-		return true
 	})
 
 	// 对音频模型，从倒数第二个stream data中提取usage信息
@@ -187,16 +186,6 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
-
-	// 当输入有值但输出为空时，记录上游响应信息
-	if usage.PromptTokens > 0 && usage.CompletionTokens == 0 {
-		truncatedLastData := lastStreamData
-		if len(truncatedLastData) > 500 {
-			truncatedLastData = truncatedLastData[:500] + "...(truncated)"
-		}
-		logger.LogWarn(c, fmt.Sprintf("输入有值但输出为空(OpenAI流式), requestId: %s, model: %s, channelId: %d, promptTokens: %d, containStreamUsage: %t, responseText: %q, lastStreamData: %s",
-			info.RequestId, info.UpstreamModelName, info.ChannelId, usage.PromptTokens, containStreamUsage, responseTextBuilder.String(), truncatedLastData))
-	}
 
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
@@ -306,16 +295,6 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)
-
-	// 非流式：当输入有值但输出为空时，记录上游原始响应
-	if simpleResponse.Usage.PromptTokens > 0 && simpleResponse.Usage.CompletionTokens == 0 {
-		truncatedBody := string(responseBody)
-		if len(truncatedBody) > 500 {
-			truncatedBody = truncatedBody[:500] + "...(truncated)"
-		}
-		logger.LogWarn(c, fmt.Sprintf("输入有值但输出为空(OpenAI非流式), requestId: %s, model: %s, channelId: %d, promptTokens: %d, responseBody: %s",
-			info.RequestId, info.UpstreamModelName, info.ChannelId, simpleResponse.Usage.PromptTokens, truncatedBody))
-	}
 
 	return &simpleResponse.Usage, nil
 }
@@ -647,6 +626,12 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 				usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
 			}
 		}
+	case constant.ChannelTypeOpenAI:
+		if usage.PromptTokensDetails.CachedTokens == 0 {
+			if cachedTokens, ok := extractLlamaCachedTokensFromBody(responseBody); ok {
+				usage.PromptTokensDetails.CachedTokens = cachedTokens
+			}
+		}
 	}
 }
 
@@ -708,4 +693,26 @@ func extractMoonshotCachedTokensFromBody(body []byte) (int, bool) {
 	}
 
 	return 0, false
+}
+
+// extractLlamaCachedTokensFromBody 从llama.cpp的非标准位置提取cache_n
+func extractLlamaCachedTokensFromBody(body []byte) (int, bool) {
+	if len(body) == 0 {
+		return 0, false
+	}
+
+	var payload struct {
+		Timings struct {
+			CachedTokens *int `json:"cache_n"`
+		} `json:"timings"`
+	}
+
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return 0, false
+	}
+
+	if payload.Timings.CachedTokens == nil {
+		return 0, false
+	}
+	return *payload.Timings.CachedTokens, true
 }

@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Input, Slider, Typography, Button, Tag } from '@douyinfe/semi-ui';
+import {
+  Input,
+  InputNumber,
+  Slider,
+  Typography,
+  Button,
+  Tag,
+} from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
   Hash,
@@ -241,15 +248,14 @@ const ParameterControl = ({
             disabled={disabled}
           />
         </div>
-        <Input
+        <InputNumber
           placeholder='MaxTokens'
           name='max_tokens'
-          required
-          autoComplete='new-password'
-          defaultValue={0}
           value={inputs.max_tokens}
-          onChange={(value) => onInputChange('max_tokens', value)}
-          className='!rounded-lg'
+          onNumberChange={(value) => onInputChange('max_tokens', value)}
+          min={0}
+          precision={0}
+          style={{ width: '100%' }}
           disabled={!parameterEnabled.max_tokens || disabled}
         />
       </div>

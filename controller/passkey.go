@@ -470,6 +470,15 @@ func PasskeyVerifyFinish(c *gin.Context) {
 		return
 	}
 
+	session := sessions.Default(c)
+	// Mark passkey as ready; /api/verify will convert this into the final secure verification session.
+	session.Set(PasskeyReadySessionKey, time.Now().Unix())
+	session.Delete(SecureVerificationSessionKey)
+	if err := session.Save(); err != nil {
+		common.ApiError(c, fmt.Errorf("保存验证状态失败: %v", err))
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Passkey 验证成功",

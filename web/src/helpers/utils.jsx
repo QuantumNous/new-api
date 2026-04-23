@@ -744,7 +744,6 @@ export const calculateModelPrice = ({
 
     return {
       price: displayVal,
-      priceUSD: priceUSD,
       isPerToken: false,
       isTokensDisplay: false,
       usedGroup,

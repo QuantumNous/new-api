@@ -85,7 +85,7 @@ func TestBuildMessageDeltaPatchUsage(t *testing.T) {
 		require.EqualValues(t, 50, usage.CacheCreationInputTokens)
 		require.EqualValues(t, 53, usage.OutputTokens)
 		require.NotNil(t, usage.CacheCreation)
-		require.EqualValues(t, 10, usage.CacheCreation.Ephemeral5mInputTokens)
+		require.EqualValues(t, 30, usage.CacheCreation.Ephemeral5mInputTokens)
 		require.EqualValues(t, 20, usage.CacheCreation.Ephemeral1hInputTokens)
 	})
 
@@ -107,5 +107,23 @@ func TestBuildMessageDeltaPatchUsage(t *testing.T) {
 		require.EqualValues(t, 9, usage.InputTokens)
 		require.EqualValues(t, 7, usage.CacheReadInputTokens)
 		require.EqualValues(t, 6, usage.CacheCreationInputTokens)
+	})
+
+	t.Run("default aggregate cache creation to 5m when split missing", func(t *testing.T) {
+		claudeResponse := &dto.ClaudeResponse{Usage: &dto.ClaudeUsage{
+			OutputTokens:             53,
+			CacheCreationInputTokens: 50,
+		}}
+		claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedCreationTokens: 50,
+			},
+		}}
+
+		usage := buildMessageDeltaPatchUsage(claudeResponse, claudeInfo)
+		require.NotNil(t, usage)
+		require.NotNil(t, usage.CacheCreation)
+		require.EqualValues(t, 50, usage.CacheCreation.Ephemeral5mInputTokens)
+		require.EqualValues(t, 0, usage.CacheCreation.Ephemeral1hInputTokens)
 	})
 }

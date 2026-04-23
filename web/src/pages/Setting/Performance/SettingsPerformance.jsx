@@ -23,12 +23,15 @@ import {
   Button,
   Col,
   Form,
+  InputNumber,
   Row,
   Spin,
   Progress,
   Descriptions,
   Tag,
   Popconfirm,
+  RadioGroup,
+  Radio,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
@@ -68,10 +71,14 @@ export default function SettingsPerformance(props) {
     'performance_setting.monitor_enabled': false,
     'performance_setting.monitor_cpu_threshold': 90,
     'performance_setting.monitor_memory_threshold': 90,
-    'performance_setting.monitor_disk_threshold': 90,
+    'performance_setting.monitor_disk_threshold': 95,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
+  const [logInfo, setLogInfo] = useState(null);
+  const [logCleanupMode, setLogCleanupMode] = useState('by_count');
+  const [logCleanupValue, setLogCleanupValue] = useState(10);
+  const [logCleanupLoading, setLogCleanupLoading] = useState(false);
 
   function handleFieldChange(fieldName) {
     return (value) => {
@@ -167,6 +174,46 @@ export default function SettingsPerformance(props) {
     }
   }
 
+  async function fetchLogInfo() {
+    try {
+      const res = await API.get('/api/performance/logs');
+      if (res.data.success) {
+        setLogInfo(res.data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch log info:', error);
+    }
+  }
+
+  async function cleanupLogFiles() {
+    if (logCleanupValue == null || isNaN(logCleanupValue) || logCleanupValue < 1) {
+      showError(t('请输入有效的数值'));
+      return;
+    }
+    setLogCleanupLoading(true);
+    try {
+      const res = await API.delete(
+        `/api/performance/logs?mode=${logCleanupMode}&value=${logCleanupValue}`,
+      );
+      if (res.data.success) {
+        const { deleted_count, freed_bytes } = res.data.data;
+        showSuccess(
+          t('已清理 {{count}} 个日志文件，释放 {{size}}', {
+            count: deleted_count,
+            size: formatBytes(freed_bytes),
+          }),
+        );
+      } else {
+        showError(res.data.message || t('清理失败'));
+      }
+      fetchLogInfo();
+    } catch (error) {
+      showError(t('清理失败'));
+    } finally {
+      setLogCleanupLoading(false);
+    }
+  }
+
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
@@ -187,6 +234,7 @@ export default function SettingsPerformance(props) {
       refForm.current.setValues({ ...inputs, ...currentInputs });
     }
     fetchStats();
+    fetchLogInfo();
   }, [props.options]);
 
   const diskCacheUsagePercent =
@@ -308,7 +356,6 @@ export default function SettingsPerformance(props) {
                   label={t('CPU 阈值 (%)')}
                   extraText={t('CPU 使用率超过此值时拒绝请求')}
                   min={0}
-                  max={100}
                   onChange={handleFieldChange(
                     'performance_setting.monitor_cpu_threshold',
                   )}
@@ -350,6 +397,112 @@ export default function SettingsPerformance(props) {
           </Form.Section>
         </Form>
       </Spin>
+
+      {/* 服务器日志管理 */}
+      <Form.Section text={t('服务器日志管理')}>
+        <Banner
+          type='info'
+          description={t(
+            '管理服务器运行日志文件。日志文件会随运行时间不断累积，建议定期清理以释放磁盘空间。',
+          )}
+          style={{ marginBottom: 16 }}
+        />
+        {logInfo === null ? null : logInfo.enabled ? (
+          <>
+            <Descriptions
+              data={[
+                { key: t('日志目录'), value: logInfo.log_dir },
+                {
+                  key: t('日志文件数'),
+                  value: logInfo.file_count,
+                },
+                {
+                  key: t('日志总大小'),
+                  value: formatBytes(logInfo.total_size),
+                },
+                ...(logInfo.oldest_time && logInfo.newest_time
+                  ? [
+                      {
+                        key: t('日志时间范围'),
+                        value: `${new Date(logInfo.oldest_time).toLocaleDateString()} ~ ${new Date(logInfo.newest_time).toLocaleDateString()}`,
+                      },
+                    ]
+                  : []),
+              ]}
+              style={{ marginBottom: 16 }}
+            />
+            <Row gutter={16} style={{ marginBottom: 16 }}>
+              <Col xs={24} sm={12} md={8}>
+                <div style={{ marginBottom: 12 }}>
+                  <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                    {t('清理方式')}
+                  </Text>
+                  <RadioGroup
+                    value={logCleanupMode}
+                    onChange={(e) => setLogCleanupMode(e.target.value)}
+                  >
+                    <Radio value='by_count'>{t('保留最近N个文件')}</Radio>
+                    <Radio value='by_days'>{t('保留最近N天')}</Radio>
+                  </RadioGroup>
+                </div>
+              </Col>
+              <Col xs={24} sm={12} md={8}>
+                <div style={{ marginBottom: 12 }}>
+                  <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                    {logCleanupMode === 'by_count'
+                      ? t('保留文件数')
+                      : t('保留天数')}
+                  </Text>
+                  <InputNumber
+                    value={logCleanupValue}
+                    min={1}
+                    max={logCleanupMode === 'by_count' ? 1000 : 3650}
+                    onChange={(value) => setLogCleanupValue(value)}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </Col>
+              <Col xs={24} sm={12} md={8}>
+                <div style={{ marginBottom: 12 }}>
+                  <Text
+                    strong
+                    style={{
+                      display: 'block',
+                      marginBottom: 8,
+                      visibility: 'hidden',
+                    }}
+                  >
+                    &nbsp;
+                  </Text>
+                <Popconfirm
+                  title={t('确认清理日志文件？')}
+                  content={
+                    logCleanupMode === 'by_count'
+                      ? t(
+                          '将只保留最近 {{value}} 个日志文件，其余将被删除。',
+                          { value: logCleanupValue },
+                        )
+                      : t('将删除 {{value}} 天前的日志文件。', {
+                          value: logCleanupValue,
+                        })
+                  }
+                  onConfirm={cleanupLogFiles}
+                >
+                  <Button type='danger' loading={logCleanupLoading}>
+                    {t('清理日志文件')}
+                  </Button>
+                </Popconfirm>
+                </div>
+              </Col>
+            </Row>
+          </>
+        ) : (
+          <Banner
+            type='warning'
+            description={t('服务器日志功能未启用（未配置日志目录）')}
+          />
+        )}
+      </Form.Section>
 
       {/* 性能统计 */}
       <Spin spinning={statsLoading}>

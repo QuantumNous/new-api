@@ -296,15 +296,17 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return true
 	}
 
-	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if streamErr != nil {
-			return false
+			sr.Stop(streamErr)
+			return
 		}
 
 		var streamResp dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResp); err != nil {
 			logger.LogError(c, "failed to unmarshal responses stream event: "+err.Error())
-			return true
+			sr.Error(err)
+			return
 		}
 
 		switch streamResp.Type {
@@ -320,14 +322,16 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 		//case "response.reasoning_text.delta":
 		//if !sendReasoningDelta(streamResp.Delta) {
-		//	return false
+		//	sr.Stop(streamErr)
+		//	return
 		//}
 
 		//case "response.reasoning_text.done":
 
 		case "response.reasoning_summary_text.delta":
 			if !sendReasoningSummaryDelta(streamResp.Delta) {
-				return false
+				sr.Stop(streamErr)
+				return
 			}
 
 		case "response.reasoning_summary_text.done":
@@ -349,12 +353,14 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		//	delta := stringDeltaFromPrefix(prev, next)
 		//	reasoningSummaryTextByKey[key] = next
 		//	if !sendReasoningSummaryDelta(delta) {
-		//		return false
+		//		sr.Stop(streamErr)
+		//		return
 		//	}
 
 		case "response.output_text.delta":
 			if !sendStartIfNeeded() {
-				return false
+				sr.Stop(streamErr)
+				return
 			}
 
 			if streamResp.Delta != "" {
@@ -376,7 +382,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 					},
 				}
 				if !sendChatChunk(chunk) {
-					return false
+					sr.Stop(streamErr)
+					return
 				}
 			}
 
@@ -414,7 +421,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			}
 
 			if !sendToolCallDelta(callID, name, argsDelta) {
-				return false
+				sr.Stop(streamErr)
+				return
 			}
 
 		case "response.function_call_arguments.delta":
@@ -428,7 +436,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			}
 			toolCallArgsByID[callID] += streamResp.Delta
 			if !sendToolCallDelta(callID, "", streamResp.Delta) {
-				return false
+				sr.Stop(streamErr)
+				return
 			}
 
 		case "response.function_call_arguments.done":
@@ -467,7 +476,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			}
 
 			if !sendStartIfNeeded() {
-				return false
+				sr.Stop(streamErr)
+				return
 			}
 			if !sentStop {
 				if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo != nil {
@@ -479,7 +489,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				}
 				stop := helper.GenerateStopResponse(responseId, createAt, model, finishReason)
 				if !sendChatChunk(stop) {
-					return false
+					sr.Stop(streamErr)
+					return
 				}
 				sentStop = true
 			}
@@ -488,16 +499,16 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if streamResp.Response != nil {
 				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
 					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
-					return false
+					sr.Stop(streamErr)
+					return
 				}
 			}
 			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError)
-			return false
+			sr.Stop(streamErr)
+			return
 
 		default:
 		}
-
-		return true
 	})
 
 	if streamErr != nil {

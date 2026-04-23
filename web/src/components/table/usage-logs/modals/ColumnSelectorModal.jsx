@@ -36,6 +36,10 @@ const ColumnSelectorModal = ({
   showUserInfoFunc,
   t,
 }) => {
+  const handleBillingDisplayModeChange = (eventOrValue) => {
+    setBillingDisplayMode(eventOrValue?.target?.value ?? eventOrValue);
+  };
+
   const isTokensDisplay =
     typeof localStorage !== 'undefined' &&
     localStorage.getItem('quota_display_type') === 'TOKENS';
@@ -73,7 +77,7 @@ const ColumnSelectorModal = ({
           <RadioGroup
             type='button'
             value={billingDisplayMode}
-            onChange={(value) => setBillingDisplayMode(value)}
+            onChange={handleBillingDisplayModeChange}
           >
             <Radio value='price'>
               {isTokensDisplay ? t('价格模式') : t('价格模式（默认）')}

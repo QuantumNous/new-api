@@ -111,6 +111,18 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithModelMapping(t *testin
 	require.Equal(t, []string{"stale-model"}, pendingRemoveModels)
 }
 
+func TestCollectPendingUpstreamModelChangesFromModels_WithIgnoredRegexPatterns(t *testing.T) {
+	pendingAddModels, pendingRemoveModels := collectPendingUpstreamModelChangesFromModels(
+		[]string{"gpt-4o"},
+		[]string{"gpt-4o", "claude-3-5-sonnet", "sora-video", "gpt-4.1"},
+		[]string{"regex:^sora-.*$", "gpt-4.1"},
+		nil,
+	)
+
+	require.Equal(t, []string{"claude-3-5-sonnet"}, pendingAddModels)
+	require.Equal(t, []string{}, pendingRemoveModels)
+}
+
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {
 	channelSummaries := make([]upstreamModelUpdateChannelSummary, 0, 12)
 	for i := 0; i < 12; i++ {

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Avatar,
   Card,
@@ -25,8 +25,6 @@ import {
   Divider,
   Typography,
   Badge,
-  Button,
-  Toast,
 } from '@douyinfe/semi-ui';
 import {
   isRoot,
@@ -34,11 +32,9 @@ import {
   renderQuota,
   stringToColor,
 } from '../../../../helpers';
-import { API } from '../../../../helpers';
-import { Coins, BarChart2, Users, Crown } from 'lucide-react';
+import { Coins, BarChart2, Users } from 'lucide-react';
 
-const UserInfoHeader = ({ t, userState, onRefresh }) => {
-  const [upgrading, setUpgrading] = useState(false);
+const UserInfoHeader = ({ t, userState }) => {
   const getUsername = () => {
     if (userState.user) {
       return userState.user.username;
@@ -54,25 +50,6 @@ const UserInfoHeader = ({ t, userState, onRefresh }) => {
     }
     return 'NA';
   };
-
-  const handleUpgradeVIP = async () => {
-    setUpgrading(true);
-    try {
-      const res = await API.post('/api/user/upgrade-vip');
-      const { success, message } = res.data;
-      if (success) {
-        Toast.success(message);
-        if (onRefresh) onRefresh();
-      } else {
-        Toast.warning({ content: message, duration: 5 });
-      }
-    } catch (e) {
-      Toast.error(t('操作失败，请重试'));
-    }
-    setUpgrading(false);
-  };
-
-  const isVIP = userState?.user?.group === 'vip' || userState?.user?.group === 'svip';
 
   return (
     <Card
@@ -142,26 +119,11 @@ const UserInfoHeader = ({ t, userState, onRefresh }) => {
       {/* 当前余额和桌面版统计信息 */}
       <div className='flex items-start justify-between gap-6'>
         {/* 当前余额显示 */}
-        <div className='flex items-center gap-3'>
-          <Badge count={t('当前余额')} position='rightTop' type='danger'>
-            <div className='text-2xl sm:text-3xl md:text-4xl font-bold tracking-wide'>
-              {renderQuota(userState?.user?.quota)}
-            </div>
-          </Badge>
-          {!isVIP && (
-            <Button
-              theme='solid'
-              type='warning'
-              size='small'
-              icon={<Crown size={14} />}
-              loading={upgrading}
-              onClick={handleUpgradeVIP}
-              style={{ borderRadius: 16 }}
-            >
-              {t('升级VIP')}
-            </Button>
-          )}
-        </div>
+        <Badge count={t('当前余额')} position='rightTop' type='danger'>
+          <div className='text-2xl sm:text-3xl md:text-4xl font-bold tracking-wide'>
+            {renderQuota(userState?.user?.quota)}
+          </div>
+        </Badge>
 
         {/* 桌面版统计信息（Semi UI 卡片） */}
         <div className='hidden lg:block flex-shrink-0'>

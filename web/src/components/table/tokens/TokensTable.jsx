@@ -43,11 +43,13 @@ const TokensTable = (tokensData) => {
     loadingTokenKeys,
     toggleTokenVisibility,
     copyTokenKey,
+    copyTokenConnectionString,
     manageToken,
     onOpenLink,
     setEditingToken,
     setShowEdit,
     refresh,
+    groupRatios,
     t,
   } = tokensData;
 
@@ -60,11 +62,13 @@ const TokensTable = (tokensData) => {
       loadingTokenKeys,
       toggleTokenVisibility,
       copyTokenKey,
+      copyTokenConnectionString,
       manageToken,
       onOpenLink,
       setEditingToken,
       setShowEdit,
       refresh,
+      groupRatios,
     });
   }, [
     t,
@@ -73,11 +77,13 @@ const TokensTable = (tokensData) => {
     loadingTokenKeys,
     toggleTokenVisibility,
     copyTokenKey,
+    copyTokenConnectionString,
     manageToken,
     onOpenLink,
     setEditingToken,
     setShowEdit,
     refresh,
+    groupRatios,
   ]);
 
   // Handle compact mode by removing fixed positioning

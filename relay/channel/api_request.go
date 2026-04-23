@@ -371,10 +371,6 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		targetHeader.Set(key, value)
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
-	// 添加 X-Request-Log-Id header，便于在上游日志中关联请求
-	if info.RequestId != "" {
-		targetHeader.Set("X-Request-Log-Id", info.RequestId)
-	}
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed to %s: %w", fullRequestURL, err)
@@ -517,11 +513,6 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 				}
 			}()
 		}
-	}
-
-	// 添加 X-Request-Log-Id header，便于在上游日志中关联请求
-	if info.RequestId != "" {
-		req.Header.Set("X-Request-Log-Id", info.RequestId)
 	}
 
 	resp, err := client.Do(req)

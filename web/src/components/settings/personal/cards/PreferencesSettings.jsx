@@ -17,9 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useContext, useMemo } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { Card, Select, Typography, Avatar } from "@douyinfe/semi-ui";
-import { Languages, DollarSign } from "lucide-react";
+import { Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { API, showSuccess, showError } from "../../../../helpers";
 import { UserContext } from "../../../../context/User";
@@ -43,42 +43,8 @@ const PreferencesSettings = ({ t }) => {
 		normalizeLanguage(i18n.language) || "zh-CN",
 	);
 	const [loading, setLoading] = useState(false);
-	const [currencyLoading, setCurrencyLoading] = useState(false);
-	const [currentCurrency, setCurrentCurrency] = useState("");
 
-	// 构建可选货币列表
-	const currencyOptions = useMemo(() => {
-		try {
-			const enabled = JSON.parse(localStorage.getItem("enabled_currencies") || '["USD"]');
-			const customCurrencies = JSON.parse(localStorage.getItem("custom_currencies") || "[]");
-
-			const symbolMap = { USD: "$", CNY: "¥", TOKENS: "" };
-			// 从 status 读取 CUSTOM 符号
-			try {
-				const statusStr = localStorage.getItem("status");
-				if (statusStr) {
-					const s = JSON.parse(statusStr);
-					if (s?.custom_currency_symbol) {
-						symbolMap.CUSTOM = s.custom_currency_symbol;
-					}
-				}
-			} catch (e) {}
-			// 添加自定义货币符号
-			customCurrencies.forEach((c) => {
-				symbolMap[c.code] = c.symbol || "¤";
-			});
-
-			return enabled.map((code) => {
-				const symbol = symbolMap[code] || "¤";
-				const label = code === "TOKENS" ? "Tokens" : `${code} (${symbol})`;
-				return { value: code, label };
-			});
-		} catch (e) {
-			return [{ value: "USD", label: "USD ($)" }];
-		}
-	}, []);
-
-	// Load saved language and currency preference from user settings
+	// Load saved language preference from user settings
 	useEffect(() => {
 		if (userState?.user?.setting) {
 			try {
@@ -91,61 +57,11 @@ const PreferencesSettings = ({ t }) => {
 						i18n.changeLanguage(lang);
 					}
 				}
-				if (settings.currency_preference) {
-					setCurrentCurrency(settings.currency_preference);
-				}
 			} catch (e) {
 				// Ignore parse errors
 			}
 		}
 	}, [userState?.user?.setting, i18n]);
-
-	const handleCurrencyPreferenceChange = async (code) => {
-		if (code === currentCurrency) return;
-
-		setCurrencyLoading(true);
-		const previousCurrency = currentCurrency;
-
-		try {
-			setCurrentCurrency(code);
-			// 立即更新 localStorage
-			localStorage.setItem("user_currency_preference", code);
-
-			const res = await API.put("/api/user/self", {
-				currency_preference: code,
-			});
-
-			if (res.data.success) {
-				showSuccess(t("货币偏好已保存"));
-				// Update user context with new setting
-				if (userState?.user?.setting) {
-					try {
-						const settings = JSON.parse(userState.user.setting);
-						settings.currency_preference = code;
-						userDispatch({
-							type: "login",
-							payload: {
-								...userState.user,
-								setting: JSON.stringify(settings),
-							},
-						});
-					} catch (e) {
-						// Ignore
-					}
-				}
-			} else {
-				showError(res.data.message || t("保存失败"));
-				setCurrentCurrency(previousCurrency);
-				localStorage.setItem("user_currency_preference", previousCurrency);
-			}
-		} catch (error) {
-			showError(t("保存失败，请重试"));
-			setCurrentCurrency(previousCurrency);
-			localStorage.setItem("user_currency_preference", previousCurrency);
-		} finally {
-			setCurrencyLoading(false);
-		}
-	};
 
 	const handleLanguagePreferenceChange = async (lang) => {
 		if (lang === currentLanguage) return;
@@ -250,38 +166,6 @@ const PreferencesSettings = ({ t }) => {
 					/>
 				</div>
 			</Card>
-
-			{/* Currency Preference Card */}
-			{currencyOptions.length > 1 && (
-				<Card className="!rounded-xl border dark:border-gray-700 mt-4">
-					<div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
-						<div className="flex items-start w-full sm:w-auto">
-							<div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center mr-4 flex-shrink-0">
-								<DollarSign
-									size={20}
-									className="text-green-600 dark:text-green-400"
-								/>
-							</div>
-							<div>
-								<Typography.Title heading={6} className="mb-1">
-									{t("货币偏好")}
-								</Typography.Title>
-								<Typography.Text type="tertiary" className="text-sm">
-									{t("选择您偏好的金额显示货币")}
-								</Typography.Text>
-							</div>
-						</div>
-						<Select
-							value={currentCurrency || undefined}
-							placeholder={t("跟随系统默认")}
-							onChange={handleCurrencyPreferenceChange}
-							style={{ width: 180 }}
-							loading={currencyLoading}
-							optionList={currencyOptions}
-						/>
-					</div>
-				</Card>
-			)}
 
 			{/* Additional info */}
 			<div className="mt-4 text-xs text-gray-500 dark:text-gray-400">

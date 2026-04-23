@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -48,17 +48,23 @@ func checkSystemPerformance() *types.NewAPIError {
 
 	// 检查 CPU
 	if config.CPUThreshold > 0 && int(status.CPUUsage) > config.CPUThreshold {
-		return types.NewErrorWithStatusCode(errors.New("system cpu overloaded"), "system_cpu_overloaded", http.StatusServiceUnavailable)
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("system cpu overloaded (current: %.1f%%, threshold: %d%%)", status.CPUUsage, config.CPUThreshold),
+			"system_cpu_overloaded", http.StatusServiceUnavailable)
 	}
 
 	// 检查内存
 	if config.MemoryThreshold > 0 && int(status.MemoryUsage) > config.MemoryThreshold {
-		return types.NewErrorWithStatusCode(errors.New("system memory overloaded"), "system_memory_overloaded", http.StatusServiceUnavailable)
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("system memory overloaded (current: %.1f%%, threshold: %d%%)", status.MemoryUsage, config.MemoryThreshold),
+			"system_memory_overloaded", http.StatusServiceUnavailable)
 	}
 
 	// 检查磁盘
 	if config.DiskThreshold > 0 && int(status.DiskUsage) > config.DiskThreshold {
-		return types.NewErrorWithStatusCode(errors.New("system disk overloaded"), "system_disk_overloaded", http.StatusServiceUnavailable)
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("system disk overloaded (current: %.1f%%, threshold: %d%%)", status.DiskUsage, config.DiskThreshold),
+			"system_disk_overloaded", http.StatusServiceUnavailable)
 	}
 
 	return nil

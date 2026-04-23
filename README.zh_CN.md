@@ -383,7 +383,7 @@ docker run --name new-api -d --restart always \
 2. 在应用商店搜索 **New-API**
 3. 一键安装
 
-📖 [图文教程](./docs/BT.md)
+📖 [图文教程](./docs/installation/BT.md)
 
 </details>
 
