@@ -27,6 +27,15 @@ var completionRatioMetaOptionKeys = []string{
 	"AudioCompletionRatio",
 }
 
+func isVisiblePublicKeyOption(key string) bool {
+	switch key {
+	case "WaffoPancakeWebhookPublicKey", "WaffoPancakeWebhookTestKey":
+		return true
+	default:
+		return false
+	}
+}
+
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
 	if strings.TrimSpace(raw) == "" {
 		return
@@ -66,11 +75,12 @@ func GetOptions(c *gin.Context) {
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
-		if strings.HasSuffix(k, "Token") ||
+		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key") {
+			strings.HasSuffix(k, "api_key")
+		if isSensitiveKey && !isVisiblePublicKeyOption(k) {
 			continue
 		}
 		options = append(options, &model.Option{
@@ -293,6 +303,22 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": err.Error(),
+			})
+			return
+		}
+	case "ModelDisplayName":
+		if err = ratio_setting.UpdateModelDisplayNameByJSONString(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型显示名称设置失败: " + err.Error(),
+			})
+			return
+		}
+	case "ModelModalities":
+		if err = ratio_setting.UpdateModelModalitiesByJSONString(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型输出类型设置失败: " + err.Error(),
 			})
 			return
 		}

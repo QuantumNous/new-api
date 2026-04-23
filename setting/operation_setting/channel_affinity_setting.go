@@ -20,9 +20,10 @@ type ChannelAffinityRule struct {
 
 	ParamOverrideTemplate map[string]interface{} `json:"param_override_template,omitempty"`
 
-	SkipRetryOnFailure bool `json:"skip_retry_on_failure,omitempty"`
+	SkipRetryOnFailure bool `json:"skip_retry_on_failure"`
 
 	IncludeUsingGroup bool `json:"include_using_group"`
+	IncludeModelName  bool `json:"include_model_name"`
 	IncludeRuleName   bool `json:"include_rule_name"`
 }
 

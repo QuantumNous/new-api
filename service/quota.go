@@ -37,6 +37,7 @@ type QuotaInfo struct {
 	ModelPrice    float64
 	ModelRatio    float64
 	GroupRatio    float64
+	UserId        int
 }
 
 func hasCustomModelRatio(modelName string, currentRatio float64) bool {
@@ -54,6 +55,15 @@ func calculateAudioQuota(info QuotaInfo) int {
 		groupRatio := decimal.NewFromFloat(info.GroupRatio)
 
 		quota := modelPrice.Mul(quotaPerUnit).Mul(groupRatio)
+
+		// 应用企业折扣
+		orgDiscountRate := 1.0
+		discountRate, err := getUserOrgDiscount(info.UserId, info.ModelName)
+		if err == nil {
+			orgDiscountRate = discountRate
+			quota = quota.Mul(decimal.NewFromFloat(orgDiscountRate))
+		}
+
 		return int(quota.IntPart())
 	}
 
@@ -77,6 +87,14 @@ func calculateAudioQuota(info QuotaInfo) int {
 	quota = quota.Add(outputAudioTokens.Mul(audioRatio).Mul(audioCompletionRatio))
 
 	quota = quota.Mul(ratio)
+
+	// 应用企业折扣
+	orgDiscountRate := 1.0
+	discountRate, err := getUserOrgDiscount(info.UserId, info.ModelName)
+	if err == nil {
+		orgDiscountRate = discountRate
+		quota = quota.Mul(decimal.NewFromFloat(orgDiscountRate))
+	}
 
 	// If ratio is not zero and quota is less than or equal to zero, set quota to 1
 	if !ratio.IsZero() && quota.LessThanOrEqual(decimal.Zero) {
@@ -134,6 +152,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		UsePrice:   relayInfo.UsePrice,
 		ModelRatio: modelRatio,
 		GroupRatio: actualGroupRatio,
+		UserId:     relayInfo.UserId,
 	}
 
 	quota := calculateAudioQuota(quotaInfo)
@@ -288,6 +307,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		UsePrice:   usePrice,
 		ModelRatio: modelRatio,
 		GroupRatio: groupRatio,
+		UserId:     relayInfo.UserId,
 	}
 
 	quota := calculateAudioQuota(quotaInfo)
@@ -381,7 +401,7 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	} else {
 		// Wallet
 		if quota > 0 {
-			err = model.DecreaseUserQuota(relayInfo.UserId, quota)
+			err = model.DecreaseUserQuota(relayInfo.UserId, quota, false)
 		} else {
 			err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
 		}

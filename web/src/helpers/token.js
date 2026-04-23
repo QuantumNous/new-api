@@ -34,6 +34,20 @@ export async function fetchTokenKey(tokenId) {
 }
 
 /**
+ * 批量获取多个令牌的真实 key
+ * @param {number[]} tokenIds
+ * @returns {Promise<Record<number, string>>} 返回 {id: key} map，key 不带 sk- 前缀
+ */
+export async function fetchTokenKeysBatch(tokenIds) {
+  const response = await API.post('/api/token/batch/keys', { ids: tokenIds });
+  const { success, data, message } = response.data || {};
+  if (!success || !data?.keys) {
+    throw new Error(message || 'Failed to fetch token keys');
+  }
+  return data.keys;
+}
+
+/**
  * 获取可用的 token keys
  * @returns {Promise<string[]>} 返回 active 状态的不带 sk- 前缀的真实 token key 数组
  */

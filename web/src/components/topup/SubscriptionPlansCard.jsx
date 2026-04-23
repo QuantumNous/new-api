@@ -442,6 +442,14 @@ const SubscriptionPlansCard = ({
                             (subscription?.end_time || 0) * 1000,
                           ).toLocaleString()}
                         </div>
+                        {isActive && subscription?.next_reset_time > 0 && (
+                          <div className='text-xs text-gray-500 mb-2'>
+                            {t('下一次重置')}:{' '}
+                            {new Date(
+                              subscription.next_reset_time * 1000,
+                            ).toLocaleString()}
+                          </div>
+                        )}
                         <div className='text-xs text-gray-500 mb-2'>
                           {t('总额度')}:{' '}
                           {totalAmount > 0 ? (

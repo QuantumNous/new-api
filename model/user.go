@@ -36,6 +36,7 @@ type User struct {
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
 	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
+	SessionToken     string         `json:"-" gorm:"type:char(32);column:session_token;default:'';index"`
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
@@ -74,6 +75,37 @@ func (user *User) GetAccessToken() string {
 
 func (user *User) SetAccessToken(token string) {
 	user.AccessToken = &token
+}
+
+func generateSessionToken() string {
+	// uuid 去掉连字符，保持紧凑定长 token
+	return strings.ReplaceAll(common.GetUUID(), "-", "")
+}
+
+// RotateUserSessionToken rotates current valid dashboard session token for the user.
+// After rotating, previous session cookies on other devices will fail auth checks.
+func RotateUserSessionToken(userId int) (string, error) {
+	token := generateSessionToken()
+	if err := DB.Model(&User{}).Where("id = ?", userId).Update("session_token", token).Error; err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// ValidateUserSessionToken checks whether the session token matches the latest one in DB.
+func ValidateUserSessionToken(userId int, sessionToken string) (bool, error) {
+	if userId <= 0 || sessionToken == "" {
+		return false, nil
+	}
+	var current string
+	err := DB.Model(&User{}).Where("id = ?", userId).Select("session_token").Scan(&current).Error
+	if err != nil {
+		return false, err
+	}
+	if current == "" {
+		return false, nil
+	}
+	return current == sessionToken, nil
 }
 
 func (user *User) GetSetting() dto.UserSetting {
@@ -523,7 +555,6 @@ func (user *User) Edit(updatePassword bool) error {
 		"username":     newUser.Username,
 		"display_name": newUser.DisplayName,
 		"group":        newUser.Group,
-		"quota":        newUser.Quota,
 		"remark":       newUser.Remark,
 	}
 	if updatePassword {
@@ -598,13 +629,19 @@ func (user *User) ValidateAndFill() (err error) {
 	password := user.Password
 	username := strings.TrimSpace(user.Username)
 	if username == "" || password == "" {
-		return errors.New("用户名或密码为空")
+		return ErrUserEmptyCredentials
 	}
-	// find buy username or email
-	DB.Where("username = ? OR email = ?", username, username).First(user)
+	// find by username or email
+	err = DB.Where("username = ? OR email = ?", username, username).First(user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrInvalidCredentials
+		}
+		return fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
 	okay := common.ValidatePasswordAndHash(password, user.Password)
 	if !okay || user.Status != common.UserStatusEnabled {
-		return errors.New("用户名或密码错误，或用户已被封禁")
+		return ErrInvalidCredentials
 	}
 	return nil
 }
@@ -708,7 +745,15 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	if err != nil {
 		return err
 	}
-	err = DB.Model(&User{}).Where("email = ?", email).Update("password", hashedPassword).Error
+	var user User
+	if err = DB.Where("email = ?", email).Select("id").First(&user).Error; err != nil {
+		return err
+	}
+	if err = DB.Model(&User{}).Where("email = ?", email).Update("password", hashedPassword).Error; err != nil {
+		return err
+	}
+	// 重置密码后立即轮换会话令牌，强制所有旧设备会话失效
+	_, err = RotateUserSessionToken(user.Id)
 	return err
 }
 
@@ -755,16 +800,20 @@ func IsAdmin(userId int) bool {
 //	return user.Status == common.UserStatusEnabled, nil
 //}
 
-func ValidateAccessToken(token string) (user *User) {
+func ValidateAccessToken(token string) (*User, error) {
 	if token == "" {
-		return nil
+		return nil, nil
 	}
 	token = strings.Replace(token, "Bearer ", "", 1)
-	user = &User{}
-	if DB.Where("access_token = ?", token).First(user).RowsAffected == 1 {
-		return user
+	user := &User{}
+	err := DB.Where("access_token = ?", token).First(user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
 	}
-	return nil
+	return user, nil
 }
 
 // GetUserQuota gets quota from Redis first, falls back to DB if needed
@@ -896,7 +945,7 @@ func increaseUserQuota(id int, quota int) (err error) {
 	return err
 }
 
-func DecreaseUserQuota(id int, quota int) (err error) {
+func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -906,7 +955,7 @@ func DecreaseUserQuota(id int, quota int) (err error) {
 			common.SysLog("failed to decrease user quota: " + err.Error())
 		}
 	})
-	if common.BatchUpdateEnabled {
+	if !db && common.BatchUpdateEnabled {
 		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
 		return nil
 	}
@@ -928,7 +977,7 @@ func DeltaUpdateUserQuota(id int, delta int) (err error) {
 	if delta > 0 {
 		return IncreaseUserQuota(id, delta, false)
 	} else {
-		return DecreaseUserQuota(id, -delta)
+		return DecreaseUserQuota(id, -delta, false)
 	}
 }
 
