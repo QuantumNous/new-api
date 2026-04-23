@@ -41,7 +41,6 @@ import {
   BarChart2,
   TrendingUp,
   Receipt,
-  Sparkles,
 } from 'lucide-react';
 import { IconGift } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';

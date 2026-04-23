@@ -182,7 +182,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	// 异步写入日志，不阻塞响应
 	gopool.Go(func() {
 		if err := LOG_DB.Create(log).Error; err != nil {
-			common.SysLog("failed to record error log: " + err.Error())
+			common.SysLog(fmt.Sprintf("failed to record error log: userId=%d requestId=%s err=%s", userId, requestId, err.Error()))
 		}
 	})
 }
@@ -243,7 +243,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	// 异步写入日志，不阻塞响应
 	gopool.Go(func() {
 		if err := LOG_DB.Create(log).Error; err != nil {
-			common.SysLog("failed to record consume log: " + err.Error())
+			common.SysLog(fmt.Sprintf("failed to record consume log: userId=%d requestId=%s err=%s", userId, requestId, err.Error()))
 		}
 	})
 	if common.DataExportEnabled {
