@@ -276,7 +276,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 			logger.LogInfo(c, fmt.Sprintf("无企业折扣应用：折扣率=%.4f", discountRate))
 		}
 	} else {
-		logger.LogInfo(c, "模型名称为空，跳过企业折扣")
+		logger.LogInfo(c, fmt.Sprintf("用户 %d 模型名称为空，跳过企业折扣", relayInfo.UserId))
 	}
 
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
