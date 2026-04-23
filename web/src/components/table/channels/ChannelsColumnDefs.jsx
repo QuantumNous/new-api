@@ -56,7 +56,7 @@ const renderType = (type, record = {}, t) => {
   const channelInfo = record?.channel_info;
   let type2label = new Map();
   for (let i = 0; i < CHANNEL_OPTIONS.length; i++) {
-A    type2label[CHANNEL_OPTIONS[i].value] = CHANNEL_OPTIONS[i];
+    type2label[CHANNEL_OPTIONS[i].value] = CHANNEL_OPTIONS[i];
   }
   type2label[0] = { value: 0, label: t('未知类型'), color: 'grey' };
 

@@ -20,6 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import i18next from 'i18next';
 import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
+import {
+  buildTaskBillingSummaryLines,
+  isTaskLog,
+} from './taskBillingSummary';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import { visit } from 'unist-util-visit';
 import * as LobeIcons from '@lobehub/icons';
@@ -1621,15 +1625,18 @@ function renderPriceSimpleCore({
 }
 
 export function renderTaskBillingProcess(other, content) {
-  if (other?.task_id != null) {
-    return renderBillingArticle(
-      [content].filter(Boolean),
-      { showReferenceNote: false },
-    );
-  }
-  return renderBillingArticle([
-    buildBillingText('任务预扣费（将在任务完成后按实际token重算）'),
-  ]);
+  const { symbol, rate } = getCurrencyConfig();
+  const lines = buildTaskBillingSummaryLines({
+    other,
+    content,
+    t: i18next.t.bind(i18next),
+    formatPrice: (usdAmount) =>
+      `${symbol}${formatBillingDisplayPrice(usdAmount, rate)}`,
+  });
+
+  return renderBillingArticle(lines, {
+    showReferenceNote: !isTaskLog(other) || other?.task_id == null,
+  });
 }
 
 export function renderModelPrice(

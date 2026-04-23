@@ -37,6 +37,9 @@ import {
   renderClaudeModelPrice,
   renderModelPrice,
   renderTaskBillingProcess,
+  isTaskLog,
+  localizeTaskLogLine,
+  localizeTaskLogContent,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -425,9 +428,16 @@ export const useLogsData = () => {
         });
       }
       if (logs[i].type === 2) {
+        const isTaskUsageLog = isTaskLog(other);
         expandDataLocal.push({
           key: t('日志详情'),
-          value: other?.claude
+          value: isTaskUsageLog
+            ? localizeTaskLogContent(logs[i].content, t) ||
+              localizeTaskLogLine(
+                '任务预扣费（将在任务完成后按实际token重算）',
+                t,
+              )
+            : other?.claude
             ? renderClaudeLogContent(
                 other?.model_ratio,
                 other.completion_ratio,
@@ -465,7 +475,7 @@ export const useLogsData = () => {
         if (logs[i]?.content) {
           expandDataLocal.push({
             key: t('其他详情'),
-            value: logs[i].content,
+            value: localizeTaskLogContent(logs[i].content, t),
           });
         }
         if (isAdminUser && other?.reject_reason) {
