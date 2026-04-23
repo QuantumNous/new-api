@@ -909,6 +909,9 @@ const EditChannelModal = (props) => {
           )
             ? parsedSettings.upstream_model_update_ignored_models.join(',')
             : '';
+          data.supported_paths = Array.isArray(parsedSettings.supported_paths)
+            ? parsedSettings.supported_paths.join(',')
+            : '';
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
@@ -928,6 +931,7 @@ const EditChannelModal = (props) => {
           data.upstream_model_update_last_check_time = 0;
           data.upstream_model_update_last_detected_models = [];
           data.upstream_model_update_ignored_models = '';
+          data.supported_paths = '';
         }
       } else {
         // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
@@ -2512,6 +2516,18 @@ const EditChannelModal = (props) => {
 
                   <Form.TextArea field='system_prompt' label={t('系统提示词')} placeholder={t('输入系统提示词，用户的系统提示词将优先于此设置')} onChange={(value) => handleChannelSettingsChange('system_prompt', value)} autosize showClear extraText={t('用户优先：如果用户在请求中指定了系统提示词，将优先使用用户的设置')} />
                   <Form.Switch field='system_prompt_override' label={t('系统提示词拼接')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('system_prompt_override', value)} extraText={t('如果用户请求中包含系统提示词，则使用此设置拼接到用户的系统提示词前面')} />
+
+                  <Form.Input
+                    field='supported_paths'
+                    label={t('限制请求路径')}
+                    placeholder={t('例如: /v1/images/generations,/v1/chat/completions')}
+                    onChange={(value) => {
+                      const paths = value ? value.split(',').map(p => p.trim()).filter(Boolean) : [];
+                      handleChannelOtherSettingsChange('supported_paths', paths);
+                    }}
+                    showClear
+                    extraText={t('限制该渠道仅处理指定路径的请求，多个路径用逗号分隔。留空表示支持所有路径。')}
+                  />
                 </div>
               </div>
             );
