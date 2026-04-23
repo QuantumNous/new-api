@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -155,16 +156,6 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 		return
 	}
 
-	// 获取企业折扣率用于日志
-	modelName := taskModelName(task)
-	discountRate, err := GetUserOrgDiscountRate(task.UserId, modelName)
-	if err != nil {
-		discountRate = 1.0
-	}
-
-	logger.LogInfo(ctx, fmt.Sprintf("任务 %s 退款：user_id=%d, model=%s, quota=%d, discount_rate=%.2f, reason=%s",
-		task.TaskID, task.UserId, modelName, quota, discountRate, reason))
-
 	// 1. 退还资金来源（钱包或订阅）
 	if err := taskAdjustFunding(task, -quota); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("退还资金来源失败 task %s: %s", task.TaskID, err.Error()))
@@ -202,6 +193,30 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	if actualQuota <= 0 {
 		return
 	}
+
+	// 应用企业折扣（token重算场景已在 RecalculateTaskQuotaByTokens 中应用）
+	orgDiscountRate := 1.0
+	isTokenRecalc := strings.Contains(reason, "token重算")
+	if !isTokenRecalc {
+		discountRate, err := getUserOrgDiscount(task.UserId, taskModelName(task))
+		if err != nil {
+			logger.LogInfo(ctx, fmt.Sprintf("任务 %s 查询企业折扣失败：%s，使用折扣率=1.0", task.TaskID, err.Error()))
+		} else {
+			orgDiscountRate = discountRate
+			logger.LogInfo(ctx, fmt.Sprintf("任务 %s 查询企业折扣成功：折扣率=%.4f", task.TaskID, orgDiscountRate))
+		}
+		actualQuota = int(float64(actualQuota) * orgDiscountRate)
+	}
+
+	if orgDiscountRate != 1.0 {
+		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 应用企业折扣：原始额度=%s，折扣率=%.4f，折后额度=%s",
+			task.TaskID,
+			logger.LogQuota(actualQuota/int(orgDiscountRate)),
+			orgDiscountRate,
+			logger.LogQuota(actualQuota),
+		))
+	}
+
 	preConsumedQuota := task.Quota
 	quotaDelta := actualQuota - preConsumedQuota
 
@@ -247,6 +262,9 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	other["task_id"] = task.TaskID
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
+	if orgDiscountRate != 1.0 {
+		other["org_discount_rate"] = orgDiscountRate
+	}
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   logType,
@@ -313,20 +331,62 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
 
 	// 应用企业折扣
-	discountRate, err := GetUserOrgDiscountRate(task.UserId, modelName)
-	if err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("获取企业折扣率失败 task %s, user_id=%d, model=%s, err=%v", task.TaskID, task.UserId, modelName, err))
-		discountRate = 1.0
-	} else if discountRate < 1.0 {
-		originalQuota := actualQuota
-		actualQuota = int(float64(actualQuota) * discountRate)
-		if actualQuota < 1 && originalQuota > 0 {
-			actualQuota = 1
-		}
-		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 企业折扣应用：user_id=%d, model=%s, discount_rate=%.2f, quota: %d -> %d",
-			task.TaskID, task.UserId, modelName, discountRate, originalQuota, actualQuota))
+	orgDiscountRate := 1.0
+	discountRate, err := getUserOrgDiscount(task.UserId, modelName)
+	if err == nil {
+		orgDiscountRate = discountRate
+		actualQuota = int(float64(actualQuota) * orgDiscountRate)
 	}
 
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f, discountRate=%.2f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier, discountRate)
+	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f, orgDiscountRate=%.4f",
+		totalTokens, modelRatio, finalGroupRatio, otherMultiplier, orgDiscountRate)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)
+}
+
+// BusinessDiscountRule 企业折扣规则模型
+type BusinessDiscountRule struct {
+	ID            uint    `gorm:"primaryKey"`
+	OrgID         int     `gorm:"column:org_id;not null"`
+	ModelName     string  `gorm:"column:model_name;not null"`
+	DiscountRate  float64 `gorm:"column:discount_rate;not null"`
+	EffectiveFrom int64   `gorm:"column:effective_from;not null"`
+	EffectiveTo   int64   `gorm:"column:effective_to;default:0"`
+}
+
+func (BusinessDiscountRule) TableName() string { return "lc_business_discount_rules" }
+
+// getUserOrgDiscount 获取用户的企业折扣率
+// 如果用户不是企业成员，返回1；如果是企业成员但没有对应模型的折扣，也返回1
+func getUserOrgDiscount(userID int, modelName string) (float64, error) {
+	// 查询用户的企业ID
+	var userExt struct {
+		OrgID uint `gorm:"column:org_id"`
+	}
+	err := model.DB.Table("lc_user_ext").Where("user_id = ?", userID).Select("org_id").Scan(&userExt).Error
+	if err != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("查询用户企业ID失败 userID=%d: %s", userID, err.Error()))
+		return 1.0, err
+	}
+
+	// 如果用户不属于任何企业，返回折扣率1
+	if userExt.OrgID == 0 {
+		logger.LogInfo(context.Background(), fmt.Sprintf("用户 %d 不属于任何企业，跳过企业折扣", userID))
+		return 1.0, nil
+	}
+
+	// 查询该企业该模型的有效折扣规则
+	now := time.Now().Unix()
+	var rule BusinessDiscountRule
+	err = model.DB.Where("org_id = ? AND model_name = ? AND effective_from <= ? AND (effective_to = 0 OR effective_to >= ?)",
+		userExt.OrgID, modelName, now, now).Order("effective_from DESC").First(&rule).Error
+	if err != nil {
+		logger.LogInfo(context.Background(), fmt.Sprintf("用户 %d 企业 %d 模型 %s 查询折扣规则失败: %s",
+			userID, userExt.OrgID, modelName, err.Error()))
+		return 1.0, nil
+	}
+
+	logger.LogInfo(context.Background(), fmt.Sprintf("用户 %d 企业 %d 模型 %s 折扣率: %.4f",
+		userID, userExt.OrgID, modelName, rule.DiscountRate))
+
+	return rule.DiscountRate, nil
 }
