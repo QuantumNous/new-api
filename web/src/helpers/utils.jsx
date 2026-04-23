@@ -347,6 +347,69 @@ export const getTextContent = (message) => {
   return typeof message.content === 'string' ? message.content : '';
 };
 
+export const extractImageUrlsFromContent = (content) => {
+  if (!Array.isArray(content)) return [];
+
+  return content
+    .filter((item) => item?.type === 'image_url' && item?.image_url?.url)
+    .map((item) => item.image_url.url)
+    .filter((url) => typeof url === 'string' && url.trim() !== '');
+};
+
+export const extractImageUrls = (items = []) => {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .map((item) => {
+      if (!item) return '';
+      if (typeof item === 'string') return item;
+      if (typeof item.image_url?.url === 'string') return item.image_url.url;
+      if (typeof item.url === 'string') return item.url;
+      return '';
+    })
+    .filter((url) => url.trim() !== '');
+};
+
+export const buildMixedMessageContent = (textContent = '', imageUrls = []) => {
+  const validImageUrls = imageUrls.filter((url) => url && url.trim() !== '');
+
+  if (validImageUrls.length === 0) {
+    return textContent || '';
+  }
+
+  const parts = validImageUrls.map((url) => ({
+    type: 'image_url',
+    image_url: { url: url.trim() },
+  }));
+
+  if (textContent) {
+    return [{ type: 'text', text: textContent }, ...parts];
+  }
+
+  return parts;
+};
+
+export const mergeMessageContent = (
+  currentContent,
+  { text = '', textMode = 'append', imageUrls = [] } = {},
+) => {
+  const currentText = getTextContent({ content: currentContent });
+  const currentImageUrls = extractImageUrlsFromContent(currentContent);
+  const normalizedNewImages = extractImageUrls(imageUrls);
+
+  const nextText =
+    textMode === 'replace' ? text || '' : `${currentText}${text || ''}`;
+  const nextImageUrls = [...currentImageUrls];
+
+  normalizedNewImages.forEach((url) => {
+    if (!nextImageUrls.includes(url)) {
+      nextImageUrls.push(url);
+    }
+  });
+
+  return buildMixedMessageContent(nextText, nextImageUrls);
+};
+
 // 处理 think 标签
 export const processThinkTags = (content, reasoningContent = '') => {
   if (!content || !content.includes('<think>')) {
@@ -419,16 +482,8 @@ export const buildMessageContent = (
     return '';
   }
 
-  const validImageUrls = imageUrls.filter((url) => url && url.trim() !== '');
-
-  if (imageEnabled && validImageUrls.length > 0) {
-    return [
-      { type: 'text', text: textContent || '' },
-      ...validImageUrls.map((url) => ({
-        type: 'image_url',
-        image_url: { url: url.trim() },
-      })),
-    ];
+  if (imageEnabled && imageUrls.length > 0) {
+    return buildMixedMessageContent(textContent || '', imageUrls);
   }
 
   return textContent || '';

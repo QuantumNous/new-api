@@ -20,7 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  DEFAULT_MESSAGES,
   getDefaultMessages,
   DEFAULT_CONFIG,
   DEBUG_TABS,
@@ -32,7 +31,12 @@ import {
   loadMessages,
   saveMessages,
 } from '../../components/playground/configStorage';
-import { processIncompleteThinkTags } from '../../helpers';
+import {
+  processIncompleteThinkTags,
+  getTextContent,
+  extractImageUrlsFromContent,
+  buildMixedMessageContent,
+} from '../../helpers';
 
 export const usePlaygroundState = () => {
   const { t } = useTranslation();
@@ -117,7 +121,6 @@ export const usePlaygroundState = () => {
   const sseSourceRef = useRef(null);
   const chatRef = useRef(null);
   const saveConfigTimeoutRef = useRef(null);
-  const saveMessagesTimeoutRef = useRef(null);
 
   // 配置更新函数
   const handleInputChange = useCallback((name, value) => {
@@ -233,15 +236,17 @@ export const usePlaygroundState = () => {
       lastMsg.status === MESSAGE_STATUS.LOADING ||
       lastMsg.status === MESSAGE_STATUS.INCOMPLETE
     ) {
+      const currentTextContent = getTextContent({ content: lastMsg.content });
+      const currentImageUrls = extractImageUrlsFromContent(lastMsg.content);
       const processed = processIncompleteThinkTags(
-        lastMsg.content || '',
+        currentTextContent,
         lastMsg.reasoningContent || '',
       );
 
       const fixedLastMsg = {
         ...lastMsg,
         status: MESSAGE_STATUS.COMPLETE,
-        content: processed.content,
+        content: buildMixedMessageContent(processed.content, currentImageUrls),
         reasoningContent: processed.reasoningContent || null,
         isThinkingComplete: true,
       };
