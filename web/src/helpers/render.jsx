@@ -2969,3 +2969,10 @@ export function rehypeSplitWordsIntoSpans(options = {}) {
     });
   };
 }
+
+export function renderTaskBillingProcess(other, content) {
+  if (other?.task_id != null && content) {
+    return content;
+  }
+  return '任务预扣费（将在任务完成后按实际token重算）';
+}
