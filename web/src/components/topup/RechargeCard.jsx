@@ -24,7 +24,6 @@ import {
   Card,
   Button,
   Banner,
-  Skeleton,
   Form,
   Space,
   Row,
@@ -45,7 +44,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { IconGift } from '@douyinfe/semi-icons';
-import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 
@@ -69,8 +67,6 @@ const RechargeCard = ({
   getAmount,
   setTopUpCount,
   setSelectedPreset,
-  renderAmount,
-  amountLoading,
   payMethods,
   preTopUp,
   paymentLoading,
@@ -99,7 +95,6 @@ const RechargeCard = ({
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
   const initialTabSetRef = useRef(false);
-  const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
   const [activeTab, setActiveTab] = useState('topup');
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
@@ -277,28 +272,6 @@ const RechargeCard = ({
                       formatter={(value) => (value ? `${value}` : '')}
                       parser={(value) =>
                         value ? parseInt(value.replace(/[^\d]/g, '')) : 0
-                      }
-                      extraText={
-                        <Skeleton
-                          loading={showAmountSkeleton}
-                          active
-                          placeholder={
-                            <Skeleton.Title
-                              style={{
-                                width: 120,
-                                height: 20,
-                                borderRadius: 6,
-                              }}
-                            />
-                          }
-                        >
-                          <Text type='secondary' className='text-red-600'>
-                            {t('实付金额：')}
-                            <span style={{ color: 'red' }}>
-                              {renderAmount()}
-                            </span>
-                          </Text>
-                        </Skeleton>
                       }
                       style={{ width: '100%' }}
                     />
