@@ -257,6 +257,18 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return nil, types.NewError(fmt.Errorf("relayInfo is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	// 应用企业折扣
+	modelName := relayInfo.OriginModelName
+	if modelName != "" {
+		discountRate, err := getUserOrgDiscount(relayInfo.UserId, modelName)
+		if err == nil && discountRate != 1.0 {
+			originalQuota := preConsumedQuota
+			preConsumedQuota = int(float64(preConsumedQuota) * discountRate)
+			logger.LogInfo(c, fmt.Sprintf("用户 %d 模型 %s 应用企业折扣：原始预扣费 %s，折扣率 %.4f，折后预扣费 %s",
+				relayInfo.UserId, modelName, logger.FormatQuota(originalQuota), discountRate, logger.FormatQuota(preConsumedQuota)))
+		}
+	}
+
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
 
 	// 钱包路径需要先检查用户额度
