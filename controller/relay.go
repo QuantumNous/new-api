@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -167,6 +168,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	defer func() {
+		if panicErr := recover(); panicErr != nil {
+			common.SysLog(fmt.Sprintf("relay panic detected: %v", panicErr))
+			common.SysLog(fmt.Sprintf("stacktrace from panic: %s", string(debug.Stack())))
+			newAPIError = types.NewError(fmt.Errorf("panic detected: %v", panicErr), types.ErrorCodeDoRequestFailed)
+		}
+
 		// Only return quota if downstream failed and quota was actually pre-consumed
 		if newAPIError != nil {
 			newAPIError = service.NormalizeViolationFeeError(newAPIError)
@@ -495,6 +502,12 @@ func RelayTask(c *gin.Context) {
 	var result *relay.TaskSubmitResult
 	var taskErr *dto.TaskError
 	defer func() {
+		if panicErr := recover(); panicErr != nil {
+			common.SysLog(fmt.Sprintf("relay task panic detected: %v", panicErr))
+			common.SysLog(fmt.Sprintf("stacktrace from panic: %s", string(debug.Stack())))
+			taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("panic detected: %v", panicErr), "panic_detected", http.StatusInternalServerError)
+		}
+
 		if taskErr != nil && relayInfo.Billing != nil {
 			relayInfo.Billing.Refund(c)
 		}
