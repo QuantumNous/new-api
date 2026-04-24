@@ -51,6 +51,7 @@ import {
   onDiscordOAuthClicked,
   onCustomOAuthClicked,
   getOAuthProviderIcon,
+  withBasePath,
 } from '../../../../helpers';
 import TwoFASetting from '../components/TwoFASetting';
 
@@ -469,7 +470,7 @@ const AccountManagement = ({
                 <div className='flex justify-center'>
                   <div className='scale-90'>
                     <TelegramLoginButton
-                      dataAuthUrl='/api/oauth/telegram/bind'
+                      dataAuthUrl={withBasePath('/api/oauth/telegram/bind')}
                       botName={status.telegram_bot_name}
                     />
                   </div>

@@ -27,7 +27,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { selectFilter } from '../../../../helpers';
+import { getAppOrigin, selectFilter } from '../../../../helpers';
 
 const APP_CONFIGS = {
   claude: {
@@ -60,7 +60,7 @@ function getServerAddress() {
       if (status.server_address) return status.server_address;
     }
   } catch (_) {}
-  return window.location.origin;
+  return getAppOrigin();
 }
 
 function buildCCSwitchURL(app, name, models, apiKey) {

@@ -64,6 +64,11 @@ func InitEnv() {
 	if os.Getenv("SQLITE_PATH") != "" {
 		SQLitePath = os.Getenv("SQLITE_PATH")
 	}
+	appBasePath, err := NormalizeBasePath(os.Getenv("APP_BASE_PATH"))
+	if err != nil {
+		log.Fatalf("invalid APP_BASE_PATH: %v", err)
+	}
+	AppBasePath = appBasePath
 	if *LogDir != "" {
 		var err error
 		*LogDir, err = filepath.Abs(*LogDir)

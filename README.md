@@ -151,6 +151,8 @@ docker run --name new-api -d --restart always \
 
 🎉 After deployment is complete, visit `http://localhost:3000` to start using!
 
+If you want to serve the app behind a sub-path such as `http://localhost:3000/new-api`, set `APP_BASE_PATH=/new-api` before starting the service. When you also configure `ServerAddress` for OAuth or payment callbacks, include the same sub-path in that value. If `FRONTEND_BASE_URL` is used to redirect web traffic to a separate frontend host, the backend appends the original request URI to it; with `APP_BASE_PATH=/new-api`, set `FRONTEND_BASE_URL=https://cdn.example.com` so `/new-api/console` redirects to `https://cdn.example.com/new-api/console`, and do not include `/new-api` in both variables.
+
 📖 For more deployment methods, please refer to [Deployment Guide](https://docs.newapi.pro/en/docs/installation)
 
 ---

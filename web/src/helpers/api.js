@@ -25,30 +25,31 @@ import {
 } from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
+import {
+  getAbsoluteAppUrl,
+  getApiBaseUrl,
+  openWithBasePath,
+} from './base-path';
 
 export let API = axios.create({
-  baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
-    ? import.meta.env.VITE_REACT_APP_SERVER_URL
-    : '',
+  baseURL: getApiBaseUrl(),
   headers: {
     'New-API-User': getUserIdFromLocalStorage(),
     'Cache-Control': 'no-store',
   },
 });
 
-
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
 
   if (openInNewTab) {
-    window.open(targetUrl, '_blank');
+    openWithBasePath(targetUrl, '_blank');
     return;
   }
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -82,9 +83,7 @@ patchAPIInstance(API);
 
 export function updateAPI() {
   API = axios.create({
-    baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
-      ? import.meta.env.VITE_REACT_APP_SERVER_URL
-      : '',
+    baseURL: getApiBaseUrl(),
     headers: {
       'New-API-User': getUserIdFromLocalStorage(),
       'Cache-Control': 'no-store',
@@ -271,7 +270,7 @@ async function prepareOAuthState(options = {}) {
 export async function onDiscordOAuthClicked(client_id, options = {}) {
   const state = await prepareOAuthState(options);
   if (!state) return;
-  const redirect_uri = `${window.location.origin}/oauth/discord`;
+  const redirect_uri = getAbsoluteAppUrl('/oauth/discord');
   const response_type = 'code';
   const scope = 'identify+openid';
   redirectToOAuthUrl(
@@ -289,7 +288,7 @@ export async function onOIDCClicked(
   if (!state) return;
   const url = new URL(auth_url);
   url.searchParams.set('client_id', client_id);
-  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/oidc`);
+  url.searchParams.set('redirect_uri', getAbsoluteAppUrl('/oauth/oidc'));
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', 'openid profile email');
   url.searchParams.set('state', state);
@@ -330,7 +329,7 @@ export async function onCustomOAuthClicked(provider, options = {}) {
   if (!state) return;
 
   try {
-    const redirect_uri = `${window.location.origin}/oauth/${provider.slug}`;
+    const redirect_uri = getAbsoluteAppUrl(`/oauth/${provider.slug}`);
 
     // Check if authorization_endpoint is a full URL or relative path
     let authUrl;

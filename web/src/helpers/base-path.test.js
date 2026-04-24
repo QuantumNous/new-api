@@ -17,25 +17,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { StatusContext } from '../../context/Status';
-import { redirectToApp } from '../../helpers';
+import { describe, expect, test } from 'bun:test';
 
-const SetupCheck = ({ children }) => {
-  const [statusState] = useContext(StatusContext);
-  const location = useLocation();
+import { normalizeBasePath } from './base-path';
 
-  useEffect(() => {
-    if (
-      statusState?.status?.setup === false &&
-      location.pathname !== '/setup'
-    ) {
-      redirectToApp('/setup');
-    }
-  }, [statusState?.status?.setup, location.pathname]);
+describe('normalizeBasePath', () => {
+  test.each([
+    ['', ''],
+    ['/', ''],
+    ['.', ''],
+    ['./', ''],
+    ['/new-api', '/new-api'],
+    ['/new-api/', '/new-api'],
+  ])('normalizes %p to %p', (input, expected) => {
+    expect(normalizeBasePath(input)).toBe(expected);
+  });
 
-  return children;
-};
-
-export default SetupCheck;
+  test.each(['app', '/a//b', '/a/./b', '/a/../b', '/app?x=1'])(
+    'rejects invalid base path %p',
+    (input) => {
+      expect(() => normalizeBasePath(input)).toThrow();
+    },
+  );
+});
