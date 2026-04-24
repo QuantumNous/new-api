@@ -169,6 +169,42 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 	return oaiModel
 }
 
+type modelListGroups struct {
+	userGroup   string
+	tokenGroup  string
+	ownerGroups []string
+}
+
+func getModelListGroups(c *gin.Context) (modelListGroups, error) {
+	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	if userGroup == "" && (tokenGroup == "" || tokenGroup == "auto") {
+		var err error
+		userGroup, err = model.GetUserGroup(c.GetInt("id"), false)
+		if err != nil {
+			return modelListGroups{}, err
+		}
+	}
+
+	if tokenGroup == "auto" {
+		return modelListGroups{
+			userGroup:   userGroup,
+			tokenGroup:  tokenGroup,
+			ownerGroups: service.GetUserAutoGroup(userGroup),
+		}, nil
+	}
+
+	group := userGroup
+	if tokenGroup != "" {
+		group = tokenGroup
+	}
+	return modelListGroups{
+		userGroup:   userGroup,
+		tokenGroup:  tokenGroup,
+		ownerGroups: []string{group},
+	}, nil
+}
+
 func ListModels(c *gin.Context, modelType int) {
 	acceptUnsetRatioModel := operation_setting.SelfUseModeEnabled
 	if !acceptUnsetRatioModel {
@@ -182,7 +218,15 @@ func ListModels(c *gin.Context, modelType int) {
 	}
 
 	userModelNames := make([]string, 0)
-	ownerGroups := make([]string, 0)
+	groups, err := getModelListGroups(c)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "get user group failed",
+		})
+		return
+	}
+	ownerGroups := groups.ownerGroups
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 	if modelLimitEnable {
 		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
@@ -202,23 +246,8 @@ func ListModels(c *gin.Context, modelType int) {
 			userModelNames = append(userModelNames, allowModel)
 		}
 	} else {
-		userId := c.GetInt("id")
-		userGroup, err := model.GetUserGroup(userId, false)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "get user group failed",
-			})
-			return
-		}
-		group := userGroup
-		tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-		if tokenGroup != "" {
-			group = tokenGroup
-		}
 		var models []string
-		if tokenGroup == "auto" {
-			ownerGroups = service.GetUserAutoGroup(userGroup)
+		if groups.tokenGroup == "auto" {
 			for _, autoGroup := range ownerGroups {
 				groupModels := model.GetGroupEnabledModels(autoGroup)
 				for _, g := range groupModels {
@@ -228,8 +257,7 @@ func ListModels(c *gin.Context, modelType int) {
 				}
 			}
 		} else {
-			ownerGroups = []string{group}
-			models = model.GetGroupEnabledModels(group)
+			models = model.GetGroupEnabledModels(ownerGroups[0])
 		}
 		for _, modelName := range models {
 			if !acceptUnsetRatioModel {
@@ -242,7 +270,10 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	}
 
-	ownerByModel := getPreferredModelOwners(userModelNames, ownerGroups)
+	ownerByModel := map[string]string{}
+	if len(ownerGroups) > 0 {
+		ownerByModel = getPreferredModelOwners(userModelNames, ownerGroups)
+	}
 	userOpenAiModels := make([]dto.OpenAIModels, 0, len(userModelNames))
 	for _, modelName := range userModelNames {
 		userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel))

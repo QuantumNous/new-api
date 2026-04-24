@@ -1,9 +1,12 @@
 package controller
 
 import (
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,4 +55,31 @@ func TestBuildOpenAIModelFallsBackToCustomForUnknownModels(t *testing.T) {
 	modelItem := buildOpenAIModel("custom-test-model", nil)
 	require.Equal(t, "custom-test-model", modelItem.Id)
 	require.Equal(t, "custom", modelItem.OwnedBy)
+}
+
+func TestGetModelListGroupsUsesUserGroupWhenTokenGroupIsEmpty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+
+	groups, err := getModelListGroups(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, "default", groups.userGroup)
+	require.Empty(t, groups.tokenGroup)
+	require.Equal(t, []string{"default"}, groups.ownerGroups)
+}
+
+func TestGetModelListGroupsUsesExplicitTokenGroup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "vip")
+
+	groups, err := getModelListGroups(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, "default", groups.userGroup)
+	require.Equal(t, "vip", groups.tokenGroup)
+	require.Equal(t, []string{"vip"}, groups.ownerGroups)
 }
