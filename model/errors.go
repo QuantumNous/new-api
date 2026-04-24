@@ -7,6 +7,12 @@ var (
 	ErrDatabase = errors.New("database error")
 )
 
+// Quota errors
+var (
+	ErrInsufficientUserQuota  = errors.New("insufficient user quota")
+	ErrInsufficientTokenQuota = errors.New("insufficient token quota")
+)
+
 // User auth errors
 var (
 	ErrInvalidCredentials   = errors.New("invalid credentials")

@@ -376,6 +376,13 @@ func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
+	if quota == 0 {
+		return nil
+	}
+	// Token quota is security-sensitive; keep DB as the source of truth instead of batching.
+	if err = increaseTokenQuota(tokenId, quota); err != nil {
+		return err
+	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
 			err := cacheIncrTokenQuota(key, int64(quota))
@@ -384,11 +391,7 @@ func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 			}
 		})
 	}
-	if common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeTokenQuota, tokenId, quota)
-		return nil
-	}
-	return increaseTokenQuota(tokenId, quota)
+	return nil
 }
 
 func increaseTokenQuota(id int, quota int) (err error) {
@@ -403,8 +406,23 @@ func increaseTokenQuota(id int, quota int) (err error) {
 }
 
 func DecreaseTokenQuota(id int, key string, quota int) (err error) {
+	return decreaseTokenQuotaWithLimit(id, key, quota, true)
+}
+
+func DecreaseTokenQuotaForUnlimited(id int, key string, quota int) (err error) {
+	return decreaseTokenQuotaWithLimit(id, key, quota, false)
+}
+
+func decreaseTokenQuotaWithLimit(id int, key string, quota int, enforceLimit bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
+	}
+	if quota == 0 {
+		return nil
+	}
+	// Atomic DB update prevents concurrent requests from overdrawing token quota.
+	if err = decreaseTokenQuota(id, quota, enforceLimit); err != nil {
+		return err
 	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
@@ -414,22 +432,28 @@ func DecreaseTokenQuota(id int, key string, quota int) (err error) {
 			}
 		})
 	}
-	if common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeTokenQuota, id, -quota)
-		return nil
-	}
-	return decreaseTokenQuota(id, quota)
+	return nil
 }
 
-func decreaseTokenQuota(id int, quota int) (err error) {
-	err = DB.Model(&Token{}).Where("id = ?", id).Updates(
+func decreaseTokenQuota(id int, quota int, enforceLimit bool) (err error) {
+	query := DB.Model(&Token{}).Where("id = ?", id)
+	if enforceLimit {
+		query = query.Where("remain_quota >= ?", quota)
+	}
+	result := query.Updates(
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota - ?", quota),
 			"used_quota":    gorm.Expr("used_quota + ?", quota),
 			"accessed_time": common.GetTimestamp(),
 		},
-	).Error
-	return err
+	)
+	if result.Error != nil {
+		return result.Error
+	}
+	if enforceLimit && result.RowsAffected == 0 {
+		return ErrInsufficientTokenQuota
+	}
+	return nil
 }
 
 // CountUserTokens returns total number of tokens for the given user, used for pagination
