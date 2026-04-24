@@ -186,25 +186,27 @@ func countLogs(t *testing.T) int64 {
 
 func TestNormalizeRecordedQuota_NoBillingSession(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{}
-	assert.Equal(t, 1000, NormalizeRecordedQuota(relayInfo, 1000))
+	assert.Equal(t, 1000, NormalizeRecordedQuota(context.Background(), relayInfo, 1000))
 }
 
 func TestNormalizeRecordedQuota_WithDiscount(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
+		UserId: 123,
 		Billing: &BillingSession{
 			discountRate: 0.5,
 		},
 	}
-	assert.Equal(t, 500, NormalizeRecordedQuota(relayInfo, 1000))
+	assert.Equal(t, 500, NormalizeRecordedQuota(context.Background(), relayInfo, 1000))
 }
 
 func TestNormalizeRecordedQuota_MinOne(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
+		UserId: 123,
 		Billing: &BillingSession{
 			discountRate: 0.1,
 		},
 	}
-	assert.Equal(t, 1, NormalizeRecordedQuota(relayInfo, 1))
+	assert.Equal(t, 1, NormalizeRecordedQuota(context.Background(), relayInfo, 1))
 }
 
 // ===========================================================================
