@@ -343,13 +343,14 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			claudeResponses = append(claudeResponses, resp)
 			// 首块包含工具 delta，则追加 input_json_delta
 			if toolCall.Function.Arguments != "" {
+				partialJSON := toolCall.Function.Arguments.String()
 				idx := 0
 				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 					Index: &idx,
 					Type:  "content_block_delta",
 					Delta: &dto.ClaudeMediaMessage{
 						Type:        "input_json_delta",
-						PartialJson: &toolCall.Function.Arguments,
+						PartialJson: &partialJSON,
 					},
 				})
 			}
@@ -515,12 +516,13 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				}
 
 				if len(toolCall.Function.Arguments) > 0 {
+					partialJSON := toolCall.Function.Arguments.String()
 					claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 						Index: &idx,
 						Type:  "content_block_delta",
 						Delta: &dto.ClaudeMediaMessage{
 							Type:        "input_json_delta",
-							PartialJson: &toolCall.Function.Arguments,
+							PartialJson: &partialJSON,
 						},
 					})
 				}

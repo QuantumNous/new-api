@@ -485,7 +485,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 					Type:  "function",
 					Index: common.GetPointer(fcIdx),
 					Function: dto.FunctionResponse{
-						Arguments: *claudeResponse.Delta.PartialJson,
+						Arguments: dto.ResponseArguments(*claudeResponse.Delta.PartialJson),
 					},
 				})
 			case "signature_delta":
@@ -546,7 +546,7 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 				Type: "function", // compatible with other OpenAI derivative applications
 				Function: dto.FunctionResponse{
 					Name:      message.Name,
-					Arguments: string(args),
+					Arguments: dto.ResponseArguments(string(args)),
 				},
 			})
 		case "thinking":

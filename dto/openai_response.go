@@ -134,8 +134,37 @@ type FunctionResponse struct {
 	Description string `json:"description,omitempty"`
 	Name        string `json:"name,omitempty"`
 	// call function with arguments in JSON format
-	Parameters any    `json:"parameters,omitempty"` // request
-	Arguments  string `json:"arguments"`            // response
+	Parameters any               `json:"parameters,omitempty"` // request
+	Arguments  ResponseArguments `json:"arguments"`            // response
+}
+
+// ResponseArguments accepts both the canonical JSON string form and the object
+// form occasionally emitted by Responses streaming events.
+type ResponseArguments string
+
+func (a *ResponseArguments) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		*a = ""
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*a = ResponseArguments(s)
+		return nil
+	}
+	if !json.Valid(data) {
+		return fmt.Errorf("invalid response arguments JSON")
+	}
+	*a = ResponseArguments(string(data))
+	return nil
+}
+
+func (a ResponseArguments) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(a))
+}
+
+func (a ResponseArguments) String() string {
+	return string(a)
 }
 
 type ChatCompletionsStreamResponse struct {
@@ -346,7 +375,7 @@ type ResponsesOutput struct {
 	Size      string                   `json:"size"`
 	CallId    string                   `json:"call_id,omitempty"`
 	Name      string                   `json:"name,omitempty"`
-	Arguments string                   `json:"arguments,omitempty"`
+	Arguments ResponseArguments        `json:"arguments,omitempty"`
 }
 
 type ResponsesOutputContent struct {

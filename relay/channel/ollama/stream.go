@@ -138,7 +138,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 					// arguments -> string
 					argBytes, _ := json.Marshal(tc.Function.Arguments)
 					toolId := fmt.Sprintf("call_%d", toolCallIndex)
-					tr := dto.ToolCallResponse{ID: toolId, Type: "function", Function: dto.FunctionResponse{Name: tc.Function.Name, Arguments: string(argBytes)}}
+					tr := dto.ToolCallResponse{ID: toolId, Type: "function", Function: dto.FunctionResponse{Name: tc.Function.Name, Arguments: dto.ResponseArguments(string(argBytes))}}
 					tr.SetIndex(toolCallIndex)
 					toolCallIndex++
 					delta.Choices[0].Delta.ToolCalls = append(delta.Choices[0].Delta.ToolCalls, tr)

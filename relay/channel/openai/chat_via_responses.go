@@ -258,7 +258,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			ID:   callID,
 			Type: "function",
 			Function: dto.FunctionResponse{
-				Arguments: argsDelta,
+				Arguments: dto.ResponseArguments(argsDelta),
 			},
 		}
 		tool.SetIndex(idx)
@@ -408,7 +408,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				toolCallNameByID[callID] = name
 			}
 
-			newArgs := streamResp.Item.Arguments
+			newArgs := streamResp.Item.Arguments.String()
 			prevArgs := toolCallArgsByID[callID]
 			argsDelta := ""
 			if newArgs != "" {

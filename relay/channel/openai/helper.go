@@ -85,7 +85,7 @@ func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, res
 			}
 			for _, tool := range choice.Delta.ToolCalls {
 				responseTextBuilder.WriteString(tool.Function.Name)
-				responseTextBuilder.WriteString(tool.Function.Arguments)
+				responseTextBuilder.WriteString(tool.Function.Arguments.String())
 			}
 		}
 	}
@@ -132,7 +132,7 @@ func processChatCompletions(streamResp string, streamItems []string, responseTex
 				}
 				for _, tool := range choice.Delta.ToolCalls {
 					responseTextBuilder.WriteString(tool.Function.Name)
-					responseTextBuilder.WriteString(tool.Function.Arguments)
+					responseTextBuilder.WriteString(tool.Function.Arguments.String())
 				}
 			}
 		}

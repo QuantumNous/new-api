@@ -1005,7 +1005,7 @@ func getResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 		ID:   fmt.Sprintf("call_%s", common.GetUUID()),
 		Type: "function",
 		Function: dto.FunctionResponse{
-			Arguments: string(argsBytes),
+			Arguments: dto.ResponseArguments(string(argsBytes)),
 			Name:      item.FunctionCall.FunctionName,
 		},
 	}
