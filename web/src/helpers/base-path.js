@@ -44,6 +44,25 @@ export function normalizeBasePath(basePath) {
   return normalized;
 }
 
+const APP_BASE_PATH_PLACEHOLDER = '__APP_BASE_PATH_PLACEHOLDER__';
+
+export function normalizeRuntimeBasePath(basePath) {
+  if (basePath === APP_BASE_PATH_PLACEHOLDER) {
+    return '';
+  }
+
+  try {
+    return normalizeBasePath(basePath);
+  } catch (error) {
+    if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+      console.warn(
+        `Ignoring invalid runtime appBasePath: ${error.message || error}`,
+      );
+    }
+    return '';
+  }
+}
+
 const runtimeBasePath =
   typeof window !== 'undefined' &&
   window.__NEW_API_RUNTIME__ &&
@@ -52,7 +71,7 @@ const runtimeBasePath =
     : '';
 
 export const APP_BASE_PATH =
-  normalizeBasePath(runtimeBasePath) ||
+  normalizeRuntimeBasePath(runtimeBasePath) ||
   normalizeBasePath(import.meta.env?.BASE_URL || '/');
 
 function isAbsoluteUrl(url) {

@@ -19,7 +19,30 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { describe, expect, test } from 'bun:test';
 
-import { normalizeBasePath } from './base-path';
+import { normalizeBasePath, normalizeRuntimeBasePath } from './base-path';
+
+let runtimeImportId = 0;
+
+async function importBasePathWithRuntime(appBasePath) {
+  const hadWindow = Object.prototype.hasOwnProperty.call(globalThis, 'window');
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    __NEW_API_RUNTIME__: {
+      appBasePath,
+    },
+  };
+
+  try {
+    runtimeImportId += 1;
+    return await import(`./base-path.js?runtime-test=${runtimeImportId}`);
+  } finally {
+    if (hadWindow) {
+      globalThis.window = previousWindow;
+    } else {
+      delete globalThis.window;
+    }
+  }
+}
 
 describe('normalizeBasePath', () => {
   test.each([
@@ -39,4 +62,35 @@ describe('normalizeBasePath', () => {
       expect(() => normalizeBasePath(input)).toThrow();
     },
   );
+});
+
+describe('runtime base path', () => {
+  test('ignores the unresolved HTML placeholder', async () => {
+    const mod = await importBasePathWithRuntime('__APP_BASE_PATH_PLACEHOLDER__');
+
+    expect(normalizeRuntimeBasePath('__APP_BASE_PATH_PLACEHOLDER__')).toBe('');
+    expect(mod.APP_BASE_PATH).toBe('');
+  });
+
+  test('warns and falls back when runtime base path is invalid', async () => {
+    const originalWarn = console.warn;
+    const warnings = [];
+    console.warn = (...args) => warnings.push(args);
+
+    try {
+      const mod = await importBasePathWithRuntime('app');
+
+      expect(mod.APP_BASE_PATH).toBe('');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0][0]).toContain('Ignoring invalid runtime appBasePath');
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  test('uses valid runtime base path before fallback', async () => {
+    const mod = await importBasePathWithRuntime('/new-api/');
+
+    expect(mod.APP_BASE_PATH).toBe('/new-api');
+  });
 });
