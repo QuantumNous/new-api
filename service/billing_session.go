@@ -61,10 +61,14 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	var tokenErr error
 	if !s.relayInfo.IsPlayground {
 		if delta > 0 {
-			if s.relayInfo.TokenUnlimited {
-				tokenErr = model.DecreaseTokenQuotaForUnlimited(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
-			} else {
-				tokenErr = model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
+			var tokenUnlimited bool
+			tokenUnlimited, tokenErr = tokenUnlimitedForQuotaAdjustment(s.relayInfo)
+			if tokenErr == nil {
+				if tokenUnlimited {
+					tokenErr = model.DecreaseTokenQuotaForUnlimited(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
+				} else {
+					tokenErr = model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
+				}
 			}
 		} else {
 			tokenErr = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, -delta)
