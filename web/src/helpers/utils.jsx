@@ -900,6 +900,20 @@ export const getModelPriceItems = (
 export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
   if (!billingExpr) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('动态计费')}</span>;
 
+  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  let symbol = '$';
+  let rate = 1;
+  try {
+    const s = JSON.parse(localStorage.getItem('status') || '{}');
+    if (quotaDisplayType === 'CNY') {
+      symbol = '¥';
+      rate = s?.usd_exchange_rate || 7;
+    } else if (quotaDisplayType === 'CUSTOM') {
+      symbol = s?.custom_currency_symbol || '¤';
+      rate = s?.custom_currency_exchange_rate || 1;
+    }
+  } catch (e) {}
+
   const gr = groupRatio || 1;
   const exprBody = billingExpr.replace(/^v\d+:/, '');
   const tierMatches = exprBody.match(/tier\(/g) || [];
@@ -933,7 +947,7 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
           {varLabels.map(([key, label]) =>
             key in varCoeffs ? (
               <span key={key} style={lineStyle}>
-                {t(label)} ${(varCoeffs[key] * gr).toFixed(4)}{unitSuffix}
+                {`${t(label)} ${symbol}${(varCoeffs[key] * gr * rate).toFixed(4)}${unitSuffix}`}
               </span>
             ) : null,
           )}

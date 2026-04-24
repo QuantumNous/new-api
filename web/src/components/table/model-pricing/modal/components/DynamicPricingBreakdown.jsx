@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Avatar, Tag, Table, Typography } from '@douyinfe/semi-ui';
 import { IconPriceTag } from '@douyinfe/semi-icons';
-import { parseTiersFromExpr } from '../../../../../helpers';
+import { parseTiersFromExpr, getCurrencyConfig } from '../../../../../helpers';
 import { BILLING_VARS } from '../../../../../constants';
 import {
   splitBillingExprAndRequestRules,
@@ -35,8 +35,6 @@ import {
 } from '../../../../../pages/Setting/Ratio/components/requestRuleExpr';
 
 const { Text } = Typography;
-
-const PRICE_SUFFIX = '$/1M tokens';
 
 const VAR_LABELS = { p: '输入', c: '输出' };
 const OP_LABELS = { '<': '<', '<=': '≤', '>': '>', '>=': '≥' };
@@ -89,6 +87,7 @@ function describeGroup(group, t) {
 }
 
 export default function DynamicPricingBreakdown({ billingExpr, t }) {
+  const { symbol, rate } = getCurrencyConfig();
   const { billingExpr: baseExpr, requestRuleExpr: ruleExpr } =
     splitBillingExprAndRequestRules(billingExpr || '');
 
@@ -132,9 +131,9 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
     ...priceFields
       .filter(([field]) => hasTiers && tiers.some((tier) => tier[field] > 0))
       .map(([field, label]) => ({
-        title: `${t(label)} (${PRICE_SUFFIX})`,
+        title: `${t(label)} (${symbol}/1M tokens)`,
         dataIndex: field,
-        render: (v) => v > 0 ? <Text strong>${v.toFixed(4)}</Text> : '-',
+        render: (v) => v > 0 ? <Text strong>{`${symbol}${(v * rate).toFixed(4)}`}</Text> : '-',
       })),
   ];
 
