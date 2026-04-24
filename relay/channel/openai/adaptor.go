@@ -626,7 +626,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		usage, err = OaiResponsesCompactionHandler(c, resp)
 	default:
 		if info.IsStream {
-			usage, err = OaiStreamHandler(c, info, resp)
+			if info.UpstreamStreamForNonStream && info.RelayMode == relayconstant.RelayModeChatCompletions {
+				usage, err = OaiStreamToNonStreamHandler(c, info, resp)
+			} else {
+				usage, err = OaiStreamHandler(c, info, resp)
+			}
 		} else {
 			usage, err = OpenaiHandler(c, info, resp)
 		}

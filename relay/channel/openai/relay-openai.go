@@ -1,10 +1,12 @@
 package openai
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -190,6 +192,218 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
 	return usage, nil
+}
+
+func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		logger.LogError(c, "invalid response or response body")
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	defer service.CloseResponseBodyGracefully(resp)
+
+	responseId := helper.GetResponseID(c)
+	createdAt := time.Now().Unix()
+	model := info.UpstreamModelName
+	object := "chat.completion"
+	var usage = &dto.Usage{}
+	containStreamUsage := false
+	var responseTextBuilder strings.Builder
+	var toolCount int
+	var streamItems []string
+	var lastStreamData string
+	choices := make(map[int]*dto.OpenAITextResponseChoice)
+	toolCallsByChoice := make(map[int]map[int]*dto.ToolCallResponse)
+	var streamErr *types.NewAPIError
+
+	getChoice := func(index int) *dto.OpenAITextResponseChoice {
+		choice, ok := choices[index]
+		if !ok {
+			choice = &dto.OpenAITextResponseChoice{Index: index}
+			choices[index] = choice
+		}
+		return choice
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.DefaultMaxScannerBufferSize)
+	for scanner.Scan() {
+		data := strings.TrimSpace(scanner.Text())
+		if data == "" {
+			continue
+		}
+		if !strings.HasPrefix(data, "data:") && !strings.HasPrefix(data, "[DONE]") {
+			continue
+		}
+		if strings.HasPrefix(data, "data:") {
+			data = strings.TrimSpace(data[5:])
+		}
+		if data == "" || strings.HasPrefix(data, "[DONE]") {
+			break
+		}
+
+		info.SetFirstResponseTime()
+		info.ReceivedResponseCount++
+		lastStreamData = data
+		streamItems = append(streamItems, data)
+		var streamResponse dto.ChatCompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			break
+		}
+
+		if streamResponse.Id != "" {
+			responseId = streamResponse.Id
+		}
+		if streamResponse.Created != 0 {
+			createdAt = streamResponse.Created
+		}
+		if streamResponse.Model != "" {
+			model = streamResponse.Model
+		}
+		if service.ValidUsage(streamResponse.Usage) {
+			usage = streamResponse.Usage
+			if usage.TotalTokens == 0 {
+				usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+			}
+			containStreamUsage = true
+		}
+
+		for _, streamChoice := range streamResponse.Choices {
+			choice := getChoice(streamChoice.Index)
+			if streamChoice.FinishReason != nil {
+				choice.FinishReason = *streamChoice.FinishReason
+			}
+			if content := streamChoice.Delta.GetContentString(); content != "" {
+				choice.Message.SetStringContent(choice.Message.StringContent() + content)
+			}
+			if reasoning := streamChoice.Delta.GetReasoningContent(); reasoning != "" {
+				choice.Message.ReasoningContent += reasoning
+			}
+			if len(streamChoice.Delta.ToolCalls) > 0 {
+				choice.Message.Role = "assistant"
+				choiceToolCalls := toolCallsByChoice[streamChoice.Index]
+				if choiceToolCalls == nil {
+					choiceToolCalls = make(map[int]*dto.ToolCallResponse)
+					toolCallsByChoice[streamChoice.Index] = choiceToolCalls
+				}
+				for i, deltaToolCall := range streamChoice.Delta.ToolCalls {
+					idx := i
+					if deltaToolCall.Index != nil {
+						idx = *deltaToolCall.Index
+					}
+					toolCall := choiceToolCalls[idx]
+					if toolCall == nil {
+						toolCall = &dto.ToolCallResponse{}
+						choiceToolCalls[idx] = toolCall
+					}
+					if deltaToolCall.ID != "" {
+						toolCall.ID = deltaToolCall.ID
+					}
+					if deltaToolCall.Type != nil {
+						toolCall.Type = deltaToolCall.Type
+					}
+					if deltaToolCall.Function.Name != "" {
+						toolCall.Function.Name = deltaToolCall.Function.Name
+					}
+					if deltaToolCall.Function.Arguments != "" {
+						toolCall.Function.Arguments += deltaToolCall.Function.Arguments
+					}
+				}
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil && streamErr == nil {
+		streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
+
+	if err := processTokens(info.RelayMode, streamItems, &responseTextBuilder, &toolCount); err != nil {
+		logger.LogError(c, "error processing tokens: "+err.Error())
+	}
+	if !containStreamUsage {
+		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		usage.CompletionTokens += toolCount * 7
+	}
+
+	responseChoices := make([]dto.OpenAITextResponseChoice, 0, len(choices))
+	for index := 0; index < len(choices); index++ {
+		choice, ok := choices[index]
+		if !ok || choice == nil {
+			continue
+		}
+		choice.Message.Role = "assistant"
+		if choice.Message.Content == nil {
+			choice.Message.SetStringContent("")
+		}
+		if choice.FinishReason == "" {
+			choice.FinishReason = constant.FinishReasonStop
+		}
+		if choice.FinishReason == constant.FinishReasonContentFilter {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "openai_finish_reason=content_filter")
+		}
+		if choiceToolCalls := toolCallsByChoice[index]; len(choiceToolCalls) > 0 {
+			toolCalls := make([]dto.ToolCallResponse, 0, len(choiceToolCalls))
+			for toolIndex := 0; toolIndex < len(choiceToolCalls); toolIndex++ {
+				toolCall := choiceToolCalls[toolIndex]
+				if toolCall == nil {
+					continue
+				}
+				toolCalls = append(toolCalls, *toolCall)
+			}
+			choice.Message.SetToolCalls(toolCalls)
+		}
+		responseChoices = append(responseChoices, *choice)
+	}
+
+	if len(responseChoices) == 0 {
+		responseChoices = append(responseChoices, dto.OpenAITextResponseChoice{
+			Index:        0,
+			FinishReason: constant.FinishReasonStop,
+			Message: dto.Message{
+				Role:    "assistant",
+				Content: "",
+			},
+		})
+	}
+
+	createdAny := any(createdAt)
+	simpleResponse := dto.OpenAITextResponse{
+		Id:      responseId,
+		Model:   model,
+		Object:  object,
+		Created: createdAny,
+		Choices: responseChoices,
+		Usage:   *usage,
+	}
+
+	responseBody, err := common.Marshal(simpleResponse)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
+	}
+	applyUsagePostProcessing(info, &simpleResponse.Usage, common.StringToByteSlice(lastStreamData))
+	responseBody, err = common.Marshal(simpleResponse)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
+	}
+
+	switch info.RelayFormat {
+	case types.RelayFormatClaude:
+		claudeResp := service.ResponseOpenAI2Claude(&simpleResponse, info)
+		responseBody, err = common.Marshal(claudeResp)
+	case types.RelayFormatGemini:
+		geminiResp := service.ResponseOpenAI2Gemini(&simpleResponse, info)
+		responseBody, err = common.Marshal(geminiResp)
+	}
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
+	}
+
+	service.IOCopyBytesGracefully(c, nil, responseBody)
+	return &simpleResponse.Usage, nil
 }
 
 func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
