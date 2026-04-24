@@ -184,6 +184,29 @@ func countLogs(t *testing.T) int64 {
 	return count
 }
 
+func TestNormalizeRecordedQuota_NoBillingSession(t *testing.T) {
+	relayInfo := &relaycommon.RelayInfo{}
+	assert.Equal(t, 1000, NormalizeRecordedQuota(relayInfo, 1000))
+}
+
+func TestNormalizeRecordedQuota_WithDiscount(t *testing.T) {
+	relayInfo := &relaycommon.RelayInfo{
+		Billing: &BillingSession{
+			discountRate: 0.5,
+		},
+	}
+	assert.Equal(t, 500, NormalizeRecordedQuota(relayInfo, 1000))
+}
+
+func TestNormalizeRecordedQuota_MinOne(t *testing.T) {
+	relayInfo := &relaycommon.RelayInfo{
+		Billing: &BillingSession{
+			discountRate: 0.1,
+		},
+	}
+	assert.Equal(t, 1, NormalizeRecordedQuota(relayInfo, 1))
+}
+
 // ===========================================================================
 // RefundTaskQuota tests
 // ===========================================================================
