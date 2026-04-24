@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isMobileLikeUserAgent,
+  isSafariBrowser,
   shouldUseSameTabPaymentRedirect,
 } from './paymentNavigation.js';
 
@@ -26,5 +27,14 @@ test('shouldUseSameTabPaymentRedirect keeps desktop Chrome opening a new tab', (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36';
 
   assert.equal(isMobileLikeUserAgent(ua), false);
+  assert.equal(shouldUseSameTabPaymentRedirect(ua), false);
+});
+
+test('shouldUseSameTabPaymentRedirect keeps desktop Safari opening a new tab', () => {
+  const ua =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15';
+
+  assert.equal(isMobileLikeUserAgent(ua), false);
+  assert.equal(isSafariBrowser(ua), true);
   assert.equal(shouldUseSameTabPaymentRedirect(ua), false);
 });

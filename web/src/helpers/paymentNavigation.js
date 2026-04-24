@@ -13,7 +13,7 @@ export function isSafariBrowser(userAgent) {
 }
 
 export function shouldUseSameTabPaymentRedirect(userAgent) {
-  return isMobileLikeUserAgent(userAgent) || isSafariBrowser(userAgent);
+  return isMobileLikeUserAgent(userAgent);
 }
 
 export function redirectToPaymentUrl(url, userAgent = navigator?.userAgent) {
@@ -26,11 +26,6 @@ export function redirectToPaymentUrl(url, userAgent = navigator?.userAgent) {
     return true;
   }
 
-  const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
-  if (newWindow) {
-    return true;
-  }
-
-  window.location.assign(url);
+  window.open(url, '_blank');
   return true;
 }
