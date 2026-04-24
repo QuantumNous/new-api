@@ -37,6 +37,9 @@ const LogsActions = ({
   const placeholder = (
     <Space>
       <Skeleton.Title style={{ width: 108, height: 21, borderRadius: 6 }} />
+      <Skeleton.Title style={{ width: 120, height: 21, borderRadius: 6 }} />
+      <Skeleton.Title style={{ width: 120, height: 21, borderRadius: 6 }} />
+      <Skeleton.Title style={{ width: 145, height: 21, borderRadius: 6 }} />
       <Skeleton.Title style={{ width: 65, height: 21, borderRadius: 6 }} />
       <Skeleton.Title style={{ width: 64, height: 21, borderRadius: 6 }} />
     </Space>
@@ -56,6 +59,39 @@ const LogsActions = ({
             className='!rounded-lg'
           >
             {t('消耗额度')}: {renderQuota(stat.quota)}
+          </Tag>
+          <Tag
+            color='green'
+            style={{
+              fontWeight: 500,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              padding: 13,
+            }}
+            className='!rounded-lg'
+          >
+            {t('输入')}: {stat.prompt_tokens?.toLocaleString() || 0}
+          </Tag>
+          <Tag
+            color='purple'
+            style={{
+              fontWeight: 500,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              padding: 13,
+            }}
+            className='!rounded-lg'
+          >
+            {t('缓存读')}: {stat.cache_tokens?.toLocaleString() || 0}
+          </Tag>
+          <Tag
+            color='orange'
+            style={{
+              fontWeight: 500,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              padding: 13,
+            }}
+            className='!rounded-lg'
+          >
+            {t('输出')}: {stat.completion_tokens?.toLocaleString() || 0}
           </Tag>
           <Tag
             color='pink'
