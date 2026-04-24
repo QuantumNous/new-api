@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconArrowLeft } from '@douyinfe/semi-icons';
-import { getLogo, getSystemName } from '../../helpers';
+import { getSystemName } from '../../helpers';
 import {
   getAuthPageCopy,
   getAuthShellThemeClasses,
@@ -13,7 +13,6 @@ import {
 const AuthShell = ({ mode, children }) => {
   const { t, i18n } = useTranslation();
   const [storyIndex, setStoryIndex] = useState(0);
-  const logo = getLogo();
   const systemName = getSystemName();
   const copy = useMemo(
     () => getAuthPageCopy(mode, t, systemName),
@@ -57,13 +56,12 @@ const AuthShell = ({ mode, children }) => {
               <span>{t('返回首页')}</span>
             </Link>
 
-            <div className={themeClasses.eyebrow}>
-              {copy.eyebrow}
-            </div>
             <h2 className={themeClasses.headline}>
               {t('在这里，')}
               <br />
-              <span className={keepSecondLineSingleLine ? 'whitespace-nowrap' : ''}>
+              <span
+                className={keepSecondLineSingleLine ? 'whitespace-nowrap' : ''}
+              >
                 {t('让想象力成为唯一的边界。')}
               </span>
             </h2>
@@ -93,9 +91,7 @@ const AuthShell = ({ mode, children }) => {
                   </div>
                 </div>
 
-                <p className={themeClasses.storyQuote}>
-                  “{activeStory.quote}”
-                </p>
+                <p className={themeClasses.storyQuote}>“{activeStory.quote}”</p>
 
                 <div className='mt-6 flex items-center gap-4'>
                   <div className={themeClasses.storyAvatar}>
@@ -105,7 +101,9 @@ const AuthShell = ({ mode, children }) => {
                     <div className={themeClasses.storyName}>
                       {activeStory.name}
                     </div>
-                    <div className={themeClasses.storyRole}>{activeStory.role}</div>
+                    <div className={themeClasses.storyRole}>
+                      {activeStory.role}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -120,33 +118,12 @@ const AuthShell = ({ mode, children }) => {
           </Link>
 
           <div className='mx-auto w-full max-w-[440px]'>
-            <div className='mb-8 flex items-center justify-start'>
-              {logo ? (
-                <img
-                  src={logo}
-                  alt={systemName}
-                  className='h-12 w-12 rounded-xl object-cover'
-                />
-              ) : (
-                <span className={themeClasses.logoFallback}>*</span>
-              )}
-            </div>
-
             <div className='mb-8'>
-              <div className={themeClasses.titleEyebrow}>
-                {copy.eyebrow}
-              </div>
-              <h1 className={themeClasses.title}>
-                {copy.title}
-              </h1>
-              <p className={themeClasses.description}>
-                {copy.description}
-              </p>
+              <h1 className={themeClasses.title}>{copy.title}</h1>
+              <p className={themeClasses.description}>{copy.description}</p>
             </div>
 
-            <div className={themeClasses.formCard}>
-              {children}
-            </div>
+            <div className={themeClasses.formCard}>{children}</div>
           </div>
         </div>
       </div>

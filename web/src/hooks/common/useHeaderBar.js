@@ -37,14 +37,18 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
   const navigate = useNavigate();
-  const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
+  const [currentLang, setCurrentLang] = useState(
+    normalizeLanguage(i18n.language),
+  );
   const location = useLocation();
 
   const loading = statusState?.status === undefined;
   const isLoading = useMinimumLoadingTime(loading, 200);
 
   const systemName = getSystemName();
-  const logo = getLogo();
+  const configuredLogo = getLogo();
+  const logo =
+    configuredLogo === '/logo.png' ? '/header-logo.svg' : configuredLogo;
   const currentDate = new Date();
   const isNewYear = currentDate.getMonth() === 0 && currentDate.getDate() === 1;
 

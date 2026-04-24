@@ -48,8 +48,8 @@ const HeaderLogo = ({
 
   const showBadge = (isSelfUseMode || isDemoSiteMode) && !isLoading;
   const fallbackLabel = systemName?.trim()?.[0]?.toUpperCase() || 'N';
+  const hasLogoSource = Boolean(logo && !isLoading);
   const hasLogoImage = Boolean(logo && logoLoaded && !isLoading);
-  const isDefaultLogo = logo === '/logo.png';
   const showFallbackLabel = shouldShowHeaderLogoFallback({
     hasLogoImage,
     isLoading,
@@ -58,29 +58,31 @@ const HeaderLogo = ({
   return (
     <Link
       to='/'
+      aria-label={systemName || 'Home'}
       data-header-brand='true'
-      className='text-xl flex shrink-0 items-center gap-3 font-bold tracking-tight text-gray-900'
+      className='flex h-10 shrink-0 items-center gap-2 text-gray-900'
     >
-      <div className={getHeaderLogoFrameClassName({ hasLogoImage })}>
-        <SkeletonWrapper loading={isLoading || !logoLoaded} type='image'>
+      <div className={getHeaderLogoFrameClassName({ hasLogoSource })}>
+        <SkeletonWrapper
+          loading={isLoading || (hasLogoSource && !logoLoaded)}
+          type='image'
+          className={hasLogoSource ? '!rounded-md' : ''}
+        >
           {showFallbackLabel ? <span>{fallbackLabel}</span> : null}
         </SkeletonWrapper>
         {hasLogoImage ? (
           <img
             src={logo}
-            alt='logo'
-            className={getHeaderLogoImageClassName({ isDefaultLogo })}
+            alt={systemName || 'logo'}
+            className={getHeaderLogoImageClassName()}
           />
         ) : null}
       </div>
-      <div className='flex min-w-0 items-center gap-2'>
-        <span className='truncate'>{systemName}</span>
-        {showBadge ? (
-          <span className='hidden rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600 xl:inline-flex'>
-            {isSelfUseMode ? t(headerText.selfUse) : t(headerText.demoSite)}
-          </span>
-        ) : null}
-      </div>
+      {showBadge ? (
+        <span className='hidden rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600 xl:inline-flex'>
+          {isSelfUseMode ? t(headerText.selfUse) : t(headerText.demoSite)}
+        </span>
+      ) : null}
     </Link>
   );
 };
