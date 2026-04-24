@@ -89,6 +89,9 @@ export const useLogsData = () => {
   const [stat, setStat] = useState({
     quota: 0,
     token: 0,
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    cache_tokens: 0,
   });
 
   // Form state
