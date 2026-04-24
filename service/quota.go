@@ -383,9 +383,6 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if relayInfo.IsPlayground {
 		return nil
 	}
-	//if relayInfo.TokenUnlimited {
-	//	return nil
-	//}
 	token, err := getRelayTokenForQuota(relayInfo)
 	if err != nil {
 		return err
@@ -421,12 +418,16 @@ func syncRelayTokenUnlimited(relayInfo *relaycommon.RelayInfo, token *model.Toke
 
 func getRelayTokenForQuota(relayInfo *relaycommon.RelayInfo) (*model.Token, error) {
 	if relayInfo.TokenKey != "" {
-		return model.GetTokenByKey(relayInfo.TokenKey, false)
+		return model.GetTokenByKey(normalizeRelayTokenKey(relayInfo.TokenKey), false)
 	}
 	if relayInfo.TokenId > 0 {
 		return model.GetTokenById(relayInfo.TokenId)
 	}
 	return nil, errors.New("token id and key are empty")
+}
+
+func normalizeRelayTokenKey(key string) string {
+	return strings.TrimPrefix(key, "sk-")
 }
 
 func tokenUnlimitedForQuotaAdjustment(relayInfo *relaycommon.RelayInfo) (bool, error) {

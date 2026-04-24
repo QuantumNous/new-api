@@ -37,7 +37,7 @@ func TestPreConsumeTokenQuotaPropagatesPersistedUnlimitedToken(t *testing.T) {
 	truncate(t)
 
 	seedQuotaAdjustmentUser(t, 5101, 1000)
-	seedQuotaAdjustmentToken(t, 5101, 5101, "sk-preconsume-unlimited", 0, true)
+	seedQuotaAdjustmentToken(t, 5101, 5101, "preconsume-unlimited", 0, true)
 	relayInfo := &relaycommon.RelayInfo{
 		UserId:  5101,
 		TokenId: 5101,
@@ -54,7 +54,7 @@ func TestPostConsumeQuotaUsesPersistedUnlimitedToken(t *testing.T) {
 	truncate(t)
 
 	seedQuotaAdjustmentUser(t, 5102, 1000)
-	seedQuotaAdjustmentToken(t, 5102, 5102, "sk-postconsume-unlimited", 0, true)
+	seedQuotaAdjustmentToken(t, 5102, 5102, "postconsume-unlimited", 0, true)
 	relayInfo := &relaycommon.RelayInfo{
 		UserId:  5102,
 		TokenId: 5102,
@@ -72,7 +72,7 @@ func TestBillingSessionSettleUsesPersistedUnlimitedToken(t *testing.T) {
 	truncate(t)
 
 	seedQuotaAdjustmentUser(t, 5103, 1000)
-	seedQuotaAdjustmentToken(t, 5103, 5103, "sk-settle-unlimited", 0, true)
+	seedQuotaAdjustmentToken(t, 5103, 5103, "settle-unlimited", 0, true)
 	relayInfo := &relaycommon.RelayInfo{
 		UserId:  5103,
 		TokenId: 5103,
@@ -88,4 +88,10 @@ func TestBillingSessionSettleUsesPersistedUnlimitedToken(t *testing.T) {
 	assert.Equal(t, 950, getUserQuota(t, 5103))
 	assert.Equal(t, -50, getTokenRemainQuota(t, 5103))
 	assert.Equal(t, 50, getTokenUsedQuota(t, 5103))
+}
+
+func TestNormalizeRelayTokenKeyStripsPublicPrefix(t *testing.T) {
+	assert.Equal(t, "settle-unlimited", normalizeRelayTokenKey("sk-settle-unlimited"))
+	assert.Equal(t, "plain-token-key", normalizeRelayTokenKey("plain-token-key"))
+	assert.Empty(t, normalizeRelayTokenKey(""))
 }
