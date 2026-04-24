@@ -276,18 +276,20 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	logger.LogInfo(c, fmt.Sprintf("开始应用企业折扣：用户ID=%d, 模型名称=%s", relayInfo.UserId, modelName))
 
 	if modelName != "" {
-		discountRate, err := getUserOrgDiscount(relayInfo.UserId, modelName)
-		logger.LogInfo(c, fmt.Sprintf("获取企业折扣结果：折扣率=%.4f, 错误=%v", discountRate, err))
+		orgDiscountRate, err := getUserOrgDiscount(relayInfo.UserId, modelName)
+		logger.LogInfo(c, fmt.Sprintf("获取企业折扣结果：折扣率=%.4f, 错误=%v", orgDiscountRate, err))
 
-		if err == nil && discountRate != 1.0 {
+		if err == nil && orgDiscountRate != 1.0 {
 			originalQuota := preConsumedQuota
-			preConsumedQuota = int(float64(preConsumedQuota) * discountRate)
+			preConsumedQuota = int(float64(preConsumedQuota) * orgDiscountRate)
+			discountRate = orgDiscountRate
 			logger.LogInfo(c, fmt.Sprintf("用户 %d 模型 %s 应用企业折扣：原始预扣费 %s，折扣率 %.4f，折后预扣费 %s",
-				relayInfo.UserId, modelName, logger.FormatQuota(originalQuota), discountRate, logger.FormatQuota(preConsumedQuota)))
+				relayInfo.UserId, modelName, logger.FormatQuota(originalQuota), orgDiscountRate, logger.FormatQuota(preConsumedQuota)))
 		} else if err != nil {
 			logger.LogWarn(c, fmt.Sprintf("获取企业折扣失败：%v", err))
 		} else {
-			logger.LogInfo(c, fmt.Sprintf("无企业折扣应用：折扣率=%.4f", discountRate))
+			discountRate = orgDiscountRate
+			logger.LogInfo(c, fmt.Sprintf("无企业折扣应用：折扣率=%.4f", orgDiscountRate))
 		}
 	} else {
 		logger.LogInfo(c, fmt.Sprintf("用户 %d 模型名称为空，跳过企业折扣", relayInfo.UserId))
