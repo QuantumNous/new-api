@@ -1,6 +1,6 @@
 package dto
 
-import "strings"
+import "github.com/QuantumNous/new-api/common"
 
 type ChannelSettings struct {
 	ForceFormat            bool   `json:"force_format,omitempty"`
@@ -55,15 +55,14 @@ func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 
 // IsPathSupported 检查渠道是否支持指定的请求路径。
 // SupportedPaths 为空时表示支持所有路径（向后兼容）。
-// 匹配规则：请求路径以配置的任一前缀开头即视为支持。
 func (s *ChannelOtherSettings) IsPathSupported(requestPath string) bool {
 	if s == nil || len(s.SupportedPaths) == 0 {
 		return true
 	}
-	for _, prefix := range s.SupportedPaths {
-		if strings.HasPrefix(requestPath, prefix) {
-			return true
-		}
-	}
-	return false
+	return common.StringsContains(s.SupportedPaths, requestPath)
+}
+
+// HasSettingPathSupported 检查是否有配置过。
+func (s *ChannelOtherSettings) HasSettingPathSupported() bool {
+	return s != nil && len(s.SupportedPaths) > 0
 }

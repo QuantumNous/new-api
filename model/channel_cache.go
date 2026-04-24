@@ -93,7 +93,7 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int, reqPath string) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
 		return GetChannel(group, model, retry)
@@ -113,6 +113,21 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	if len(channels) == 0 {
 		return nil, nil
+	}
+
+	// 这里去最高优先级判断，是否匹配到了other_setting里面限制的路径
+	var tchannels []int
+	for _, channelId := range channels {
+		if channel, ok := channelsIDM[channelId]; ok && channel != nil && channel.Status == common.ChannelStatusEnabled {
+			cs := channel.GetOtherSettings()
+			if len(cs.SupportedPaths) > 0 && cs.IsPathSupported(reqPath) {
+				tchannels = append(tchannels, channelId)
+			}
+		}
+	}
+
+	if len(tchannels) > 0 {
+		channels = tchannels
 	}
 
 	if len(channels) == 1 {
