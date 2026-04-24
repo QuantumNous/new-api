@@ -59,21 +59,8 @@ func GetUserOrgDiscountRate(userID int, modelName string) (float64, error) {
 // 会话存储在 relayInfo.Billing 上，供后续 Settle / Refund 使用。
 // 企业折扣会在此处应用到 preConsumedQuota 上。
 func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
-	discountRate := 1.0
-	discountRate, err := GetUserOrgDiscountRate(relayInfo.UserId, relayInfo.OriginModelName)
-	if err != nil {
-		logger.LogWarn(c, fmt.Sprintf("获取企业折扣率失败 user_id=%d, model=%s, err=%v", relayInfo.UserId, relayInfo.OriginModelName, err))
-		discountRate = 1.0
-	} else if discountRate < 1.0 {
-		originalQuota := preConsumedQuota
-		preConsumedQuota = int(float64(preConsumedQuota) * discountRate)
-		if preConsumedQuota < 1 && originalQuota > 0 {
-			preConsumedQuota = 1
-		}
-		logger.LogInfo(c, fmt.Sprintf("企业折扣应用：user_id=%d, model=%s, discount_rate=%.2f, quota: %d -> %d",
-			relayInfo.UserId, relayInfo.OriginModelName, discountRate, originalQuota, preConsumedQuota))
-	}
-	session, apiErr := NewBillingSession(c, relayInfo, preConsumedQuota, discountRate)
+
+	session, apiErr := NewBillingSession(c, relayInfo, preConsumedQuota, 1.0)
 	if apiErr != nil {
 		return apiErr
 	}
@@ -89,24 +76,25 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 // 否则回退到旧的 PostConsumeQuota 路径（兼容按次计费等场景）。
 func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
 	if relayInfo.Billing != nil {
+		normalizedActual := NormalizeRecordedQuota(relayInfo, actualQuota)
 		preConsumed := relayInfo.Billing.GetPreConsumedQuota()
-		delta := actualQuota - preConsumed
+		delta := normalizedActual - preConsumed
 
 		if delta > 0 {
 			logger.LogInfo(ctx, fmt.Sprintf("预扣费后补扣费：%s（实际消耗：%s，预扣费：%s）",
 				logger.FormatQuota(delta),
-				logger.FormatQuota(actualQuota),
+				logger.FormatQuota(normalizedActual),
 				logger.FormatQuota(preConsumed),
 			))
 		} else if delta < 0 {
 			logger.LogInfo(ctx, fmt.Sprintf("预扣费后返还扣费：%s（实际消耗：%s，预扣费：%s）",
 				logger.FormatQuota(-delta),
-				logger.FormatQuota(actualQuota),
+				logger.FormatQuota(normalizedActual),
 				logger.FormatQuota(preConsumed),
 			))
 		} else {
 			logger.LogInfo(ctx, fmt.Sprintf("预扣费与实际消耗一致，无需调整：%s（按次计费）",
-				logger.FormatQuota(actualQuota),
+				logger.FormatQuota(normalizedActual),
 			))
 		}
 
@@ -115,11 +103,11 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		}
 
 		// 发送额度通知（订阅计费使用订阅剩余额度）
-		if actualQuota != 0 {
+		if normalizedActual != 0 {
 			if relayInfo.BillingSource == BillingSourceSubscription {
 				checkAndSendSubscriptionQuotaNotify(relayInfo)
 			} else {
-				checkAndSendQuotaNotify(relayInfo, actualQuota-preConsumed, preConsumed)
+				checkAndSendQuotaNotify(relayInfo, delta, preConsumed)
 			}
 		}
 		return nil
@@ -131,4 +119,26 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		return PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)
 	}
 	return nil
+}
+
+// NormalizeRecordedQuota 返回应当写入日志/任务记录的最终额度。
+// BillingSession 在结算时会对 actualQuota 应用企业折扣，但调用方保存任务/日志时
+// 仍可能持有未折扣的原始额度。这里统一转换为折后值，避免后续轮询以未折扣额度作为基线
+// 触发错误的补扣/退款。
+func NormalizeRecordedQuota(relayInfo *relaycommon.RelayInfo, actualQuota int) int {
+	if relayInfo == nil || actualQuota <= 0 {
+		return actualQuota
+	}
+	session, ok := relayInfo.Billing.(*BillingSession)
+	if !ok || session == nil {
+		return actualQuota
+	}
+	if session.discountRate < 1.0 {
+		discountedActual := int(float64(actualQuota) * session.discountRate)
+		if discountedActual < 1 && actualQuota > 0 {
+			discountedActual = 1
+		}
+		return discountedActual
+	}
+	return actualQuota
 }
