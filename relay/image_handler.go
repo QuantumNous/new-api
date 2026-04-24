@@ -124,8 +124,6 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return newAPIError
 	}
 
-	recordDetail()
-
 	imageN := uint(1)
 	if request.N != nil {
 		imageN = *request.N

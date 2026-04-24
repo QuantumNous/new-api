@@ -735,7 +735,7 @@ export const getLogsColumns = ({
         if (!(record.type === 2 || record.type === 5)) {
           return <></>;
         }
-        const detailBtn = record.request_id ? (
+        const detailBtn = record.request_id && record.type === 5 ? (
           <Tooltip content={t('请求详情')}>
             <Button
               theme='borderless'
@@ -750,6 +750,19 @@ export const getLogsColumns = ({
             />
           </Tooltip>
         ) : null;
+        const useTime = parseInt(text);
+        const completionTokens = parseInt(record.completion_tokens);
+        const outTokPerSec = (useTime > 0 && completionTokens > 0)
+          ? (completionTokens / useTime).toFixed(1)
+          : null;
+        const tokPerSecTag = outTokPerSec ? (
+          <Tooltip content={t('每秒输出token数')}>
+            <Tag color='blue' shape='circle'>
+              {outTokPerSec} tok/s
+            </Tag>
+          </Tooltip>
+        ) : null;
+
         if (record.is_stream) {
           let other = getLogOther(record.other);
           return (
@@ -757,6 +770,7 @@ export const getLogsColumns = ({
               <Space>
                 {renderUseTime(text, t)}
                 {renderFirstUseTime(other?.frt, t)}
+                {tokPerSecTag}
                 {renderIsStream(record.is_stream, t, other?.stream_status)}
                 {detailBtn}
               </Space>
@@ -767,6 +781,7 @@ export const getLogsColumns = ({
             <>
               <Space>
                 {renderUseTime(text, t)}
+                {tokPerSecTag}
                 {renderIsStream(record.is_stream, t)}
                 {detailBtn}
               </Space>
