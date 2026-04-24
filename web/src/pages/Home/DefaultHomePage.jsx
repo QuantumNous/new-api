@@ -19,47 +19,36 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import {
   Building2,
-  ChevronRight,
   Coins,
   Lock,
   Receipt,
   ShieldCheck,
-  Sparkles,
   Zap,
 } from 'lucide-react';
-import {
-  defaultHeroModelCards,
-  modelGroups,
-  promiseItems,
-  shouldRenderDefaultHomePage,
-  trustMetrics,
-  trustQuoteKey,
-  getDefaultHomePageLocaleAdjustments,
-} from './homeSections';
+import { promiseItems, shouldRenderDefaultHomePage } from './homeSections';
 
 const homeText = {
-  badge: '\u65e0\u9650\u661f\u6cb3 AI \u00b7 \u8ba9\u521b\u9020\u66f4\u7b80\u5355',
+  badge:
+    '\u65e0\u9650\u661f\u6cb3 AI \u00b7 \u8ba9\u521b\u9020\u66f4\u7b80\u5355',
   titleHtml: 'hero-title',
   subtitle:
     '\u5bf9\u6807\u5b98\u65b9\u4ef7\u683c\u3001\u660e\u793a\u51e0\u6298\uff1b\u5168\u94fe\u8def\u771f\u5b9e\u6027\u68c0\u6d4b\uff1b\n\u4e2a\u4eba\u3001\u5f00\u53d1\u8005\u3001\u4f01\u4e1a\u90fd\u6709\u5bf9\u5e94\u7684\u5f00\u901a\u8def\u5f84\u3002',
   primaryCta: '\u7acb\u5373\u5f00\u59cb',
   primaryConsole: '\u8fdb\u5165\u63a7\u5236\u53f0',
   pricingCta: '\u67e5\u770b\u4ef7\u683c',
-  enterpriseCta: '\u6211\u662f\u4f01\u4e1a\u7528\u6237',
-  baseUrlTitle: '\u4e00\u952e\u590d\u5236\u53ef\u76f4\u63a5\u63a5\u5165\u7684\u57fa\u7840\u5730\u5740',
+  baseUrlTitle:
+    '\u4e00\u952e\u590d\u5236\u53ef\u76f4\u63a5\u63a5\u5165\u7684\u57fa\u7840\u5730\u5740',
   copyBaseUrl: '\u590d\u5236\u5730\u5740',
-  floatingTag: '\u6a21\u578b\u8986\u76d6',
-  floatingValue: '\u4e3b\u6d41\u5168\u8986\u76d6',
-  coverageTitle: '\u4e3b\u6d41\u6a21\u578b\u8986\u76d6',
-  modelsTitle: '\u4f60\u8981\u7684\u6a21\u578b\uff0c\u8fd9\u91cc\u5168\u90fd\u6709',
-  modelsSubtitle: '\u8986\u76d6\u5168\u90e8\u4e3b\u6d41\u6a21\u578b\uff0c\u9996\u53d1\u540c\u6b65\u6700\u65b0\u7248\u672c\u3002',
-  ctaTitleLine1: '\u5927\u58f0\u544a\u8bc9\u4f60\uff0c',
-  ctaTitleLine2: '\u6211\u4eec\u5c31\u662f\u4e00\u4e2a\u8ba4\u771f\u505a\u670d\u52a1\u7684\u5e73\u53f0\u3002',
+  modelsTitle:
+    '\u4f60\u8981\u7684\u6a21\u578b\uff0c\u8fd9\u91cc\u5168\u90fd\u6709',
+  modelsSubtitle:
+    '\u8986\u76d6\u5168\u90e8\u4e3b\u6d41\u6a21\u578b\uff0c\u9996\u53d1\u540c\u6b65\u6700\u65b0\u7248\u672c\u3002',
+  ctaTitle:
+    '\u4e00\u4e2a\u8ba4\u771f\u505a\u670d\u52a1\u7684\u5e73\u53f0\u3002',
   ctaDesc:
-    '\u6ca1\u6709\u82b1\u91cc\u80e1\u54e8\u7684\u5657\u5934\uff0c\u6ca1\u6709\u6587\u5b57\u6e38\u620f\u3002\u53ea\u628a\u6a21\u578b\u771f\u5b9e\u3001\u4ef7\u683c\u900f\u660e\u3001\u4f01\u4e1a\u53ef\u7528\u505a\u5230\u4f4d\u3002',
+    '\u6ca1\u6709\u82b1\u91cc\u80e1\u54e8\u7684\u5671\u5934\uff0c\u6ca1\u6709\u6587\u5b57\u6e38\u620f\u3002\u53ea\u628a\u6a21\u578b\u771f\u5b9e\u3001\u4ef7\u683c\u900f\u660e\u3001\u4f01\u4e1a\u53ef\u7528\u505a\u5230\u4f4d\u3002',
   ctaButton: '\u7acb\u5373\u5f00\u59cb\u6ce8\u518c',
   footerBrand: '\u65e0\u9650\u661f\u6cb3 AI',
   footerDesc:
@@ -68,10 +57,97 @@ const homeText = {
   footerModels: '\u6a21\u578b\u8986\u76d6\u77e9\u9635',
   footerDocs: '\u6587\u6863',
   footerCopy: 'footer-copy',
-  footerVersion: '\u5f53\u524d\u7248\u672c v2026.04 \u00b7 \u6700\u540e\u66f4\u65b0 2026-04-14',
+  footerVersion:
+    '\u5f53\u524d\u7248\u672c v2026.04 \u00b7 \u6700\u540e\u66f4\u65b0 2026-04-14',
 };
 
 const homepageLogo = '/logo.png';
+
+const modelLogoRows = [
+  [
+    { key: 'openai', name: 'OpenAI', file: 'OpenAI.svg', featured: true },
+    { key: 'claude', name: 'Claude', file: 'Claude.svg', featured: true },
+    { key: 'gemini', name: 'Gemini', file: 'Gemini.svg', featured: true },
+    { key: 'deepseek', name: 'DeepSeek', file: 'DeepSeek.svg' },
+    { key: 'qwen', name: 'Qwen', file: 'Qwen.svg' },
+    { key: 'zhipu', name: 'Zhipu', file: 'Zhipu.svg' },
+    { key: 'hunyuan', name: 'Hunyuan', file: 'Hunyuan.svg' },
+  ],
+  [
+    { key: 'midjourney', name: 'Midjourney', file: 'Midjourney.svg' },
+    { key: 'moonshot', name: 'MoonshotAI', file: 'MoonshotAI.svg' },
+    { key: 'volcengine', name: 'Volcengine', file: 'Volcengine.svg' },
+    { key: 'wenxin', name: 'Wenxin', file: 'Wenxin.svg' },
+    { key: 'grok', name: 'Grok', file: 'Grok_2.svg' },
+    { key: 'more', name: '\u66f4\u591a\u6a21\u578b', count: '30+' },
+  ],
+];
+
+const mobileModelLogoItems = [
+  ...modelLogoRows[0].slice(0, 4),
+  modelLogoRows[1][5],
+];
+
+const darkModelLogoFiles = new Set([
+  'Grok_2.svg',
+  'Midjourney.svg',
+  'MoonshotAI.svg',
+  'OpenAI.svg',
+]);
+
+const getDarkModelLogoFile = (file) => {
+  if (!file || !darkModelLogoFiles.has(file)) {
+    return null;
+  }
+  return file.replace(/\.svg$/, '-dark.svg');
+};
+
+const ModelLogoImage = ({ item, className }) => {
+  const darkFile = getDarkModelLogoFile(item.file);
+
+  return (
+    <>
+      <img
+        src={`/model-logos/${item.file}`}
+        alt={item.name}
+        className={`${className} home-model-logo ${
+          darkFile ? 'home-model-logo-light' : ''
+        }`}
+      />
+      {darkFile ? (
+        <img
+          src={`/model-logos/${darkFile}`}
+          alt=''
+          aria-hidden='true'
+          className={`${className} home-model-logo home-model-logo-dark`}
+        />
+      ) : null}
+    </>
+  );
+};
+
+const trustCards = [
+  {
+    key: 'calls',
+    titleKey: '百万亿级调用规模',
+    descKey: '稳定承载高并发调用，峰值场景下也能保持流畅返回。',
+  },
+  {
+    key: 'builders',
+    titleKey: '30W+ 产品人信任',
+    descKey: '持续服务个人创作者、开发者与团队用户，口碑沉淀更真实。',
+  },
+  {
+    key: 'invoice',
+    titleKey: '增值税专用发票',
+    descKey: '支持规范开票与企业对公流程，采购、报销与财务处理更省事。',
+  },
+  {
+    key: 'compliance',
+    titleKey: 'ICP备案 / EDI许可',
+    descKey: '面向企业接入更友好，便于采购评估、合作推进与内部合规流转。',
+  },
+];
 
 const promiseIconMap = {
   'shield-check': ShieldCheck,
@@ -82,128 +158,99 @@ const promiseIconMap = {
   building: Building2,
 };
 
-const DefaultHomePage = ({
-  t,
-  docsLink,
-  isDemoSiteMode,
-}) => {
-  const { i18n } = useTranslation();
+const DefaultHomePage = ({ t, docsLink, isDemoSiteMode }) => {
   const primaryLink = isDemoSiteMode ? '/console' : '/register';
-  const enterpriseLink = docsLink || '/pricing';
-  const docsHref = docsLink || '/docs';
-  const localeAdjustments = getDefaultHomePageLocaleAdjustments(i18n.language);
+  const docsHref = docsLink || 'https://doc.infistar.ai/';
 
   return (
     <main id='homepage' data-homepage-default='true' className='pt-[60px]'>
-      <section className='relative pt-20 pb-32 overflow-hidden bg-[#FAFAFB]'>
-        <div className='absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-100/60 rounded-full blur-[120px] pointer-events-none -translate-y-1/3 translate-x-1/4' />
+      <section className='relative overflow-hidden bg-[#FAFAFB] pb-32 pt-14'>
+        <div className='home-hero-glow pointer-events-none absolute right-0 top-0 h-[600px] w-[600px] -translate-y-1/3 translate-x-1/4 rounded-full bg-indigo-100/60 blur-[120px]' />
 
-        <div className='relative z-10 mx-auto grid max-w-7xl grid-cols-1 items-center gap-16 px-6 lg:grid-cols-12'>
-          <div className='lg:col-span-7 lg:pt-10'>
-            <span className='inline-flex items-center px-4 py-1.5 rounded-full bg-white border border-indigo-100 text-indigo-600 text-xs font-bold mb-8 shadow-sm'>
-              <span className='mr-2 h-2 w-2 animate-pulse rounded-full bg-indigo-500' />
+        <div className='relative z-10 mx-auto max-w-7xl px-6'>
+          <div className='pt-6'>
+            <span
+              className='home-hero-badge mb-8 inline-flex items-center rounded-full border border-indigo-100 bg-white px-5 py-2 text-sm font-bold shadow-sm'
+              style={{ color: 'rgb(99 102 241 / var(--tw-bg-opacity, 1))' }}
+            >
+              <span className='home-hero-badge-dot mr-2.5 h-2.5 w-2.5 animate-pulse rounded-full bg-indigo-500' />
               {t(homeText.badge)}
             </span>
-            <h1
-              className='mb-6 text-[44px] font-black leading-[1.15] tracking-tight text-gray-900 lg:text-[64px]'
-              dangerouslySetInnerHTML={{ __html: t(homeText.titleHtml) }}
-            />
-            <p className='mb-10 max-w-2xl whitespace-pre-line text-lg font-medium leading-relaxed text-gray-500 lg:text-xl'>
+
+            <div className='grid grid-cols-1 items-end gap-8 lg:grid-cols-[minmax(0,1.35fr)_auto] lg:gap-10'>
+              <div>
+                <h1
+                  className='text-[44px] font-black leading-[1.08] tracking-tight text-gray-900 lg:text-[64px]'
+                  dangerouslySetInnerHTML={{ __html: t(homeText.titleHtml) }}
+                />
+              </div>
+
+              <div className='flex flex-col items-start gap-4 lg:items-end lg:pb-2'>
+                <div className='flex flex-wrap justify-start gap-4 lg:justify-end'>
+                  <Link
+                    to={primaryLink}
+                    className='btn-primary rounded-2xl px-8 py-4 text-lg font-bold'
+                  >
+                    {t(
+                      isDemoSiteMode
+                        ? homeText.primaryConsole
+                        : homeText.primaryCta,
+                    )}
+                  </Link>
+                  <Link
+                    to='/pricing'
+                    className='rounded-2xl border border-gray-200 bg-white px-8 py-4 text-lg font-bold text-gray-900 transition-colors hover:bg-gray-50'
+                  >
+                    {t(homeText.pricingCta)}
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <p className='mt-8 max-w-5xl text-lg font-medium leading-relaxed text-gray-500 lg:text-xl'>
               {t(homeText.subtitle)}
             </p>
-            <div className='flex flex-wrap gap-4'>
-              <Link
-                to={primaryLink}
-                className='btn-primary rounded-2xl px-8 py-4 text-lg font-bold'
-              >
-                {t(isDemoSiteMode ? homeText.primaryConsole : homeText.primaryCta)}
-              </Link>
-              <Link
-                to='/pricing'
-                className='rounded-2xl border border-gray-200 bg-white px-8 py-4 text-lg font-bold text-gray-900 transition-colors hover:bg-gray-50'
-              >
-                {t(homeText.pricingCta)}
-              </Link>
-              {docsLink ? (
-                <a
-                  href={enterpriseLink}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='ml-2 inline-flex items-center font-bold text-indigo-600 transition-colors hover:text-indigo-700'
-                >
-                  {t(homeText.enterpriseCta)}
-                  <ChevronRight size={18} className='ml-1' />
-                </a>
-              ) : (
-                <Link
-                  to='/pricing'
-                  className='ml-2 inline-flex items-center font-bold text-indigo-600 transition-colors hover:text-indigo-700'
-                >
-                  {t(homeText.enterpriseCta)}
-                  <ChevronRight size={18} className='ml-1' />
-                </Link>
-              )}
-            </div>
-          </div>
-
-          <div className='relative mt-10 lg:col-span-5 lg:mt-0'>
-            <div className={`home-floating-card ${localeAdjustments.floatingCardClass}`}>
-              <div className='mb-1 text-[10px] uppercase tracking-widest text-gray-400'>
-                {t(homeText.floatingTag)}
-              </div>
-              <div className='text-2xl'>{t(homeText.floatingValue)}</div>
-            </div>
-
-            <div className='glass-card ml-auto max-w-[420px] rounded-[32px] bg-white/80 p-6 shadow-[0_24px_48px_-18px_rgba(79,70,229,0.12)] transition-transform duration-500 hover:rotate-0 lg:-rotate-1 lg:p-7'>
-              <div className='mb-5 border-b border-gray-100 pb-4'>
-                <div className='mb-2 flex items-center gap-3'>
-                  <div className='flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-indigo-600'>
-                    <Sparkles size={16} />
-                  </div>
-                  <span className='text-xs font-black uppercase tracking-widest text-gray-400'>
-                    {t('Model Coverage')}
-                  </span>
-                </div>
-                <h3 className='text-2xl font-black tracking-tight text-gray-900'>
-                  {t(homeText.coverageTitle)}
-                </h3>
-              </div>
-              <div className='space-y-3'>
-                {defaultHeroModelCards.map((item) => (
-                  <div
-                    key={item.vendor}
-                    className='rounded-2xl border border-gray-100 bg-gray-50 px-4 py-4'
-                  >
-                    <div className='mb-1.5 text-xs font-black uppercase tracking-widest text-gray-400'>
-                      {item.vendor}
-                    </div>
-                    <div className='font-bold text-gray-900'>{item.model}</div>
-                    <div className='mt-1 text-xs font-medium text-gray-400'>
-                      {t(item.descKey)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
-      <div className='border-y border-gray-100 bg-white py-12'>
-        <div className={localeAdjustments.trustMetricsContainerClass}>
-          {trustMetrics.map((metric) => (
-            <span
-              key={metric.key}
-              className={localeAdjustments.trustMetricClass}
-            >
-              {t(metric.textKey)}
-            </span>
-          ))}
+      <section className='overflow-hidden border-y border-gray-100 bg-white py-16'>
+        <div className='mx-auto max-w-7xl px-6'>
+          <div className='grid grid-cols-1 items-start gap-8 lg:grid-cols-3'>
+            <div className='flex h-full flex-col items-center justify-center py-4 text-center'>
+              <div className='flex items-end justify-center gap-3'>
+                <span className='text-gradient text-6xl font-black leading-none lg:text-7xl'>
+                  99.9%
+                </span>
+                <p className='home-trust-title pb-2 text-2xl font-black tracking-tight text-[#030712] lg:text-[28px]'>
+                  {t('可用承诺')}
+                </p>
+              </div>
+              <p className='mt-6 max-w-[320px] text-sm leading-7 text-gray-500'>
+                {t(
+                  '面向个人与团队用户，保障接口稳定、调用顺畅，日常使用更省心。',
+                )}
+              </p>
+            </div>
+
+            <div className='grid grid-cols-1 gap-5 md:grid-cols-2 lg:col-span-2 lg:gap-8'>
+              {trustCards.map((item) => (
+                <div
+                  key={item.key}
+                  className='card-hover home-trust-card relative min-h-[164px] overflow-hidden rounded-[32px] px-8 py-6 transition-all'
+                >
+                  <p className='home-trust-title relative z-10 max-w-[210px] text-[24px] font-black leading-[1.18] tracking-tight text-[#030712]'>
+                    {t(item.titleKey)}
+                  </p>
+                  <p className='home-trust-desc relative z-10 mt-5 max-w-[265px] text-[15px] font-medium leading-7 text-[#AAB4C8]'>
+                    {t(item.descKey)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        <p className='mt-8 text-center text-xs font-bold uppercase tracking-widest text-gray-400'>
-          {t(trustQuoteKey)}
-        </p>
-      </div>
+      </section>
 
       <section id='promises' className='bg-[#FAFAFB] py-24'>
         <div className='mx-auto max-w-7xl px-6'>
@@ -214,11 +261,11 @@ const DefaultHomePage = ({
                 <article
                   key={item.key}
                   data-home-promise={item.key}
-                  className='card-hover rounded-3xl border border-gray-100 bg-white p-8 transition-all'
+                  className='card-hover home-promise-card rounded-3xl bg-white p-8 transition-all'
                 >
                   <h3 className='mb-3 flex items-center gap-3 text-xl font-bold text-gray-900'>
-                    <span className='flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white'>
-                      <Icon size={20} />
+                    <span className='home-promise-icon flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white'>
+                      <Icon size={20} strokeWidth={1.8} />
                     </span>
                     <span>{t(item.titleKey)}</span>
                   </h3>
@@ -232,45 +279,85 @@ const DefaultHomePage = ({
         </div>
       </section>
 
-      <section id='models' className='bg-white py-24'>
-        <div className='mx-auto max-w-7xl px-6 text-center'>
-          <h2 className='mb-4 text-3xl font-black text-gray-900 lg:text-4xl'>
-            {t(homeText.modelsTitle)}
-          </h2>
-          <p className='mb-16 font-medium text-gray-500'>
-            {t(homeText.modelsSubtitle)}
-          </p>
+      <section id='models' className='overflow-hidden bg-white py-20'>
+        <div className='mx-auto max-w-7xl px-6'>
+          <div className='mx-auto mb-14 max-w-3xl text-center'>
+            <h2 className='text-3xl font-black text-gray-900 lg:text-4xl'>
+              {t(homeText.modelsTitle)}
+            </h2>
+            <p className='mt-4 font-medium text-gray-500'>
+              {t(homeText.modelsSubtitle)}
+            </p>
+          </div>
 
-          <div className='grid grid-cols-1 gap-8 md:grid-cols-3'>
-            {modelGroups.map((group) => (
-              <article
-                key={group.key}
-                className='rounded-[32px] border border-gray-100 bg-[#FAFAFB] p-8 text-left'
-              >
-                <div className='mb-8 flex items-center justify-between'>
-                  <span className='text-2xl font-black text-gray-900'>
-                    {group.title}
-                  </span>
-                  <span className='rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-bold uppercase text-gray-600'>
-                    {group.vendor}
-                  </span>
-                </div>
-                <div className='space-y-6 font-bold text-gray-900'>
-                  {group.models.map((model, index) => (
+          <div className='mx-auto max-w-6xl'>
+            <div className='hidden lg:block'>
+              <div className='grid justify-center gap-y-1'>
+                {modelLogoRows.map((row, rowIndex) => (
+                  <div
+                    key={`model-row-${rowIndex}`}
+                    className='flex justify-center gap-8'
+                  >
+                    {row.map((item) => (
+                      <div key={item.key} className='home-model-diamond'>
+                        <div className='home-model-diamond-inner'>
+                          {item.file ? (
+                            <ModelLogoImage
+                              item={item}
+                              className='h-10 w-10 object-contain'
+                            />
+                          ) : (
+                            <span className='text-gradient text-[28px] font-black leading-none'>
+                              {item.count}
+                            </span>
+                          )}
+                          <div
+                            className={`mt-3 text-sm leading-none ${
+                              item.featured
+                                ? 'font-black text-gray-900'
+                                : 'font-bold text-gray-700'
+                            }`}
+                          >
+                            {item.name}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className='grid grid-cols-3 justify-items-center gap-x-4 gap-y-6 sm:grid-cols-4 lg:hidden'>
+              {mobileModelLogoItems.map((item) => (
+                <div
+                  key={`mobile-${item.key}`}
+                  className='home-model-diamond home-model-diamond-mobile'
+                >
+                  <div className='home-model-diamond-inner home-model-diamond-inner-mobile'>
+                    {item.file ? (
+                      <ModelLogoImage
+                        item={item}
+                        className='h-8 w-8 object-contain'
+                      />
+                    ) : (
+                      <span className='text-gradient text-2xl font-black leading-none'>
+                        {item.count}
+                      </span>
+                    )}
                     <div
-                      key={model}
-                      className={
-                        index < group.models.length - 1
-                          ? 'border-b border-gray-200 pb-4'
-                          : ''
-                      }
+                      className={`mt-2 text-xs ${
+                        item.featured
+                          ? 'font-black text-gray-900'
+                          : 'font-bold text-gray-700'
+                      }`}
                     >
-                      {model}
+                      {item.key === 'more' ? '\u66f4\u591a' : item.name}
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </article>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -278,9 +365,7 @@ const DefaultHomePage = ({
       <section id='cta' className='border-t border-gray-100 bg-[#FAFAFB] py-32'>
         <div className='mx-auto max-w-4xl px-6 text-center'>
           <h2 className='mb-6 text-3xl font-black leading-tight text-gray-900 lg:text-5xl'>
-            {t(homeText.ctaTitleLine1)}
-            <br />
-            {t(homeText.ctaTitleLine2)}
+            {t(homeText.ctaTitle)}
           </h2>
           <p className='mx-auto mb-10 max-w-2xl text-lg font-medium text-gray-500'>
             {t(homeText.ctaDesc)}
@@ -296,7 +381,7 @@ const DefaultHomePage = ({
         </div>
       </section>
 
-      <footer className='border-t border-gray-200 bg-[#FAFAFB] pb-10 pt-20'>
+      <footer className='border-t border-gray-200 bg-white pb-10 pt-20'>
         <div className='mx-auto max-w-7xl px-6'>
           <div className='mb-16 grid grid-cols-1 items-start gap-10 md:grid-cols-2'>
             <div>
@@ -318,7 +403,10 @@ const DefaultHomePage = ({
               </h4>
               <ul className='space-y-3 text-sm font-medium text-gray-500'>
                 <li>
-                  <a href='#models' className='transition-colors hover:text-indigo-600'>
+                  <a
+                    href='/pricing'
+                    className='transition-colors hover:text-indigo-600'
+                  >
                     {t(homeText.footerModels)}
                   </a>
                 </li>
@@ -343,7 +431,6 @@ const DefaultHomePage = ({
             <span className='text-center md:text-left'>
               {t(homeText.footerCopy)}
             </span>
-            <span>{t(homeText.footerVersion)}</span>
           </div>
         </div>
       </footer>

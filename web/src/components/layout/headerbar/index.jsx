@@ -77,7 +77,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
       <nav
         id='nav'
-        className='sticky top-0 z-50 w-full border-b border-[#f3f4f6] bg-white/90 backdrop-blur-md transition-all'
+        className='header-nav-solid sticky top-0 z-50 w-full border-b border-[#f3f4f6] transition-colors'
       >
         <div className={getHeaderContainerClass(isConsoleRoute)}>
           <div className='flex min-w-0 items-center gap-4 xl:gap-8'>
