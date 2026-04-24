@@ -260,24 +260,105 @@ export default function UpstreamRatioSync(props) {
     }
   };
 
+  const ratioSyncFields = [
+    'model_ratio',
+    'completion_ratio',
+    'cache_ratio',
+    'create_cache_ratio',
+    'image_ratio',
+    'audio_ratio',
+    'audio_completion_ratio',
+  ];
+
+  const numericSyncFields = new Set([...ratioSyncFields, 'model_price']);
+
   function getBillingCategory(ratioType) {
-    return ratioType === 'model_price' ? 'price' : 'ratio';
+    if (ratioType === 'model_price') return 'price';
+    if (ratioType === 'billing_mode' || ratioType === 'billing_expr') {
+      return 'tiered';
+    }
+    return 'ratio';
+  }
+
+  function optionKeyBySyncField(ratioType) {
+    const explicit = {
+      billing_mode: 'billing_setting.billing_mode',
+      billing_expr: 'billing_setting.billing_expr',
+    };
+    if (explicit[ratioType]) return explicit[ratioType];
+    return ratioType
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join('');
+  }
+
+  function getUpstreamValue(model, ratioType, sourceName) {
+    return differences[model]?.[ratioType]?.upstreams?.[sourceName];
+  }
+
+  function isSelectableUpstreamValue(value) {
+    return value !== null && value !== undefined && value !== 'same';
+  }
+
+  function getPreferredSyncField(model, ratioType, sourceName) {
+    const exprValue = getUpstreamValue(model, 'billing_expr', sourceName);
+    if (ratioType !== 'billing_expr' && isSelectableUpstreamValue(exprValue)) {
+      return 'billing_expr';
+    }
+    return ratioType;
   }
 
   const selectValue = useCallback(
-    (model, ratioType, value) => {
+    (model, ratioType, value, sourceName) => {
+      const preferredRatioType = sourceName
+        ? getPreferredSyncField(model, ratioType, sourceName)
+        : ratioType;
+      const preferredValue =
+        preferredRatioType === ratioType
+          ? value
+          : getUpstreamValue(model, preferredRatioType, sourceName);
+      ratioType = preferredRatioType;
+      value = preferredValue;
+
       const category = getBillingCategory(ratioType);
 
       setResolutions((prev) => {
         const newModelRes = { ...(prev[model] || {}) };
 
         Object.keys(newModelRes).forEach((rt) => {
-          if (getBillingCategory(rt) !== category) {
+          if (
+            category !== 'tiered' &&
+            getBillingCategory(rt) !== 'tiered' &&
+            getBillingCategory(rt) !== category
+          ) {
             delete newModelRes[rt];
           }
         });
 
         newModelRes[ratioType] = value;
+
+        if (category === 'tiered' && sourceName) {
+          const modeValue =
+            differences[model]?.billing_mode?.upstreams?.[sourceName];
+          const exprValue =
+            differences[model]?.billing_expr?.upstreams?.[sourceName];
+          if (
+            modeValue !== undefined &&
+            modeValue !== null &&
+            modeValue !== 'same'
+          ) {
+            newModelRes.billing_mode = modeValue;
+          } else if (ratioType === 'billing_expr') {
+            newModelRes.billing_mode = 'tiered_expr';
+          }
+          if (
+            exprValue !== undefined &&
+            exprValue !== null &&
+            exprValue !== 'same'
+          ) {
+            newModelRes.billing_expr = exprValue;
+          }
+        }
 
         return {
           ...prev,
@@ -285,7 +366,7 @@ export default function UpstreamRatioSync(props) {
         };
       });
     },
-    [setResolutions],
+    [setResolutions, differences],
   );
 
   const applySync = async () => {
@@ -293,7 +374,19 @@ export default function UpstreamRatioSync(props) {
       ModelRatio: JSON.parse(props.options.ModelRatio || '{}'),
       CompletionRatio: JSON.parse(props.options.CompletionRatio || '{}'),
       CacheRatio: JSON.parse(props.options.CacheRatio || '{}'),
+      CreateCacheRatio: JSON.parse(props.options.CreateCacheRatio || '{}'),
+      ImageRatio: JSON.parse(props.options.ImageRatio || '{}'),
+      AudioRatio: JSON.parse(props.options.AudioRatio || '{}'),
+      AudioCompletionRatio: JSON.parse(
+        props.options.AudioCompletionRatio || '{}',
+      ),
       ModelPrice: JSON.parse(props.options.ModelPrice || '{}'),
+      'billing_setting.billing_mode': JSON.parse(
+        props.options['billing_setting.billing_mode'] || '{}',
+      ),
+      'billing_setting.billing_expr': JSON.parse(
+        props.options['billing_setting.billing_expr'] || '{}',
+      ),
     };
 
     const conflicts = [];
@@ -303,7 +396,11 @@ export default function UpstreamRatioSync(props) {
       if (
         currentRatios.ModelRatio[model] !== undefined ||
         currentRatios.CompletionRatio[model] !== undefined ||
-        currentRatios.CacheRatio[model] !== undefined
+        currentRatios.CacheRatio[model] !== undefined ||
+        currentRatios.CreateCacheRatio[model] !== undefined ||
+        currentRatios.ImageRatio[model] !== undefined ||
+        currentRatios.AudioRatio[model] !== undefined ||
+        currentRatios.AudioCompletionRatio[model] !== undefined
       )
         return 'ratio';
       return null;
@@ -320,9 +417,14 @@ export default function UpstreamRatioSync(props) {
 
     Object.entries(resolutions).forEach(([model, ratios]) => {
       const localCat = getLocalBillingCategory(model);
-      const newCat = 'model_price' in ratios ? 'price' : 'ratio';
+      const newCat =
+        'model_price' in ratios
+          ? 'price'
+          : ratioSyncFields.some((rt) => rt in ratios)
+            ? 'ratio'
+            : 'tiered';
 
-      if (localCat && localCat !== newCat) {
+      if (localCat && newCat !== 'tiered' && localCat !== newCat) {
         const currentDesc =
           localCat === 'price'
             ? `${t('固定价格')} : ${currentRatios.ModelPrice[model]}`
@@ -366,29 +468,44 @@ export default function UpstreamRatioSync(props) {
         ModelRatio: { ...currentRatios.ModelRatio },
         CompletionRatio: { ...currentRatios.CompletionRatio },
         CacheRatio: { ...currentRatios.CacheRatio },
+        CreateCacheRatio: { ...currentRatios.CreateCacheRatio },
+        ImageRatio: { ...currentRatios.ImageRatio },
+        AudioRatio: { ...currentRatios.AudioRatio },
+        AudioCompletionRatio: { ...currentRatios.AudioCompletionRatio },
         ModelPrice: { ...currentRatios.ModelPrice },
+        'billing_setting.billing_mode': {
+          ...currentRatios['billing_setting.billing_mode'],
+        },
+        'billing_setting.billing_expr': {
+          ...currentRatios['billing_setting.billing_expr'],
+        },
       };
 
       Object.entries(resolutions).forEach(([model, ratios]) => {
         const selectedTypes = Object.keys(ratios);
         const hasPrice = selectedTypes.includes('model_price');
-        const hasRatio = selectedTypes.some((rt) => rt !== 'model_price');
+        const hasRatio = selectedTypes.some((rt) =>
+          ratioSyncFields.includes(rt),
+        );
 
         if (hasPrice) {
           delete finalRatios.ModelRatio[model];
           delete finalRatios.CompletionRatio[model];
           delete finalRatios.CacheRatio[model];
+          delete finalRatios.CreateCacheRatio[model];
+          delete finalRatios.ImageRatio[model];
+          delete finalRatios.AudioRatio[model];
+          delete finalRatios.AudioCompletionRatio[model];
         }
         if (hasRatio) {
           delete finalRatios.ModelPrice[model];
         }
 
         Object.entries(ratios).forEach(([ratioType, value]) => {
-          const optionKey = ratioType
-            .split('_')
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join('');
-          finalRatios[optionKey][model] = parseFloat(value);
+          const optionKey = optionKeyBySyncField(ratioType);
+          finalRatios[optionKey][model] = numericSyncFields.has(ratioType)
+            ? parseFloat(value)
+            : value;
         });
       });
 
@@ -500,7 +617,18 @@ export default function UpstreamRatioSync(props) {
                 {t('补全倍率')}
               </Select.Option>
               <Select.Option value='cache_ratio'>{t('缓存倍率')}</Select.Option>
+              <Select.Option value='create_cache_ratio'>
+                {t('缓存创建倍率')}
+              </Select.Option>
+              <Select.Option value='image_ratio'>{t('图片倍率')}</Select.Option>
+              <Select.Option value='audio_ratio'>{t('音频倍率')}</Select.Option>
+              <Select.Option value='audio_completion_ratio'>
+                {t('音频补全倍率')}
+              </Select.Option>
               <Select.Option value='model_price'>{t('固定价格')}</Select.Option>
+              <Select.Option value='billing_expr'>
+                {t('表达式计费')}
+              </Select.Option>
             </Select>
           </div>
         </div>
@@ -518,6 +646,10 @@ export default function UpstreamRatioSync(props) {
           'model_ratio',
           'completion_ratio',
           'cache_ratio',
+          'create_cache_ratio',
+          'image_ratio',
+          'audio_ratio',
+          'audio_completion_ratio',
         ].some((rt) => rt in ratioTypes);
         const billingConflict = hasPrice && hasOtherRatio;
 
@@ -597,7 +729,13 @@ export default function UpstreamRatioSync(props) {
             model_ratio: t('模型倍率'),
             completion_ratio: t('补全倍率'),
             cache_ratio: t('缓存倍率'),
+            create_cache_ratio: t('缓存创建倍率'),
+            image_ratio: t('图片倍率'),
+            audio_ratio: t('音频倍率'),
+            audio_completion_ratio: t('音频补全倍率'),
             model_price: t('固定价格'),
+            billing_mode: t('计费模式'),
+            billing_expr: t('表达式计费'),
           };
           const baseTag = (
             <Tag color={stringToColor(text)} shape='circle'>
@@ -685,10 +823,14 @@ export default function UpstreamRatioSync(props) {
 
           filteredDataSource.forEach((row) => {
             const upstreamVal = row.upstreams?.[upName];
+            const preferredField = getPreferredSyncField(
+              row.model,
+              row.ratioType,
+              upName,
+            );
             if (
-              upstreamVal !== null &&
-              upstreamVal !== undefined &&
-              upstreamVal !== 'same'
+              preferredField === row.ratioType &&
+              isSelectableUpstreamValue(upstreamVal)
             ) {
               selectableCount++;
               const isSelected =
@@ -715,11 +857,11 @@ export default function UpstreamRatioSync(props) {
             filteredDataSource.forEach((row) => {
               const upstreamVal = row.upstreams?.[upName];
               if (
-                upstreamVal !== null &&
-                upstreamVal !== undefined &&
-                upstreamVal !== 'same'
+                getPreferredSyncField(row.model, row.ratioType, upName) ===
+                  row.ratioType &&
+                isSelectableUpstreamValue(upstreamVal)
               ) {
-                selectValue(row.model, row.ratioType, upstreamVal);
+                selectValue(row.model, row.ratioType, upstreamVal, upName);
               }
             });
           } else {
@@ -754,6 +896,9 @@ export default function UpstreamRatioSync(props) {
           render: (_, record) => {
             const upstreamVal = record.upstreams?.[upName];
             const isConfident = record.confidence?.[upName] !== false;
+            const isPreferredField =
+              getPreferredSyncField(record.model, record.ratioType, upName) ===
+              record.ratioType;
 
             if (upstreamVal === null || upstreamVal === undefined) {
               return (
@@ -772,16 +917,23 @@ export default function UpstreamRatioSync(props) {
             }
 
             const isSelected =
+              isPreferredField &&
               resolutions[record.model]?.[record.ratioType] === upstreamVal;
 
             return (
               <div className='flex items-center gap-2'>
                 <Checkbox
                   checked={isSelected}
+                  disabled={!isPreferredField}
                   onChange={(e) => {
                     const isChecked = e.target.checked;
                     if (isChecked) {
-                      selectValue(record.model, record.ratioType, upstreamVal);
+                      selectValue(
+                        record.model,
+                        record.ratioType,
+                        upstreamVal,
+                        upName,
+                      );
                     } else {
                       setResolutions((prev) => {
                         const newRes = { ...prev };
@@ -880,7 +1032,21 @@ export default function UpstreamRatioSync(props) {
             ModelRatio: JSON.parse(props.options.ModelRatio || '{}'),
             CompletionRatio: JSON.parse(props.options.CompletionRatio || '{}'),
             CacheRatio: JSON.parse(props.options.CacheRatio || '{}'),
+            CreateCacheRatio: JSON.parse(
+              props.options.CreateCacheRatio || '{}',
+            ),
+            ImageRatio: JSON.parse(props.options.ImageRatio || '{}'),
+            AudioRatio: JSON.parse(props.options.AudioRatio || '{}'),
+            AudioCompletionRatio: JSON.parse(
+              props.options.AudioCompletionRatio || '{}',
+            ),
             ModelPrice: JSON.parse(props.options.ModelPrice || '{}'),
+            'billing_setting.billing_mode': JSON.parse(
+              props.options['billing_setting.billing_mode'] || '{}',
+            ),
+            'billing_setting.billing_expr': JSON.parse(
+              props.options['billing_setting.billing_expr'] || '{}',
+            ),
           };
           await performSync(curRatios);
         }}
