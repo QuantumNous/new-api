@@ -130,6 +130,8 @@ func NormalizeRecordedQuota(ctx context.Context, relayInfo *relaycommon.RelayInf
 	if relayInfo == nil || actualQuota <= 0 {
 		return actualQuota
 	}
+	logger.LogInfo(ctx, fmt.Sprintf("NormalizeRecordedQuota: billing_type=%T, billing_nil=%v, actual=%d",
+		relayInfo.Billing, relayInfo.Billing == nil, actualQuota))
 	session, ok := relayInfo.Billing.(*BillingSession)
 	if !ok || session == nil {
 		return actualQuota
