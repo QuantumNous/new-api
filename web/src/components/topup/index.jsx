@@ -29,6 +29,7 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
+import { redirectToPaymentUrl } from '../../helpers/paymentNavigation';
 import { getCurrencyConfig } from '../../helpers/render';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -191,7 +192,7 @@ const TopUp = () => {
       );
       return;
     }
-    window.open(topUpLink, '_blank');
+    redirectToPaymentUrl(topUpLink);
   };
 
   const preTopUp = async (payment) => {
@@ -305,7 +306,7 @@ const TopUp = () => {
         if (message === 'success') {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
-            window.open(data.pay_link, '_blank');
+            redirectToPaymentUrl(data.pay_link);
           } else {
             // 普通支付表单提交
             let params = data;
@@ -414,7 +415,7 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success' && data?.payment_url) {
-          window.open(data.payment_url, '_blank');
+          redirectToPaymentUrl(data.payment_url);
         } else {
           showError(data || t('支付请求失败'));
         }
@@ -476,7 +477,7 @@ const TopUp = () => {
         if (message === 'success') {
           const checkoutUrl = data?.checkout_url || '';
           if (checkoutUrl) {
-            window.open(checkoutUrl, '_blank');
+            redirectToPaymentUrl(checkoutUrl);
           } else {
             showError(t('支付请求失败'));
           }
@@ -526,7 +527,7 @@ const TopUp = () => {
 
   const processCreemCallback = (data) => {
     // 与 Stripe 保持一致的实现方式
-    window.open(data.checkout_url, '_blank');
+    redirectToPaymentUrl(data.checkout_url);
   };
 
   const getUserQuota = async () => {
