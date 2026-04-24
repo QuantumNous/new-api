@@ -1812,6 +1812,17 @@ const EditChannelModal = (props) => {
       settings.upstream_model_update_last_check_time = 0;
     }
 
+    // 显式保存 supported_paths，避免闭包竞态导致丢失
+    const supportedPathsRaw = localInputs.supported_paths;
+    if (supportedPathsRaw) {
+      const paths = Array.isArray(supportedPathsRaw)
+        ? supportedPathsRaw
+        : String(supportedPathsRaw).split(',').map(p => p.trim()).filter(Boolean);
+      settings.supported_paths = paths.length > 0 ? paths : undefined;
+    } else {
+      delete settings.supported_paths;
+    }
+
     localInputs.settings = JSON.stringify(settings);
 
     // 清理不需要发送到后端的字段
@@ -1839,6 +1850,7 @@ const EditChannelModal = (props) => {
     delete localInputs.upstream_model_update_last_check_time;
     delete localInputs.upstream_model_update_last_detected_models;
     delete localInputs.upstream_model_update_ignored_models;
+    delete localInputs.supported_paths;
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;

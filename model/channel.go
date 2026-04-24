@@ -501,7 +501,11 @@ func (channel *Channel) Update() error {
 	}
 	DB.Model(channel).First(channel, "id = ?", channel.Id)
 	err = channel.UpdateAbilities(nil)
-	return err
+	if err != nil {
+		return err
+	}
+	InitChannelCache()
+	return nil
 }
 
 func (channel *Channel) UpdateResponseTime(responseTime int64) {
