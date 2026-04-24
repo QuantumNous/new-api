@@ -152,3 +152,6 @@ When implementing or debugging:
 - Prefer editing existing tests or verifying through existing project mechanisms instead of adding ad hoc files.
 - Before committing, review staged files and exclude unrelated artifacts such as lockfile churn, temp folders, cache files, or accidental byproducts unless they are intentionally part of the change.
 
+### Rule 10: Billing Expression System — Read `pkg/billingexpr/expr.md`
+
+When working on tiered/dynamic billing (expression-based pricing), you MUST read `pkg/billingexpr/expr.md` first. It documents the design philosophy, expression language (variables, functions, examples), full system architecture (editor → storage → pre-consume → settlement → log display), token normalization rules (`p`/`c` auto-exclusion), quota conversion, and expression versioning. All code changes to the billing expression system must follow the patterns described in that document.
