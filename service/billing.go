@@ -59,21 +59,8 @@ func GetUserOrgDiscountRate(userID int, modelName string) (float64, error) {
 // 会话存储在 relayInfo.Billing 上，供后续 Settle / Refund 使用。
 // 企业折扣会在此处应用到 preConsumedQuota 上。
 func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
-	discountRate := 1.0
-	discountRate, err := GetUserOrgDiscountRate(relayInfo.UserId, relayInfo.OriginModelName)
-	if err != nil {
-		logger.LogWarn(c, fmt.Sprintf("获取企业折扣率失败 user_id=%d, model=%s, err=%v", relayInfo.UserId, relayInfo.OriginModelName, err))
-		discountRate = 1.0
-	} else if discountRate < 1.0 {
-		originalQuota := preConsumedQuota
-		preConsumedQuota = int(float64(preConsumedQuota) * discountRate)
-		if preConsumedQuota < 1 && originalQuota > 0 {
-			preConsumedQuota = 1
-		}
-		logger.LogInfo(c, fmt.Sprintf("企业折扣应用：user_id=%d, model=%s, discount_rate=%.2f, quota: %d -> %d",
-			relayInfo.UserId, relayInfo.OriginModelName, discountRate, originalQuota, preConsumedQuota))
-	}
-	session, apiErr := NewBillingSession(c, relayInfo, preConsumedQuota, discountRate)
+
+	session, apiErr := NewBillingSession(c, relayInfo, preConsumedQuota, 1.0)
 	if apiErr != nil {
 		return apiErr
 	}
