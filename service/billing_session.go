@@ -266,7 +266,6 @@ func (s *BillingSession) syncRelayInfo() {
 
 // NewBillingSession 根据用户计费偏好创建 BillingSession，处理 subscription_first / wallet_first 的回退。
 // discountRate 是企业折扣率（0-1之间，1表示无折扣）
-// 注意：企业折扣已在 PreConsumeBilling 中应用过一次，此处的折扣不应重复应用
 func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preConsumedQuota int, discountRate float64) (*BillingSession, *types.NewAPIError) {
 	if relayInfo == nil {
 		return nil, types.NewError(fmt.Errorf("relayInfo is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
@@ -274,13 +273,24 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 
 	// 应用企业折扣
 	modelName := relayInfo.OriginModelName
-	logger.LogInfo(c, fmt.Sprintf("开始创建 BillingSession：用户ID=%d, 模型名称=%s, 已应用折扣率=%.4f",
-		relayInfo.UserId, modelName, discountRate))
+	logger.LogInfo(c, fmt.Sprintf("开始应用企业折扣：用户ID=%d, 模型名称=%s", relayInfo.UserId, modelName))
 
-	// 如果折扣已经在 PreConsumeBilling 中应用过（discountRate < 1.0），则不再重复应用
-	// 只记录日志
-	if discountRate < 1.0 {
-		logger.LogInfo(c, fmt.Sprintf("企业折扣已在 PreConsumeBilling 中应用，跳过重复应用"))
+	if modelName != "" {
+		discountRate, err := getUserOrgDiscount(relayInfo.UserId, modelName)
+		logger.LogInfo(c, fmt.Sprintf("获取企业折扣结果：折扣率=%.4f, 错误=%v", discountRate, err))
+
+		if err == nil && discountRate != 1.0 {
+			originalQuota := preConsumedQuota
+			preConsumedQuota = int(float64(preConsumedQuota) * discountRate)
+			logger.LogInfo(c, fmt.Sprintf("用户 %d 模型 %s 应用企业折扣：原始预扣费 %s，折扣率 %.4f，折后预扣费 %s",
+				relayInfo.UserId, modelName, logger.FormatQuota(originalQuota), discountRate, logger.FormatQuota(preConsumedQuota)))
+		} else if err != nil {
+			logger.LogWarn(c, fmt.Sprintf("获取企业折扣失败：%v", err))
+		} else {
+			logger.LogInfo(c, fmt.Sprintf("无企业折扣应用：折扣率=%.4f", discountRate))
+		}
+	} else {
+		logger.LogInfo(c, fmt.Sprintf("用户 %d 模型名称为空，跳过企业折扣", relayInfo.UserId))
 	}
 
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
