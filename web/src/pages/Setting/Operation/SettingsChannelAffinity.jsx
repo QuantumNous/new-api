@@ -316,6 +316,20 @@ export default function SettingsChannelAffinity(props) {
     }
   }, [paramTemplateDraft, t]);
 
+  const claudeCliRule = useMemo(
+    () =>
+      (rules || []).find(
+        (rule) => (rule?.name || '').trim().toLowerCase() === 'claude cli trace',
+      ) || null,
+    [rules],
+  );
+
+  const claudeCliCacheCount = useMemo(() => {
+    const name = (claudeCliRule?.name || '').trim();
+    if (!name) return 0;
+    return Number(cacheStats?.by_rule_name?.[name] || 0);
+  }, [cacheStats, claudeCliRule]);
+
   const updateParamTemplateDraft = (value) => {
     const next = typeof value === 'string' ? value : '';
     setParamTemplateDraft(next);
@@ -440,6 +454,14 @@ export default function SettingsChannelAffinity(props) {
         await refreshCacheStats();
       },
     });
+  };
+
+  const confirmClearClaudeCliCache = () => {
+    if (!claudeCliRule) {
+      showWarning(t('当前未找到 Claude CLI 亲和规则'));
+      return;
+    }
+    confirmClearRuleCache(claudeCliRule);
   };
 
   const setRulesJsonToForm = (jsonString) => {
@@ -1001,6 +1023,40 @@ export default function SettingsChannelAffinity(props) {
             </Row>
 
             <Divider style={{ marginTop: 12, marginBottom: 12 }} />
+
+            <div
+              style={{
+                marginBottom: 12,
+                padding: 12,
+                borderRadius: 10,
+                border: '1px solid var(--semi-color-warning-light-default)',
+                background: 'var(--semi-color-warning-light-default)',
+              }}
+            >
+              <Space wrap align='center'>
+                <Tag color='orange' size='large'>
+                  {t('Claude Code 快捷运维')}
+                </Tag>
+                <Text>
+                  {t('当前 Claude CLI 亲和缓存条目')}：{claudeCliCacheCount}
+                </Text>
+                <Button
+                  type='warning'
+                  theme='solid'
+                  disabled={!claudeCliRule}
+                  onClick={confirmClearClaudeCliCache}
+                >
+                  {t('清空 Claude Code 缓存')}
+                </Button>
+              </Space>
+              <div style={{ marginTop: 6 }}>
+                <Text type='tertiary' size='small'>
+                  {t(
+                    '当 Claude Code 命中历史渠道后出现异常或切换不上新渠道时，可优先使用这里的一键清理。',
+                  )}
+                </Text>
+              </div>
+            </div>
 
             <Space style={{ marginBottom: 10 }}>
               <Button
