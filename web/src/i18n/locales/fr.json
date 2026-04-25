@@ -2421,6 +2421,8 @@
     "用户账户创建成功！": "Compte utilisateur créé avec succès !",
     "用户账户管理": "Comptes utilisateurs",
     "用时/首字": "Temps/premier mot",
+    "速度": "Vitesse",
+    "输出速度 (tokens/s) = 输出 tokens / (总耗时 - 首字耗时)": "Vitesse de sortie (tokens/s) = tokens de sortie / (temps total - temps du premier token)",
     "由全站货币展示设置统一控制": "Contrôlé par les paramètres globaux d'affichage des devises",
     "由管理员分配，决定用户身份等级（如 default、vip）。": "Assigned by admin, determines user tier (e.g., default, vip).",
     "由订阅抵扣": "Déduit par l'abonnement",

@@ -802,6 +802,38 @@ export const getLogsColumns = ({
       },
     },
     {
+      key: COLUMN_KEYS.SPEED,
+      title: (
+        <div className='flex items-center gap-1'>
+          {t('速度')}
+          <Tooltip
+            content={t(
+              '输出速度 (tokens/s) = 输出 tokens / (总耗时 - 首字耗时)',
+            )}
+          >
+            <IconHelpCircle className='text-gray-400 cursor-help' />
+          </Tooltip>
+        </div>
+      ),
+      dataIndex: 'speed',
+      render: (text, record, index) => {
+        if (
+          !(
+            record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6
+          )
+        ) {
+          return <></>;
+        }
+        if (!text || text <= 0) {
+          return <span style={{ color: 'var(--semi-color-text-2)' }}>-</span>;
+        }
+        return <>{text.toFixed(1)}</>;
+      },
+    },
+    {
       key: COLUMN_KEYS.COST,
       title: t('花费'),
       dataIndex: 'quota',

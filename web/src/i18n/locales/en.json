@@ -2434,6 +2434,8 @@
     "用户账户创建成功！": "User account created successfully!",
     "用户账户管理": "User account management",
     "用时/首字": "Time/first word",
+    "速度": "Speed",
+    "输出速度 (tokens/s) = 输出 tokens / (总耗时 - 首字耗时)": "Output speed (tokens/s) = output tokens / (total time - time to first token)",
     "由全站货币展示设置统一控制": "Controlled by the site-wide currency display settings",
     "由管理员分配，决定用户身份等级（如 default、vip）。": "Assigned by admin, determines user tier (e.g., default, vip).",
     "由订阅抵扣": "Deducted by subscription",
