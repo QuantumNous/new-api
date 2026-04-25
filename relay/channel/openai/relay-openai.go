@@ -27,13 +27,17 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 		return nil
 	}
 
-	if !forceFormat && !thinkToContent {
+	rewriteModel, responseModel := relaycommon.ResponseModelNameForClient(info)
+	if !forceFormat && !thinkToContent && !rewriteModel {
 		return helper.StringData(c, data)
 	}
 
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
 	if err := common.UnmarshalJsonStr(data, &lastStreamResponse); err != nil {
 		return err
+	}
+	if rewriteModel {
+		lastStreamResponse.Model = responseModel
 	}
 
 	if !thinkToContent {
@@ -259,15 +263,25 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	applyUsagePostProcessing(info, &simpleResponse.Usage, responseBody)
 
+	rewriteModel, responseModel := relaycommon.ResponseModelNameForClient(info)
+	if rewriteModel {
+		simpleResponse.Model = responseModel
+	}
+
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
-		if usageModified {
+		if usageModified || rewriteModel {
 			var bodyMap map[string]interface{}
 			err = common.Unmarshal(responseBody, &bodyMap)
 			if err != nil {
 				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
-			bodyMap["usage"] = simpleResponse.Usage
+			if usageModified {
+				bodyMap["usage"] = simpleResponse.Usage
+			}
+			if rewriteModel {
+				bodyMap["model"] = responseModel
+			}
 			responseBody, _ = common.Marshal(bodyMap)
 		}
 		if forceFormat {

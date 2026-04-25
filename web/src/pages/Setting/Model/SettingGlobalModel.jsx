@@ -68,6 +68,7 @@ const chatCompletionsToResponsesPolicyAllChannelsExample = JSON.stringify(
 
 const defaultGlobalSettingInputs = {
   'global.pass_through_request_enabled': false,
+  'global.response_model_original_enabled': true,
   'global.thinking_model_blacklist': '[]',
   'global.chat_completions_to_responses_policy': '{}',
   'general_setting.ping_interval_enabled': false,
@@ -201,6 +202,23 @@ export default function SettingGlobalModel(props) {
                   }
                   extraText={t(
                     '开启后，所有请求将直接透传给上游，不会进行任何处理（重定向和渠道适配也将失效）,请谨慎开启',
+                  )}
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  label={t('响应模型名使用请求模型名')}
+                  field={'global.response_model_original_enabled'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'global.response_model_original_enabled': value,
+                    })
+                  }
+                  extraText={t(
+                    '开启后，当渠道模型映射生效时，响应中的 model 字段返回客户端请求的模型名；关闭后返回上游实际模型名',
                   )}
                 />
               </Col>

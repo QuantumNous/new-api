@@ -44,6 +44,37 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	}
 }
 
+func applyClientResponseModelToClaudeResponse(info *relaycommon.RelayInfo, response *dto.ClaudeResponse) {
+	rewriteModel, responseModel := relaycommon.ResponseModelNameForClient(info)
+	if !rewriteModel || response == nil {
+		return
+	}
+	if response.Model != "" || response.Type == "message" {
+		response.Model = responseModel
+	}
+	if response.Message != nil && response.Message.Model != "" {
+		response.Message.Model = responseModel
+	}
+}
+
+func patchClaudeResponseModelData(info *relaycommon.RelayInfo, data string) string {
+	rewriteModel, responseModel := relaycommon.ResponseModelNameForClient(info)
+	if !rewriteModel || data == "" {
+		return data
+	}
+	if gjson.Get(data, "model").Exists() {
+		if patched, err := sjson.Set(data, "model", responseModel); err == nil {
+			data = patched
+		}
+	}
+	if gjson.Get(data, "message.model").Exists() {
+		if patched, err := sjson.Set(data, "message.model", responseModel); err == nil {
+			data = patched
+		}
+	}
+	return data
+}
+
 func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
 	claudeTools := make([]any, 0, len(textRequest.Tools))
 
@@ -709,7 +740,7 @@ func setMessageDeltaUsageInt(data string, path string, localValue int) string {
 	return patchedData
 }
 
-func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
+func FormatClaudeResponseInfo(info *relaycommon.RelayInfo, claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
 	if claudeInfo == nil {
 		return false
 	}
@@ -777,6 +808,9 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 		oaiResponse.Id = claudeInfo.ResponseId
 		oaiResponse.Created = claudeInfo.Created
 		oaiResponse.Model = claudeInfo.Model
+		if rewriteModel, responseModel := relaycommon.ResponseModelNameForClient(info); rewriteModel {
+			oaiResponse.Model = responseModel
+		}
 	}
 	return true
 }
@@ -798,7 +832,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		maybeMarkClaudeRefusal(c, *claudeResponse.Delta.StopReason)
 	}
 	if info.RelayFormat == types.RelayFormatClaude {
-		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
+		FormatClaudeResponseInfo(info, &claudeResponse, nil, claudeInfo)
 
 		if claudeResponse.Type == "message_start" {
 			// message_start, 获取usage
@@ -812,11 +846,12 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
 			}
 		}
+		data = patchClaudeResponseModelData(info, data)
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
 		response := StreamResponseClaude2OpenAI(&claudeResponse)
 
-		if !FormatClaudeResponseInfo(&claudeResponse, response, claudeInfo) {
+		if !FormatClaudeResponseInfo(info, &claudeResponse, response, claudeInfo) {
 			return nil
 		}
 
@@ -856,7 +891,11 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
 		if info.ShouldIncludeUsage {
 			openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
-			response := helper.GenerateFinalUsageResponse(claudeInfo.ResponseId, claudeInfo.Created, info.UpstreamModelName, openAIUsage)
+			responseModel := info.UpstreamModelName
+			if rewriteModel, modelName := relaycommon.ResponseModelNameForClient(info); rewriteModel {
+				responseModel = modelName
+			}
+			response := helper.GenerateFinalUsageResponse(claudeInfo.ResponseId, claudeInfo.Created, responseModel, openAIUsage)
 			err := helper.ObjectData(c, response)
 			if err != nil {
 				common.SysLog("send final response failed: " + err.Error())
@@ -915,14 +954,15 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	var responseData []byte
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
+		applyClientResponseModelToClaudeResponse(info, &claudeResponse)
 		openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
 		openaiResponse.Usage = buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
-		responseData, err = json.Marshal(openaiResponse)
+		responseData, err = common.Marshal(openaiResponse)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 	case types.RelayFormatClaude:
-		responseData = data
+		responseData = []byte(patchClaudeResponseModelData(info, string(data)))
 	}
 
 	if claudeResponse.Usage != nil && claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {

@@ -38,6 +38,9 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
 		return err
 	}
+	if rewriteModel, responseModel := relaycommon.ResponseModelNameForClient(info); rewriteModel {
+		streamResponse.Model = responseModel
+	}
 
 	if streamResponse.Usage != nil {
 		info.ClaudeConvertInfo.Usage = streamResponse.Usage
@@ -180,6 +183,9 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 	*createAt = lastStreamResponse.Created
 	*systemFingerprint = lastStreamResponse.GetSystemFingerprint()
 	*model = lastStreamResponse.Model
+	if rewriteModel, responseModel := relaycommon.ResponseModelNameForClient(info); rewriteModel {
+		*model = responseModel
+	}
 
 	if service.ValidUsage(lastStreamResponse.Usage) {
 		*containStreamUsage = true
@@ -212,6 +218,9 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
 			common.SysLog("error unmarshalling stream response: " + err.Error())
 			return
+		}
+		if rewriteModel, responseModel := relaycommon.ResponseModelNameForClient(info); rewriteModel {
+			streamResponse.Model = responseModel
 		}
 
 		info.ClaudeConvertInfo.Usage = usage
