@@ -191,10 +191,6 @@ const SidebarBody = ({
   //   2. The user avatar / role block sits at the BOTTOM of the sidebar
   //      (Sidebar.Footer), not at the top.
   //
-  // Always render Sidebar.Footer (even with empty user) so the slot is
-  // present in the DOM at mount and heroui-pro lays out Content vs Footer
-  // correctly. Conditionally rendering Footer caused it to silently
-  // disappear when userState.user resolved after the initial render.
   return (
     <>
       <Sidebar.Content>
@@ -215,7 +211,7 @@ const SidebarBody = ({
           </Sidebar.Group>
         ))}
       </Sidebar.Content>
-      {userMenuFooter ? <Sidebar.Footer>{userMenuFooter}</Sidebar.Footer> : null}
+      <Sidebar.Footer>{userMenuFooter}</Sidebar.Footer>
     </>
   );
 };

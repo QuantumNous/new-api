@@ -232,10 +232,11 @@ import {
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
   const size = 16;
-  // Selected icons stay on `currentColor` (which is text-foreground for an
-  // active Sidebar.MenuItem) but bump stroke weight so they read as
-  // "deepened" instead of changing tint to the primary color.
-  const strokeWidth = selected ? 2.5 : 2;
+  // Plain currentColor + uniform stroke. heroui-pro's sidebar.css already
+  // deepens active icons from `--muted` to `--foreground` automatically via
+  // `.sidebar__menu-item[data-current=true] .sidebar__menu-icon`, so we
+  // don't need to manually toggle color or stroke weight here.
+  const strokeWidth = 2;
   const iconColor = 'currentColor';
   const commonProps = {
     size,

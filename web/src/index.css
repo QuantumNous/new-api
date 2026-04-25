@@ -37,6 +37,16 @@
    those overrides have been removed. Don't reintroduce them or they'll
    collide with heroui-pro's collapse animation. */
 
+/* heroui-pro's <Sidebar> hard-codes height: 100svh, which is correct in
+   the template-dashboard's <AppLayout> (where the navbar sits ABOVE the
+   provider). Our PageLayout puts the navbar *inside* Sidebar.Provider, so
+   the sidebar starts ~64px below the viewport top and its 100svh height
+   pushes the bottom (Sidebar.Footer with the user avatar) ~64px below the
+   visible viewport. Override to fit the parent's available height. */
+[data-slot='sidebar'] {
+  height: 100%;
+}
+
 :root,
 .light,
 .default,

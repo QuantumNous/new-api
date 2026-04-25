@@ -24,7 +24,7 @@ import FooterBar from './Footer';
 import ToastViewport from '../ui/ToastViewport';
 import ErrorBoundary from '../common/ErrorBoundary';
 import React, { useCallback, useContext, useEffect } from 'react';
-import { Sidebar, useSidebar } from '@heroui-pro/react';
+import { Sidebar } from '@heroui-pro/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -230,16 +230,10 @@ const PageLayout = () => {
 };
 
 // Renders <Sidebar.Trigger /> at the top-left of every console page's
-// content area, but only while the sidebar is expanded. Combined with
-// NavbarTrigger (which only renders while the sidebar is collapsed), the
-// trigger always has exactly one visible spot, but moves out of the navbar
-// once the sidebar is open so it doesn't sit flush against the sidebar's
-// right edge.
+// content area, regardless of expand/collapse state. Per product spec the
+// trigger position must NOT change when the sidebar collapses, so this is
+// the single place it lives (no longer mirrored in the navbar).
 function ConsolePageTrigger() {
-  // heroui-pro's useSidebar() exposes the desktop expanded/collapsed flag
-  // as `isOpen` (not `open`).
-  const { isOpen } = useSidebar();
-  if (!isOpen) return null;
   return (
     <div className='mb-3 flex items-center'>
       <Sidebar.Trigger />
