@@ -141,4 +141,50 @@ func TestNormalizeRequestTools(t *testing.T) {
 			t.Errorf("expected 1 surviving tool, got %d (%v)", len(got), got)
 		}
 	})
+
+	t.Run("non-web-search server tool routes to dto.Tool, not ClaudeWebSearchTool", func(t *testing.T) {
+		// Anthropic's built-in server tools (computer_*, bash_*, text_editor_*,
+		// code_execution_*, mcp_*) also carry a top-level "type" field, but
+		// their shape is different from ClaudeWebSearchTool. Previously they
+		// were routed into ClaudeWebSearchTool and ProcessTools then only saw
+		// Name + UserLocation, dropping the rest of the tool schema from the
+		// estimate. The fix narrows web-search routing to a "web_search"
+		// prefix allowlist; unknown types must fall through to dto.Tool.
+		req := &dto.ClaudeRequest{Tools: []any{
+			map[string]any{
+				"type":         "computer_20250124",
+				"name":         "computer",
+				"description":  "Operate a virtual desktop",
+				"input_schema": map[string]any{"type": "object"},
+			},
+		}}
+		normalizeRequestTools(req)
+		got, ok := req.Tools.([]any)
+		if !ok || len(got) != 1 {
+			t.Fatalf("expected 1 tool, got %v (%T)", req.Tools, req.Tools)
+		}
+		if _, isWS := got[0].(*dto.ClaudeWebSearchTool); isWS {
+			t.Errorf("computer_20250124 must NOT be routed to *ClaudeWebSearchTool")
+		}
+		if _, isTool := got[0].(*dto.Tool); !isTool {
+			t.Errorf("expected *dto.Tool, got %T", got[0])
+		}
+	})
+
+	t.Run("web_search variant (future version suffix) still routes to ClaudeWebSearchTool via prefix rule", func(t *testing.T) {
+		req := &dto.ClaudeRequest{Tools: []any{
+			map[string]any{
+				"type": "web_search_20250604",
+				"name": "web_search",
+			},
+		}}
+		normalizeRequestTools(req)
+		got, ok := req.Tools.([]any)
+		if !ok || len(got) != 1 {
+			t.Fatalf("expected 1 tool, got %v (%T)", req.Tools, req.Tools)
+		}
+		if _, isWS := got[0].(*dto.ClaudeWebSearchTool); !isWS {
+			t.Errorf("web_search_20250604 should route to *ClaudeWebSearchTool, got %T", got[0])
+		}
+	})
 }
