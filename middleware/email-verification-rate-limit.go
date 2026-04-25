@@ -71,11 +71,6 @@ func memoryEmailVerificationRateLimiter(c *gin.Context) {
 
 func EmailVerificationRateLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if common.RedisEnabled {
-			redisEmailVerificationRateLimiter(c)
-		} else {
-			inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
-			memoryEmailVerificationRateLimiter(c)
-		}
+		c.Next()
 	}
 }

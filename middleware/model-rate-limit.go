@@ -9,7 +9,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/common/limiter"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/gin-gonic/gin"
@@ -163,38 +162,9 @@ func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) 
 	}
 }
 
-// ModelRequestRateLimit 模型请求限流中间件
+// ModelRequestRateLimit 模型请求限流中间件（已禁用）
 func ModelRequestRateLimit() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		// 在每个请求时检查是否启用限流
-		if !setting.ModelRequestRateLimitEnabled {
-			c.Next()
-			return
-		}
-
-		// 计算限流参数
-		duration := int64(setting.ModelRequestRateLimitDurationMinutes * 60)
-		totalMaxCount := setting.ModelRequestRateLimitCount
-		successMaxCount := setting.ModelRequestRateLimitSuccessCount
-
-		// 获取分组
-		group := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-		if group == "" {
-			group = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-		}
-
-		//获取分组的限流配置
-		groupTotalCount, groupSuccessCount, found := setting.GetGroupRateLimit(group)
-		if found {
-			totalMaxCount = groupTotalCount
-			successMaxCount = groupSuccessCount
-		}
-
-		// 根据存储类型选择并执行限流处理器
-		if common.RedisEnabled {
-			redisRateLimitHandler(duration, totalMaxCount, successMaxCount)(c)
-		} else {
-			memoryRateLimitHandler(duration, totalMaxCount, successMaxCount)(c)
-		}
+		c.Next()
 	}
 }
