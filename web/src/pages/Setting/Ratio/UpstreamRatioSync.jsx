@@ -35,6 +35,7 @@ import { RefreshCcw, CheckSquare, AlertTriangle } from 'lucide-react';
 import {
   API,
   showError,
+  showInfo,
   showSuccess,
   showWarning,
   stringToColor,
@@ -58,7 +59,7 @@ const MODELS_DEV_PRESET_NAME = 'models.dev 价格预设';
 const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev';
 const MODELS_DEV_PRESET_ENDPOINT = 'https://models.dev/api.json';
 
-function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
+function ConflictConfirmModal({ t, visible, items, loading, onOk, onCancel }) {
   const isMobile = useIsMobile();
   const columns = [
     { title: t('渠道'), dataIndex: 'channel' },
@@ -79,7 +80,10 @@ function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
     <Modal
       title={t('确认冲突项修改')}
       visible={visible}
-      onCancel={onCancel}
+      confirmLoading={loading}
+      cancelButtonProps={{ disabled: loading }}
+      maskClosable={!loading}
+      onCancel={loading ? undefined : onCancel}
       onOk={onOk}
       size={isMobile ? 'full-width' : 'large'}
     >
@@ -98,6 +102,7 @@ export default function UpstreamRatioSync(props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const isMobile = useIsMobile();
 
   // 渠道选择相关
@@ -557,6 +562,8 @@ export default function UpstreamRatioSync(props) {
       });
 
       setLoading(true);
+      showInfo(t('正在同步价格，请稍候'));
+      let success = false;
       try {
         const updates = Object.entries(finalRatios).map(([key, value]) =>
           API.put('/api/option/', {
@@ -590,6 +597,7 @@ export default function UpstreamRatioSync(props) {
           });
 
           setResolutions({});
+          success = true;
         } else {
           showError(t('部分保存失败'));
         }
@@ -598,6 +606,7 @@ export default function UpstreamRatioSync(props) {
       } finally {
         setLoading(false);
       }
+      return success;
     },
     [resolutions, props.options, props.refresh],
   );
@@ -615,6 +624,7 @@ export default function UpstreamRatioSync(props) {
           <Button
             icon={<RefreshCcw size={14} />}
             className='w-full md:w-auto mt-2'
+            disabled={loading || syncLoading || confirmLoading}
             onClick={() => {
               setModalVisible(true);
               if (allChannels.length === 0) {
@@ -633,7 +643,10 @@ export default function UpstreamRatioSync(props) {
                 icon={<CheckSquare size={14} />}
                 type='secondary'
                 onClick={applySync}
-                disabled={!hasSelections}
+                loading={loading || confirmLoading}
+                disabled={
+                  !hasSelections || loading || syncLoading || confirmLoading
+                }
                 className='w-full md:w-auto mt-2'
               >
                 {t('应用同步')}
@@ -648,6 +661,7 @@ export default function UpstreamRatioSync(props) {
               value={searchKeyword}
               onChange={setSearchKeyword}
               className='w-full sm:w-64'
+              disabled={loading || syncLoading || confirmLoading}
               showClear
             />
 
@@ -656,6 +670,7 @@ export default function UpstreamRatioSync(props) {
               value={ratioTypeFilter}
               onChange={setRatioTypeFilter}
               className='w-full sm:w-48'
+              disabled={loading || syncLoading || confirmLoading}
               showClear
               onClear={() => setRatioTypeFilter('')}
             >
@@ -793,6 +808,7 @@ export default function UpstreamRatioSync(props) {
       const valueNode = isPreferredField ? (
         <Checkbox
           checked={isSelected}
+          disabled={loading || syncLoading || confirmLoading}
           onChange={(e) => {
             const isChecked = e.target.checked;
             if (isChecked) {
@@ -976,6 +992,7 @@ export default function UpstreamRatioSync(props) {
             <Checkbox
               checked={channelStats.allSelected}
               indeterminate={channelStats.partiallySelected}
+              disabled={loading || syncLoading || confirmLoading}
               onChange={(e) => handleBulkSelect(e.target.checked)}
             >
               {upName}
@@ -1050,8 +1067,9 @@ export default function UpstreamRatioSync(props) {
         t={t}
         visible={confirmVisible}
         items={conflictItems}
+        loading={confirmLoading}
         onOk={async () => {
-          setConfirmVisible(false);
+          setConfirmLoading(true);
           const curRatios = {
             ModelRatio: JSON.parse(props.options.ModelRatio || '{}'),
             CompletionRatio: JSON.parse(props.options.CompletionRatio || '{}'),
@@ -1072,7 +1090,14 @@ export default function UpstreamRatioSync(props) {
               props.options['billing_setting.billing_expr'] || '{}',
             ),
           };
-          await performSync(curRatios);
+          try {
+            const success = await performSync(curRatios);
+            if (success) {
+              setConfirmVisible(false);
+            }
+          } finally {
+            setConfirmLoading(false);
+          }
         }}
         onCancel={() => setConfirmVisible(false)}
       />
