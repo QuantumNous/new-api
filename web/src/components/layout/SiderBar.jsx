@@ -21,7 +21,7 @@ import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@heroui/react';
-import { Sidebar } from '@heroui-pro/react';
+import { Sidebar, useSidebar as useSidebarUI } from '@heroui-pro/react';
 import { getLucideIcon } from '../../helpers/render';
 import { isAdmin, isRoot, showError, stringToColor } from '../../helpers';
 import { useSidebar } from '../../hooks/common/useSidebar';
@@ -193,6 +193,7 @@ const SidebarBody = ({
   //
   return (
     <>
+      <CollapsedHeaderTrigger />
       <Sidebar.Content>
         {visibleSections.map((section) => (
           <Sidebar.Group key={section.key}>
@@ -215,6 +216,22 @@ const SidebarBody = ({
     </>
   );
 };
+
+// Renders <Sidebar.Trigger /> at the top of the sidebar (inside
+// Sidebar.Header) ONLY while the sidebar is collapsed. When expanded, the
+// trigger lives outside the sidebar — see ConsolePageTrigger in PageLayout.
+// Extra `pt-6` for visual breathing room from the sidebar's top edge.
+function CollapsedHeaderTrigger() {
+  // useSidebarUI = heroui-pro's hook (renamed to avoid colliding with our
+  // own ../../hooks/common/useSidebar which manages module visibility).
+  const { isOpen } = useSidebarUI();
+  if (isOpen) return null;
+  return (
+    <Sidebar.Header className='pt-6 pb-3'>
+      <Sidebar.Trigger />
+    </Sidebar.Header>
+  );
+}
 
 const SiderBar = () => {
   const { t } = useTranslation();
