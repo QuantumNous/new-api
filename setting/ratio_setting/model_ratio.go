@@ -4,7 +4,9 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -709,6 +711,21 @@ func GetCompletionRatioCopy() map[string]float64 {
 	return completionRatioMap.ReadAll()
 }
 
+// NormalizeGemma4EffortModelName 在开启 Gemini thinking adapter 时，
+// 将 gemma-4* 的 effort 后缀（如 -minimal/-high）归一化为基础模型名。
+func NormalizeGemma4EffortModelName(name string) string {
+	if !model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
+		return name
+	}
+	if !strings.HasPrefix(name, "gemma-4") {
+		return name
+	}
+	if baseModel, level, ok := reasoning.TrimEffortSuffix(name); ok && level != "" {
+		return baseModel
+	}
+	return name
+}
+
 // 转换模型名，减少渠道必须配置各种带参数模型
 func FormatMatchingModelName(name string) string {
 
@@ -719,6 +736,8 @@ func FormatMatchingModelName(name string) string {
 	} else if strings.HasPrefix(name, "gemini-2.5-pro") {
 		name = handleThinkingBudgetModel(name, "gemini-2.5-pro", "gemini-2.5-pro-thinking-*")
 	}
+
+	name = NormalizeGemma4EffortModelName(name)
 
 	if strings.HasPrefix(name, "gpt-4-gizmo") {
 		name = "gpt-4-gizmo-*"
