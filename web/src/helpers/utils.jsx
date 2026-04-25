@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { Toast, Pagination } from '@douyinfe/semi-ui';
-import { toastConstants, BILLING_VARS, BILLING_VAR_REGEX } from '../constants';
+import { toastConstants, BILLING_PRICING_VARS, BILLING_VAR_REGEX } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
 import {
@@ -927,7 +927,7 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
   }
   const hasCoeffs = 'p' in varCoeffs || 'c' in varCoeffs;
 
-  const varLabels = BILLING_VARS.map((v) => [v.key, v.label]);
+  const varLabels = BILLING_PRICING_VARS.map((v) => [v.key, v.label]);
 
   const hasTimeCondition = /\b(?:hour|minute|weekday|month|day)\(/.test(exprBody);
   const hasRequestCondition = /\b(?:param|header)\(/.test(exprBody);
