@@ -215,10 +215,22 @@ func OaiResponsesToChatStreamToNonStreamHandler(c *gin.Context, info *relaycommo
 				toolCallIndexByID[callID] = len(toolCallIndexByID)
 			}
 			if name := strings.TrimSpace(streamResp.Item.Name); name != "" {
+				if toolCallNameByID[callID] != name {
+					usageText.WriteString(name)
+				}
 				toolCallNameByID[callID] = name
 			}
-			if streamResp.Item.Arguments != "" {
-				toolCallArgsByID[callID] = streamResp.Item.Arguments
+			if args := streamResp.Item.Arguments; args != "" {
+				prevArgs := toolCallArgsByID[callID]
+				switch {
+				case prevArgs == "":
+					usageText.WriteString(args)
+				case strings.HasPrefix(args, prevArgs):
+					usageText.WriteString(args[len(prevArgs):])
+				case prevArgs != args:
+					usageText.WriteString(args)
+				}
+				toolCallArgsByID[callID] = args
 			}
 			sawToolCall = true
 
