@@ -75,6 +75,7 @@
 - [x] Rewrite TaskLogsColumnDefs (task logs columns) and MjLogsColumnDefs (Midjourney logs columns) to native ColorTag/ProgressBar/EllipsisText/UserChip helpers with 16-color palette and lucide icon prefixes (drops Progress/Tag/Typography/Avatar/Space from compat across both files).
 - [x] Rewrite TokensColumnDefs (tokens columns) to native Chip/ProgressBar/HoverPanel/ClickMenu/ConfirmDialog primitives with show-hide token key cell, vendor avatar pills, split chat menu, and inline copy popover (drops Dropdown/Space/SplitButtonGroup/Tag/AvatarGroup/Avatar/Progress/Popover/Typography/Modal + IconTreeTriangleDown/IconCopy/IconEyeOpened/IconEyeClosed from compat).
 - [x] Rewrite UsageLogsColumnDefs (usage logs columns) to native ColorTag/UserChip/EllipsisText/HoverPanel primitives with channel-affinity sparkles overlay, stream-status alert overlay, model-mapped popover, cache-summary subtitle, and segment-style detail summary (drops Avatar/Space/Tag/Popover/Typography + IconHelpCircle from compat).
+- [x] Rewrite tokens/index (FluentRead detection notice) without HeroCompat: Notification.info popup is replaced by a controlled top-right `FluentNoticePanel` (HeroUI Button + native `<select>` for parity with CCSwitchModal), Notification.close lifecycle becomes plain React state, and Toast/showInfo helpers replace the leftover Toast.success / Notification.close calls (drops Notification/Space/Toast/Typography + Select compat usage from the file).
 
 ## Current Hotspots
 
@@ -138,6 +139,7 @@
 - After TaskLogsColumnDefs + MjLogsColumnDefs rewrites: 37 files still importing HeroCompat (~65% complete). `bun run build` passes. /console/task and /console/midjourney render correctly.
 - After TokensColumnDefs rewrite: 36 files still importing HeroCompat (~66% complete). `bun run build` passes. /console/token renders with new token key show/hide + copy menu + chat split menu + delete confirm.
 - After UsageLogsColumnDefs rewrite: 35 files still importing HeroCompat (~67% complete). `bun run build` passes. /console/log renders with new ColorTag/UserChip/EllipsisText/HoverPanel primitives; HMR reloaded both UsageLogsTable and TokensTable cleanly.
+- After tokens/index FluentNoticePanel rewrite: 34 files still importing HeroCompat (~68% complete). `bun run build` passes. /console/token loads without errors; FluentRead notice is now a controlled top-right panel that auto-shows when the `#fluent-new-api-container` MutationObserver fires and dismisses cleanly via either `setFluentNoticeOpen(false)` or the local `不再提醒` suppression flag.
 
 ## Console Style Migration from heroui-pro/template-dashboard
 
