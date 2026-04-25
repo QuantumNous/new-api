@@ -1,40 +1,82 @@
 import i18next from 'i18next';
+import React, { useState, useEffect } from 'react';
 import { Avatar } from '@douyinfe/semi-ui';
-import * as LobeIcons from '@lobehub/icons';
-import {
-  OpenAI,
-  Claude,
-  Gemini,
-  Moonshot,
-  Zhipu,
-  Qwen,
-  DeepSeek,
-  Minimax,
-  Wenxin,
-  Spark,
-  Midjourney,
-  Hunyuan,
-  Cohere,
-  Cloudflare,
-  Ai360,
-  Yi,
-  Jina,
-  Mistral,
-  XAI,
-  Ollama,
-  Doubao,
-  Suno,
-  Xinference,
-  OpenRouter,
-  Dify,
-  Coze,
-  SiliconCloud,
-  FastGPT,
-  Kling,
-  Jimeng,
-  Perplexity,
-  Replicate,
-} from '@lobehub/icons';
+import OpenAI from '@lobehub/icons/es/OpenAI';
+import Claude from '@lobehub/icons/es/Claude';
+import Gemini from '@lobehub/icons/es/Gemini';
+import Moonshot from '@lobehub/icons/es/Moonshot';
+import Zhipu from '@lobehub/icons/es/Zhipu';
+import Qwen from '@lobehub/icons/es/Qwen';
+import DeepSeek from '@lobehub/icons/es/DeepSeek';
+import Minimax from '@lobehub/icons/es/Minimax';
+import Wenxin from '@lobehub/icons/es/Wenxin';
+import Spark from '@lobehub/icons/es/Spark';
+import Midjourney from '@lobehub/icons/es/Midjourney';
+import Hunyuan from '@lobehub/icons/es/Hunyuan';
+import Cohere from '@lobehub/icons/es/Cohere';
+import Cloudflare from '@lobehub/icons/es/Cloudflare';
+import Ai360 from '@lobehub/icons/es/Ai360';
+import Yi from '@lobehub/icons/es/Yi';
+import Jina from '@lobehub/icons/es/Jina';
+import Mistral from '@lobehub/icons/es/Mistral';
+import XAI from '@lobehub/icons/es/XAI';
+import Ollama from '@lobehub/icons/es/Ollama';
+import Doubao from '@lobehub/icons/es/Doubao';
+import Suno from '@lobehub/icons/es/Suno';
+import Xinference from '@lobehub/icons/es/Xinference';
+import OpenRouter from '@lobehub/icons/es/OpenRouter';
+import Dify from '@lobehub/icons/es/Dify';
+import Coze from '@lobehub/icons/es/Coze';
+import SiliconCloud from '@lobehub/icons/es/SiliconCloud';
+import FastGPT from '@lobehub/icons/es/FastGPT';
+import Kling from '@lobehub/icons/es/Kling';
+import Jimeng from '@lobehub/icons/es/Jimeng';
+import Perplexity from '@lobehub/icons/es/Perplexity';
+import Replicate from '@lobehub/icons/es/Replicate';
+
+// 静态导入的图标映射，用于同步查找
+const StaticIcons = {
+  OpenAI, Claude, Gemini, Moonshot, Zhipu, Qwen, DeepSeek, Minimax,
+  Wenxin, Spark, Midjourney, Hunyuan, Cohere, Cloudflare, Ai360, Yi,
+  Jina, Mistral, XAI, Ollama, Doubao, Suno, Xinference, OpenRouter,
+  Dify, Coze, SiliconCloud, FastGPT, Kling, Jimeng, Perplexity, Replicate,
+};
+
+// 动态导入图标的缓存
+const dynamicIconCache = {};
+
+// 可用的图标模块名称（用于验证动态导入路径）
+const ICON_MODULES = new Set([
+  'Adobe','AdobeFirefly','Agui','Ai2','Ai21','Ai302','Ai360','AiHubMix','AiMass','AionLabs',
+  'AiStudio','AkashChat','AlephAlpha','Alibaba','AlibabaCloud','AntGroup','Anthropic','Anyscale',
+  'Apple','Arcee','AssemblyAI','Automatic','Aws','Aya','Azure','AzureAI','BAAI','Baichuan',
+  'Baidu','BaiduCloud','Bailian','Baseten','Bedrock','Bfl','Bilibili','BilibiliIndex','Bing',
+  'BurnCloud','ByteDance','CapCut','CentML','Cerebras','ChatGLM','Civitai','Claude','Cline',
+  'Clipdrop','Cloudflare','CodeFlicker','CodeGeeX','CogVideo','CogView','Cohere','Colab',
+  'CometAPI','ComfyUI','CommandA','Copilot','CopilotKit','Coqui','Coze','CrewAI','Crusoe',
+  'Cursor','CyberCut','Dalle','Dbrx','DeepAI','DeepCogito','DeepInfra','DeepL','DeepMind',
+  'DeepSeek','Dify','Doc2X','DocSearch','Dolphin','Doubao','DreamMachine','ElevenLabs','ElevenX',
+  'EssentialAI','Exa','Fal','FastGPT','Featherless','Figma','Fireworks','FishAudio','Flora',
+  'Flowith','Flux','Friendli','Gemini','Gemma','GiteeAI','Github','GithubCopilot','Glama',
+  'Glif','GLMV','Google','GoogleCloud','Goose','Gradio','Greptile','Grok','Groq','Hailuo',
+  'Haiper','Hedra','Higress','Huawei','HuaweiCloud','HuggingFace','Hunyuan','Hyperbolic','IBM',
+  'Ideogram','IFlyTekCloud','Inception','Inference','Infermatic','Infinigence','Inflection',
+  'InternLM','Jimeng','Jina','Kimi','Kling','Kluster','Kolors','Krea','KwaiKAT','Kwaipilot',
+  'Lambda','LangChain','Langfuse','LangGraph','LangSmith','LeptonAI','LG','Lightricks','Liquid',
+  'LiveKit','LlamaIndex','LLaVA','LmStudio','LobeHub','LongCat','Lovable','Luma','Magic','Make',
+  'Manus','Mastra','MCP','McpSo','Menlo','Meta','MetaAI','MetaGPT','Microsoft','Midjourney',
+  'Minimax','Mistral','ModelScope','Monica','Moonshot','Morph','MyShell','N8n','Nebius','NewAPI',
+  'NotebookLM','Notion','NousResearch','Nova','NovelAI','Novita','NPLCloud','Nvidia','Ollama',
+  'OpenAI','OpenChat','OpenRouter','OpenWebUI','PaLM','Parasail','Perplexity','Phidata','Phind',
+  'Pika','PixVerse','Player2','Poe','Pollinations','PPIO','PydanticAI','Qingyan','Qiniu','Qwen',
+  'Railway','Recraft','Relace','Replicate','Replit','RSSHub','Runway','Rwkv','SambaNova',
+  'Search1API','SearchApi','SenseNova','SiliconCloud','Skywork','Smithery','Snowflake','SophNet',
+  'Sora','Spark','Stability','StateCloud','Stepfun','Straico','StreamLake','SubModel','Suno',
+  'Sync','Targon','Tavily','Tencent','TencentCloud','Tiangong','TII','Together','TopazLabs',
+  'Trae','Tripo','TuriX','Udio','Unstructured','Upstage','V0','VectorizerAI','Vercel','VertexAI',
+  'Vidu','Viggle','Vllm','Volcengine','Voyage','Wenxin','Windsurf','WorkersAI','XAI','Xinference',
+  'Xuanyuan','Yandex','Yi','YouMind','Yuanbao','ZAI','Zapier','Zeabur','ZenMux','ZeroOne','Zhipu',
+]);
 
 // 获取模型分类
 export const getModelCategories = (() => {
@@ -314,7 +356,7 @@ export function getLobeHubIcon(iconName, size = 14) {
   // 解析组件路径与点号链式属性
   const segments = String(iconName).split('.');
   const baseKey = segments[0];
-  const BaseIcon = LobeIcons[baseKey];
+  const BaseIcon = StaticIcons[baseKey];
 
   let IconComponent = undefined;
   let propStartIndex = 1;
@@ -322,9 +364,27 @@ export function getLobeHubIcon(iconName, size = 14) {
   if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
     IconComponent = BaseIcon[segments[1]];
     propStartIndex = 2;
-  } else {
-    IconComponent = LobeIcons[baseKey];
+  } else if (BaseIcon) {
+    IconComponent = BaseIcon;
     propStartIndex = 1;
+  }
+
+  // 静态图标未命中，尝试动态加载
+  if (!IconComponent && ICON_MODULES.has(baseKey)) {
+    // 已缓存
+    if (dynamicIconCache[baseKey]) {
+      const cached = dynamicIconCache[baseKey];
+      if (segments.length > 1 && cached[segments[1]]) {
+        IconComponent = cached[segments[1]];
+        propStartIndex = 2;
+      } else {
+        IconComponent = cached;
+        propStartIndex = 1;
+      }
+    } else {
+      // 返回异步加载的包装组件
+      return <DynamicLobeIcon iconName={iconName} size={size} />;
+    }
   }
 
   // 失败兜底
@@ -379,4 +439,85 @@ export function getLobeHubIcon(iconName, size = 14) {
   if (props.size == null && size != null) props.size = size;
 
   return <IconComponent {...props} />;
+}
+
+// 动态加载图标的 React 包装组件
+function DynamicLobeIcon({ iconName, size = 14 }) {
+  const [IconComponent, setIconComponent] = useState(null);
+
+  useEffect(() => {
+    const segments = String(iconName).split('.');
+    const baseKey = segments[0];
+
+    if (dynamicIconCache[baseKey]) {
+      setIconComponent(() => resolveIcon(dynamicIconCache[baseKey], segments));
+      return;
+    }
+
+    let cancelled = false;
+    import(`@lobehub/icons/es/${baseKey}`)
+      .then((mod) => {
+        const exported = mod[baseKey] || mod.default || mod;
+        dynamicIconCache[baseKey] = exported;
+        if (!cancelled) {
+          setIconComponent(() => resolveIcon(exported, segments));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setIconComponent(null);
+      });
+
+    return () => { cancelled = true; };
+  }, [iconName]);
+
+  if (!IconComponent) {
+    const firstLetter = String(iconName).charAt(0).toUpperCase();
+    return <Avatar size='extra-extra-small'>{firstLetter}</Avatar>;
+  }
+
+  // 解析属性
+  const segments = String(iconName).split('.');
+  const baseKey = segments[0];
+  const BaseIcon = dynamicIconCache[baseKey];
+  let propStartIndex = 1;
+  if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
+    propStartIndex = 2;
+  }
+
+  const props = {};
+  for (let i = propStartIndex; i < segments.length; i++) {
+    const seg = segments[i];
+    if (!seg) continue;
+    const eqIdx = seg.indexOf('=');
+    if (eqIdx === -1) {
+      props[seg.trim()] = true;
+      continue;
+    }
+    const key = seg.slice(0, eqIdx).trim();
+    const valRaw = seg.slice(eqIdx + 1).trim();
+    let v = String(valRaw).trim();
+    if (v.startsWith('{') && v.endsWith('}')) v = v.slice(1, -1).trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      props[key] = v.slice(1, -1);
+    } else if (v === 'true') {
+      props[key] = true;
+    } else if (v === 'false') {
+      props[key] = false;
+    } else if (/^-?\d+(?:\.\d+)?$/.test(v)) {
+      props[key] = Number(v);
+    } else {
+      props[key] = v;
+    }
+  }
+  if (props.size == null && size != null) props.size = size;
+
+  return <IconComponent {...props} />;
+}
+
+// 根据 segments 解析出最终的图标组件
+function resolveIcon(baseIcon, segments) {
+  if (segments.length > 1 && baseIcon[segments[1]]) {
+    return baseIcon[segments[1]];
+  }
+  return baseIcon;
 }
