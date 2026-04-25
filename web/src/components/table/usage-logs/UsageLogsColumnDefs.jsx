@@ -467,11 +467,24 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     return { segments: renderTieredModelPriceSimple(summaryOpts) };
   }
 
-  return {
-    segments: other?.claude
-      ? renderModelPriceSimple({ ...summaryOpts, provider: 'claude' })
-      : renderModelPriceSimple({ ...summaryOpts, provider: 'openai' }),
-  };
+  const priceResult = other?.claude
+    ? renderModelPriceSimple({ ...summaryOpts, provider: 'claude' })
+    : renderModelPriceSimple({ ...summaryOpts, provider: 'openai' });
+
+  if (Array.isArray(priceResult)) {
+    return { segments: priceResult };
+  }
+
+  if (typeof priceResult === 'string' && priceResult) {
+    return {
+      segments: priceResult
+        .split('，')
+        .filter(Boolean)
+        .map((text) => ({ text: text.trim(), tone: 'primary' })),
+    };
+  }
+
+  return null;
 }
 
 export const getLogsColumns = ({

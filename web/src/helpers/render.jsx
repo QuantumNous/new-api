@@ -1016,6 +1016,7 @@ function renderPriceSimpleCore({
   image = false,
   imageRatio = 1.0,
   isSystemPromptOverride = false,
+  saveServerSurcharge = 0,
   displayMode = 'price',
 }) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
@@ -1030,12 +1031,17 @@ function renderPriceSimpleCore({
     formatDualPrice(usdPrice, primary, secondary, digits);
   if (modelPrice !== -1) {
     const displayPrice = dp(modelPrice);
-    return i18next.t('价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}}', {
+    let result = i18next.t('价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}}', {
       symbol: symbol,
       price: displayPrice,
       ratioType: ratioLabel,
       ratio: finalGroupRatio,
     });
+    if (saveServerSurcharge > 0) {
+      const pct = Math.round((saveServerSurcharge - 1) * 100);
+      result += '，' + i18next.t('存储费 {{pct}}%', { pct });
+    }
+    return result;
   }
 
   const hasSplitCacheCreation =
@@ -1059,6 +1065,10 @@ function renderPriceSimpleCore({
         }),
       );
       parts.push(getGroupRatioText(groupRatio, user_group_ratio));
+      if (saveServerSurcharge > 0) {
+        const pct = Math.round((saveServerSurcharge - 1) * 100);
+        parts.push(i18next.t('存储费 {{pct}}%', { pct }));
+      }
       return joinBillingSummary(parts);
     }
 
@@ -1107,6 +1117,11 @@ function renderPriceSimpleCore({
     }
 
     parts.push(getGroupRatioText(groupRatio, user_group_ratio));
+
+    if (saveServerSurcharge > 0) {
+      const pct = Math.round((saveServerSurcharge - 1) * 100);
+      parts.push(i18next.t('存储费 {{pct}}%', { pct }));
+    }
 
     let result = joinBillingSummary(parts);
     if (isSystemPromptOverride) {
@@ -1160,6 +1175,11 @@ function renderPriceSimpleCore({
 
   if (isSystemPromptOverride) {
     result += '\n\r' + i18next.t('系统提示覆盖');
+  }
+
+  if (saveServerSurcharge > 0) {
+    const pct = Math.round((saveServerSurcharge - 1) * 100);
+    result += '，' + i18next.t('存储费 {{pct}}%', { pct });
   }
 
   return result;
@@ -1225,16 +1245,19 @@ export function renderModelPrice(opts) {
       const pct = Math.round((saveServerSurcharge - 1) * 100);
       total = total * saveServerSurcharge;
       const displayTotal = dp(total);
-      return i18next.t(
-        '模型价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} + 服务端存储服务费（7天） {{pct}}% = {{symbol}}{{total}}',
-        {
-          symbol: symbol,
-          price: displayPrice,
-          ratio: groupRatio,
-          total: displayTotal,
-          ratioType: ratioLabel,
-          pct,
-        },
+      return (
+        <>
+          <article>
+            <p>{i18next.t('模型价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}}', {
+              symbol: symbol,
+              price: displayPrice,
+              ratio: groupRatio,
+              ratioType: ratioLabel,
+            })}</p>
+            <p>{i18next.t('+ 服务端存储服务费（7天） {{pct}}%', { pct })}</p>
+            <p>{i18next.t('= {{symbol}}{{total}}', { symbol: symbol, total: displayTotal })}</p>
+          </article>
+        </>
       );
     }
     const displayTotal = dp(total);
@@ -1733,6 +1756,7 @@ export function renderModelPriceSimple(opts) {
     image = false,
     image_ratio: imageRatio = 1.0,
     is_system_prompt_overwritten: isSystemPromptOverride = false,
+    save_server_surcharge: saveServerSurcharge = 0,
     provider = 'openai',
     displayMode = 'price',
     outputMode = 'text',
@@ -1753,6 +1777,7 @@ export function renderModelPriceSimple(opts) {
     image,
     imageRatio,
     isSystemPromptOverride,
+    saveServerSurcharge,
     displayMode,
   });
 }
