@@ -76,6 +76,7 @@
 - [x] Rewrite TokensColumnDefs (tokens columns) to native Chip/ProgressBar/HoverPanel/ClickMenu/ConfirmDialog primitives with show-hide token key cell, vendor avatar pills, split chat menu, and inline copy popover (drops Dropdown/Space/SplitButtonGroup/Tag/AvatarGroup/Avatar/Progress/Popover/Typography/Modal + IconTreeTriangleDown/IconCopy/IconEyeOpened/IconEyeClosed from compat).
 - [x] Rewrite UsageLogsColumnDefs (usage logs columns) to native ColorTag/UserChip/EllipsisText/HoverPanel primitives with channel-affinity sparkles overlay, stream-status alert overlay, model-mapped popover, cache-summary subtitle, and segment-style detail summary (drops Avatar/Space/Tag/Popover/Typography + IconHelpCircle from compat).
 - [x] Rewrite tokens/index (FluentRead detection notice) without HeroCompat: Notification.info popup is replaced by a controlled top-right `FluentNoticePanel` (HeroUI Button + native `<select>` for parity with CCSwitchModal), Notification.close lifecycle becomes plain React state, and Toast/showInfo helpers replace the leftover Toast.success / Notification.close calls (drops Notification/Space/Toast/Typography + Select compat usage from the file).
+- [x] Rewrite PricingTable (model-pricing detail table view) to native HTML table without HeroCompat: native thead + tbody, optional row-selection column with HeaderCheckbox + indeterminate ref, sticky-right anchoring honoured for the price column outside compact mode, mobile path delegates to shared CardTable; pagination uses HeroUI Button + native page-size select with rolling page slicing driven by `currentPage`/`pageSize` from `useModelPricingData` (drops Table compat from PricingTable.jsx — last surface in the model-pricing area still on HeroCompat).
 
 ## Current Hotspots
 
@@ -140,6 +141,7 @@
 - After TokensColumnDefs rewrite: 36 files still importing HeroCompat (~66% complete). `bun run build` passes. /console/token renders with new token key show/hide + copy menu + chat split menu + delete confirm.
 - After UsageLogsColumnDefs rewrite: 35 files still importing HeroCompat (~67% complete). `bun run build` passes. /console/log renders with new ColorTag/UserChip/EllipsisText/HoverPanel primitives; HMR reloaded both UsageLogsTable and TokensTable cleanly.
 - After tokens/index FluentNoticePanel rewrite: 34 files still importing HeroCompat (~68% complete). `bun run build` passes. /console/token loads without errors; FluentRead notice is now a controlled top-right panel that auto-shows when the `#fluent-new-api-container` MutationObserver fires and dismisses cleanly via either `setFluentNoticeOpen(false)` or the local `不再提醒` suppression flag.
+- After PricingTable rewrite: 33 files still importing HeroCompat (~69% complete). `bun run build` passes. /pricing 表格视图 verified: header checkbox + column headers (模型名称 / 供应商 / 描述 / 标签 / 计费类型 / 可用端点类型 / 模型价格) render with native `<table>`; empty-state Inbox card centred; no new console errors.
 
 ## Console Style Migration from heroui-pro/template-dashboard
 
