@@ -74,6 +74,7 @@
 - [x] Rewrite SettingsAnnouncements (Dashboard tab) to native HTML table + TypeChip + datetime-local input + 2 v3 Modals (edit + content fullscreen) + ConfirmDialog (drops Space/Table/Form/Typography/Empty/Divider/Modal/Tag/TextArea/Illustrations from compat).
 - [x] Rewrite TaskLogsColumnDefs (task logs columns) and MjLogsColumnDefs (Midjourney logs columns) to native ColorTag/ProgressBar/EllipsisText/UserChip helpers with 16-color palette and lucide icon prefixes (drops Progress/Tag/Typography/Avatar/Space from compat across both files).
 - [x] Rewrite TokensColumnDefs (tokens columns) to native Chip/ProgressBar/HoverPanel/ClickMenu/ConfirmDialog primitives with show-hide token key cell, vendor avatar pills, split chat menu, and inline copy popover (drops Dropdown/Space/SplitButtonGroup/Tag/AvatarGroup/Avatar/Progress/Popover/Typography/Modal + IconTreeTriangleDown/IconCopy/IconEyeOpened/IconEyeClosed from compat).
+- [x] Rewrite UsageLogsColumnDefs (usage logs columns) to native ColorTag/UserChip/EllipsisText/HoverPanel primitives with channel-affinity sparkles overlay, stream-status alert overlay, model-mapped popover, cache-summary subtitle, and segment-style detail summary (drops Avatar/Space/Tag/Popover/Typography + IconHelpCircle from compat).
 
 ## Current Hotspots
 
@@ -136,6 +137,7 @@
 - After SettingsUptimeKuma + SettingsAPIInfo + SettingsAnnouncements rewrites (3 of the 4 dashboard CRUD tables follow same pattern): 39 files still importing HeroCompat (~63% complete). `bun run build` passes. /console/setting?tab=dashboard verified — all 3 inline panels (Announcements/FAQ/UptimeKuma/APIInfo) render with new HTML tables, pagination, switch toggles.
 - After TaskLogsColumnDefs + MjLogsColumnDefs rewrites: 37 files still importing HeroCompat (~65% complete). `bun run build` passes. /console/task and /console/midjourney render correctly.
 - After TokensColumnDefs rewrite: 36 files still importing HeroCompat (~66% complete). `bun run build` passes. /console/token renders with new token key show/hide + copy menu + chat split menu + delete confirm.
+- After UsageLogsColumnDefs rewrite: 35 files still importing HeroCompat (~67% complete). `bun run build` passes. /console/log renders with new ColorTag/UserChip/EllipsisText/HoverPanel primitives; HMR reloaded both UsageLogsTable and TokensTable cleanly.
 
 ## Console Style Migration from heroui-pro/template-dashboard
 
