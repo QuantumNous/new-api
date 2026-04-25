@@ -42,26 +42,26 @@ func UniversalVerify(c *gin.Context) {
 	if userId == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
-			"message": "未登录",
+			"message": common.TranslateMessage(c, "common.not_logged_in"),
 		})
 		return
 	}
 
 	var req UniversalVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiError(c, fmt.Errorf("参数错误: %v", err))
+		common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.param_error")))
 		return
 	}
 
 	// 获取用户信息
 	user := &model.User{Id: userId}
 	if err := user.FillUserById(); err != nil {
-		common.ApiError(c, fmt.Errorf("获取用户信息失败: %v", err))
+		common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.get_user_failed")))
 		return
 	}
 
 	if user.Status != common.UserStatusEnabled {
-		common.ApiError(c, fmt.Errorf("该用户已被禁用"))
+		common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.user_disabled")))
 		return
 	}
 
@@ -73,7 +73,7 @@ func UniversalVerify(c *gin.Context) {
 	hasPasskey := passkeyErr == nil && passkey != nil
 
 	if !has2FA && !hasPasskey {
-		common.ApiError(c, fmt.Errorf("用户未启用2FA或Passkey"))
+		common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.not_enabled")))
 		return
 	}
 
@@ -85,11 +85,11 @@ func UniversalVerify(c *gin.Context) {
 	switch req.Method {
 	case "2fa":
 		if !has2FA {
-			common.ApiError(c, fmt.Errorf("用户未启用2FA"))
+			common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.twofa_not_enabled")))
 			return
 		}
 		if req.Code == "" {
-			common.ApiError(c, fmt.Errorf("验证码不能为空"))
+			common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.code_empty")))
 			return
 		}
 		verified = validateTwoFactorAuth(twoFA, req.Code)
@@ -97,35 +97,35 @@ func UniversalVerify(c *gin.Context) {
 
 	case "passkey":
 		if !hasPasskey {
-			common.ApiError(c, fmt.Errorf("用户未启用Passkey"))
+			common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.passkey_not_enabled")))
 			return
 		}
 		// Passkey branch only trusts the short-lived marker written by PasskeyVerifyFinish.
 		verified, err = consumePasskeyReady(c)
 		if err != nil {
-			common.ApiError(c, fmt.Errorf("Passkey 验证状态异常: %v", err))
+			common.ApiError(c, fmt.Errorf("%s: %v", common.TranslateMessage(c, "secure_verification.passkey_state_error"), err))
 			return
 		}
 		if !verified {
-			common.ApiError(c, fmt.Errorf("请先完成 Passkey 验证"))
+			common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.passkey_verify_first")))
 			return
 		}
 		verifyMethod = "Passkey"
 
 	default:
-		common.ApiError(c, fmt.Errorf("不支持的验证方式: %s", req.Method))
+		common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.method_not_supported")))
 		return
 	}
 
 	if !verified {
-		common.ApiError(c, fmt.Errorf("验证失败，请检查验证码"))
+		common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.failed")))
 		return
 	}
 
 	// 验证成功，在 session 中记录时间戳
 	now, err := setSecureVerificationSession(c, req.Method)
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("保存验证状态失败: %v", err))
+		common.ApiError(c, fmt.Errorf("%s", common.TranslateMessage(c, "secure_verification.save_state_failed")))
 		return
 	}
 
@@ -134,7 +134,7 @@ func UniversalVerify(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "验证成功",
+		"message": common.TranslateMessage(c, "common.operation_success"),
 		"data": gin.H{
 			"verified":   true,
 			"expires_at": now + SecureVerificationTimeout,

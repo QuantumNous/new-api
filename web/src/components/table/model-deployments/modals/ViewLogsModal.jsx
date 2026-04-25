@@ -51,12 +51,14 @@ import {
   copy,
   timestamp2string,
 } from '../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
 const ALL_CONTAINERS = '__all__';
 
-const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
+const ViewLogsModal = ({ visible, onCancel, deployment }) => {
+  const { t } = useTranslation();
   const [logLines, setLogLines] = useState([]);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -241,20 +243,20 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
     const normalized =
       typeof status === 'string' ? status.trim().toLowerCase() : '';
     const statusMap = {
-      running: { color: 'green', label: '运行中' },
-      pending: { color: 'orange', label: '准备中' },
-      deployed: { color: 'blue', label: '已部署' },
-      failed: { color: 'red', label: '失败' },
-      destroyed: { color: 'red', label: '已销毁' },
-      stopping: { color: 'orange', label: '停止中' },
-      terminated: { color: 'grey', label: '已终止' },
+      running: { color: 'green', label: t('运行中') },
+      pending: { color: 'orange', label: t('准备中') },
+      deployed: { color: 'blue', label: t('已部署') },
+      failed: { color: 'red', label: t('失败') },
+      destroyed: { color: 'red', label: t('已销毁') },
+      stopping: { color: 'orange', label: t('停止中') },
+      terminated: { color: 'grey', label: t('已终止') },
     };
 
     const config = statusMap[normalized] || { color: 'grey', label: status };
 
     return (
       <Tag color={config.color} size='small'>
-        {t(config.label)}
+        {config.label}
       </Tag>
     );
   };

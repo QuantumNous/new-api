@@ -600,9 +600,10 @@ const EditChannelModal = (props) => {
 
     if (name === 'base_url' && value.endsWith('/v1')) {
       Modal.confirm({
-        title: '警告',
-        content:
+        title: t('警告'),
+        content: t(
           '不需要在末尾加/v1，New API会自动处理，添加后可能导致请求失败，是否继续？',
+        ),
         onOk: () => {
           setInputs((inputs) => ({ ...inputs, [name]: value }));
         },
@@ -1263,7 +1264,7 @@ const EditChannelModal = (props) => {
       }
     });
 
-    const categories = getModelCategories(t);
+    const categories = getModelCategories();
     const optionsWithIcon = Array.from(modelMap.values()).map((opt) => {
       const modelName = opt.value;
       let icon = null;
@@ -2063,7 +2064,7 @@ const EditChannelModal = (props) => {
       CHANNEL_OPTIONS.map((opt) => ({
         ...opt,
         // 保持 label 为纯文本以支持搜索
-        label: opt.label,
+        label: t(opt.label),
       })),
     [],
   );
@@ -3177,7 +3178,7 @@ const EditChannelModal = (props) => {
                       <Form.Input
                         field='other'
                         label={t('知识库 ID')}
-                        placeholder={'请输入知识库 ID，例如：123456'}
+                        placeholder={t('请输入知识库 ID，例如：123456')}
                         onChange={(value) => handleInputChange('other', value)}
                         showClear
                       />
@@ -3187,9 +3188,9 @@ const EditChannelModal = (props) => {
                       <Form.Input
                         field='other'
                         label='Account ID'
-                        placeholder={
-                          '请输入Account ID，例如：d6b5da8hk1awo8nap34ube6gh'
-                        }
+                        placeholder={t(
+                          '请输入Account ID，例如：d6b5da8hk1awo8nap34ube6gh',
+                        )}
                         onChange={(value) => handleInputChange('other', value)}
                         showClear
                       />
@@ -3199,7 +3200,7 @@ const EditChannelModal = (props) => {
                       <Form.Input
                         field='other'
                         label={t('智能体ID')}
-                        placeholder={'请输入智能体ID，例如：7342866812345'}
+                        placeholder={t('请输入智能体ID，例如：7342866812345')}
                         onChange={(value) => handleInputChange('other', value)}
                         showClear
                       />

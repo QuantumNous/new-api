@@ -19,8 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
-const SubscriptionsActions = ({ openCreate, t }) => {
+const SubscriptionsActions = ({ openCreate }) => {
+  const { t } = useTranslation();
   return (
     <div className='flex gap-2 w-full md:w-auto'>
       <Button

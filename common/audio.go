@@ -19,7 +19,7 @@ import (
 // GetAudioDuration 使用纯 Go 库获取音频文件的时长（秒）。
 // 它不再依赖外部的 ffmpeg 或 ffprobe 程序。
 func GetAudioDuration(ctx context.Context, f io.ReadSeeker, ext string) (duration float64, err error) {
-	SysLog(fmt.Sprintf("GetAudioDuration: ext=%s", ext))
+	SysLog(fmt.Sprintf(Translate("common.getaudioduration_ext"), ext))
 	// 根据文件扩展名选择解析器
 	switch ext {
 	case ".mp3":
@@ -42,9 +42,9 @@ func GetAudioDuration(ctx context.Context, f io.ReadSeeker, ext string) (duratio
 	case ".aac":
 		duration, err = getAACDuration(f)
 	default:
-		return 0, fmt.Errorf("unsupported audio format: %s", ext)
+		return 0, fmt.Errorf(Translate("common.unsupported_audio_format"), ext)
 	}
-	SysLog(fmt.Sprintf("GetAudioDuration: duration=%f", duration))
+	SysLog(fmt.Sprintf(Translate("common.getaudioduration_duration"), duration))
 	return duration, err
 }
 
@@ -78,7 +78,7 @@ func getWAVDuration(r io.ReadSeeker) (float64, error) {
 
 	// IsValidFile 会读取 fmt 块
 	if !dec.IsValidFile() {
-		return 0, errors.New("invalid wav file")
+		return 0, errors.New(Translate("common.invalid_wav_file"))
 	}
 
 	// 尝试寻找 data 块
@@ -119,12 +119,12 @@ func getWAVDuration(r io.ReadSeeker) (float64, error) {
 	sampleRate := float64(dec.SampleRate)
 
 	if sampleRate == 0 || numChans == 0 || bitDepth == 0 {
-		return 0, errors.New("invalid wav header metadata")
+		return 0, errors.New(Translate("common.invalid_wav_header_metadata"))
 	}
 
 	bytesPerFrame := numChans * (bitDepth / 8)
 	if bytesPerFrame == 0 {
-		return 0, errors.New("invalid byte depth calculation")
+		return 0, errors.New(Translate("common.invalid_byte_depth_calculation"))
 	}
 
 	totalFrames := pcmSize / bytesPerFrame
@@ -261,7 +261,7 @@ func getAIFFDuration(r io.ReadSeeker) (float64, error) {
 
 	dec := aiff.NewDecoder(r)
 	if !dec.IsValidFile() {
-		return 0, errors.New("invalid aiff file")
+		return 0, errors.New(Translate("common.invalid_aiff_file"))
 	}
 
 	d, err := dec.Duration()
@@ -300,11 +300,11 @@ func getWebMDuration(r io.ReadSeeker) (float64, error) {
 		if len(buf) >= 4 && binary.BigEndian.Uint32(buf[0:4]) == 0x1A45DFA3 {
 			// 这是一个有效的 EBML 文件
 			// 但完整解析需要更复杂的逻辑
-			return 0, errors.New("webm duration parsing requires full EBML parser (consider using ffprobe for webm files)")
+			return 0, errors.New(Translate("common.webm_duration_parsing_requires_full_ebml_parser_consider"))
 		}
 	}
 
-	return 0, errors.New("failed to parse webm file")
+	return 0, errors.New(Translate("common.failed_to_parse_webm_file"))
 }
 
 // getAACDuration 解析 AAC (ADTS格式) 文件以获取时长。
@@ -337,7 +337,7 @@ func getAACDuration(r io.ReadSeeker) (float64, error) {
 	})
 
 	if sampleRate == 0 || totalFrames == 0 {
-		return 0, errors.New("no valid aac frames found")
+		return 0, errors.New(Translate("common.no_valid_aac_frames_found"))
 	}
 
 	// 每个 AAC ADTS 帧包含 1024 个采样

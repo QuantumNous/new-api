@@ -22,6 +22,7 @@ import { Card, Divider, Typography, Button } from '@douyinfe/semi-ui';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { IconEyeOpened, IconEyeClosed } from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
@@ -65,6 +66,7 @@ const CardPro = ({
   const [showMobileActions, setShowMobileActions] = useState(false);
 
   const toggleMobileActions = () => {
+  const { t } = useTranslation();
     setShowMobileActions(!showMobileActions);
   };
 

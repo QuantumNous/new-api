@@ -31,6 +31,7 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 通用可选择按钮组组件
@@ -65,6 +66,7 @@ const SelectableButtonGroup = ({
   const [containerRef, containerWidth] = useContainerWidth();
 
   const ConditionalTooltipText = ({ text }) => {
+  const { t } = useTranslation();
     const textRef = useRef(null);
     const [isOverflowing, setIsOverflowing] = useState(false);
 

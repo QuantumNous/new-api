@@ -21,16 +21,16 @@ import React from 'react';
 import { Button, Input, Modal, Image } from '@douyinfe/semi-ui';
 import { IconKey } from '@douyinfe/semi-icons';
 import { SiWechat } from 'react-icons/si';
+import { useTranslation } from 'react-i18next';
 
-const WeChatBindModal = ({
-  t,
-  showWeChatBindModal,
+const WeChatBindModal = ({ showWeChatBindModal,
   setShowWeChatBindModal,
   inputs,
   handleInputChange,
   bindWeChat,
   status,
 }) => {
+  const { t } = useTranslation();
   return (
     <Modal
       title={

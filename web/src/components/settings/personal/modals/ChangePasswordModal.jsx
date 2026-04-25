@@ -21,10 +21,9 @@ import React from 'react';
 import { Input, Modal, Typography } from '@douyinfe/semi-ui';
 import { IconLock } from '@douyinfe/semi-icons';
 import Turnstile from 'react-turnstile';
+import { useTranslation } from 'react-i18next';
 
-const ChangePasswordModal = ({
-  t,
-  showChangePasswordModal,
+const ChangePasswordModal = ({ showChangePasswordModal,
   setShowChangePasswordModal,
   inputs,
   handleInputChange,
@@ -33,6 +32,7 @@ const ChangePasswordModal = ({
   turnstileSiteKey,
   setTurnstileToken,
 }) => {
+  const { t } = useTranslation();
   return (
     <Modal
       title={

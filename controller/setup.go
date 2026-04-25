@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -56,7 +57,7 @@ func PostSetup(c *gin.Context) {
 	if constant.Setup {
 		c.JSON(200, gin.H{
 			"success": false,
-			"message": "系统已经初始化完成",
+			"message": i18n.T(c, "setup.already_done"),
 		})
 		return
 	}
@@ -69,7 +70,7 @@ func PostSetup(c *gin.Context) {
 	if err != nil {
 		c.JSON(200, gin.H{
 			"success": false,
-			"message": "请求参数有误",
+			"message": i18n.T(c, "common.invalid_params"),
 		})
 		return
 	}
@@ -80,7 +81,7 @@ func PostSetup(c *gin.Context) {
 		if len(req.Username) > 12 {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "用户名长度不能超过12个字符",
+				"message": i18n.T(c, "setup.username_max_len"),
 			})
 			return
 		}
@@ -88,7 +89,7 @@ func PostSetup(c *gin.Context) {
 		if req.Password != req.ConfirmPassword {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "两次输入的密码不一致",
+				"message": i18n.T(c, "setup.password_mismatch"),
 			})
 			return
 		}
@@ -96,7 +97,7 @@ func PostSetup(c *gin.Context) {
 		if len(req.Password) < 8 {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "密码长度至少为8个字符",
+				"message": i18n.T(c, "setup.password_min_len"),
 			})
 			return
 		}
@@ -106,7 +107,7 @@ func PostSetup(c *gin.Context) {
 		if err != nil {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "系统错误: " + err.Error(),
+				"message": i18n.T(c, "common.system_error"),
 			})
 			return
 		}
@@ -123,7 +124,7 @@ func PostSetup(c *gin.Context) {
 		if err != nil {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "创建管理员账号失败: " + err.Error(),
+				"message": i18n.T(c, "setup.create_admin_failed"),
 			})
 			return
 		}
@@ -138,7 +139,7 @@ func PostSetup(c *gin.Context) {
 	if err != nil {
 		c.JSON(200, gin.H{
 			"success": false,
-			"message": "保存自用模式设置失败: " + err.Error(),
+			"message": i18n.T(c, "setup.self_use_failed"),
 		})
 		return
 	}
@@ -147,7 +148,7 @@ func PostSetup(c *gin.Context) {
 	if err != nil {
 		c.JSON(200, gin.H{
 			"success": false,
-			"message": "保存演示站点模式设置失败: " + err.Error(),
+			"message": i18n.T(c, "setup.demo_mode_failed"),
 		})
 		return
 	}
@@ -163,14 +164,14 @@ func PostSetup(c *gin.Context) {
 	if err != nil {
 		c.JSON(200, gin.H{
 			"success": false,
-			"message": "系统初始化失败: " + err.Error(),
+			"message": i18n.T(c, "setup.init_failed"),
 		})
 		return
 	}
 
 	c.JSON(200, gin.H{
 		"success": true,
-		"message": "系统初始化成功",
+		"message": i18n.T(c, "setup.init_success"),
 	})
 }
 

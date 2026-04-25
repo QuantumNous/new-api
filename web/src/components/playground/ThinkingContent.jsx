@@ -105,7 +105,7 @@ const ThinkingContent = ({
                 style={{ color: 'white' }}
                 className='text-xs mt-0.5 opacity-80 hidden sm:block'
               >
-                来源: {thinkingSource}
+                {t('来源')}: {thinkingSource}
               </Typography.Text>
             )}
           </div>

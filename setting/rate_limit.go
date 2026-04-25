@@ -58,10 +58,10 @@ func CheckModelRequestRateLimitGroup(jsonStr string) error {
 	}
 	for group, limits := range checkModelRequestRateLimitGroup {
 		if limits[0] < 0 || limits[1] < 1 {
-			return fmt.Errorf("group %s has negative rate limit values: [%d, %d]", group, limits[0], limits[1])
+			return fmt.Errorf(common.Translate("setting.group_has_negative_rate_limit_values"), group, limits[0], limits[1])
 		}
 		if limits[0] > math.MaxInt32 || limits[1] > math.MaxInt32 {
-			return fmt.Errorf("group %s [%d, %d] has max rate limits value 2147483647", group, limits[0], limits[1])
+			return fmt.Errorf(common.Translate("setting.group_has_max_rate_limits_value_2147483647"), group, limits[0], limits[1])
 		}
 	}
 

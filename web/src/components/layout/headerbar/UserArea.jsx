@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Avatar, Button, Dropdown, Typography } from '@douyinfe/semi-ui';
 import { ChevronDown } from 'lucide-react';
@@ -37,8 +38,8 @@ const UserArea = ({
   isSelfUseMode,
   logout,
   navigate,
-  t,
 }) => {
+  const { t } = useTranslation();
   const dropdownRef = useRef(null);
   if (isLoading) {
     return (

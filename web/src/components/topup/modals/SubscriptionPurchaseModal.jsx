@@ -37,12 +37,11 @@ import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
 } from '../../../helpers/subscriptionFormat';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const SubscriptionPurchaseModal = ({
-  t,
-  visible,
+const SubscriptionPurchaseModal = ({ visible,
   onCancel,
   selectedPlan,
   paying,
@@ -57,6 +56,7 @@ const SubscriptionPurchaseModal = ({
   onPayCreem,
   onPayEpay,
 }) => {
+  const { t } = useTranslation();
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
   const { symbol, rate } = getCurrencyConfig();
@@ -113,17 +113,17 @@ const SubscriptionPurchaseModal = ({
                 <div className='flex items-center'>
                   <CalendarClock size={14} className='mr-1 text-slate-500' />
                   <Text className='text-slate-900 dark:text-slate-100'>
-                    {formatSubscriptionDuration(plan, t)}
+                    {formatSubscriptionDuration(plan)}
                   </Text>
                 </div>
               </div>
-              {formatSubscriptionResetPeriod(plan, t) !== t('不重置') && (
+              {formatSubscriptionResetPeriod(plan) !== t('不重置') && (
                 <div className='flex justify-between items-center'>
                   <Text strong className='text-slate-700 dark:text-slate-200'>
                     {t('重置周期')}：
                   </Text>
                   <Text className='text-slate-900 dark:text-slate-100'>
-                    {formatSubscriptionResetPeriod(plan, t)}
+                    {formatSubscriptionResetPeriod(plan)}
                   </Text>
                 </div>
               )}

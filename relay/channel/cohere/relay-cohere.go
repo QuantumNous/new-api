@@ -1,6 +1,7 @@
 package cohere
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bufio"
 	"encoding/json"
 	"io"
@@ -121,7 +122,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			var cohereResp CohereResponse
 			err := json.Unmarshal([]byte(data), &cohereResp)
 			if err != nil {
-				common.SysLog("error unmarshalling stream response: " + err.Error())
+				common.SysLog(i18n.Translate("relay.error_unmarshalling_stream_response") + err.Error())
 				return true
 			}
 			var openaiResp dto.ChatCompletionsStreamResponse
@@ -156,7 +157,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			}
 			jsonStr, err := json.Marshal(openaiResp)
 			if err != nil {
-				common.SysLog("error marshalling stream response: " + err.Error())
+				common.SysLog(i18n.Translate("relay.error_marshalling_stream_response") + err.Error())
 				return true
 			}
 			c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonStr)})

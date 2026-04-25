@@ -35,8 +35,10 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, showError } from '../../../../helpers';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { useTranslation } from 'react-i18next';
 
-const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
+const MissingModelsModal = ({ visible, onClose, onConfigureModel }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [missingModels, setMissingModels] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');

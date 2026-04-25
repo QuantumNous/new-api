@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Avatar, Typography, Descriptions } from '@douyinfe/semi-ui';
 import { CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const { Text, Title } = Typography;
 
@@ -31,8 +32,8 @@ const CompleteStep = ({
   setupStatus,
   formData,
   renderNavigationButtons,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <div className='text-center'>
       <Avatar color='green' className='mx-auto mb-4 shadow-lg'>

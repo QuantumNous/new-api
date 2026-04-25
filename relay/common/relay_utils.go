@@ -1,6 +1,8 @@
 package common
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/i18n"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -62,18 +64,18 @@ func storeTaskRequest(c *gin.Context, info *RelayInfo, action string, requestObj
 func GetTaskRequest(c *gin.Context) (TaskSubmitReq, error) {
 	v, exists := c.Get("task_request")
 	if !exists {
-		return TaskSubmitReq{}, fmt.Errorf("request not found in context")
+		return TaskSubmitReq{}, errors.New(i18n.Translate("relay.request_not_found_in_context"))
 	}
 	req, ok := v.(TaskSubmitReq)
 	if !ok {
-		return TaskSubmitReq{}, fmt.Errorf("invalid task request type")
+		return TaskSubmitReq{}, errors.New(i18n.Translate("relay.invalid_task_request_type"))
 	}
 	return req, nil
 }
 
 func validatePrompt(prompt string) *dto.TaskError {
 	if strings.TrimSpace(prompt) == "" {
-		return createTaskError(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest, true)
+		return createTaskError(errors.New(i18n.Translate("relay.prompt_is_required")), "invalid_request", http.StatusBadRequest, true)
 	}
 	return nil
 }
@@ -142,7 +144,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	}
 
 	if strings.TrimSpace(req.Model) == "" {
-		return createTaskError(fmt.Errorf("model field is required"), "missing_model", http.StatusBadRequest, true)
+		return createTaskError(errors.New(i18n.Translate("relay.model_field_is_required")), "missing_model", http.StatusBadRequest, true)
 	}
 
 	if req.HasImage() {
@@ -168,10 +170,10 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		}
 
 		if model == "sora-2" && !lo.Contains([]string{"720x1280", "1280x720"}, size) {
-			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
+			return createTaskError(errors.New(i18n.Translate("relay.sora_2_size_is_invalid")), "invalid_size", http.StatusBadRequest, true)
 		}
 		if model == "sora-2-pro" && !lo.Contains([]string{"720x1280", "1280x720", "1792x1024", "1024x1792"}, size) {
-			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
+			return createTaskError(errors.New(i18n.Translate("relay.sora_2_size_is_invalid")), "invalid_size", http.StatusBadRequest, true)
 		}
 		// OtherRatios 已移到 Sora adaptor 的 EstimateBilling 中设置
 	}

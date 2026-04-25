@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"fmt"
 	"strings"
 	"time"
@@ -124,7 +125,7 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	}
 
 	if err := PostConsumeQuota(relayInfo, feeQuota, 0, true); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("failed to charge violation fee: %s", err.Error()))
+		logger.LogError(ctx, fmt.Sprintf(i18n.Translate("svc.failed_to_charge_violation_fee"), err.Error()))
 		return false
 	}
 
