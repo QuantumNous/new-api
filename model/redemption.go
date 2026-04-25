@@ -74,11 +74,11 @@ func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Re
 	// Build query based on keyword type
 	query := tx.Model(&Redemption{})
 
-	// Only try to convert to ID if the string represents a valid integer
+	// Support searching by redemption id, name, or exact redemption key.
 	if id, err := strconv.Atoi(keyword); err == nil {
-		query = query.Where("id = ? OR name LIKE ?", id, keyword+"%")
+		query = query.Where("id = ? OR name LIKE ? OR "+commonKeyCol+" = ?", id, keyword+"%", keyword)
 	} else {
-		query = query.Where("name LIKE ?", keyword+"%")
+		query = query.Where("name LIKE ? OR "+commonKeyCol+" = ?", keyword+"%", keyword)
 	}
 
 	// Get total count
