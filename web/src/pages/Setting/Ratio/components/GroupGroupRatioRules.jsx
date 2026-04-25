@@ -1,23 +1,12 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { Button, Input } from '@heroui/react';
 import {
-  Button,
-  Collapsible,
-  Input,
-  InputNumber,
-  Select,
-  Tag,
-  Typography,
-  Popconfirm,
-} from '@douyinfe/semi-ui';
-import {
-  IconPlus,
-  IconDelete,
-  IconChevronDown,
-  IconChevronUp,
-} from '@douyinfe/semi-icons';
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-
-const { Text } = Typography;
 
 let _idCounter = 0;
 const uid = () => `ggr_${++_idCounter}`;
@@ -64,94 +53,128 @@ export function serializeGroupGroupRatio(rules) {
     : JSON.stringify(nested, null, 2);
 }
 
-function GroupSection({ groupName, items, groupOptions, onUpdate, onRemove, onAdd, t }) {
+const inputClass =
+  'h-8 w-full rounded-md border border-[color:var(--app-border)] bg-background px-2 text-sm text-foreground outline-none transition focus:border-primary';
+
+function GroupSection({
+  groupName,
+  items,
+  groupOptions,
+  onUpdate,
+  onRemove,
+  onAdd,
+  t,
+}) {
   const [open, setOpen] = useState(false);
 
+  const removeAll = () => {
+    if (typeof window !== 'undefined' && !window.confirm(t('确认删除该分组的所有规则？'))) {
+      return;
+    }
+    items.forEach((item) => onRemove(item._id));
+  };
+
+  const removeOne = (id) => {
+    if (typeof window !== 'undefined' && !window.confirm(t('确认删除该规则？'))) {
+      return;
+    }
+    onRemove(id);
+  };
+
   return (
-    <div
-      style={{
-        border: '1px solid var(--semi-color-border)',
-        borderRadius: 8,
-        overflow: 'hidden',
-      }}
-    >
+    <div className='overflow-hidden rounded-lg border border-[color:var(--app-border)]'>
       <div
-        className='flex items-center justify-between cursor-pointer'
-        style={{
-          padding: '8px 12px',
-          background: 'var(--semi-color-fill-0)',
-        }}
-        onClick={() => setOpen(!open)}
+        className='flex cursor-pointer items-center justify-between bg-[color:var(--app-background)] px-3 py-2'
+        onClick={() => setOpen((prev) => !prev)}
       >
         <div className='flex items-center gap-2'>
-          {open ? <IconChevronUp size='small' /> : <IconChevronDown size='small' />}
-          <Text strong>{groupName}</Text>
-          <Tag size='small' color='blue'>{items.length} {t('条规则')}</Tag>
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <span className='text-sm font-semibold text-foreground'>
+            {groupName}
+          </span>
+          <span className='inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'>
+            {items.length} {t('条规则')}
+          </span>
         </div>
-        <div className='flex items-center gap-1' onClick={(e) => e.stopPropagation()}>
+        <div
+          className='flex items-center gap-1'
+          onClick={(event) => event.stopPropagation()}
+        >
           <Button
-            icon={<IconPlus />}
-            size='small'
-            theme='borderless'
-            onClick={() => onAdd(groupName)}
-          />
-          <Popconfirm
-            title={t('确认删除该分组的所有规则？')}
-            onConfirm={() => items.forEach((item) => onRemove(item._id))}
-            position='left'
+            isIconOnly
+            variant='light'
+            size='sm'
+            aria-label={t('添加')}
+            onPress={() => onAdd(groupName)}
           >
-            <Button
-              icon={<IconDelete />}
-              size='small'
-              type='danger'
-              theme='borderless'
-            />
-          </Popconfirm>
+            <Plus size={14} />
+          </Button>
+          <Button
+            isIconOnly
+            variant='light'
+            color='danger'
+            size='sm'
+            aria-label={t('删除该分组')}
+            onPress={removeAll}
+          >
+            <Trash2 size={14} />
+          </Button>
         </div>
       </div>
-      <Collapsible isOpen={open} keepDOM>
-        <div style={{ padding: '8px 12px' }}>
+      {open ? (
+        <div className='space-y-1.5 px-3 py-2'>
           {items.map((rule) => (
-            <div
-              key={rule._id}
-              className='flex items-center gap-2'
-              style={{ marginBottom: 6 }}
-            >
-              <Select
-                size='small'
-                filter
-                value={rule.usingGroup || undefined}
-                placeholder={t('选择使用分组')}
-                optionList={groupOptions}
-                onChange={(v) => onUpdate(rule._id, 'usingGroup', v)}
-                style={{ flex: 1 }}
-                allowCreate
-                position='bottomLeft'
-              />
-              <InputNumber
-                size='small'
+            <div key={rule._id} className='flex items-center gap-2'>
+              <div className='flex-1'>
+                <input
+                  type='text'
+                  list={`group-options-${rule._id}`}
+                  value={rule.usingGroup || ''}
+                  placeholder={t('选择使用分组')}
+                  onChange={(event) =>
+                    onUpdate(rule._id, 'usingGroup', event.target.value)
+                  }
+                  aria-label={t('使用分组')}
+                  className={inputClass}
+                />
+                <datalist id={`group-options-${rule._id}`}>
+                  {groupOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
+              <Input
+                type='number'
+                value={
+                  rule.ratio === '' || rule.ratio == null
+                    ? ''
+                    : String(rule.ratio)
+                }
                 min={0}
                 step={0.1}
-                value={rule.ratio}
-                style={{ width: 100 }}
-                onChange={(v) => onUpdate(rule._id, 'ratio', v ?? 0)}
+                onChange={(event) => {
+                  const v = event.target.value;
+                  onUpdate(rule._id, 'ratio', v === '' ? 0 : Number(v));
+                }}
+                aria-label={t('倍率')}
+                className='h-8 w-24 rounded-md border border-[color:var(--app-border)] bg-background px-2 text-sm text-foreground outline-none transition focus:border-primary'
               />
-              <Popconfirm
-                title={t('确认删除该规则？')}
-                onConfirm={() => onRemove(rule._id)}
-                position='left'
+              <Button
+                isIconOnly
+                variant='light'
+                color='danger'
+                size='sm'
+                aria-label={t('删除该规则')}
+                onPress={() => removeOne(rule._id)}
               >
-                <Button
-                  icon={<IconDelete />}
-                  type='danger'
-                  theme='borderless'
-                  size='small'
-                />
-              </Popconfirm>
+                <Trash2 size={14} />
+              </Button>
             </div>
           ))}
         </div>
-      </Collapsible>
+      ) : null}
     </div>
   );
 }
@@ -226,28 +249,44 @@ export default function GroupGroupRatioRules({
     return order.map((name) => ({ name, items: map[name] }));
   }, [rules]);
 
+  const newGroupListId = 'group-group-ratio-new-options';
+
+  const adder = (
+    <div className='mt-3 flex justify-center gap-2'>
+      <input
+        type='text'
+        list={newGroupListId}
+        value={newGroupName}
+        onChange={(event) => setNewGroupName(event.target.value)}
+        placeholder={t('选择用户分组')}
+        aria-label={t('用户分组')}
+        className='h-8 w-52 rounded-md border border-[color:var(--app-border)] bg-background px-2 text-sm text-foreground outline-none transition focus:border-primary'
+      />
+      <datalist id={newGroupListId}>
+        {groupOptions.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </datalist>
+      <Button
+        variant='bordered'
+        startContent={<Plus size={14} />}
+        onPress={addNewGroup}
+        size='sm'
+      >
+        {t('添加分组规则')}
+      </Button>
+    </div>
+  );
+
   if (grouped.length === 0 && rules.length === 0) {
     return (
       <div>
-        <Text type='tertiary' className='block text-center py-4'>
+        <div className='block py-4 text-center text-sm text-muted'>
           {t('暂无规则，点击下方按钮添加')}
-        </Text>
-        <div className='mt-2 flex justify-center gap-2'>
-          <Select
-            size='small'
-            filter
-            allowCreate
-            placeholder={t('选择用户分组')}
-            optionList={groupOptions}
-            value={newGroupName || undefined}
-            onChange={setNewGroupName}
-            style={{ width: 200 }}
-            position='bottomLeft'
-          />
-          <Button icon={<IconPlus />} theme='outline' onClick={addNewGroup}>
-            {t('添加分组规则')}
-          </Button>
         </div>
+        {adder}
       </div>
     );
   }
@@ -266,22 +305,7 @@ export default function GroupGroupRatioRules({
           t={t}
         />
       ))}
-      <div className='mt-3 flex justify-center gap-2'>
-        <Select
-          size='small'
-          filter
-          allowCreate
-          placeholder={t('选择用户分组')}
-          optionList={groupOptions}
-          value={newGroupName || undefined}
-          onChange={setNewGroupName}
-          style={{ width: 200 }}
-          position='bottomLeft'
-        />
-        <Button icon={<IconPlus />} theme='outline' onClick={addNewGroup}>
-          {t('添加分组规则')}
-        </Button>
-      </div>
+      {adder}
     </div>
   );
 }

@@ -18,53 +18,56 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Form, Tag, Typography } from '@douyinfe/semi-ui';
+import { Input } from '@heroui/react';
 
-export default function HttpStatusCodeRulesInput(props) {
-  const { Text } = Typography;
-  const {
-    label,
-    field,
-    placeholder,
-    extraText,
-    onChange,
-    parsed,
-    invalidText,
-  } = props;
-
+// Status code rule editor that shows the current input together with parsed
+// chips (valid tokens) or an inline error. Receives `value` + `onChange`
+// directly so it can be used outside any Form context.
+export default function HttpStatusCodeRulesInput({
+  label,
+  value = '',
+  placeholder,
+  extraText,
+  onChange,
+  parsed,
+  invalidText,
+}) {
   return (
-    <>
-      <Form.Input
-        label={label}
+    <div className='space-y-2'>
+      {label ? (
+        <div className='text-sm font-medium text-foreground'>{label}</div>
+      ) : null}
+      <Input
+        type='text'
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
         placeholder={placeholder}
-        extraText={extraText}
-        field={field}
-        onChange={onChange}
+        aria-label={label}
+        className='h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary'
       />
-      {parsed?.ok && parsed.tokens?.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 8,
-            marginTop: 8,
-          }}
-        >
+      {extraText ? (
+        <div className='text-xs leading-snug text-muted'>{extraText}</div>
+      ) : null}
+      {parsed?.ok && parsed.tokens?.length > 0 ? (
+        <div className='flex flex-wrap gap-2'>
           {parsed.tokens.map((token) => (
-            <Tag key={token} size='small'>
+            <span
+              key={token}
+              className='rounded-full border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-2.5 py-0.5 text-xs text-muted'
+            >
               {token}
-            </Tag>
+            </span>
           ))}
         </div>
-      )}
-      {!parsed?.ok && (
-        <Text type='danger' style={{ display: 'block', marginTop: 8 }}>
+      ) : null}
+      {!parsed?.ok && parsed ? (
+        <div className='text-xs text-rose-600'>
           {invalidText}
           {parsed?.invalidTokens && parsed.invalidTokens.length > 0
             ? `: ${parsed.invalidTokens.join(', ')}`
             : ''}
-        </Text>
-      )}
-    </>
+        </div>
+      ) : null}
+    </div>
   );
 }

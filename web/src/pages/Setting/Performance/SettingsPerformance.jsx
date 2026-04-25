@@ -18,22 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Banner,
-  Button,
-  Col,
-  Form,
-  InputNumber,
-  Row,
-  Spin,
-  Progress,
-  Descriptions,
-  Tag,
-  Popconfirm,
-  RadioGroup,
-  Radio,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
+import { Banner, Col, Form, InputNumber, Row, Spin, Progress, Descriptions, Tag, Popconfirm, RadioGroup, Radio, Typography } from '@/components/common/ui/HeroCompat';
 import {
   compareObjects,
   API,
@@ -231,7 +217,7 @@ export default function SettingsPerformance(props) {
     setInputs({ ...inputs, ...currentInputs });
     setInputsRow({ ...inputs, ...currentInputs });
     if (refForm.current) {
-      refForm.current.setValues({ ...inputs, ...currentInputs });
+      refForm.current?.setValues?.({ ...inputs, ...currentInputs });
     }
     fetchStats();
     fetchLogInfo();
@@ -524,7 +510,7 @@ export default function SettingsPerformance(props) {
             </Col>
           </Row>
 
-          {stats && (
+          {stats && stats.cache_stats && (
             <>
               {/* 缓存使用情况 */}
               <Row
@@ -539,7 +525,7 @@ export default function SettingsPerformance(props) {
                   <div
                     style={{
                       padding: 16,
-                      background: 'var(--semi-color-fill-0)',
+                      background: 'var(--app-surface-muted)',
                       borderRadius: 8,
                       flex: 1,
                       display: 'flex',
@@ -555,8 +541,8 @@ export default function SettingsPerformance(props) {
                       style={{ marginBottom: 8 }}
                       stroke={
                         parseFloat(diskCacheUsagePercent) > 80
-                          ? 'var(--semi-color-danger)'
-                          : 'var(--semi-color-primary)'
+                          ? 'var(--app-danger)'
+                          : 'var(--app-primary)'
                       }
                     />
                     <div
@@ -587,7 +573,7 @@ export default function SettingsPerformance(props) {
                   <div
                     style={{
                       padding: 16,
-                      background: 'var(--semi-color-fill-0)',
+                      background: 'var(--app-surface-muted)',
                       borderRadius: 8,
                       flex: 1,
                       display: 'flex',
@@ -631,7 +617,7 @@ export default function SettingsPerformance(props) {
                     <div
                       style={{
                         padding: 16,
-                        background: 'var(--semi-color-fill-0)',
+                        background: 'var(--app-surface-muted)',
                         borderRadius: 8,
                       }}
                     >
@@ -649,10 +635,10 @@ export default function SettingsPerformance(props) {
                         style={{ marginBottom: 8 }}
                         stroke={
                           stats.disk_space_info.used_percent > 90
-                            ? 'var(--semi-color-danger)'
+                            ? 'var(--app-danger)'
                             : stats.disk_space_info.used_percent > 70
-                              ? 'var(--semi-color-warning)'
-                              : 'var(--semi-color-primary)'
+                              ? 'var(--app-warning)'
+                              : 'var(--app-primary)'
                         }
                       />
                       <div

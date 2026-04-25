@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin, Tabs } from '@douyinfe/semi-ui';
+import { Card, Spinner, Tabs } from '@heroui/react';
 import SettingsGeneralPayment from '../../pages/Setting/Payment/SettingsGeneralPayment';
 import SettingsPaymentGateway from '../../pages/Setting/Payment/SettingsPaymentGateway';
 import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPaymentGatewayStripe';
@@ -155,60 +155,66 @@ const PaymentSetting = () => {
   }, []);
 
   return (
-    <>
-      <Spin spinning={loading} size='large'>
-        <Card style={{ marginTop: '10px' }}>
-          <Tabs
-            type='card'
-            defaultActiveKey='general'
-            contentStyle={{ paddingTop: 24 }}
-          >
-            <Tabs.TabPane tab={t('通用设置')} itemKey='general'>
-              <SettingsGeneralPayment
-                options={inputs}
-                refresh={onRefresh}
-                hideSectionTitle
-              />
-            </Tabs.TabPane>
-            <Tabs.TabPane tab={t('易支付设置')} itemKey='epay'>
-              <SettingsPaymentGateway
-                options={inputs}
-                refresh={onRefresh}
-                hideSectionTitle
-              />
-            </Tabs.TabPane>
-            <Tabs.TabPane tab={t('Stripe 设置')} itemKey='stripe'>
-              <SettingsPaymentGatewayStripe
-                options={inputs}
-                refresh={onRefresh}
-                hideSectionTitle
-              />
-            </Tabs.TabPane>
-            <Tabs.TabPane tab={t('Creem 设置')} itemKey='creem'>
-              <SettingsPaymentGatewayCreem
-                options={inputs}
-                refresh={onRefresh}
-                hideSectionTitle
-              />
-            </Tabs.TabPane>
-            <Tabs.TabPane tab={t('Waffo 设置')} itemKey='waffo'>
-              <SettingsPaymentGatewayWaffo
-                options={inputs}
-                refresh={onRefresh}
-                hideSectionTitle
-              />
-            </Tabs.TabPane>
-            {/*<Tabs.TabPane tab={t('Waffo Pancake 设置')} itemKey='waffo-pancake'>*/}
-            {/*  <SettingsPaymentGatewayWaffoPancake*/}
-            {/*    options={inputs}*/}
-            {/*    refresh={onRefresh}*/}
-            {/*    hideSectionTitle*/}
-            {/*  />*/}
-            {/*</Tabs.TabPane>*/}
-          </Tabs>
-        </Card>
-      </Spin>
-    </>
+    <div className='relative'>
+      {loading ? (
+        <div className='absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-sm'>
+          <Spinner size='lg' />
+        </div>
+      ) : null}
+      <Card className='mt-2.5'>
+        <Tabs defaultSelectedKey='general' variant='secondary'>
+          <Tabs.List aria-label={t('支付设置')}>
+            <Tabs.Tab id='general'>{t('通用设置')}</Tabs.Tab>
+            <Tabs.Tab id='epay'>{t('易支付设置')}</Tabs.Tab>
+            <Tabs.Tab id='stripe'>{t('Stripe 设置')}</Tabs.Tab>
+            <Tabs.Tab id='creem'>{t('Creem 设置')}</Tabs.Tab>
+            <Tabs.Tab id='waffo'>{t('Waffo 设置')}</Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel id='general' className='pt-6'>
+            <SettingsGeneralPayment
+              options={inputs}
+              refresh={onRefresh}
+              hideSectionTitle
+            />
+          </Tabs.Panel>
+          <Tabs.Panel id='epay' className='pt-6'>
+            <SettingsPaymentGateway
+              options={inputs}
+              refresh={onRefresh}
+              hideSectionTitle
+            />
+          </Tabs.Panel>
+          <Tabs.Panel id='stripe' className='pt-6'>
+            <SettingsPaymentGatewayStripe
+              options={inputs}
+              refresh={onRefresh}
+              hideSectionTitle
+            />
+          </Tabs.Panel>
+          <Tabs.Panel id='creem' className='pt-6'>
+            <SettingsPaymentGatewayCreem
+              options={inputs}
+              refresh={onRefresh}
+              hideSectionTitle
+            />
+          </Tabs.Panel>
+          <Tabs.Panel id='waffo' className='pt-6'>
+            <SettingsPaymentGatewayWaffo
+              options={inputs}
+              refresh={onRefresh}
+              hideSectionTitle
+            />
+          </Tabs.Panel>
+          {/*<Tabs.Panel id='waffo-pancake' className='pt-6'>*/}
+          {/*  <SettingsPaymentGatewayWaffoPancake*/}
+          {/*    options={inputs}*/}
+          {/*    refresh={onRefresh}*/}
+          {/*    hideSectionTitle*/}
+          {/*  />*/}
+          {/*</Tabs.Panel>*/}
+        </Tabs>
+      </Card>
+    </div>
   );
 };
 

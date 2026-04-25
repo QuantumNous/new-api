@@ -113,7 +113,9 @@ export const useSidebar = () => {
         setLoading(true);
       }
 
-      const res = await API.get('/api/user/self');
+      // skipErrorHandler so a 5xx here doesn't surface as a global toast on
+      // every console mount; we still gracefully fall back below.
+      const res = await API.get('/api/user/self', { skipErrorHandler: true });
       if (res.data.success && res.data.data.sidebar_modules) {
         let config;
         // 检查sidebar_modules是字符串还是对象

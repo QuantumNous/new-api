@@ -18,10 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { Button } from '@heroui/react';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+import {
+  FilterDateRange,
+  FilterInput,
+  useTableFilterForm,
+} from '../../common/ui/TableFilterForm';
 
 const TaskLogsFilters = ({
   formInitValues,
@@ -33,56 +37,45 @@ const TaskLogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const { values, setFieldValue, handleSubmit } = useTableFilterForm({
+    initValues: formInitValues,
+    setFormApi,
+    onSubmit: refresh,
+  });
+  const presets = DATE_RANGE_PRESETS.map((preset) => ({
+    text: t(preset.text),
+    start: preset.start(),
+    end: preset.end(),
+  }));
+
   return (
-    <Form
-      initValues={formInitValues}
-      getFormApi={(api) => setFormApi(api)}
-      onSubmit={refresh}
-      allowEmpty={true}
-      autoComplete='off'
-      layout='vertical'
-      trigger='change'
-      stopValidateWithError={false}
-    >
+    <form onSubmit={handleSubmit} autoComplete='off'>
       <div className='flex flex-col gap-2'>
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
           {/* 时间选择器 */}
           <div className='col-span-1 lg:col-span-2'>
-            <Form.DatePicker
-              field='dateRange'
-              className='w-full'
-              type='dateTimeRange'
-              placeholder={[t('开始时间'), t('结束时间')]}
-              showClear
-              pure
-              size='small'
-              presets={DATE_RANGE_PRESETS.map((preset) => ({
-                text: t(preset.text),
-                start: preset.start(),
-                end: preset.end(),
-              }))}
+            <FilterDateRange
+              value={values.dateRange}
+              onChange={(nextValue) => setFieldValue('dateRange', nextValue)}
+              startPlaceholder={t('开始时间')}
+              endPlaceholder={t('结束时间')}
+              presets={presets}
             />
           </div>
 
           {/* 任务 ID */}
-          <Form.Input
-            field='task_id'
-            prefix={<IconSearch />}
+          <FilterInput
+            value={values.task_id}
+            onChange={(nextValue) => setFieldValue('task_id', nextValue)}
             placeholder={t('任务 ID')}
-            showClear
-            pure
-            size='small'
           />
 
           {/* 渠道 ID - 仅管理员可见 */}
           {isAdminUser && (
-            <Form.Input
-              field='channel_id'
-              prefix={<IconSearch />}
+            <FilterInput
+              value={values.channel_id}
+              onChange={(nextValue) => setFieldValue('channel_id', nextValue)}
               placeholder={t('渠道 ID')}
-              showClear
-              pure
-              size='small'
             />
           )}
         </div>
@@ -92,15 +85,15 @@ const TaskLogsFilters = ({
           <div></div>
           <div className='flex gap-2'>
             <Button
-              type='tertiary'
-              htmlType='submit'
+              type='submit'
+              variant='flat'
               loading={loading}
-              size='small'
+              size='sm'
             >
               {t('查询')}
             </Button>
             <Button
-              type='tertiary'
+              variant='flat'
               onClick={() => {
                 if (formApi) {
                   formApi.reset();
@@ -110,21 +103,21 @@ const TaskLogsFilters = ({
                   }, 100);
                 }
               }}
-              size='small'
+              size='sm'
             >
               {t('重置')}
             </Button>
             <Button
-              type='tertiary'
+              variant='flat'
               onClick={() => setShowColumnSelector(true)}
-              size='small'
+              size='sm'
             >
               {t('列设置')}
             </Button>
           </div>
         </div>
       </div>
-    </Form>
+    </form>
   );
 };
 

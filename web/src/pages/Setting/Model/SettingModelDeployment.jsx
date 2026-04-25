@@ -17,16 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import {
-  Button,
-  Col,
-  Form,
-  Row,
-  Spin,
-  Card,
-  Typography,
-} from '@douyinfe/semi-ui';
+import React, { useEffect, useState } from 'react';
+import { Button, Card, Input, Switch } from '@heroui/react';
 import {
   compareObjects,
   API,
@@ -35,24 +27,27 @@ import {
   showWarning,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { Server, Cloud, Zap, ArrowUpRight } from 'lucide-react';
+import { Cloud, Zap, ArrowUpRight } from 'lucide-react';
 
-const { Text } = Typography;
+const DEFAULT_INPUTS = {
+  'model_deployment.ionet.api_key': '',
+  'model_deployment.ionet.enabled': false,
+};
+
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
 
 export default function SettingModelDeployment(props) {
   const { t } = useTranslation();
-
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    'model_deployment.ionet.api_key': '',
-    'model_deployment.ionet.enabled': false,
-  });
-  const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState({
-    'model_deployment.ionet.api_key': '',
-    'model_deployment.ionet.enabled': false,
-  });
   const [testing, setTesting] = useState(false);
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [inputsRow, setInputsRow] = useState(DEFAULT_INPUTS);
+
+  const setField = (key) => (value) =>
+    setInputs((prev) => ({ ...prev, [key]: value }));
+
+  const enabled = !!inputs['model_deployment.ionet.enabled'];
 
   const testApiKey = async () => {
     const apiKey = inputs['model_deployment.ionet.api_key'];
@@ -75,11 +70,8 @@ export default function SettingModelDeployment(props) {
       const response = await API.post(
         '/api/deployments/settings/test-connection',
         apiKey && apiKey.trim() !== '' ? { api_key: apiKey.trim() } : {},
-        {
-          skipErrorHandler: true,
-        },
+        { skipErrorHandler: true },
       );
-
       if (response?.data?.success) {
         showSuccess(t('API Key 验证成功！连接到 io.net 服务正常'));
       } else {
@@ -91,7 +83,6 @@ export default function SettingModelDeployment(props) {
       }
     } catch (error) {
       console.error('io.net API test error:', error);
-
       if (error?.code === 'ERR_NETWORK') {
         showError(t('网络连接失败，请检查网络设置或稍后重试'));
       } else {
@@ -107,227 +98,155 @@ export default function SettingModelDeployment(props) {
     }
   };
 
-  function onSubmit() {
+  const onSubmit = () => {
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
-
-    const requestQueue = updateArray.map((item) => {
-      let value = String(inputs[item.key]);
-      return API.put('/api/option/', {
+    const requestQueue = updateArray.map((item) =>
+      API.put('/api/option/', {
         key: item.key,
-        value,
-      });
-    });
+        value: String(inputs[item.key]),
+      }),
+    );
 
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
+        if (res.includes(undefined)) {
+          if (requestQueue.length > 1) {
             return showError(t('部分保存失败，请重试'));
+          }
+          return;
         }
         showSuccess(t('保存成功'));
-        // 更新 inputsRow 以反映已保存的状态
         setInputsRow(structuredClone(inputs));
-        props.refresh();
+        props.refresh?.();
       })
-      .catch(() => {
-        showError(t('保存失败，请重试'));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }
+      .catch(() => showError(t('保存失败，请重试')))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    if (props.options) {
-      const defaultInputs = {
-        'model_deployment.ionet.api_key': '',
-        'model_deployment.ionet.enabled': false,
-      };
-
-      const currentInputs = {};
-      for (let key in defaultInputs) {
-        if (props.options.hasOwnProperty(key)) {
-          currentInputs[key] = props.options[key];
-        } else {
-          currentInputs[key] = defaultInputs[key];
-        }
+    if (!props.options) return;
+    const currentInputs = { ...DEFAULT_INPUTS };
+    for (const key in DEFAULT_INPUTS) {
+      if (Object.prototype.hasOwnProperty.call(props.options, key)) {
+        currentInputs[key] = props.options[key];
       }
-
-      setInputs(currentInputs);
-      setInputsRow(structuredClone(currentInputs));
-      refForm.current?.setValues(currentInputs);
     }
+    setInputs(currentInputs);
+    setInputsRow(structuredClone(currentInputs));
   }, [props.options]);
 
   return (
-    <>
-      <Spin spinning={loading}>
-        <Form
-          values={inputs}
-          getFormApi={(formAPI) => (refForm.current = formAPI)}
-          style={{ marginBottom: 15 }}
-        >
-          <Form.Section
-            text={
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                <span>{t('模型部署设置')}</span>
-              </div>
-            }
-          >
-            {/*<Text */}
-            {/*  type="secondary" */}
-            {/*  size="small"*/}
-            {/*  style={{ */}
-            {/*    display: 'block', */}
-            {/*    marginBottom: '20px',*/}
-            {/*    color: 'var(--semi-color-text-2)'*/}
-            {/*  }}*/}
-            {/*>*/}
-            {/*  {t('配置模型部署服务提供商的API密钥和启用状态')}*/}
-            {/*</Text>*/}
+    <div className='p-6 space-y-6'>
+      <div className='text-base font-semibold text-foreground'>
+        {t('模型部署设置')}
+      </div>
 
-            <Card
-              title={
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
-                  <Cloud size={18} />
-                  <span>io.net</span>
+      <Card className='!rounded-2xl shadow-sm border border-[color:var(--app-border)]'>
+        <Card.Content className='p-6 space-y-5'>
+          <div className='flex items-center gap-2 text-sm font-semibold text-foreground'>
+            <Cloud size={18} />
+            <span>io.net</span>
+          </div>
+
+          <div className='grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]'>
+            <div className='space-y-4'>
+              <label className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+                <div className='min-w-0 flex-1'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('启用 io.net 部署')}
+                  </div>
+                  <div className='mt-1 text-xs leading-snug text-muted'>
+                    {t('启用后可接入 io.net GPU 资源')}
+                  </div>
                 </div>
-              }
-              bodyStyle={{ padding: '20px' }}
-              style={{ marginBottom: '16px' }}
-            >
-              <Row gutter={24}>
-                <Col xs={24} lg={14}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '16px',
-                    }}
-                  >
-                    <Form.Switch
-                      label={t('启用 io.net 部署')}
-                      field={'model_deployment.ionet.enabled'}
-                      onChange={(value) =>
-                        setInputs({
-                          ...inputs,
-                          'model_deployment.ionet.enabled': value,
-                        })
-                      }
-                      extraText={t('启用后可接入 io.net GPU 资源')}
-                    />
-                    <Form.Input
-                      label={t('API Key')}
-                      field={'model_deployment.ionet.api_key'}
-                      placeholder={t('请输入 io.net API Key（敏感信息不显示）')}
-                      onChange={(value) =>
-                        setInputs({
-                          ...inputs,
-                          'model_deployment.ionet.api_key': value,
-                        })
-                      }
-                      disabled={!inputs['model_deployment.ionet.enabled']}
-                      extraText={t('请使用 Project 为 io.cloud 的密钥')}
-                      mode='password'
-                    />
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                      <Button
-                        type='outline'
-                        size='small'
-                        icon={<Zap size={16} />}
-                        onClick={testApiKey}
-                        loading={testing}
-                        disabled={!inputs['model_deployment.ionet.enabled']}
-                        style={{
-                          height: '32px',
-                          fontSize: '13px',
-                          borderRadius: '6px',
-                          fontWeight: '500',
-                          borderColor: testing
-                            ? 'var(--semi-color-primary)'
-                            : 'var(--semi-color-border)',
-                          color: testing
-                            ? 'var(--semi-color-primary)'
-                            : 'var(--semi-color-text-0)',
-                        }}
-                      >
-                        {testing ? t('连接测试中...') : t('测试连接')}
-                      </Button>
-                    </div>
-                  </div>
-                </Col>
-                <Col xs={24} lg={10}>
-                  <div
-                    style={{
-                      background: 'var(--semi-color-fill-0)',
-                      padding: '16px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--semi-color-border)',
-                      height: '100%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <div>
-                      <Text
-                        strong
-                        style={{ display: 'block', marginBottom: '8px' }}
-                      >
-                        {t('获取 io.net API Key')}
-                      </Text>
-                      <ul
-                        style={{
-                          margin: 0,
-                          paddingLeft: '18px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '6px',
-                          color: 'var(--semi-color-text-2)',
-                          fontSize: '13px',
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        <li>{t('访问 io.net 控制台的 API Keys 页面')}</li>
-                        <li>
-                          {t('创建或选择密钥时，将 Project 设置为 io.cloud')}
-                        </li>
-                        <li>{t('复制生成的密钥并粘贴到此处')}</li>
-                      </ul>
-                    </div>
-                    <Button
-                      icon={<ArrowUpRight size={16} />}
-                      type='primary'
-                      theme='solid'
-                      style={{ width: '100%' }}
-                      onClick={() =>
-                        window.open('https://ai.io.net/ai/api-keys', '_blank')
-                      }
-                    >
-                      {t('前往 io.net API Keys')}
-                    </Button>
-                  </div>
-                </Col>
-              </Row>
-            </Card>
+                <Switch
+                  isSelected={enabled}
+                  onChange={setField('model_deployment.ionet.enabled')}
+                  aria-label={t('启用 io.net 部署')}
+                  size='sm'
+                >
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch>
+              </label>
 
-            <Row>
-              <Button size='default' type='primary' onClick={onSubmit}>
-                {t('保存设置')}
+              <div className='space-y-2'>
+                <div className='text-sm font-medium text-foreground'>
+                  {t('API Key')}
+                </div>
+                <Input
+                  type='password'
+                  value={inputs['model_deployment.ionet.api_key'] ?? ''}
+                  onChange={(e) =>
+                    setField('model_deployment.ionet.api_key')(e.target.value)
+                  }
+                  placeholder={t(
+                    '请输入 io.net API Key（敏感信息不显示）',
+                  )}
+                  disabled={!enabled}
+                  aria-label={t('API Key')}
+                  className={inputClass}
+                />
+                <div className='text-xs leading-snug text-muted'>
+                  {t('请使用 Project 为 io.cloud 的密钥')}
+                </div>
+              </div>
+
+              <div className='flex flex-wrap gap-3'>
+                <Button
+                  variant='bordered'
+                  size='sm'
+                  startContent={<Zap size={14} />}
+                  onPress={testApiKey}
+                  isPending={testing}
+                  isDisabled={!enabled}
+                >
+                  {testing ? t('连接测试中...') : t('测试连接')}
+                </Button>
+              </div>
+            </div>
+
+            <div className='flex flex-col justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+              <div>
+                <div className='mb-2 text-sm font-semibold text-foreground'>
+                  {t('获取 io.net API Key')}
+                </div>
+                <ul className='m-0 list-disc space-y-1.5 pl-5 text-xs leading-relaxed text-muted'>
+                  <li>{t('访问 io.net 控制台的 API Keys 页面')}</li>
+                  <li>{t('创建或选择密钥时，将 Project 设置为 io.cloud')}</li>
+                  <li>{t('复制生成的密钥并粘贴到此处')}</li>
+                </ul>
+              </div>
+              <Button
+                color='primary'
+                size='sm'
+                endContent={<ArrowUpRight size={14} />}
+                onPress={() =>
+                  window.open('https://ai.io.net/ai/api-keys', '_blank')
+                }
+                className='w-full'
+              >
+                {t('前往 io.net API Keys')}
               </Button>
-            </Row>
-          </Form.Section>
-        </Form>
-      </Spin>
-    </>
+            </div>
+          </div>
+        </Card.Content>
+      </Card>
+
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={onSubmit}
+          isPending={loading}
+          className='min-w-[100px]'
+        >
+          {t('保存设置')}
+        </Button>
+      </div>
+    </div>
   );
 }

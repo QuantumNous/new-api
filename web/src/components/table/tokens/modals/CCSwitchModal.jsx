@@ -19,15 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
-  RadioGroup,
-  Radio,
-  Select,
+  Button,
   Input,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
 import { useTranslation } from 'react-i18next';
-import { selectFilter } from '../../../../helpers';
+import { showWarning } from '../../../../helpers';
 
 const APP_CONFIGS = {
   claude: {
@@ -90,6 +93,12 @@ export default function CCSwitchModal({
   const [app, setApp] = useState('claude');
   const [name, setName] = useState(APP_CONFIGS.claude.defaultName);
   const [models, setModels] = useState({});
+  const modalState = useOverlayState({
+    isOpen: visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onClose();
+    },
+  });
 
   const currentConfig = APP_CONFIGS[app];
 
@@ -113,7 +122,7 @@ export default function CCSwitchModal({
 
   const handleSubmit = () => {
     if (!models.model) {
-      Toast.warning(t('请选择主模型'));
+      showWarning(t('请选择主模型'));
       return;
     }
     const url = buildCCSwitchURL(app, name, models, 'sk-' + tokenKey);
@@ -122,73 +131,94 @@ export default function CCSwitchModal({
   };
 
   const fieldLabelStyle = useMemo(
-    () => ({
-      marginBottom: 4,
-      fontSize: 13,
-      color: 'var(--semi-color-text-1)',
-    }),
+    () => 'mb-1 text-[13px] font-medium text-slate-600 dark:text-slate-300',
     [],
   );
 
   return (
-    <Modal
-      title={t('填入 CC Switch')}
-      visible={visible}
-      onCancel={onClose}
-      onOk={handleSubmit}
-      okText={t('打开 CC Switch')}
-      cancelText={t('取消')}
-      maskClosable={false}
-      width={480}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div>
-          <div style={fieldLabelStyle}>{t('应用')}</div>
-          <RadioGroup
-            type='button'
-            value={app}
-            onChange={(e) => handleAppChange(e.target.value)}
-            style={{ width: '100%' }}
-          >
-            {Object.entries(APP_CONFIGS).map(([key, cfg]) => (
-              <Radio key={key} value={key}>
-                {cfg.label}
-              </Radio>
-            ))}
-          </RadioGroup>
-        </div>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='lg' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {t('填入 CC Switch')}
+            </ModalHeader>
+            <ModalBody className='px-6 py-5'>
+              <div className='flex flex-col gap-4'>
+                <div>
+                  <div className={fieldLabelStyle}>{t('应用')}</div>
+                  <div className='grid grid-cols-3 gap-2'>
+                    {Object.entries(APP_CONFIGS).map(([key, cfg]) => (
+                      <button
+                        key={key}
+                        type='button'
+                        onClick={() => handleAppChange(key)}
+                        className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                          app === key
+                            ? 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-500 dark:bg-sky-500/10 dark:text-sky-200'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                        }`}
+                      >
+                        {cfg.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-        <div>
-          <div style={fieldLabelStyle}>{t('名称')}</div>
-          <Input
-            value={name}
-            onChange={setName}
-            placeholder={currentConfig.defaultName}
-          />
-        </div>
+                <div>
+                  <div className={fieldLabelStyle}>{t('名称')}</div>
+                  <Input
+                    value={name}
+                    onValueChange={setName}
+                    placeholder={currentConfig.defaultName}
+                    size='sm'
+                  />
+                </div>
 
-        {currentConfig.modelFields.map((field) => (
-          <div key={field.key}>
-            <div style={fieldLabelStyle}>
-              {t(field.label)}
-              {field.key === 'model' && (
-                <Typography.Text type='danger'> *</Typography.Text>
-              )}
-            </div>
-            <Select
-              placeholder={t('请选择模型')}
-              optionList={modelOptions}
-              value={models[field.key] || undefined}
-              onChange={(val) => handleModelChange(field.key, val)}
-              filter={selectFilter}
-              style={{ width: '100%' }}
-              showClear
-              searchable
-              emptyContent={t('暂无数据')}
-            />
-          </div>
-        ))}
-      </div>
+                {currentConfig.modelFields.map((field) => (
+                  <div key={field.key}>
+                    <div className={fieldLabelStyle}>
+                      {t(field.label)}
+                      {field.key === 'model' && (
+                        <span className='text-danger'> *</span>
+                      )}
+                    </div>
+                    <select
+                      value={models[field.key] || ''}
+                      onChange={(event) =>
+                        handleModelChange(field.key, event.target.value)
+                      }
+                      className='h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900'
+                    >
+                      <option value=''>{t('请选择模型')}</option>
+                      {(modelOptions || []).map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {typeof option.label === 'string'
+                            ? option.label
+                            : option.value}
+                        </option>
+                      ))}
+                    </select>
+                    {(modelOptions || []).length === 0 ? (
+                      <div className='mt-1 text-xs text-slate-500 dark:text-slate-400'>
+                        {t('暂无数据')}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button variant='light' onPress={onClose}>
+                {t('取消')}
+              </Button>
+              <Button color='primary' onPress={handleSubmit}>
+                {t('打开 CC Switch')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 }

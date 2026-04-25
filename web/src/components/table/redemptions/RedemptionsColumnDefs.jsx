@@ -18,8 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Button, Space, Popover, Dropdown } from '@douyinfe/semi-ui';
-import { IconMore } from '@douyinfe/semi-icons';
+import { Button, Chip, Tooltip } from '@heroui/react';
 import { renderQuota, timestamp2string } from '../../../helpers';
 import {
   REDEMPTION_STATUS,
@@ -51,26 +50,39 @@ const renderTimestamp = (timestamp) => {
 const renderStatus = (status, record, t) => {
   if (isExpired(record)) {
     return (
-      <Tag color='orange' shape='circle'>
+      <Chip color='warning' size='sm' variant='flat'>
         {t('已过期')}
-      </Tag>
+      </Chip>
     );
   }
 
   const statusConfig = REDEMPTION_STATUS_MAP[status];
   if (statusConfig) {
     return (
-      <Tag color={statusConfig.color} shape='circle'>
+      <Chip color={toChipColor(statusConfig.color)} size='sm' variant='flat'>
         {t(statusConfig.text)}
-      </Tag>
+      </Chip>
     );
   }
 
   return (
-    <Tag color='black' shape='circle'>
+    <Chip size='sm' variant='flat'>
       {t('未知状态')}
-    </Tag>
+    </Chip>
   );
+};
+
+const toChipColor = (color) => {
+  const map = {
+    green: 'success',
+    red: 'danger',
+    orange: 'warning',
+    yellow: 'warning',
+    blue: 'primary',
+    grey: 'default',
+    black: 'default',
+  };
+  return map[color] || 'default';
 };
 
 /**
@@ -110,9 +122,9 @@ export const getRedemptionsColumns = ({
       render: (text) => {
         return (
           <div>
-            <Tag color='grey' shape='circle'>
+            <Chip size='sm' variant='flat'>
               {renderQuota(parseInt(text))}
-            </Tag>
+            </Chip>
           </div>
         );
       },
@@ -144,77 +156,67 @@ export const getRedemptionsColumns = ({
       fixed: 'right',
       width: 205,
       render: (text, record) => {
-        // Create dropdown menu items for more operations
-        const moreMenuItems = [
-          {
-            node: 'item',
-            name: t('删除'),
-            type: 'danger',
-            onClick: () => {
-              showDeleteRedemptionModal(record);
-            },
-          },
-        ];
-
-        if (record.status === REDEMPTION_STATUS.UNUSED && !isExpired(record)) {
-          moreMenuItems.push({
-            node: 'item',
-            name: t('禁用'),
-            type: 'warning',
-            onClick: () => {
-              manageRedemption(record.id, REDEMPTION_ACTIONS.DISABLE, record);
-            },
-          });
-        } else if (!isExpired(record)) {
-          moreMenuItems.push({
-            node: 'item',
-            name: t('启用'),
-            type: 'secondary',
-            onClick: () => {
-              manageRedemption(record.id, REDEMPTION_ACTIONS.ENABLE, record);
-            },
-            disabled: record.status === REDEMPTION_STATUS.USED,
-          });
-        }
+        const canToggle = !isExpired(record);
+        const isUnused = record.status === REDEMPTION_STATUS.UNUSED;
 
         return (
-          <Space>
-            <Popover
+          <div className='flex flex-wrap items-center gap-1.5'>
+            <Tooltip
               content={record.key}
-              style={{ padding: 20 }}
-              position='top'
+              placement='top'
             >
-              <Button type='tertiary' size='small'>
+              <Button variant='flat' size='sm'>
                 {t('查看')}
               </Button>
-            </Popover>
+            </Tooltip>
             <Button
-              size='small'
-              onClick={async () => {
+              size='sm'
+              variant='flat'
+              onPress={async () => {
                 await copyText(record.key);
               }}
             >
               {t('复制')}
             </Button>
             <Button
-              type='tertiary'
-              size='small'
-              onClick={() => {
+              variant='flat'
+              size='sm'
+              onPress={() => {
                 setEditingRedemption(record);
                 setShowEdit(true);
               }}
-              disabled={record.status !== REDEMPTION_STATUS.UNUSED}
+              isDisabled={record.status !== REDEMPTION_STATUS.UNUSED}
             >
               {t('编辑')}
             </Button>
-            <Dropdown
-              trigger='click'
-              position='bottomRight'
-              menu={moreMenuItems}
+            {canToggle ? (
+              <Button
+                size='sm'
+                variant='flat'
+                color={isUnused ? 'warning' : 'primary'}
+                onPress={() =>
+                  manageRedemption(
+                    record.id,
+                    isUnused
+                      ? REDEMPTION_ACTIONS.DISABLE
+                      : REDEMPTION_ACTIONS.ENABLE,
+                    record,
+                  )
+                }
+                isDisabled={!isUnused && record.status === REDEMPTION_STATUS.USED}
+              >
+                {isUnused ? t('禁用') : t('启用')}
+              </Button>
+            ) : null}
+            <Button
+              size='sm'
+              variant='flat'
+              color='danger'
+              onPress={() => showDeleteRedemptionModal(record)}
             >
-              <Button type='tertiary' size='small' icon={<IconMore />} />
-            </Dropdown>
-          </Space>
+              {t('删除')}
+            </Button>
+          </div>
         );
       },
     },

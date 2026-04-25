@@ -18,14 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Collapse, Empty } from '@douyinfe/semi-ui';
-import { HelpCircle } from 'lucide-react';
-import { IconPlus, IconMinus } from '@douyinfe/semi-icons';
-import { marked } from 'marked';
 import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
+  Accordion,
+  AccordionItem,
+  Card,
+} from '@heroui/react';
+import { HelpCircle } from 'lucide-react';
+import { marked } from 'marked';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
 const FaqPanel = ({
@@ -37,50 +36,52 @@ const FaqPanel = ({
 }) => {
   return (
     <Card
-      {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
-      title={
+      className={`shadow-sm !rounded-2xl lg:col-span-1 ${CARD_PROPS?.className || ''}`}
+      shadow='none'
+    >
+      <div className='border-b border-border px-4 py-3'>
         <div className={FLEX_CENTER_GAP2}>
           <HelpCircle size={16} />
           {t('常见问答')}
         </div>
-      }
-      bodyStyle={{ padding: 0 }}
-    >
-      <ScrollableContainer maxHeight='24rem'>
-        {faqData.length > 0 ? (
-          <Collapse
-            accordion
-            expandIcon={<IconPlus />}
-            collapseIcon={<IconMinus />}
-          >
-            {faqData.map((item, index) => (
-              <Collapse.Panel
-                key={index}
-                header={item.question}
-                itemKey={index.toString()}
+      </div>
+      <div className='p-0'>
+        <ScrollableContainer maxHeight='24rem'>
+          {faqData.length > 0 ? (
+            <Accordion selectionMode='multiple' variant='light'>
+              {faqData.map((item, index) => (
+                <AccordionItem
+                  key={index.toString()}
+                  aria-label={item.question}
+                  title={item.question}
+                >
+                  <div
+                    className='prose prose-sm max-w-none dark:prose-invert'
+                    dangerouslySetInnerHTML={{
+                      __html: marked.parse(item.answer || ''),
+                    }}
+                  />
+                </AccordionItem>
+              ))}
+            </Accordion>
+          ) : (
+            <div className='flex flex-col items-center justify-center px-6 py-10 text-center'>
+              <div
+                className='mb-4 rounded-3xl bg-surface-secondary p-6 text-muted'
+                style={ILLUSTRATION_SIZE}
               >
-                <div
-                  dangerouslySetInnerHTML={{
-                    __html: marked.parse(item.answer || ''),
-                  }}
-                />
-              </Collapse.Panel>
-            ))}
-          </Collapse>
-        ) : (
-          <div className='flex justify-center items-center py-8'>
-            <Empty
-              image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-              darkModeImage={
-                <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-              }
-              title={t('暂无常见问答')}
-              description={t('请联系管理员在系统设置中配置常见问答')}
-            />
-          </div>
-        )}
-      </ScrollableContainer>
+                <HelpCircle size={42} />
+              </div>
+              <div className='text-sm font-semibold text-foreground'>
+                {t('暂无常见问答')}
+              </div>
+              <div className='mt-1 text-xs text-muted'>
+                {t('请联系管理员在系统设置中配置常见问答')}
+              </div>
+            </div>
+          )}
+        </ScrollableContainer>
+      </div>
     </Card>
   );
 };

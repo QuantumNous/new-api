@@ -18,15 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Button, Tooltip, Toast } from '@douyinfe/semi-ui';
+import { Button, Tooltip } from '@heroui/react';
 import { Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { copy } from '../../helpers';
+import { copy, showError, showSuccess } from '../../helpers';
 
 const PERFORMANCE_CONFIG = {
-  MAX_DISPLAY_LENGTH: 50000, // 最大显示字符数
-  PREVIEW_LENGTH: 5000, // 预览长度
-  VERY_LARGE_MULTIPLIER: 2, // 超大内容倍数
+  MAX_DISPLAY_LENGTH: 50000, // Maximum display length.
+  PREVIEW_LENGTH: 5000, // Preview length.
+  VERY_LARGE_MULTIPLIER: 2, // Very large content multiplier.
 };
 
 const codeThemeStyles = {
@@ -74,7 +74,7 @@ const codeThemeStyles = {
     color: '#666',
     fontSize: '14px',
     fontStyle: 'italic',
-    backgroundColor: 'var(--semi-color-fill-0)',
+    backgroundColor: 'rgba(148, 163, 184, 0.08)',
     borderRadius: '8px',
   },
   performanceWarning: {
@@ -201,7 +201,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
     }
     return (
       formattedContent.substring(0, PERFORMANCE_CONFIG.PREVIEW_LENGTH) +
-      '\n\n// ... 内容被截断以提升性能 ...'
+      '\n\n// ... Content truncated for performance ...'
     );
   }, [formattedContent, contentMetrics.isLarge, isExpanded]);
 
@@ -230,14 +230,14 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
 
       const success = await copy(textToCopy);
       setCopied(true);
-      Toast.success(t('已复制到剪贴板'));
+      showSuccess(t('已复制到剪贴板'));
       setTimeout(() => setCopied(false), 2000);
 
       if (!success) {
         throw new Error('Copy operation failed');
       }
     } catch (err) {
-      Toast.error(t('复制失败'));
+      showError(t('复制失败'));
       console.error('Copy failed:', err);
     }
   }, [content, t]);
@@ -274,7 +274,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
 
   return (
     <div style={codeThemeStyles.container} className='h-full'>
-      {/* 性能警告 */}
+      {/* Performance warning */}
       {contentMetrics.isLarge && (
         <div style={codeThemeStyles.performanceWarning}>
           <span>⚡</span>
@@ -286,7 +286,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
         </div>
       )}
 
-      {/* 复制按钮 */}
+      {/* Copy button */}
       <div
         style={{
           ...codeThemeStyles.actionButton,
@@ -299,21 +299,24 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
       >
         <Tooltip content={copied ? t('已复制') : t('复制代码')}>
           <Button
-            icon={<Copy size={14} />}
-            onClick={handleCopy}
-            size='small'
-            theme='borderless'
+            isIconOnly
+            onPress={handleCopy}
+            size='sm'
+            variant='ghost'
             style={{
               backgroundColor: 'transparent',
               border: 'none',
               color: copied ? '#4ade80' : '#d4d4d4',
               padding: '6px',
             }}
-          />
+            aria-label={t('复制代码')}
+          >
+            <Copy size={14} />
+          </Button>
         </Tooltip>
       </div>
 
-      {/* 代码内容 */}
+      {/* Code content */}
       <div
         style={{
           ...codeThemeStyles.content,
@@ -351,7 +354,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
         )}
       </div>
 
-      {/* 展开/收起按钮 */}
+      {/* Expand/collapse button */}
       {contentMetrics.isLarge && !isProcessing && (
         <div
           style={{
@@ -363,12 +366,9 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
         >
           <Tooltip content={isExpanded ? t('收起内容') : t('显示完整内容')}>
             <Button
-              icon={
-                isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />
-              }
-              onClick={handleToggleExpand}
-              size='small'
-              theme='borderless'
+              onPress={handleToggleExpand}
+              size='sm'
+              variant='ghost'
               style={{
                 backgroundColor: 'transparent',
                 border: 'none',
@@ -376,6 +376,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
                 padding: '6px 12px',
               }}
             >
+              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               {isExpanded ? t('收起') : t('展开')}
               {!isExpanded && (
                 <span

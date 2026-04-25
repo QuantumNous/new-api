@@ -18,11 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
-import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
+import {
+  Button,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  Spinner,
+  useOverlayState,
+} from '@heroui/react';
+import { Copy, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-
-const { Text } = Typography;
 
 const ContentModal = ({
   isModalOpen,
@@ -33,6 +42,12 @@ const ContentModal = ({
   const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const modalState = useOverlayState({
+    isOpen: isModalOpen,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setIsModalOpen(false);
+    },
+  });
 
   useEffect(() => {
     if (isModalOpen && isVideo) {
@@ -61,89 +76,57 @@ const ContentModal = ({
   const renderVideoContent = () => {
     if (videoError) {
       return (
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <Text
-            type='tertiary'
-            style={{ display: 'block', marginBottom: '16px' }}
-          >
+        <div className='flex flex-col items-center px-4 py-10 text-center'>
+          <p className='mb-4 text-sm text-slate-500 dark:text-slate-400'>
             {t('视频无法在当前浏览器中播放，这可能是由于：')}
-          </Text>
-          <Text
-            type='tertiary'
-            style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
-          >
+          </p>
+          <p className='mb-2 text-xs text-slate-500 dark:text-slate-400'>
             {t('• 视频服务商的跨域限制')}
-          </Text>
-          <Text
-            type='tertiary'
-            style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
-          >
+          </p>
+          <p className='mb-2 text-xs text-slate-500 dark:text-slate-400'>
             {t('• 需要特定的请求头或认证')}
-          </Text>
-          <Text
-            type='tertiary'
-            style={{ display: 'block', marginBottom: '16px', fontSize: '12px' }}
-          >
+          </p>
+          <p className='mb-4 text-xs text-slate-500 dark:text-slate-400'>
             {t('• 防盗链保护机制')}
-          </Text>
+          </p>
 
-          <div style={{ marginTop: '20px' }}>
+          <div className='mt-3 flex flex-wrap justify-center gap-2'>
             <Button
-              icon={<IconExternalOpen />}
-              onClick={handleOpenInNewTab}
-              style={{ marginRight: '8px' }}
+              startContent={<ExternalLink size={16} />}
+              onPress={handleOpenInNewTab}
+              size='sm'
+              variant='flat'
             >
               {t('在新标签页中打开')}
             </Button>
-            <Button icon={<IconCopy />} onClick={handleCopyUrl}>
+            <Button
+              startContent={<Copy size={16} />}
+              onPress={handleCopyUrl}
+              size='sm'
+              variant='flat'
+            >
               {t('复制链接')}
             </Button>
           </div>
 
-          <div
-            style={{
-              marginTop: '16px',
-              padding: '8px',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '4px',
-            }}
-          >
-            <Text
-              type='tertiary'
-              style={{ fontSize: '10px', wordBreak: 'break-all' }}
-            >
-              {modalContent}
-            </Text>
+          <div className='mt-4 max-w-full break-all rounded-xl bg-slate-100 p-2 text-[10px] text-slate-500 dark:bg-slate-900 dark:text-slate-400'>
+            {modalContent}
           </div>
         </div>
       );
     }
 
     return (
-      <div style={{ position: 'relative', height: '100%' }}>
+      <div className='relative h-full'>
         {isLoading && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 10,
-            }}
-          >
-            <Spin size='large' />
+          <div className='absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2'>
+            <Spinner size='lg' />
           </div>
         )}
         <video
           src={modalContent}
           controls
-          style={{
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain',
-          }}
+          className='h-full max-h-full w-full max-w-full object-contain'
           onError={handleVideoError}
           onLoadedData={handleVideoLoaded}
           onLoadStart={() => setIsLoading(true)}
@@ -153,25 +136,30 @@ const ContentModal = ({
   };
 
   return (
-    <Modal
-      visible={isModalOpen}
-      onOk={() => setIsModalOpen(false)}
-      onCancel={() => setIsModalOpen(false)}
-      closable={null}
-      bodyStyle={{
-        height: isVideo ? '70vh' : '400px',
-        maxHeight: '80vh',
-        overflow: 'auto',
-        padding: isVideo && videoError ? '0' : '24px',
-      }}
-      width={isVideo ? '90vw' : 800}
-      style={isVideo ? { maxWidth: 960 } : undefined}
-    >
-      {isVideo ? (
-        renderVideoContent()
-      ) : (
-        <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
-      )}
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size={isVideo ? '5xl' : '3xl'} scroll='inside'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {isVideo ? t('视频预览') : t('内容预览')}
+            </ModalHeader>
+            <ModalBody className={isVideo ? 'h-[70vh] p-4' : 'max-h-[70vh] p-6'}>
+              {isVideo ? (
+                renderVideoContent()
+              ) : (
+                <p className='whitespace-pre-line text-sm text-slate-700 dark:text-slate-200'>
+                  {modalContent}
+                </p>
+              )}
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button color='primary' onPress={() => setIsModalOpen(false)}>
+                {t('确定')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

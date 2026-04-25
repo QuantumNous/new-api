@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Skeleton, Tag } from '@douyinfe/semi-ui';
+import { Avatar, Button, Card, Skeleton } from '@heroui/react';
 import { VChart } from '@visactor/react-vchart';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -38,11 +38,13 @@ const StatsCards = ({
         {groupedStatsData.map((group, idx) => (
           <Card
             key={idx}
-            {...CARD_PROPS}
-            className={`${group.color} border-0 !rounded-2xl w-full`}
-            title={group.title}
+            className={`${group.color} w-full rounded-2xl border-0 ${CARD_PROPS?.className || ''}`}
+            shadow='none'
           >
-            <div className='space-y-4'>
+            <Card.Header>
+              <Card.Title className='text-base'>{group.title}</Card.Title>
+            </Card.Header>
+            <Card.Content className='space-y-4'>
               {group.items.map((item, itemIdx) => (
                 <div
                   key={itemIdx}
@@ -52,46 +54,30 @@ const StatsCards = ({
                   <div className='flex items-center'>
                     <Avatar
                       className='mr-3'
-                      size='small'
+                      size='sm'
                       color={item.avatarColor}
                     >
-                      {item.icon}
+                      <Avatar.Fallback>{item.icon}</Avatar.Fallback>
                     </Avatar>
                     <div>
-                      <div className='text-xs text-gray-500'>{item.title}</div>
-                      <div className='text-lg font-semibold'>
-                        <Skeleton
-                          loading={loading}
-                          active
-                          placeholder={
-                            <Skeleton.Paragraph
-                              active
-                              rows={1}
-                              style={{
-                                width: '65px',
-                                height: '24px',
-                                marginTop: '4px',
-                              }}
-                            />
-                          }
-                        >
-                          {item.value}
-                        </Skeleton>
+                      <div className='text-xs text-muted'>{item.title}</div>
+                      <div className='text-lg font-semibold tabular-nums text-foreground'>
+                        {loading ? (
+                          <Skeleton className='mt-1 h-6 w-16 rounded-lg' />
+                        ) : (
+                          item.value
+                        )}
                       </div>
                     </div>
                   </div>
                   {item.title === t('当前余额') ? (
-                    <Tag
-                      color='white'
-                      shape='circle'
-                      size='large'
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate('/console/topup');
-                      }}
+                    <Button
+                      size='sm'
+                      variant='secondary'
+                      onPress={() => navigate('/console/topup')}
                     >
                       {t('充值')}
-                    </Tag>
+                    </Button>
                   ) : (
                     (loading ||
                       (item.trendData && item.trendData.length > 0)) && (
@@ -105,7 +91,7 @@ const StatsCards = ({
                   )}
                 </div>
               ))}
-            </div>
+            </Card.Content>
           </Card>
         ))}
       </div>

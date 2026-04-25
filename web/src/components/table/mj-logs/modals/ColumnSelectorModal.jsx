@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Button, Checkbox } from '@douyinfe/semi-ui';
 import { getMjLogsColumns } from '../MjLogsColumnDefs';
+import ColumnSelectorDialog from '../../../common/ui/ColumnSelectorDialog';
 
 const ColumnSelectorModal = ({
   showColumnSelector,
@@ -43,66 +43,28 @@ const ColumnSelectorModal = ({
     openContentModal,
     openImageModal,
     isAdminUser,
-  });
+  }).filter(
+    (column) =>
+      isAdminUser ||
+      (column.key !== COLUMN_KEYS.CHANNEL &&
+        column.key !== COLUMN_KEYS.SUBMIT_RESULT),
+  );
 
   return (
-    <Modal
+    <ColumnSelectorDialog
       title={t('列设置')}
       visible={showColumnSelector}
-      onCancel={() => setShowColumnSelector(false)}
-      footer={
-        <div className='flex justify-end'>
-          <Button onClick={() => initDefaultColumns()}>{t('重置')}</Button>
-          <Button onClick={() => setShowColumnSelector(false)}>
-            {t('取消')}
-          </Button>
-          <Button onClick={() => setShowColumnSelector(false)}>
-            {t('确定')}
-          </Button>
-        </div>
-      }
-    >
-      <div style={{ marginBottom: 20 }}>
-        <Checkbox
-          checked={Object.values(visibleColumns).every((v) => v === true)}
-          indeterminate={
-            Object.values(visibleColumns).some((v) => v === true) &&
-            !Object.values(visibleColumns).every((v) => v === true)
-          }
-          onChange={(e) => handleSelectAll(e.target.checked)}
-        >
-          {t('全选')}
-        </Checkbox>
-      </div>
-      <div
-        className='flex flex-wrap max-h-96 overflow-y-auto rounded-lg p-4'
-        style={{ border: '1px solid var(--semi-color-border)' }}
-      >
-        {allColumns.map((column) => {
-          // Skip admin-only columns for non-admin users
-          if (
-            !isAdminUser &&
-            (column.key === COLUMN_KEYS.CHANNEL ||
-              column.key === COLUMN_KEYS.SUBMIT_RESULT)
-          ) {
-            return null;
-          }
-
-          return (
-            <div key={column.key} className='w-1/2 mb-4 pr-2'>
-              <Checkbox
-                checked={!!visibleColumns[column.key]}
-                onChange={(e) =>
-                  handleColumnVisibilityChange(column.key, e.target.checked)
-                }
-              >
-                {column.title}
-              </Checkbox>
-            </div>
-          );
-        })}
-      </div>
-    </Modal>
+      onClose={() => setShowColumnSelector(false)}
+      resetText={t('重置')}
+      cancelText={t('取消')}
+      confirmText={t('确定')}
+      allText={t('全选')}
+      visibleColumns={visibleColumns}
+      columns={allColumns}
+      onColumnChange={handleColumnVisibilityChange}
+      onSelectAll={handleSelectAll}
+      onReset={initDefaultColumns}
+    />
   );
 };
 

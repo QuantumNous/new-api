@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Banner, Button, Form, Row, Col, Spin } from '@douyinfe/semi-ui';
+import React, { useEffect, useState } from 'react';
+import { Button, Input } from '@heroui/react';
 import {
   API,
   removeTrailingSlash,
@@ -28,56 +28,82 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Info } from 'lucide-react';
 
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+
+function Field({ label, value, onChange, placeholder, type = 'text', helper, step, min, max }) {
+  return (
+    <div className='space-y-2'>
+      <div className='text-sm font-medium text-foreground'>{label}</div>
+      <Input
+        type={type}
+        value={value === '' || value == null ? '' : String(value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (type === 'number') {
+            onChange(v === '' ? '' : Number(v));
+          } else {
+            onChange(v);
+          }
+        }}
+        placeholder={placeholder}
+        aria-label={label}
+        step={step}
+        min={min}
+        max={max}
+        className={inputClass}
+      />
+      {helper ? (
+        <div className='text-xs leading-snug text-muted'>{helper}</div>
+      ) : null}
+    </div>
+  );
+}
+
+const DEFAULT_INPUTS = {
+  PayAddress: '',
+  EpayId: '',
+  EpayKey: '',
+  Price: 7.3,
+  MinTopUp: 1,
+};
+
 export default function SettingsPaymentGateway(props) {
   const { t } = useTranslation();
   const sectionTitle = props.hideSectionTitle ? undefined : t('易支付设置');
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    PayAddress: '',
-    EpayId: '',
-    EpayKey: '',
-    Price: 7.3,
-    MinTopUp: 1,
-  });
-  const formApiRef = useRef(null);
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+
+  const setField = (field) => (value) =>
+    setInputs((prev) => ({ ...prev, [field]: value }));
 
   useEffect(() => {
-    if (props.options && formApiRef.current) {
-      const currentInputs = {
-        PayAddress: props.options.PayAddress || '',
-        EpayId: props.options.EpayId || '',
-        EpayKey: props.options.EpayKey || '',
-        Price:
-          props.options.Price !== undefined
-            ? parseFloat(props.options.Price)
-            : 7.3,
-        MinTopUp:
-          props.options.MinTopUp !== undefined
-            ? parseFloat(props.options.MinTopUp)
-            : 1,
-      };
-
-      setInputs(currentInputs);
-      formApiRef.current.setValues(currentInputs);
-    }
+    if (!props.options) return;
+    setInputs({
+      PayAddress: props.options.PayAddress || '',
+      EpayId: props.options.EpayId || '',
+      EpayKey: props.options.EpayKey || '',
+      Price:
+        props.options.Price !== undefined
+          ? parseFloat(props.options.Price)
+          : 7.3,
+      MinTopUp:
+        props.options.MinTopUp !== undefined
+          ? parseFloat(props.options.MinTopUp)
+          : 1,
+    });
   }, [props.options]);
 
-  const handleFormChange = (values) => {
-    setInputs(values);
-  };
-
-  const submitPayAddress = async () => {
-    if (props.options.ServerAddress === '') {
+  const submit = async () => {
+    if (props.options?.ServerAddress === '') {
       showError(t('请先填写服务器地址'));
       return;
     }
-
     setLoading(true);
     try {
       const options = [
         { key: 'PayAddress', value: removeTrailingSlash(inputs.PayAddress) },
       ];
-
       if (inputs.EpayId !== '') {
         options.push({ key: 'EpayId', value: inputs.EpayId });
       }
@@ -92,94 +118,92 @@ export default function SettingsPaymentGateway(props) {
       }
 
       const requestQueue = options.map((opt) =>
-        API.put('/api/option/', {
-          key: opt.key,
-          value: opt.value,
-        }),
+        API.put('/api/option/', { key: opt.key, value: opt.value }),
       );
-
       const results = await Promise.all(requestQueue);
-
-      const errorResults = results.filter((res) => !res.data.success);
+      const errorResults = results.filter((res) => !res.data?.success);
       if (errorResults.length > 0) {
-        errorResults.forEach((res) => {
-          showError(res.data.message);
-        });
+        errorResults.forEach((res) => showError(res.data.message));
       } else {
         showSuccess(t('更新成功'));
-        props.refresh && props.refresh();
+        props.refresh?.();
       }
     } catch (error) {
       showError(t('更新失败'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <Spin spinning={loading}>
-      <Form
-        initValues={inputs}
-        onValueChange={handleFormChange}
-        getFormApi={(api) => (formApiRef.current = api)}
-      >
-        <Form.Section text={sectionTitle}>
-          <Banner
-            type='info'
-            icon={<Info size={16} />}
-            description={t(
-              '当前仅支持易支付接口，回调地址请在通用设置中配置。',
-            )}
-            style={{ marginBottom: 16 }}
-          />
-          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='PayAddress'
-                label={t('支付地址')}
-                placeholder={t('例如：https://yourdomain.com')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='EpayId'
-                label={t('商户 ID')}
-                placeholder={t('例如：0001')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='EpayKey'
-                label={t('API 密钥')}
-                placeholder={t('敏感信息不会发送到前端显示')}
-                type='password'
-              />
-            </Col>
-          </Row>
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
-          >
-            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-              <Form.InputNumber
-                field='Price'
-                precision={2}
-                label={t('充值价格（x元/美金）')}
-                placeholder={t('例如：7，就是7元/美金')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-              <Form.InputNumber
-                field='MinTopUp'
-                label={t('最低充值美元数量')}
-                placeholder={t('例如：2，就是最低充值2$')}
-              />
-            </Col>
-          </Row>
-          <Button onClick={submitPayAddress} style={{ marginTop: 16 }}>
-            {t('更新易支付设置')}
-          </Button>
-        </Form.Section>
-      </Form>
-    </Spin>
+    <div className='p-6 space-y-6'>
+      {sectionTitle ? (
+        <div>
+          <div className='text-base font-semibold text-foreground'>
+            {sectionTitle}
+          </div>
+        </div>
+      ) : null}
+
+      <div className='flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200'>
+        <Info size={16} className='mt-0.5 shrink-0' />
+        <div>
+          {t('当前仅支持易支付接口，回调地址请在通用设置中配置。')}
+        </div>
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+        <Field
+          label={t('支付地址')}
+          value={inputs.PayAddress}
+          onChange={setField('PayAddress')}
+          placeholder={t('例如：https://yourdomain.com')}
+        />
+        <Field
+          label={t('商户 ID')}
+          value={inputs.EpayId}
+          onChange={setField('EpayId')}
+          placeholder={t('例如：0001')}
+        />
+        <Field
+          label={t('API 密钥')}
+          value={inputs.EpayKey}
+          onChange={setField('EpayKey')}
+          placeholder={t('敏感信息不会发送到前端显示')}
+          type='password'
+        />
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+        <Field
+          label={t('充值价格（x元/美金）')}
+          value={inputs.Price}
+          onChange={setField('Price')}
+          placeholder={t('例如：7，就是7元/美金')}
+          type='number'
+          step='0.01'
+        />
+        <Field
+          label={t('最低充值美元数量')}
+          value={inputs.MinTopUp}
+          onChange={setField('MinTopUp')}
+          placeholder={t('例如：2，就是最低充值2$')}
+          type='number'
+          step='0.01'
+        />
+      </div>
+
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={submit}
+          isPending={loading}
+          className='min-w-[120px]'
+        >
+          {t('更新易支付设置')}
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -17,21 +17,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { Toast, Pagination } from '@douyinfe/semi-ui';
-import { toastConstants } from '../constants';
-import React from 'react';
-import { toast } from 'react-toastify';
+import { Pagination as HeroPagination } from '@heroui/react';
+
+const dispatchAppToast = (type, input) => {
+  const message =
+    typeof input === 'string'
+      ? input
+      : input?.content || input?.title || input?.message;
+  if (typeof window === 'undefined' || !message) return;
+  window.dispatchEvent(
+    new CustomEvent('app-toast', {
+      detail: { type, message },
+    }),
+  );
+};
+
+const Toast = {
+  info: (input) => dispatchAppToast('info', input),
+  success: (input) => dispatchAppToast('success', input),
+  warning: (input) => dispatchAppToast('warning', input),
+  error: (input) => dispatchAppToast('error', input),
+  close: () => {},
+};
 import {
   THINK_TAG_REGEX,
   MESSAGE_ROLES,
 } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
-import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 
-const HTMLToastContent = ({ htmlContent }) => {
-  return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
-};
-export default HTMLToastContent;
 export function isAdmin() {
   let user = localStorage.getItem('user');
   if (!user) return false;
@@ -66,7 +79,11 @@ export function getUserIdFromLocalStorage() {
 }
 
 export function getFooterHTML() {
-  return localStorage.getItem('footer_html');
+  const footer = localStorage.getItem('footer_html');
+  if (!footer || footer === 'undefined' || footer === 'null') {
+    return '';
+  }
+  return footer;
 }
 
 export async function copy(text) {
@@ -96,29 +113,6 @@ export async function copy(text) {
 
 // isMobile 函数已移除，请改用 useIsMobile Hook
 
-let showErrorOptions = { autoClose: toastConstants.ERROR_TIMEOUT };
-let showWarningOptions = { autoClose: toastConstants.WARNING_TIMEOUT };
-let showSuccessOptions = { autoClose: toastConstants.SUCCESS_TIMEOUT };
-let showInfoOptions = { autoClose: toastConstants.INFO_TIMEOUT };
-let showNoticeOptions = { autoClose: false };
-
-const isMobileScreen = window.matchMedia(
-  `(max-width: ${MOBILE_BREAKPOINT - 1}px)`,
-).matches;
-if (isMobileScreen) {
-  showErrorOptions.position = 'top-center';
-  // showErrorOptions.transition = 'flip';
-
-  showSuccessOptions.position = 'top-center';
-  // showSuccessOptions.transition = 'flip';
-
-  showInfoOptions.position = 'top-center';
-  // showInfoOptions.transition = 'flip';
-
-  showNoticeOptions.position = 'top-center';
-  // showNoticeOptions.transition = 'flip';
-}
-
 export function showError(error) {
   console.error(error);
   if (error.message) {
@@ -127,7 +121,6 @@ export function showError(error) {
         case 401:
           // 清除用户状态
           localStorage.removeItem('user');
-          // toast.error('错误：未登录或登录已过期，请重新登录！', showErrorOptions);
           window.location.href = '/login?expired=true';
           break;
         case 429:
@@ -164,11 +157,13 @@ export function showInfo(message) {
 
 export function showNotice(message, isHTML = false) {
   if (isHTML) {
-    toast(<HTMLToastContent htmlContent={message} />, showNoticeOptions);
+    Toast.info(String(message).replace(/<[^>]*>/g, ''));
   } else {
     Toast.info(message);
   }
 }
+
+export default null;
 
 export function openPage(url) {
   window.open(url);
@@ -880,7 +875,7 @@ export const formatPriceInfo = (priceData, t, quotaDisplayType = 'USD') => {
   return (
     <>
       {items.map((item) => (
-        <span key={item.key} style={{ color: 'var(--semi-color-text-1)' }}>
+        <span key={item.key} style={{ color: 'var(--app-muted)' }}>
           {item.label} {item.value}
           {item.suffix}
         </span>
@@ -915,24 +910,19 @@ export const createCardProPagination = ({
       {!isMobile && (
         <span
           className='text-sm select-none'
-          style={{ color: 'var(--semi-color-text-2)' }}
+          style={{ color: 'var(--app-muted)' }}
         >
           {totalText}
         </span>
       )}
 
-      {/* 右侧分页控件 */}
-      <Pagination
-        currentPage={currentPage}
-        pageSize={pageSize}
-        total={total}
-        pageSizeOpts={pageSizeOpts}
-        showSizeChanger={showSizeChanger}
-        onPageSizeChange={onPageSizeChange}
-        onPageChange={onPageChange}
-        size={isMobile ? 'small' : 'default'}
-        showQuickJumper={isMobile}
-        showTotal
+      {/* 右侧分页控件：HeroUI v3 Pagination uses `page`/`total`(=pages)/`onChange`. */}
+      <HeroPagination
+        page={currentPage}
+        total={Math.max(1, Math.ceil(total / pageSize))}
+        size={isMobile ? 'sm' : 'md'}
+        onChange={(page) => onPageChange?.(page, pageSize)}
+        showControls
       />
     </>
   );

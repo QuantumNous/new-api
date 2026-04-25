@@ -19,22 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import {
-  Modal,
-  Checkbox,
-  Spin,
-  Input,
-  Typography,
-  Empty,
-  Tabs,
-  Collapse,
-  Tooltip,
-} from '@douyinfe/semi-ui';
+import { Input, Tooltip } from '@heroui/react';
+import { Modal, Checkbox, Spin, Typography, Empty, Tabs, Collapse } from '@/components/common/ui/HeroCompat';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
-import { IconSearch, IconInfoCircle } from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIllustrationsCompat';
+import { IconSearch, IconInfoCircle } from '@/components/common/ui/HeroIconsCompat';
 import { useTranslation } from 'react-i18next';
 import { getModelCategories } from '../../../../helpers/render';
 

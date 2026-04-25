@@ -17,23 +17,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+} from 'react';
 import {
-  Modal,
-  Table,
-  Checkbox,
-  Typography,
-  Empty,
-  Tag,
-  Popover,
+  Button,
   Input,
-} from '@douyinfe/semi-ui';
-import { MousePointerClick } from 'lucide-react';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { Inbox, MousePointerClick, Search } from 'lucide-react';
+import HoverPanel from '@/components/common/ui/HoverPanel';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
-import { IconSearch } from '@douyinfe/semi-icons';
-
-const { Text } = Typography;
 
 const FIELD_LABELS = {
   description: '描述',
@@ -45,6 +50,52 @@ const FIELD_LABELS = {
 };
 const FIELD_KEYS = Object.keys(FIELD_LABELS);
 
+function HeaderCheckbox({ checked, indeterminate, onChange, ariaLabel }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
+  }, [indeterminate, checked]);
+  return (
+    <input
+      ref={ref}
+      type='checkbox'
+      checked={!!checked}
+      onChange={(event) => onChange(event.target.checked)}
+      aria-label={ariaLabel}
+      className='h-4 w-4 accent-primary'
+    />
+  );
+}
+
+function Pager({ current, pageSize, total, onChange, t }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages <= 1) return null;
+  return (
+    <div className='mt-2 flex items-center justify-end gap-2 text-sm text-muted'>
+      <span>{t('共 {{total}} 条', { total })}</span>
+      <Button
+        size='sm'
+        variant='light'
+        isDisabled={current <= 1}
+        onPress={() => onChange(current - 1)}
+      >
+        {t('上一页')}
+      </Button>
+      <span>
+        {current} / {totalPages}
+      </span>
+      <Button
+        size='sm'
+        variant='light'
+        isDisabled={current >= totalPages}
+        onPress={() => onChange(current + 1)}
+      >
+        {t('下一页')}
+      </Button>
+    </div>
+  );
+}
+
 const UpstreamConflictModal = ({
   visible,
   onClose,
@@ -54,7 +105,6 @@ const UpstreamConflictModal = ({
   loading = false,
 }) => {
   const [selections, setSelections] = useState({});
-  const isMobile = useIsMobile();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchKeyword, setSearchKeyword] = useState('');
 
@@ -93,7 +143,6 @@ const UpstreamConflictModal = ({
     });
   }, []);
 
-  // 构造数据源与过滤后的数据源
   const dataSource = useMemo(
     () =>
       (conflicts || []).map((c) => ({
@@ -112,7 +161,6 @@ const UpstreamConflictModal = ({
     );
   }, [dataSource, searchKeyword]);
 
-  // 列头工具：当前过滤范围内可操作的行集合/勾选状态/批量设置
   const getPresentRowsForField = useCallback(
     (fieldKey) =>
       (filteredDataSource || []).filter((row) =>
@@ -153,96 +201,7 @@ const UpstreamConflictModal = ({
     [getPresentRowsForField],
   );
 
-  const columns = useMemo(() => {
-    const base = [
-      {
-        title: t('模型'),
-        dataIndex: 'model_name',
-        fixed: 'left',
-        render: (text) => <Text strong>{text}</Text>,
-      },
-    ];
-
-    const cols = FIELD_KEYS.map((fieldKey) => {
-      const rawLabel = FIELD_LABELS[fieldKey] || fieldKey;
-      const label = t(rawLabel);
-
-      const { headerChecked, headerIndeterminate, hasAny } =
-        getHeaderState(fieldKey);
-      if (!hasAny) return null;
-      const onHeaderChange = (e) =>
-        applyHeaderChange(fieldKey, e?.target?.checked);
-
-      return {
-        title: (
-          <div className='flex items-center gap-2'>
-            <Checkbox
-              checked={headerChecked}
-              indeterminate={headerIndeterminate}
-              onChange={onHeaderChange}
-            />
-            <Text>{label}</Text>
-          </div>
-        ),
-        dataIndex: fieldKey,
-        render: (_, record) => {
-          const f = (record.fields || []).find((x) => x.field === fieldKey);
-          if (!f) return <Text type='tertiary'>-</Text>;
-          const checked = selections[record.model_name]?.has(fieldKey) || false;
-          return (
-            <Checkbox
-              checked={checked}
-              onChange={(e) =>
-                toggleField(record.model_name, fieldKey, e?.target?.checked)
-              }
-            >
-              <Popover
-                trigger='hover'
-                position='top'
-                content={
-                  <div className='p-2 max-w-[520px]'>
-                    <div className='mb-2'>
-                      <Text type='tertiary' size='small'>
-                        {t('本地')}
-                      </Text>
-                      <pre className='whitespace-pre-wrap m-0'>
-                        {formatValue(f.local)}
-                      </pre>
-                    </div>
-                    <div>
-                      <Text type='tertiary' size='small'>
-                        {t('官方')}
-                      </Text>
-                      <pre className='whitespace-pre-wrap m-0'>
-                        {formatValue(f.upstream)}
-                      </pre>
-                    </div>
-                  </div>
-                }
-              >
-                <Tag
-                  color='white'
-                  size='small'
-                  prefixIcon={<MousePointerClick size={14} />}
-                >
-                  {t('点击查看差异')}
-                </Tag>
-              </Popover>
-            </Checkbox>
-          );
-        },
-      };
-    });
-
-    return [...base, ...cols.filter(Boolean)];
-  }, [
-    t,
-    selections,
-    filteredDataSource,
-    getHeaderState,
-    applyHeaderChange,
-    toggleField,
-  ]);
+  const visibleFields = FIELD_KEYS.filter((key) => getHeaderState(key).hasAny);
 
   const pagedDataSource = useMemo(() => {
     const start = (currentPage - 1) * MODEL_TABLE_PAGE_SIZE;
@@ -257,66 +216,200 @@ const UpstreamConflictModal = ({
         fields: Array.from(set || []),
       }))
       .filter((x) => x.fields.length > 0);
-
     const ok = await onSubmit?.(payload);
     if (ok) onClose?.();
   };
 
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onClose?.();
+    },
+  });
+
   return (
-    <Modal
-      title={t('选择要覆盖的冲突项')}
-      visible={visible}
-      onCancel={onClose}
-      onOk={handleOk}
-      confirmLoading={loading}
-      okText={t('应用覆盖')}
-      cancelText={t('取消')}
-      width={isMobile ? '100%' : 1000}
-    >
-      {dataSource.length === 0 ? (
-        <Empty description={t('无冲突项')} className='p-6' />
-      ) : (
-        <>
-          <div className='mb-3 text-[var(--semi-color-text-2)]'>
-            {t('仅会覆盖你勾选的字段，未勾选的字段保持本地不变。')}
-          </div>
-          {/* 搜索框 */}
-          <div className='flex items-center justify-end gap-2 w-full mb-4'>
-            <Input
-              placeholder={t('搜索模型...')}
-              value={searchKeyword}
-              onChange={(v) => {
-                setSearchKeyword(v);
-                setCurrentPage(1);
-              }}
-              className='!w-full'
-              prefix={<IconSearch />}
-              showClear
-            />
-          </div>
-          {filteredDataSource.length > 0 ? (
-            <Table
-              columns={columns}
-              dataSource={pagedDataSource}
-              pagination={{
-                currentPage: currentPage,
-                pageSize: MODEL_TABLE_PAGE_SIZE,
-                total: filteredDataSource.length,
-                showSizeChanger: false,
-                onPageChange: (page) => setCurrentPage(page),
-              }}
-              scroll={{ x: 'max-content' }}
-            />
-          ) : (
-            <Empty
-              description={
-                searchKeyword ? t('未找到匹配的模型') : t('无冲突项')
-              }
-              className='p-6'
-            />
-          )}
-        </>
-      )}
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='xl' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {t('选择要覆盖的冲突项')}
+            </ModalHeader>
+            <ModalBody className='space-y-3 px-6 py-5'>
+              {dataSource.length === 0 ? (
+                <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
+                  <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                    <Inbox size={28} />
+                  </div>
+                  <div>{t('无冲突项')}</div>
+                </div>
+              ) : (
+                <>
+                  <div className='text-xs text-muted'>
+                    {t('仅会覆盖你勾选的字段，未勾选的字段保持本地不变。')}
+                  </div>
+
+                  <div className='relative'>
+                    <Search
+                      size={14}
+                      className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted'
+                    />
+                    <Input
+                      type='text'
+                      placeholder={t('搜索模型...')}
+                      value={searchKeyword}
+                      onChange={(event) => {
+                        setSearchKeyword(event.target.value);
+                        setCurrentPage(1);
+                      }}
+                      aria-label={t('搜索模型')}
+                      className='h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background pl-9 pr-3 text-sm text-foreground outline-none transition focus:border-primary'
+                    />
+                  </div>
+
+                  {filteredDataSource.length === 0 ? (
+                    <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
+                      <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                        <Inbox size={28} />
+                      </div>
+                      <div>{t('未找到匹配的模型')}</div>
+                    </div>
+                  ) : (
+                    <div className='overflow-x-auto rounded-xl border border-[color:var(--app-border)]'>
+                      <table className='w-full text-sm'>
+                        <thead className='bg-[color:var(--app-background)] text-xs uppercase text-muted'>
+                          <tr>
+                            <th className='sticky left-0 z-10 bg-[color:var(--app-background)] px-3 py-2 text-left font-semibold'>
+                              {t('模型')}
+                            </th>
+                            {visibleFields.map((fieldKey) => {
+                              const { headerChecked, headerIndeterminate } =
+                                getHeaderState(fieldKey);
+                              return (
+                                <th
+                                  key={fieldKey}
+                                  className='whitespace-nowrap px-3 py-2 text-left font-semibold'
+                                >
+                                  <span className='inline-flex items-center gap-2'>
+                                    <HeaderCheckbox
+                                      checked={headerChecked}
+                                      indeterminate={headerIndeterminate}
+                                      onChange={(checked) =>
+                                        applyHeaderChange(fieldKey, checked)
+                                      }
+                                      ariaLabel={t(FIELD_LABELS[fieldKey])}
+                                    />
+                                    <span>{t(FIELD_LABELS[fieldKey])}</span>
+                                  </span>
+                                </th>
+                              );
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody className='divide-y divide-[color:var(--app-border)]'>
+                          {pagedDataSource.map((record) => (
+                            <tr key={record.key}>
+                              <td className='sticky left-0 z-10 bg-white px-3 py-2 font-semibold text-foreground dark:bg-slate-950'>
+                                {record.model_name}
+                              </td>
+                              {visibleFields.map((fieldKey) => {
+                                const f = (record.fields || []).find(
+                                  (x) => x.field === fieldKey,
+                                );
+                                if (!f) {
+                                  return (
+                                    <td
+                                      key={fieldKey}
+                                      className='px-3 py-2 text-muted'
+                                    >
+                                      -
+                                    </td>
+                                  );
+                                }
+                                const checked =
+                                  selections[record.model_name]?.has(
+                                    fieldKey,
+                                  ) || false;
+                                return (
+                                  <td key={fieldKey} className='px-3 py-2'>
+                                    <label className='inline-flex cursor-pointer items-center gap-2'>
+                                      <input
+                                        type='checkbox'
+                                        checked={checked}
+                                        onChange={(event) =>
+                                          toggleField(
+                                            record.model_name,
+                                            fieldKey,
+                                            event.target.checked,
+                                          )
+                                        }
+                                        className='h-3.5 w-3.5 accent-primary'
+                                      />
+                                      <HoverPanel
+                                        placement='top'
+                                        panelClassName='max-w-[480px]'
+                                        content={
+                                          <div className='space-y-2'>
+                                            <div>
+                                              <div className='text-[11px] uppercase text-muted'>
+                                                {t('本地')}
+                                              </div>
+                                              <pre className='m-0 whitespace-pre-wrap text-xs text-foreground'>
+                                                {formatValue(f.local)}
+                                              </pre>
+                                            </div>
+                                            <div>
+                                              <div className='text-[11px] uppercase text-muted'>
+                                                {t('官方')}
+                                              </div>
+                                              <pre className='m-0 whitespace-pre-wrap text-xs text-foreground'>
+                                                {formatValue(f.upstream)}
+                                              </pre>
+                                            </div>
+                                          </div>
+                                        }
+                                      >
+                                        <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+                                          <MousePointerClick size={11} />
+                                          {t('点击查看差异')}
+                                        </span>
+                                      </HoverPanel>
+                                    </label>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <Pager
+                    current={currentPage}
+                    pageSize={MODEL_TABLE_PAGE_SIZE}
+                    total={filteredDataSource.length}
+                    onChange={setCurrentPage}
+                    t={t}
+                  />
+                </>
+              )}
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button variant='light' onPress={onClose}>
+                {t('取消')}
+              </Button>
+              <Button
+                color='primary'
+                onPress={handleOk}
+                isPending={loading}
+              >
+                {t('应用覆盖')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

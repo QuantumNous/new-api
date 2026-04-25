@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin } from '@douyinfe/semi-ui';
+import { Card, Spinner } from '@heroui/react';
 import SettingsGeneral from '../../pages/Setting/Operation/SettingsGeneral';
 import SettingsHeaderNavModules from '../../pages/Setting/Operation/SettingsHeaderNavModules';
 import SettingsSidebarModulesAdmin from '../../pages/Setting/Operation/SettingsSidebarModulesAdmin';
@@ -120,42 +120,45 @@ const OperationSetting = () => {
   }, []);
 
   return (
-    <>
-      <Spin spinning={loading} size='large'>
-        {/* 通用设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsGeneral options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 顶栏模块管理 */}
-        <div style={{ marginTop: '10px' }}>
-          <SettingsHeaderNavModules options={inputs} refresh={onRefresh} />
+    <div className='relative'>
+      {loading ? (
+        <div className='absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-sm'>
+          <Spinner size='lg' />
         </div>
-        {/* 左侧边栏模块管理（管理员） */}
-        <div style={{ marginTop: '10px' }}>
-          <SettingsSidebarModulesAdmin options={inputs} refresh={onRefresh} />
-        </div>
-        {/* 屏蔽词过滤设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsSensitiveWords options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 日志设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsLog options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 监控设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsMonitoring options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 额度设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsCreditLimit options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 签到设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsCheckin options={inputs} refresh={onRefresh} />
-        </Card>
-      </Spin>
-    </>
+      ) : null}
+      {/* General settings */}
+      <Card className='mt-2.5'>
+        <SettingsGeneral options={inputs} refresh={onRefresh} />
+      </Card>
+      {/* Header navigation modules */}
+      <div className='mt-2.5'>
+        <SettingsHeaderNavModules options={inputs} refresh={onRefresh} />
+      </div>
+      {/* Admin sidebar modules */}
+      <div className='mt-2.5'>
+        <SettingsSidebarModulesAdmin options={inputs} refresh={onRefresh} />
+      </div>
+      {/* Sensitive words filter settings */}
+      <Card className='mt-2.5'>
+        <SettingsSensitiveWords options={inputs} refresh={onRefresh} />
+      </Card>
+      {/* Log settings */}
+      <Card className='mt-2.5'>
+        <SettingsLog options={inputs} refresh={onRefresh} />
+      </Card>
+      {/* Monitoring settings */}
+      <Card className='mt-2.5'>
+        <SettingsMonitoring options={inputs} refresh={onRefresh} />
+      </Card>
+      {/* Credit settings */}
+      <Card className='mt-2.5'>
+        <SettingsCreditLimit options={inputs} refresh={onRefresh} />
+      </Card>
+      {/* Checkin settings */}
+      <Card className='mt-2.5'>
+        <SettingsCheckin options={inputs} refresh={onRefresh} />
+      </Card>
+    </div>
   );
 };
 

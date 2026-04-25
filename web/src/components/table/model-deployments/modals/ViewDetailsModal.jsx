@@ -18,19 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import {
-  Modal,
-  Typography,
-  Card,
-  Tag,
-  Progress,
-  Descriptions,
-  Spin,
-  Empty,
-  Button,
-  Badge,
-  Tooltip,
-} from '@douyinfe/semi-ui';
+import { Card, Button, Badge, Tooltip } from '@heroui/react';
+import { Modal, Typography, Tag, Progress, Descriptions, Spin, Empty } from '@/components/common/ui/HeroCompat';
 import {
   FaInfoCircle,
   FaServer,
@@ -42,7 +31,7 @@ import {
   FaCopy,
   FaLink,
 } from 'react-icons/fa';
-import { IconRefresh } from '@douyinfe/semi-icons';
+import { IconRefresh } from '@/components/common/ui/HeroIconsCompat';
 import {
   API,
   showError,

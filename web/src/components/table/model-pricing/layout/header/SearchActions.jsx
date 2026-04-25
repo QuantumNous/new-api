@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo, useCallback } from 'react';
-import { Input, Button, Switch, Select, Divider } from '@douyinfe/semi-ui';
-import { IconSearch, IconCopy, IconFilter } from '@douyinfe/semi-icons';
+import { Button, Input, Separator, Switch } from '@heroui/react';
+import { Copy, Filter, Search } from 'lucide-react';
 
 const SearchActions = memo(
   ({
@@ -66,77 +66,89 @@ const SearchActions = memo(
 
     return (
       <div className='flex items-center gap-2 w-full'>
-        <div className='flex-1'>
+        <div className='relative flex-1'>
+          <Search
+            size={16}
+            className='pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted'
+          />
           <Input
-            prefix={<IconSearch />}
             placeholder={t('模糊搜索模型名称')}
             value={searchValue}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
-            onChange={handleChange}
-            showClear
+            onChange={(event) => handleChange?.(event)}
+            className='pl-9'
           />
         </div>
 
         <Button
-          theme='outline'
-          type='primary'
-          icon={<IconCopy />}
-          onClick={handleCopyClick}
-          disabled={selectedRowKeys.length === 0}
-          className='!bg-blue-500 hover:!bg-blue-600 !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
+          variant='primary'
+          onPress={handleCopyClick}
+          isDisabled={selectedRowKeys.length === 0}
         >
+          <Copy size={16} />
           {t('复制')}
         </Button>
 
         {!isMobile && (
           <>
-            <Divider layout='vertical' margin='8px' />
+            <Separator orientation='vertical' className='h-8' />
 
             {/* 充值价格显示开关 */}
             {supportsCurrencyDisplay && (
               <div className='flex items-center gap-2'>
                 <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
                 <Switch
-                  checked={showWithRecharge}
+                  isSelected={showWithRecharge}
                   onChange={setShowWithRecharge}
-                />
+                  aria-label={t('充值价格显示')}
+                >
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                </Switch>
               </div>
             )}
 
             {/* 货币单位选择 */}
             {supportsCurrencyDisplay && showWithRecharge && (
-              <Select
+              <select
                 value={currency}
-                onChange={setCurrency}
-                optionList={[
-                  { value: 'USD', label: 'USD' },
-                  { value: 'CNY', label: 'CNY' },
-                  { value: 'CUSTOM', label: t('自定义货币') },
-                ]}
-              />
+                onChange={(event) => setCurrency?.(event.target.value)}
+                className='h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none transition focus:border-accent'
+              >
+                <option value='USD'>USD</option>
+                <option value='CNY'>CNY</option>
+                <option value='CUSTOM'>{t('自定义货币')}</option>
+              </select>
             )}
 
             {/* 显示倍率开关 */}
             <div className='flex items-center gap-2'>
               <span className='text-sm text-gray-600'>{t('倍率')}</span>
-              <Switch checked={showRatio} onChange={setShowRatio} />
+              <Switch
+                isSelected={showRatio}
+                onChange={setShowRatio}
+                aria-label={t('倍率')}
+              >
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch>
             </div>
 
             {/* 视图模式切换按钮 */}
             <Button
-              theme={viewMode === 'table' ? 'solid' : 'outline'}
-              type={viewMode === 'table' ? 'primary' : 'tertiary'}
-              onClick={handleViewModeToggle}
+              variant={viewMode === 'table' ? 'primary' : 'outline'}
+              onPress={handleViewModeToggle}
             >
               {t('表格视图')}
             </Button>
 
             {/* Token单位切换按钮 */}
             <Button
-              theme={tokenUnit === 'K' ? 'solid' : 'outline'}
-              type={tokenUnit === 'K' ? 'primary' : 'tertiary'}
-              onClick={handleTokenUnitToggle}
+              variant={tokenUnit === 'K' ? 'primary' : 'outline'}
+              onPress={handleTokenUnitToggle}
             >
               {tokenUnit}
             </Button>
@@ -145,11 +157,10 @@ const SearchActions = memo(
 
         {isMobile && (
           <Button
-            theme='outline'
-            type='tertiary'
-            icon={<IconFilter />}
-            onClick={handleFilterClick}
+            variant='outline'
+            onPress={handleFilterClick}
           >
+            <Filter size={16} />
             {t('筛选')}
           </Button>
         )}

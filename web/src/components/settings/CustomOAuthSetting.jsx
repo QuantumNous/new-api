@@ -18,28 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import {
-  Button,
-  Form,
-  Row,
-  Col,
-  Typography,
-  Modal,
-  Banner,
-  Card,
-  Collapse,
-  Switch,
-  Table,
-  Tag,
-  Popconfirm,
-  Space,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Switch } from '@heroui/react';
+import { Form, Row, Col, Typography, Modal, Banner, Collapse, Table, Tag, Popconfirm, Space } from '@/components/common/ui/HeroCompat';
 import {
   IconPlus,
   IconEdit,
   IconDelete,
   IconRefresh,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import { API, showError, showSuccess, getOAuthProviderIcon } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -811,13 +797,13 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   style={{
                     width: '100%',
                     minHeight: 74,
-                    border: '1px solid var(--semi-color-border)',
+                    border: '1px solid var(--app-border)',
                     borderRadius: 8,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginBottom: 24,
-                    background: 'var(--semi-color-fill-0)',
+                    background: 'var(--app-surface-muted)',
                   }}
                 >
                   {getOAuthProviderIcon(formValues.icon || '', 24)}

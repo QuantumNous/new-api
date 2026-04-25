@@ -18,21 +18,21 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Progress, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Tooltip } from '@heroui/react';
 import {
-  Music,
-  FileText,
-  HelpCircle,
   CheckCircle,
-  Pause,
   Clock,
-  Play,
-  XCircle,
-  Loader,
-  List,
+  FileText,
   Hash,
-  Video,
+  HelpCircle,
+  List,
+  Loader,
+  Music,
+  Pause,
+  Play,
   Sparkles,
+  Video,
+  XCircle,
 } from 'lucide-react';
 import {
   TASK_ACTION_FIRST_TAIL_GENERATE,
@@ -43,9 +43,27 @@ import {
 } from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 import { stringToColor } from '../../../helpers/render';
-import { Avatar, Space } from '@douyinfe/semi-ui';
 
-const colors = [
+const TONE_TO_HEX = {
+  amber: '#f59e0b',
+  blue: '#3b82f6',
+  cyan: '#06b6d4',
+  green: '#22c55e',
+  grey: '#94a3b8',
+  indigo: '#6366f1',
+  'light-blue': '#0ea5e9',
+  lime: '#84cc16',
+  orange: '#f97316',
+  pink: '#ec4899',
+  purple: '#a855f7',
+  red: '#ef4444',
+  teal: '#14b8a6',
+  violet: '#8b5cf6',
+  yellow: '#eab308',
+  white: '#ffffff',
+};
+
+const TAG_PALETTE_KEYS = [
   'amber',
   'blue',
   'cyan',
@@ -63,110 +81,177 @@ const colors = [
   'yellow',
 ];
 
-// Render functions
+function ColorTag({ color, prefixIcon, children, onClick }) {
+  const hex = TONE_TO_HEX[color] || TONE_TO_HEX.grey;
+  if (color === 'white') {
+    return (
+      <span
+        onClick={onClick}
+        className={`inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200 ${
+          onClick ? 'cursor-pointer' : ''
+        }`}
+      >
+        {prefixIcon}
+        {children}
+      </span>
+    );
+  }
+  return (
+    <span
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+        onClick ? 'cursor-pointer' : ''
+      }`}
+      style={{
+        backgroundColor: `${hex}1A`,
+        color: hex,
+      }}
+    >
+      {prefixIcon}
+      {children}
+    </span>
+  );
+}
+
+function ProgressBar({ percent, errored }) {
+  const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
+  return (
+    <div className='inline-flex min-w-[160px] items-center gap-2'>
+      <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800'>
+        <div
+          className={`h-full rounded-full transition-all ${
+            errored
+              ? 'bg-amber-500'
+              : clamped >= 100
+                ? 'bg-emerald-500'
+                : 'bg-primary'
+          }`}
+          style={{ width: `${clamped}%` }}
+        />
+      </div>
+      <span className='shrink-0 text-xs text-muted'>{clamped}%</span>
+    </div>
+  );
+}
+
+function EllipsisText({ children, width = 100, onClick }) {
+  return (
+    <Tooltip content={children} placement='top'>
+      <span
+        onClick={onClick}
+        className={`inline-block truncate align-middle text-sm text-foreground ${
+          onClick ? 'cursor-pointer' : ''
+        }`}
+        style={{ maxWidth: width }}
+      >
+        {children}
+      </span>
+    </Tooltip>
+  );
+}
+
+function UserChip({ name }) {
+  const tone = stringToColor(name) || 'grey';
+  const hex = TONE_TO_HEX[tone] || TONE_TO_HEX.grey;
+  return (
+    <span className='inline-flex items-center gap-2'>
+      <span
+        className='flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold'
+        style={{
+          background: `${hex}26`,
+          color: hex,
+        }}
+      >
+        {name.slice(0, 1).toUpperCase()}
+      </span>
+      <span className='text-sm text-foreground'>{name}</span>
+    </span>
+  );
+}
+
 const renderTimestamp = (timestampInSeconds) => {
-  const date = new Date(timestampInSeconds * 1000); // 从秒转换为毫秒
-
-  const year = date.getFullYear(); // 获取年份
-  const month = ('0' + (date.getMonth() + 1)).slice(-2); // 获取月份，从0开始需要+1，并保证两位数
-  const day = ('0' + date.getDate()).slice(-2); // 获取日期，并保证两位数
-  const hours = ('0' + date.getHours()).slice(-2); // 获取小时，并保证两位数
-  const minutes = ('0' + date.getMinutes()).slice(-2); // 获取分钟，并保证两位数
-  const seconds = ('0' + date.getSeconds()).slice(-2); // 获取秒钟，并保证两位数
-
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`; // 格式化输出
+  const date = new Date(timestampInSeconds * 1000);
+  const year = date.getFullYear();
+  const month = ('0' + (date.getMonth() + 1)).slice(-2);
+  const day = ('0' + date.getDate()).slice(-2);
+  const hours = ('0' + date.getHours()).slice(-2);
+  const minutes = ('0' + date.getMinutes()).slice(-2);
+  const seconds = ('0' + date.getSeconds()).slice(-2);
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
 function renderDuration(submit_time, finishTime) {
   if (!submit_time || !finishTime) return 'N/A';
   const durationSec = finishTime - submit_time;
   const color = durationSec > 60 ? 'red' : 'green';
-
-  // 返回带有样式的颜色标签
-  return (
-    <Tag color={color} shape='circle'>
-      {durationSec} s
-    </Tag>
-  );
+  return <ColorTag color={color}>{durationSec} s</ColorTag>;
 }
 
 const renderType = (type, t) => {
   switch (type) {
     case 'MUSIC':
       return (
-        <Tag color='grey' shape='circle' prefixIcon={<Music size={14} />}>
+        <ColorTag color='grey' prefixIcon={<Music size={12} />}>
           {t('生成音乐')}
-        </Tag>
+        </ColorTag>
       );
     case 'LYRICS':
       return (
-        <Tag color='pink' shape='circle' prefixIcon={<FileText size={14} />}>
+        <ColorTag color='pink' prefixIcon={<FileText size={12} />}>
           {t('生成歌词')}
-        </Tag>
+        </ColorTag>
       );
     case TASK_ACTION_GENERATE:
       return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
+        <ColorTag color='blue' prefixIcon={<Sparkles size={12} />}>
           {t('图生视频')}
-        </Tag>
+        </ColorTag>
       );
     case TASK_ACTION_TEXT_GENERATE:
       return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
+        <ColorTag color='blue' prefixIcon={<Sparkles size={12} />}>
           {t('文生视频')}
-        </Tag>
+        </ColorTag>
       );
     case TASK_ACTION_FIRST_TAIL_GENERATE:
       return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
+        <ColorTag color='blue' prefixIcon={<Sparkles size={12} />}>
           {t('首尾生视频')}
-        </Tag>
+        </ColorTag>
       );
     case TASK_ACTION_REFERENCE_GENERATE:
       return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
+        <ColorTag color='blue' prefixIcon={<Sparkles size={12} />}>
           {t('参照生视频')}
-        </Tag>
+        </ColorTag>
       );
     case TASK_ACTION_REMIX_GENERATE:
       return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
+        <ColorTag color='blue' prefixIcon={<Sparkles size={12} />}>
           {t('视频Remix')}
-        </Tag>
+        </ColorTag>
       );
     default:
       return (
-        <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+        <ColorTag color='white' prefixIcon={<HelpCircle size={12} />}>
           {t('未知')}
-        </Tag>
+        </ColorTag>
       );
   }
 };
 
 const renderPlatform = (platform, t) => {
-  let option = CHANNEL_OPTIONS.find(
+  const option = CHANNEL_OPTIONS.find(
     (opt) => String(opt.value) === String(platform),
   );
   if (option) {
-    return (
-      <Tag color={option.color} shape='circle'>
-        {option.label}
-      </Tag>
-    );
+    return <ColorTag color={option.color}>{option.label}</ColorTag>;
   }
   switch (platform) {
     case 'suno':
-      return (
-        <Tag color='green' shape='circle'>
-          Suno
-        </Tag>
-      );
+      return <ColorTag color='green'>Suno</ColorTag>;
     default:
-      return (
-        <Tag color='white' shape='circle'>
-          {t('未知')}
-        </Tag>
-      );
+      return <ColorTag color='white'>{t('未知')}</ColorTag>;
   }
 };
 
@@ -174,61 +259,57 @@ const renderStatus = (type, t) => {
   switch (type) {
     case 'SUCCESS':
       return (
-        <Tag
-          color='green'
-          shape='circle'
-          prefixIcon={<CheckCircle size={14} />}
-        >
+        <ColorTag color='green' prefixIcon={<CheckCircle size={12} />}>
           {t('成功')}
-        </Tag>
+        </ColorTag>
       );
     case 'NOT_START':
       return (
-        <Tag color='grey' shape='circle' prefixIcon={<Pause size={14} />}>
+        <ColorTag color='grey' prefixIcon={<Pause size={12} />}>
           {t('未启动')}
-        </Tag>
+        </ColorTag>
       );
     case 'SUBMITTED':
       return (
-        <Tag color='yellow' shape='circle' prefixIcon={<Clock size={14} />}>
+        <ColorTag color='yellow' prefixIcon={<Clock size={12} />}>
           {t('队列中')}
-        </Tag>
+        </ColorTag>
       );
     case 'IN_PROGRESS':
       return (
-        <Tag color='blue' shape='circle' prefixIcon={<Play size={14} />}>
+        <ColorTag color='blue' prefixIcon={<Play size={12} />}>
           {t('执行中')}
-        </Tag>
+        </ColorTag>
       );
     case 'FAILURE':
       return (
-        <Tag color='red' shape='circle' prefixIcon={<XCircle size={14} />}>
+        <ColorTag color='red' prefixIcon={<XCircle size={12} />}>
           {t('失败')}
-        </Tag>
+        </ColorTag>
       );
     case 'QUEUED':
       return (
-        <Tag color='orange' shape='circle' prefixIcon={<List size={14} />}>
+        <ColorTag color='orange' prefixIcon={<List size={12} />}>
           {t('排队中')}
-        </Tag>
+        </ColorTag>
       );
     case 'UNKNOWN':
       return (
-        <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+        <ColorTag color='white' prefixIcon={<HelpCircle size={12} />}>
           {t('未知')}
-        </Tag>
+        </ColorTag>
       );
     case '':
       return (
-        <Tag color='grey' shape='circle' prefixIcon={<Loader size={14} />}>
+        <ColorTag color='grey' prefixIcon={<Loader size={12} />}>
           {t('正在提交')}
-        </Tag>
+        </ColorTag>
       );
     default:
       return (
-        <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+        <ColorTag color='white' prefixIcon={<HelpCircle size={12} />}>
           {t('未知')}
-        </Tag>
+        </ColorTag>
       );
   }
 };
@@ -247,46 +328,34 @@ export const getTaskLogsColumns = ({
       key: COLUMN_KEYS.SUBMIT_TIME,
       title: t('提交时间'),
       dataIndex: 'submit_time',
-      render: (text, record, index) => {
-        return <div>{text ? renderTimestamp(text) : '-'}</div>;
-      },
+      render: (text) => <div>{text ? renderTimestamp(text) : '-'}</div>,
     },
     {
       key: COLUMN_KEYS.FINISH_TIME,
       title: t('结束时间'),
       dataIndex: 'finish_time',
-      render: (text, record, index) => {
-        return <div>{text ? renderTimestamp(text) : '-'}</div>;
-      },
+      render: (text) => <div>{text ? renderTimestamp(text) : '-'}</div>,
     },
     {
       key: COLUMN_KEYS.DURATION,
       title: t('花费时间'),
       dataIndex: 'finish_time',
-      render: (finish, record) => {
-        return <>{finish ? renderDuration(record.submit_time, finish) : '-'}</>;
-      },
+      render: (finish, record) => (
+        <>{finish ? renderDuration(record.submit_time, finish) : '-'}</>
+      ),
     },
     {
       key: COLUMN_KEYS.CHANNEL,
       title: t('渠道'),
       dataIndex: 'channel_id',
-      render: (text, record, index) => {
-        return isAdminUser ? (
-          <div>
-            <Tag
-              color={colors[parseInt(text) % colors.length]}
-              size='large'
-              shape='circle'
-              onClick={() => {
-                copyText(text);
-              }}
-            >
-              {text}
-            </Tag>
-          </div>
-        ) : (
-          <></>
+      render: (text) => {
+        if (!isAdminUser) return null;
+        const tone =
+          TAG_PALETTE_KEYS[parseInt(text) % TAG_PALETTE_KEYS.length] || 'grey';
+        return (
+          <ColorTag color={tone} onClick={() => copyText(text)}>
+            {text}
+          </ColorTag>
         );
       },
     },
@@ -294,90 +363,60 @@ export const getTaskLogsColumns = ({
       key: COLUMN_KEYS.USERNAME,
       title: t('用户'),
       dataIndex: 'username',
-      render: (userId, record, index) => {
-        if (!isAdminUser) {
-          return <></>;
-        }
+      render: (userId, record) => {
+        if (!isAdminUser) return null;
         const displayText = String(record.username || userId || '?');
-        return (
-          <Space>
-            <Avatar
-              size='extra-small'
-              color={stringToColor(displayText)}
-            >
-              {displayText.slice(0, 1)}
-            </Avatar>
-            <Typography.Text>
-              {displayText}
-            </Typography.Text>
-          </Space>
-        );
+        return <UserChip name={displayText} />;
       },
     },
     {
       key: COLUMN_KEYS.PLATFORM,
       title: t('平台'),
       dataIndex: 'platform',
-      render: (text, record, index) => {
-        return <div>{renderPlatform(text, t)}</div>;
-      },
+      render: (text) => <div>{renderPlatform(text, t)}</div>,
     },
     {
       key: COLUMN_KEYS.TYPE,
       title: t('类型'),
       dataIndex: 'action',
-      render: (text, record, index) => {
-        return <div>{renderType(text, t)}</div>;
-      },
+      render: (text) => <div>{renderType(text, t)}</div>,
     },
     {
       key: COLUMN_KEYS.TASK_ID,
       title: t('任务ID'),
       dataIndex: 'task_id',
-      render: (text, record, index) => {
-        return (
-          <Typography.Text
-            ellipsis={{ showTooltip: true }}
-            onClick={() => {
-              openContentModal(JSON.stringify(record, null, 2));
-            }}
-          >
-            <div>{text}</div>
-          </Typography.Text>
-        );
-      },
+      render: (text, record) => (
+        <EllipsisText
+          width={120}
+          onClick={() => openContentModal(JSON.stringify(record, null, 2))}
+        >
+          {text}
+        </EllipsisText>
+      ),
     },
     {
       key: COLUMN_KEYS.TASK_STATUS,
       title: t('任务状态'),
       dataIndex: 'status',
-      render: (text, record, index) => {
-        return <div>{renderStatus(text, t)}</div>;
-      },
+      render: (text) => <div>{renderStatus(text, t)}</div>,
     },
     {
       key: COLUMN_KEYS.PROGRESS,
       title: t('进度'),
       dataIndex: 'progress',
-      render: (text, record, index) => {
+      render: (text, record) => {
+        if (text == null || text === '') {
+          return text || '-';
+        }
+        const numeric = isNaN(text?.replace?.('%', ''))
+          ? null
+          : parseInt(text.replace('%', ''));
+        if (numeric == null) return text || '-';
         return (
-          <div>
-            {isNaN(text?.replace('%', '')) ? (
-              text || '-'
-            ) : (
-              <Progress
-                stroke={
-                  record.status === 'FAILURE'
-                    ? 'var(--semi-color-warning)'
-                    : null
-                }
-                percent={text ? parseInt(text.replace('%', '')) : 0}
-                showInfo={true}
-                aria-label='task progress'
-                style={{ minWidth: '160px' }}
-              />
-            )}
-          </div>
+          <ProgressBar
+            percent={numeric}
+            errored={record.status === 'FAILURE'}
+          />
         );
       },
     },
@@ -386,8 +425,7 @@ export const getTaskLogsColumns = ({
       title: t('详情'),
       dataIndex: 'fail_reason',
       fixed: 'right',
-      render: (text, record, index) => {
-        // Suno audio preview
+      render: (text, record) => {
         const isSunoSuccess =
           record.platform === 'suno' &&
           record.status === 'SUCCESS' &&
@@ -397,6 +435,7 @@ export const getTaskLogsColumns = ({
           return (
             <a
               href='#'
+              className='text-primary underline'
               onClick={(e) => {
                 e.preventDefault();
                 openAudioModal(record.data);
@@ -407,7 +446,6 @@ export const getTaskLogsColumns = ({
           );
         }
 
-        // 视频预览：优先使用 result_url，兼容旧数据 fail_reason 中的 URL
         const isVideoTask =
           record.action === TASK_ACTION_GENERATE ||
           record.action === TASK_ACTION_TEXT_GENERATE ||
@@ -416,11 +454,13 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_REMIX_GENERATE;
         const isSuccess = record.status === 'SUCCESS';
         const resultUrl = record.result_url;
-        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        const hasResultUrl =
+          typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
         if (isSuccess && isVideoTask && hasResultUrl) {
           return (
             <a
               href='#'
+              className='text-primary underline'
               onClick={(e) => {
                 e.preventDefault();
                 openVideoModal(resultUrl);
@@ -430,19 +470,11 @@ export const getTaskLogsColumns = ({
             </a>
           );
         }
-        if (!text) {
-          return t('无');
-        }
+        if (!text) return t('无');
         return (
-          <Typography.Text
-            ellipsis={{ showTooltip: true }}
-            style={{ width: 100 }}
-            onClick={() => {
-              openContentModal(text);
-            }}
-          >
+          <EllipsisText width={100} onClick={() => openContentModal(text)}>
             {text}
-          </Typography.Text>
+          </EllipsisText>
         );
       },
     },

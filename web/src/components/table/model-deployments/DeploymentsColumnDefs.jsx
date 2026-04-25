@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Dropdown, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
+import { Dropdown, Tag, Typography } from '@/components/common/ui/HeroCompat';
 import { timestamp2string, showSuccess, showError } from '../../../helpers';
-import { IconMore } from '@douyinfe/semi-icons';
+import { IconMore } from '@/components/common/ui/HeroIconsCompat';
 import {
   FaPlay,
   FaTrash,
@@ -147,9 +148,9 @@ const formatRemainingMinutes = (minutes, t) => {
 const getRemainingTheme = (percentRemaining) => {
   if (percentRemaining === null) {
     return {
-      iconColor: 'var(--semi-color-primary)',
+      iconColor: 'var(--app-primary)',
       tagColor: 'blue',
-      textColor: 'var(--semi-color-text-2)',
+      textColor: 'var(--app-muted)',
     };
   }
 
@@ -380,7 +381,7 @@ export const getDeploymentsColumns = ({
                 className='text-sm'
                 style={{ color: theme.iconColor }}
               />
-              <Typography.Text className='text-sm font-medium text-[var(--semi-color-text-0)]'>
+              <Typography.Text className='text-sm font-medium text-[var(--app-foreground)]'>
                 {timeDisplay}
               </Typography.Text>
               {showProgress && percentRemaining !== null ? (
@@ -394,7 +395,7 @@ export const getDeploymentsColumns = ({
               ) : null}
             </div>
             {showExtraInfo && (
-              <div className='flex items-center gap-3 text-[var(--semi-color-text-2)]'>
+              <div className='flex items-center gap-3 text-[var(--app-muted)]'>
                 {humanReadable && (
                   <span className='flex items-center gap-1'>
                     <FaClock className='text-[11px]' />

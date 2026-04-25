@@ -17,18 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import {
-  Banner,
-  Button,
-  Col,
-  Form,
-  Row,
-  Spin,
-  Modal,
-  Input,
-  Typography,
-} from '@douyinfe/semi-ui';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Button, Input, Switch } from '@heroui/react';
 import {
   compareObjects,
   API,
@@ -38,37 +28,104 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
-const { Text } = Typography;
+const DEFAULT_INPUTS = {
+  TopUpLink: '',
+  'general_setting.docs_link': '',
+  'general_setting.quota_display_type': 'USD',
+  'general_setting.custom_currency_symbol': '¤',
+  'general_setting.custom_currency_exchange_rate': '',
+  QuotaPerUnit: '',
+  RetryTimes: '',
+  USDExchangeRate: '',
+  DisplayTokenStatEnabled: false,
+  DefaultCollapseSidebar: false,
+  DemoSiteEnabled: false,
+  SelfUseModeEnabled: false,
+  'token_setting.max_user_tokens': 1000,
+};
+
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+
+const selectClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+
+function TextField({ label, value, onChange, placeholder, helper }) {
+  return (
+    <div className='space-y-2'>
+      <div className='text-sm font-medium text-foreground'>{label}</div>
+      <Input
+        type='text'
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        className={inputClass}
+      />
+      {helper ? (
+        <div className='text-xs leading-snug text-muted'>{helper}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function NumberField({ label, value, onChange, placeholder, helper, min, step }) {
+  return (
+    <div className='space-y-2'>
+      <div className='text-sm font-medium text-foreground'>{label}</div>
+      <Input
+        type='number'
+        value={value === '' || value == null ? '' : String(value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === '' ? '' : Number(v));
+        }}
+        placeholder={placeholder}
+        min={min}
+        step={step}
+        aria-label={label}
+        className={inputClass}
+      />
+      {helper ? (
+        <div className='text-xs leading-snug text-muted'>{helper}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function ToggleRow({ label, helper, value, onChange }) {
+  return (
+    <div className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+      <div className='min-w-0 flex-1'>
+        <div className='text-sm font-medium text-foreground'>{label}</div>
+        {helper ? (
+          <div className='mt-1 text-xs leading-snug text-muted'>{helper}</div>
+        ) : null}
+      </div>
+      <Switch
+        isSelected={!!value}
+        onChange={onChange}
+        aria-label={label}
+        size='sm'
+      >
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
+    </div>
+  );
+}
 
 export default function GeneralSettings(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [showQuotaWarning, setShowQuotaWarning] = useState(false);
-  const [inputs, setInputs] = useState({
-    TopUpLink: '',
-    'general_setting.docs_link': '',
-    'general_setting.quota_display_type': 'USD',
-    'general_setting.custom_currency_symbol': '¤',
-    'general_setting.custom_currency_exchange_rate': '',
-    QuotaPerUnit: '',
-    RetryTimes: '',
-    USDExchangeRate: '',
-    DisplayTokenStatEnabled: false,
-    DefaultCollapseSidebar: false,
-    DemoSiteEnabled: false,
-    SelfUseModeEnabled: false,
-    'token_setting.max_user_tokens': 1000,
-  });
-  const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [inputsRow, setInputsRow] = useState(DEFAULT_INPUTS);
 
-  function handleFieldChange(fieldName) {
-    return (value) => {
-      setInputs((inputs) => ({ ...inputs, [fieldName]: value }));
-    };
-  }
+  const setField = (field) => (value) =>
+    setInputs((prev) => ({ ...prev, [field]: value }));
 
-  function onSubmit() {
+  const onSubmit = () => {
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     const requestQueue = updateArray.map((item) => {
@@ -78,32 +135,24 @@ export default function GeneralSettings(props) {
       } else {
         value = inputs[item.key];
       }
-      return API.put('/api/option/', {
-        key: item.key,
-        value,
-      });
+      return API.put('/api/option/', { key: item.key, value });
     });
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
+        if (res.includes(undefined)) {
+          if (requestQueue.length > 1) {
             return showError(t('部分保存失败，请重试'));
+          }
+          return;
         }
         showSuccess(t('保存成功'));
-        props.refresh();
+        props.refresh?.();
       })
-      .catch(() => {
-        showError(t('保存失败，请重试'));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }
+      .catch(() => showError(t('保存失败，请重试')))
+      .finally(() => setLoading(false));
+  };
 
-  // 计算展示在输入框中的“1 USD = X <currency>”中的 X
   const combinedRate = useMemo(() => {
     const type = inputs['general_setting.quota_display_type'];
     if (type === 'USD') return '1';
@@ -119,11 +168,11 @@ export default function GeneralSettings(props) {
   const onCombinedRateChange = (val) => {
     const type = inputs['general_setting.quota_display_type'];
     if (type === 'CNY') {
-      handleFieldChange('USDExchangeRate')(val);
+      setField('USDExchangeRate')(val);
     } else if (type === 'TOKENS') {
-      handleFieldChange('QuotaPerUnit')(val);
+      setField('QuotaPerUnit')(val);
     } else if (type === 'CUSTOM') {
-      handleFieldChange('general_setting.custom_currency_exchange_rate')(val);
+      setField('general_setting.custom_currency_exchange_rate')(val);
     }
   };
 
@@ -199,13 +248,12 @@ export default function GeneralSettings(props) {
   }, [quotaDisplayType, combinedRate, inputs, t]);
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+    const currentInputs = { ...DEFAULT_INPUTS };
+    for (const key in props.options) {
+      if (Object.prototype.hasOwnProperty.call(DEFAULT_INPUTS, key)) {
         currentInputs[key] = props.options[key];
       }
     }
-    // 若旧字段存在且新字段缺失，则做一次兜底映射
     if (
       currentInputs['general_setting.quota_display_type'] === undefined &&
       props.options?.DisplayInCurrencyEnabled !== undefined
@@ -215,13 +263,12 @@ export default function GeneralSettings(props) {
         ? 'USD'
         : 'TOKENS';
     }
-    // 回填自定义货币相关字段（如果后端已存在）
-    if (props.options['general_setting.custom_currency_symbol'] !== undefined) {
+    if (props.options?.['general_setting.custom_currency_symbol'] !== undefined) {
       currentInputs['general_setting.custom_currency_symbol'] =
         props.options['general_setting.custom_currency_symbol'];
     }
     if (
-      props.options['general_setting.custom_currency_exchange_rate'] !==
+      props.options?.['general_setting.custom_currency_exchange_rate'] !==
       undefined
     ) {
       currentInputs['general_setting.custom_currency_exchange_rate'] =
@@ -229,208 +276,150 @@ export default function GeneralSettings(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
   }, [props.options]);
 
   return (
-    <>
-      <Spin spinning={loading}>
-        <Form
-          values={inputs}
-          getFormApi={(formAPI) => (refForm.current = formAPI)}
-          style={{ marginBottom: 15 }}
-        >
-          <Form.Section text={t('通用设置')}>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Input
-                  field={'TopUpLink'}
-                  label={t('充值链接')}
-                  initValue={''}
-                  placeholder={t('例如发卡网站的购买链接')}
-                  onChange={handleFieldChange('TopUpLink')}
-                  showClear
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Input
-                  field={'general_setting.docs_link'}
-                  label={t('文档地址')}
-                  initValue={''}
-                  placeholder={t('例如 https://docs.newapi.pro')}
-                  onChange={handleFieldChange('general_setting.docs_link')}
-                  showClear
-                />
-              </Col>
-              {/* 单位美元额度已合入汇率组合控件（TOKENS 模式下编辑），不再单独展示 */}
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Input
-                  field={'RetryTimes'}
-                  label={t('失败重试次数')}
-                  initValue={''}
-                  placeholder={t('失败重试次数')}
-                  onChange={handleFieldChange('RetryTimes')}
-                  showClear
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Select
-                  field='general_setting.quota_display_type'
-                  label={t('额度展示类型')}
-                  extraText={quotaDisplayTypeDesc}
-                  onChange={handleFieldChange(
-                    'general_setting.quota_display_type',
-                  )}
-                >
-                  <Form.Select.Option value='USD'>
-                    USD ($)
-                  </Form.Select.Option>
-                  <Form.Select.Option value='CNY'>
-                    CNY (¥)
-                  </Form.Select.Option>
-                  {showTokensOption && (
-                    <Form.Select.Option value='TOKENS'>
-                      Tokens
-                    </Form.Select.Option>
-                  )}
-                  <Form.Select.Option value='CUSTOM'>
-                    {t('自定义货币')}
-                  </Form.Select.Option>
-                </Form.Select>
-              </Col>
-              {quotaDisplayType !== 'USD' && (
-                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                  <Form.Slot label={rateLabel}>
-                    <Input
-                      prefix='1 USD = '
-                      suffix={rateSuffix}
-                      value={combinedRate}
-                      onChange={onCombinedRateChange}
-                    />
-                    <Text
-                      type='tertiary'
-                      size='small'
-                      style={{ marginTop: 4, display: 'block' }}
-                    >
-                      {rateExtraText}
-                    </Text>
-                  </Form.Slot>
-                </Col>
-              )}
-              <Col
-                xs={24}
-                sm={12}
-                md={8}
-                lg={8}
-                xl={8}
-                style={
-                  quotaDisplayType !== 'CUSTOM'
-                    ? { display: 'none' }
-                    : undefined
-                }
-              >
-                <Form.Input
-                  field='general_setting.custom_currency_symbol'
-                  label={t('自定义货币符号')}
-                  extraText={t(
-                    '自定义货币符号将显示在所有额度数值前，例如 €1.50',
-                  )}
-                  placeholder={t('例如 €, £, Rp, ₩, ₹...')}
-                  onChange={handleFieldChange(
-                    'general_setting.custom_currency_symbol',
-                  )}
-                  showClear
-                />
-              </Col>
-              <Col span={24}>
-                <Text type='tertiary' size='small'>
-                  {t('预览效果')}：{previewText}
-                </Text>
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'DisplayTokenStatEnabled'}
-                  label={t('额度查询接口返回令牌额度而非用户额度')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={handleFieldChange('DisplayTokenStatEnabled')}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'DefaultCollapseSidebar'}
-                  label={t('默认折叠侧边栏')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={handleFieldChange('DefaultCollapseSidebar')}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'DemoSiteEnabled'}
-                  label={t('演示站点模式')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={handleFieldChange('DemoSiteEnabled')}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'SelfUseModeEnabled'}
-                  label={t('自用模式')}
-                  extraText={t('开启后不限制：必须设置模型倍率')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={handleFieldChange('SelfUseModeEnabled')}
-                />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('用户最大令牌数量')}
-                  field={'token_setting.max_user_tokens'}
-                  step={1}
-                  min={1}
-                  extraText={t('每个用户最多可创建的令牌数量，默认 1000，设置过大可能会影响性能')}
-                  placeholder={'1000'}
-                  onChange={handleFieldChange('token_setting.max_user_tokens')}
-                />
-              </Col>
-            </Row>
-            <Row>
-              <Button size='default' onClick={onSubmit}>
-                {t('保存通用设置')}
-              </Button>
-            </Row>
-          </Form.Section>
-        </Form>
-      </Spin>
+    <div className='p-6 space-y-6'>
+      <div className='text-base font-semibold text-foreground'>
+        {t('通用设置')}
+      </div>
 
-      <Modal
-        title={t('警告')}
-        visible={showQuotaWarning}
-        onOk={() => setShowQuotaWarning(false)}
-        onCancel={() => setShowQuotaWarning(false)}
-        closeOnEsc={true}
-        width={500}
-      >
-        <Banner
-          type='warning'
-          description={t(
-            '此设置用于系统内部计算，默认值500000是为了精确到6位小数点设计，不推荐修改。',
-          )}
-          bordered
-          fullMode={false}
-          closeIcon={null}
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3'>
+        <TextField
+          label={t('充值链接')}
+          value={inputs.TopUpLink}
+          onChange={setField('TopUpLink')}
+          placeholder={t('例如发卡网站的购买链接')}
         />
-      </Modal>
-    </>
+        <TextField
+          label={t('文档地址')}
+          value={inputs['general_setting.docs_link']}
+          onChange={setField('general_setting.docs_link')}
+          placeholder={t('例如 https://docs.newapi.pro')}
+        />
+        <TextField
+          label={t('失败重试次数')}
+          value={inputs.RetryTimes}
+          onChange={setField('RetryTimes')}
+          placeholder={t('失败重试次数')}
+        />
+
+        <div className='space-y-2'>
+          <div className='text-sm font-medium text-foreground'>
+            {t('额度展示类型')}
+          </div>
+          <select
+            value={quotaDisplayType}
+            onChange={(e) =>
+              setField('general_setting.quota_display_type')(e.target.value)
+            }
+            aria-label={t('额度展示类型')}
+            className={selectClass}
+          >
+            <option value='USD'>USD ($)</option>
+            <option value='CNY'>CNY (¥)</option>
+            {showTokensOption && <option value='TOKENS'>Tokens</option>}
+            <option value='CUSTOM'>{t('自定义货币')}</option>
+          </select>
+          {quotaDisplayTypeDesc ? (
+            <div className='text-xs leading-snug text-muted'>
+              {quotaDisplayTypeDesc}
+            </div>
+          ) : null}
+        </div>
+
+        {quotaDisplayType !== 'USD' && (
+          <div className='space-y-2'>
+            <div className='text-sm font-medium text-foreground'>
+              {rateLabel}
+            </div>
+            <div className='flex h-10 items-center overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-background text-sm transition focus-within:border-primary'>
+              <span className='whitespace-nowrap pl-3 text-muted'>
+                1 USD =
+              </span>
+              <input
+                type='text'
+                value={combinedRate}
+                onChange={(e) => onCombinedRateChange(e.target.value)}
+                aria-label={rateLabel}
+                className='h-full flex-1 min-w-0 bg-transparent px-2 text-foreground outline-none'
+              />
+              <span className='whitespace-nowrap pr-3 text-muted'>
+                {rateSuffix}
+              </span>
+            </div>
+            {rateExtraText ? (
+              <div className='text-xs leading-snug text-muted'>
+                {rateExtraText}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {quotaDisplayType === 'CUSTOM' && (
+          <TextField
+            label={t('自定义货币符号')}
+            value={inputs['general_setting.custom_currency_symbol']}
+            onChange={setField('general_setting.custom_currency_symbol')}
+            placeholder={t('例如 €, £, Rp, ₩, ₹...')}
+            helper={t('自定义货币符号将显示在所有额度数值前，例如 €1.50')}
+          />
+        )}
+      </div>
+
+      <div className='text-xs text-muted'>
+        {t('预览效果')}：{previewText}
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4'>
+        <ToggleRow
+          label={t('额度查询接口返回令牌额度而非用户额度')}
+          value={inputs.DisplayTokenStatEnabled}
+          onChange={setField('DisplayTokenStatEnabled')}
+        />
+        <ToggleRow
+          label={t('默认折叠侧边栏')}
+          value={inputs.DefaultCollapseSidebar}
+          onChange={setField('DefaultCollapseSidebar')}
+        />
+        <ToggleRow
+          label={t('演示站点模式')}
+          value={inputs.DemoSiteEnabled}
+          onChange={setField('DemoSiteEnabled')}
+        />
+        <ToggleRow
+          label={t('自用模式')}
+          helper={t('开启后不限制：必须设置模型倍率')}
+          value={inputs.SelfUseModeEnabled}
+          onChange={setField('SelfUseModeEnabled')}
+        />
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3'>
+        <NumberField
+          label={t('用户最大令牌数量')}
+          value={inputs['token_setting.max_user_tokens']}
+          onChange={setField('token_setting.max_user_tokens')}
+          placeholder='1000'
+          min={1}
+          step={1}
+          helper={t(
+            '每个用户最多可创建的令牌数量，默认 1000，设置过大可能会影响性能',
+          )}
+        />
+      </div>
+
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={onSubmit}
+          isPending={loading}
+          className='min-w-[120px]'
+        >
+          {t('保存通用设置')}
+        </Button>
+      </div>
+    </div>
   );
 }

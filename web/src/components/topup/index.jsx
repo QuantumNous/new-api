@@ -20,6 +20,17 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
+  Button,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import {
   API,
   showError,
   showInfo,
@@ -29,7 +40,6 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
-import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -103,6 +113,12 @@ const TopUp = () => {
     useState('subscription_first');
   const [activeSubscriptions, setActiveSubscriptions] = useState([]);
   const [allSubscriptions, setAllSubscriptions] = useState([]);
+  const creemModalState = useOverlayState({
+    isOpen: creemOpen,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) handleCreemCancel();
+    },
+  });
 
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
@@ -120,7 +136,7 @@ const TopUp = () => {
       ...method,
       type: `waffo:${index}`,
       min_topup: waffoMinTopUp,
-      color: method.color || 'rgba(var(--semi-primary-5), 1)',
+      color: method.color || 'var(--app-primary)',
     })),
   ];
 
@@ -160,11 +176,7 @@ const TopUp = () => {
       const { success, message, data } = res.data;
       if (success) {
         showSuccess(t('兑换成功！'));
-        Modal.success({
-          title: t('兑换成功！'),
-          content: t('成功兑换额度：') + renderQuota(data),
-          centered: true,
-        });
+        showInfo(t('成功兑换额度：') + renderQuota(data));
         if (userState.user) {
           const updatedUser = {
             ...userState.user,
@@ -426,7 +438,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          showError('错误：' + data);
         }
       } else {
         showError(res);
@@ -489,7 +501,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          showError('错误：' + data);
         }
       } else {
         showError(res);
@@ -614,13 +626,13 @@ const TopUp = () => {
 
               if (!method.color) {
                 if (method.type === 'alipay') {
-                  method.color = 'rgba(var(--semi-blue-5), 1)';
+                  method.color = 'var(--app-primary)';
                 } else if (method.type === 'wxpay') {
-                  method.color = 'rgba(var(--semi-green-5), 1)';
+                  method.color = 'var(--app-success)';
                 } else if (method.type === 'stripe') {
-                  method.color = 'rgba(var(--semi-purple-5), 1)';
+                  method.color = '#9333ea';
                 } else {
-                  method.color = 'rgba(var(--semi-primary-5), 1)';
+                  method.color = 'var(--app-primary)';
                 }
               }
               return method;
@@ -790,7 +802,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          showError('错误：' + data);
         }
       } else {
         showError(res);
@@ -816,7 +828,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          showError('错误：' + data);
         }
       } else {
         showError(res);
@@ -913,31 +925,46 @@ const TopUp = () => {
       />
 
       {/* Creem 充值确认模态框 */}
-      <Modal
-        title={t('确定要充值 $')}
-        visible={creemOpen}
-        onOk={onlineCreemTopUp}
-        onCancel={handleCreemCancel}
-        maskClosable={false}
-        size='small'
-        centered
-        confirmLoading={confirmLoading}
-      >
-        {selectedCreemProduct && (
-          <>
-            <p>
-              {t('产品名称')}：{selectedCreemProduct.name}
-            </p>
-            <p>
-              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
-              {selectedCreemProduct.price}
-            </p>
-            <p>
-              {t('充值额度')}：{selectedCreemProduct.quota}
-            </p>
-            <p>{t('是否确认充值？')}</p>
-          </>
-        )}
+      <Modal state={creemModalState}>
+        <ModalBackdrop isDismissable={false} variant='blur'>
+          <ModalContainer size='sm' placement='center'>
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                {t('确定要充值 $')}
+              </ModalHeader>
+              <ModalBody className='space-y-2 px-6 py-5 text-sm text-slate-600 dark:text-slate-300'>
+                {selectedCreemProduct && (
+                  <>
+                    <p>
+                      {t('产品名称')}：{selectedCreemProduct.name}
+                    </p>
+                    <p>
+                      {t('价格')}：
+                      {selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
+                      {selectedCreemProduct.price}
+                    </p>
+                    <p>
+                      {t('充值额度')}：{selectedCreemProduct.quota}
+                    </p>
+                    <p>{t('是否确认充值？')}</p>
+                  </>
+                )}
+              </ModalBody>
+              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                <Button variant='ghost' onPress={handleCreemCancel}>
+                  {t('取消')}
+                </Button>
+                <Button
+                  isPending={confirmLoading}
+                  variant='primary'
+                  onPress={onlineCreemTopUp}
+                >
+                  {t('确定')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
       </Modal>
 
       {/* 主布局区域 */}

@@ -18,20 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Button,
-  Form,
-  Row,
-  Col,
-  Typography,
-  Modal,
-  Banner,
-  TagInput,
-  Spin,
-  Card,
-  Radio,
-  Select,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Select } from '@heroui/react';
+import { Form, Row, Col, Typography, Modal, Banner, TagInput, Spin, Radio } from '@/components/common/ui/HeroCompat';
 const { Text } = Typography;
 import {
   API,
@@ -227,7 +215,7 @@ const SystemSetting = () => {
         setIpFilterMode(!!newInputs['fetch_setting.ip_filter_mode']);
       }
       if (formApiRef.current) {
-        formApiRef.current.setValues(newInputs);
+        formApiRef.current?.setValues?.(newInputs);
       }
       setIsLoaded(true);
     } else {

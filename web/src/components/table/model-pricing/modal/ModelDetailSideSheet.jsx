@@ -17,17 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { SideSheet, Typography, Button } from '@douyinfe/semi-ui';
-import { IconClose } from '@douyinfe/semi-icons';
+import React, { useEffect } from 'react';
+import { Button } from '@heroui/react';
+import { X } from 'lucide-react';
 
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import ModelHeader from './components/ModelHeader';
 import ModelBasicInfo from './components/ModelBasicInfo';
 import ModelEndpoints from './components/ModelEndpoints';
 import ModelPricingTable from './components/ModelPricingTable';
-
-const { Text } = Typography;
 
 const ModelDetailSideSheet = ({
   visible,
@@ -47,64 +45,91 @@ const ModelDetailSideSheet = ({
 }) => {
   const isMobile = useIsMobile();
 
+  useEffect(() => {
+    if (!visible) return;
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose?.();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [visible, onClose]);
+
   return (
-    <SideSheet
-      placement='right'
-      title={
-        <ModelHeader modelData={modelData} vendorsMap={vendorsMap} t={t} />
-      }
-      bodyStyle={{
-        padding: '0',
-        display: 'flex',
-        flexDirection: 'column',
-        borderBottom: '1px solid var(--semi-color-border)',
-      }}
-      visible={visible}
-      width={isMobile ? '100%' : 600}
-      closeIcon={
-        <Button
-          className='semi-button-tertiary semi-button-size-small semi-button-borderless'
-          type='button'
-          icon={<IconClose />}
-          onClick={onClose}
-        />
-      }
-      onCancel={onClose}
-    >
-      <div className='p-2'>
-        {!modelData && (
-          <div className='flex justify-center items-center py-10'>
-            <Text type='secondary'>{t('加载中...')}</Text>
+    <>
+      <div
+        aria-hidden={!visible}
+        onClick={onClose}
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
+          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+      <aside
+        role='dialog'
+        aria-modal='true'
+        aria-hidden={!visible}
+        style={{ width: isMobile ? '100%' : 600 }}
+        className={`fixed bottom-0 right-0 top-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-950 ${
+          visible ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
+          <div className='min-w-0 flex-1'>
+            {modelData ? (
+              <ModelHeader
+                modelData={modelData}
+                vendorsMap={vendorsMap}
+                t={t}
+              />
+            ) : (
+              <span className='text-sm text-muted'>{t('加载中...')}</span>
+            )}
           </div>
-        )}
-        {modelData && (
-          <>
-            <ModelBasicInfo
-              modelData={modelData}
-              vendorsMap={vendorsMap}
-              t={t}
-            />
-            <ModelEndpoints
-              modelData={modelData}
-              endpointMap={endpointMap}
-              t={t}
-            />
-            <ModelPricingTable
-              modelData={modelData}
-              groupRatio={groupRatio}
-              currency={currency}
-              siteDisplayType={siteDisplayType}
-              tokenUnit={tokenUnit}
-              displayPrice={displayPrice}
-              showRatio={showRatio}
-              usableGroup={usableGroup}
-              autoGroups={autoGroups}
-              t={t}
-            />
-          </>
-        )}
-      </div>
-    </SideSheet>
+          <Button
+            isIconOnly
+            variant='light'
+            size='sm'
+            aria-label={t('关闭')}
+            onPress={onClose}
+          >
+            <X size={16} />
+          </Button>
+        </header>
+
+        <div className='flex-1 overflow-y-auto p-3'>
+          {!modelData && (
+            <div className='flex items-center justify-center py-10 text-sm text-muted'>
+              {t('加载中...')}
+            </div>
+          )}
+          {modelData && (
+            <>
+              <ModelBasicInfo
+                modelData={modelData}
+                vendorsMap={vendorsMap}
+                t={t}
+              />
+              <ModelEndpoints
+                modelData={modelData}
+                endpointMap={endpointMap}
+                t={t}
+              />
+              <ModelPricingTable
+                modelData={modelData}
+                groupRatio={groupRatio}
+                currency={currency}
+                siteDisplayType={siteDisplayType}
+                tokenUnit={tokenUnit}
+                displayPrice={displayPrice}
+                showRatio={showRatio}
+                usableGroup={usableGroup}
+                autoGroups={autoGroups}
+                t={t}
+              />
+            </>
+          )}
+        </div>
+      </aside>
+    </>
   );
 };
 

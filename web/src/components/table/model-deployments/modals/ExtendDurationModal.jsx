@@ -18,19 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Modal,
-  Form,
-  InputNumber,
-  Typography,
-  Card,
-  Space,
-  Divider,
-  Button,
-  Tag,
-  Banner,
-  Spin,
-} from '@douyinfe/semi-ui';
+import { Card, Button } from '@heroui/react';
+import { Modal, Form, InputNumber, Typography, Space, Divider, Tag, Banner, Spin } from '@/components/common/ui/HeroCompat';
 import {
   FaClock,
   FaCalculator,

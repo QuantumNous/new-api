@@ -18,7 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Typography, Input, InputNumber } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Input,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
 import { CreditCard } from 'lucide-react';
 
 const TransferModal = ({
@@ -32,44 +43,54 @@ const TransferModal = ({
   transferAmount,
   setTransferAmount,
 }) => {
+  const modalState = useOverlayState({
+    isOpen: openTransfer,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) handleTransferCancel();
+    },
+  });
+
   return (
-    <Modal
-      title={
-        <div className='flex items-center'>
-          <CreditCard className='mr-2' size={18} />
-          {t('划转邀请额度')}
-        </div>
-      }
-      visible={openTransfer}
-      onOk={transfer}
-      onCancel={handleTransferCancel}
-      maskClosable={false}
-      centered
-    >
-      <div className='space-y-4'>
-        <div>
-          <Typography.Text strong className='block mb-2'>
-            {t('可用邀请额度')}
-          </Typography.Text>
-          <Input
-            value={renderQuota(userState?.user?.aff_quota)}
-            disabled
-            className='!rounded-lg'
-          />
-        </div>
-        <div>
-          <Typography.Text strong className='block mb-2'>
-            {t('划转额度')} · {t('最低') + renderQuota(getQuotaPerUnit())}
-          </Typography.Text>
-          <InputNumber
-            min={getQuotaPerUnit()}
-            max={userState?.user?.aff_quota || 0}
-            value={transferAmount}
-            onChange={(value) => setTransferAmount(value)}
-            className='w-full !rounded-lg'
-          />
-        </div>
-      </div>
+    <Modal state={modalState}>
+      <ModalBackdrop isDismissable={false} variant='blur'>
+        <ModalContainer size='sm' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <div className='flex items-center gap-2'>
+                <CreditCard size={18} />
+                {t('划转邀请额度')}
+              </div>
+            </ModalHeader>
+            <ModalBody className='px-6 py-5'>
+              <div className='space-y-4'>
+                <Input
+                  label={t('可用邀请额度')}
+                  value={renderQuota(userState?.user?.aff_quota)}
+                  isDisabled
+                  className='w-full'
+                />
+                <Input
+                  label={`${t('划转额度')} · ${t('最低')}${renderQuota(getQuotaPerUnit())}`}
+                  type='number'
+                  min={getQuotaPerUnit()}
+                  max={userState?.user?.aff_quota || 0}
+                  value={String(transferAmount ?? '')}
+                  onChange={(event) => setTransferAmount(Number(event.target.value || 0))}
+                  className='w-full'
+                />
+              </div>
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button variant='ghost' onPress={handleTransferCancel}>
+                {t('取消')}
+              </Button>
+              <Button variant='primary' onPress={transfer}>
+                {t('确定')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

@@ -18,17 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Button,
-  Dropdown,
-  InputNumber,
-  Modal,
-  Space,
-  SplitButtonGroup,
-  Tag,
-  Tooltip,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Tooltip } from '@heroui/react';
+import { Dropdown, InputNumber, Modal, Space, SplitButtonGroup, Tag, Typography } from '@/components/common/ui/HeroCompat';
 import {
   timestamp2string,
   renderGroup,
@@ -48,7 +39,7 @@ import {
   IconTreeTriangleDown,
   IconMore,
   IconAlertTriangle,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
@@ -400,7 +391,7 @@ export const getChannelsColumns = ({
               >
                 <span className='inline-flex items-center'>
                   <IconAlertTriangle
-                    style={{ color: 'var(--semi-color-warning)' }}
+                    style={{ color: 'var(--app-warning)' }}
                   />
                 </span>
               </Tooltip>

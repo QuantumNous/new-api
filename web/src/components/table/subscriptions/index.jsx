@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext } from 'react';
-import { Banner } from '@douyinfe/semi-ui';
+import { Info } from 'lucide-react';
 import CardPro from '../../common/ui/CardPro';
 import SubscriptionsTable from './SubscriptionsTable';
 import SubscriptionsActions from './SubscriptionsActions';
@@ -73,14 +73,14 @@ const SubscriptionsPage = () => {
             <div className='order-1 md:order-0 w-full md:w-auto'>
               <SubscriptionsActions openCreate={openCreate} t={t} />
             </div>
-            <Banner
-              type='info'
-              description={t('Stripe/Creem 需在第三方平台创建商品并填入 ID')}
-              closeIcon={null}
-              // Mobile: banner below; Desktop: banner right
-              className='!rounded-lg order-2 md:order-1'
-              style={{ maxWidth: '100%' }}
-            />
+            <div
+              className='order-2 flex w-full items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-700 md:order-1 md:w-auto dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200'
+            >
+              <Info size={16} className='mt-0.5 shrink-0' />
+              <span>
+                {t('Stripe/Creem 需在第三方平台创建商品并填入 ID')}
+              </span>
+            </div>
           </div>
         }
         paginationArea={createCardProPagination({

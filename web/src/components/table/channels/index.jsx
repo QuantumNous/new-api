@@ -18,8 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Banner } from '@douyinfe/semi-ui';
-import { IconAlertTriangle } from '@douyinfe/semi-icons';
+import { TriangleAlert } from 'lucide-react';
 import CardPro from '../../common/ui/CardPro';
 import ChannelsTable from './ChannelsTable';
 import ChannelsActions from './ChannelsActions';
@@ -74,22 +73,15 @@ const ChannelsPage = () => {
         onCancel={channelsData.closeUpstreamUpdateModal}
       />
 
-      {/* Main Content */}
       {channelsData.globalPassThroughEnabled ? (
-        <Banner
-          type='warning'
-          closeIcon={null}
-          icon={
-            <IconAlertTriangle
-              size='large'
-              style={{ color: 'var(--semi-color-warning)' }}
-            />
-          }
-          description={channelsData.t(
-            '已开启全局请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
-          )}
-          style={{ marginBottom: 12 }}
-        />
+        <div className='mb-3 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100'>
+          <TriangleAlert size={16} className='mt-0.5 shrink-0' />
+          <div>
+            {channelsData.t(
+              '已开启全局请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
+            )}
+          </div>
+        </div>
       ) : null}
       <CardPro
         type='type3'

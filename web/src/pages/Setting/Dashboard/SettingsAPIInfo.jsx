@@ -17,37 +17,121 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Button,
-  Space,
-  Table,
-  Form,
-  Typography,
-  Empty,
-  Divider,
-  Avatar,
+  Input,
   Modal,
-  Tag,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
   Switch,
-} from '@douyinfe/semi-ui';
-import {
-  IllustrationNoResult,
-  IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
-import { Plus, Edit, Trash2, Save, Settings } from 'lucide-react';
+  useOverlayState,
+} from '@heroui/react';
+import { Edit, Inbox, Plus, Save, Settings, Trash2 } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 
-const { Text } = Typography;
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+const selectClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+
+const COLOR_OPTIONS = [
+  'blue',
+  'green',
+  'cyan',
+  'purple',
+  'pink',
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'light-green',
+  'teal',
+  'light-blue',
+  'indigo',
+  'violet',
+  'grey',
+];
+
+const TONE_TO_HEX = {
+  blue: '#3b82f6',
+  green: '#22c55e',
+  cyan: '#06b6d4',
+  purple: '#a855f7',
+  pink: '#ec4899',
+  red: '#ef4444',
+  orange: '#f97316',
+  amber: '#f59e0b',
+  yellow: '#eab308',
+  lime: '#84cc16',
+  'light-green': '#4ade80',
+  teal: '#14b8a6',
+  'light-blue': '#0ea5e9',
+  indigo: '#6366f1',
+  violet: '#8b5cf6',
+  grey: '#94a3b8',
+};
+
+function ColorChip({ color, children }) {
+  const hex = TONE_TO_HEX[color] || '#94a3b8';
+  return (
+    <span
+      className='inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium'
+      style={{
+        backgroundColor: `${hex}1A`,
+        color: hex,
+        maxWidth: 280,
+      }}
+    >
+      <span className='truncate'>{children}</span>
+    </span>
+  );
+}
+
+function ColorDot({ color, size = 18 }) {
+  const hex = TONE_TO_HEX[color] || '#94a3b8';
+  return (
+    <span
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: hex,
+        display: 'inline-block',
+      }}
+    />
+  );
+}
+
+function HeaderCheckbox({ checked, indeterminate, onChange, ariaLabel }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
+  }, [indeterminate, checked]);
+  return (
+    <input
+      ref={ref}
+      type='checkbox'
+      checked={!!checked}
+      onChange={(event) => onChange(event.target.checked)}
+      aria-label={ariaLabel}
+      className='h-4 w-4 accent-primary'
+    />
+  );
+}
 
 const SettingsAPIInfo = ({ options, refresh }) => {
   const { t } = useTranslation();
 
   const [apiInfoList, setApiInfoList] = useState([]);
   const [showApiModal, setShowApiModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingApi, setDeletingApi] = useState(null);
   const [editingApi, setEditingApi] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -58,41 +142,21 @@ const SettingsAPIInfo = ({ options, refresh }) => {
     route: '',
     color: 'blue',
   });
+  const [formErrors, setFormErrors] = useState({});
+
+  const [pendingDelete, setPendingDelete] = useState(null);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-
-  // 面板启用状态 state
   const [panelEnabled, setPanelEnabled] = useState(true);
 
-  const colorOptions = [
-    { value: 'blue', label: 'blue' },
-    { value: 'green', label: 'green' },
-    { value: 'cyan', label: 'cyan' },
-    { value: 'purple', label: 'purple' },
-    { value: 'pink', label: 'pink' },
-    { value: 'red', label: 'red' },
-    { value: 'orange', label: 'orange' },
-    { value: 'amber', label: 'amber' },
-    { value: 'yellow', label: 'yellow' },
-    { value: 'lime', label: 'lime' },
-    { value: 'light-green', label: 'light-green' },
-    { value: 'teal', label: 'teal' },
-    { value: 'light-blue', label: 'light-blue' },
-    { value: 'indigo', label: 'indigo' },
-    { value: 'violet', label: 'violet' },
-    { value: 'grey', label: 'grey' },
-  ];
-
   const updateOption = async (key, value) => {
-    const res = await API.put('/api/option/', {
-      key,
-      value,
-    });
-    const { success, message } = res.data;
+    const res = await API.put('/api/option/', { key, value });
+    const { success, message } = res.data || {};
     if (success) {
-      showSuccess('API信息已更新');
-      if (refresh) refresh();
+      showSuccess(t('API信息已更新'));
+      refresh?.();
     } else {
       showError(message);
     }
@@ -105,8 +169,9 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       await updateOption('console_setting.api_info', apiInfoJson);
       setHasChanges(false);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('API信息更新失败', error);
-      showError('API信息更新失败');
+      showError(t('API信息更新失败'));
     } finally {
       setLoading(false);
     }
@@ -114,12 +179,8 @@ const SettingsAPIInfo = ({ options, refresh }) => {
 
   const handleAddApi = () => {
     setEditingApi(null);
-    setApiForm({
-      url: '',
-      description: '',
-      route: '',
-      color: 'blue',
-    });
+    setApiForm({ url: '', description: '', route: '', color: 'blue' });
+    setFormErrors({});
     setShowApiModal(true);
   };
 
@@ -131,34 +192,28 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       route: api.route,
       color: api.color,
     });
+    setFormErrors({});
     setShowApiModal(true);
   };
 
-  const handleDeleteApi = (api) => {
-    setDeletingApi(api);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeleteApi = () => {
-    if (deletingApi) {
-      const newList = apiInfoList.filter((api) => api.id !== deletingApi.id);
-      setApiInfoList(newList);
-      setHasChanges(true);
-      showSuccess('API信息已删除，请及时点击“保存设置”进行保存');
-    }
-    setShowDeleteModal(false);
-    setDeletingApi(null);
+  const performDeleteApi = (api) => {
+    if (!api) return;
+    const newList = apiInfoList.filter((item) => item.id !== api.id);
+    setApiInfoList(newList);
+    setHasChanges(true);
+    showSuccess(t('API信息已删除，请及时点击"保存设置"进行保存'));
   };
 
   const handleSaveApi = async () => {
-    if (!apiForm.url || !apiForm.route || !apiForm.description) {
-      showError('请填写完整的API信息');
-      return;
-    }
+    const next = {};
+    if (!apiForm.url?.trim()) next.url = t('请输入API地址');
+    if (!apiForm.route?.trim()) next.route = t('请输入线路描述');
+    if (!apiForm.description?.trim()) next.description = t('请输入说明');
+    setFormErrors(next);
+    if (Object.keys(next).length > 0) return;
 
     try {
       setModalLoading(true);
-
       let newList;
       if (editingApi) {
         newList = apiInfoList.map((api) =>
@@ -166,23 +221,18 @@ const SettingsAPIInfo = ({ options, refresh }) => {
         );
       } else {
         const newId = Math.max(...apiInfoList.map((api) => api.id), 0) + 1;
-        const newApi = {
-          id: newId,
-          ...apiForm,
-        };
-        newList = [...apiInfoList, newApi];
+        newList = [...apiInfoList, { id: newId, ...apiForm }];
       }
-
       setApiInfoList(newList);
       setHasChanges(true);
       setShowApiModal(false);
       showSuccess(
         editingApi
-          ? 'API信息已更新，请及时点击“保存设置”进行保存'
-          : 'API信息已添加，请及时点击“保存设置”进行保存',
+          ? t('API信息已更新，请及时点击"保存设置"进行保存')
+          : t('API信息已添加，请及时点击"保存设置"进行保存'),
       );
     } catch (error) {
-      showError('操作失败: ' + error.message);
+      showError(t('操作失败') + ': ' + error.message);
     } finally {
       setModalLoading(false);
     }
@@ -193,11 +243,11 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       setApiInfoList([]);
       return;
     }
-
     try {
       const parsed = JSON.parse(apiInfoStr);
       setApiInfoList(Array.isArray(parsed) ? parsed : []);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('解析API信息失败:', error);
       setApiInfoList([]);
     }
@@ -205,9 +255,8 @@ const SettingsAPIInfo = ({ options, refresh }) => {
 
   useEffect(() => {
     const apiInfoStr = options['console_setting.api_info'] ?? options.ApiInfo;
-    if (apiInfoStr !== undefined) {
-      parseApiInfo(apiInfoStr);
-    }
+    if (apiInfoStr !== undefined) parseApiInfo(apiInfoStr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options['console_setting.api_info'], options.ApiInfo]);
 
   useEffect(() => {
@@ -217,7 +266,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
         ? true
         : enabledStr === 'true' || enabledStr === true,
     );
-  }, [options['console_setting.api_info_enabled']]);
+  }, [options]);
 
   const handleToggleEnabled = async (checked) => {
     const newValue = checked ? 'true' : 'false';
@@ -226,83 +275,23 @@ const SettingsAPIInfo = ({ options, refresh }) => {
         key: 'console_setting.api_info_enabled',
         value: newValue,
       });
-      if (res.data.success) {
+      if (res.data?.success) {
         setPanelEnabled(checked);
         showSuccess(t('设置已保存'));
         refresh?.();
       } else {
-        showError(res.data.message);
+        showError(res.data?.message);
       }
     } catch (err) {
       showError(err.message);
     }
   };
 
-  const columns = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-    },
-    {
-      title: t('API地址'),
-      dataIndex: 'url',
-      render: (text, record) => (
-        <Tag color={record.color} shape='circle' style={{ maxWidth: '280px' }}>
-          {text}
-        </Tag>
-      ),
-    },
-    {
-      title: t('线路描述'),
-      dataIndex: 'route',
-      render: (text, record) => <Tag shape='circle'>{text}</Tag>,
-    },
-    {
-      title: t('说明'),
-      dataIndex: 'description',
-      ellipsis: true,
-      render: (text, record) => <Tag shape='circle'>{text || '-'}</Tag>,
-    },
-    {
-      title: t('颜色'),
-      dataIndex: 'color',
-      render: (color) => <Avatar size='extra-extra-small' color={color} />,
-    },
-    {
-      title: t('操作'),
-      fixed: 'right',
-      width: 150,
-      render: (_, record) => (
-        <Space>
-          <Button
-            icon={<Edit size={14} />}
-            theme='light'
-            type='tertiary'
-            size='small'
-            onClick={() => handleEditApi(record)}
-          >
-            {t('编辑')}
-          </Button>
-          <Button
-            icon={<Trash2 size={14} />}
-            type='danger'
-            theme='light'
-            size='small'
-            onClick={() => handleDeleteApi(record)}
-          >
-            {t('删除')}
-          </Button>
-        </Space>
-      ),
-    },
-  ];
-
   const handleBatchDelete = () => {
     if (selectedRowKeys.length === 0) {
-      showError('请先选择要删除的API信息');
+      showError(t('请先选择要删除的API信息'));
       return;
     }
-
     const newList = apiInfoList.filter(
       (api) => !selectedRowKeys.includes(api.id),
     );
@@ -310,204 +299,394 @@ const SettingsAPIInfo = ({ options, refresh }) => {
     setSelectedRowKeys([]);
     setHasChanges(true);
     showSuccess(
-      `已删除 ${selectedRowKeys.length} 个API信息，请及时点击“保存设置”进行保存`,
+      t('已删除 {{count}} 个API信息，请及时点击"保存设置"进行保存', {
+        count: selectedRowKeys.length,
+      }),
     );
   };
 
-  const renderHeader = () => (
-    <div className='flex flex-col w-full'>
-      <div className='mb-2'>
-        <div className='flex items-center text-blue-500'>
-          <Settings size={16} className='mr-2' />
-          <Text>
-            {t(
-              'API信息管理，可以配置多个API地址用于状态展示和负载均衡（最多50个）',
-            )}
-          </Text>
-        </div>
+  const totalPages = Math.max(1, Math.ceil(apiInfoList.length / pageSize));
+  const startIdx = (currentPage - 1) * pageSize;
+  const pagedData = apiInfoList.slice(startIdx, startIdx + pageSize);
+
+  const visiblePageKeys = pagedData.map((row) => row.id);
+  const allPageSelected =
+    visiblePageKeys.length > 0 &&
+    visiblePageKeys.every((key) => selectedRowKeys.includes(key));
+  const somePageSelected =
+    !allPageSelected &&
+    visiblePageKeys.some((key) => selectedRowKeys.includes(key));
+
+  const togglePageSelection = (checked) => {
+    const set = new Set(selectedRowKeys);
+    if (checked) visiblePageKeys.forEach((key) => set.add(key));
+    else visiblePageKeys.forEach((key) => set.delete(key));
+    setSelectedRowKeys(Array.from(set));
+  };
+  const toggleRowSelection = (key, checked) => {
+    const set = new Set(selectedRowKeys);
+    if (checked) set.add(key);
+    else set.delete(key);
+    setSelectedRowKeys(Array.from(set));
+  };
+
+  const modalState = useOverlayState({
+    isOpen: showApiModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowApiModal(false);
+    },
+  });
+
+  return (
+    <div className='space-y-4'>
+      <div className='flex items-center text-sky-600'>
+        <Settings size={16} className='mr-2' />
+        <span className='text-sm'>
+          {t(
+            'API信息管理，可以配置多个API地址用于状态展示和负载均衡（最多50个）',
+          )}
+        </span>
       </div>
 
-      <Divider margin='12px' />
+      <div className='h-px bg-[color:var(--app-border)]' />
 
-      <div className='flex flex-col md:flex-row justify-between items-center gap-4 w-full'>
-        <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
+      <div className='flex w-full flex-col items-center justify-between gap-4 md:flex-row'>
+        <div className='order-2 flex w-full gap-2 md:order-1 md:w-auto'>
           <Button
-            theme='light'
-            type='primary'
-            icon={<Plus size={14} />}
+            color='primary'
+            variant='flat'
+            startContent={<Plus size={14} />}
+            onPress={handleAddApi}
             className='w-full md:w-auto'
-            onClick={handleAddApi}
           >
             {t('添加API')}
           </Button>
           <Button
-            icon={<Trash2 size={14} />}
-            type='danger'
-            theme='light'
-            onClick={handleBatchDelete}
-            disabled={selectedRowKeys.length === 0}
+            color='danger'
+            variant='flat'
+            startContent={<Trash2 size={14} />}
+            isDisabled={selectedRowKeys.length === 0}
+            onPress={handleBatchDelete}
             className='w-full md:w-auto'
           >
             {t('批量删除')}{' '}
-            {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button
-            icon={<Save size={14} />}
-            onClick={submitApiInfo}
-            loading={loading}
-            disabled={!hasChanges}
-            type='secondary'
+            variant='flat'
+            startContent={<Save size={14} />}
+            onPress={submitApiInfo}
+            isPending={loading}
+            isDisabled={!hasChanges}
             className='w-full md:w-auto'
           >
             {t('保存设置')}
           </Button>
         </div>
 
-        {/* 启用开关 */}
-        <div className='order-1 md:order-2 flex items-center gap-2'>
-          <Switch checked={panelEnabled} onChange={handleToggleEnabled} />
-          <Text>{panelEnabled ? t('已启用') : t('已禁用')}</Text>
+        <label className='order-1 inline-flex items-center gap-2 md:order-2'>
+          <Switch
+            isSelected={!!panelEnabled}
+            onChange={handleToggleEnabled}
+            size='sm'
+            aria-label='enabled'
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
+          <span className='text-sm text-foreground'>
+            {panelEnabled ? t('已启用') : t('已禁用')}
+          </span>
+        </label>
+      </div>
+
+      <div className='overflow-x-auto rounded-xl border border-[color:var(--app-border)]'>
+        <table className='w-full text-sm'>
+          <thead className='bg-[color:var(--app-background)] text-xs uppercase text-muted'>
+            <tr>
+              <th className='w-10 px-3 py-2 text-left font-semibold'>
+                <HeaderCheckbox
+                  checked={allPageSelected}
+                  indeterminate={somePageSelected}
+                  onChange={togglePageSelection}
+                  ariaLabel={t('选择当前页')}
+                />
+              </th>
+              <th className='w-16 px-3 py-2 text-left font-semibold'>ID</th>
+              <th className='px-3 py-2 text-left font-semibold'>
+                {t('API地址')}
+              </th>
+              <th className='px-3 py-2 text-left font-semibold'>
+                {t('线路描述')}
+              </th>
+              <th className='px-3 py-2 text-left font-semibold'>{t('说明')}</th>
+              <th className='w-16 px-3 py-2 text-left font-semibold'>
+                {t('颜色')}
+              </th>
+              <th className='w-40 px-3 py-2 text-right font-semibold'>
+                {t('操作')}
+              </th>
+            </tr>
+          </thead>
+          <tbody className='divide-y divide-[color:var(--app-border)]'>
+            {pagedData.length === 0 ? (
+              <tr>
+                <td colSpan={7} className='py-12 text-center text-sm text-muted'>
+                  <div className='flex flex-col items-center gap-3'>
+                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                      <Inbox size={28} />
+                    </div>
+                    <div>{t('暂无API信息')}</div>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              pagedData.map((record) => {
+                const checked = selectedRowKeys.includes(record.id);
+                return (
+                  <tr key={record.id}>
+                    <td className='px-3 py-2'>
+                      <input
+                        type='checkbox'
+                        checked={checked}
+                        onChange={(event) =>
+                          toggleRowSelection(record.id, event.target.checked)
+                        }
+                        className='h-4 w-4 accent-primary'
+                      />
+                    </td>
+                    <td className='px-3 py-2 text-muted'>{record.id}</td>
+                    <td className='px-3 py-2'>
+                      <ColorChip color={record.color}>{record.url}</ColorChip>
+                    </td>
+                    <td className='px-3 py-2'>
+                      <span className='inline-flex items-center rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+                        {record.route}
+                      </span>
+                    </td>
+                    <td className='max-w-[260px] truncate px-3 py-2 text-foreground'>
+                      <span className='inline-flex items-center rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+                        {record.description || '-'}
+                      </span>
+                    </td>
+                    <td className='px-3 py-2'>
+                      <ColorDot color={record.color} />
+                    </td>
+                    <td className='px-3 py-2 text-right'>
+                      <div className='inline-flex items-center gap-1.5'>
+                        <Button
+                          variant='light'
+                          size='sm'
+                          startContent={<Edit size={14} />}
+                          onPress={() => handleEditApi(record)}
+                        >
+                          {t('编辑')}
+                        </Button>
+                        <Button
+                          color='danger'
+                          variant='flat'
+                          size='sm'
+                          startContent={<Trash2 size={14} />}
+                          onPress={() => setPendingDelete(record)}
+                        >
+                          {t('删除')}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted'>
+        <div className='flex items-center gap-2'>
+          <span>{t('每页')}</span>
+          <select
+            value={String(pageSize)}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value));
+              setCurrentPage(1);
+            }}
+            aria-label={t('每页数量')}
+            className='h-7 rounded-md border border-[color:var(--app-border)] bg-background px-2 text-xs outline-none focus:border-primary'
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <span>{t('共 {{total}} 条', { total: apiInfoList.length })}</span>
+        </div>
+        <div className='flex items-center gap-1'>
+          <Button
+            size='sm'
+            variant='light'
+            isDisabled={currentPage <= 1}
+            onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            {t('上一页')}
+          </Button>
+          <span>
+            {currentPage} / {totalPages}
+          </span>
+          <Button
+            size='sm'
+            variant='light'
+            isDisabled={currentPage >= totalPages}
+            onPress={() =>
+              setCurrentPage((p) => Math.min(totalPages, p + 1))
+            }
+          >
+            {t('下一页')}
+          </Button>
         </div>
       </div>
-    </div>
-  );
 
-  // 计算当前页显示的数据
-  const getCurrentPageData = () => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return apiInfoList.slice(startIndex, endIndex);
-  };
+      <Modal state={modalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size='md' placement='center'>
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                {editingApi ? t('编辑API') : t('添加API')}
+              </ModalHeader>
+              <ModalBody className='space-y-4 px-6 py-5'>
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('API地址')}
+                    <span className='ml-1 text-red-500'>*</span>
+                  </div>
+                  <Input
+                    type='text'
+                    value={apiForm.url}
+                    onChange={(event) =>
+                      setApiForm((prev) => ({
+                        ...prev,
+                        url: event.target.value,
+                      }))
+                    }
+                    placeholder='https://api.example.com'
+                    aria-label={t('API地址')}
+                    className={inputClass}
+                  />
+                  {formErrors.url ? (
+                    <div className='text-xs text-red-600'>{formErrors.url}</div>
+                  ) : null}
+                </div>
 
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (selectedRowKeys, selectedRows) => {
-      setSelectedRowKeys(selectedRowKeys);
-    },
-    onSelect: (record, selected, selectedRows) => {
-      console.log(`选择行: ${selected}`, record);
-    },
-    onSelectAll: (selected, selectedRows) => {
-      console.log(`全选: ${selected}`, selectedRows);
-    },
-    getCheckboxProps: (record) => ({
-      disabled: false,
-      name: record.id,
-    }),
-  };
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('线路描述')}
+                    <span className='ml-1 text-red-500'>*</span>
+                  </div>
+                  <Input
+                    type='text'
+                    value={apiForm.route}
+                    onChange={(event) =>
+                      setApiForm((prev) => ({
+                        ...prev,
+                        route: event.target.value,
+                      }))
+                    }
+                    placeholder={t('如：香港线路')}
+                    aria-label={t('线路描述')}
+                    className={inputClass}
+                  />
+                  {formErrors.route ? (
+                    <div className='text-xs text-red-600'>
+                      {formErrors.route}
+                    </div>
+                  ) : null}
+                </div>
 
-  return (
-    <>
-      <Form.Section text={renderHeader()}>
-        <Table
-          columns={columns}
-          dataSource={getCurrentPageData()}
-          rowSelection={rowSelection}
-          rowKey='id'
-          scroll={{ x: 'max-content' }}
-          pagination={{
-            currentPage: currentPage,
-            pageSize: pageSize,
-            total: apiInfoList.length,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            pageSizeOptions: ['5', '10', '20', '50'],
-            onChange: (page, size) => {
-              setCurrentPage(page);
-              setPageSize(size);
-            },
-            onShowSizeChange: (current, size) => {
-              setCurrentPage(1);
-              setPageSize(size);
-            },
-          }}
-          size='middle'
-          loading={loading}
-          empty={
-            <Empty
-              image={
-                <IllustrationNoResult style={{ width: 150, height: 150 }} />
-              }
-              darkModeImage={
-                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-              }
-              description={t('暂无API信息')}
-              style={{ padding: 30 }}
-            />
-          }
-          className='overflow-hidden'
-        />
-      </Form.Section>
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('说明')}
+                    <span className='ml-1 text-red-500'>*</span>
+                  </div>
+                  <Input
+                    type='text'
+                    value={apiForm.description}
+                    onChange={(event) =>
+                      setApiForm((prev) => ({
+                        ...prev,
+                        description: event.target.value,
+                      }))
+                    }
+                    placeholder={t('如：大带宽批量分析图片推荐')}
+                    aria-label={t('说明')}
+                    className={inputClass}
+                  />
+                  {formErrors.description ? (
+                    <div className='text-xs text-red-600'>
+                      {formErrors.description}
+                    </div>
+                  ) : null}
+                </div>
 
-      <Modal
-        title={editingApi ? t('编辑API') : t('添加API')}
-        visible={showApiModal}
-        onOk={handleSaveApi}
-        onCancel={() => setShowApiModal(false)}
-        okText={t('保存')}
-        cancelText={t('取消')}
-        confirmLoading={modalLoading}
-      >
-        <Form
-          layout='vertical'
-          initValues={apiForm}
-          key={editingApi ? editingApi.id : 'new'}
-        >
-          <Form.Input
-            field='url'
-            label={t('API地址')}
-            placeholder='https://api.example.com'
-            rules={[{ required: true, message: t('请输入API地址') }]}
-            onChange={(value) => setApiForm({ ...apiForm, url: value })}
-          />
-          <Form.Input
-            field='route'
-            label={t('线路描述')}
-            placeholder={t('如：香港线路')}
-            rules={[{ required: true, message: t('请输入线路描述') }]}
-            onChange={(value) => setApiForm({ ...apiForm, route: value })}
-          />
-          <Form.Input
-            field='description'
-            label={t('说明')}
-            placeholder={t('如：大带宽批量分析图片推荐')}
-            rules={[{ required: true, message: t('请输入说明') }]}
-            onChange={(value) => setApiForm({ ...apiForm, description: value })}
-          />
-          <Form.Select
-            field='color'
-            label={t('标识颜色')}
-            optionList={colorOptions}
-            onChange={(value) => setApiForm({ ...apiForm, color: value })}
-            render={(option) => (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Avatar size='extra-extra-small' color={option.value} />
-                {option.label}
-              </div>
-            )}
-          />
-        </Form>
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('标识颜色')}
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <ColorDot color={apiForm.color} size={20} />
+                    <select
+                      value={apiForm.color}
+                      onChange={(event) =>
+                        setApiForm((prev) => ({
+                          ...prev,
+                          color: event.target.value,
+                        }))
+                      }
+                      aria-label={t('标识颜色')}
+                      className={selectClass}
+                    >
+                      {COLOR_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                <Button variant='light' onPress={() => setShowApiModal(false)}>
+                  {t('取消')}
+                </Button>
+                <Button
+                  color='primary'
+                  onPress={handleSaveApi}
+                  isPending={modalLoading}
+                >
+                  {t('保存')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
       </Modal>
 
-      <Modal
+      <ConfirmDialog
+        visible={!!pendingDelete}
         title={t('确认删除')}
-        visible={showDeleteModal}
-        onOk={confirmDeleteApi}
-        onCancel={() => {
-          setShowDeleteModal(false);
-          setDeletingApi(null);
-        }}
-        okText={t('确认删除')}
         cancelText={t('取消')}
-        type='warning'
-        okButtonProps={{
-          type: 'danger',
-          theme: 'solid',
+        confirmText={t('确认删除')}
+        danger
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const target = pendingDelete;
+          setPendingDelete(null);
+          performDeleteApi(target);
         }}
       >
-        <Text>{t('确定要删除此API信息吗？')}</Text>
-      </Modal>
-    </>
+        {t('确定要删除此API信息吗？')}
+      </ConfirmDialog>
+    </div>
   );
 };
 

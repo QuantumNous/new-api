@@ -18,8 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Banner, Input, Modal, Typography } from '@douyinfe/semi-ui';
-import { IconDelete, IconUser } from '@douyinfe/semi-icons';
+import {
+  Button,
+  Input,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { TriangleAlert, Trash2, User } from 'lucide-react';
 import Turnstile from 'react-turnstile';
 
 const AccountDeleteModal = ({
@@ -34,59 +45,82 @@ const AccountDeleteModal = ({
   turnstileSiteKey,
   setTurnstileToken,
 }) => {
+  const modalState = useOverlayState({
+    isOpen: showAccountDeleteModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowAccountDeleteModal(false);
+    },
+  });
+
   return (
-    <Modal
-      title={
-        <div className='flex items-center'>
-          <IconDelete className='mr-2 text-red-500' />
-          {t('删除账户确认')}
-        </div>
-      }
-      visible={showAccountDeleteModal}
-      onCancel={() => setShowAccountDeleteModal(false)}
-      onOk={deleteAccount}
-      size={'small'}
-      centered={true}
-      className='modern-modal'
-    >
-      <div className='space-y-4 py-4'>
-        <Banner
-          type='danger'
-          description={t('您正在删除自己的帐户，将清空所有数据且不可恢复')}
-          closeIcon={null}
-          className='!rounded-lg'
-        />
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='sm' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <div className='flex items-center gap-2'>
+                <Trash2 className='text-red-500' size={18} />
+                {t('删除账户确认')}
+              </div>
+            </ModalHeader>
+            <ModalBody className='space-y-4 py-4'>
+              <div className='flex gap-3 rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger'>
+                <TriangleAlert className='mt-0.5 shrink-0' size={16} />
+                <span>{t('您正在删除自己的帐户，将清空所有数据且不可恢复')}</span>
+              </div>
 
-        <div>
-          <Typography.Text strong className='block mb-2 text-red-600'>
-            {t('请输入您的用户名以确认删除')}
-          </Typography.Text>
-          <Input
-            placeholder={t('输入你的账户名{{username}}以确认删除', {
-              username: ` ${userState?.user?.username} `,
-            })}
-            name='self_account_deletion_confirmation'
-            value={inputs.self_account_deletion_confirmation}
-            onChange={(value) =>
-              handleInputChange('self_account_deletion_confirmation', value)
-            }
-            size='large'
-            className='!rounded-lg'
-            prefix={<IconUser />}
-          />
-        </div>
+              <div>
+                <label className='mb-2 block text-sm font-semibold text-red-600'>
+                  {t('请输入您的用户名以确认删除')}
+                </label>
+                <div className='relative'>
+                  <User
+                    size={16}
+                    className='pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted'
+                  />
+                  <Input
+                    placeholder={t('输入你的账户名{{username}}以确认删除', {
+                      username: ` ${userState?.user?.username} `,
+                    })}
+                    name='self_account_deletion_confirmation'
+                    value={inputs.self_account_deletion_confirmation}
+                    onChange={(event) =>
+                      handleInputChange(
+                        'self_account_deletion_confirmation',
+                        event.target.value,
+                      )
+                    }
+                    size='lg'
+                    className='rounded-lg pl-9'
+                  />
+                </div>
+              </div>
 
-        {turnstileEnabled && (
-          <div className='flex justify-center'>
-            <Turnstile
-              sitekey={turnstileSiteKey}
-              onVerify={(token) => {
-                setTurnstileToken(token);
-              }}
-            />
-          </div>
-        )}
-      </div>
+              {turnstileEnabled && (
+                <div className='flex justify-center'>
+                  <Turnstile
+                    sitekey={turnstileSiteKey}
+                    onVerify={(token) => {
+                      setTurnstileToken(token);
+                    }}
+                  />
+                </div>
+              )}
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button
+                variant='ghost'
+                onPress={() => setShowAccountDeleteModal(false)}
+              >
+                {t('取消')}
+              </Button>
+              <Button variant='danger' onPress={deleteAccount}>
+                {t('确定')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

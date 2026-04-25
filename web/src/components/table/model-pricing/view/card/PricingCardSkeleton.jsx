@@ -18,127 +18,87 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Skeleton } from '@douyinfe/semi-ui';
+import { Card } from '@heroui/react';
 
 const PricingCardSkeleton = ({
   skeletonCount = 100,
   rowSelection = false,
   showRatio = false,
 }) => {
-  const placeholder = (
+  const SkeletonLine = ({ className = '' }) => (
+    <div className={`animate-pulse rounded bg-surface-secondary ${className}`} />
+  );
+
+  return (
     <div className='px-2 pt-2'>
       <div className='grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4'>
         {Array.from({ length: skeletonCount }).map((_, index) => (
-          <Card
-            key={index}
-            className='!rounded-2xl border border-gray-200'
-            bodyStyle={{ padding: '24px' }}
-          >
-            {/* 头部：图标 + 模型名称 + 操作按钮 */}
+          <Card key={index} className='rounded-2xl border border-gray-200'>
+            <Card.Content className='p-6'>
+            {/* Header: icon, model name, actions. */}
             <div className='flex items-start justify-between mb-3'>
               <div className='flex items-start space-x-3 flex-1 min-w-0'>
-                {/* 模型图标骨架 */}
+                {/* Model icon skeleton. */}
                 <div className='w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-sm'>
-                  <Skeleton.Avatar
-                    size='large'
-                    style={{ width: 48, height: 48, borderRadius: 16 }}
-                  />
+                  <SkeletonLine className='h-12 w-12 rounded-2xl' />
                 </div>
-                {/* 模型名称和价格区域 */}
+                {/* Model name and price skeleton. */}
                 <div className='flex-1 min-w-0'>
-                  {/* 模型名称骨架 */}
-                  <Skeleton.Title
-                    style={{
-                      width: `${120 + (index % 3) * 30}px`,
-                      height: 20,
-                      marginBottom: 8,
-                    }}
+                  <SkeletonLine
+                    className='mb-2 h-5'
+                    style={{ width: `${120 + (index % 3) * 30}px` }}
                   />
-                  {/* 价格信息骨架 */}
-                  <Skeleton.Title
-                    style={{
-                      width: `${160 + (index % 4) * 20}px`,
-                      height: 20,
-                      marginBottom: 0,
-                    }}
+                  <SkeletonLine
+                    className='h-5'
+                    style={{ width: `${160 + (index % 4) * 20}px` }}
                   />
                 </div>
               </div>
 
               <div className='flex items-center space-x-2 ml-3'>
-                {/* 复制按钮骨架 */}
-                <Skeleton.Button
-                  size='small'
-                  style={{ width: 16, height: 16, borderRadius: 4 }}
-                />
-                {/* 勾选框骨架 */}
-                {rowSelection && (
-                  <Skeleton.Button
-                    size='small'
-                    style={{ width: 16, height: 16, borderRadius: 2 }}
-                  />
-                )}
+                <SkeletonLine className='h-4 w-4 rounded' />
+                {rowSelection && <SkeletonLine className='h-4 w-4 rounded-sm' />}
               </div>
             </div>
 
-            {/* 模型描述骨架 */}
+            {/* Model description skeleton. */}
             <div className='mb-4'>
-              <Skeleton.Paragraph
-                rows={2}
-                style={{ marginBottom: 0 }}
-                title={false}
-              />
+              <SkeletonLine className='mb-2 h-4 w-full' />
+              <SkeletonLine className='h-4 w-4/5' />
             </div>
 
-            {/* 标签区域骨架 */}
+            {/* Tags skeleton. */}
             <div className='flex flex-wrap gap-2'>
               {Array.from({ length: 2 + (index % 3) }).map((_, tagIndex) => (
-                <Skeleton.Button
-                  key={tagIndex}
-                  size='small'
-                  style={{
-                    width: 64,
-                    height: 18,
-                    borderRadius: 10,
-                  }}
-                />
+                <SkeletonLine key={tagIndex} className='h-[18px] w-16 rounded-full' />
               ))}
             </div>
 
-            {/* 倍率信息骨架（可选） */}
+            {/* Ratio info skeleton. */}
             {showRatio && (
               <div className='mt-4 pt-3 border-t border-gray-100'>
                 <div className='flex items-center space-x-1 mb-2'>
-                  <Skeleton.Title
-                    style={{ width: 60, height: 12, marginBottom: 0 }}
-                  />
-                  <Skeleton.Button
-                    size='small'
-                    style={{ width: 14, height: 14, borderRadius: 7 }}
-                  />
+                  <SkeletonLine className='h-3 w-14' />
+                  <SkeletonLine className='h-3.5 w-3.5 rounded-full' />
                 </div>
                 <div className='grid grid-cols-3 gap-2'>
                   {Array.from({ length: 3 }).map((_, ratioIndex) => (
-                    <Skeleton.Title
-                      key={ratioIndex}
-                      style={{ width: '100%', height: 12, marginBottom: 0 }}
-                    />
+                    <SkeletonLine key={ratioIndex} className='h-3 w-full' />
                   ))}
                 </div>
               </div>
             )}
+            </Card.Content>
           </Card>
         ))}
       </div>
 
-      {/* 分页骨架 */}
+      {/* Pagination skeleton. */}
       <div className='flex justify-center mt-6 py-4 border-t pricing-pagination-divider'>
-        <Skeleton.Button style={{ width: 300, height: 32 }} />
+        <SkeletonLine className='h-8 w-[300px]' />
       </div>
     </div>
   );
-
-  return <Skeleton loading={true} active placeholder={placeholder}></Skeleton>;
 };
 
 export default PricingCardSkeleton;

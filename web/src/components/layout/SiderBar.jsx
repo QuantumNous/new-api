@@ -21,14 +21,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon } from '../../helpers/render';
-import { ChevronLeft } from 'lucide-react';
+import { Button, Tooltip } from '@heroui/react';
+import { ChevronDown, ChevronLeft } from 'lucide-react';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { isAdmin, isRoot, showError } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
-
-import { Nav, Divider, Button } from '@douyinfe/semi-ui';
 
 const routerMap = {
   home: '/',
@@ -291,6 +290,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     // 如果找到匹配的键，更新选中的键
     if (matchingKey) {
       setSelectedKeys([matchingKey]);
+      if (matchingKey.startsWith('chat')) {
+        setOpenedKeys((prev) => (prev.includes('chat') ? prev : [...prev, 'chat']));
+      }
     }
   }, [location.pathname, routerMapState]);
 
@@ -303,92 +305,167 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     }
   }, [collapsed]);
 
-  // 选中高亮颜色（统一）
-  const SELECTED_COLOR = 'var(--semi-color-primary)';
+  const itemBaseClass =
+    'group flex min-h-10 w-full items-center gap-3 rounded-2xl px-3 text-sm font-medium transition-all duration-200';
+  const itemActiveClass =
+    'bg-primary/10 text-primary shadow-[inset_0_0_0_1px_rgba(37,99,235,0.10)] dark:bg-primary/15';
+  const itemIdleClass =
+    'text-slate-600 hover:bg-slate-900/[0.04] hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white';
 
-  // 渲染自定义菜单项
-  const renderNavItem = (item) => {
-    // 跳过隐藏的项目
+  const getItemPath = (item) =>
+    routerMapState[item.itemKey] || routerMap[item.itemKey] || item.to;
+
+  const selectItem = (itemKey) => {
+    setSelectedKeys([itemKey]);
+  };
+
+  const NavItemContent = ({ item, selected, nested = false }) => (
+    <>
+      <span className='sidebar-icon-container flex shrink-0 items-center justify-center'>
+        {getLucideIcon(item.itemKey, selected)}
+      </span>
+      {!collapsed && (
+        <span
+          className={`min-w-0 flex-1 truncate text-left ${
+            nested ? 'text-[13px] font-medium' : 'font-semibold'
+          }`}
+        >
+          {item.text}
+        </span>
+      )}
+    </>
+  );
+
+  const renderNavItem = (item, { nested = false } = {}) => {
     if (item.className === 'tableHiddle') return null;
 
     const isSelected = selectedKeys.includes(item.itemKey);
-    const textColor = isSelected ? SELECTED_COLOR : 'inherit';
+    const path = getItemPath(item);
+    const className = [
+      itemBaseClass,
+      collapsed ? 'justify-center px-0' : nested ? 'pl-10 pr-3' : '',
+      isSelected ? itemActiveClass : itemIdleClass,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const content = (
+      <NavItemContent item={item} selected={isSelected} nested={nested} />
+    );
+
+    const node = path ? (
+      <Link
+        key={item.itemKey}
+        to={path}
+        className={className}
+        aria-current={isSelected ? 'page' : undefined}
+        onClick={() => {
+          selectItem(item.itemKey);
+          onNavigate();
+        }}
+      >
+        {content}
+      </Link>
+    ) : (
+      <button
+        key={item.itemKey}
+        type='button'
+        className={className}
+        onClick={() => selectItem(item.itemKey)}
+      >
+        {content}
+      </button>
+    );
+
+    if (!collapsed) return node;
 
     return (
-      <Nav.Item
-        key={item.itemKey}
-        itemKey={item.itemKey}
-        text={
-          <span
-            className='truncate font-medium text-sm'
-            style={{ color: textColor }}
-          >
-            {item.text}
-          </span>
-        }
-        icon={
-          <div className='sidebar-icon-container flex-shrink-0'>
-            {getLucideIcon(item.itemKey, isSelected)}
-          </div>
-        }
-        className={item.className}
-      />
+      <Tooltip key={item.itemKey} content={item.text} placement='right' delay={300}>
+        {node}
+      </Tooltip>
     );
   };
 
-  // 渲染子菜单项
   const renderSubItem = (item) => {
     if (item.items && item.items.length > 0) {
-      const isSelected = selectedKeys.includes(item.itemKey);
-      const textColor = isSelected ? SELECTED_COLOR : 'inherit';
+      const isOpen = openedKeys.includes(item.itemKey);
+      const isSelected =
+        selectedKeys.includes(item.itemKey) ||
+        item.items.some((subItem) => selectedKeys.includes(subItem.itemKey));
+
+      const trigger = (
+        <button
+          key={item.itemKey}
+          type='button'
+          className={[
+            itemBaseClass,
+            collapsed ? 'justify-center px-0' : '',
+            isSelected ? itemActiveClass : itemIdleClass,
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => {
+            setOpenedKeys((prev) =>
+              prev.includes(item.itemKey)
+                ? prev.filter((key) => key !== item.itemKey)
+                : [...prev, item.itemKey],
+            );
+          }}
+        >
+          <NavItemContent item={item} selected={isSelected} />
+          {!collapsed && (
+            <ChevronDown
+              size={15}
+              strokeWidth={2.4}
+              className={`shrink-0 transition-transform duration-200 ${
+                isOpen ? 'rotate-180' : ''
+              }`}
+            />
+          )}
+        </button>
+      );
 
       return (
-        <Nav.Sub
-          key={item.itemKey}
-          itemKey={item.itemKey}
-          text={
-            <span
-              className='truncate font-medium text-sm'
-              style={{ color: textColor }}
-            >
-              {item.text}
-            </span>
-          }
-          icon={
-            <div className='sidebar-icon-container flex-shrink-0'>
-              {getLucideIcon(item.itemKey, isSelected)}
+        <div key={item.itemKey} className='space-y-1'>
+          {collapsed ? (
+            <Tooltip content={item.text} placement='right' delay={300}>
+              {trigger}
+            </Tooltip>
+          ) : (
+            trigger
+          )}
+          {!collapsed && isOpen && (
+            <div className='space-y-1'>
+              {item.items.map((subItem) =>
+                renderNavItem(subItem, { nested: true }),
+              )}
             </div>
-          }
-        >
-          {item.items.map((subItem) => {
-            const isSubSelected = selectedKeys.includes(subItem.itemKey);
-            const subTextColor = isSubSelected ? SELECTED_COLOR : 'inherit';
-
-            return (
-              <Nav.Item
-                key={subItem.itemKey}
-                itemKey={subItem.itemKey}
-                text={
-                  <span
-                    className='truncate font-medium text-sm'
-                    style={{ color: subTextColor }}
-                  >
-                    {subItem.text}
-                  </span>
-                }
-              />
-            );
-          })}
-        </Nav.Sub>
+          )}
+        </div>
       );
-    } else {
-      return renderNavItem(item);
     }
+
+    return renderNavItem(item);
   };
+
+  const renderSection = (label, items, renderItem = renderNavItem) => (
+    <section className='space-y-1.5'>
+      {!collapsed && (
+        <div className='px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500'>
+          {label}
+        </div>
+      )}
+      <div className='space-y-1'>{items.map((item) => renderItem(item))}</div>
+    </section>
+  );
+
+  const renderDivider = () => (
+    <div className='mx-3 my-3 h-px bg-slate-200/80 dark:bg-white/10' />
+  );
 
   return (
     <div
-      className='sidebar-container'
+      className='sidebar-container sidebar-shell flex h-full flex-col border-r border-slate-200/70 p-3 shadow-[12px_0_36px_rgba(15,23,42,0.05)] backdrop-blur-xl dark:border-white/10'
       style={{
         width: 'var(--sidebar-current-width)',
       }}
@@ -400,98 +477,42 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         collapsed={collapsed}
         showAdmin={isAdmin()}
       >
-        <Nav
-          className='sidebar-nav'
-          defaultIsCollapsed={collapsed}
-          isCollapsed={collapsed}
-          onCollapseChange={toggleCollapsed}
-          selectedKeys={selectedKeys}
-          itemStyle='sidebar-nav-item'
-          hoverStyle='sidebar-nav-item:hover'
-          selectedStyle='sidebar-nav-item-selected'
-          renderWrapper={({ itemElement, props }) => {
-            const to =
-              routerMapState[props.itemKey] || routerMap[props.itemKey];
-
-            // 如果没有路由，直接返回元素
-            if (!to) return itemElement;
-
-            return (
-              <Link
-                style={{ textDecoration: 'none' }}
-                to={to}
-                onClick={onNavigate}
-              >
-                {itemElement}
-              </Link>
-            );
-          }}
-          onSelect={(key) => {
-            // 如果点击的是已经展开的子菜单的父项，则收起子菜单
-            if (openedKeys.includes(key.itemKey)) {
-              setOpenedKeys(openedKeys.filter((k) => k !== key.itemKey));
-            }
-
-            setSelectedKeys([key.itemKey]);
-          }}
-          openKeys={openedKeys}
-          onOpenChange={(data) => {
-            setOpenedKeys(data.openKeys);
-          }}
-        >
+        <nav className='flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden pr-1 scrollbar-none'>
           {/* 聊天区域 */}
           {hasSectionVisibleModules('chat') && (
             <div className='sidebar-section'>
-              {!collapsed && (
-                <div className='sidebar-group-label'>{t('聊天')}</div>
-              )}
-              {chatMenuItems.map((item) => renderSubItem(item))}
+              {renderSection(t('聊天'), chatMenuItems, renderSubItem)}
             </div>
           )}
 
           {/* 控制台区域 */}
           {hasSectionVisibleModules('console') && (
             <>
-              <Divider className='sidebar-divider' />
-              <div>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>{t('控制台')}</div>
-                )}
-                {workspaceItems.map((item) => renderNavItem(item))}
-              </div>
+              {renderDivider()}
+              {renderSection(t('控制台'), workspaceItems)}
             </>
           )}
 
           {/* 个人中心区域 */}
           {hasSectionVisibleModules('personal') && (
             <>
-              <Divider className='sidebar-divider' />
-              <div>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>{t('个人中心')}</div>
-                )}
-                {financeItems.map((item) => renderNavItem(item))}
-              </div>
+              {renderDivider()}
+              {renderSection(t('个人中心'), financeItems)}
             </>
           )}
 
           {/* 管理员区域 - 只在管理员时显示且配置允许时显示 */}
           {isAdmin() && hasSectionVisibleModules('admin') && (
             <>
-              <Divider className='sidebar-divider' />
-              <div>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>{t('管理员')}</div>
-                )}
-                {adminItems.map((item) => renderNavItem(item))}
-              </div>
+              {renderDivider()}
+              {renderSection(t('管理员'), adminItems)}
             </>
           )}
-        </Nav>
+        </nav>
       </SkeletonWrapper>
 
       {/* 底部折叠按钮 */}
-      <div className='sidebar-collapse-button'>
+      <div className='sidebar-collapse-button mt-auto pt-3'>
         <SkeletonWrapper
           loading={showSkeleton}
           type='button'
@@ -500,25 +521,22 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           className='w-full'
         >
           <Button
-            theme='outline'
-            type='tertiary'
-            size='small'
-            icon={
+            size='sm'
+            radius='full'
+            variant='bordered'
+            isIconOnly={collapsed}
+            onPress={toggleCollapsed}
+            className={`border-slate-200/80 bg-white/70 text-slate-500 shadow-sm backdrop-blur transition-colors hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-300 ${
+              collapsed ? 'h-9 w-9 min-w-9' : 'w-full justify-start'
+            }`}
+            startContent={
               <ChevronLeft
                 size={16}
                 strokeWidth={2.5}
-                color='var(--semi-color-text-2)'
-                style={{
-                  transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)',
-                }}
+                className={`transition-transform duration-200 ${
+                  collapsed ? 'rotate-180' : ''
+                }`}
               />
-            }
-            onClick={toggleCollapsed}
-            icononly={collapsed}
-            style={
-              collapsed
-                ? { width: 36, height: 24, padding: 0 }
-                : { padding: '4px 12px', width: '100%' }
             }
           >
             {!collapsed ? t('收起侧边栏') : null}

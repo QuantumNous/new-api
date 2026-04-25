@@ -18,7 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Badge } from '@douyinfe/semi-ui';
+import {
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
 import { renderQuota, renderNumber } from '../../../../helpers';
 
 const UserInfoModal = ({
@@ -27,149 +35,116 @@ const UserInfoModal = ({
   userInfoData,
   t,
 }) => {
-  const infoItemStyle = {
-    marginBottom: '16px',
-  };
-
-  const labelStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    marginBottom: '2px',
-    fontSize: '12px',
-    color: 'var(--semi-color-text-2)',
-    gap: '6px',
-  };
-
   const renderLabel = (text, type = 'tertiary') => (
-    <div style={labelStyle}>
-      <Badge dot type={type} />
+    <div className='mb-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400'>
+      <span
+        className={`h-2 w-2 rounded-full ${
+          type === 'primary'
+            ? 'bg-primary'
+            : type === 'success'
+              ? 'bg-success'
+              : type === 'warning'
+                ? 'bg-warning'
+                : 'bg-slate-400'
+        }`}
+      />
       {text}
     </div>
   );
 
-  const valueStyle = {
-    fontSize: '14px',
-    fontWeight: '600',
-    color: 'var(--semi-color-text-0)',
-  };
-
-  const rowStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    marginBottom: '16px',
-    gap: '20px',
-  };
-
-  const colStyle = {
-    flex: 1,
-    minWidth: 0,
-  };
+  const modalState = useOverlayState({
+    isOpen: showUserInfo,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowUserInfoModal(false);
+    },
+  });
+  const valueClass = 'text-sm font-semibold text-slate-800 dark:text-slate-100';
 
   return (
-    <Modal
-      title={t('用户信息')}
-      visible={showUserInfo}
-      onCancel={() => setShowUserInfoModal(false)}
-      footer={null}
-      centered
-      closable
-      maskClosable
-      width={600}
-    >
-      {userInfoData && (
-        <div style={{ padding: 20 }}>
-          {/* 基本信息 */}
-          <div style={rowStyle}>
-            <div style={colStyle}>
-              {renderLabel(t('用户名'), 'primary')}
-              <div style={valueStyle}>{userInfoData.username}</div>
-            </div>
-            {userInfoData.display_name && (
-              <div style={colStyle}>
-                {renderLabel(t('显示名称'), 'primary')}
-                <div style={valueStyle}>{userInfoData.display_name}</div>
-              </div>
-            )}
-          </div>
-
-          {/* 余额信息 */}
-          <div style={rowStyle}>
-            <div style={colStyle}>
-              {renderLabel(t('余额'), 'success')}
-              <div style={valueStyle}>{renderQuota(userInfoData.quota)}</div>
-            </div>
-            <div style={colStyle}>
-              {renderLabel(t('已用额度'), 'warning')}
-              <div style={valueStyle}>
-                {renderQuota(userInfoData.used_quota)}
-              </div>
-            </div>
-          </div>
-
-          {/* 统计信息 */}
-          <div style={rowStyle}>
-            <div style={colStyle}>
-              {renderLabel(t('请求次数'), 'warning')}
-              <div style={valueStyle}>
-                {renderNumber(userInfoData.request_count)}
-              </div>
-            </div>
-            {userInfoData.group && (
-              <div style={colStyle}>
-                {renderLabel(t('用户组'), 'tertiary')}
-                <div style={valueStyle}>{userInfoData.group}</div>
-              </div>
-            )}
-          </div>
-
-          {/* 邀请信息 */}
-          {(userInfoData.aff_code || userInfoData.aff_count !== undefined) && (
-            <div style={rowStyle}>
-              {userInfoData.aff_code && (
-                <div style={colStyle}>
-                  {renderLabel(t('邀请码'), 'tertiary')}
-                  <div style={valueStyle}>{userInfoData.aff_code}</div>
-                </div>
-              )}
-              {userInfoData.aff_count !== undefined && (
-                <div style={colStyle}>
-                  {renderLabel(t('邀请人数'), 'tertiary')}
-                  <div style={valueStyle}>
-                    {renderNumber(userInfoData.aff_count)}
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='2xl' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {t('用户信息')}
+            </ModalHeader>
+            <ModalBody className='p-6'>
+              {userInfoData && (
+                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+                  <div>
+                    {renderLabel(t('用户名'), 'primary')}
+                    <div className={valueClass}>{userInfoData.username}</div>
                   </div>
+                  {userInfoData.display_name && (
+                    <div>
+                      {renderLabel(t('显示名称'), 'primary')}
+                      <div className={valueClass}>{userInfoData.display_name}</div>
+                    </div>
+                  )}
+
+                  <div>
+                    {renderLabel(t('余额'), 'success')}
+                    <div className={valueClass}>{renderQuota(userInfoData.quota)}</div>
+                  </div>
+                  <div>
+                    {renderLabel(t('已用额度'), 'warning')}
+                    <div className={valueClass}>
+                      {renderQuota(userInfoData.used_quota)}
+                    </div>
+                  </div>
+
+                  <div>
+                    {renderLabel(t('请求次数'), 'warning')}
+                    <div className={valueClass}>
+                      {renderNumber(userInfoData.request_count)}
+                    </div>
+                  </div>
+                  {userInfoData.group && (
+                    <div>
+                      {renderLabel(t('用户组'), 'tertiary')}
+                      <div className={valueClass}>{userInfoData.group}</div>
+                    </div>
+                  )}
+
+                  {userInfoData.aff_code && (
+                    <div>
+                      {renderLabel(t('邀请码'), 'tertiary')}
+                      <div className={valueClass}>{userInfoData.aff_code}</div>
+                    </div>
+                  )}
+                  {userInfoData.aff_count !== undefined && (
+                    <div>
+                      {renderLabel(t('邀请人数'), 'tertiary')}
+                      <div className={valueClass}>
+                        {renderNumber(userInfoData.aff_count)}
+                      </div>
+                    </div>
+                  )}
+
+                  {userInfoData.aff_quota !== undefined &&
+                    userInfoData.aff_quota > 0 && (
+                      <div>
+                        {renderLabel(t('邀请获得额度'), 'success')}
+                        <div className={valueClass}>
+                          {renderQuota(userInfoData.aff_quota)}
+                        </div>
+                      </div>
+                    )}
+
+                  {userInfoData.remark && (
+                    <div className='sm:col-span-2'>
+                      {renderLabel(t('备注'), 'tertiary')}
+                      <div className={`${valueClass} break-all leading-relaxed`}>
+                        {userInfoData.remark}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* 邀请获得额度 */}
-          {userInfoData.aff_quota !== undefined &&
-            userInfoData.aff_quota > 0 && (
-              <div style={infoItemStyle}>
-                {renderLabel(t('邀请获得额度'), 'success')}
-                <div style={valueStyle}>
-                  {renderQuota(userInfoData.aff_quota)}
-                </div>
-              </div>
-            )}
-
-          {/* 备注 */}
-          {userInfoData.remark && (
-            <div style={{ marginBottom: 0 }}>
-              {renderLabel(t('备注'), 'tertiary')}
-              <div
-                style={{
-                  ...valueStyle,
-                  wordBreak: 'break-all',
-                  lineHeight: '1.4',
-                }}
-              >
-                {userInfoData.remark}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+            </ModalBody>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

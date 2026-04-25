@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Button, Checkbox, RadioGroup, Radio } from '@douyinfe/semi-ui';
 import { getLogsColumns } from '../UsageLogsColumnDefs';
+import ColumnSelectorDialog from '../../../common/ui/ColumnSelectorDialog';
 
 const ColumnSelectorModal = ({
   showColumnSelector,
@@ -36,10 +36,6 @@ const ColumnSelectorModal = ({
   showUserInfoFunc,
   t,
 }) => {
-  const handleBillingDisplayModeChange = (eventOrValue) => {
-    setBillingDisplayMode(eventOrValue?.target?.value ?? eventOrValue);
-  };
-
   const isTokensDisplay =
     typeof localStorage !== 'undefined' &&
     localStorage.getItem('quota_display_type') === 'TOKENS';
@@ -52,82 +48,60 @@ const ColumnSelectorModal = ({
     showUserInfoFunc,
     isAdminUser,
     billingDisplayMode,
-  });
+  }).filter(
+    (column) =>
+      isAdminUser ||
+      (column.key !== COLUMN_KEYS.CHANNEL &&
+        column.key !== COLUMN_KEYS.USERNAME &&
+        column.key !== COLUMN_KEYS.RETRY),
+  );
 
   return (
-    <Modal
+    <ColumnSelectorDialog
       title={t('列设置')}
       visible={showColumnSelector}
-      onCancel={() => setShowColumnSelector(false)}
-      footer={
-        <div className='flex justify-end'>
-          <Button onClick={() => initDefaultColumns()}>{t('重置')}</Button>
-          <Button onClick={() => setShowColumnSelector(false)}>
-            {t('取消')}
-          </Button>
-          <Button onClick={() => setShowColumnSelector(false)}>
-            {t('确定')}
-          </Button>
-        </div>
-      }
+      onClose={() => setShowColumnSelector(false)}
+      resetText={t('重置')}
+      cancelText={t('取消')}
+      confirmText={t('确定')}
+      allText={t('全选')}
+      visibleColumns={visibleColumns}
+      columns={allColumns}
+      onColumnChange={handleColumnVisibilityChange}
+      onSelectAll={handleSelectAll}
+      onReset={initDefaultColumns}
     >
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>{t('计费显示模式')}</div>
-          <RadioGroup
-            type='button'
-            value={billingDisplayMode}
-            onChange={handleBillingDisplayModeChange}
-          >
-            <Radio value='price'>
-              {isTokensDisplay ? t('价格模式') : t('价格模式（默认）')}
-            </Radio>
-            <Radio value='ratio'>
-              {isTokensDisplay ? t('倍率模式（默认）') : t('倍率模式')}
-            </Radio>
-          </RadioGroup>
+      <div className='rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-900/60'>
+        <div className='mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200'>
+          {t('计费显示模式')}
         </div>
-        <Checkbox
-          checked={Object.values(visibleColumns).every((v) => v === true)}
-          indeterminate={
-            Object.values(visibleColumns).some((v) => v === true) &&
-            !Object.values(visibleColumns).every((v) => v === true)
-          }
-          onChange={(e) => handleSelectAll(e.target.checked)}
-        >
-          {t('全选')}
-        </Checkbox>
+        <div className='flex flex-wrap gap-2'>
+          {[
+            {
+              value: 'price',
+              label: isTokensDisplay ? t('价格模式') : t('价格模式（默认）'),
+            },
+            {
+              value: 'ratio',
+              label: isTokensDisplay ? t('倍率模式（默认）') : t('倍率模式'),
+            },
+          ].map((option) => (
+            <button
+              key={option.value}
+              type='button'
+              onClick={() => setBillingDisplayMode(option.value)}
+              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                billingDisplayMode === option.value
+                  ? 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-500 dark:bg-sky-500/10 dark:text-sky-200'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
-      <div
-        className='flex flex-wrap max-h-96 overflow-y-auto rounded-lg p-4'
-        style={{ border: '1px solid var(--semi-color-border)' }}
-      >
-        {allColumns.map((column) => {
-          // Skip admin-only columns for non-admin users
-          if (
-            !isAdminUser &&
-            (column.key === COLUMN_KEYS.CHANNEL ||
-              column.key === COLUMN_KEYS.USERNAME ||
-              column.key === COLUMN_KEYS.RETRY)
-          ) {
-            return null;
-          }
-
-          return (
-            <div key={column.key} className='w-1/2 mb-4 pr-2'>
-              <Checkbox
-                checked={!!visibleColumns[column.key]}
-                onChange={(e) =>
-                  handleColumnVisibilityChange(column.key, e.target.checked)
-                }
-              >
-                {column.title}
-              </Checkbox>
-            </div>
-          );
-        })}
-      </div>
-    </Modal>
+    </ColumnSelectorDialog>
   );
 };
 

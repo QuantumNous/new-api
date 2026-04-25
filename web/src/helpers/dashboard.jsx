@@ -18,11 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Progress, Divider, Empty } from '@douyinfe/semi-ui';
-import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
 import {
   timestamp2string,
   timestamp2string1,
@@ -176,14 +171,16 @@ export const renderMonitorList = (
 ) => {
   if (!monitors || monitors.length === 0) {
     return (
-      <div className='flex justify-center items-center py-4'>
-        <Empty
-          image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-          darkModeImage={
-            <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-          }
-          title={t('暂无监控数据')}
-        />
+      <div className='flex flex-col items-center justify-center py-8 text-center'>
+        <div
+          className='mb-3 rounded-3xl bg-slate-100 p-5 text-slate-400 dark:bg-slate-900 dark:text-slate-500'
+          style={ILLUSTRATION_SIZE}
+        >
+          <span className='block text-2xl'>--</span>
+        </div>
+        <div className='text-sm text-slate-500 dark:text-slate-400'>
+          {t('暂无监控数据')}
+        </div>
       </div>
     );
   }
@@ -216,12 +213,18 @@ export const renderMonitorList = (
           {getUptimeStatusText(monitor.status)}
         </span>
         <div className='flex-1'>
-          <Progress
-            percent={(monitor.uptime || 0) * 100}
-            showInfo={false}
+          <div
+            className='h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800'
             aria-label={`${monitor.name} uptime`}
-            stroke={getUptimeStatusColor(monitor.status)}
-          />
+          >
+            <div
+              className='h-full rounded-full transition-all'
+              style={{
+                width: `${Math.max(0, Math.min(100, (monitor.uptime || 0) * 100))}%`,
+                backgroundColor: getUptimeStatusColor(monitor.status),
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -234,7 +237,7 @@ export const renderMonitorList = (
           <div className='text-md font-semibold text-gray-500 px-2 py-1'>
             {gname}
           </div>
-          <Divider />
+          <div className='my-1 h-px bg-slate-200 dark:bg-white/10' />
         </>
       )}
       {list.map(renderItem)}

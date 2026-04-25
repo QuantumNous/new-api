@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Button, Space } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 import { showError } from '../../../helpers';
 import CopyTokensModal from './modals/CopyTokensModal';
 import DeleteTokensModal from './modals/DeleteTokensModal';
@@ -63,33 +63,33 @@ const TokensActions = ({
     <>
       <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
         <Button
-          type='primary'
+          variant='primary'
           className='flex-1 md:flex-initial'
-          onClick={() => {
+          onPress={() => {
             setEditingToken({
               id: undefined,
             });
             setShowEdit(true);
           }}
-          size='small'
+          size='sm'
         >
           {t('添加令牌')}
         </Button>
 
         <Button
-          type='tertiary'
+          variant='outline'
           className='flex-1 md:flex-initial'
-          onClick={handleCopySelectedTokens}
-          size='small'
+          onPress={handleCopySelectedTokens}
+          size='sm'
         >
           {t('复制所选令牌')}
         </Button>
 
         <Button
-          type='danger'
+          variant='danger-soft'
           className='w-full md:w-auto'
-          onClick={handleDeleteSelectedTokens}
-          size='small'
+          onPress={handleDeleteSelectedTokens}
+          size='sm'
         >
           {t('删除所选令牌')}
         </Button>

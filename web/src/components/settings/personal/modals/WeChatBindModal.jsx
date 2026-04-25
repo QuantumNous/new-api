@@ -18,8 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Input, Modal, Image } from '@douyinfe/semi-ui';
-import { IconKey } from '@douyinfe/semi-icons';
+import {
+  Button,
+  Input,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { KeyRound } from 'lucide-react';
 import { SiWechat } from 'react-icons/si';
 
 const WeChatBindModal = ({
@@ -31,48 +41,67 @@ const WeChatBindModal = ({
   bindWeChat,
   status,
 }) => {
+  const modalState = useOverlayState({
+    isOpen: showWeChatBindModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowWeChatBindModal(false);
+    },
+  });
+
   return (
-    <Modal
-      title={
-        <div className='flex items-center'>
-          <SiWechat className='mr-2 text-green-500' size={20} />
-          {t('绑定微信账户')}
-        </div>
-      }
-      visible={showWeChatBindModal}
-      onCancel={() => setShowWeChatBindModal(false)}
-      footer={null}
-      size={'small'}
-      centered={true}
-      className='modern-modal'
-    >
-      <div className='space-y-4 py-4 text-center'>
-        <Image src={status.wechat_qrcode} className='mx-auto' />
-        <div className='text-gray-600'>
-          <p>
-            {t('微信扫码关注公众号，输入「验证码」获取验证码（三分钟内有效）')}
-          </p>
-        </div>
-        <Input
-          placeholder={t('验证码')}
-          name='wechat_verification_code'
-          value={inputs.wechat_verification_code}
-          onChange={(v) => handleInputChange('wechat_verification_code', v)}
-          size='large'
-          className='!rounded-lg'
-          prefix={<IconKey />}
-        />
-        <Button
-          type='primary'
-          theme='solid'
-          size='large'
-          onClick={bindWeChat}
-          className='!rounded-lg w-full !bg-slate-600 hover:!bg-slate-700'
-          icon={<SiWechat size={16} />}
-        >
-          {t('绑定')}
-        </Button>
-      </div>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='sm' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <div className='flex items-center gap-2'>
+                <SiWechat className='text-green-500' size={20} />
+                {t('绑定微信账户')}
+              </div>
+            </ModalHeader>
+            <ModalBody className='space-y-4 py-4 text-center'>
+              <img
+                src={status.wechat_qrcode}
+                alt={t('微信二维码')}
+                className='mx-auto max-h-52 rounded-lg'
+              />
+              <div className='text-gray-600 dark:text-gray-300'>
+                <p>
+                  {t('微信扫码关注公众号，输入「验证码」获取验证码（三分钟内有效）')}
+                </p>
+              </div>
+              <div className='relative'>
+                <KeyRound
+                  size={16}
+                  className='pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted'
+                />
+                <Input
+                  placeholder={t('验证码')}
+                  name='wechat_verification_code'
+                  value={inputs.wechat_verification_code}
+                  onChange={(event) =>
+                    handleInputChange(
+                      'wechat_verification_code',
+                      event.target.value,
+                    )
+                  }
+                  size='lg'
+                  className='rounded-lg pl-9'
+                />
+              </div>
+              <Button
+                variant='primary'
+                size='lg'
+                onPress={bindWeChat}
+                className='w-full rounded-lg bg-slate-600 hover:bg-slate-700'
+              >
+                <SiWechat size={16} />
+                {t('绑定')}
+              </Button>
+            </ModalBody>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

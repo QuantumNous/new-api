@@ -28,28 +28,8 @@ import {
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { CHANNEL_OPTIONS, MODEL_FETCHABLE_CHANNEL_TYPES } from '../../../../constants';
-import {
-  SideSheet,
-  Space,
-  Spin,
-  Button,
-  Typography,
-  Checkbox,
-  Banner,
-  Modal,
-  ImagePreview,
-  Card,
-  Tag,
-  Avatar,
-  Form,
-  Row,
-  Col,
-  Highlight,
-  Input,
-  Tooltip,
-  Collapse,
-  Dropdown,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Input, Tooltip } from '@heroui/react';
+import { SideSheet, Space, Spin, Typography, Checkbox, Banner, Modal, ImagePreview, Tag, Avatar, Form, Row, Col, Highlight, Collapse, Dropdown } from '@/components/common/ui/HeroCompat';
 import {
   getChannelModels,
   copy,
@@ -84,7 +64,7 @@ import {
   IconBolt,
   IconSearch,
   IconChevronDown,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 
 const { Text, Title } = Typography;
 
@@ -959,7 +939,7 @@ const EditChannelModal = (props) => {
       initialBaseUrlRef.current = data.base_url || '';
       setInputs(data);
       if (formApiRef.current) {
-        formApiRef.current.setValues(data);
+        formApiRef.current?.setValues?.(data);
       }
       if (data.auto_ban === 0) {
         setAutoBan(false);
@@ -1294,7 +1274,7 @@ const EditChannelModal = (props) => {
       initialBaseUrlRef.current = '';
       setInputs(originInputs);
       if (formApiRef.current) {
-        formApiRef.current.setValues(originInputs);
+        formApiRef.current?.setValues?.(originInputs);
       }
       let localModels = getChannelModels(inputs.type);
       setBasicModels(localModels);
@@ -1304,7 +1284,7 @@ const EditChannelModal = (props) => {
 
   useEffect(() => {
     if (formApiRef.current) {
-      formApiRef.current.setValues(inputs);
+      formApiRef.current?.setValues?.(inputs);
     }
   }, [inputs]);
 
@@ -2322,8 +2302,8 @@ const EditChannelModal = (props) => {
                     <div
                       className='mt-2 rounded-xl p-3'
                       style={{
-                        backgroundColor: 'var(--semi-color-fill-0)',
-                        border: '1px solid var(--semi-color-fill-2)',
+                        backgroundColor: 'var(--app-surface-muted)',
+                        border: '1px solid var(--app-border)',
                       }}
                     >
                       <div className='flex items-center justify-between mb-2'>
@@ -3669,8 +3649,8 @@ const EditChannelModal = (props) => {
                   <div
                     className='flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-gray-50'
                     style={{
-                      backgroundColor: advancedSettingsOpen ? 'var(--semi-color-primary-light-default)' : 'var(--semi-color-fill-0)',
-                      border: '1px solid var(--semi-color-fill-2)',
+                      backgroundColor: advancedSettingsOpen ? 'color-mix(in srgb, var(--app-primary) 12%, transparent)' : 'var(--app-surface-muted)',
+                      border: '1px solid var(--app-border)',
                     }}
                     onClick={() => toggleAdvancedSettings(!advancedSettingsOpen)}
                   >
@@ -3678,8 +3658,8 @@ const EditChannelModal = (props) => {
                       <IconSetting size={16} />
                       <Text className='font-medium'>{t('高级设置')}</Text>
                     </div>
-                    <div className='flex items-center gap-1 text-sm' style={{ color: 'var(--semi-color-primary)' }}>
-                      <Text size='small' style={{ color: 'var(--semi-color-primary)' }}>
+                    <div className='flex items-center gap-1 text-sm' style={{ color: 'var(--app-primary)' }}>
+                      <Text size='small' style={{ color: 'var(--app-primary)' }}>
                         {advancedSettingsOpen ? t('收起') : isEdit ? t('向左展开') : t('向右展开')}
                       </Text>
                       <IconChevronDown
@@ -3704,9 +3684,9 @@ const EditChannelModal = (props) => {
                 style={{
                   width: 600,
                   [isEdit ? 'right' : 'left']: 600,
-                  backgroundColor: 'var(--semi-color-bg-0)',
-                  borderLeft: isEdit ? 'none' : '1px solid var(--semi-color-border)',
-                  borderRight: isEdit ? '1px solid var(--semi-color-border)' : 'none',
+                  backgroundColor: 'var(--app-surface)',
+                  borderLeft: isEdit ? 'none' : '1px solid var(--app-border)',
+                  borderRight: isEdit ? '1px solid var(--app-border)' : 'none',
                   animation: `slideIn${isEdit ? 'Left' : 'Right'} 0.3s ease-out`,
                 }}
               >

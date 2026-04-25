@@ -18,14 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Notification,
-  Button,
-  Space,
-  Toast,
-  Typography,
-  Select,
-} from '@douyinfe/semi-ui';
+import { Button, Select } from '@heroui/react';
+import { Notification, Space, Toast, Typography } from '@/components/common/ui/HeroCompat';
 import {
   API,
   showError,

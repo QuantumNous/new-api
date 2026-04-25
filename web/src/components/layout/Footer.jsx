@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState, useMemo, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Typography } from '@douyinfe/semi-ui';
 import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
 import { StatusContext } from '../../context/Status';
 
@@ -32,10 +31,7 @@ const FooterBar = () => {
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
 
   const loadFooter = () => {
-    let footer_html = localStorage.getItem('footer_html');
-    if (footer_html) {
-      setFooter(footer_html);
-    }
+    setFooter(getFooterHTML());
   };
 
   const currentYear = new Date().getFullYear();
@@ -58,7 +54,7 @@ const FooterBar = () => {
 
             <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 w-full'>
               <div className='text-left'>
-                <p className='!text-semi-color-text-0 font-semibold mb-5'>
+                <p className='mb-5 font-semibold text-slate-950 dark:text-white'>
                   {t('关于我们')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -66,7 +62,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/wiki/project-introduction/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     {t('关于项目')}
                   </a>
@@ -74,7 +70,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/support/community-interaction/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     {t('联系我们')}
                   </a>
@@ -82,7 +78,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/wiki/features-introduction/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     {t('功能特性')}
                   </a>
@@ -90,7 +86,7 @@ const FooterBar = () => {
               </div>
 
               <div className='text-left'>
-                <p className='!text-semi-color-text-0 font-semibold mb-5'>
+                <p className='mb-5 font-semibold text-slate-950 dark:text-white'>
                   {t('文档')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -98,7 +94,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/getting-started/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     {t('快速开始')}
                   </a>
@@ -106,7 +102,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/installation/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     {t('安装指南')}
                   </a>
@@ -114,7 +110,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/api/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     {t('API 文档')}
                   </a>
@@ -122,7 +118,7 @@ const FooterBar = () => {
               </div>
 
               <div className='text-left'>
-                <p className='!text-semi-color-text-0 font-semibold mb-5'>
+                <p className='mb-5 font-semibold text-slate-950 dark:text-white'>
                   {t('相关项目')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -130,7 +126,7 @@ const FooterBar = () => {
                     href='https://github.com/songquanpeng/one-api'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     One API
                   </a>
@@ -138,7 +134,7 @@ const FooterBar = () => {
                     href='https://github.com/novicezk/midjourney-proxy'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     Midjourney-Proxy
                   </a>
@@ -146,7 +142,7 @@ const FooterBar = () => {
                     href='https://github.com/Calcium-Ion/neko-api-key-tool'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     neko-api-key-tool
                   </a>
@@ -154,7 +150,7 @@ const FooterBar = () => {
               </div>
 
               <div className='text-left'>
-                <p className='!text-semi-color-text-0 font-semibold mb-5'>
+                <p className='mb-5 font-semibold text-slate-950 dark:text-white'>
                   {t('友情链接')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -162,7 +158,7 @@ const FooterBar = () => {
                     href='https://github.com/Calcium-Ion/new-api-horizon'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     new-api-horizon
                   </a>
@@ -170,7 +166,7 @@ const FooterBar = () => {
                     href='https://github.com/coaidev/coai'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     CoAI
                   </a>
@@ -178,7 +174,7 @@ const FooterBar = () => {
                     href='https://www.gpt-load.com/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='!text-semi-color-text-1'
+                    className='text-slate-600 hover:text-primary dark:text-slate-300'
                   >
                     GPT-Load
                   </a>
@@ -190,20 +186,20 @@ const FooterBar = () => {
 
         <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-6'>
           <div className='flex flex-wrap items-center gap-2'>
-            <Typography.Text className='text-sm !text-semi-color-text-1'>
+            <span className='text-sm text-slate-600 dark:text-slate-300'>
               © {currentYear} {systemName}. {t('版权所有')}
-            </Typography.Text>
+            </span>
           </div>
 
           <div className='text-sm'>
-            <span className='!text-semi-color-text-1'>
+            <span className='text-slate-600 dark:text-slate-300'>
               {t('设计与开发由')}{' '}
             </span>
             <a
               href='https://github.com/QuantumNous/new-api'
               target='_blank'
               rel='noopener noreferrer'
-              className='!text-semi-color-primary font-medium'
+              className='font-medium text-primary'
             >
               New API
             </a>
@@ -218,24 +214,33 @@ const FooterBar = () => {
     loadFooter();
   }, []);
 
+  useEffect(() => {
+    const nextFooter = statusState?.status?.footer_html;
+    if (nextFooter) {
+      setFooter(nextFooter);
+      return;
+    }
+    setFooter(getFooterHTML());
+  }, [statusState?.status?.footer_html]);
+
   return (
     <div className='w-full'>
       {footer ? (
         <footer className='relative h-auto py-4 px-6 md:px-24 w-full flex items-center justify-center overflow-hidden'>
           <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-4'>
             <div
-              className='custom-footer na-cb6feafeb3990c78 text-sm !text-semi-color-text-1'
+              className='custom-footer na-cb6feafeb3990c78 text-sm text-slate-600 dark:text-slate-300'
               dangerouslySetInnerHTML={{ __html: footer }}
             ></div>
             <div className='text-sm flex-shrink-0'>
-              <span className='!text-semi-color-text-1'>
+              <span className='text-slate-600 dark:text-slate-300'>
                 {t('设计与开发由')}{' '}
               </span>
               <a
                 href='https://github.com/QuantumNous/new-api'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='!text-semi-color-primary font-medium'
+                className='font-medium text-primary'
               >
                 New API
               </a>

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect, useContext } from "react";
-import { Card, Select, Typography, Avatar } from "@douyinfe/semi-ui";
+import { Card } from '@heroui/react';
 import { Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { API, showSuccess, showError } from "../../../../helpers";
@@ -67,53 +67,50 @@ const PreferencesSettings = ({ t }) => {
 		if (lang === currentLanguage) return;
 
 		setLoading(true);
-		const previousLang = currentLanguage;
+
+		// Apply UI change immediately and persist locally so the preference
+		// always sticks on this device, even if backend persistence fails.
+		setCurrentLanguage(lang);
+		i18n.changeLanguage(lang);
+		localStorage.setItem("i18nextLng", lang);
+
+		// Mirror into cached user.setting so layout effects don't override it.
+		let settings = {};
+		if (userState?.user?.setting) {
+			try {
+				settings = JSON.parse(userState.user.setting) || {};
+			} catch (e) {
+				settings = {};
+			}
+		}
+		settings.language = lang;
+		if (userState?.user) {
+			const nextUser = {
+				...userState.user,
+				setting: JSON.stringify(settings),
+			};
+			userDispatch({ type: "login", payload: nextUser });
+			localStorage.setItem("user", JSON.stringify(nextUser));
+		}
 
 		try {
-			// Update language immediately for responsive UX
-			setCurrentLanguage(lang);
-			i18n.changeLanguage(lang);
-			localStorage.setItem('i18nextLng', lang);
+			const res = await API.put(
+				"/api/user/self",
+				{ language: lang },
+				{ skipErrorHandler: true },
+			);
 
-			// Save to backend
-			const res = await API.put("/api/user/self", {
-				language: lang,
-			});
-
-			if (res.data.success) {
+			if (res.data?.success) {
 				showSuccess(t("语言偏好已保存"));
-				// Keep backend preference, context state, and local cache aligned.
-				let settings = {};
-				if (userState?.user?.setting) {
-					try {
-						settings = JSON.parse(userState.user.setting) || {};
-					} catch (e) {
-						settings = {};
-					}
-				}
-				settings.language = lang;
-				const nextUser = {
-					...userState.user,
-					setting: JSON.stringify(settings),
-				};
-				userDispatch({
-					type: "login",
-					payload: nextUser,
-				});
-				localStorage.setItem("user", JSON.stringify(nextUser));
 			} else {
-				showError(res.data.message || t("保存失败"));
-				// Revert on error
-				setCurrentLanguage(previousLang);
-				i18n.changeLanguage(previousLang);
-				localStorage.setItem("i18nextLng", previousLang);
+				// Backend rejected but local change is preserved; surface a
+				// non-blocking warning instead of reverting the user's choice.
+				showError(res.data?.message || t("保存失败"));
 			}
 		} catch (error) {
+			// Network/5xx error: keep the local language change so the user's
+			// intent is honored. Surface a non-blocking warning.
 			showError(t("保存失败，请重试"));
-			// Revert on error
-			setCurrentLanguage(previousLang);
-			i18n.changeLanguage(previousLang);
-			localStorage.setItem("i18nextLng", previousLang);
 		} finally {
 			setLoading(false);
 		}
@@ -123,13 +120,13 @@ const PreferencesSettings = ({ t }) => {
 		<Card className="!rounded-2xl shadow-sm border-0">
 			{/* Card Header */}
 			<div className="flex items-center mb-4">
-				<Avatar size="small" color="violet" className="mr-3 shadow-md">
+				<div className="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-violet-600 shadow-md dark:bg-violet-900/30 dark:text-violet-300">
 					<Languages size={16} />
-				</Avatar>
+				</div>
 				<div>
-					<Typography.Text className="text-lg font-medium">
+					<div className="text-lg font-medium text-foreground">
 						{t("偏好设置")}
-					</Typography.Text>
+					</div>
 					<div className="text-xs text-gray-600 dark:text-gray-400">
 						{t("界面语言和其他个人偏好")}
 					</div>
@@ -146,34 +143,38 @@ const PreferencesSettings = ({ t }) => {
 							/>
 						</div>
 						<div>
-							<Typography.Title heading={6} className="mb-1">
+							<h6 className="mb-1 text-base font-semibold text-foreground">
 								{t("语言偏好")}
-							</Typography.Title>
-							<Typography.Text type="tertiary" className="text-sm">
+							</h6>
+							<p className="text-sm text-muted">
 								{t("选择您的首选界面语言，设置将自动保存并同步到所有设备")}
-							</Typography.Text>
+							</p>
 						</div>
 					</div>
-					<Select
+					<select
 						value={currentLanguage}
-						onChange={handleLanguagePreferenceChange}
-						style={{ width: 180 }}
-						loading={loading}
-						optionList={languageOptions.map((opt) => ({
-							value: opt.value,
-							label: opt.label,
-						}))}
-					/>
+						onChange={(event) =>
+							handleLanguagePreferenceChange(event.target.value)
+						}
+						disabled={loading}
+						className="h-10 w-[180px] rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						{languageOptions.map((opt) => (
+							<option key={opt.value} value={opt.value}>
+								{opt.label}
+							</option>
+						))}
+					</select>
 				</div>
 			</Card>
 
 			{/* Additional info */}
 			<div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-				<Typography.Text type="tertiary">
+				<span className="text-muted">
 					{t(
 						"提示：语言偏好会同步到您登录的所有设备，并影响API返回的错误消息语言。",
 					)}
-				</Typography.Text>
+				</span>
 			</div>
 		</Card>
 	);

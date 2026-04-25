@@ -2,7 +2,7 @@
 .markdown-body {
   font-family: inherit;
   line-height: 1.6;
-  color: var(--semi-color-text-0);
+  color: var(--app-text);
   overflow-wrap: break-word;
   word-wrap: break-word;
   word-break: break-word;
@@ -93,25 +93,25 @@
   }
 }
 
-/* 代码高亮主题 - 适配Semi Design */
+/* 代码高亮主题 - 适配 HeroUI tokens */
 .hljs {
   display: block;
   overflow-x: auto;
   padding: 0;
   background: transparent;
-  color: var(--semi-color-text-0);
+  color: var(--app-text);
 }
 
 .hljs-comment,
 .hljs-quote {
-  color: var(--semi-color-text-2);
+  color: var(--app-muted);
   font-style: italic;
 }
 
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-subst {
-  color: var(--semi-color-primary);
+  color: var(--app-primary);
   font-weight: bold;
 }
 
@@ -120,18 +120,18 @@
 .hljs-variable,
 .hljs-template-variable,
 .hljs-tag .hljs-attr {
-  color: var(--semi-color-warning);
+  color: var(--app-warning);
 }
 
 .hljs-string,
 .hljs-doctag {
-  color: var(--semi-color-success);
+  color: var(--app-success);
 }
 
 .hljs-title,
 .hljs-section,
 .hljs-selector-id {
-  color: var(--semi-color-primary);
+  color: var(--app-primary);
   font-weight: bold;
 }
 
@@ -141,42 +141,42 @@
 
 .hljs-type,
 .hljs-class .hljs-title {
-  color: var(--semi-color-info);
+  color: var(--app-primary);
   font-weight: bold;
 }
 
 .hljs-tag,
 .hljs-name,
 .hljs-attribute {
-  color: var(--semi-color-primary);
+  color: var(--app-primary);
   font-weight: normal;
 }
 
 .hljs-regexp,
 .hljs-link {
-  color: var(--semi-color-tertiary);
+  color: var(--app-muted);
 }
 
 .hljs-symbol,
 .hljs-bullet {
-  color: var(--semi-color-warning);
+  color: var(--app-warning);
 }
 
 .hljs-built_in,
 .hljs-builtin-name {
-  color: var(--semi-color-info);
+  color: var(--app-primary);
 }
 
 .hljs-meta {
-  color: var(--semi-color-text-2);
+  color: var(--app-muted);
 }
 
 .hljs-deletion {
-  background: var(--semi-color-danger-light-default);
+  background: color-mix(in srgb, var(--app-danger) 12%, transparent);
 }
 
 .hljs-addition {
-  background: var(--semi-color-success-light-default);
+  background: color-mix(in srgb, var(--app-success) 12%, transparent);
 }
 
 .hljs-emphasis {
@@ -205,7 +205,7 @@ pre {
 }
 
 pre:hover {
-  border-color: var(--semi-color-primary) !important;
+  border-color: var(--app-primary) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -230,15 +230,15 @@ pre:hover .copy-code-button {
 }
 
 /* 确保按钮可点击 */
-.copy-code-button .semi-button {
+.copy-code-button button {
   pointer-events: auto !important;
   cursor: pointer !important;
   transition: all 0.2s ease;
 }
 
-.copy-code-button .semi-button:hover {
-  background-color: var(--semi-color-fill-1) !important;
-  border-color: var(--semi-color-primary) !important;
+.copy-code-button button:hover {
+  background-color: var(--app-surface-muted) !important;
+  border-color: var(--app-primary) !important;
   transform: scale(1.05);
 }
 
@@ -280,17 +280,17 @@ pre:hover .copy-code-button {
   left: -8px;
   top: -8px;
   font-size: 24px;
-  color: var(--semi-color-primary);
+  color: var(--app-primary);
   opacity: 0.3;
 }
 
 /* 列表样式增强 */
 .markdown-body ul li::marker {
-  color: var(--semi-color-primary);
+  color: var(--app-primary);
 }
 
 .markdown-body ol li::marker {
-  color: var(--semi-color-primary);
+  color: var(--app-primary);
   font-weight: bold;
 }
 
@@ -301,7 +301,7 @@ pre:hover .copy-code-button {
   background: linear-gradient(
     to right,
     transparent,
-    var(--semi-color-border),
+    var(--app-border),
     transparent
   );
   margin: 24px 0;
@@ -318,12 +318,12 @@ pre:hover .copy-code-button {
 
 /* 内联代码样式 */
 .markdown-body code:not(pre code) {
-  background-color: var(--semi-color-fill-1);
+  background-color: var(--app-surface-muted);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.9em;
-  color: var(--semi-color-primary);
-  border: 1px solid var(--semi-color-border);
+  color: var(--app-primary);
+  border: 1px solid var(--app-border);
 }
 
 /* 标题锚点样式 */
@@ -349,11 +349,11 @@ pre:hover .copy-code-button {
 
 /* 键盘按键样式 */
 .markdown-body kbd {
-  background-color: var(--semi-color-fill-0);
-  border: 1px solid var(--semi-color-border);
+  background-color: var(--app-surface-muted);
+  border: 1px solid var(--app-border);
   border-radius: 3px;
-  box-shadow: 0 1px 0 var(--semi-color-border);
-  color: var(--semi-color-text-0);
+  box-shadow: 0 1px 0 var(--app-border);
+  color: var(--app-text);
   display: inline-block;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.85em;
@@ -365,7 +365,7 @@ pre:hover .copy-code-button {
 
 /* 详情折叠样式 */
 .markdown-body details {
-  border: 1px solid var(--semi-color-border);
+  border: 1px solid var(--app-border);
   border-radius: 6px;
   padding: 12px;
   margin: 12px 0;
@@ -374,17 +374,17 @@ pre:hover .copy-code-button {
 .markdown-body summary {
   cursor: pointer;
   font-weight: bold;
-  color: var(--semi-color-primary);
+  color: var(--app-primary);
   margin-bottom: 8px;
 }
 
 .markdown-body summary:hover {
-  color: var(--semi-color-primary-hover);
+  color: color-mix(in srgb, var(--app-primary) 86%, white);
 }
 
 /* 脚注样式 */
 .markdown-body .footnote-ref {
-  color: var(--semi-color-primary);
+  color: var(--app-primary);
   text-decoration: none;
   font-weight: bold;
 }
@@ -395,32 +395,32 @@ pre:hover .copy-code-button {
 
 /* 警告块样式 */
 .markdown-body .warning {
-  background-color: var(--semi-color-warning-light-default);
-  border-left: 4px solid var(--semi-color-warning);
+  background-color: color-mix(in srgb, var(--app-warning) 12%, transparent);
+  border-left: 4px solid var(--app-warning);
   padding: 12px 16px;
   margin: 12px 0;
   border-radius: 0 6px 6px 0;
 }
 
 .markdown-body .info {
-  background-color: var(--semi-color-info-light-default);
-  border-left: 4px solid var(--semi-color-info);
+  background-color: color-mix(in srgb, var(--app-primary) 12%, transparent);
+  border-left: 4px solid var(--app-primary);
   padding: 12px 16px;
   margin: 12px 0;
   border-radius: 0 6px 6px 0;
 }
 
 .markdown-body .success {
-  background-color: var(--semi-color-success-light-default);
-  border-left: 4px solid var(--semi-color-success);
+  background-color: color-mix(in srgb, var(--app-success) 12%, transparent);
+  border-left: 4px solid var(--app-success);
   padding: 12px 16px;
   margin: 12px 0;
   border-radius: 0 6px 6px 0;
 }
 
 .markdown-body .danger {
-  background-color: var(--semi-color-danger-light-default);
-  border-left: 4px solid var(--semi-color-danger);
+  background-color: color-mix(in srgb, var(--app-danger) 12%, transparent);
+  border-left: 4px solid var(--app-danger);
   padding: 12px 16px;
   margin: 12px 0;
   border-radius: 0 6px 6px 0;

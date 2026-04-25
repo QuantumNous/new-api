@@ -19,123 +19,77 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Card,
-  Form,
-  Button,
-  Switch,
-  Row,
-  Col,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Card, Button, Switch } from '@heroui/react';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
 
-const { Text } = Typography;
+const DEFAULT_SIDEBAR_MODULES = {
+  chat: { enabled: true, playground: true, chat: true },
+  console: {
+    enabled: true,
+    detail: true,
+    token: true,
+    log: true,
+    midjourney: true,
+    task: true,
+  },
+  personal: { enabled: true, topup: true, personal: true },
+  admin: {
+    enabled: true,
+    channel: true,
+    models: true,
+    deployment: true,
+    redemption: true,
+    user: true,
+    subscription: true,
+    setting: true,
+  },
+};
+
+function ToggleSwitch({ isSelected, onValueChange, ariaLabel, isDisabled }) {
+  return (
+    <Switch
+      isSelected={!!isSelected}
+      onChange={onValueChange}
+      aria-label={ariaLabel}
+      isDisabled={isDisabled}
+      size='sm'
+    >
+      <Switch.Control>
+        <Switch.Thumb />
+      </Switch.Control>
+    </Switch>
+  );
+}
 
 export default function SettingsSidebarModulesAdmin(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
+  const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState(
+    DEFAULT_SIDEBAR_MODULES,
+  );
 
-  // 左侧边栏模块管理状态（管理员全局控制）
-  const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState({
-    chat: {
-      enabled: true,
-      playground: true,
-      chat: true,
-    },
-    console: {
-      enabled: true,
-      detail: true,
-      token: true,
-      log: true,
-      midjourney: true,
-      task: true,
-    },
-    personal: {
-      enabled: true,
-      topup: true,
-      personal: true,
-    },
-    admin: {
-      enabled: true,
-      channel: true,
-      models: true,
-      deployment: true,
-      redemption: true,
-      user: true,
-      subscription: true,
-      setting: true,
-    },
-  });
+  const handleSectionChange = (sectionKey) => (checked) => {
+    setSidebarModulesAdmin((prev) => ({
+      ...prev,
+      [sectionKey]: { ...prev[sectionKey], enabled: checked },
+    }));
+  };
 
-  // 处理区域级别开关变更
-  function handleSectionChange(sectionKey) {
-    return (checked) => {
-      const newModules = {
-        ...sidebarModulesAdmin,
-        [sectionKey]: {
-          ...sidebarModulesAdmin[sectionKey],
-          enabled: checked,
-        },
-      };
-      setSidebarModulesAdmin(newModules);
-    };
-  }
+  const handleModuleChange = (sectionKey, moduleKey) => (checked) => {
+    setSidebarModulesAdmin((prev) => ({
+      ...prev,
+      [sectionKey]: { ...prev[sectionKey], [moduleKey]: checked },
+    }));
+  };
 
-  // 处理功能级别开关变更
-  function handleModuleChange(sectionKey, moduleKey) {
-    return (checked) => {
-      const newModules = {
-        ...sidebarModulesAdmin,
-        [sectionKey]: {
-          ...sidebarModulesAdmin[sectionKey],
-          [moduleKey]: checked,
-        },
-      };
-      setSidebarModulesAdmin(newModules);
-    };
-  }
-
-  // 重置为默认配置
-  function resetSidebarModules() {
-    const defaultModules = {
-      chat: {
-        enabled: true,
-        playground: true,
-        chat: true,
-      },
-      console: {
-        enabled: true,
-        detail: true,
-        token: true,
-        log: true,
-        midjourney: true,
-        task: true,
-      },
-      personal: {
-        enabled: true,
-        topup: true,
-        personal: true,
-      },
-      admin: {
-        enabled: true,
-        channel: true,
-        models: true,
-        deployment: true,
-        redemption: true,
-        user: true,
-        subscription: true,
-        setting: true,
-      },
-    };
-    setSidebarModulesAdmin(defaultModules);
+  const resetSidebarModules = () => {
+    setSidebarModulesAdmin(DEFAULT_SIDEBAR_MODULES);
     showSuccess(t('已重置为默认配置'));
-  }
+  };
 
-  // 保存配置
-  async function onSubmit() {
+  const onSubmit = async () => {
     setLoading(true);
     try {
       const res = await API.put('/api/option/', {
@@ -145,8 +99,6 @@ export default function SettingsSidebarModulesAdmin(props) {
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('保存成功'));
-
-        // 立即更新StatusContext中的状态
         statusDispatch({
           type: 'set',
           payload: {
@@ -154,11 +106,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             SidebarModulesAdmin: JSON.stringify(sidebarModulesAdmin),
           },
         });
-
-        // 刷新父组件状态
-        if (props.refresh) {
-          await props.refresh();
-        }
+        if (props.refresh) await props.refresh();
       } else {
         showError(message);
       }
@@ -167,44 +115,19 @@ export default function SettingsSidebarModulesAdmin(props) {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    // 从 props.options 中获取配置
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
-        setSidebarModulesAdmin(modules);
+        setSidebarModulesAdmin({ ...DEFAULT_SIDEBAR_MODULES, ...modules });
       } catch (error) {
-        // 使用默认配置
-        const defaultModules = {
-          chat: { enabled: true, playground: true, chat: true },
-          console: {
-            enabled: true,
-            detail: true,
-            token: true,
-            log: true,
-            midjourney: true,
-            task: true,
-          },
-          personal: { enabled: true, topup: true, personal: true },
-          admin: {
-            enabled: true,
-            channel: true,
-            models: true,
-            deployment: true,
-            redemption: true,
-            user: true,
-            subscription: true,
-            setting: true,
-          },
-        };
-        setSidebarModulesAdmin(defaultModules);
+        setSidebarModulesAdmin(DEFAULT_SIDEBAR_MODULES);
       }
     }
   }, [props.options]);
 
-  // 区域配置数据
   const sectionConfigs = [
     {
       key: 'chat',
@@ -281,158 +204,91 @@ export default function SettingsSidebarModulesAdmin(props) {
   ];
 
   return (
-    <Card>
-      <Form.Section
-        text={t('侧边栏管理（全局控制）')}
-        extraText={t(
-          '全局控制侧边栏区域和功能显示，管理员隐藏的功能用户无法启用',
-        )}
-      >
-        {sectionConfigs.map((section) => (
-          <div key={section.key} style={{ marginBottom: '32px' }}>
-            {/* 区域标题和总开关 */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '16px',
-                padding: '12px 16px',
-                backgroundColor: 'var(--semi-color-fill-0)',
-                borderRadius: '8px',
-                border: '1px solid var(--semi-color-border)',
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontWeight: '600',
-                    fontSize: '16px',
-                    color: 'var(--semi-color-text-0)',
-                    marginBottom: '4px',
-                  }}
-                >
-                  {section.title}
-                </div>
-                <Text
-                  type='secondary'
-                  size='small'
-                  style={{
-                    fontSize: '12px',
-                    color: 'var(--semi-color-text-2)',
-                    lineHeight: '1.4',
-                  }}
-                >
-                  {section.description}
-                </Text>
-              </div>
-              <Switch
-                checked={sidebarModulesAdmin[section.key]?.enabled}
-                onChange={handleSectionChange(section.key)}
-                size='default'
-              />
-            </div>
+    <Card className='!rounded-2xl shadow-sm border-0'>
+      <Card.Content className='p-6 space-y-6'>
+        <div>
+          <div className='text-base font-semibold text-foreground'>
+            {t('侧边栏管理（全局控制）')}
+          </div>
+          <div className='mt-1 text-xs text-muted'>
+            {t(
+              '全局控制侧边栏区域和功能显示，管理员隐藏的功能用户无法启用',
+            )}
+          </div>
+        </div>
 
-            {/* 功能模块网格 */}
-            <Row gutter={[16, 16]}>
-              {section.modules.map((module) => (
-                <Col key={module.key} xs={24} sm={12} md={8} lg={6} xl={6}>
-                  <Card
-                    bodyStyle={{ padding: '16px' }}
-                    hoverable
-                    style={{
-                      opacity: sidebarModulesAdmin[section.key]?.enabled
-                        ? 1
-                        : 0.5,
-                      transition: 'opacity 0.2s',
-                    }}
+        {sectionConfigs.map((section) => {
+          const sectionEnabled =
+            !!sidebarModulesAdmin[section.key]?.enabled;
+          return (
+            <div key={section.key} className='space-y-3'>
+              <div className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-surface-muted)] px-4 py-3'>
+                <div className='min-w-0 flex-1'>
+                  <div className='text-sm font-semibold text-foreground'>
+                    {section.title}
+                  </div>
+                  <div className='mt-1 text-xs leading-snug text-muted'>
+                    {section.description}
+                  </div>
+                </div>
+                <ToggleSwitch
+                  isSelected={sectionEnabled}
+                  onValueChange={handleSectionChange(section.key)}
+                  ariaLabel={section.title}
+                />
+              </div>
+
+              <div
+                className={`grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 transition-opacity ${
+                  sectionEnabled ? 'opacity-100' : 'opacity-50'
+                }`}
+              >
+                {section.modules.map((module) => (
+                  <div
+                    key={module.key}
+                    className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4 transition-colors hover:border-primary/40'
                   >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        height: '100%',
-                      }}
-                    >
-                      <div style={{ flex: 1, textAlign: 'left' }}>
-                        <div
-                          style={{
-                            fontWeight: '600',
-                            fontSize: '14px',
-                            color: 'var(--semi-color-text-0)',
-                            marginBottom: '4px',
-                          }}
-                        >
-                          {module.title}
-                        </div>
-                        <Text
-                          type='secondary'
-                          size='small'
-                          style={{
-                            fontSize: '12px',
-                            color: 'var(--semi-color-text-2)',
-                            lineHeight: '1.4',
-                            display: 'block',
-                          }}
-                        >
-                          {module.description}
-                        </Text>
+                    <div className='min-w-0 flex-1'>
+                      <div className='text-sm font-semibold text-foreground'>
+                        {module.title}
                       </div>
-                      <div style={{ marginLeft: '16px' }}>
-                        <Switch
-                          checked={
-                            sidebarModulesAdmin[section.key]?.[module.key]
-                          }
-                          onChange={handleModuleChange(section.key, module.key)}
-                          size='default'
-                          disabled={!sidebarModulesAdmin[section.key]?.enabled}
-                        />
+                      <div className='mt-1 text-xs leading-snug text-muted'>
+                        {module.description}
                       </div>
                     </div>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
-          </div>
-        ))}
+                    <ToggleSwitch
+                      isSelected={
+                        !!sidebarModulesAdmin[section.key]?.[module.key]
+                      }
+                      onValueChange={handleModuleChange(
+                        section.key,
+                        module.key,
+                      )}
+                      ariaLabel={module.title}
+                      isDisabled={!sectionEnabled}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
-        <div
-          style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-start',
-            alignItems: 'center',
-            paddingTop: '8px',
-            borderTop: '1px solid var(--semi-color-border)',
-          }}
-        >
-          <Button
-            size='default'
-            type='tertiary'
-            onClick={resetSidebarModules}
-            style={{
-              borderRadius: '6px',
-              fontWeight: '500',
-            }}
-          >
+        <div className='flex items-center gap-3 border-t border-[color:var(--app-border)] pt-4'>
+          <Button variant='flat' size='md' onPress={resetSidebarModules}>
             {t('重置为默认')}
           </Button>
           <Button
-            size='default'
-            type='primary'
-            onClick={onSubmit}
-            loading={loading}
-            style={{
-              borderRadius: '6px',
-              fontWeight: '500',
-              minWidth: '100px',
-            }}
+            color='primary'
+            size='md'
+            onPress={onSubmit}
+            isPending={loading}
+            className='min-w-[100px]'
           >
             {t('保存设置')}
           </Button>
         </div>
-      </Form.Section>
+      </Card.Content>
     </Card>
   );
 }

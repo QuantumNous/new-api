@@ -7,7 +7,7 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 ## Tech Stack
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Frontend**: React 18, Vite, Semi Design UI (@douyinfe/semi-ui)
+- **Frontend**: React 18, Vite, Hero UI (@heroui/react) with compatibility wrappers
 - **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
 - **Cache**: Redis (go-redis) + in-memory cache
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)

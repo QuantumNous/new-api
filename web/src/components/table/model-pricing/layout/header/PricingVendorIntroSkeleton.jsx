@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo } from 'react';
-import { Card, Skeleton } from '@douyinfe/semi-ui';
+import { Card } from '@heroui/react';
 
 const THEME_COLORS = {
   allVendors: {
@@ -98,12 +98,10 @@ const createSkeletonRect = (style = {}, key = null) => (
 
 const PricingVendorIntroSkeleton = memo(
   ({ isAllVendors = false, isMobile = false }) => {
-    const placeholder = (
-      <Card
-        className='!rounded-2xl shadow-sm border-0'
-        cover={
+    return (
+      <Card className='overflow-hidden rounded-2xl border-0 shadow-sm'>
           <div
-            className='relative h-full'
+            className='relative min-h-28'
             style={SKELETON_STYLES.cover(
               isAllVendors
                 ? THEME_COLORS.allVendors.primary
@@ -165,9 +163,8 @@ const PricingVendorIntroSkeleton = memo(
               </div>
             </div>
           </div>
-        }
-      >
-        <div className='flex items-center gap-2 w-full'>
+        <Card.Content className='p-4'>
+        <div className='flex w-full items-center gap-2'>
           <div className='flex-1'>
             {createSkeletonRect(
               {
@@ -198,11 +195,8 @@ const PricingVendorIntroSkeleton = memo(
               'filter-button',
             )}
         </div>
+        </Card.Content>
       </Card>
-    );
-
-    return (
-      <Skeleton loading={true} active placeholder={placeholder}></Skeleton>
     );
   },
 );

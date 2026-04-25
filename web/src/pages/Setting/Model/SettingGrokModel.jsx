@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import React, { useEffect, useState } from 'react';
+import { Button, Input, Switch } from '@heroui/react';
 import {
   API,
   compareObjects,
@@ -36,50 +36,90 @@ const DEFAULT_GROK_INPUTS = {
   'grok.violation_deduction_amount': 0.05,
 };
 
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+
+function ToggleRow({ label, helper, value, onChange }) {
+  return (
+    <div className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+      <div className='min-w-0 flex-1'>
+        <div className='text-sm font-medium text-foreground'>{label}</div>
+        {helper ? (
+          <div className='mt-1 text-xs leading-snug text-muted'>{helper}</div>
+        ) : null}
+      </div>
+      <Switch
+        isSelected={!!value}
+        onChange={onChange}
+        aria-label={label}
+        size='sm'
+      >
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
+    </div>
+  );
+}
+
+function NumberField({ label, value, onChange, helper, min, step, disabled }) {
+  return (
+    <div className='space-y-2'>
+      <div className='text-sm font-medium text-foreground'>{label}</div>
+      <Input
+        type='number'
+        value={value === '' || value == null ? '' : String(value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === '' ? '' : Number(v));
+        }}
+        min={min}
+        step={step}
+        disabled={disabled}
+        aria-label={label}
+        className={inputClass}
+      />
+      {helper ? (
+        <div className='text-xs leading-snug text-muted'>{helper}</div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function SettingGrokModel(props) {
   const { t } = useTranslation();
-
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState(DEFAULT_GROK_INPUTS);
   const [inputsRow, setInputsRow] = useState(DEFAULT_GROK_INPUTS);
-  const refForm = useRef();
 
-  async function onSubmit() {
-    await refForm.current
-      .validate()
-      .then(() => {
-        const updateArray = compareObjects(inputs, inputsRow);
-        if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
+  const setField = (key) => (value) =>
+    setInputs((prev) => ({ ...prev, [key]: value }));
 
-        const requestQueue = updateArray.map((item) => {
-          const value = String(inputs[item.key]);
-          return API.put('/api/option/', { key: item.key, value });
-        });
+  const onSubmit = () => {
+    const updateArray = compareObjects(inputs, inputsRow);
+    if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
+    const requestQueue = updateArray.map((item) =>
+      API.put('/api/option/', {
+        key: item.key,
+        value: String(inputs[item.key]),
+      }),
+    );
 
-        setLoading(true);
-        Promise.all(requestQueue)
-          .then((res) => {
-            if (requestQueue.length === 1) {
-              if (res.includes(undefined)) return;
-            } else if (requestQueue.length > 1) {
-              if (res.includes(undefined))
-                return showError(t('部分保存失败，请重试'));
-            }
-            showSuccess(t('保存成功'));
-            props.refresh();
-          })
-          .catch(() => {
-            showError(t('保存失败，请重试'));
-          })
-          .finally(() => {
-            setLoading(false);
-          });
+    setLoading(true);
+    Promise.all(requestQueue)
+      .then((res) => {
+        if (res.includes(undefined)) {
+          if (requestQueue.length > 1) {
+            return showError(t('部分保存失败，请重试'));
+          }
+          return;
+        }
+        showSuccess(t('保存成功'));
+        props.refresh?.();
       })
-      .catch((error) => {
-        console.error('Validation failed:', error);
-        showError(t('请检查输入'));
-      });
-  }
+      .catch(() => showError(t('保存失败，请重试')))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     const currentInputs = { ...DEFAULT_GROK_INPUTS };
@@ -88,87 +128,69 @@ export default function SettingGrokModel(props) {
         currentInputs[key] = props.options[key];
       }
     }
-
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    if (refForm.current) {
-      refForm.current.setValues(currentInputs);
-    }
   }, [props.options]);
 
   return (
-    <Spin spinning={loading}>
-      <Form
-        values={inputs}
-        getFormApi={(formAPI) => (refForm.current = formAPI)}
-        style={{ marginBottom: 15 }}
-      >
-        <Form.Section text={t('Grok设置')}>
-          <Row>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.Switch
-                label={t('启用违规扣费')}
-                field={'grok.violation_deduction_enabled'}
-                onChange={(value) =>
-                  setInputs({
-                    ...inputs,
-                    'grok.violation_deduction_enabled': value,
-                  })
-                }
-                extraText={
-                  <span>
-                    {t('开启后，违规请求将额外扣费。')}{' '}
-                    <a
-                      href={XAI_VIOLATION_FEE_DOC_URL}
-                      target='_blank'
-                      rel='noreferrer'
-                    >
-                      {t('官方说明')}
-                    </a>
-                  </span>
-                }
-              />
-            </Col>
-          </Row>
+    <div className='p-6 space-y-6'>
+      <div className='text-base font-semibold text-foreground'>
+        {t('Grok设置')}
+      </div>
 
-          <Row>
-            <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-              <Form.InputNumber
-                label={t('违规扣费金额')}
-                field={'grok.violation_deduction_amount'}
-                min={0}
-                step={0.01}
-                precision={4}
-                disabled={!inputs['grok.violation_deduction_enabled']}
-                onChange={(value) =>
-                  setInputs({
-                    ...inputs,
-                    'grok.violation_deduction_amount': value,
-                  })
-                }
-                extraText={
-                  <span>
-                    {t('这是基础金额，实际扣费 = 基础金额 x 系统分组倍率。')}{' '}
-                    <a
-                      href={XAI_VIOLATION_FEE_DOC_URL}
-                      target='_blank'
-                      rel='noreferrer'
-                    >
-                      {t('官方说明')}
-                    </a>
-                  </span>
-                }
-              />
-            </Col>
-          </Row>
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+        <ToggleRow
+          label={t('启用违规扣费')}
+          helper={
+            <span>
+              {t('开启后，违规请求将额外扣费。')}{' '}
+              <a
+                href={XAI_VIOLATION_FEE_DOC_URL}
+                target='_blank'
+                rel='noreferrer'
+                className='text-primary underline'
+              >
+                {t('官方说明')}
+              </a>
+            </span>
+          }
+          value={inputs['grok.violation_deduction_enabled']}
+          onChange={setField('grok.violation_deduction_enabled')}
+        />
+        <NumberField
+          label={t('违规扣费金额')}
+          value={inputs['grok.violation_deduction_amount']}
+          onChange={setField('grok.violation_deduction_amount')}
+          min={0}
+          step={0.01}
+          disabled={!inputs['grok.violation_deduction_enabled']}
+          helper={
+            <span>
+              {t('这是基础金额，实际扣费 = 基础金额 x 系统分组倍率。')}{' '}
+              <a
+                href={XAI_VIOLATION_FEE_DOC_URL}
+                target='_blank'
+                rel='noreferrer'
+                className='text-primary underline'
+              >
+                {t('官方说明')}
+              </a>
+            </span>
+          }
+        />
+      </div>
 
-          <Row>
-            <Button size='default' onClick={onSubmit}>
-              {t('保存')}
-            </Button>
-          </Row>
-        </Form.Section>
-      </Form>
-    </Spin>
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={onSubmit}
+          isPending={loading}
+          className='min-w-[100px]'
+        >
+          {t('保存')}
+        </Button>
+      </div>
+    </div>
   );
 }

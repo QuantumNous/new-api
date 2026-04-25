@@ -17,22 +17,104 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import {
-  Button,
-  Modal,
-  Space,
-  Tag,
-  Typography,
-  Popover,
-  Divider,
-  Badge,
-  Tooltip,
-} from '@douyinfe/semi-ui';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button, Tooltip } from '@heroui/react';
 import { renderQuota } from '../../../helpers';
 import { convertUSDToCurrency } from '../../../helpers/render';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 
-const { Text } = Typography;
+const TONE_CLASSES = {
+  white:
+    'border border-[color:var(--app-border)] bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200',
+  violet:
+    'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
+  cyan:
+    'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300',
+  green:
+    'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+};
+
+function Chip({ tone = 'white', children, prefix }) {
+  const cls = TONE_CLASSES[tone] || TONE_CLASSES.white;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
+    >
+      {prefix}
+      {children}
+    </span>
+  );
+}
+
+function Dot({ tone = 'green' }) {
+  const color =
+    tone === 'green'
+      ? 'bg-emerald-500'
+      : tone === 'red'
+        ? 'bg-red-500'
+        : 'bg-slate-400';
+  return <span className={`h-1.5 w-1.5 rounded-full ${color}`} />;
+}
+
+function Muted({ children, className = '' }) {
+  return (
+    <span className={`text-xs text-muted ${className}`}>{children}</span>
+  );
+}
+
+function Strong({ children, className = '', style }) {
+  return (
+    <span
+      className={`text-sm font-semibold text-foreground ${className}`}
+      style={style}
+    >
+      {children}
+    </span>
+  );
+}
+
+function HoverPanel({ children, content, position = 'right' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const timer = useRef(null);
+
+  const show = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setOpen(true);
+  };
+  const hide = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOpen(false), 100);
+  };
+
+  useEffect(() => () => timer.current && clearTimeout(timer.current), []);
+
+  const placeClasses =
+    position === 'right'
+      ? 'left-full top-0 ml-2'
+      : position === 'top'
+        ? 'bottom-full left-1/2 -translate-x-1/2 mb-2'
+        : 'top-full left-0 mt-2';
+
+  return (
+    <span
+      ref={ref}
+      className='relative inline-flex'
+      onMouseEnter={show}
+      onMouseLeave={hide}
+    >
+      {children}
+      {open ? (
+        <div
+          role='tooltip'
+          className={`absolute ${placeClasses} z-30 rounded-lg border border-[color:var(--app-border)] bg-white p-3 text-xs shadow-lg dark:bg-slate-900`}
+        >
+          {content}
+        </div>
+      ) : null}
+    </span>
+  );
+}
 
 function formatDuration(plan, t) {
   if (!plan) return '';
@@ -67,128 +149,116 @@ function formatResetPeriod(plan, t) {
 const renderPlanTitle = (text, record, t) => {
   const subtitle = record?.plan?.subtitle;
   const plan = record?.plan;
+
   const popoverContent = (
     <div style={{ width: 260 }}>
-      <Text strong>{text}</Text>
+      <Strong>{text}</Strong>
       {subtitle && (
-        <Text type='tertiary' style={{ display: 'block', marginTop: 4 }}>
-          {subtitle}
-        </Text>
+        <div className='mt-1 text-xs text-muted'>{subtitle}</div>
       )}
-      <Divider margin={12} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <Text type='tertiary'>{t('价格')}</Text>
-        <Text strong style={{ color: 'var(--semi-color-success)' }}>
+      <div className='my-3 h-px bg-[color:var(--app-border)]' />
+      <div className='grid grid-cols-2 gap-2 text-xs'>
+        <Muted>{t('价格')}</Muted>
+        <Strong className='text-emerald-600 dark:text-emerald-300'>
           {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
-        </Text>
-        <Text type='tertiary'>{t('总额度')}</Text>
+        </Strong>
+        <Muted>{t('总额度')}</Muted>
         {plan?.total_amount > 0 ? (
-          <Tooltip content={`${t('原生额度')}：${plan.total_amount}`}>
-            <Text>{renderQuota(plan.total_amount)}</Text>
+          <Tooltip
+            content={`${t('原生额度')}：${plan.total_amount}`}
+            placement='top'
+          >
+            <Strong>{renderQuota(plan.total_amount)}</Strong>
           </Tooltip>
         ) : (
-          <Text>{t('不限')}</Text>
+          <Strong>{t('不限')}</Strong>
         )}
-        <Text type='tertiary'>{t('升级分组')}</Text>
-        <Text>{plan?.upgrade_group ? plan.upgrade_group : t('不升级')}</Text>
-        <Text type='tertiary'>{t('购买上限')}</Text>
-        <Text>
+        <Muted>{t('升级分组')}</Muted>
+        <Strong>
+          {plan?.upgrade_group ? plan.upgrade_group : t('不升级')}
+        </Strong>
+        <Muted>{t('购买上限')}</Muted>
+        <Strong>
           {plan?.max_purchase_per_user > 0
             ? plan.max_purchase_per_user
             : t('不限')}
-        </Text>
-        <Text type='tertiary'>{t('有效期')}</Text>
-        <Text>{formatDuration(plan, t)}</Text>
-        <Text type='tertiary'>{t('重置')}</Text>
-        <Text>{formatResetPeriod(plan, t)}</Text>
+        </Strong>
+        <Muted>{t('有效期')}</Muted>
+        <Strong>{formatDuration(plan, t)}</Strong>
+        <Muted>{t('重置')}</Muted>
+        <Strong>{formatResetPeriod(plan, t)}</Strong>
       </div>
     </div>
   );
 
   return (
-    <Popover content={popoverContent} position='rightTop' showArrow>
-      <div style={{ cursor: 'pointer', maxWidth: 180 }}>
-        <Text strong ellipsis={{ showTooltip: false }}>
-          {text}
-        </Text>
+    <HoverPanel content={popoverContent} position='right'>
+      <div className='cursor-pointer max-w-[180px]'>
+        <Strong className='block truncate'>{text}</Strong>
         {subtitle && (
-          <Text
-            type='tertiary'
-            ellipsis={{ showTooltip: false }}
-            style={{ display: 'block' }}
-          >
-            {subtitle}
-          </Text>
+          <span className='block truncate text-xs text-muted'>{subtitle}</span>
         )}
       </div>
-    </Popover>
+    </HoverPanel>
   );
 };
 
-const renderPrice = (text) => {
-  return (
-    <Text strong style={{ color: 'var(--semi-color-success)' }}>
-      {convertUSDToCurrency(Number(text || 0), 2)}
-    </Text>
-  );
-};
+const renderPrice = (text) => (
+  <Strong className='text-emerald-600 dark:text-emerald-300'>
+    {convertUSDToCurrency(Number(text || 0), 2)}
+  </Strong>
+);
 
 const renderPurchaseLimit = (text, record, t) => {
   const limit = Number(record?.plan?.max_purchase_per_user || 0);
   return (
-    <Text type={limit > 0 ? 'secondary' : 'tertiary'}>
+    <span className={limit > 0 ? 'text-sm text-foreground' : 'text-xs text-muted'}>
       {limit > 0 ? limit : t('不限')}
-    </Text>
+    </span>
   );
 };
 
-const renderDuration = (text, record, t) => {
-  return <Text type='secondary'>{formatDuration(record?.plan, t)}</Text>;
-};
+const renderDuration = (text, record, t) => (
+  <span className='text-sm text-foreground'>
+    {formatDuration(record?.plan, t)}
+  </span>
+);
 
-const renderEnabled = (text, record, t) => {
-  return text ? (
-    <Tag
-      color='white'
-      shape='circle'
-      type='light'
-      prefixIcon={<Badge dot type='success' />}
-    >
+const renderEnabled = (text, record, t) =>
+  text ? (
+    <Chip tone='white' prefix={<Dot tone='green' />}>
       {t('启用')}
-    </Tag>
+    </Chip>
   ) : (
-    <Tag
-      color='white'
-      shape='circle'
-      type='light'
-      prefixIcon={<Badge dot type='danger' />}
-    >
+    <Chip tone='white' prefix={<Dot tone='red' />}>
       {t('禁用')}
-    </Tag>
+    </Chip>
   );
-};
 
 const renderTotalAmount = (text, record, t) => {
   const total = Number(record?.plan?.total_amount || 0);
   return (
-    <Text type={total > 0 ? 'secondary' : 'tertiary'}>
+    <span className={total > 0 ? 'text-sm text-foreground' : 'text-xs text-muted'}>
       {total > 0 ? (
-        <Tooltip content={`${t('原生额度')}：${total}`}>
+        <Tooltip
+          content={`${t('原生额度')}：${total}`}
+          placement='top'
+        >
           <span>{renderQuota(total)}</span>
         </Tooltip>
       ) : (
         t('不限')
       )}
-    </Text>
+    </span>
   );
 };
 
 const renderUpgradeGroup = (text, record, t) => {
   const group = record?.plan?.upgrade_group || '';
   return (
-    <Text type={group ? 'secondary' : 'tertiary'}>
+    <span className={group ? 'text-sm text-foreground' : 'text-xs text-muted'}>
       {group ? group : t('不升级')}
-    </Text>
+    </span>
   );
 };
 
@@ -196,9 +266,9 @@ const renderResetPeriod = (text, record, t) => {
   const period = record?.plan?.quota_reset_period || 'never';
   const isNever = period === 'never';
   return (
-    <Text type={isNever ? 'tertiary' : 'secondary'}>
+    <span className={isNever ? 'text-xs text-muted' : 'text-sm text-foreground'}>
       {formatResetPeriod(record?.plan, t)}
-    </Text>
+    </span>
   );
 };
 
@@ -208,74 +278,92 @@ const renderPaymentConfig = (text, record, t, enableEpay) => {
   const hasEpay = !!enableEpay;
 
   return (
-    <Space spacing={4}>
-      {hasStripe && (
-        <Tag color='violet' shape='circle'>
-          Stripe
-        </Tag>
-      )}
-      {hasCreem && (
-        <Tag color='cyan' shape='circle'>
-          Creem
-        </Tag>
-      )}
-      {hasEpay && (
-        <Tag color='light-green' shape='circle'>
-          {t('易支付')}
-        </Tag>
-      )}
-    </Space>
+    <div className='flex flex-wrap items-center gap-1'>
+      {hasStripe && <Chip tone='violet'>Stripe</Chip>}
+      {hasCreem && <Chip tone='cyan'>Creem</Chip>}
+      {hasEpay && <Chip tone='green'>{t('易支付')}</Chip>}
+    </div>
   );
 };
 
-const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
+function OperationsCell({ record, openEdit, setPlanEnabled, t }) {
+  const [confirm, setConfirm] = useState(null);
   const isEnabled = record?.plan?.enabled;
 
   const handleToggle = () => {
     if (isEnabled) {
-      Modal.confirm({
+      setConfirm({
         title: t('确认禁用'),
         content: t('禁用后用户端不再展示，但历史订单不受影响。是否继续？'),
-        centered: true,
-        onOk: () => setPlanEnabled(record, false),
+        action: () => setPlanEnabled(record, false),
+        danger: true,
       });
     } else {
-      Modal.confirm({
+      setConfirm({
         title: t('确认启用'),
         content: t('启用后套餐将在用户端展示。是否继续？'),
-        centered: true,
-        onOk: () => setPlanEnabled(record, true),
+        action: () => setPlanEnabled(record, true),
+        danger: false,
       });
     }
   };
 
   return (
-    <Space spacing={8}>
+    <div className='flex items-center gap-1.5'>
       <Button
-        theme='light'
-        type='tertiary'
-        size='small'
-        onClick={() => openEdit(record)}
+        variant='light'
+        size='sm'
+        onPress={() => openEdit(record)}
       >
         {t('编辑')}
       </Button>
       {isEnabled ? (
-        <Button theme='light' type='danger' size='small' onClick={handleToggle}>
+        <Button
+          variant='flat'
+          color='danger'
+          size='sm'
+          onPress={handleToggle}
+        >
           {t('禁用')}
         </Button>
       ) : (
         <Button
-          theme='light'
-          type='primary'
-          size='small'
-          onClick={handleToggle}
+          variant='flat'
+          color='primary'
+          size='sm'
+          onPress={handleToggle}
         >
           {t('启用')}
         </Button>
       )}
-    </Space>
+
+      <ConfirmDialog
+        visible={!!confirm}
+        title={confirm?.title || ''}
+        cancelText={t('取消')}
+        confirmText={t('确定')}
+        danger={!!confirm?.danger}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          const action = confirm?.action;
+          setConfirm(null);
+          action?.();
+        }}
+      >
+        {confirm?.content}
+      </ConfirmDialog>
+    </div>
   );
-};
+}
+
+const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => (
+  <OperationsCell
+    record={record}
+    openEdit={openEdit}
+    setPlanEnabled={setPlanEnabled}
+    t={t}
+  />
+);
 
 export const getSubscriptionsColumns = ({
   t,
@@ -288,7 +376,7 @@ export const getSubscriptionsColumns = ({
       title: 'ID',
       dataIndex: ['plan', 'id'],
       width: 60,
-      render: (text) => <Text type='tertiary'>#{text}</Text>,
+      render: (text) => <Muted>#{text}</Muted>,
     },
     {
       title: t('套餐'),
@@ -311,7 +399,7 @@ export const getSubscriptionsColumns = ({
       title: t('优先级'),
       dataIndex: ['plan', 'sort_order'],
       width: 80,
-      render: (text) => <Text type='tertiary'>{Number(text || 0)}</Text>,
+      render: (text) => <Muted>{Number(text || 0)}</Muted>,
     },
     {
       title: t('有效期'),

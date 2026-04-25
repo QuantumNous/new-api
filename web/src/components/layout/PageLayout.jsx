@@ -18,11 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import HeaderBar from './headerbar';
-import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
 import FooterBar from './Footer';
-import { ToastContainer } from 'react-toastify';
+import ToastViewport from '../ui/ToastViewport';
 import ErrorBoundary from '../common/ErrorBoundary';
 import React, { useContext, useEffect, useState } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
@@ -39,7 +38,32 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useLocation } from 'react-router-dom';
 import { normalizeLanguage } from '../../i18n/language';
-const { Sider, Content, Header } = Layout;
+
+const getFallbackStatus = () => {
+  try {
+    const cachedStatus = localStorage.getItem('status');
+    if (cachedStatus) {
+      return JSON.parse(cachedStatus);
+    }
+  } catch (error) {
+    console.warn('Failed to parse cached status', error);
+  }
+
+  return {
+    system_name: getSystemName(),
+    logo: getLogo(),
+    footer_html: localStorage.getItem('footer_html') || '',
+    HeaderNavModules: '',
+    announcements: [],
+    docs_link: localStorage.getItem('docs_link') || '',
+    self_use_mode_enabled: false,
+    demo_site_enabled: false,
+    api_info_enabled: true,
+    announcements_enabled: true,
+    faq_enabled: true,
+    uptime_kuma_enabled: true,
+  };
+};
 
 const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
@@ -62,14 +86,15 @@ const PageLayout = () => {
     '/pricing',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const isConsoleRoute = location.pathname.startsWith('/console');
+  const shouldHideFooter =
+    isConsoleRoute || cardProPages.includes(location.pathname);
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
     !location.pathname.startsWith('/console/chat') &&
     location.pathname !== '/console/playground';
 
-  const isConsoleRoute = location.pathname.startsWith('/console');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
 
   useEffect(() => {
@@ -88,16 +113,18 @@ const PageLayout = () => {
 
   const loadStatus = async () => {
     try {
-      const res = await API.get('/api/status');
+      const res = await API.get('/api/status', { skipErrorHandler: true });
       const { success, data } = res.data;
       if (success) {
         statusDispatch({ type: 'set', payload: data });
         setStatusData(data);
       } else {
+        statusDispatch({ type: 'set', payload: getFallbackStatus() });
         showError('Unable to connect to server');
       }
     } catch (error) {
-      showError('Failed to load status');
+      console.error('Failed to load status', error);
+      statusDispatch({ type: 'set', payload: getFallbackStatus() });
     }
   };
 
@@ -145,15 +172,16 @@ const PageLayout = () => {
   }, [i18n, userState?.user?.setting]);
 
   return (
-    <Layout
+    <div
       className='app-layout'
       style={{
         display: 'flex',
         flexDirection: 'column',
+        height: isMobile ? 'auto' : '100dvh',
         overflow: isMobile ? 'visible' : 'hidden',
       }}
     >
-      <Header
+      <header
         style={{
           padding: 0,
           height: 'auto',
@@ -168,16 +196,17 @@ const PageLayout = () => {
           onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
           drawerOpen={drawerOpen}
         />
-      </Header>
-      <Layout
+      </header>
+      <div
         style={{
-          overflow: isMobile ? 'visible' : 'auto',
+          overflow: isMobile ? 'visible' : 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          minHeight: isMobile ? 'auto' : '100dvh',
         }}
       >
         {showSider && (
-          <Sider
+          <aside
             className='app-sider'
             style={{
               position: 'fixed',
@@ -194,9 +223,9 @@ const PageLayout = () => {
                 if (isMobile) setDrawerOpen(false);
               }}
             />
-          </Sider>
+          </aside>
         )}
-        <Layout
+        <div
           style={{
             marginLeft: isMobile
               ? '0'
@@ -206,35 +235,44 @@ const PageLayout = () => {
             flex: '1 1 auto',
             display: 'flex',
             flexDirection: 'column',
+            minWidth: 0,
+            height: isMobile ? 'auto' : '100dvh',
           }}
         >
-          <Content
+          <main
             style={{
-              flex: '1 0 auto',
-              overflowY: isMobile ? 'visible' : 'hidden',
+              // Use flex: 1 1 0 (with minHeight: 0) so <main> shrinks to
+              // its parent rather than growing to its content. Without
+              // this, flex: 1 0 auto kept <main> at content height, the
+              // grandparent's overflow: hidden clipped the bottom, and
+              // <main>'s own overflowY: auto never engaged. Pages that
+              // already pad past the fixed 64px header (e.g. mt-[60px])
+              // continue to render correctly inside the scrollable region.
+              flex: isMobile ? '1 1 auto' : '1 1 0',
+              minHeight: 0,
+              overflowY: isMobile ? 'visible' : 'auto',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
               position: 'relative',
             }}
           >
-            <ErrorBoundary>
+            <ErrorBoundary key={location.pathname}>
               <App />
             </ErrorBoundary>
-          </Content>
-          {!shouldHideFooter && (
-            <Layout.Footer
-              style={{
-                flex: '0 0 auto',
-                width: '100%',
-              }}
-            >
-              <FooterBar />
-            </Layout.Footer>
-          )}
-        </Layout>
-      </Layout>
-      <ToastContainer />
-    </Layout>
+            {!shouldHideFooter && (
+              <footer
+                style={{
+                  width: '100%',
+                }}
+              >
+                <FooterBar />
+              </footer>
+            )}
+          </main>
+        </div>
+      </div>
+      <ToastViewport />
+    </div>
   );
 };
 

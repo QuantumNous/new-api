@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin, Tag } from '@douyinfe/semi-ui';
+import React, { useEffect, useState } from 'react';
+import { Button, Switch } from '@heroui/react';
 import {
   compareObjects,
   API,
@@ -28,130 +28,152 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
+const DEFAULT_INPUTS = {
+  CheckSensitiveEnabled: false,
+  CheckSensitiveOnPromptEnabled: false,
+  SensitiveWords: '',
+};
+
+const BOOLEAN_FIELDS = new Set([
+  'CheckSensitiveEnabled',
+  'CheckSensitiveOnPromptEnabled',
+]);
+
+function ToggleRow({ label, helper, isSelected, onValueChange }) {
+  return (
+    <label className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+      <div className='min-w-0 flex-1'>
+        <div className='text-sm font-medium text-foreground'>{label}</div>
+        {helper ? (
+          <div className='mt-1 text-xs leading-snug text-muted'>{helper}</div>
+        ) : null}
+      </div>
+      <Switch
+        isSelected={!!isSelected}
+        onChange={onValueChange}
+        aria-label={label}
+        size='sm'
+      >
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
+    </label>
+  );
+}
+
 export default function SettingsSensitiveWords(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    CheckSensitiveEnabled: false,
-    CheckSensitiveOnPromptEnabled: false,
-    SensitiveWords: '',
-  });
-  const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [inputsRow, setInputsRow] = useState(DEFAULT_INPUTS);
 
-  function onSubmit() {
+  const setField = (field) => (value) =>
+    setInputs((prev) => ({ ...prev, [field]: value }));
+
+  const onSubmit = async () => {
     const updateArray = compareObjects(inputs, inputsRow);
-    if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
-    const requestQueue = updateArray.map((item) => {
-      let value = '';
-      if (typeof inputs[item.key] === 'boolean') {
-        value = String(inputs[item.key]);
-      } else {
-        value = inputs[item.key];
-      }
-      return API.put('/api/option/', {
-        key: item.key,
-        value,
-      });
-    });
+    if (!updateArray.length) {
+      showWarning(t('你似乎并没有修改什么'));
+      return;
+    }
     setLoading(true);
-    Promise.all(requestQueue)
-      .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+    try {
+      const requests = updateArray.map((item) =>
+        API.put('/api/option/', {
+          key: item.key,
+          value:
+            typeof inputs[item.key] === 'boolean'
+              ? String(inputs[item.key])
+              : String(inputs[item.key] ?? ''),
+        }),
+      );
+      const results = await Promise.all(requests);
+      if (results.some((r) => r === undefined)) {
+        if (requests.length > 1) {
+          showError(t('部分保存失败，请重试'));
+          return;
         }
-        showSuccess(t('保存成功'));
-        props.refresh();
-      })
-      .catch(() => {
-        showError(t('保存失败，请重试'));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }
+        return;
+      }
+      showSuccess(t('保存成功'));
+      setInputsRow(structuredClone(inputs));
+      props.refresh?.();
+    } catch (e) {
+      showError(t('保存失败，请重试'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+    if (!props.options) return;
+    const next = { ...DEFAULT_INPUTS };
+    for (const key of Object.keys(DEFAULT_INPUTS)) {
+      if (key in props.options) {
+        const raw = props.options[key];
+        if (BOOLEAN_FIELDS.has(key)) {
+          next[key] = raw === true || raw === 'true';
+        } else {
+          next[key] = raw ?? '';
+        }
       }
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+    setInputs(next);
+    setInputsRow(structuredClone(next));
   }, [props.options]);
+
   return (
-    <>
-      <Spin spinning={loading}>
-        <Form
-          values={inputs}
-          getFormApi={(formAPI) => (refForm.current = formAPI)}
-          style={{ marginBottom: 15 }}
+    <div className='p-6 space-y-6'>
+      <div>
+        <div className='text-base font-semibold text-foreground'>
+          {t('屏蔽词过滤设置')}
+        </div>
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+        <ToggleRow
+          label={t('启用屏蔽词过滤功能')}
+          helper={t('开启后会拦截命中屏蔽词的请求')}
+          isSelected={inputs.CheckSensitiveEnabled}
+          onValueChange={setField('CheckSensitiveEnabled')}
+        />
+        <ToggleRow
+          label={t('启用 Prompt 检查')}
+          helper={t('开启后会对用户提示词逐条进行屏蔽词检查')}
+          isSelected={inputs.CheckSensitiveOnPromptEnabled}
+          onValueChange={setField('CheckSensitiveOnPromptEnabled')}
+        />
+      </div>
+
+      <div className='space-y-2'>
+        <div className='text-sm font-medium text-foreground'>
+          {t('屏蔽词列表')}
+        </div>
+        <textarea
+          value={inputs.SensitiveWords ?? ''}
+          onChange={(e) => setField('SensitiveWords')(e.target.value)}
+          placeholder={t('一行一个屏蔽词，不需要符号分割')}
+          rows={8}
+          aria-label={t('屏蔽词列表')}
+          className='w-full resize-y rounded-lg border border-[color:var(--app-border)] bg-background px-3 py-2 font-mono text-sm text-foreground outline-none transition focus:border-primary'
+        />
+        <div className='text-xs text-muted'>
+          {t('一行一个屏蔽词，不需要符号分割')}
+        </div>
+      </div>
+
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={onSubmit}
+          isPending={loading}
+          className='min-w-[100px]'
         >
-          <Form.Section text={t('屏蔽词过滤设置')}>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'CheckSensitiveEnabled'}
-                  label={t('启用屏蔽词过滤功能')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) => {
-                    setInputs({
-                      ...inputs,
-                      CheckSensitiveEnabled: value,
-                    });
-                  }}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'CheckSensitiveOnPromptEnabled'}
-                  label={t('启用 Prompt 检查')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      CheckSensitiveOnPromptEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-            </Row>
-            <Row>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.TextArea
-                  label={t('屏蔽词列表')}
-                  extraText={t('一行一个屏蔽词，不需要符号分割')}
-                  placeholder={t('一行一个屏蔽词，不需要符号分割')}
-                  field={'SensitiveWords'}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      SensitiveWords: value,
-                    })
-                  }
-                  style={{ fontFamily: 'JetBrains Mono, Consolas' }}
-                  autosize={{ minRows: 6, maxRows: 12 }}
-                />
-              </Col>
-            </Row>
-            <Row>
-              <Button size='default' onClick={onSubmit}>
-                {t('保存屏蔽词过滤设置')}
-              </Button>
-            </Row>
-          </Form.Section>
-        </Form>
-      </Spin>
-    </>
+          {t('保存屏蔽词过滤设置')}
+        </Button>
+      </div>
+    </div>
   );
 }

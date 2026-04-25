@@ -31,23 +31,8 @@ import {
   displayAmountToQuota,
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import {
-  Button,
-  Modal,
-  SideSheet,
-  Space,
-  Spin,
-  Typography,
-  Card,
-  Tag,
-  Form,
-  Avatar,
-  Row,
-  Col,
-  InputNumber,
-  RadioGroup,
-  Radio,
-} from '@douyinfe/semi-ui';
+import { Button, Card } from '@heroui/react';
+import { Modal, SideSheet, Space, Spin, Typography, Tag, Form, Avatar, Row, Col, InputNumber, RadioGroup, Radio } from '@/components/common/ui/HeroCompat';
 import {
   IconUser,
   IconSave,
@@ -55,7 +40,7 @@ import {
   IconLink,
   IconUserGroup,
   IconEdit,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import UserBindingManagementModal from './UserBindingManagementModal';
 
 const { Text, Title } = Typography;
@@ -126,7 +111,7 @@ const EditUserModal = (props) => {
 
   useEffect(() => {
     if (inputs && formApiRef.current) {
-      formApiRef.current.setValues(inputs);
+      formApiRef.current?.setValues?.(inputs);
     }
   }, [inputs]);
 
@@ -394,7 +379,7 @@ const EditUserModal = (props) => {
                       <Col span={24}>
                         <div
                           className='text-xs cursor-pointer'
-                          style={{ color: 'var(--semi-color-text-2)' }}
+                          style={{ color: 'var(--app-muted)' }}
                           onClick={() => setShowQuotaInput((v) => !v)}
                         >
                           {showQuotaInput
@@ -532,7 +517,7 @@ const EditUserModal = (props) => {
         </div>
         <div
           className='text-xs cursor-pointer mt-2'
-          style={{ color: 'var(--semi-color-text-2)' }}
+          style={{ color: 'var(--app-muted)' }}
           onClick={() => setShowAdjustQuotaRaw((v) => !v)}
         >
           {showAdjustQuotaRaw

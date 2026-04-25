@@ -18,20 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Banner,
-  Button,
-  Dropdown,
-  Form,
-  Space,
-  Spin,
-  RadioGroup,
-  Radio,
-  Table,
-  Modal,
-  Input,
-  Divider,
-} from '@douyinfe/semi-ui';
+import { Button, Input } from '@heroui/react';
+import { Banner, Dropdown, Form, Space, Spin, RadioGroup, Radio, Table, Modal, Divider } from '@/components/common/ui/HeroCompat';
 import {
   IconPlus,
   IconEdit,
@@ -39,7 +27,7 @@ import {
   IconSearch,
   IconSaveStroked,
   IconBolt,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import {
   compareObjects,
   API,
@@ -133,7 +121,7 @@ export default function SettingsChats(props) {
       Chats: jsonString,
     }));
     if (refForm.current && editMode === 'json') {
-      refForm.current.setValues({ Chats: jsonString });
+      refForm.current?.setValues?.({ Chats: jsonString });
     }
   };
 
@@ -201,7 +189,7 @@ export default function SettingsChats(props) {
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     if (refForm.current) {
-      refForm.current.setValues(currentInputs);
+      refForm.current?.setValues?.(currentInputs);
     }
 
     // 同步到可视化配置
@@ -217,7 +205,7 @@ export default function SettingsChats(props) {
 
   useEffect(() => {
     if (refForm.current && editMode === 'json') {
-      refForm.current.setValues(inputs);
+      refForm.current?.setValues?.(inputs);
     }
   }, [editMode, inputs]);
 
@@ -227,7 +215,7 @@ export default function SettingsChats(props) {
     setModalVisible(true);
     setTimeout(() => {
       if (modalFormRef.current) {
-        modalFormRef.current.setValues({ name: '', url: '' });
+        modalFormRef.current?.setValues?.({ name: '', url: '' });
       }
     }, 100);
   };
@@ -238,7 +226,7 @@ export default function SettingsChats(props) {
     setModalVisible(true);
     setTimeout(() => {
       if (modalFormRef.current) {
-        modalFormRef.current.setValues(config);
+        modalFormRef.current?.setValues?.(config);
       }
     }, 100);
   };
@@ -402,7 +390,7 @@ export default function SettingsChats(props) {
                 // 确保模式切换时数据正确同步
                 setTimeout(() => {
                   if (newMode === 'json' && refForm.current) {
-                    refForm.current.setValues(inputs);
+                    refForm.current?.setValues?.(inputs);
                   }
                 }, 100);
               }}

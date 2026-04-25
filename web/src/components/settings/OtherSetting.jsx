@@ -18,21 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import {
-  Banner,
-  Button,
-  Col,
-  Form,
-  Row,
-  Modal,
-  Space,
-  Card,
-} from '@douyinfe/semi-ui';
+import { Button, Card } from '@heroui/react';
+import { Banner, Col, Form, Row, Modal, Space } from '@/components/common/ui/HeroCompat';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
-import Text from '@douyinfe/semi-ui/lib/es/typography/text';
+import { Typography } from '@/components/common/ui/HeroCompat';
+
+const { Text } = Typography;
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
@@ -289,8 +283,8 @@ const OtherSetting = () => {
         }
       });
       setInputs(newInputs);
-      formAPISettingGeneral.current.setValues(newInputs);
-      formAPIPersonalization.current.setValues(newInputs);
+      formAPISettingGeneral.current?.setValues?.(newInputs);
+      formAPIPersonalization.current?.setValues?.(newInputs);
     } else {
       showError(message);
     }

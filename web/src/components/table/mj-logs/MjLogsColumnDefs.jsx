@@ -18,36 +18,56 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Progress, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Tooltip } from '@heroui/react';
 import {
-  Palette,
-  ZoomIn,
-  Shuffle,
-  Move,
-  FileText,
+  AlertCircle,
   Blend,
-  Upload,
-  Minimize2,
-  RotateCcw,
-  PaintBucket,
-  Focus,
-  Move3D,
-  Monitor,
-  UserCheck,
-  HelpCircle,
   CheckCircle,
   Clock,
   Copy,
+  FileText,
   FileX,
-  Pause,
-  XCircle,
-  Loader,
-  AlertCircle,
+  Focus,
   Hash,
+  HelpCircle,
+  Loader,
+  Minimize2,
+  Monitor,
+  Move,
+  Move3D,
+  PaintBucket,
+  Palette,
+  Pause,
+  RotateCcw,
+  Shuffle,
+  Upload,
+  UserCheck,
   Video,
+  XCircle,
+  ZoomIn,
 } from 'lucide-react';
 
-const colors = [
+const TONE_TO_HEX = {
+  amber: '#f59e0b',
+  blue: '#3b82f6',
+  cyan: '#06b6d4',
+  green: '#22c55e',
+  grey: '#94a3b8',
+  indigo: '#6366f1',
+  'light-blue': '#0ea5e9',
+  'light-green': '#4ade80',
+  lime: '#84cc16',
+  orange: '#f97316',
+  pink: '#ec4899',
+  purple: '#a855f7',
+  red: '#ef4444',
+  teal: '#14b8a6',
+  violet: '#8b5cf6',
+  yellow: '#eab308',
+  white: '#ffffff',
+};
+
+const TAG_PALETTE_KEYS = [
   'amber',
   'blue',
   'cyan',
@@ -65,130 +85,190 @@ const colors = [
   'yellow',
 ];
 
-// Render functions
+function ColorTag({ color, prefixIcon, children, onClick }) {
+  if (color === 'white') {
+    return (
+      <span
+        onClick={onClick}
+        className={`inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200 ${
+          onClick ? 'cursor-pointer' : ''
+        }`}
+      >
+        {prefixIcon}
+        {children}
+      </span>
+    );
+  }
+  const hex = TONE_TO_HEX[color] || TONE_TO_HEX.grey;
+  return (
+    <span
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+        onClick ? 'cursor-pointer' : ''
+      }`}
+      style={{
+        backgroundColor: `${hex}1A`,
+        color: hex,
+      }}
+    >
+      {prefixIcon}
+      {children}
+    </span>
+  );
+}
+
+function ProgressBar({ percent, errored }) {
+  const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
+  return (
+    <div className='inline-flex min-w-[160px] items-center gap-2'>
+      <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800'>
+        <div
+          className={`h-full rounded-full transition-all ${
+            errored
+              ? 'bg-amber-500'
+              : clamped >= 100
+                ? 'bg-emerald-500'
+                : 'bg-primary'
+          }`}
+          style={{ width: `${clamped}%` }}
+        />
+      </div>
+      <span className='shrink-0 text-xs text-muted'>{clamped}%</span>
+    </div>
+  );
+}
+
+function EllipsisText({ children, width = 100, onClick }) {
+  return (
+    <Tooltip content={children} placement='top'>
+      <span
+        onClick={onClick}
+        className={`inline-block truncate align-middle text-sm text-foreground ${
+          onClick ? 'cursor-pointer' : ''
+        }`}
+        style={{ maxWidth: width }}
+      >
+        {children}
+      </span>
+    </Tooltip>
+  );
+}
+
 function renderType(type, t) {
   switch (type) {
     case 'IMAGINE':
       return (
-        <Tag color='blue' shape='circle' prefixIcon={<Palette size={14} />}>
+        <ColorTag color='blue' prefixIcon={<Palette size={12} />}>
           {t('绘图')}
-        </Tag>
+        </ColorTag>
       );
     case 'UPSCALE':
       return (
-        <Tag color='orange' shape='circle' prefixIcon={<ZoomIn size={14} />}>
+        <ColorTag color='orange' prefixIcon={<ZoomIn size={12} />}>
           {t('放大')}
-        </Tag>
+        </ColorTag>
       );
     case 'VIDEO':
       return (
-        <Tag color='orange' shape='circle' prefixIcon={<Video size={14} />}>
+        <ColorTag color='orange' prefixIcon={<Video size={12} />}>
           {t('视频')}
-        </Tag>
+        </ColorTag>
       );
     case 'EDITS':
       return (
-        <Tag color='orange' shape='circle' prefixIcon={<Video size={14} />}>
+        <ColorTag color='orange' prefixIcon={<Video size={12} />}>
           {t('编辑')}
-        </Tag>
+        </ColorTag>
       );
     case 'VARIATION':
       return (
-        <Tag color='purple' shape='circle' prefixIcon={<Shuffle size={14} />}>
+        <ColorTag color='purple' prefixIcon={<Shuffle size={12} />}>
           {t('变换')}
-        </Tag>
+        </ColorTag>
       );
     case 'HIGH_VARIATION':
       return (
-        <Tag color='purple' shape='circle' prefixIcon={<Shuffle size={14} />}>
+        <ColorTag color='purple' prefixIcon={<Shuffle size={12} />}>
           {t('强变换')}
-        </Tag>
+        </ColorTag>
       );
     case 'LOW_VARIATION':
       return (
-        <Tag color='purple' shape='circle' prefixIcon={<Shuffle size={14} />}>
+        <ColorTag color='purple' prefixIcon={<Shuffle size={12} />}>
           {t('弱变换')}
-        </Tag>
+        </ColorTag>
       );
     case 'PAN':
       return (
-        <Tag color='cyan' shape='circle' prefixIcon={<Move size={14} />}>
+        <ColorTag color='cyan' prefixIcon={<Move size={12} />}>
           {t('平移')}
-        </Tag>
+        </ColorTag>
       );
     case 'DESCRIBE':
       return (
-        <Tag color='yellow' shape='circle' prefixIcon={<FileText size={14} />}>
+        <ColorTag color='yellow' prefixIcon={<FileText size={12} />}>
           {t('图生文')}
-        </Tag>
+        </ColorTag>
       );
     case 'BLEND':
       return (
-        <Tag color='lime' shape='circle' prefixIcon={<Blend size={14} />}>
+        <ColorTag color='lime' prefixIcon={<Blend size={12} />}>
           {t('图混合')}
-        </Tag>
+        </ColorTag>
       );
     case 'UPLOAD':
       return (
-        <Tag color='blue' shape='circle' prefixIcon={<Upload size={14} />}>
+        <ColorTag color='blue' prefixIcon={<Upload size={12} />}>
           上传文件
-        </Tag>
+        </ColorTag>
       );
     case 'SHORTEN':
       return (
-        <Tag color='pink' shape='circle' prefixIcon={<Minimize2 size={14} />}>
+        <ColorTag color='pink' prefixIcon={<Minimize2 size={12} />}>
           {t('缩词')}
-        </Tag>
+        </ColorTag>
       );
     case 'REROLL':
       return (
-        <Tag color='indigo' shape='circle' prefixIcon={<RotateCcw size={14} />}>
+        <ColorTag color='indigo' prefixIcon={<RotateCcw size={12} />}>
           {t('重绘')}
-        </Tag>
+        </ColorTag>
       );
     case 'INPAINT':
       return (
-        <Tag
-          color='violet'
-          shape='circle'
-          prefixIcon={<PaintBucket size={14} />}
-        >
+        <ColorTag color='violet' prefixIcon={<PaintBucket size={12} />}>
           {t('局部重绘-提交')}
-        </Tag>
+        </ColorTag>
       );
     case 'ZOOM':
       return (
-        <Tag color='teal' shape='circle' prefixIcon={<Focus size={14} />}>
+        <ColorTag color='teal' prefixIcon={<Focus size={12} />}>
           {t('变焦')}
-        </Tag>
+        </ColorTag>
       );
     case 'CUSTOM_ZOOM':
       return (
-        <Tag color='teal' shape='circle' prefixIcon={<Move3D size={14} />}>
+        <ColorTag color='teal' prefixIcon={<Move3D size={12} />}>
           {t('自定义变焦-提交')}
-        </Tag>
+        </ColorTag>
       );
     case 'MODAL':
       return (
-        <Tag color='green' shape='circle' prefixIcon={<Monitor size={14} />}>
+        <ColorTag color='green' prefixIcon={<Monitor size={12} />}>
           {t('窗口处理')}
-        </Tag>
+        </ColorTag>
       );
     case 'SWAP_FACE':
       return (
-        <Tag
-          color='light-green'
-          shape='circle'
-          prefixIcon={<UserCheck size={14} />}
-        >
+        <ColorTag color='light-green' prefixIcon={<UserCheck size={12} />}>
           {t('换脸')}
-        </Tag>
+        </ColorTag>
       );
     default:
       return (
-        <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+        <ColorTag color='white' prefixIcon={<HelpCircle size={12} />}>
           {t('未知')}
-        </Tag>
+        </ColorTag>
       );
   }
 }
@@ -197,37 +277,33 @@ function renderCode(code, t) {
   switch (code) {
     case 1:
       return (
-        <Tag
-          color='green'
-          shape='circle'
-          prefixIcon={<CheckCircle size={14} />}
-        >
+        <ColorTag color='green' prefixIcon={<CheckCircle size={12} />}>
           {t('已提交')}
-        </Tag>
+        </ColorTag>
       );
     case 21:
       return (
-        <Tag color='lime' shape='circle' prefixIcon={<Clock size={14} />}>
+        <ColorTag color='lime' prefixIcon={<Clock size={12} />}>
           {t('等待中')}
-        </Tag>
+        </ColorTag>
       );
     case 22:
       return (
-        <Tag color='orange' shape='circle' prefixIcon={<Copy size={14} />}>
+        <ColorTag color='orange' prefixIcon={<Copy size={12} />}>
           {t('重复提交')}
-        </Tag>
+        </ColorTag>
       );
     case 0:
       return (
-        <Tag color='yellow' shape='circle' prefixIcon={<FileX size={14} />}>
+        <ColorTag color='yellow' prefixIcon={<FileX size={12} />}>
           {t('未提交')}
-        </Tag>
+        </ColorTag>
       );
     default:
       return (
-        <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+        <ColorTag color='white' prefixIcon={<HelpCircle size={12} />}>
           {t('未知')}
-        </Tag>
+        </ColorTag>
       );
   }
 }
@@ -236,53 +312,45 @@ function renderStatus(type, t) {
   switch (type) {
     case 'SUCCESS':
       return (
-        <Tag
-          color='green'
-          shape='circle'
-          prefixIcon={<CheckCircle size={14} />}
-        >
+        <ColorTag color='green' prefixIcon={<CheckCircle size={12} />}>
           {t('成功')}
-        </Tag>
+        </ColorTag>
       );
     case 'NOT_START':
       return (
-        <Tag color='grey' shape='circle' prefixIcon={<Pause size={14} />}>
+        <ColorTag color='grey' prefixIcon={<Pause size={12} />}>
           {t('未启动')}
-        </Tag>
+        </ColorTag>
       );
     case 'SUBMITTED':
       return (
-        <Tag color='yellow' shape='circle' prefixIcon={<Clock size={14} />}>
+        <ColorTag color='yellow' prefixIcon={<Clock size={12} />}>
           {t('队列中')}
-        </Tag>
+        </ColorTag>
       );
     case 'IN_PROGRESS':
       return (
-        <Tag color='blue' shape='circle' prefixIcon={<Loader size={14} />}>
+        <ColorTag color='blue' prefixIcon={<Loader size={12} />}>
           {t('执行中')}
-        </Tag>
+        </ColorTag>
       );
     case 'FAILURE':
       return (
-        <Tag color='red' shape='circle' prefixIcon={<XCircle size={14} />}>
+        <ColorTag color='red' prefixIcon={<XCircle size={12} />}>
           {t('失败')}
-        </Tag>
+        </ColorTag>
       );
     case 'MODAL':
       return (
-        <Tag
-          color='yellow'
-          shape='circle'
-          prefixIcon={<AlertCircle size={14} />}
-        >
+        <ColorTag color='yellow' prefixIcon={<AlertCircle size={12} />}>
           {t('窗口等待')}
-        </Tag>
+        </ColorTag>
       );
     default:
       return (
-        <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+        <ColorTag color='white' prefixIcon={<HelpCircle size={12} />}>
           {t('未知')}
-        </Tag>
+        </ColorTag>
       );
   }
 }
@@ -295,23 +363,20 @@ const renderTimestamp = (timestampInSeconds) => {
   const hours = ('0' + date.getHours()).slice(-2);
   const minutes = ('0' + date.getMinutes()).slice(-2);
   const seconds = ('0' + date.getSeconds()).slice(-2);
-
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
 function renderDuration(submit_time, finishTime, t) {
   if (!submit_time || !finishTime) return 'N/A';
-
   const start = new Date(submit_time);
   const finish = new Date(finishTime);
   const durationMs = finish - start;
   const durationSec = (durationMs / 1000).toFixed(1);
   const color = durationSec > 60 ? 'red' : 'green';
-
   return (
-    <Tag color={color} shape='circle' prefixIcon={<Clock size={14} />}>
+    <ColorTag color={color} prefixIcon={<Clock size={12} />}>
       {durationSec} {t('秒')}
-    </Tag>
+    </ColorTag>
   );
 }
 
@@ -328,39 +393,30 @@ export const getMjLogsColumns = ({
       key: COLUMN_KEYS.SUBMIT_TIME,
       title: t('提交时间'),
       dataIndex: 'submit_time',
-      render: (text, record, index) => {
-        return <div>{renderTimestamp(text / 1000)}</div>;
-      },
+      render: (text) => <div>{renderTimestamp(text / 1000)}</div>,
     },
     {
       key: COLUMN_KEYS.DURATION,
       title: t('花费时间'),
       dataIndex: 'finish_time',
-      render: (finish, record) => {
-        return renderDuration(record.submit_time, finish, t);
-      },
+      render: (finish, record) => renderDuration(record.submit_time, finish, t),
     },
     {
       key: COLUMN_KEYS.CHANNEL,
       title: t('渠道'),
       dataIndex: 'channel_id',
-      render: (text, record, index) => {
-        return isAdminUser ? (
-          <div>
-            <Tag
-              color={colors[parseInt(text) % colors.length]}
-              shape='circle'
-              prefixIcon={<Hash size={14} />}
-              onClick={() => {
-                copyText(text);
-              }}
-            >
-              {' '}
-              {text}{' '}
-            </Tag>
-          </div>
-        ) : (
-          <></>
+      render: (text) => {
+        if (!isAdminUser) return null;
+        const tone =
+          TAG_PALETTE_KEYS[parseInt(text) % TAG_PALETTE_KEYS.length] || 'grey';
+        return (
+          <ColorTag
+            color={tone}
+            prefixIcon={<Hash size={12} />}
+            onClick={() => copyText(text)}
+          >
+            {text}
+          </ColorTag>
         );
       },
     },
@@ -368,73 +424,45 @@ export const getMjLogsColumns = ({
       key: COLUMN_KEYS.TYPE,
       title: t('类型'),
       dataIndex: 'action',
-      render: (text, record, index) => {
-        return <div>{renderType(text, t)}</div>;
-      },
+      render: (text) => <div>{renderType(text, t)}</div>,
     },
     {
       key: COLUMN_KEYS.TASK_ID,
       title: t('任务ID'),
       dataIndex: 'mj_id',
-      render: (text, record, index) => {
-        return <div>{text}</div>;
-      },
+      render: (text) => <div>{text}</div>,
     },
     {
       key: COLUMN_KEYS.SUBMIT_RESULT,
       title: t('提交结果'),
       dataIndex: 'code',
-      render: (text, record, index) => {
-        return isAdminUser ? <div>{renderCode(text, t)}</div> : <></>;
-      },
+      render: (text) => (isAdminUser ? <div>{renderCode(text, t)}</div> : null),
     },
     {
       key: COLUMN_KEYS.TASK_STATUS,
       title: t('任务状态'),
       dataIndex: 'status',
-      render: (text, record, index) => {
-        return <div>{renderStatus(text, t)}</div>;
-      },
+      render: (text) => <div>{renderStatus(text, t)}</div>,
     },
     {
       key: COLUMN_KEYS.PROGRESS,
       title: t('进度'),
       dataIndex: 'progress',
-      render: (text, record, index) => {
-        return (
-          <div>
-            {
-              <Progress
-                stroke={
-                  record.status === 'FAILURE'
-                    ? 'var(--semi-color-warning)'
-                    : null
-                }
-                percent={text ? parseInt(text.replace('%', '')) : 0}
-                showInfo={true}
-                aria-label='drawing progress'
-                style={{ minWidth: '160px' }}
-              />
-            }
-          </div>
-        );
-      },
+      render: (text, record) => (
+        <ProgressBar
+          percent={text ? parseInt(text.replace('%', '')) : 0}
+          errored={record.status === 'FAILURE'}
+        />
+      ),
     },
     {
       key: COLUMN_KEYS.IMAGE,
       title: t('结果图片'),
       dataIndex: 'image_url',
-      render: (text, record, index) => {
-        if (!text) {
-          return t('无');
-        }
+      render: (text) => {
+        if (!text) return t('无');
         return (
-          <Button
-            size='small'
-            onClick={() => {
-              openImageModal(text);
-            }}
-          >
+          <Button size='sm' variant='flat' onPress={() => openImageModal(text)}>
             {t('查看图片')}
           </Button>
         );
@@ -444,21 +472,12 @@ export const getMjLogsColumns = ({
       key: COLUMN_KEYS.PROMPT,
       title: 'Prompt',
       dataIndex: 'prompt',
-      render: (text, record, index) => {
-        if (!text) {
-          return t('无');
-        }
-
+      render: (text) => {
+        if (!text) return t('无');
         return (
-          <Typography.Text
-            ellipsis={{ showTooltip: true }}
-            style={{ width: 100 }}
-            onClick={() => {
-              openContentModal(text);
-            }}
-          >
+          <EllipsisText width={100} onClick={() => openContentModal(text)}>
             {text}
-          </Typography.Text>
+          </EllipsisText>
         );
       },
     },
@@ -466,21 +485,12 @@ export const getMjLogsColumns = ({
       key: COLUMN_KEYS.PROMPT_EN,
       title: 'PromptEn',
       dataIndex: 'prompt_en',
-      render: (text, record, index) => {
-        if (!text) {
-          return t('无');
-        }
-
+      render: (text) => {
+        if (!text) return t('无');
         return (
-          <Typography.Text
-            ellipsis={{ showTooltip: true }}
-            style={{ width: 100 }}
-            onClick={() => {
-              openContentModal(text);
-            }}
-          >
+          <EllipsisText width={100} onClick={() => openContentModal(text)}>
             {text}
-          </Typography.Text>
+          </EllipsisText>
         );
       },
     },
@@ -489,21 +499,12 @@ export const getMjLogsColumns = ({
       title: t('失败原因'),
       dataIndex: 'fail_reason',
       fixed: 'right',
-      render: (text, record, index) => {
-        if (!text) {
-          return t('无');
-        }
-
+      render: (text) => {
+        if (!text) return t('无');
         return (
-          <Typography.Text
-            ellipsis={{ showTooltip: true }}
-            style={{ width: 100 }}
-            onClick={() => {
-              openContentModal(text);
-            }}
-          >
+          <EllipsisText width={100} onClick={() => openContentModal(text)}>
             {text}
-          </Typography.Text>
+          </EllipsisText>
         );
       },
     },

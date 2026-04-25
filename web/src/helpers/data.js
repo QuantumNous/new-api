@@ -21,7 +21,11 @@ export function setStatusData(data) {
   localStorage.setItem('status', JSON.stringify(data));
   localStorage.setItem('system_name', data.system_name);
   localStorage.setItem('logo', data.logo);
-  localStorage.setItem('footer_html', data.footer_html);
+  if (data.footer_html) {
+    localStorage.setItem('footer_html', data.footer_html);
+  } else {
+    localStorage.removeItem('footer_html');
+  }
   localStorage.setItem('quota_per_unit', data.quota_per_unit);
   // 兼容：保留旧字段，同时写入新的额度展示类型
   localStorage.setItem('display_in_currency', data.display_in_currency);

@@ -18,32 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  Modal,
-  Form,
-  Input,
-  Select,
-  InputNumber,
-  Switch,
-  Collapse,
-  Card,
-  Divider,
-  Button,
-  Typography,
-  Space,
-  Spin,
-  Tag,
-  Row,
-  Col,
-  Tooltip,
-  Radio,
-} from '@douyinfe/semi-ui';
+import { Input, Select, Switch, Card, Button, Tooltip } from '@heroui/react';
+import { Modal, Form, InputNumber, Collapse, Divider, Typography, Space, Spin, Tag, Row, Col, Radio } from '@/components/common/ui/HeroCompat';
 import {
   IconPlus,
   IconMinus,
   IconHelpCircle,
   IconCopy,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import { API } from '../../../../helpers';
 import { showError, showSuccess, copy } from '../../../../helpers';
 
@@ -999,7 +981,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       <Option key={hardware.id} value={hardware.id}>
                         <div className='flex flex-col gap-1'>
                           <Text strong>{displayName}</Text>
-                          <div className='flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]'>
+                          <div className='flex items-center gap-2 text-xs text-[var(--app-muted)]'>
                             <span>
                               {t('最大GPU数量')}: {hardware.max_gpus}
                             </span>
@@ -1416,8 +1398,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   <div
                     className='flex flex-col gap-1 rounded-md px-4 py-3'
                     style={{
-                      border: '1px solid var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-fill-0)',
+                      border: '1px solid var(--app-border)',
+                      backgroundColor: 'var(--app-surface-muted)',
                     }}
                   >
                     <Text size='small' type='tertiary'>
@@ -1427,7 +1409,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       style={{
                         fontSize: 24,
                         fontWeight: 600,
-                        color: 'var(--semi-color-text-0)',
+                        color: 'var(--app-foreground)',
                       }}
                     >
                       {typeof priceEstimation.estimated_cost === 'number'
@@ -1438,8 +1420,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   <div
                     className='flex flex-col gap-1 rounded-md px-4 py-3'
                     style={{
-                      border: '1px solid var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-fill-0)',
+                      border: '1px solid var(--app-border)',
+                      backgroundColor: 'var(--app-surface-muted)',
                     }}
                   >
                     <Text size='small' type='tertiary'>
@@ -1455,8 +1437,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   <div
                     className='flex flex-col gap-1 rounded-md px-4 py-3'
                     style={{
-                      border: '1px solid var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-fill-0)',
+                      border: '1px solid var(--app-border)',
+                      backgroundColor: 'var(--app-surface-muted)',
                     }}
                   >
                     <Text size='small' type='tertiary'>
@@ -1477,8 +1459,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       key={item.key}
                       className='flex items-center justify-between gap-3 rounded-md px-3 py-2'
                       style={{
-                        border: '1px solid var(--semi-color-border)',
-                        backgroundColor: 'var(--semi-color-fill-0)',
+                        border: '1px solid var(--app-border)',
+                        backgroundColor: 'var(--app-surface-muted)',
                       }}
                     >
                       <Text size='small' type='tertiary'>

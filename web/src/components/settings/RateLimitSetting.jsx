@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin } from '@douyinfe/semi-ui';
+import { Card, Spinner } from '@heroui/react';
 
 import { API, showError, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
@@ -75,14 +75,17 @@ const RateLimitSetting = () => {
   }, []);
 
   return (
-    <>
-      <Spin spinning={loading} size='large'>
-        {/* AI请求速率限制 */}
-        <Card style={{ marginTop: '10px' }}>
-          <RequestRateLimit options={inputs} refresh={onRefresh} />
-        </Card>
-      </Spin>
-    </>
+    <div className='relative'>
+      {loading ? (
+        <div className='absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-sm'>
+          <Spinner size='lg' />
+        </div>
+      ) : null}
+      {/* AI request rate limit */}
+      <Card className='mt-2.5'>
+        <RequestRateLimit options={inputs} refresh={onRefresh} />
+      </Card>
+    </div>
   );
 };
 

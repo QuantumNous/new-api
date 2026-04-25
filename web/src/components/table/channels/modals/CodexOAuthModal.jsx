@@ -20,16 +20,22 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Modal,
   Button,
-  Space,
-  Typography,
   Input,
-  Banner,
-} from '@douyinfe/semi-ui';
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { Info } from 'lucide-react';
 import { API, copy, showError, showSuccess } from '../../../../helpers';
 
-const { Text } = Typography;
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
 
 const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
   const { t } = useTranslation();
@@ -46,11 +52,13 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
         { skipErrorHandler: true },
       );
       if (!res?.data?.success) {
+        // eslint-disable-next-line no-console
         console.error('Codex OAuth start failed:', res?.data?.message);
         throw new Error(t('启动授权失败'));
       }
       const url = res?.data?.data?.authorize_url || '';
       if (!url) {
+        // eslint-disable-next-line no-console
         console.error(
           'Codex OAuth start response missing authorize_url:',
           res?.data,
@@ -72,7 +80,6 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
       showError(t('请先粘贴回调 URL'));
       return;
     }
-
     setLoading(true);
     try {
       const res = await API.post(
@@ -81,19 +88,19 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
         { skipErrorHandler: true },
       );
       if (!res?.data?.success) {
+        // eslint-disable-next-line no-console
         console.error('Codex OAuth complete failed:', res?.data?.message);
         throw new Error(t('授权失败'));
       }
-
       const key = res?.data?.data?.key || '';
       if (!key) {
+        // eslint-disable-next-line no-console
         console.error('Codex OAuth complete response missing key:', res?.data);
         throw new Error(t('响应缺少凭据'));
       }
-
-      onSuccess && onSuccess(key);
+      onSuccess?.(key);
       showSuccess(t('已生成授权凭据'));
-      onCancel && onCancel();
+      onCancel?.();
     } catch (error) {
       showError(error?.message || t('授权失败'));
     } finally {
@@ -107,64 +114,74 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
     setInput('');
   }, [visible]);
 
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
+
   return (
-    <Modal
-      title={t('Codex 授权')}
-      visible={visible}
-      onCancel={onCancel}
-      maskClosable={false}
-      closeOnEsc
-      width={720}
-      footer={
-        <Space>
-          <Button theme='borderless' onClick={onCancel} disabled={loading}>
-            {t('取消')}
-          </Button>
-          <Button
-            theme='solid'
-            type='primary'
-            onClick={completeOAuth}
-            loading={loading}
-          >
-            {t('生成并填入')}
-          </Button>
-        </Space>
-      }
-    >
-      <Space vertical spacing='tight' style={{ width: '100%' }}>
-        <Banner
-          type='info'
-          description={t(
-            '1) 点击「打开授权页面」完成登录；2) 浏览器会跳转到 localhost（页面打不开也没关系）；3) 复制地址栏完整 URL 粘贴到下方；4) 点击「生成并填入」。',
-          )}
-        />
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='lg' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {t('Codex 授权')}
+            </ModalHeader>
+            <ModalBody className='space-y-4 px-6 py-5'>
+              <div className='flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200'>
+                <Info size={16} className='mt-0.5 shrink-0' />
+                <div>
+                  {t(
+                    '1) 点击「打开授权页面」完成登录；2) 浏览器会跳转到 localhost（页面打不开也没关系）；3) 复制地址栏完整 URL 粘贴到下方；4) 点击「生成并填入」。',
+                  )}
+                </div>
+              </div>
 
-        <Space wrap>
-          <Button type='primary' onClick={startOAuth} loading={loading}>
-            {t('打开授权页面')}
-          </Button>
-          <Button
-            theme='outline'
-            disabled={!authorizeUrl || loading}
-            onClick={() => copy(authorizeUrl)}
-          >
-            {t('复制授权链接')}
-          </Button>
-        </Space>
+              <div className='flex flex-wrap gap-2'>
+                <Button color='primary' onPress={startOAuth} isPending={loading}>
+                  {t('打开授权页面')}
+                </Button>
+                <Button
+                  variant='bordered'
+                  isDisabled={!authorizeUrl || loading}
+                  onPress={() => copy(authorizeUrl)}
+                >
+                  {t('复制授权链接')}
+                </Button>
+              </div>
 
-        <Input
-          value={input}
-          onChange={(value) => setInput(value)}
-          placeholder={t('请粘贴完整回调 URL（包含 code 与 state）')}
-          showClear
-        />
+              <Input
+                type='text'
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder={t('请粘贴完整回调 URL（包含 code 与 state）')}
+                aria-label={t('回调 URL')}
+                className={inputClass}
+              />
 
-        <Text type='tertiary' size='small'>
-          {t(
-            '说明：生成结果是可直接粘贴到渠道密钥里的 JSON（包含 access_token / refresh_token / account_id）。',
-          )}
-        </Text>
-      </Space>
+              <div className='text-xs leading-snug text-muted'>
+                {t(
+                  '说明：生成结果是可直接粘贴到渠道密钥里的 JSON（包含 access_token / refresh_token / account_id）。',
+                )}
+              </div>
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button variant='light' onPress={onCancel} isDisabled={loading}>
+                {t('取消')}
+              </Button>
+              <Button
+                color='primary'
+                onPress={completeOAuth}
+                isPending={loading}
+              >
+                {t('生成并填入')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

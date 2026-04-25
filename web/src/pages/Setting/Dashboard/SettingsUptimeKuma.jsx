@@ -17,35 +17,50 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Button,
-  Space,
-  Table,
-  Form,
-  Typography,
-  Empty,
-  Divider,
+  Input,
   Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
   Switch,
-} from '@douyinfe/semi-ui';
-import {
-  IllustrationNoResult,
-  IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
-import { Plus, Edit, Trash2, Save, Activity } from 'lucide-react';
+  useOverlayState,
+} from '@heroui/react';
+import { Activity, Edit, Inbox, Plus, Save, Trash2 } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 
-const { Text } = Typography;
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+
+function HeaderCheckbox({ checked, indeterminate, onChange, ariaLabel }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
+  }, [indeterminate, checked]);
+  return (
+    <input
+      ref={ref}
+      type='checkbox'
+      checked={!!checked}
+      onChange={(event) => onChange(event.target.checked)}
+      aria-label={ariaLabel}
+      className='h-4 w-4 accent-primary'
+    />
+  );
+}
 
 const SettingsUptimeKuma = ({ options, refresh }) => {
   const { t } = useTranslation();
 
   const [uptimeGroupsList, setUptimeGroupsList] = useState([]);
   const [showUptimeModal, setShowUptimeModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingGroup, setDeletingGroup] = useState(null);
   const [editingGroup, setEditingGroup] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -55,98 +70,21 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
     url: '',
     slug: '',
   });
+  const [formErrors, setFormErrors] = useState({});
+
+  const [pendingDelete, setPendingDelete] = useState(null);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [panelEnabled, setPanelEnabled] = useState(true);
 
-  const columns = [
-    {
-      title: t('分类名称'),
-      dataIndex: 'categoryName',
-      key: 'categoryName',
-      render: (text) => (
-        <div
-          style={{
-            fontWeight: 'bold',
-            color: 'var(--semi-color-text-0)',
-          }}
-        >
-          {text}
-        </div>
-      ),
-    },
-    {
-      title: t('Uptime Kuma地址'),
-      dataIndex: 'url',
-      key: 'url',
-      render: (text) => (
-        <div
-          style={{
-            maxWidth: '300px',
-            wordBreak: 'break-all',
-            fontFamily: 'monospace',
-            color: 'var(--semi-color-primary)',
-          }}
-        >
-          {text}
-        </div>
-      ),
-    },
-    {
-      title: t('状态页面Slug'),
-      dataIndex: 'slug',
-      key: 'slug',
-      render: (text) => (
-        <div
-          style={{
-            fontFamily: 'monospace',
-            color: 'var(--semi-color-text-1)',
-          }}
-        >
-          {text}
-        </div>
-      ),
-    },
-    {
-      title: t('操作'),
-      key: 'action',
-      fixed: 'right',
-      width: 150,
-      render: (text, record) => (
-        <Space>
-          <Button
-            icon={<Edit size={14} />}
-            theme='light'
-            type='tertiary'
-            size='small'
-            onClick={() => handleEditGroup(record)}
-          >
-            {t('编辑')}
-          </Button>
-          <Button
-            icon={<Trash2 size={14} />}
-            type='danger'
-            theme='light'
-            size='small'
-            onClick={() => handleDeleteGroup(record)}
-          >
-            {t('删除')}
-          </Button>
-        </Space>
-      ),
-    },
-  ];
-
   const updateOption = async (key, value) => {
-    const res = await API.put('/api/option/', {
-      key,
-      value,
-    });
-    const { success, message } = res.data;
+    const res = await API.put('/api/option/', { key, value });
+    const { success, message } = res.data || {};
     if (success) {
-      showSuccess('Uptime Kuma配置已更新');
-      if (refresh) refresh();
+      showSuccess(t('Uptime Kuma配置已更新'));
+      refresh?.();
     } else {
       showError(message);
     }
@@ -159,8 +97,9 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       await updateOption('console_setting.uptime_kuma_groups', groupsJson);
       setHasChanges(false);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Uptime Kuma配置更新失败', error);
-      showError('Uptime Kuma配置更新失败');
+      showError(t('Uptime Kuma配置更新失败'));
     } finally {
       setLoading(false);
     }
@@ -168,11 +107,8 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
 
   const handleAddGroup = () => {
     setEditingGroup(null);
-    setUptimeForm({
-      categoryName: '',
-      url: '',
-      slug: '',
-    });
+    setUptimeForm({ categoryName: '', url: '', slug: '' });
+    setFormErrors({});
     setShowUptimeModal(true);
   };
 
@@ -183,48 +119,32 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       url: group.url,
       slug: group.slug,
     });
+    setFormErrors({});
     setShowUptimeModal(true);
   };
 
-  const handleDeleteGroup = (group) => {
-    setDeletingGroup(group);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeleteGroup = () => {
-    if (deletingGroup) {
-      const newList = uptimeGroupsList.filter(
-        (item) => item.id !== deletingGroup.id,
-      );
-      setUptimeGroupsList(newList);
-      setHasChanges(true);
-      showSuccess('分类已删除，请及时点击“保存设置”进行保存');
-    }
-    setShowDeleteModal(false);
-    setDeletingGroup(null);
-  };
-
   const handleSaveGroup = async () => {
-    if (!uptimeForm.categoryName || !uptimeForm.url || !uptimeForm.slug) {
-      showError('请填写完整的分类信息');
-      return;
+    const next = {};
+    if (!uptimeForm.categoryName?.trim()) next.categoryName = t('请输入分类名称');
+    if (!uptimeForm.url?.trim()) {
+      next.url = t('请输入Uptime Kuma地址');
+    } else {
+      try {
+        new URL(uptimeForm.url);
+      } catch (e) {
+        next.url = t('请输入有效的URL地址');
+      }
     }
-
-    try {
-      new URL(uptimeForm.url);
-    } catch (error) {
-      showError('请输入有效的URL地址');
-      return;
+    if (!uptimeForm.slug?.trim()) {
+      next.slug = t('请输入状态页面Slug');
+    } else if (!/^[a-zA-Z0-9_-]+$/.test(uptimeForm.slug)) {
+      next.slug = t('Slug只能包含字母、数字、下划线和连字符');
     }
-
-    if (!/^[a-zA-Z0-9_-]+$/.test(uptimeForm.slug)) {
-      showError('Slug只能包含字母、数字、下划线和连字符');
-      return;
-    }
+    setFormErrors(next);
+    if (Object.keys(next).length > 0) return;
 
     try {
       setModalLoading(true);
-
       let newList;
       if (editingGroup) {
         newList = uptimeGroupsList.map((item) =>
@@ -233,26 +153,29 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       } else {
         const newId =
           Math.max(...uptimeGroupsList.map((item) => item.id), 0) + 1;
-        const newGroup = {
-          id: newId,
-          ...uptimeForm,
-        };
-        newList = [...uptimeGroupsList, newGroup];
+        newList = [...uptimeGroupsList, { id: newId, ...uptimeForm }];
       }
-
       setUptimeGroupsList(newList);
       setHasChanges(true);
       setShowUptimeModal(false);
       showSuccess(
         editingGroup
-          ? '分类已更新，请及时点击“保存设置”进行保存'
-          : '分类已添加，请及时点击“保存设置”进行保存',
+          ? t('分类已更新，请及时点击"保存设置"进行保存')
+          : t('分类已添加，请及时点击"保存设置"进行保存'),
       );
     } catch (error) {
-      showError('操作失败: ' + error.message);
+      showError(t('操作失败') + ': ' + error.message);
     } finally {
       setModalLoading(false);
     }
+  };
+
+  const performDeleteGroup = (group) => {
+    if (!group) return;
+    const newList = uptimeGroupsList.filter((item) => item.id !== group.id);
+    setUptimeGroupsList(newList);
+    setHasChanges(true);
+    showSuccess(t('分类已删除，请及时点击"保存设置"进行保存'));
   };
 
   const parseUptimeGroups = (groupsStr) => {
@@ -260,16 +183,17 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       setUptimeGroupsList([]);
       return;
     }
-
     try {
       const parsed = JSON.parse(groupsStr);
       const list = Array.isArray(parsed) ? parsed : [];
-      const listWithIds = list.map((item, index) => ({
-        ...item,
-        id: item.id || index + 1,
-      }));
-      setUptimeGroupsList(listWithIds);
+      setUptimeGroupsList(
+        list.map((item, index) => ({
+          ...item,
+          id: item.id || index + 1,
+        })),
+      );
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('解析Uptime Kuma配置失败:', error);
       setUptimeGroupsList([]);
     }
@@ -277,9 +201,8 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
 
   useEffect(() => {
     const groupsStr = options['console_setting.uptime_kuma_groups'];
-    if (groupsStr !== undefined) {
-      parseUptimeGroups(groupsStr);
-    }
+    if (groupsStr !== undefined) parseUptimeGroups(groupsStr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options['console_setting.uptime_kuma_groups']]);
 
   useEffect(() => {
@@ -289,7 +212,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
         ? true
         : enabledStr === 'true' || enabledStr === true,
     );
-  }, [options['console_setting.uptime_kuma_enabled']]);
+  }, [options]);
 
   const handleToggleEnabled = async (checked) => {
     const newValue = checked ? 'true' : 'false';
@@ -298,12 +221,12 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
         key: 'console_setting.uptime_kuma_enabled',
         value: newValue,
       });
-      if (res.data.success) {
+      if (res.data?.success) {
         setPanelEnabled(checked);
         showSuccess(t('设置已保存'));
         refresh?.();
       } else {
-        showError(res.data.message);
+        showError(res.data?.message);
       }
     } catch (err) {
       showError(err.message);
@@ -312,10 +235,9 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
 
   const handleBatchDelete = () => {
     if (selectedRowKeys.length === 0) {
-      showError('请先选择要删除的分类');
+      showError(t('请先选择要删除的分类'));
       return;
     }
-
     const newList = uptimeGroupsList.filter(
       (item) => !selectedRowKeys.includes(item.id),
     );
@@ -323,199 +245,364 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
     setSelectedRowKeys([]);
     setHasChanges(true);
     showSuccess(
-      `已删除 ${selectedRowKeys.length} 个分类，请及时点击“保存设置”进行保存`,
+      t('已删除 {{count}} 个分类，请及时点击"保存设置"进行保存', {
+        count: selectedRowKeys.length,
+      }),
     );
   };
 
-  const renderHeader = () => (
-    <div className='flex flex-col w-full'>
-      <div className='mb-2'>
-        <div className='flex items-center text-blue-500'>
-          <Activity size={16} className='mr-2' />
-          <Text>
-            {t(
-              'Uptime Kuma监控分类管理，可以配置多个监控分类用于服务状态展示（最多20个）',
-            )}
-          </Text>
-        </div>
+  const totalPages = Math.max(1, Math.ceil(uptimeGroupsList.length / pageSize));
+  const startIdx = (currentPage - 1) * pageSize;
+  const pagedData = uptimeGroupsList.slice(startIdx, startIdx + pageSize);
+
+  const visiblePageKeys = pagedData.map((row) => row.id);
+  const allPageSelected =
+    visiblePageKeys.length > 0 &&
+    visiblePageKeys.every((key) => selectedRowKeys.includes(key));
+  const somePageSelected =
+    !allPageSelected &&
+    visiblePageKeys.some((key) => selectedRowKeys.includes(key));
+
+  const togglePageSelection = (checked) => {
+    const set = new Set(selectedRowKeys);
+    if (checked) visiblePageKeys.forEach((key) => set.add(key));
+    else visiblePageKeys.forEach((key) => set.delete(key));
+    setSelectedRowKeys(Array.from(set));
+  };
+  const toggleRowSelection = (key, checked) => {
+    const set = new Set(selectedRowKeys);
+    if (checked) set.add(key);
+    else set.delete(key);
+    setSelectedRowKeys(Array.from(set));
+  };
+
+  const modalState = useOverlayState({
+    isOpen: showUptimeModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowUptimeModal(false);
+    },
+  });
+
+  return (
+    <div className='space-y-4'>
+      <div className='flex items-center text-sky-600'>
+        <Activity size={16} className='mr-2' />
+        <span className='text-sm'>
+          {t(
+            'Uptime Kuma监控分类管理，可以配置多个监控分类用于服务状态展示（最多20个）',
+          )}
+        </span>
       </div>
 
-      <Divider margin='12px' />
+      <div className='h-px bg-[color:var(--app-border)]' />
 
-      <div className='flex flex-col md:flex-row justify-between items-center gap-4 w-full'>
-        <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
+      <div className='flex w-full flex-col items-center justify-between gap-4 md:flex-row'>
+        <div className='order-2 flex w-full gap-2 md:order-1 md:w-auto'>
           <Button
-            theme='light'
-            type='primary'
-            icon={<Plus size={14} />}
+            color='primary'
+            variant='flat'
+            startContent={<Plus size={14} />}
+            onPress={handleAddGroup}
             className='w-full md:w-auto'
-            onClick={handleAddGroup}
           >
             {t('添加分类')}
           </Button>
           <Button
-            icon={<Trash2 size={14} />}
-            type='danger'
-            theme='light'
-            onClick={handleBatchDelete}
-            disabled={selectedRowKeys.length === 0}
+            color='danger'
+            variant='flat'
+            startContent={<Trash2 size={14} />}
+            isDisabled={selectedRowKeys.length === 0}
+            onPress={handleBatchDelete}
             className='w-full md:w-auto'
           >
             {t('批量删除')}{' '}
-            {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button
-            icon={<Save size={14} />}
-            onClick={submitUptimeGroups}
-            loading={loading}
-            disabled={!hasChanges}
-            type='secondary'
+            variant='flat'
+            startContent={<Save size={14} />}
+            onPress={submitUptimeGroups}
+            isPending={loading}
+            isDisabled={!hasChanges}
             className='w-full md:w-auto'
           >
             {t('保存设置')}
           </Button>
         </div>
 
-        {/* 启用开关 */}
-        <div className='order-1 md:order-2 flex items-center gap-2'>
-          <Switch checked={panelEnabled} onChange={handleToggleEnabled} />
-          <Text>{panelEnabled ? t('已启用') : t('已禁用')}</Text>
+        <label className='order-1 inline-flex items-center gap-2 md:order-2'>
+          <Switch
+            isSelected={!!panelEnabled}
+            onChange={handleToggleEnabled}
+            size='sm'
+            aria-label='enabled'
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
+          <span className='text-sm text-foreground'>
+            {panelEnabled ? t('已启用') : t('已禁用')}
+          </span>
+        </label>
+      </div>
+
+      <div className='overflow-x-auto rounded-xl border border-[color:var(--app-border)]'>
+        <table className='w-full text-sm'>
+          <thead className='bg-[color:var(--app-background)] text-xs uppercase text-muted'>
+            <tr>
+              <th className='w-10 px-3 py-2 text-left font-semibold'>
+                <HeaderCheckbox
+                  checked={allPageSelected}
+                  indeterminate={somePageSelected}
+                  onChange={togglePageSelection}
+                  ariaLabel={t('选择当前页')}
+                />
+              </th>
+              <th className='px-3 py-2 text-left font-semibold'>
+                {t('分类名称')}
+              </th>
+              <th className='px-3 py-2 text-left font-semibold'>
+                {t('Uptime Kuma地址')}
+              </th>
+              <th className='px-3 py-2 text-left font-semibold'>
+                {t('状态页面Slug')}
+              </th>
+              <th className='w-40 px-3 py-2 text-right font-semibold'>
+                {t('操作')}
+              </th>
+            </tr>
+          </thead>
+          <tbody className='divide-y divide-[color:var(--app-border)]'>
+            {pagedData.length === 0 ? (
+              <tr>
+                <td colSpan={5} className='py-12 text-center text-sm text-muted'>
+                  <div className='flex flex-col items-center gap-3'>
+                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                      <Inbox size={28} />
+                    </div>
+                    <div>{t('暂无监控数据')}</div>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              pagedData.map((record) => {
+                const checked = selectedRowKeys.includes(record.id);
+                return (
+                  <tr key={record.id}>
+                    <td className='px-3 py-2'>
+                      <input
+                        type='checkbox'
+                        checked={checked}
+                        onChange={(event) =>
+                          toggleRowSelection(record.id, event.target.checked)
+                        }
+                        className='h-4 w-4 accent-primary'
+                      />
+                    </td>
+                    <td className='px-3 py-2 font-semibold text-foreground'>
+                      {record.categoryName}
+                    </td>
+                    <td className='max-w-[300px] break-all px-3 py-2 font-mono text-primary'>
+                      {record.url}
+                    </td>
+                    <td className='px-3 py-2 font-mono text-muted'>
+                      {record.slug}
+                    </td>
+                    <td className='px-3 py-2 text-right'>
+                      <div className='inline-flex items-center gap-1.5'>
+                        <Button
+                          variant='light'
+                          size='sm'
+                          startContent={<Edit size={14} />}
+                          onPress={() => handleEditGroup(record)}
+                        >
+                          {t('编辑')}
+                        </Button>
+                        <Button
+                          color='danger'
+                          variant='flat'
+                          size='sm'
+                          startContent={<Trash2 size={14} />}
+                          onPress={() => setPendingDelete(record)}
+                        >
+                          {t('删除')}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted'>
+        <div className='flex items-center gap-2'>
+          <span>{t('每页')}</span>
+          <select
+            value={String(pageSize)}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value));
+              setCurrentPage(1);
+            }}
+            aria-label={t('每页数量')}
+            className='h-7 rounded-md border border-[color:var(--app-border)] bg-background px-2 text-xs outline-none focus:border-primary'
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <span>{t('共 {{total}} 条', { total: uptimeGroupsList.length })}</span>
+        </div>
+        <div className='flex items-center gap-1'>
+          <Button
+            size='sm'
+            variant='light'
+            isDisabled={currentPage <= 1}
+            onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            {t('上一页')}
+          </Button>
+          <span>
+            {currentPage} / {totalPages}
+          </span>
+          <Button
+            size='sm'
+            variant='light'
+            isDisabled={currentPage >= totalPages}
+            onPress={() =>
+              setCurrentPage((p) => Math.min(totalPages, p + 1))
+            }
+          >
+            {t('下一页')}
+          </Button>
         </div>
       </div>
-    </div>
-  );
 
-  const getCurrentPageData = () => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return uptimeGroupsList.slice(startIndex, endIndex);
-  };
+      <Modal state={modalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size='md' placement='center'>
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                {editingGroup ? t('编辑分类') : t('添加分类')}
+              </ModalHeader>
+              <ModalBody className='space-y-4 px-6 py-5'>
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('分类名称')}
+                    <span className='ml-1 text-red-500'>*</span>
+                  </div>
+                  <Input
+                    type='text'
+                    value={uptimeForm.categoryName}
+                    onChange={(event) =>
+                      setUptimeForm((prev) => ({
+                        ...prev,
+                        categoryName: event.target.value,
+                      }))
+                    }
+                    placeholder={t('请输入分类名称，如：OpenAI、Claude等')}
+                    maxLength={50}
+                    aria-label={t('分类名称')}
+                    className={inputClass}
+                  />
+                  {formErrors.categoryName ? (
+                    <div className='text-xs text-red-600'>
+                      {formErrors.categoryName}
+                    </div>
+                  ) : null}
+                </div>
 
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (selectedRowKeys, selectedRows) => {
-      setSelectedRowKeys(selectedRowKeys);
-    },
-    onSelect: (record, selected, selectedRows) => {
-      console.log(`选择行: ${selected}`, record);
-    },
-    onSelectAll: (selected, selectedRows) => {
-      console.log(`全选: ${selected}`, selectedRows);
-    },
-    getCheckboxProps: (record) => ({
-      disabled: false,
-      name: record.id,
-    }),
-  };
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('Uptime Kuma地址')}
+                    <span className='ml-1 text-red-500'>*</span>
+                  </div>
+                  <Input
+                    type='text'
+                    value={uptimeForm.url}
+                    onChange={(event) =>
+                      setUptimeForm((prev) => ({
+                        ...prev,
+                        url: event.target.value,
+                      }))
+                    }
+                    placeholder={t(
+                      '请输入Uptime Kuma服务地址，如：https://status.example.com',
+                    )}
+                    maxLength={500}
+                    aria-label={t('Uptime Kuma地址')}
+                    className={inputClass}
+                  />
+                  {formErrors.url ? (
+                    <div className='text-xs text-red-600'>{formErrors.url}</div>
+                  ) : null}
+                </div>
 
-  return (
-    <>
-      <Form.Section text={renderHeader()}>
-        <Table
-          columns={columns}
-          dataSource={getCurrentPageData()}
-          rowSelection={rowSelection}
-          rowKey='id'
-          scroll={{ x: 'max-content' }}
-          pagination={{
-            currentPage: currentPage,
-            pageSize: pageSize,
-            total: uptimeGroupsList.length,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            pageSizeOptions: ['5', '10', '20', '50'],
-            onChange: (page, size) => {
-              setCurrentPage(page);
-              setPageSize(size);
-            },
-            onShowSizeChange: (current, size) => {
-              setCurrentPage(1);
-              setPageSize(size);
-            },
-          }}
-          size='middle'
-          loading={loading}
-          empty={
-            <Empty
-              image={
-                <IllustrationNoResult style={{ width: 150, height: 150 }} />
-              }
-              darkModeImage={
-                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-              }
-              description={t('暂无监控数据')}
-              style={{ padding: 30 }}
-            />
-          }
-          className='overflow-hidden'
-        />
-      </Form.Section>
-
-      <Modal
-        title={editingGroup ? t('编辑分类') : t('添加分类')}
-        visible={showUptimeModal}
-        onOk={handleSaveGroup}
-        onCancel={() => setShowUptimeModal(false)}
-        okText={t('保存')}
-        cancelText={t('取消')}
-        confirmLoading={modalLoading}
-        width={600}
-      >
-        <Form
-          layout='vertical'
-          initValues={uptimeForm}
-          key={editingGroup ? editingGroup.id : 'new'}
-        >
-          <Form.Input
-            field='categoryName'
-            label={t('分类名称')}
-            placeholder={t('请输入分类名称，如：OpenAI、Claude等')}
-            maxLength={50}
-            rules={[{ required: true, message: t('请输入分类名称') }]}
-            onChange={(value) =>
-              setUptimeForm({ ...uptimeForm, categoryName: value })
-            }
-          />
-          <Form.Input
-            field='url'
-            label={t('Uptime Kuma地址')}
-            placeholder={t(
-              '请输入Uptime Kuma服务地址，如：https://status.example.com',
-            )}
-            maxLength={500}
-            rules={[{ required: true, message: t('请输入Uptime Kuma地址') }]}
-            onChange={(value) => setUptimeForm({ ...uptimeForm, url: value })}
-          />
-          <Form.Input
-            field='slug'
-            label={t('状态页面Slug')}
-            placeholder={t('请输入状态页面的Slug，如：my-status')}
-            maxLength={100}
-            rules={[{ required: true, message: t('请输入状态页面Slug') }]}
-            onChange={(value) => setUptimeForm({ ...uptimeForm, slug: value })}
-          />
-        </Form>
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('状态页面Slug')}
+                    <span className='ml-1 text-red-500'>*</span>
+                  </div>
+                  <Input
+                    type='text'
+                    value={uptimeForm.slug}
+                    onChange={(event) =>
+                      setUptimeForm((prev) => ({
+                        ...prev,
+                        slug: event.target.value,
+                      }))
+                    }
+                    placeholder={t('请输入状态页面的Slug，如：my-status')}
+                    maxLength={100}
+                    aria-label={t('状态页面Slug')}
+                    className={inputClass}
+                  />
+                  {formErrors.slug ? (
+                    <div className='text-xs text-red-600'>{formErrors.slug}</div>
+                  ) : null}
+                </div>
+              </ModalBody>
+              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                <Button
+                  variant='light'
+                  onPress={() => setShowUptimeModal(false)}
+                >
+                  {t('取消')}
+                </Button>
+                <Button
+                  color='primary'
+                  onPress={handleSaveGroup}
+                  isPending={modalLoading}
+                >
+                  {t('保存')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
       </Modal>
 
-      <Modal
+      <ConfirmDialog
+        visible={!!pendingDelete}
         title={t('确认删除')}
-        visible={showDeleteModal}
-        onOk={confirmDeleteGroup}
-        onCancel={() => {
-          setShowDeleteModal(false);
-          setDeletingGroup(null);
-        }}
-        okText={t('确认删除')}
         cancelText={t('取消')}
-        type='warning'
-        okButtonProps={{
-          type: 'danger',
-          theme: 'solid',
+        confirmText={t('确认删除')}
+        danger
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const target = pendingDelete;
+          setPendingDelete(null);
+          performDeleteGroup(target);
         }}
       >
-        <Text>{t('确定要删除此分类吗？')}</Text>
-      </Modal>
-    </>
+        {t('确定要删除此分类吗？')}
+      </ConfirmDialog>
+    </div>
   );
 };
 

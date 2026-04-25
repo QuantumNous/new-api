@@ -17,16 +17,58 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import MissingModelsModal from './modals/MissingModelsModal';
 import PrefillGroupManagement from './modals/PrefillGroupManagement';
 import EditPrefillGroupModal from './modals/EditPrefillGroupModal';
-import { Button, Modal, Popover, RadioGroup, Radio } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 import { showSuccess, showError, copy } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import SelectionNotification from './components/SelectionNotification';
 import UpstreamConflictModal from './modals/UpstreamConflictModal';
 import SyncWizardModal from './modals/SyncWizardModal';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
+
+function HoverPopover({ children, content }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const timer = useRef(null);
+
+  const show = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    setOpen(true);
+  };
+  const hide = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOpen(false), 120);
+  };
+
+  useEffect(() => () => timer.current && clearTimeout(timer.current), []);
+
+  return (
+    <span
+      ref={ref}
+      className='relative inline-flex'
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocusCapture={show}
+      onBlurCapture={hide}
+    >
+      {children}
+      {open ? (
+        <div
+          role='tooltip'
+          className='absolute left-1/2 top-full z-30 mt-2 w-[320px] -translate-x-1/2 rounded-lg border border-[color:var(--app-border)] bg-white p-3 text-sm shadow-lg dark:bg-slate-900'
+        >
+          {content}
+        </div>
+      ) : null}
+    </span>
+  );
+}
 
 const ModelsActions = ({
   selectedKeys,
@@ -43,7 +85,6 @@ const ModelsActions = ({
   setCompactMode,
   t,
 }) => {
-  // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showMissingModal, setShowMissingModal] = useState(false);
   const [showGroupManagement, setShowGroupManagement] = useState(false);
@@ -55,7 +96,6 @@ const ModelsActions = ({
   const [syncLocale, setSyncLocale] = useState('zh');
 
   const handleSyncUpstream = async (locale) => {
-    // 先预览
     const data = await previewUpstreamDiff?.({ locale });
     const conflictItems = data?.conflicts || [];
     if (conflictItems.length > 0) {
@@ -63,27 +103,18 @@ const ModelsActions = ({
       setShowConflict(true);
       return;
     }
-    // 无冲突，直接同步缺失
     await syncUpstream?.({ locale });
   };
 
-  // Handle delete selected models with confirmation
-  const handleDeleteSelectedModels = () => {
-    setShowDeleteModal(true);
-  };
+  const handleDeleteSelectedModels = () => setShowDeleteModal(true);
 
-  // Handle delete confirmation
   const handleConfirmDelete = () => {
     batchDeleteModels();
     setShowDeleteModal(false);
   };
 
-  // Handle clear selection
-  const handleClearSelected = () => {
-    setSelectedKeys([]);
-  };
+  const handleClearSelected = () => setSelectedKeys([]);
 
-  // Handle add selected models to prefill group
   const handleCopyNames = async () => {
     const text = selectedKeys.map((m) => m.model_name).join(',');
     if (!text) return;
@@ -96,7 +127,6 @@ const ModelsActions = ({
   };
 
   const handleAddToPrefill = () => {
-    // Prepare initial data
     const items = selectedKeys.map((m) => m.model_name);
     setPrefillInit({ id: undefined, type: 'model', items });
     setShowAddPrefill(true);
@@ -104,36 +134,32 @@ const ModelsActions = ({
 
   return (
     <>
-      <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
+      <div className='order-2 flex w-full flex-wrap gap-2 md:order-1 md:w-auto'>
         <Button
-          type='primary'
+          color='primary'
+          size='sm'
           className='flex-1 md:flex-initial'
-          onClick={() => {
-            setEditingModel({
-              id: undefined,
-            });
+          onPress={() => {
+            setEditingModel({ id: undefined });
             setShowEdit(true);
           }}
-          size='small'
         >
           {t('添加模型')}
         </Button>
 
         <Button
-          type='secondary'
+          variant='flat'
+          size='sm'
           className='flex-1 md:flex-initial'
-          size='small'
-          onClick={() => setShowMissingModal(true)}
+          onPress={() => setShowMissingModal(true)}
         >
           {t('未配置模型')}
         </Button>
 
-        <Popover
-          position='bottom'
-          trigger='hover'
+        <HoverPopover
           content={
-            <div className='p-2 max-w-[360px]'>
-              <div className='text-[var(--semi-color-text-2)] text-sm'>
+            <div className='space-y-2'>
+              <div className='text-muted'>
                 {t(
                   '模型社区需要大家的共同维护，如发现数据有误或想贡献新的模型数据，请访问：',
                 )}
@@ -142,7 +168,7 @@ const ModelsActions = ({
                 href='https://github.com/basellm/llm-metadata'
                 target='_blank'
                 rel='noreferrer'
-                className='text-blue-600 underline'
+                className='text-primary underline break-all'
               >
                 https://github.com/basellm/llm-metadata
               </a>
@@ -150,24 +176,24 @@ const ModelsActions = ({
           }
         >
           <Button
-            type='secondary'
+            variant='flat'
+            size='sm'
             className='flex-1 md:flex-initial'
-            size='small'
-            loading={syncing || previewing}
-            onClick={() => {
+            isPending={syncing || previewing}
+            onPress={() => {
               setSyncLocale('zh');
               setShowSyncModal(true);
             }}
           >
             {t('同步')}
           </Button>
-        </Popover>
+        </HoverPopover>
 
         <Button
-          type='secondary'
+          variant='flat'
+          size='sm'
           className='flex-1 md:flex-initial'
-          size='small'
-          onClick={() => setShowGroupManagement(true)}
+          onPress={() => setShowGroupManagement(true)}
         >
           {t('预填组管理')}
         </Button>
@@ -188,19 +214,19 @@ const ModelsActions = ({
         onCopy={handleCopyNames}
       />
 
-      <Modal
-        title={t('批量删除模型')}
+      <ConfirmDialog
         visible={showDeleteModal}
+        title={t('批量删除模型')}
+        cancelText={t('取消')}
+        confirmText={t('删除')}
+        danger
         onCancel={() => setShowDeleteModal(false)}
-        onOk={handleConfirmDelete}
-        type='warning'
+        onConfirm={handleConfirmDelete}
       >
-        <div>
-          {t('确定要删除所选的 {{count}} 个模型吗？', {
-            count: selectedKeys.length,
-          })}
-        </div>
-      </Modal>
+        {t('确定要删除所选的 {{count}} 个模型吗？', {
+          count: selectedKeys.length,
+        })}
+      </ConfirmDialog>
 
       <SyncWizardModal
         visible={showSyncModal}

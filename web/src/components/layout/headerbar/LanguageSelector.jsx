@@ -17,69 +17,89 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Button, Dropdown } from '@douyinfe/semi-ui';
+import React, { useEffect, useRef, useState } from 'react';
 import { Languages } from 'lucide-react';
 
 const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
-  return (
-    <Dropdown
-      position='bottomRight'
-      render={
-        <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
-          {/* Language sorting: Order by English name (Chinese, English, French, Japanese, Russian) */}
-          <Dropdown.Item
-            onClick={() => onLanguageChange('zh-CN')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'zh-CN' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            简体中文
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('zh-TW')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'zh-TW' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-        	繁體中文
-          </Dropdown.Item>          <Dropdown.Item
-            onClick={() => onLanguageChange('en')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'en' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            English
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('fr')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'fr' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            Français
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('ja')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'ja' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            日本語
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('ru')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'ru' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            Русский
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={() => onLanguageChange('vi')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'vi' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            Tiếng Việt
-          </Dropdown.Item>
-        </Dropdown.Menu>
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const languages = [
+    ['zh-CN', '简体中文'],
+    ['zh-TW', '繁體中文'],
+    ['en', 'English'],
+    ['fr', 'Français'],
+    ['ja', '日本語'],
+    ['ru', 'Русский'],
+    ['vi', 'Tiếng Việt'],
+  ];
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!dropdownRef.current?.contains(event.target)) {
+        setOpen(false);
       }
-    >
-      <Button
-        icon={<Languages size={18} />}
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  const handleLanguageSelect = (lang) => {
+    onLanguageChange(lang);
+    setOpen(false);
+  };
+
+  return (
+    <div className='relative' ref={dropdownRef}>
+      <button
+        type='button'
         aria-label={t('common.changeLanguage')}
-        theme='borderless'
-        type='tertiary'
-        className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 dark:focus:!bg-gray-700 !rounded-full !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 hover:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2'
-      />
-    </Dropdown>
+        aria-haspopup='menu'
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/[0.04] text-slate-700 transition-colors hover:bg-slate-900/[0.07] dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15'
+      >
+        <Languages size={18} />
+      </button>
+
+      {open ? (
+        <div
+          role='menu'
+          aria-label={t('common.changeLanguage')}
+          className='absolute right-0 top-full z-50 mt-2 min-w-40 rounded-2xl border border-slate-200/80 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/95'
+        >
+          {languages.map(([key, label]) => (
+            <button
+              key={key}
+              type='button'
+              role='menuitemradio'
+              aria-checked={currentLang === key}
+              onClick={() => handleLanguageSelect(key)}
+              className={`flex w-full items-center rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-900/[0.04] dark:hover:bg-white/10 ${
+                currentLang === key ? 'bg-primary/10 text-primary' : ''
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 };
 

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 export default {
   plugins: {
-    tailwindcss: {},
+    '@tailwindcss/postcss': {},
     autoprefixer: {},
   },
 };

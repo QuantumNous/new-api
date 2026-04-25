@@ -18,11 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
-import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
+import { Card } from '@heroui/react';
+import { CircleDollarSign } from 'lucide-react';
 import { calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
 
-const { Text } = Typography;
+function GroupChip({ children, tone = 'default' }) {
+  const toneClass =
+    tone === 'violet'
+      ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
+      : tone === 'teal'
+        ? 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300'
+        : 'border border-[color:var(--app-border)] bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200';
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass}`}
+    >
+      {children}
+    </span>
+  );
+}
 
 const ModelPricingTable = ({
   modelData,
@@ -40,147 +54,154 @@ const ModelPricingTable = ({
     ? modelData.enable_groups
     : [];
   const autoChain = autoGroups.filter((g) => modelEnableGroups.includes(g));
-  const renderGroupPriceTable = () => {
-    // 仅展示模型可用的分组：模型 enable_groups 与用户可用分组的交集
 
-    const availableGroups = Object.keys(usableGroup || {})
-      .filter((g) => g !== '')
-      .filter((g) => g !== 'auto')
-      .filter((g) => modelEnableGroups.includes(g));
+  const availableGroups = Object.keys(usableGroup || {})
+    .filter((g) => g !== '')
+    .filter((g) => g !== 'auto')
+    .filter((g) => modelEnableGroups.includes(g));
 
-    // 准备表格数据
-    const tableData = availableGroups.map((group) => {
-      const priceData = modelData
-        ? calculateModelPrice({
-            record: modelData,
-            selectedGroup: group,
-            groupRatio,
-            tokenUnit,
-            displayPrice,
-            currency,
-            quotaDisplayType: siteDisplayType,
-          })
-        : { inputPrice: '-', outputPrice: '-', price: '-' };
+  const tableData = availableGroups.map((group) => {
+    const priceData = modelData
+      ? calculateModelPrice({
+          record: modelData,
+          selectedGroup: group,
+          groupRatio,
+          tokenUnit,
+          displayPrice,
+          currency,
+          quotaDisplayType: siteDisplayType,
+        })
+      : { inputPrice: '-', outputPrice: '-', price: '-' };
 
-      // 获取分组倍率
-      const groupRatioValue =
-        groupRatio && groupRatio[group] ? groupRatio[group] : 1;
+    const groupRatioValue =
+      groupRatio && groupRatio[group] ? groupRatio[group] : 1;
 
-      return {
-        key: group,
-        group: group,
-        ratio: groupRatioValue,
-        billingType:
-          modelData?.quota_type === 0
-            ? t('按量计费')
-            : modelData?.quota_type === 1
-              ? t('按次计费')
-              : '-',
-        priceItems: getModelPriceItems(priceData, t, siteDisplayType),
-      };
-    });
-
-    // 定义表格列
-    const columns = [
-      {
-        title: t('分组'),
-        dataIndex: 'group',
-        render: (text) => (
-          <Tag color='white' size='small' shape='circle'>
-            {text}
-            {t('分组')}
-          </Tag>
-        ),
-      },
-    ];
-
-    // 如果显示倍率，添加倍率列
-    if (showRatio) {
-      columns.push({
-        title: t('倍率'),
-        dataIndex: 'ratio',
-        render: (text) => (
-          <Tag color='white' size='small' shape='circle'>
-            {text}x
-          </Tag>
-        ),
-      });
-    }
-
-    // 添加计费类型列
-    columns.push({
-      title: t('计费类型'),
-      dataIndex: 'billingType',
-      render: (text) => {
-        let color = 'white';
-        if (text === t('按量计费')) color = 'violet';
-        else if (text === t('按次计费')) color = 'teal';
-        return (
-          <Tag color={color} size='small' shape='circle'>
-            {text || '-'}
-          </Tag>
-        );
-      },
-    });
-
-    columns.push({
-      title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('价格摘要'),
-      dataIndex: 'priceItems',
-      render: (items) => (
-        <div className='space-y-1'>
-          {items.map((item) => (
-            <div key={item.key}>
-              <div className='font-semibold text-orange-600'>
-                {item.label} {item.value}
-              </div>
-              <div className='text-xs text-gray-500'>{item.suffix}</div>
-            </div>
-          ))}
-        </div>
-      ),
-    });
-
-    return (
-      <Table
-        dataSource={tableData}
-        columns={columns}
-        pagination={false}
-        size='small'
-        bordered={false}
-        className='!rounded-lg'
-      />
-    );
-  };
+    return {
+      key: group,
+      group,
+      ratio: groupRatioValue,
+      billingType:
+        modelData?.quota_type === 0
+          ? t('按量计费')
+          : modelData?.quota_type === 1
+            ? t('按次计费')
+            : '-',
+      priceItems: getModelPriceItems(priceData, t, siteDisplayType),
+    };
+  });
 
   return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='orange' className='mr-2 shadow-md'>
-          <IconCoinMoneyStroked size={16} />
-        </Avatar>
-        <div>
-          <Text className='text-lg font-medium'>{t('分组价格')}</Text>
-          <div className='text-xs text-gray-600'>
-            {t('不同用户分组的价格信息')}
+    <Card className='!rounded-2xl border border-[color:var(--app-border)] shadow-sm'>
+      <Card.Content className='space-y-4 p-5'>
+        <div className='flex items-center gap-2'>
+          <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300'>
+            <CircleDollarSign size={16} />
+          </div>
+          <div>
+            <div className='text-base font-semibold text-foreground'>
+              {t('分组价格')}
+            </div>
+            <div className='text-xs text-muted'>
+              {t('不同用户分组的价格信息')}
+            </div>
           </div>
         </div>
-      </div>
-      {autoChain.length > 0 && (
-        <div className='flex flex-wrap items-center gap-1 mb-4'>
-          <span className='text-sm text-gray-600'>{t('auto分组调用链路')}</span>
-          <span className='text-sm'>→</span>
-          {autoChain.map((g, idx) => (
-            <React.Fragment key={g}>
-              <Tag color='white' size='small' shape='circle'>
-                {g}
-                {t('分组')}
-              </Tag>
-              {idx < autoChain.length - 1 && <span className='text-sm'>→</span>}
-            </React.Fragment>
-          ))}
-        </div>
-      )}
-      {renderGroupPriceTable()}
+
+        {autoChain.length > 0 && (
+          <div className='flex flex-wrap items-center gap-1'>
+            <span className='text-sm text-muted'>{t('auto分组调用链路')}</span>
+            <span className='text-sm text-muted'>→</span>
+            {autoChain.map((g, idx) => (
+              <React.Fragment key={g}>
+                <GroupChip>
+                  {g}
+                  {t('分组')}
+                </GroupChip>
+                {idx < autoChain.length - 1 && (
+                  <span className='text-sm text-muted'>→</span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+
+        {tableData.length === 0 ? (
+          <div className='py-6 text-center text-sm text-muted'>
+            {t('暂无可用分组')}
+          </div>
+        ) : (
+          <div className='overflow-hidden rounded-xl border border-[color:var(--app-border)]'>
+            <table className='w-full text-sm'>
+              <thead className='bg-[color:var(--app-background)] text-xs uppercase text-muted'>
+                <tr>
+                  <th className='px-3 py-2 text-left font-semibold'>
+                    {t('分组')}
+                  </th>
+                  {showRatio ? (
+                    <th className='px-3 py-2 text-left font-semibold'>
+                      {t('倍率')}
+                    </th>
+                  ) : null}
+                  <th className='px-3 py-2 text-left font-semibold'>
+                    {t('计费类型')}
+                  </th>
+                  <th className='px-3 py-2 text-left font-semibold'>
+                    {siteDisplayType === 'TOKENS'
+                      ? t('计费摘要')
+                      : t('价格摘要')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className='divide-y divide-[color:var(--app-border)]'>
+                {tableData.map((row) => {
+                  const billingTone =
+                    row.billingType === t('按量计费')
+                      ? 'violet'
+                      : row.billingType === t('按次计费')
+                        ? 'teal'
+                        : 'default';
+                  return (
+                    <tr key={row.key}>
+                      <td className='px-3 py-2'>
+                        <GroupChip>
+                          {row.group}
+                          {t('分组')}
+                        </GroupChip>
+                      </td>
+                      {showRatio ? (
+                        <td className='px-3 py-2'>
+                          <GroupChip>{row.ratio}x</GroupChip>
+                        </td>
+                      ) : null}
+                      <td className='px-3 py-2'>
+                        <GroupChip tone={billingTone}>
+                          {row.billingType || '-'}
+                        </GroupChip>
+                      </td>
+                      <td className='px-3 py-2'>
+                        <div className='space-y-1'>
+                          {row.priceItems.map((item) => (
+                            <div key={item.key}>
+                              <div className='font-semibold text-orange-600 dark:text-orange-300'>
+                                {item.label} {item.value}
+                              </div>
+                              {item.suffix ? (
+                                <div className='text-xs text-muted'>
+                                  {item.suffix}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card.Content>
     </Card>
   );
 };

@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Card, Divider, Steps, Form } from '@douyinfe/semi-ui';
+import React, { useEffect, useState } from 'react';
+import { Card } from '@heroui/react';
+import { CheckCircle2, Database, KeyRound, Settings2 } from 'lucide-react';
 import { API, showError, showNotice } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -37,7 +38,6 @@ const SetupWizard = () => {
     database_type: '',
   });
   const [currentStep, setCurrentStep] = useState(0);
-  const formRef = useRef(null);
 
   const [formData, setFormData] = useState({
     username: '',
@@ -46,30 +46,27 @@ const SetupWizard = () => {
     usageMode: 'external',
   });
 
-  // 确保默认选中“对外运营模式”，并同步到表单
-  useEffect(() => {
-    if (formRef.current) {
-      formRef.current.setValue('usageMode', 'external');
-    }
-  }, []);
-
   // 定义步骤内容
   const steps = [
     {
       title: t('数据库检查'),
       description: t('验证数据库连接状态'),
+      icon: Database,
     },
     {
       title: t('管理员账号'),
       description: t('设置管理员登录信息'),
+      icon: KeyRound,
     },
     {
       title: t('使用模式'),
       description: t('选择系统运行模式'),
+      icon: Settings2,
     },
     {
       title: t('完成初始化'),
       description: t('确认设置并完成初始化'),
+      icon: CheckCircle2,
     },
   ];
 
@@ -104,10 +101,6 @@ const SetupWizard = () => {
   const handleUsageModeChange = (e) => {
     const nextMode = e?.target?.value ?? e;
     setFormData((prev) => ({ ...prev, usageMode: nextMode }));
-    // 同步到表单，便于 getValues() 拿到 usageMode
-    if (formRef.current) {
-      formRef.current.setValue('usageMode', nextMode);
-    }
   };
 
   const next = () => {
@@ -164,35 +157,27 @@ const SetupWizard = () => {
   };
 
   const onSubmit = () => {
-    if (!formRef.current) {
-      console.error('Form reference is null');
-      showError(t('表单引用错误，请刷新页面重试'));
-      return;
-    }
-
-    const values = formRef.current.getValues();
-
     // For root_init=false, validate admin username and password
     if (!setupStatus.root_init) {
-      if (!values.username || !values.username.trim()) {
+      if (!formData.username || !formData.username.trim()) {
         showError(t('请输入管理员用户名'));
         return;
       }
 
-      if (!values.password || values.password.length < 8) {
+      if (!formData.password || formData.password.length < 8) {
         showError(t('密码长度至少为8个字符'));
         return;
       }
 
-      if (values.password !== values.confirmPassword) {
+      if (formData.password !== formData.confirmPassword) {
         showError(t('两次输入的密码不一致'));
         return;
       }
     }
 
     // Prepare submission data
-    const formValues = { ...values };
-    const usageMode = values.usageMode;
+    const formValues = { ...formData };
+    const usageMode = formData.usageMode;
     formValues.SelfUseModeEnabled = usageMode === 'self';
     formValues.DemoSiteEnabled = usageMode === 'demo';
 
@@ -237,7 +222,6 @@ const SetupWizard = () => {
             setupStatus={setupStatus}
             formData={formData}
             setFormData={setFormData}
-            formRef={formRef}
             t={t}
           />
         );
@@ -269,59 +253,23 @@ const SetupWizard = () => {
   };
 
   return (
-    <div className='min-h-screen flex items-center justify-center px-4'>
-      <div className='w-full max-w-4xl'>
-        <Card className='!rounded-2xl shadow-sm border-0'>
-          <div className='mb-4'>
-            <div className='text-xl font-semibold'>{t('系统初始化')}</div>
-            <div className='text-xs text-gray-600'>
-              {t('欢迎使用，请完成以下设置以开始使用系统')}
-            </div>
-          </div>
+    <div className='relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.14),transparent_28%),var(--app-background)] px-4 pb-16 pt-28 sm:px-6'>
+      <div className='pointer-events-none absolute left-[-120px] top-20 h-72 w-72 rounded-full bg-sky-400/10 blur-3xl' />
+      <div className='pointer-events-none absolute bottom-[-120px] right-[-80px] h-80 w-80 rounded-full bg-emerald-400/10 blur-3xl' />
 
-          <div className='px-2 py-2'>
-            <Steps type='basic' current={currentStep}>
-              {steps.map((item, index) => (
-                <Steps.Step
-                  key={item.title}
-                  title={
-                    <span className={currentStep === index ? 'shine-text' : ''}>
-                      {item.title}
-                    </span>
-                  }
-                  description={item.description}
-                />
-              ))}
-            </Steps>
-          </div>
-
-          <Divider margin='12px' />
-
-          {/* 表单容器 */}
-          <Form
-            getFormApi={(formApi) => {
-              formRef.current = formApi;
-            }}
-            initValues={formData}
-          >
-            {/* 步骤内容：保持所有字段挂载，仅隐藏非当前步骤 */}
+      <div className='relative mx-auto flex min-h-[calc(100vh-11rem)] w-full max-w-4xl items-center'>
+        <div className='min-w-0 w-full'>
+          <Card className='rounded-[2rem] border border-white/60 bg-white/88 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/82 sm:p-8'>
             <div className='steps-content'>
-              {[0, 1, 2, 3].map((idx) => (
-                <div
-                  key={idx}
-                  style={{ display: currentStep === idx ? 'block' : 'none' }}
-                >
-                  {React.cloneElement(getStepContent(idx), {
-                    ...stepNavigationProps,
-                    renderNavigationButtons: () => (
-                      <StepNavigation {...stepNavigationProps} />
-                    ),
-                  })}
-                </div>
-              ))}
+              {React.cloneElement(getStepContent(currentStep), {
+                ...stepNavigationProps,
+                renderNavigationButtons: () => (
+                  <StepNavigation {...stepNavigationProps} />
+                ),
+              })}
             </div>
-          </Form>
-        </Card>
+          </Card>
+        </div>
       </div>
     </div>
   );

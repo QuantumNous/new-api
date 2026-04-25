@@ -17,16 +17,85 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import {
-  Button,
-  Dropdown,
-  Modal,
-  Switch,
-  Typography,
-  Select,
-} from '@douyinfe/semi-ui';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button, Switch } from '@heroui/react';
+import { ChevronDown } from 'lucide-react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
+
+function ToggleSwitch({ value, onChange }) {
+  return (
+    <Switch
+      isSelected={!!value}
+      onChange={onChange}
+      size='sm'
+      aria-label='toggle'
+    >
+      <Switch.Control>
+        <Switch.Thumb />
+      </Switch.Control>
+    </Switch>
+  );
+}
+
+function ClickDropdown({ label, items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className='relative inline-flex w-full md:w-auto'>
+      <Button
+        variant='flat'
+        size='sm'
+        className='w-full md:w-auto'
+        endContent={<ChevronDown size={14} />}
+        onPress={() => setOpen((prev) => !prev)}
+      >
+        {label}
+      </Button>
+      {open ? (
+        <div
+          role='menu'
+          className='absolute left-0 top-full z-30 mt-1 min-w-[14rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-white shadow-lg dark:bg-slate-900'
+        >
+          {items.map((item, idx) => (
+            <button
+              key={idx}
+              type='button'
+              role='menuitem'
+              disabled={item.disabled}
+              className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                item.danger
+                  ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40'
+                  : 'text-foreground hover:bg-[color:var(--app-background)]'
+              }`}
+              onClick={() => {
+                setOpen(false);
+                item.onClick?.();
+              }}
+            >
+              <span>{item.label}</span>
+              {item.pending ? (
+                <span className='h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent' />
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </span>
+  );
+}
 
 const ChannelsActions = ({
   enableBatchDelete,
@@ -58,170 +127,105 @@ const ChannelsActions = ({
   setActivePage,
   t,
 }) => {
+  const [confirm, setConfirm] = useState(null);
+
+  const ask = (config) => setConfirm(config);
+
+  const dropdownItems = [
+    {
+      label: t('测试所有未手动禁用渠道'),
+      pending: detectAllUpstreamUpdatesLoading,
+      disabled: detectAllUpstreamUpdatesLoading,
+      onClick: () =>
+        ask({
+          title: t('确定？'),
+          content: t('确定要测试所有未手动禁用渠道吗？'),
+          onConfirm: testAllChannels,
+        }),
+    },
+    {
+      label: t('修复数据库一致性'),
+      onClick: () =>
+        ask({
+          title: t('确定是否要修复数据库一致性？'),
+          content: t('进行该操作时，可能导致渠道访问错误，请仅在数据库出现问题时使用'),
+          onConfirm: fixChannelsAbilities,
+        }),
+    },
+    {
+      label: t('更新所有已启用通道余额'),
+      onClick: () =>
+        ask({
+          title: t('确定？'),
+          content: t('确定要更新所有已启用通道余额吗？'),
+          onConfirm: updateAllChannelsBalance,
+        }),
+    },
+    {
+      label: t('检测全部渠道上游更新'),
+      onClick: () =>
+        ask({
+          title: t('确定？'),
+          content: t('确定要仅检测全部渠道上游模型更新吗？（不执行新增/删除）'),
+          onConfirm: detectAllUpstreamUpdates,
+        }),
+    },
+    {
+      label: t('处理全部渠道上游更新'),
+      pending: applyAllUpstreamUpdatesLoading,
+      disabled: applyAllUpstreamUpdatesLoading,
+      onClick: () =>
+        ask({
+          title: t('确定？'),
+          content: t('确定要对全部渠道执行上游模型更新吗？'),
+          onConfirm: applyAllUpstreamUpdates,
+        }),
+    },
+    {
+      label: t('删除禁用通道'),
+      danger: true,
+      onClick: () =>
+        ask({
+          title: t('确定是否要删除禁用通道？'),
+          content: t('此修改将不可逆'),
+          onConfirm: deleteAllDisabledChannels,
+          danger: true,
+        }),
+    },
+  ];
+
   return (
     <div className='flex flex-col gap-2'>
-      {/* 第一行：批量操作按钮 + 设置开关 */}
-      <div className='flex flex-col md:flex-row justify-between gap-2'>
-        {/* 左侧：批量操作按钮 */}
-        <div className='flex flex-wrap md:flex-nowrap items-center gap-2 w-full md:w-auto order-2 md:order-1'>
+      <div className='flex flex-col justify-between gap-2 md:flex-row'>
+        <div className='order-2 flex w-full flex-wrap items-center gap-2 md:order-1 md:w-auto md:flex-nowrap'>
           <Button
-            size='small'
-            disabled={!enableBatchDelete}
-            type='danger'
+            size='sm'
+            color='danger'
+            isDisabled={!enableBatchDelete}
             className='w-full md:w-auto'
-            onClick={() => {
-              Modal.confirm({
+            onPress={() =>
+              ask({
                 title: t('确定是否要删除所选通道？'),
                 content: t('此修改将不可逆'),
-                onOk: () => batchDeleteChannels(),
-              });
-            }}
+                onConfirm: batchDeleteChannels,
+                danger: true,
+              })
+            }
           >
             {t('删除所选通道')}
           </Button>
 
           <Button
-            size='small'
-            disabled={!enableBatchDelete}
-            type='tertiary'
-            onClick={() => setShowBatchSetTag(true)}
+            size='sm'
+            variant='flat'
+            isDisabled={!enableBatchDelete}
             className='w-full md:w-auto'
+            onPress={() => setShowBatchSetTag(true)}
           >
             {t('批量设置标签')}
           </Button>
 
-          <Dropdown
-            size='small'
-            trigger='click'
-            render={
-              <Dropdown.Menu>
-                <Dropdown.Item>
-                  <Button
-                    size='small'
-                    type='tertiary'
-                    className='w-full'
-                    loading={detectAllUpstreamUpdatesLoading}
-                    disabled={detectAllUpstreamUpdatesLoading}
-                    onClick={() => {
-                      Modal.confirm({
-                        title: t('确定？'),
-                        content: t('确定要测试所有未手动禁用渠道吗？'),
-                        onOk: () => testAllChannels(),
-                        size: 'small',
-                        centered: true,
-                      });
-                    }}
-                  >
-                    {t('测试所有未手动禁用渠道')}
-                  </Button>
-                </Dropdown.Item>
-                <Dropdown.Item>
-                  <Button
-                    size='small'
-                    className='w-full'
-                    onClick={() => {
-                      Modal.confirm({
-                        title: t('确定是否要修复数据库一致性？'),
-                        content: t(
-                          '进行该操作时，可能导致渠道访问错误，请仅在数据库出现问题时使用',
-                        ),
-                        onOk: () => fixChannelsAbilities(),
-                        size: 'sm',
-                        centered: true,
-                      });
-                    }}
-                  >
-                    {t('修复数据库一致性')}
-                  </Button>
-                </Dropdown.Item>
-                <Dropdown.Item>
-                  <Button
-                    size='small'
-                    type='secondary'
-                    className='w-full'
-                    onClick={() => {
-                      Modal.confirm({
-                        title: t('确定？'),
-                        content: t('确定要更新所有已启用通道余额吗？'),
-                        onOk: () => updateAllChannelsBalance(),
-                        size: 'sm',
-                        centered: true,
-                      });
-                    }}
-                  >
-                    {t('更新所有已启用通道余额')}
-                  </Button>
-                </Dropdown.Item>
-                <Dropdown.Item>
-                  <Button
-                    size='small'
-                    type='tertiary'
-                    className='w-full'
-                    onClick={() => {
-                      Modal.confirm({
-                        title: t('确定？'),
-                        content: t(
-                          '确定要仅检测全部渠道上游模型更新吗？（不执行新增/删除）',
-                        ),
-                        onOk: () => detectAllUpstreamUpdates(),
-                        size: 'sm',
-                        centered: true,
-                      });
-                    }}
-                  >
-                    {t('检测全部渠道上游更新')}
-                  </Button>
-                </Dropdown.Item>
-                <Dropdown.Item>
-                  <Button
-                    size='small'
-                    type='primary'
-                    className='w-full'
-                    loading={applyAllUpstreamUpdatesLoading}
-                    disabled={applyAllUpstreamUpdatesLoading}
-                    onClick={() => {
-                      Modal.confirm({
-                        title: t('确定？'),
-                        content: t('确定要对全部渠道执行上游模型更新吗？'),
-                        onOk: () => applyAllUpstreamUpdates(),
-                        size: 'sm',
-                        centered: true,
-                      });
-                    }}
-                  >
-                    {t('处理全部渠道上游更新')}
-                  </Button>
-                </Dropdown.Item>
-                <Dropdown.Item>
-                  <Button
-                    size='small'
-                    type='danger'
-                    className='w-full'
-                    onClick={() => {
-                      Modal.confirm({
-                        title: t('确定是否要删除禁用通道？'),
-                        content: t('此修改将不可逆'),
-                        onOk: () => deleteAllDisabledChannels(),
-                        size: 'sm',
-                        centered: true,
-                      });
-                    }}
-                  >
-                    {t('删除禁用通道')}
-                  </Button>
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            }
-          >
-            <Button
-              size='small'
-              theme='light'
-              type='tertiary'
-              className='w-full md:w-auto'
-            >
-              {t('批量操作')}
-            </Button>
-          </Dropdown>
+          <ClickDropdown label={t('批量操作')} items={dropdownItems} />
 
           <CompactModeToggle
             compactMode={compactMode}
@@ -230,15 +234,13 @@ const ChannelsActions = ({
           />
         </div>
 
-        {/* 右侧：设置开关区域 */}
-        <div className='flex flex-col md:flex-row items-start md:items-center gap-2 w-full md:w-auto order-1 md:order-2'>
-          <div className='flex items-center justify-between w-full md:w-auto'>
-            <Typography.Text strong className='mr-2'>
+        <div className='order-1 flex w-full flex-col items-start gap-2 md:order-2 md:w-auto md:flex-row md:items-center'>
+          <div className='flex w-full items-center justify-between md:w-auto'>
+            <span className='mr-2 text-sm font-semibold text-foreground'>
               {t('使用ID排序')}
-            </Typography.Text>
-            <Switch
-              size='small'
-              checked={idSort}
+            </span>
+            <ToggleSwitch
+              value={idSort}
               onChange={(v) => {
                 localStorage.setItem('id-sort', v + '');
                 setIdSort(v);
@@ -264,13 +266,12 @@ const ChannelsActions = ({
             />
           </div>
 
-          <div className='flex items-center justify-between w-full md:w-auto'>
-            <Typography.Text strong className='mr-2'>
+          <div className='flex w-full items-center justify-between md:w-auto'>
+            <span className='mr-2 text-sm font-semibold text-foreground'>
               {t('开启批量操作')}
-            </Typography.Text>
-            <Switch
-              size='small'
-              checked={enableBatchDelete}
+            </span>
+            <ToggleSwitch
+              value={enableBatchDelete}
               onChange={(v) => {
                 localStorage.setItem('enable-batch-delete', v + '');
                 setEnableBatchDelete(v);
@@ -278,13 +279,12 @@ const ChannelsActions = ({
             />
           </div>
 
-          <div className='flex items-center justify-between w-full md:w-auto'>
-            <Typography.Text strong className='mr-2'>
+          <div className='flex w-full items-center justify-between md:w-auto'>
+            <span className='mr-2 text-sm font-semibold text-foreground'>
               {t('标签聚合模式')}
-            </Typography.Text>
-            <Switch
-              size='small'
-              checked={enableTagMode}
+            </span>
+            <ToggleSwitch
+              value={enableTagMode}
               onChange={(v) => {
                 localStorage.setItem('enable-tag-mode', v + '');
                 setEnableTagMode(v);
@@ -294,14 +294,15 @@ const ChannelsActions = ({
             />
           </div>
 
-          <div className='flex items-center justify-between w-full md:w-auto'>
-            <Typography.Text strong className='mr-2'>
+          <div className='flex w-full items-center justify-between md:w-auto'>
+            <span className='mr-2 text-sm font-semibold text-foreground'>
               {t('状态筛选')}
-            </Typography.Text>
-            <Select
-              size='small'
+            </span>
+            <select
+              className='h-8 rounded-lg border border-[color:var(--app-border)] bg-background px-2 text-sm text-foreground outline-none transition focus:border-primary'
               value={statusFilter}
-              onChange={(v) => {
+              onChange={(event) => {
+                const v = event.target.value;
                 localStorage.setItem('channel-status-filter', v);
                 setStatusFilter(v);
                 setActivePage(1);
@@ -315,13 +316,29 @@ const ChannelsActions = ({
                 );
               }}
             >
-              <Select.Option value='all'>{t('全部')}</Select.Option>
-              <Select.Option value='enabled'>{t('已启用')}</Select.Option>
-              <Select.Option value='disabled'>{t('已禁用')}</Select.Option>
-            </Select>
+              <option value='all'>{t('全部')}</option>
+              <option value='enabled'>{t('已启用')}</option>
+              <option value='disabled'>{t('已禁用')}</option>
+            </select>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        visible={!!confirm}
+        title={confirm?.title || ''}
+        cancelText={t('取消')}
+        confirmText={t('确定')}
+        danger={!!confirm?.danger}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          const action = confirm?.onConfirm;
+          setConfirm(null);
+          action?.();
+        }}
+      >
+        {confirm?.content}
+      </ConfirmDialog>
     </div>
   );
 };

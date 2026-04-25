@@ -18,12 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Skeleton, Typography } from '@douyinfe/semi-ui';
+import { Skeleton } from '@heroui/react';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
-import { IconEyeOpened } from '@douyinfe/semi-icons';
+import { Eye } from 'lucide-react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
-
-const { Text } = Typography;
 
 const MjLogsActions = ({
   loading,
@@ -35,27 +33,25 @@ const MjLogsActions = ({
 }) => {
   const showSkeleton = useMinimumLoadingTime(loading);
 
-  const placeholder = (
-    <div className='flex items-center mb-2 md:mb-0'>
-      <IconEyeOpened className='mr-2' />
-      <Skeleton.Title style={{ width: 300, height: 21, borderRadius: 6 }} />
-    </div>
-  );
-
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <Skeleton loading={showSkeleton} active placeholder={placeholder}>
+      {showSkeleton ? (
+        <div className='mb-2 flex items-center md:mb-0'>
+          <Eye size={16} className='mr-2 text-slate-400' />
+          <Skeleton className='h-5 w-[300px] rounded-md' />
+        </div>
+      ) : (
         <div className='flex items-center mb-2 md:mb-0'>
-          <IconEyeOpened className='mr-2' />
-          <Text>
+          <Eye size={16} className='mr-2' />
+          <span className='text-sm font-medium'>
             {isAdminUser && showBanner
               ? t(
                   '当前未开启Midjourney回调，部分项目可能无法获得绘图结果，可在运营设置中开启。',
                 )
               : t('Midjourney 任务记录')}
-          </Text>
+          </span>
         </div>
-      </Skeleton>
+      )}
 
       <CompactModeToggle
         compactMode={compactMode}

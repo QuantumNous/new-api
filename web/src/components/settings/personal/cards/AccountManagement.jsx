@@ -18,18 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Button,
-  Card,
-  Input,
-  Space,
-  Typography,
-  Avatar,
-  Tabs,
-  TabPane,
-  Popover,
-  Modal,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Input } from '@heroui/react';
+import { Space, Typography, Avatar, Tabs, TabPane, Popover, Modal } from '@/components/common/ui/HeroCompat';
 import {
   IconMail,
   IconShield,
@@ -37,7 +27,7 @@ import {
   IconKey,
   IconLock,
   IconDelete,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import { SiTelegram, SiWechat, SiLinux, SiDiscord } from 'react-icons/si';
 import { UserPlus, ShieldCheck } from 'lucide-react';
 import TelegramLoginButton from 'react-telegram-login';

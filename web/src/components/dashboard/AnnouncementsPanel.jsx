@@ -18,13 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tag, Timeline, Empty } from '@douyinfe/semi-ui';
+import { Card, Chip } from '@heroui/react';
+import { EmptyState } from '@heroui-pro/react';
 import { Bell } from 'lucide-react';
 import { marked } from 'marked';
-import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
 const AnnouncementsPanel = ({
@@ -36,16 +33,17 @@ const AnnouncementsPanel = ({
 }) => {
   return (
     <Card
-      {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-2'
-      title={
+      className={`rounded-2xl lg:col-span-2 ${CARD_PROPS?.className || ''}`}
+      shadow='none'
+    >
+      <Card.Header className='border-b border-border'>
         <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 w-full'>
           <div className='flex items-center gap-2'>
             <Bell size={16} />
             {t('系统公告')}
-            <Tag color='white' shape='circle'>
+            <Chip size='sm' variant='secondary'>
               {t('显示最新20条')}
-            </Tag>
+            </Chip>
           </div>
           {/* 图例 */}
           <div className='flex flex-wrap gap-3 text-xs'>
@@ -68,57 +66,57 @@ const AnnouncementsPanel = ({
                                 : '#8b9aa7',
                   }}
                 />
-                <span className='text-gray-600'>{legend.label}</span>
+                <span className='text-xs text-muted'>{legend.label}</span>
               </div>
             ))}
           </div>
         </div>
-      }
-      bodyStyle={{ padding: 0 }}
-    >
+      </Card.Header>
+      <Card.Content className='p-0'>
       <ScrollableContainer maxHeight='24rem'>
         {announcementData.length > 0 ? (
-          <Timeline mode='left'>
+          <div className='space-y-4 p-4'>
             {announcementData.map((item, idx) => {
               const htmlExtra = item.extra ? marked.parse(item.extra) : '';
               return (
-                <Timeline.Item
-                  key={idx}
-                  type={item.type || 'default'}
-                  time={`${item.relative ? item.relative + ' ' : ''}${item.time}`}
-                  extra={
-                    item.extra ? (
+                <div key={idx} className='relative pl-5'>
+                  <span className='absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-muted ring-4 ring-background' />
+                  <div className='text-xs text-muted'>
+                    {`${item.relative ? item.relative + ' ' : ''}${item.time}`}
+                  </div>
+                  <div
+                    className='prose prose-sm mt-1 max-w-none dark:prose-invert text-foreground'
+                    dangerouslySetInnerHTML={{
+                      __html: marked.parse(item.content || ''),
+                    }}
+                  />
+                  {item.extra ? (
                       <div
-                        className='text-xs text-gray-500'
+                        className='prose prose-xs mt-2 max-w-none text-xs text-muted dark:prose-invert'
                         dangerouslySetInnerHTML={{ __html: htmlExtra }}
                       />
-                    ) : null
-                  }
-                >
-                  <div>
-                    <div
-                      dangerouslySetInnerHTML={{
-                        __html: marked.parse(item.content || ''),
-                      }}
-                    />
-                  </div>
-                </Timeline.Item>
+                  ) : null}
+                </div>
               );
             })}
-          </Timeline>
+          </div>
         ) : (
           <div className='flex justify-center items-center py-8'>
-            <Empty
-              image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-              darkModeImage={
-                <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-              }
-              title={t('暂无系统公告')}
-              description={t('请联系管理员在系统设置中配置公告信息')}
-            />
+            <EmptyState size='sm'>
+              <EmptyState.Header>
+                <EmptyState.Media variant='icon'>
+                  <Bell size={28} style={ILLUSTRATION_SIZE} />
+                </EmptyState.Media>
+                <EmptyState.Title>{t('暂无系统公告')}</EmptyState.Title>
+                <EmptyState.Description>
+                  {t('请联系管理员在系统设置中配置公告信息')}
+                </EmptyState.Description>
+              </EmptyState.Header>
+            </EmptyState>
           </div>
         )}
       </ScrollableContainer>
+      </Card.Content>
     </Card>
   );
 };

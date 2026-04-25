@@ -64,6 +64,9 @@ function DynamicOAuth2Callback() {
 function App() {
   const location = useLocation();
   const [statusState] = useContext(StatusContext);
+  const routesKey = location.pathname.startsWith('/console')
+    ? `${location.pathname}${location.search}`
+    : 'public-routes';
 
   // 获取模型广场权限配置
   const pricingRequireAuth = useMemo(() => {
@@ -89,7 +92,7 @@ function App() {
 
   return (
     <SetupCheck>
-      <Routes>
+      <Routes key={routesKey}>
         <Route
           path='/'
           element={

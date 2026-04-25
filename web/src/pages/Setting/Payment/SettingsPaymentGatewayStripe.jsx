@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Banner, Button, Form, Row, Col, Spin } from '@douyinfe/semi-ui';
+import React, { useEffect, useState } from 'react';
+import { Button, Input, Switch } from '@heroui/react';
 import {
   API,
   removeTrailingSlash,
@@ -28,64 +28,98 @@ import {
 import { useTranslation } from 'react-i18next';
 import { BookOpen, TriangleAlert } from 'lucide-react';
 
-export default function SettingsPaymentGateway(props) {
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  helper,
+  step,
+}) {
+  return (
+    <div className='space-y-2'>
+      <div className='text-sm font-medium text-foreground'>{label}</div>
+      <Input
+        type={type}
+        value={value === '' || value == null ? '' : String(value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (type === 'number') {
+            onChange(v === '' ? '' : Number(v));
+          } else {
+            onChange(v);
+          }
+        }}
+        placeholder={placeholder}
+        aria-label={label}
+        step={step}
+        className={inputClass}
+      />
+      {helper ? (
+        <div className='text-xs leading-snug text-muted'>{helper}</div>
+      ) : null}
+    </div>
+  );
+}
+
+const DEFAULT_INPUTS = {
+  StripeApiSecret: '',
+  StripeWebhookSecret: '',
+  StripePriceId: '',
+  StripeUnitPrice: 8.0,
+  StripeMinTopUp: 1,
+  StripePromotionCodesEnabled: false,
+};
+
+export default function SettingsPaymentGatewayStripe(props) {
   const { t } = useTranslation();
   const sectionTitle = props.hideSectionTitle ? undefined : t('Stripe 设置');
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    StripeApiSecret: '',
-    StripeWebhookSecret: '',
-    StripePriceId: '',
-    StripeUnitPrice: 8.0,
-    StripeMinTopUp: 1,
-    StripePromotionCodesEnabled: false,
-  });
-  const [originInputs, setOriginInputs] = useState({});
-  const formApiRef = useRef(null);
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [originInputs, setOriginInputs] = useState(DEFAULT_INPUTS);
+
+  const setField = (field) => (value) =>
+    setInputs((prev) => ({ ...prev, [field]: value }));
 
   useEffect(() => {
-    if (props.options && formApiRef.current) {
-      const currentInputs = {
-        StripeApiSecret: props.options.StripeApiSecret || '',
-        StripeWebhookSecret: props.options.StripeWebhookSecret || '',
-        StripePriceId: props.options.StripePriceId || '',
-        StripeUnitPrice:
-          props.options.StripeUnitPrice !== undefined
-            ? parseFloat(props.options.StripeUnitPrice)
-            : 8.0,
-        StripeMinTopUp:
-          props.options.StripeMinTopUp !== undefined
-            ? parseFloat(props.options.StripeMinTopUp)
-            : 1,
-        StripePromotionCodesEnabled:
-          props.options.StripePromotionCodesEnabled !== undefined
-            ? props.options.StripePromotionCodesEnabled
-            : false,
-      };
-      setInputs(currentInputs);
-      setOriginInputs({ ...currentInputs });
-      formApiRef.current.setValues(currentInputs);
-    }
+    if (!props.options) return;
+    const next = {
+      StripeApiSecret: props.options.StripeApiSecret || '',
+      StripeWebhookSecret: props.options.StripeWebhookSecret || '',
+      StripePriceId: props.options.StripePriceId || '',
+      StripeUnitPrice:
+        props.options.StripeUnitPrice !== undefined
+          ? parseFloat(props.options.StripeUnitPrice)
+          : 8.0,
+      StripeMinTopUp:
+        props.options.StripeMinTopUp !== undefined
+          ? parseFloat(props.options.StripeMinTopUp)
+          : 1,
+      StripePromotionCodesEnabled:
+        props.options.StripePromotionCodesEnabled === true ||
+        props.options.StripePromotionCodesEnabled === 'true',
+    };
+    setInputs(next);
+    setOriginInputs({ ...next });
   }, [props.options]);
 
-  const handleFormChange = (values) => {
-    setInputs(values);
-  };
-
-  const submitStripeSetting = async () => {
-    if (props.options.ServerAddress === '') {
+  const submit = async () => {
+    if (props.options?.ServerAddress === '') {
       showError(t('请先填写服务器地址'));
       return;
     }
-
     setLoading(true);
     try {
       const options = [];
 
-      if (inputs.StripeApiSecret && inputs.StripeApiSecret !== '') {
+      if (inputs.StripeApiSecret) {
         options.push({ key: 'StripeApiSecret', value: inputs.StripeApiSecret });
       }
-      if (inputs.StripeWebhookSecret && inputs.StripeWebhookSecret !== '') {
+      if (inputs.StripeWebhookSecret) {
         options.push({
           key: 'StripeWebhookSecret',
           value: inputs.StripeWebhookSecret,
@@ -94,28 +128,21 @@ export default function SettingsPaymentGateway(props) {
       if (inputs.StripePriceId !== '') {
         options.push({ key: 'StripePriceId', value: inputs.StripePriceId });
       }
-      if (
-        inputs.StripeUnitPrice !== undefined &&
-        inputs.StripeUnitPrice !== null
-      ) {
+      if (inputs.StripeUnitPrice != null) {
         options.push({
           key: 'StripeUnitPrice',
           value: inputs.StripeUnitPrice.toString(),
         });
       }
-      if (
-        inputs.StripeMinTopUp !== undefined &&
-        inputs.StripeMinTopUp !== null
-      ) {
+      if (inputs.StripeMinTopUp != null) {
         options.push({
           key: 'StripeMinTopUp',
           value: inputs.StripeMinTopUp.toString(),
         });
       }
       if (
-        originInputs['StripePromotionCodesEnabled'] !==
-          inputs.StripePromotionCodesEnabled &&
-        inputs.StripePromotionCodesEnabled !== undefined
+        originInputs.StripePromotionCodesEnabled !==
+        inputs.StripePromotionCodesEnabled
       ) {
         options.push({
           key: 'StripePromotionCodesEnabled',
@@ -123,144 +150,155 @@ export default function SettingsPaymentGateway(props) {
         });
       }
 
-      // 发送请求
       const requestQueue = options.map((opt) =>
-        API.put('/api/option/', {
-          key: opt.key,
-          value: opt.value,
-        }),
+        API.put('/api/option/', { key: opt.key, value: opt.value }),
       );
-
       const results = await Promise.all(requestQueue);
-
-      // 检查所有请求是否成功
-      const errorResults = results.filter((res) => !res.data.success);
+      const errorResults = results.filter((res) => !res.data?.success);
       if (errorResults.length > 0) {
-        errorResults.forEach((res) => {
-          showError(res.data.message);
-        });
+        errorResults.forEach((res) => showError(res.data.message));
       } else {
         showSuccess(t('更新成功'));
-        // 更新本地存储的原始值
         setOriginInputs({ ...inputs });
         props.refresh?.();
       }
     } catch (error) {
       showError(t('更新失败'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <Spin spinning={loading}>
-      <Form
-        initValues={inputs}
-        onValueChange={handleFormChange}
-        getFormApi={(api) => (formApiRef.current = api)}
-      >
-        <Form.Section text={sectionTitle}>
-          <Banner
-            type='info'
-            icon={<BookOpen size={16} />}
-            description={
-              <>
-                Stripe 密钥、Webhook 等设置请
-                <a
-                  href='https://dashboard.stripe.com/developers'
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  点击此处
-                </a>
-                进行设置，建议先在
-                <a
-                  href='https://dashboard.stripe.com/test/developers'
-                  target='_blank'
-                  rel='noreferrer'
-                >
-                  测试环境
-                </a>
-                完成联调。
-                <br />
-                {t('回调地址')}：
-                {props.options.ServerAddress
-                  ? removeTrailingSlash(props.options.ServerAddress)
-                  : t('网站地址')}
-                /api/stripe/webhook
-              </>
-            }
-            style={{ marginBottom: 12 }}
-          />
-          <Banner
-            type='warning'
-            icon={<TriangleAlert size={16} />}
-            description='需要包含事件：checkout.session.completed 和 checkout.session.expired'
-            style={{ marginBottom: 16 }}
-          />
-          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='StripeApiSecret'
-                label={t('API 密钥')}
-                placeholder={t('例如：sk_xxx 或 rk_xxx，留空表示保持当前不变')}
-                extraText={t(
-                  '保存后不会回显，请填写当前环境对应的 Stripe API 密钥',
-                )}
-                type='password'
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='StripeWebhookSecret'
-                label={t('Webhook 签名密钥')}
-                placeholder={t('例如：whsec_xxx，留空表示保持当前不变')}
-                extraText={t('用于校验 Stripe Webhook 签名，保存后不会回显')}
-                type='password'
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='StripePriceId'
-                label={t('商品价格 ID')}
-                placeholder={t('例如：price_xxx')}
-                extraText={t('在 Stripe 后台创建价格后获得')}
-              />
-            </Col>
-          </Row>
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
+    <div className='p-6 space-y-6'>
+      {sectionTitle ? (
+        <div>
+          <div className='text-base font-semibold text-foreground'>
+            {sectionTitle}
+          </div>
+        </div>
+      ) : null}
+
+      <div className='space-y-3'>
+        <div className='flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200'>
+          <BookOpen size={16} className='mt-0.5 shrink-0' />
+          <div className='space-y-1'>
+            <div>
+              Stripe 密钥、Webhook 等设置请
+              <a
+                href='https://dashboard.stripe.com/developers'
+                target='_blank'
+                rel='noreferrer'
+                className='mx-1 text-primary underline'
+              >
+                点击此处
+              </a>
+              进行设置，建议先在
+              <a
+                href='https://dashboard.stripe.com/test/developers'
+                target='_blank'
+                rel='noreferrer'
+                className='mx-1 text-primary underline'
+              >
+                测试环境
+              </a>
+              完成联调。
+            </div>
+            <div>
+              {t('回调地址')}：
+              {props.options?.ServerAddress
+                ? removeTrailingSlash(props.options.ServerAddress)
+                : t('网站地址')}
+              /api/stripe/webhook
+            </div>
+          </div>
+        </div>
+
+        <div className='flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100'>
+          <TriangleAlert size={16} className='mt-0.5 shrink-0' />
+          <div>
+            {t(
+              '需要包含事件：checkout.session.completed 和 checkout.session.expired',
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+        <Field
+          label={t('API 密钥')}
+          value={inputs.StripeApiSecret}
+          onChange={setField('StripeApiSecret')}
+          placeholder={t('例如：sk_xxx 或 rk_xxx，留空表示保持当前不变')}
+          helper={t('保存后不会回显，请填写当前环境对应的 Stripe API 密钥')}
+          type='password'
+        />
+        <Field
+          label={t('Webhook 签名密钥')}
+          value={inputs.StripeWebhookSecret}
+          onChange={setField('StripeWebhookSecret')}
+          placeholder={t('例如：whsec_xxx，留空表示保持当前不变')}
+          helper={t('用于校验 Stripe Webhook 签名，保存后不会回显')}
+          type='password'
+        />
+        <Field
+          label={t('商品价格 ID')}
+          value={inputs.StripePriceId}
+          onChange={setField('StripePriceId')}
+          placeholder={t('例如：price_xxx')}
+          helper={t('在 Stripe 后台创建价格后获得')}
+        />
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+        <Field
+          label={t('充值价格（x元/美金）')}
+          value={inputs.StripeUnitPrice}
+          onChange={setField('StripeUnitPrice')}
+          placeholder={t('例如：7，就是7元/美金')}
+          helper={t('按 1 美元对应的站内价格填写')}
+          type='number'
+          step='0.01'
+        />
+        <Field
+          label={t('最低充值美元数量')}
+          value={inputs.StripeMinTopUp}
+          onChange={setField('StripeMinTopUp')}
+          placeholder={t('例如：2，就是最低充值2$')}
+          helper={t('用户单次最少可充值的美元数量')}
+          type='number'
+          step='0.01'
+        />
+        <label className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+          <div className='min-w-0 flex-1'>
+            <div className='text-sm font-medium text-foreground'>
+              {t('允许在 Stripe 支付中输入促销码')}
+            </div>
+          </div>
+          <Switch
+            isSelected={!!inputs.StripePromotionCodesEnabled}
+            onChange={setField('StripePromotionCodesEnabled')}
+            aria-label={t('允许在 Stripe 支付中输入促销码')}
+            size='sm'
           >
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.InputNumber
-                field='StripeUnitPrice'
-                precision={2}
-                label={t('充值价格（x元/美金）')}
-                placeholder={t('例如：7，就是7元/美金')}
-                extraText={t('按 1 美元对应的站内价格填写')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.InputNumber
-                field='StripeMinTopUp'
-                label={t('最低充值美元数量')}
-                placeholder={t('例如：2，就是最低充值2$')}
-                extraText={t('用户单次最少可充值的美元数量')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Switch
-                field='StripePromotionCodesEnabled'
-                size='default'
-                checkedText='｜'
-                uncheckedText='〇'
-                label={t('允许在 Stripe 支付中输入促销码')}
-              />
-            </Col>
-          </Row>
-          <Button onClick={submitStripeSetting}>{t('更新 Stripe 设置')}</Button>
-        </Form.Section>
-      </Form>
-    </Spin>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
+        </label>
+      </div>
+
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={submit}
+          isPending={loading}
+          className='min-w-[120px]'
+        >
+          {t('更新 Stripe 设置')}
+        </Button>
+      </div>
+    </div>
   );
 }

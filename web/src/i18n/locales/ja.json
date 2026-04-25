@@ -113,7 +113,7 @@
     "Client Secret": "Client Secret",
     "Codex 授权": "Codex 認可",
     "Codex 渠道不支持批量创建": "Codexチャネルはバッチ作成をサポートしていません",
-    "common.changeLanguage": "common.changeLanguage",
+    "common.changeLanguage": "言語を切り替え",
     "Completion tokens": "Completion tokens",
     "Configuration": "Configuration",
     "context_int/context_string 从请求上下文读取；gjson 从入口请求的 JSON body 按 gjson path 读取。": "context_int/context_stringはリクエストコンテキストから読み取り、gjsonはエントリリクエストのJSON bodyからgjsonパスで読み取ります。",

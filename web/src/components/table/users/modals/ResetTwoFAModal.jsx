@@ -18,16 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import ConfirmDialog from '../../../common/ui/ConfirmDialog';
 
 const ResetTwoFAModal = ({ visible, onCancel, onConfirm, user, t }) => {
   return (
-    <Modal
+    <ConfirmDialog
       title={t('确认重置两步验证')}
       visible={visible}
       onCancel={onCancel}
-      onOk={onConfirm}
-      type='warning'
+      onConfirm={onConfirm}
+      cancelText={t('取消')}
+      confirmText={t('确定')}
     >
       {t(
         '此操作将禁用该用户当前的两步验证配置，下次登录将不再强制输入验证码，直到用户重新启用。',
@@ -35,7 +36,7 @@ const ResetTwoFAModal = ({ visible, onCancel, onConfirm, user, t }) => {
       {user?.username
         ? t('目标用户：{{username}}', { username: user.username })
         : ''}
-    </Modal>
+    </ConfirmDialog>
   );
 };
 

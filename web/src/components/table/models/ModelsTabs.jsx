@@ -17,11 +17,92 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Tabs, TabPane, Tag, Button, Dropdown, Modal } from '@douyinfe/semi-ui';
-import { IconEdit, IconDelete } from '@douyinfe/semi-icons';
-import { getLobeHubIcon, showError, showSuccess } from '../../../helpers';
-import { API } from '../../../helpers';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button } from '@heroui/react';
+import { Pencil, Trash2, MoreHorizontal } from 'lucide-react';
+import { getLobeHubIcon, showError, showSuccess, API } from '../../../helpers';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
+
+function CountChip({ active, count }) {
+  return (
+    <span
+      className={`inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+        active
+          ? 'bg-red-500 text-white'
+          : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+      }`}
+    >
+      {count}
+    </span>
+  );
+}
+
+function VendorActions({ vendor, onEdit, onDelete, t }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  return (
+    <span ref={ref} className='relative inline-flex items-center'>
+      <button
+        type='button'
+        aria-label={t('操作')}
+        title={t('操作')}
+        className='inline-flex h-6 w-6 items-center justify-center rounded-md text-muted transition hover:bg-[color:var(--app-background)] hover:text-foreground'
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+      >
+        <MoreHorizontal size={14} />
+      </button>
+      {open ? (
+        <div
+          role='menu'
+          className='absolute right-0 top-full z-30 mt-1 min-w-[8rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-white shadow-lg dark:bg-slate-900'
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type='button'
+            role='menuitem'
+            className='flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition hover:bg-[color:var(--app-background)]'
+            onClick={(event) => {
+              event.stopPropagation();
+              setOpen(false);
+              onEdit(vendor);
+            }}
+          >
+            <Pencil size={14} />
+            {t('编辑')}
+          </button>
+          <button
+            type='button'
+            role='menuitem'
+            className='flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40'
+            onClick={(event) => {
+              event.stopPropagation();
+              setOpen(false);
+              onDelete(vendor);
+            }}
+          >
+            <Trash2 size={14} />
+            {t('删除')}
+          </button>
+        </div>
+      ) : null}
+    </span>
+  );
+}
 
 const ModelsTabs = ({
   activeVendorKey,
@@ -38,140 +119,121 @@ const ModelsTabs = ({
   loadVendors,
   t,
 }) => {
+  const [pendingDelete, setPendingDelete] = useState(null);
+
   const handleTabChange = (key) => {
     setActiveVendorKey(key);
     setActivePage(1);
     loadModels(1, pageSize, key);
   };
 
-  const handleEditVendor = (vendor, e) => {
-    e.stopPropagation(); // 阻止事件冒泡，避免触发tab切换
+  const handleEditVendor = (vendor) => {
     setEditingVendor(vendor);
     setShowEditVendor(true);
   };
 
-  const handleDeleteVendor = async (vendor, e) => {
-    e.stopPropagation(); // 阻止事件冒泡，避免触发tab切换
+  const handleDeleteVendor = async (vendor) => {
     try {
       const res = await API.delete(`/api/vendors/${vendor.id}`);
-      if (res.data.success) {
+      if (res.data?.success) {
         showSuccess(t('供应商删除成功'));
-        // 如果删除的是当前选中的供应商，切换到"全部"
         if (activeVendorKey === String(vendor.id)) {
           setActiveVendorKey('all');
           loadModels(1, pageSize, 'all');
         } else {
           loadModels(activePage, pageSize, activeVendorKey);
         }
-        loadVendors(); // 重新加载供应商列表
+        loadVendors?.();
       } else {
-        showError(res.data.message || t('删除失败'));
+        showError(res.data?.message || t('删除失败'));
       }
     } catch (error) {
       showError(error.response?.data?.message || t('删除失败'));
     }
   };
 
+  const tabs = [
+    {
+      key: 'all',
+      label: t('全部'),
+      icon: null,
+      count: vendorCounts['all'] || 0,
+      vendor: null,
+    },
+    ...vendors.map((vendor) => ({
+      key: String(vendor.id),
+      label: vendor.name,
+      icon: getLobeHubIcon(vendor.icon || 'Layers', 14),
+      count: vendorCounts[vendor.id] || 0,
+      vendor,
+    })),
+  ];
+
   return (
-    <Tabs
-      activeKey={activeVendorKey}
-      type='card'
-      collapsible
-      onChange={handleTabChange}
-      className='mb-2'
-      tabBarExtraContent={
+    <>
+      <div className='mb-3 flex flex-wrap items-center gap-2'>
+        <div role='tablist' className='flex flex-1 flex-wrap items-center gap-2'>
+          {tabs.map((tab) => {
+            const active = activeVendorKey === tab.key;
+            return (
+              <div
+                key={tab.key}
+                role='tab'
+                aria-selected={active}
+                className={`group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+                  active
+                    ? 'border-transparent bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900'
+                    : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <button
+                  type='button'
+                  className='inline-flex items-center gap-2 outline-none'
+                  onClick={() => handleTabChange(tab.key)}
+                >
+                  {tab.icon}
+                  <span className='whitespace-nowrap'>{tab.label}</span>
+                  <CountChip active={active} count={tab.count} />
+                </button>
+                {tab.vendor ? (
+                  <VendorActions
+                    vendor={tab.vendor}
+                    onEdit={handleEditVendor}
+                    onDelete={(vendor) => setPendingDelete(vendor)}
+                    t={t}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
         <Button
-          type='primary'
-          size='small'
-          onClick={() => setShowAddVendor(true)}
+          color='primary'
+          size='sm'
+          onPress={() => setShowAddVendor(true)}
         >
           {t('新增供应商')}
         </Button>
-      }
-    >
-      <TabPane
-        itemKey='all'
-        tab={
-          <span className='flex items-center gap-2'>
-            {t('全部')}
-            <Tag
-              color={activeVendorKey === 'all' ? 'red' : 'grey'}
-              shape='circle'
-            >
-              {vendorCounts['all'] || 0}
-            </Tag>
-          </span>
-        }
-      />
+      </div>
 
-      {vendors.map((vendor) => {
-        const key = String(vendor.id);
-        const count = vendorCounts[vendor.id] || 0;
-        return (
-          <TabPane
-            key={key}
-            itemKey={key}
-            tab={
-              <span className='flex items-center gap-2'>
-                {getLobeHubIcon(vendor.icon || 'Layers', 14)}
-                {vendor.name}
-                <Tag
-                  color={activeVendorKey === key ? 'red' : 'grey'}
-                  shape='circle'
-                >
-                  {count}
-                </Tag>
-                <Dropdown
-                  trigger='click'
-                  position='bottomRight'
-                  render={
-                    <Dropdown.Menu>
-                      <Dropdown.Item
-                        icon={<IconEdit />}
-                        onClick={(e) => handleEditVendor(vendor, e)}
-                      >
-                        {t('编辑')}
-                      </Dropdown.Item>
-                      <Dropdown.Item
-                        type='danger'
-                        icon={<IconDelete />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          Modal.confirm({
-                            title: t('确认删除'),
-                            content: t(
-                              '确定要删除供应商 "{{name}}" 吗？此操作不可撤销。',
-                              { name: vendor.name },
-                            ),
-                            onOk: () => handleDeleteVendor(vendor, e),
-                            okText: t('删除'),
-                            cancelText: t('取消'),
-                            type: 'warning',
-                            okType: 'danger',
-                          });
-                        }}
-                      >
-                        {t('删除')}
-                      </Dropdown.Item>
-                    </Dropdown.Menu>
-                  }
-                  onClickOutSide={(e) => e.stopPropagation()}
-                >
-                  <Button
-                    size='small'
-                    type='tertiary'
-                    theme='outline'
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {t('操作')}
-                  </Button>
-                </Dropdown>
-              </span>
-            }
-          />
-        );
-      })}
-    </Tabs>
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title={t('确认删除')}
+        cancelText={t('取消')}
+        confirmText={t('删除')}
+        danger
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const target = pendingDelete;
+          setPendingDelete(null);
+          if (target) handleDeleteVendor(target);
+        }}
+      >
+        {t('确定要删除供应商 "{{name}}" 吗？此操作不可撤销。', {
+          name: pendingDelete?.name || '',
+        })}
+      </ConfirmDialog>
+    </>
   );
 };
 

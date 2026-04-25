@@ -18,10 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { Button } from '@heroui/react';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+import {
+  FilterDateRange,
+  FilterInput,
+  FilterSelect,
+  useTableFilterForm,
+} from '../../common/ui/TableFilterForm';
 
 const LogsFilters = ({
   formInitValues,
@@ -34,91 +39,77 @@ const LogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const { values, setFieldValue, handleSubmit } = useTableFilterForm({
+    initValues: formInitValues,
+    setFormApi,
+    onSubmit: refresh,
+  });
+  const presets = DATE_RANGE_PRESETS.map((preset) => ({
+    text: t(preset.text),
+    start: preset.start(),
+    end: preset.end(),
+  }));
+  const logTypeOptions = [
+    { value: '0', label: t('全部') },
+    { value: '1', label: t('充值') },
+    { value: '2', label: t('消费') },
+    { value: '3', label: t('管理') },
+    { value: '4', label: t('系统') },
+    { value: '5', label: t('错误') },
+    { value: '6', label: t('退款') },
+  ];
+
   return (
-    <Form
-      initValues={formInitValues}
-      getFormApi={(api) => setFormApi(api)}
-      onSubmit={refresh}
-      allowEmpty={true}
-      autoComplete='off'
-      layout='vertical'
-      trigger='change'
-      stopValidateWithError={false}
-    >
+    <form onSubmit={handleSubmit} autoComplete='off'>
       <div className='flex flex-col gap-2'>
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
           {/* 时间选择器 */}
           <div className='col-span-1 lg:col-span-2'>
-            <Form.DatePicker
-              field='dateRange'
-              className='w-full'
-              type='dateTimeRange'
-              placeholder={[t('开始时间'), t('结束时间')]}
-              showClear
-              pure
-              size='small'
-              presets={DATE_RANGE_PRESETS.map((preset) => ({
-                text: t(preset.text),
-                start: preset.start(),
-                end: preset.end(),
-              }))}
+            <FilterDateRange
+              value={values.dateRange}
+              onChange={(nextValue) => setFieldValue('dateRange', nextValue)}
+              startPlaceholder={t('开始时间')}
+              endPlaceholder={t('结束时间')}
+              presets={presets}
             />
           </div>
 
           {/* 其他搜索字段 */}
-          <Form.Input
-            field='token_name'
-            prefix={<IconSearch />}
+          <FilterInput
+            value={values.token_name}
+            onChange={(nextValue) => setFieldValue('token_name', nextValue)}
             placeholder={t('令牌名称')}
-            showClear
-            pure
-            size='small'
           />
 
-          <Form.Input
-            field='model_name'
-            prefix={<IconSearch />}
+          <FilterInput
+            value={values.model_name}
+            onChange={(nextValue) => setFieldValue('model_name', nextValue)}
             placeholder={t('模型名称')}
-            showClear
-            pure
-            size='small'
           />
 
-          <Form.Input
-            field='group'
-            prefix={<IconSearch />}
+          <FilterInput
+            value={values.group}
+            onChange={(nextValue) => setFieldValue('group', nextValue)}
             placeholder={t('分组')}
-            showClear
-            pure
-            size='small'
           />
 
-          <Form.Input
-            field='request_id'
-            prefix={<IconSearch />}
+          <FilterInput
+            value={values.request_id}
+            onChange={(nextValue) => setFieldValue('request_id', nextValue)}
             placeholder={t('Request ID')}
-            showClear
-            pure
-            size='small'
           />
 
           {isAdminUser && (
             <>
-              <Form.Input
-                field='channel'
-                prefix={<IconSearch />}
+              <FilterInput
+                value={values.channel}
+                onChange={(nextValue) => setFieldValue('channel', nextValue)}
                 placeholder={t('渠道 ID')}
-                showClear
-                pure
-                size='small'
               />
-              <Form.Input
-                field='username'
-                prefix={<IconSearch />}
+              <FilterInput
+                value={values.username}
+                onChange={(nextValue) => setFieldValue('username', nextValue)}
                 placeholder={t('用户名称')}
-                showClear
-                pure
-                size='small'
               />
             </>
           )}
@@ -128,41 +119,31 @@ const LogsFilters = ({
         <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
           {/* 日志类型选择器 */}
           <div className='w-full sm:w-auto'>
-            <Form.Select
-              field='logType'
-              placeholder={t('日志类型')}
-              className='w-full sm:w-auto min-w-[120px]'
-              showClear
-              pure
-              onChange={() => {
-                // 延迟执行搜索，让表单值先更新
+            <FilterSelect
+              value={values.logType}
+              onChange={(nextValue) => {
+                setFieldValue('logType', nextValue);
                 setTimeout(() => {
                   refresh();
                 }, 0);
               }}
-              size='small'
-            >
-              <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
-              <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
-              <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
-              <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
-              <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
-              <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
-              <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
-            </Form.Select>
+              placeholder={t('日志类型')}
+              className='w-full sm:w-auto min-w-[120px]'
+              options={logTypeOptions}
+            />
           </div>
 
           <div className='flex gap-2 w-full sm:w-auto justify-end'>
             <Button
-              type='tertiary'
-              htmlType='submit'
+              type='submit'
+              variant='flat'
               loading={loading}
-              size='small'
+              size='sm'
             >
               {t('查询')}
             </Button>
             <Button
-              type='tertiary'
+              variant='flat'
               onClick={() => {
                 if (formApi) {
                   formApi.reset();
@@ -172,21 +153,21 @@ const LogsFilters = ({
                   }, 100);
                 }
               }}
-              size='small'
+              size='sm'
             >
               {t('重置')}
             </Button>
             <Button
-              type='tertiary'
+              variant='flat'
               onClick={() => setShowColumnSelector(true)}
-              size='small'
+              size='sm'
             >
               {t('列设置')}
             </Button>
           </div>
         </div>
       </div>
-    </Form>
+    </form>
   );
 };
 

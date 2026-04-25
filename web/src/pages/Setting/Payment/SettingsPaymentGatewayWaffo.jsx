@@ -18,19 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Banner,
-  Button,
-  Form,
-  Row,
-  Col,
-  Typography,
-  Spin,
-  Table,
-  Modal,
-  Input,
-  Space,
-} from '@douyinfe/semi-ui';
+import { Button, Input } from '@heroui/react';
+import { Banner, Form, Row, Col, Typography, Spin, Table, Modal, Space } from '@/components/common/ui/HeroCompat';
 import {
   API,
   removeTrailingSlash,
@@ -116,7 +105,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
         WaffoReturnUrl: props.options.WaffoReturnUrl || '',
       };
       setInputs(currentInputs);
-      formApiRef.current.setValues(currentInputs);
+      formApiRef.current?.setValues?.(currentInputs);
 
       // 解析支付方式列表
       try {
@@ -595,7 +584,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <div style={{ marginBottom: 4 }}>
               <Text strong>{t('显示名称')}</Text>
               <span
-                style={{ color: 'var(--semi-color-danger)', marginLeft: 4 }}
+                style={{ color: 'var(--app-danger)', marginLeft: 4 }}
               >
                 *
               </span>
@@ -624,7 +613,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
                     width: 32,
                     height: 32,
                     objectFit: 'contain',
-                    border: '1px solid var(--semi-color-border)',
+                    border: '1px solid var(--app-border)',
                     borderRadius: 4,
                   }}
                 />

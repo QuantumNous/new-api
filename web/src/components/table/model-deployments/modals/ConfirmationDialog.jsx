@@ -18,9 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Typography, Input } from '@douyinfe/semi-ui';
-
-const { Text } = Typography;
+import {
+  Button,
+  Input,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { TriangleAlert } from 'lucide-react';
 
 const ConfirmationDialog = ({
   visible,
@@ -35,9 +45,7 @@ const ConfirmationDialog = ({
   const [confirmText, setConfirmText] = useState('');
 
   useEffect(() => {
-    if (!visible) {
-      setConfirmText('');
-    }
+    if (!visible) setConfirmText('');
   }, [visible]);
 
   const requiredText = deployment?.container_name || deployment?.id || '';
@@ -45,53 +53,78 @@ const ConfirmationDialog = ({
 
   const handleCancel = () => {
     setConfirmText('');
-    onCancel();
+    onCancel?.();
   };
 
   const handleConfirm = () => {
     if (isConfirmed) {
-      onConfirm();
+      onConfirm?.();
       handleCancel();
     }
   };
 
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) handleCancel();
+    },
+  });
+
   return (
-    <Modal
-      title={title}
-      visible={visible}
-      onCancel={handleCancel}
-      onOk={handleConfirm}
-      okText={t('确认')}
-      cancelText={t('取消')}
-      okButtonProps={{
-        disabled: !isConfirmed,
-        type: type === 'danger' ? 'danger' : 'primary',
-        loading,
-      }}
-      width={480}
-    >
-      <div className='space-y-4'>
-        <Text type='danger' strong>
-          {t('此操作具有风险，请确认要继续执行')}。
-        </Text>
-        <Text>
-          {t('请输入部署名称以完成二次确认')}：
-          <Text code className='ml-1'>
-            {requiredText || t('未知部署')}
-          </Text>
-        </Text>
-        <Input
-          value={confirmText}
-          onChange={setConfirmText}
-          placeholder={t('再次输入部署名称')}
-          autoFocus
-        />
-        {!isConfirmed && confirmText && (
-          <Text type='danger' size='small'>
-            {t('部署名称不匹配，请检查后重新输入')}
-          </Text>
-        )}
-      </div>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='md' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <div className='flex items-center gap-2'>
+                <TriangleAlert
+                  size={18}
+                  className={type === 'danger' ? 'text-red-500' : 'text-amber-500'}
+                />
+                <span>{title}</span>
+              </div>
+            </ModalHeader>
+            <ModalBody className='space-y-4 px-6 py-5'>
+              <div className='font-semibold text-red-600 dark:text-red-400'>
+                {t('此操作具有风险，请确认要继续执行')}。
+              </div>
+              <div className='text-sm text-foreground'>
+                {t('请输入部署名称以完成二次确认')}：
+                <code className='ml-1 rounded bg-[color:var(--app-background)] px-1.5 py-0.5 text-xs text-foreground'>
+                  {requiredText || t('未知部署')}
+                </code>
+              </div>
+              <Input
+                type='text'
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={t('再次输入部署名称')}
+                aria-label={t('部署名称')}
+                autoFocus
+                className='h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary'
+              />
+              {!isConfirmed && confirmText && (
+                <div className='text-xs text-red-600 dark:text-red-400'>
+                  {t('部署名称不匹配，请检查后重新输入')}
+                </div>
+              )}
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button variant='light' onPress={handleCancel}>
+                {t('取消')}
+              </Button>
+              <Button
+                color={type === 'danger' ? 'danger' : 'primary'}
+                onPress={handleConfirm}
+                isDisabled={!isConfirmed}
+                isPending={loading}
+              >
+                {t('确认')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

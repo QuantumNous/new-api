@@ -351,7 +351,7 @@ export const useModelsData = () => {
       record.status !== 1
         ? {
             style: {
-              background: 'var(--semi-color-disabled-border)',
+              background: 'var(--app-border)',
             },
           }
         : {};

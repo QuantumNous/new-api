@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin } from '@douyinfe/semi-ui';
+import { Card, Spinner } from '@heroui/react';
 import SettingsDrawing from '../../pages/Setting/Drawing/SettingsDrawing';
 import { API, showError, toBoolean } from '../../helpers';
 
@@ -70,14 +70,17 @@ const DrawingSetting = () => {
   }, []);
 
   return (
-    <>
-      <Spin spinning={loading} size='large'>
-        {/* 绘图设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsDrawing options={inputs} refresh={onRefresh} />
-        </Card>
-      </Spin>
-    </>
+    <div className='relative'>
+      {loading ? (
+        <div className='absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-sm'>
+          <Spinner size='lg' />
+        </div>
+      ) : null}
+      {/* Drawing settings */}
+      <Card className='mt-2.5'>
+        <SettingsDrawing options={inputs} refresh={onRefresh} />
+      </Card>
+    </div>
   );
 };
 

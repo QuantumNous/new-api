@@ -21,30 +21,65 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
-  Form,
-  Typography,
-  Banner,
-  Tabs,
-  TabPane,
   Card,
   Input,
-  InputNumber,
   Switch,
+  Tab,
+  Tabs,
   TextArea,
-  Row,
-  Col,
-  Divider,
   Tooltip,
-} from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete, IconAlertTriangle } from '@douyinfe/semi-icons';
-
-const { Text } = Typography;
+} from '@heroui/react';
+import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 
 // 唯一 ID 生成器，确保在组件生命周期内稳定且递增
 const generateUniqueId = (() => {
   let counter = 0;
   return () => `kv_${counter++}`;
 })();
+
+const inputClass =
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900';
+
+function FieldSlot({ label, extraText, children }) {
+  return (
+    <div className='space-y-2'>
+      {label ? (
+        <div className='text-sm font-medium text-slate-700 dark:text-slate-200'>
+          {label}
+        </div>
+      ) : null}
+      {children}
+      {extraText ? (
+        <div className='text-xs leading-5 text-slate-500 dark:text-slate-400'>
+          {extraText}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AlertBanner({ type = 'warning', children, className = '' }) {
+  const colorClass =
+    type === 'danger'
+      ? 'border-danger/30 bg-danger/10 text-danger'
+      : 'border-warning/30 bg-warning/10 text-warning';
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 text-sm ${colorClass} ${className}`}>
+      <div className='flex items-start gap-2'>
+        <AlertTriangle className='mt-0.5 shrink-0' size={16} />
+        <div className='min-w-0 flex-1'>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function HiddenField({ field, value }) {
+  if (!field) return null;
+  const hiddenValue =
+    typeof value === 'string' ? value : value ? JSON.stringify(value) : '';
+  return <input type='hidden' name={field} value={hiddenValue} readOnly />;
+}
 
 const JSONEditor = ({
   value = '',
@@ -61,7 +96,6 @@ const JSONEditor = ({
   rules = [],
   formApi = null,
   renderStringValueSuffix,
-  ...props
 }) => {
   const { t } = useTranslation();
 
@@ -182,6 +216,15 @@ const JSONEditor = ({
     }
   }, [value, editMode]);
 
+  const syncFormValue = useCallback(
+    (nextValue) => {
+      if (formApi && field) {
+        formApi.setValue(field, nextValue);
+      }
+    },
+    [formApi, field],
+  );
+
   // 处理可视化编辑的数据变化
   const handleVisualChange = useCallback(
     (newPairs) => {
@@ -193,15 +236,10 @@ const JSONEditor = ({
           : JSON.stringify(jsonObject, null, 2);
 
       setJsonError('');
-
-      // 通过formApi设置值
-      if (formApi && field) {
-        formApi.setValue(field, jsonString);
-      }
-
+      syncFormValue(jsonString);
       onChange?.(jsonString);
     },
-    [onChange, formApi, field, keyValueArrayToObject],
+    [onChange, syncFormValue, keyValueArrayToObject],
   );
 
   // 处理手动编辑的数据变化
@@ -213,6 +251,7 @@ const JSONEditor = ({
           const parsed = JSON.parse(newValue);
           setKeyValuePairs(objectToKeyValueArray(parsed, keyValuePairs));
           setJsonError('');
+          syncFormValue(newValue);
           onChange?.(newValue);
         } catch (error) {
           setJsonError(error.message);
@@ -220,10 +259,11 @@ const JSONEditor = ({
       } else {
         setKeyValuePairs([]);
         setJsonError('');
+        syncFormValue('');
         onChange?.('');
       }
     },
-    [onChange, objectToKeyValueArray, keyValuePairs],
+    [onChange, objectToKeyValueArray, keyValuePairs, syncFormValue],
   );
 
   // 切换编辑模式
@@ -251,7 +291,6 @@ const JSONEditor = ({
         setEditMode('visual');
       } catch (error) {
         setJsonError(error.message);
-        return;
       }
     }
   }, [
@@ -317,23 +356,29 @@ const JSONEditor = ({
     if (template) {
       const templateString = JSON.stringify(template, null, 2);
 
-      if (formApi && field) {
-        formApi.setValue(field, templateString);
-      }
-
+      syncFormValue(templateString);
       setManualText(templateString);
       setKeyValuePairs(objectToKeyValueArray(template, keyValuePairs));
       onChange?.(templateString);
       setJsonError('');
     }
-  }, [
-    template,
-    onChange,
-    formApi,
-    field,
-    objectToKeyValueArray,
-    keyValuePairs,
-  ]);
+  }, [template, onChange, syncFormValue, objectToKeyValueArray, keyValuePairs]);
+
+  const renderDuplicateWarning = () => {
+    if (duplicateKeys.size === 0) return null;
+    return (
+      <AlertBanner className='mb-3'>
+        <div>
+          <strong>{t('存在重复的键名：')}</strong>
+          <span>{Array.from(duplicateKeys).join(', ')}</span>
+          <br />
+          <span className='text-xs opacity-80'>
+            {t('注意：JSON中重复的键只会保留最后一个同名键的值')}
+          </span>
+        </div>
+      </AlertBanner>
+    );
+  };
 
   // 渲染值输入控件（支持嵌套）
   const renderValueInput = (pairId, pairKey, value) => {
@@ -341,24 +386,29 @@ const JSONEditor = ({
 
     if (valueType === 'boolean') {
       return (
-        <div className='flex items-center'>
+        <div className='flex items-center gap-2'>
           <Switch
-            checked={value}
-            onChange={(newValue) => updateValue(pairId, newValue)}
-          />
-          <Text type='tertiary' className='ml-2'>
+            isSelected={value}
+            onValueChange={(newValue) => updateValue(pairId, newValue)}
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
+          <span className='text-sm text-slate-500 dark:text-slate-400'>
             {value ? t('true') : t('false')}
-          </Text>
+          </span>
         </div>
       );
     }
 
     if (valueType === 'number') {
       return (
-        <InputNumber
+        <input
+          type='number'
           value={value}
-          onChange={(newValue) => updateValue(pairId, newValue)}
-          style={{ width: '100%' }}
+          onChange={(event) => updateValue(pairId, Number(event.target.value))}
+          className={inputClass}
           placeholder={t('输入数字')}
         />
       );
@@ -369,10 +419,13 @@ const JSONEditor = ({
       return (
         <TextArea
           rows={2}
+          fullWidth
           value={JSON.stringify(value, null, 2)}
-          onChange={(txt) => {
+          onChange={(event) => {
             try {
-              const obj = txt.trim() ? JSON.parse(txt) : {};
+              const obj = event.target.value.trim()
+                ? JSON.parse(event.target.value)
+                : {};
               updateValue(pairId, obj);
             } catch {
               // 忽略解析错误
@@ -385,55 +438,39 @@ const JSONEditor = ({
 
     // 字符串或其他原始类型
     return (
-      <Input
-        placeholder={t('参数值')}
-        value={String(value)}
-        suffix={renderStringValueSuffix?.({ pairId, pairKey, value })}
-        onChange={(newValue) => {
-          let convertedValue = newValue;
-          if (newValue === 'true') convertedValue = true;
-          else if (newValue === 'false') convertedValue = false;
-          else if (!isNaN(newValue) && newValue !== '') {
-            const num = Number(newValue);
-            // 检查是否为整数
-            if (Number.isInteger(num)) {
-              convertedValue = num;
+      <div className='flex items-center gap-2'>
+        <Input
+          placeholder={t('参数值')}
+          value={String(value)}
+          onChange={(event) => {
+            const newValue = event.target.value;
+            let convertedValue = newValue;
+            if (newValue === 'true') convertedValue = true;
+            else if (newValue === 'false') convertedValue = false;
+            else if (!isNaN(newValue) && newValue !== '') {
+              const num = Number(newValue);
+              // 检查是否为整数
+              if (Number.isInteger(num)) {
+                convertedValue = num;
+              }
             }
-          }
-          updateValue(pairId, convertedValue);
-        }}
-      />
+            updateValue(pairId, convertedValue);
+          }}
+        />
+        {renderStringValueSuffix?.({ pairId, pairKey, value })}
+      </div>
     );
   };
 
   // 渲染键值对编辑器
   const renderKeyValueEditor = () => {
     return (
-      <div className='space-y-1'>
-        {/* 重复键警告 */}
-        {duplicateKeys.size > 0 && (
-          <Banner
-            type='warning'
-            icon={<IconAlertTriangle />}
-            description={
-              <div>
-                <Text strong>{t('存在重复的键名：')}</Text>
-                <Text>{Array.from(duplicateKeys).join(', ')}</Text>
-                <br />
-                <Text type='tertiary' size='small'>
-                  {t('注意：JSON中重复的键只会保留最后一个同名键的值')}
-                </Text>
-              </div>
-            }
-            className='mb-3'
-          />
-        )}
+      <div className='space-y-2'>
+        {renderDuplicateWarning()}
 
         {keyValuePairs.length === 0 && (
-          <div className='text-center py-6 px-4'>
-            <Text type='tertiary' className='text-gray-500 text-sm'>
-              {t('暂无数据，点击下方按钮添加键值对')}
-            </Text>
+          <div className='rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400'>
+            {t('暂无数据，点击下方按钮添加键值对')}
           </div>
         )}
 
@@ -444,57 +481,49 @@ const JSONEditor = ({
             keyValuePairs.slice(index + 1).every((p) => p.key !== pair.key);
 
           return (
-            <Row key={pair.id} gutter={8} align='middle'>
-              <Col span={10}>
-                <div className='relative'>
-                  <Input
-                    placeholder={t('键名')}
-                    value={pair.key}
-                    onChange={(newKey) => updateKey(pair.id, newKey)}
-                    status={isDuplicate ? 'warning' : undefined}
-                  />
-                  {isDuplicate && (
-                    <Tooltip
-                      content={
-                        isLastDuplicate
-                          ? t('这是重复键中的最后一个，其值将被使用')
-                          : t('重复的键名，此值将被后面的同名键覆盖')
-                      }
-                    >
-                      <IconAlertTriangle
-                        className='absolute right-2 top-1/2 transform -translate-y-1/2'
-                        style={{
-                          color: isLastDuplicate ? '#ff7d00' : '#faad14',
-                          fontSize: '14px',
-                        }}
-                      />
-                    </Tooltip>
-                  )}
-                </div>
-              </Col>
-              <Col span={12}>
-                {renderValueInput(pair.id, pair.key, pair.value)}
-              </Col>
-              <Col span={2}>
-                <Button
-                  icon={<IconDelete />}
-                  type='danger'
-                  theme='borderless'
-                  onClick={() => removeKeyValue(pair.id)}
-                  style={{ width: '100%' }}
+            <div
+              key={pair.id}
+              className='grid grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_2.5rem]'
+            >
+              <div className='relative'>
+                <Input
+                  placeholder={t('键名')}
+                  value={pair.key}
+                  onChange={(event) => updateKey(pair.id, event.target.value)}
+                  className={isDuplicate ? 'border-warning' : undefined}
                 />
-              </Col>
-            </Row>
+                {isDuplicate && (
+                  <Tooltip
+                    content={
+                      isLastDuplicate
+                        ? t('这是重复键中的最后一个，其值将被使用')
+                        : t('重复的键名，此值将被后面的同名键覆盖')
+                    }
+                  >
+                    <AlertTriangle
+                      className='absolute right-3 top-1/2 -translate-y-1/2 text-warning'
+                      size={15}
+                    />
+                  </Tooltip>
+                )}
+              </div>
+              <div>{renderValueInput(pair.id, pair.key, pair.value)}</div>
+              <Button
+                isIconOnly
+                variant='danger-soft'
+                aria-label={t('删除')}
+                onPress={() => removeKeyValue(pair.id)}
+                className='w-full md:w-10'
+              >
+                <Trash2 size={16} />
+              </Button>
+            </div>
           );
         })}
 
-        <div className='mt-2 flex justify-center'>
-          <Button
-            icon={<IconPlus />}
-            type='primary'
-            theme='outline'
-            onClick={addKeyValue}
-          >
+        <div className='mt-3 flex justify-center'>
+          <Button variant='outline' onPress={addKeyValue}>
+            <Plus size={16} />
             {t('添加键值对')}
           </Button>
         </div>
@@ -508,106 +537,85 @@ const JSONEditor = ({
     const modelPairs = keyValuePairs.filter((pair) => pair.key !== 'default');
 
     return (
-      <div className='space-y-2'>
-        {/* 重复键警告 */}
-        {duplicateKeys.size > 0 && (
-          <Banner
-            type='warning'
-            icon={<IconAlertTriangle />}
-            description={
-              <div>
-                <Text strong>{t('存在重复的键名：')}</Text>
-                <Text>{Array.from(duplicateKeys).join(', ')}</Text>
-                <br />
-                <Text type='tertiary' size='small'>
-                  {t('注意：JSON中重复的键只会保留最后一个同名键的值')}
-                </Text>
-              </div>
-            }
-            className='mb-3'
-          />
-        )}
+      <div className='space-y-4'>
+        {renderDuplicateWarning()}
 
         {/* 默认区域 */}
-        <Form.Slot label={t('默认区域')}>
+        <FieldSlot label={t('默认区域')}>
           <Input
             placeholder={t('默认区域，如: us-central1')}
             value={defaultPair ? defaultPair.value : ''}
-            onChange={(value) => {
+            onChange={(event) => {
+              const nextValue = event.target.value;
               if (defaultPair) {
-                updateValue(defaultPair.id, value);
+                updateValue(defaultPair.id, nextValue);
               } else {
                 const newPairs = [
                   ...keyValuePairs,
                   {
                     id: generateUniqueId(),
                     key: 'default',
-                    value: value,
+                    value: nextValue,
                   },
                 ];
                 handleVisualChange(newPairs);
               }
             }}
           />
-        </Form.Slot>
+        </FieldSlot>
 
         {/* 模型专用区域 */}
-        <Form.Slot label={t('模型专用区域')}>
-          <div>
+        <FieldSlot label={t('模型专用区域')}>
+          <div className='space-y-2'>
             {modelPairs.map((pair) => {
               const isDuplicate = duplicateKeys.has(pair.key);
               return (
-                <Row key={pair.id} gutter={8} align='middle' className='mb-2'>
-                  <Col span={10}>
-                    <div className='relative'>
-                      <Input
-                        placeholder={t('模型名称')}
-                        value={pair.key}
-                        onChange={(newKey) => updateKey(pair.id, newKey)}
-                        status={isDuplicate ? 'warning' : undefined}
-                      />
-                      {isDuplicate && (
-                        <Tooltip content={t('重复的键名')}>
-                          <IconAlertTriangle
-                            className='absolute right-2 top-1/2 transform -translate-y-1/2'
-                            style={{ color: '#faad14', fontSize: '14px' }}
-                          />
-                        </Tooltip>
-                      )}
-                    </div>
-                  </Col>
-                  <Col span={12}>
+                <div
+                  key={pair.id}
+                  className='grid grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_2.5rem]'
+                >
+                  <div className='relative'>
                     <Input
-                      placeholder={t('区域')}
-                      value={pair.value}
-                      onChange={(newValue) => updateValue(pair.id, newValue)}
+                      placeholder={t('模型名称')}
+                      value={pair.key}
+                      onChange={(event) => updateKey(pair.id, event.target.value)}
+                      className={isDuplicate ? 'border-warning' : undefined}
                     />
-                  </Col>
-                  <Col span={2}>
-                    <Button
-                      icon={<IconDelete />}
-                      type='danger'
-                      theme='borderless'
-                      onClick={() => removeKeyValue(pair.id)}
-                      style={{ width: '100%' }}
-                    />
-                  </Col>
-                </Row>
+                    {isDuplicate && (
+                      <Tooltip content={t('重复的键名')}>
+                        <AlertTriangle
+                          className='absolute right-3 top-1/2 -translate-y-1/2 text-warning'
+                          size={15}
+                        />
+                      </Tooltip>
+                    )}
+                  </div>
+                  <Input
+                    placeholder={t('区域')}
+                    value={pair.value}
+                    onChange={(event) => updateValue(pair.id, event.target.value)}
+                  />
+                  <Button
+                    isIconOnly
+                    variant='danger-soft'
+                    aria-label={t('删除')}
+                    onPress={() => removeKeyValue(pair.id)}
+                    className='w-full md:w-10'
+                  >
+                    <Trash2 size={16} />
+                  </Button>
+                </div>
               );
             })}
 
-            <div className='mt-2 flex justify-center'>
-              <Button
-                icon={<IconPlus />}
-                onClick={addKeyValue}
-                type='primary'
-                theme='outline'
-              >
+            <div className='mt-3 flex justify-center'>
+              <Button variant='outline' onPress={addKeyValue}>
+                <Plus size={16} />
                 {t('添加模型区域')}
               </Button>
             </div>
           </div>
-        </Form.Slot>
+        </FieldSlot>
       </div>
     );
   };
@@ -627,91 +635,85 @@ const JSONEditor = ({
   const hasJsonError = jsonError && jsonError.trim() !== '';
 
   return (
-    <Form.Slot label={label}>
-      <Card
-        header={
-          <div className='flex justify-between items-center'>
-            <Tabs
-              type='slash'
-              activeKey={editMode}
-              onChange={(key) => {
-                if (key === 'manual' && editMode === 'visual') {
-                  setEditMode('manual');
-                } else if (key === 'visual' && editMode === 'manual') {
-                  toggleEditMode();
-                }
-              }}
-            >
-              <TabPane tab={t('可视化')} itemKey='visual' />
-              <TabPane tab={t('手动编辑')} itemKey='manual' />
-            </Tabs>
+    <FieldSlot label={label}>
+      <Card className='rounded-2xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-800 dark:bg-slate-950/80'>
+        <div className='flex flex-col gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 md:flex-row md:items-center md:justify-between'>
+          <Tabs
+            selectedKey={editMode}
+            onSelectionChange={(key) => {
+              const nextKey = String(key);
+              if (nextKey === 'manual' && editMode === 'visual') {
+                setEditMode('manual');
+              } else if (nextKey === 'visual' && editMode === 'manual') {
+                toggleEditMode();
+              }
+            }}
+            size='sm'
+            variant='underlined'
+          >
+            <Tab key='visual' title={t('可视化')} />
+            <Tab key='manual' title={t('手动编辑')} />
+          </Tabs>
 
-            {template && templateLabel && (
-              <Button type='tertiary' onClick={fillTemplate} size='small'>
-                {templateLabel}
-              </Button>
-            )}
-          </div>
-        }
-        headerStyle={{ padding: '12px 16px' }}
-        bodyStyle={{ padding: '16px' }}
-        className='!rounded-2xl'
-      >
-        {/* JSON错误提示 */}
-        {hasJsonError && (
-          <Banner
-            type='danger'
-            description={`JSON 格式错误: ${jsonError}`}
-            className='mb-3'
-          />
-        )}
+          {template && templateLabel && (
+            <Button variant='ghost' size='sm' onPress={fillTemplate}>
+              {templateLabel}
+            </Button>
+          )}
+        </div>
+        <div className='p-4'>
+          {/* JSON错误提示 */}
+          {hasJsonError && (
+            <AlertBanner type='danger' className='mb-3'>
+              {`JSON 格式错误: ${jsonError}`}
+            </AlertBanner>
+          )}
 
-        {/* 编辑器内容 */}
-        {editMode === 'visual' ? (
-          <div>
-            {renderVisualEditor()}
-            {/* 隐藏的Form字段用于验证和数据绑定 */}
-            <Form.Input
-              field={field}
-              value={value}
-              rules={rules}
-              style={{ display: 'none' }}
-              noLabel={true}
-              {...props}
-            />
-          </div>
-        ) : (
-          <div>
-            <TextArea
-              placeholder={placeholder}
-              value={manualText}
-              onChange={handleManualChange}
-              showClear={showClear}
-              rows={Math.max(8, manualText ? manualText.split('\n').length : 8)}
-            />
-            {/* 隐藏的Form字段用于验证和数据绑定 */}
-            <Form.Input
-              field={field}
-              value={value}
-              rules={rules}
-              style={{ display: 'none' }}
-              noLabel={true}
-              {...props}
-            />
-          </div>
-        )}
+          {/* 编辑器内容 */}
+          {editMode === 'visual' ? (
+            <div>
+              {renderVisualEditor()}
+              {/* 隐藏字段用于原生表单场景的数据绑定；主流程仍由 formApi/onChange 驱动 */}
+              <HiddenField field={field} value={value} rules={rules} />
+            </div>
+          ) : (
+            <div>
+              <div className='relative'>
+                <TextArea
+                  placeholder={placeholder}
+                  value={manualText}
+                  onChange={(event) => handleManualChange(event.target.value)}
+                  rows={Math.max(8, manualText ? manualText.split('\n').length : 8)}
+                  fullWidth
+                />
+                {showClear && manualText ? (
+                  <Button
+                    size='sm'
+                    variant='ghost'
+                    onPress={() => handleManualChange('')}
+                    className='absolute right-2 top-2'
+                  >
+                    {t('清空')}
+                  </Button>
+                ) : null}
+              </div>
+              {/* 隐藏字段用于原生表单场景的数据绑定；主流程仍由 formApi/onChange 驱动 */}
+              <HiddenField field={field} value={value} rules={rules} />
+            </div>
+          )}
 
-        {/* 额外文本显示在卡片底部 */}
-        {extraText && (
-          <Divider margin='12px' align='center'>
-            <Text type='tertiary' size='small'>
-              {extraText}
-            </Text>
-          </Divider>
-        )}
-        {extraFooter && <div className='mt-1'>{extraFooter}</div>}
+          {/* 额外文本显示在卡片底部 */}
+          {extraText && (
+            <div className='my-3 flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400'>
+              <span className='h-px flex-1 bg-slate-200 dark:bg-slate-800' />
+              <span>{extraText}</span>
+              <span className='h-px flex-1 bg-slate-200 dark:bg-slate-800' />
+            </div>
+          )}
+          {extraFooter && <div className='mt-1'>{extraFooter}</div>}
+        </div>
       </Card>
-    </Form.Slot>
+    </FieldSlot>
   );
 };
 

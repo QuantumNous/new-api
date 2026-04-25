@@ -19,43 +19,83 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState } from 'react';
 import {
-  Modal,
-  Table,
-  Spin,
   Button,
-  Typography,
-  Empty,
   Input,
-} from '@douyinfe/semi-ui';
-import {
-  IllustrationNoResult,
-  IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
-import { IconSearch } from '@douyinfe/semi-icons';
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  Spinner,
+  useOverlayState,
+} from '@heroui/react';
+import { Inbox, Search } from 'lucide-react';
 import { API, showError } from '../../../../helpers';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+
+function EmptyState({ description }) {
+  return (
+    <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
+      <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+        <Inbox size={28} />
+      </div>
+      <div>{description}</div>
+    </div>
+  );
+}
+
+function Pager({ current, pageSize, total, onChange, t }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages <= 1) return null;
+  return (
+    <div className='mt-3 flex items-center justify-end gap-2 text-sm text-muted'>
+      <span>
+        {t('共 {{total}} 条', { total })}
+      </span>
+      <Button
+        size='sm'
+        variant='light'
+        isDisabled={current <= 1}
+        onPress={() => onChange(current - 1)}
+      >
+        {t('上一页')}
+      </Button>
+      <span>
+        {current} / {totalPages}
+      </span>
+      <Button
+        size='sm'
+        variant='light'
+        isDisabled={current >= totalPages}
+        onPress={() => onChange(current + 1)}
+      >
+        {t('下一页')}
+      </Button>
+    </div>
+  );
+}
 
 const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
   const [loading, setLoading] = useState(false);
   const [missingModels, setMissingModels] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const isMobile = useIsMobile();
 
   const fetchMissing = async () => {
     setLoading(true);
     try {
       const res = await API.get('/api/models/missing');
-      if (res.data.success) {
+      if (res.data?.success) {
         setMissingModels(res.data.data || []);
       } else {
-        showError(res.data.message);
+        showError(res.data?.message);
       }
     } catch (_) {
       showError(t('获取未配置模型失败'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -66,131 +106,120 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
     } else {
       setMissingModels([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  // 过滤和分页逻辑
   const filteredModels = missingModels.filter((model) =>
     model.toLowerCase().includes(searchKeyword.toLowerCase()),
   );
+  const start = (currentPage - 1) * MODEL_TABLE_PAGE_SIZE;
+  const pageItems = filteredModels.slice(start, start + MODEL_TABLE_PAGE_SIZE);
 
-  const dataSource = (() => {
-    const start = (currentPage - 1) * MODEL_TABLE_PAGE_SIZE;
-    const end = start + MODEL_TABLE_PAGE_SIZE;
-    return filteredModels.slice(start, end).map((model) => ({
-      model,
-      key: model,
-    }));
-  })();
-
-  const columns = [
-    {
-      title: t('模型名称'),
-      dataIndex: 'model',
-      render: (text) => (
-        <div className='flex items-center'>
-          <Typography.Text strong>{text}</Typography.Text>
-        </div>
-      ),
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onClose?.();
     },
-    {
-      title: '',
-      dataIndex: 'operate',
-      fixed: 'right',
-      width: 120,
-      render: (text, record) => (
-        <Button
-          type='primary'
-          size='small'
-          onClick={() => onConfigureModel(record.model)}
-        >
-          {t('配置')}
-        </Button>
-      ),
-    },
-  ];
+  });
 
   return (
-    <Modal
-      title={
-        <div className='flex flex-col gap-2 w-full'>
-          <div className='flex items-center gap-2'>
-            <Typography.Text
-              strong
-              className='!text-[var(--semi-color-text-0)] !text-base'
-            >
-              {t('未配置的模型列表')}
-            </Typography.Text>
-            <Typography.Text type='tertiary' size='small'>
-              {t('共')} {missingModels.length} {t('个未配置模型')}
-            </Typography.Text>
-          </div>
-        </div>
-      }
-      visible={visible}
-      onCancel={onClose}
-      footer={null}
-      size={isMobile ? 'full-width' : 'medium'}
-      className='!rounded-lg'
-    >
-      <Spin spinning={loading}>
-        {missingModels.length === 0 && !loading ? (
-          <Empty
-            image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-            darkModeImage={
-              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-            }
-            description={t('暂无缺失模型')}
-            style={{ padding: 30 }}
-          />
-        ) : (
-          <div className='missing-models-content'>
-            {/* 搜索框 */}
-            <div className='flex items-center justify-end gap-2 w-full mb-4'>
-              <Input
-                placeholder={t('搜索模型...')}
-                value={searchKeyword}
-                onChange={(v) => {
-                  setSearchKeyword(v);
-                  setCurrentPage(1);
-                }}
-                className='!w-full'
-                prefix={<IconSearch />}
-                showClear
-              />
-            </div>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='md' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <div className='flex flex-wrap items-center gap-2'>
+                <span className='text-base font-semibold text-foreground'>
+                  {t('未配置的模型列表')}
+                </span>
+                <span className='text-xs text-muted'>
+                  {t('共')} {missingModels.length} {t('个未配置模型')}
+                </span>
+              </div>
+            </ModalHeader>
+            <ModalBody className='space-y-4 px-6 py-5'>
+              {loading ? (
+                <div className='flex items-center justify-center py-10'>
+                  <Spinner />
+                </div>
+              ) : missingModels.length === 0 ? (
+                <EmptyState description={t('暂无缺失模型')} />
+              ) : (
+                <>
+                  <div className='relative'>
+                    <Search
+                      size={14}
+                      className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted'
+                    />
+                    <Input
+                      type='text'
+                      placeholder={t('搜索模型...')}
+                      value={searchKeyword}
+                      onChange={(event) => {
+                        setSearchKeyword(event.target.value);
+                        setCurrentPage(1);
+                      }}
+                      aria-label={t('搜索模型')}
+                      className='h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background pl-9 pr-3 text-sm text-foreground outline-none transition focus:border-primary'
+                    />
+                  </div>
 
-            {/* 表格 */}
-            {filteredModels.length > 0 ? (
-              <Table
-                columns={columns}
-                dataSource={dataSource}
-                pagination={{
-                  currentPage: currentPage,
-                  pageSize: MODEL_TABLE_PAGE_SIZE,
-                  total: filteredModels.length,
-                  showSizeChanger: false,
-                  onPageChange: (page) => setCurrentPage(page),
-                }}
-              />
-            ) : (
-              <Empty
-                image={
-                  <IllustrationNoResult style={{ width: 100, height: 100 }} />
-                }
-                darkModeImage={
-                  <IllustrationNoResultDark
-                    style={{ width: 100, height: 100 }}
+                  {filteredModels.length > 0 ? (
+                    <div className='overflow-hidden rounded-xl border border-[color:var(--app-border)]'>
+                      <table className='w-full text-sm'>
+                        <thead className='bg-[color:var(--app-background)] text-xs uppercase text-muted'>
+                          <tr>
+                            <th className='px-4 py-2 text-left font-semibold'>
+                              {t('模型名称')}
+                            </th>
+                            <th className='w-32 px-4 py-2 text-right font-semibold'>
+                              &nbsp;
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className='divide-y divide-[color:var(--app-border)]'>
+                          {pageItems.map((model) => (
+                            <tr key={model}>
+                              <td className='px-4 py-2 font-medium text-foreground'>
+                                {model}
+                              </td>
+                              <td className='px-4 py-2 text-right'>
+                                <Button
+                                  color='primary'
+                                  size='sm'
+                                  onPress={() => onConfigureModel?.(model)}
+                                >
+                                  {t('配置')}
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <EmptyState
+                      description={
+                        searchKeyword
+                          ? t('未找到匹配的模型')
+                          : t('暂无缺失模型')
+                      }
+                    />
+                  )}
+
+                  <Pager
+                    current={currentPage}
+                    pageSize={MODEL_TABLE_PAGE_SIZE}
+                    total={filteredModels.length}
+                    onChange={(p) => setCurrentPage(p)}
+                    t={t}
                   />
-                }
-                description={
-                  searchKeyword ? t('未找到匹配的模型') : t('暂无缺失模型')
-                }
-                style={{ padding: 20 }}
-              />
-            )}
-          </div>
-        )}
-      </Spin>
+                </>
+              )}
+            </ModalBody>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

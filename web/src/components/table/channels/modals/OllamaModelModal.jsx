@@ -19,30 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Modal,
-  Button,
-  Typography,
-  Card,
-  List,
-  Space,
-  Input,
-  Spin,
-  Popconfirm,
-  Tag,
-  Empty,
-  Row,
-  Col,
-  Progress,
-  Checkbox,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Input } from '@heroui/react';
+import { Modal, Typography, List, Space, Spin, Popconfirm, Tag, Empty, Row, Col, Progress, Checkbox } from '@/components/common/ui/HeroCompat';
 import {
   IconDownload,
   IconDelete,
   IconRefresh,
   IconSearch,
   IconPlus,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import {
   API,
   authHeader,
@@ -628,7 +613,7 @@ const OllamaModelModal = ({
                       </div>
                     </div>
                   ) : (
-                    <div className='flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]'>
+                    <div className='flex items-center gap-2 text-xs text-[var(--app-muted)]'>
                       <Spin size='small' />
                       <span>{t('准备中...')}</span>
                     </div>

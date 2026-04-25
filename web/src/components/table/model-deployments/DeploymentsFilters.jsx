@@ -17,9 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef } from 'react';
-import { Form, Button } from '@douyinfe/semi-ui';
-import { IconSearch, IconRefresh } from '@douyinfe/semi-icons';
+import React from 'react';
+import { Button } from '@heroui/react';
+import { RefreshCw, Search } from 'lucide-react';
+import {
+  FilterInput,
+  FilterSelect,
+  useTableFilterForm,
+} from '../../common/ui/TableFilterForm';
 
 const DeploymentsFilters = ({
   formInitValues,
@@ -30,17 +35,16 @@ const DeploymentsFilters = ({
   setShowColumnSelector,
   t,
 }) => {
-  const formApiRef = useRef(null);
-
-  const handleSubmit = (values) => {
-    searchDeployments(values);
-  };
+  const { values, setFieldValue, handleSubmit, api } = useTableFilterForm({
+    initValues: formInitValues,
+    setFormApi,
+    onSubmit: searchDeployments,
+  });
 
   const handleReset = () => {
-    if (!formApiRef.current) return;
-    formApiRef.current.reset();
+    api.reset();
     setTimeout(() => {
-      formApiRef.current.submitForm();
+      searchDeployments(formInitValues);
     }, 0);
   };
 
@@ -55,75 +59,65 @@ const DeploymentsFilters = ({
   ];
 
   return (
-    <Form
-      layout='horizontal'
+    <form
       onSubmit={handleSubmit}
-      initValues={formInitValues}
-      getFormApi={(formApi) => {
-        setFormApi(formApi);
-        formApiRef.current = formApi;
-      }}
       className='w-full md:w-auto order-1 md:order-2'
     >
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
         <div className='w-full md:w-64'>
-          <Form.Input
-            field='searchKeyword'
+          <FilterInput
+            value={values.searchKeyword}
+            onChange={(value) => setFieldValue('searchKeyword', value)}
             placeholder={t('搜索部署名称')}
-            prefix={<IconSearch />}
-            showClear
-            size='small'
-            pure
           />
         </div>
 
         <div className='w-full md:w-48'>
-          <Form.Select
-            field='searchStatus'
+          <FilterSelect
+            value={values.searchStatus}
+            onChange={(value) => setFieldValue('searchStatus', value)}
             placeholder={t('选择状态')}
-            optionList={statusOptions}
-            className='w-full'
-            showClear
-            size='small'
-            pure
+            options={statusOptions}
           />
         </div>
 
         <div className='flex gap-2 w-full md:w-auto'>
           <Button
-            htmlType='submit'
-            type='tertiary'
-            icon={<IconSearch />}
-            loading={searching}
-            disabled={loading}
-            size='small'
+            type='submit'
+            variant='outline'
+            isPending={searching}
+            isDisabled={loading}
+            size='sm'
             className='flex-1 md:flex-initial md:w-auto'
           >
+            <Search size={15} />
             {t('查询')}
           </Button>
 
           <Button
-            type='tertiary'
-            icon={<IconRefresh />}
-            onClick={handleReset}
-            disabled={loading || searching}
-            size='small'
+            type='button'
+            variant='outline'
+            onPress={handleReset}
+            isDisabled={loading || searching}
+            size='sm'
             className='flex-1 md:flex-initial md:w-auto'
           >
+            <RefreshCw size={15} />
             {t('重置')}
           </Button>
 
           <Button
-            type='tertiary'
-            onClick={() => setShowColumnSelector(true)}
-            size='small'
+            type='button'
+            variant='outline'
+            onPress={() => setShowColumnSelector(true)}
+            size='sm'
             className='flex-1 md:flex-initial md:w-auto'
           >
             {t('列设置')}
           </Button>
         </div>
       </div>
-    </Form>
+    </form>
   );
 };
 

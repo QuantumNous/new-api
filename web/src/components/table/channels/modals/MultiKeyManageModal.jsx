@@ -19,28 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Modal,
-  Button,
-  Table,
-  Tag,
-  Typography,
-  Space,
-  Tooltip,
-  Popconfirm,
-  Empty,
-  Spin,
-  Select,
-  Row,
-  Col,
-  Badge,
-  Progress,
-  Card,
-} from '@douyinfe/semi-ui';
+import { Button, Tooltip, Select, Badge, Card } from '@heroui/react';
+import { Modal, Table, Tag, Typography, Space, Popconfirm, Empty, Spin, Row, Col, Progress } from '@/components/common/ui/HeroCompat';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
+} from '@/components/common/ui/HeroIllustrationsCompat';
 import {
   API,
   showError,
@@ -484,16 +468,16 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         <div
           className='rounded-xl p-4 mb-3'
           style={{
-            background: 'var(--semi-color-bg-1)',
-            border: '1px solid var(--semi-color-border)',
+            background: 'var(--app-background)',
+            border: '1px solid var(--app-border)',
           }}
         >
           <Row gutter={16} align='middle'>
             <Col span={8}>
               <div
                 style={{
-                  background: 'var(--semi-color-bg-0)',
-                  border: '1px solid var(--semi-color-border)',
+                  background: 'var(--app-surface)',
+                  border: '1px solid var(--app-border)',
                   borderRadius: 12,
                   padding: 12,
                 }}
@@ -509,7 +493,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                     {enabledCount}
                   </Text>
                   <Text
-                    style={{ fontSize: 18, color: 'var(--semi-color-text-2)' }}
+                    style={{ fontSize: 18, color: 'var(--app-muted)' }}
                   >
                     / {total}
                   </Text>
@@ -526,8 +510,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
             <Col span={8}>
               <div
                 style={{
-                  background: 'var(--semi-color-bg-0)',
-                  border: '1px solid var(--semi-color-border)',
+                  background: 'var(--app-surface)',
+                  border: '1px solid var(--app-border)',
                   borderRadius: 12,
                   padding: 12,
                 }}
@@ -543,7 +527,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                     {manualDisabledCount}
                   </Text>
                   <Text
-                    style={{ fontSize: 18, color: 'var(--semi-color-text-2)' }}
+                    style={{ fontSize: 18, color: 'var(--app-muted)' }}
                   >
                     / {total}
                   </Text>
@@ -560,8 +544,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
             <Col span={8}>
               <div
                 style={{
-                  background: 'var(--semi-color-bg-0)',
-                  border: '1px solid var(--semi-color-border)',
+                  background: 'var(--app-surface)',
+                  border: '1px solid var(--app-border)',
                   borderRadius: 12,
                   padding: 12,
                 }}
@@ -577,7 +561,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                     {autoDisabledCount}
                   </Text>
                   <Text
-                    style={{ fontSize: 18, color: 'var(--semi-color-text-2)' }}
+                    style={{ fontSize: 18, color: 'var(--app-muted)' }}
                   >
                     / {total}
                   </Text>

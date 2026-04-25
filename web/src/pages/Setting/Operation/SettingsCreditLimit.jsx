@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import React, { useEffect, useState } from 'react';
+import { Button, Input, Switch } from '@heroui/react';
 import { useTranslation } from 'react-i18next';
 import {
   compareObjects,
@@ -28,171 +28,197 @@ import {
   showWarning,
 } from '../../../helpers';
 
+const NUMERIC_FIELDS = [
+  'QuotaForNewUser',
+  'PreConsumedQuota',
+  'QuotaForInviter',
+  'QuotaForInvitee',
+];
+const BOOLEAN_FIELDS = ['quota_setting.enable_free_model_pre_consume'];
+
+const DEFAULT_INPUTS = {
+  QuotaForNewUser: '',
+  PreConsumedQuota: '',
+  QuotaForInviter: '',
+  QuotaForInvitee: '',
+  'quota_setting.enable_free_model_pre_consume': true,
+};
+
+// Small reusable number input row used for all the per-field cards on this
+// settings page. Keeps the visual weight consistent and avoids repeating the
+// label/description block four times in JSX.
+function NumberField({ label, value, onChange, suffix, helper, placeholder }) {
+  return (
+    <div className='space-y-2'>
+      <div className='text-sm font-medium text-foreground'>{label}</div>
+      <div className='flex items-center gap-2'>
+        <Input
+          type='number'
+          min={0}
+          step={1}
+          value={value === '' || value == null ? '' : String(value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            onChange(v === '' ? '' : Number(v));
+          }}
+          placeholder={placeholder}
+          aria-label={label}
+          className='h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary'
+        />
+        {suffix ? (
+          <span className='text-xs text-muted shrink-0'>{suffix}</span>
+        ) : null}
+      </div>
+      {helper ? (
+        <div className='text-xs leading-snug text-muted'>{helper}</div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function SettingsCreditLimit(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    QuotaForNewUser: '',
-    PreConsumedQuota: '',
-    QuotaForInviter: '',
-    QuotaForInvitee: '',
-    'quota_setting.enable_free_model_pre_consume': true,
-  });
-  const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [inputsRow, setInputsRow] = useState(DEFAULT_INPUTS);
 
-  function onSubmit() {
+  const setField = (field) => (value) =>
+    setInputs((prev) => ({ ...prev, [field]: value }));
+
+  const onSubmit = async () => {
     const updateArray = compareObjects(inputs, inputsRow);
-    if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
-    const requestQueue = updateArray.map((item) => {
-      let value = '';
-      if (typeof inputs[item.key] === 'boolean') {
-        value = String(inputs[item.key]);
-      } else {
-        value = inputs[item.key];
-      }
-      return API.put('/api/option/', {
-        key: item.key,
-        value,
-      });
-    });
+    if (!updateArray.length) {
+      showWarning(t('你似乎并没有修改什么'));
+      return;
+    }
     setLoading(true);
-    Promise.all(requestQueue)
-      .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+    try {
+      const requests = updateArray.map((item) =>
+        API.put('/api/option/', {
+          key: item.key,
+          value:
+            typeof inputs[item.key] === 'boolean'
+              ? String(inputs[item.key])
+              : String(inputs[item.key] ?? ''),
+        }),
+      );
+      const results = await Promise.all(requests);
+      if (results.some((r) => r === undefined)) {
+        if (requests.length > 1) {
+          showError(t('部分保存失败，请重试'));
+          return;
         }
-        showSuccess(t('保存成功'));
-        props.refresh();
-      })
-      .catch(() => {
-        showError(t('保存失败，请重试'));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }
+        return;
+      }
+      showSuccess(t('保存成功'));
+      setInputsRow(structuredClone(inputs));
+      props.refresh?.();
+    } catch (e) {
+      showError(t('保存失败，请重试'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+    if (!props.options) return;
+    const next = { ...DEFAULT_INPUTS };
+    for (const key of Object.keys(DEFAULT_INPUTS)) {
+      if (key in props.options) {
+        const raw = props.options[key];
+        if (BOOLEAN_FIELDS.includes(key)) {
+          next[key] = raw === true || raw === 'true';
+        } else if (NUMERIC_FIELDS.includes(key)) {
+          if (raw === '' || raw == null) {
+            next[key] = '';
+          } else {
+            const parsed = Number(raw);
+            next[key] = Number.isFinite(parsed) ? parsed : '';
+          }
+        } else {
+          next[key] = raw;
+        }
       }
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+    setInputs(next);
+    setInputsRow(structuredClone(next));
   }, [props.options]);
-  return (
-    <>
-      <Spin spinning={loading}>
-        <Form
-          values={inputs}
-          getFormApi={(formAPI) => (refForm.current = formAPI)}
-          style={{ marginBottom: 15 }}
-        >
-          <Form.Section text={t('额度设置')}>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('新用户初始额度')}
-                  field={'QuotaForNewUser'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
-                  placeholder={''}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      QuotaForNewUser: String(value),
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('请求预扣费额度')}
-                  field={'PreConsumedQuota'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
-                  extraText={t('请求结束后多退少补')}
-                  placeholder={''}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      PreConsumedQuota: String(value),
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('邀请新用户奖励额度')}
-                  field={'QuotaForInviter'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
-                  extraText={''}
-                  placeholder={t('例如：2000')}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      QuotaForInviter: String(value),
-                    })
-                  }
-                />
-              </Col>
-            </Row>
-            <Row>
-              <Col xs={24} sm={12} md={8} lg={8} xl={6}>
-                <Form.InputNumber
-                  label={t('新用户使用邀请码奖励额度')}
-                  field={'QuotaForInvitee'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
-                  extraText={''}
-                  placeholder={t('例如：1000')}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      QuotaForInvitee: String(value),
-                    })
-                  }
-                />
-              </Col>
-            </Row>
-            <Row>
-              <Col>
-                <Form.Switch
-                  label={t('对免费模型启用预消耗')}
-                  field={'quota_setting.enable_free_model_pre_consume'}
-                  extraText={t(
-                    '开启后，对免费模型（倍率为0，或者价格为0）的模型也会预消耗额度',
-                  )}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      'quota_setting.enable_free_model_pre_consume': value,
-                    })
-                  }
-                />
-              </Col>
-            </Row>
 
-            <Row>
-              <Button size='default' onClick={onSubmit}>
-                {t('保存额度设置')}
-              </Button>
-            </Row>
-          </Form.Section>
-        </Form>
-      </Spin>
-    </>
+  return (
+    <div className='p-6 space-y-6'>
+      <div>
+        <div className='text-base font-semibold text-foreground'>
+          {t('额度设置')}
+        </div>
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+        <NumberField
+          label={t('新用户初始额度')}
+          value={inputs.QuotaForNewUser}
+          onChange={setField('QuotaForNewUser')}
+          suffix='Token'
+        />
+        <NumberField
+          label={t('请求预扣费额度')}
+          value={inputs.PreConsumedQuota}
+          onChange={setField('PreConsumedQuota')}
+          suffix='Token'
+          helper={t('请求结束后多退少补')}
+        />
+        <NumberField
+          label={t('邀请新用户奖励额度')}
+          value={inputs.QuotaForInviter}
+          onChange={setField('QuotaForInviter')}
+          suffix='Token'
+          placeholder={t('例如：2000')}
+        />
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+        <NumberField
+          label={t('新用户使用邀请码奖励额度')}
+          value={inputs.QuotaForInvitee}
+          onChange={setField('QuotaForInvitee')}
+          suffix='Token'
+          placeholder={t('例如：1000')}
+        />
+      </div>
+
+      <label className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+        <div className='min-w-0 flex-1'>
+          <div className='text-sm font-medium text-foreground'>
+            {t('对免费模型启用预消耗')}
+          </div>
+          <div className='mt-1 text-xs leading-snug text-muted'>
+            {t(
+              '开启后，对免费模型（倍率为0，或者价格为0）的模型也会预消耗额度',
+            )}
+          </div>
+        </div>
+        <Switch
+          isSelected={!!inputs['quota_setting.enable_free_model_pre_consume']}
+          onChange={setField('quota_setting.enable_free_model_pre_consume')}
+          aria-label={t('对免费模型启用预消耗')}
+          size='sm'
+        >
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+        </Switch>
+      </label>
+
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={onSubmit}
+          isPending={loading}
+          className='min-w-[100px]'
+        >
+          {t('保存额度设置')}
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -63,10 +63,11 @@ export const useUsersData = () => {
 
   // Set user format with key field
   const setUserFormat = (users) => {
-    for (let i = 0; i < users.length; i++) {
-      users[i].key = users[i].id;
+    const nextUsers = Array.isArray(users) ? users : [];
+    for (let i = 0; i < nextUsers.length; i++) {
+      nextUsers[i].key = nextUsers[i].id;
     }
-    setUsers(users);
+    setUsers(nextUsers);
   };
 
   // Load users data
@@ -75,9 +76,10 @@ export const useUsersData = () => {
     const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}`);
     const { success, message, data } = res.data;
     if (success) {
-      const newPageData = data.items;
-      setActivePage(data.page);
-      setUserCount(data.total);
+      const pageData = Array.isArray(data) ? { items: data, page: startIdx, total: data.length } : data || {};
+      const newPageData = pageData.items || [];
+      setActivePage(pageData.page || startIdx);
+      setUserCount(pageData.total || newPageData.length);
       setUserFormat(newPageData);
     } else {
       showError(message);
@@ -110,9 +112,10 @@ export const useUsersData = () => {
     );
     const { success, message, data } = res.data;
     if (success) {
-      const newPageData = data.items;
-      setActivePage(data.page);
-      setUserCount(data.total);
+      const pageData = Array.isArray(data) ? { items: data, page: startIdx, total: data.length } : data || {};
+      const newPageData = pageData.items || [];
+      setActivePage(pageData.page || startIdx);
+      setUserCount(pageData.total || newPageData.length);
       setUserFormat(newPageData);
     } else {
       showError(message);
@@ -216,7 +219,7 @@ export const useUsersData = () => {
     if (record.DeletedAt !== null || record.status !== 1) {
       return {
         style: {
-          background: 'var(--semi-color-disabled-border)',
+          background: 'var(--app-border)',
         },
       };
     } else {

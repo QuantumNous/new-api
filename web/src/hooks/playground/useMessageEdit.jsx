@@ -18,12 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useCallback, useState, useRef } from 'react';
-import { Toast, Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
   getTextContent,
   buildApiPayload,
   createLoadingAssistantMessage,
+  showSuccess,
 } from '../../helpers';
 import { MESSAGE_ROLES } from '../../constants/playground.constants';
 
@@ -82,40 +82,33 @@ export const useMessageEdit = (
           prevMessages[messageIndex + 1].role === MESSAGE_ROLES.ASSISTANT;
 
         if (hasSubsequentAssistantReply) {
-          Modal.confirm({
-            title: t('消息已编辑'),
-            content: t('检测到该消息后有AI回复，是否删除后续回复并重新生成？'),
-            okText: t('重新生成'),
-            cancelText: t('仅保存'),
-            onOk: () => {
-              const messagesUntilUser = updatedMessages.slice(
-                0,
-                messageIndex + 1,
-              );
-              setMessage(messagesUntilUser);
-              // 编辑后保存（重新生成的情况），传入更新后的消息列表
-              setTimeout(() => saveMessages(messagesUntilUser), 0);
+          const shouldRegenerate = window.confirm(
+            t('检测到该消息后有AI回复，是否删除后续回复并重新生成？'),
+          );
+          if (shouldRegenerate) {
+            const messagesUntilUser = updatedMessages.slice(0, messageIndex + 1);
+            setMessage(messagesUntilUser);
+            // 编辑后保存（重新生成的情况），传入更新后的消息列表
+            setTimeout(() => saveMessages(messagesUntilUser), 0);
 
-              setTimeout(() => {
-                const payload = buildApiPayload(
-                  messagesUntilUser,
-                  null,
-                  inputs,
-                  parameterEnabled,
-                );
-                setMessage((prevMsg) => [
-                  ...prevMsg,
-                  createLoadingAssistantMessage(),
-                ]);
-                sendRequest(payload, inputs.stream);
-              }, 100);
-            },
-            onCancel: () => {
-              setMessage(updatedMessages);
-              // 编辑后保存（仅保存的情况），传入更新后的消息列表
-              setTimeout(() => saveMessages(updatedMessages), 0);
-            },
-          });
+            setTimeout(() => {
+              const payload = buildApiPayload(
+                messagesUntilUser,
+                null,
+                inputs,
+                parameterEnabled,
+              );
+              setMessage((prevMsg) => [
+                ...prevMsg,
+                createLoadingAssistantMessage(),
+              ]);
+              sendRequest(payload, inputs.stream);
+            }, 100);
+          } else {
+            setMessage(updatedMessages);
+            // 编辑后保存（仅保存的情况），传入更新后的消息列表
+            setTimeout(() => saveMessages(updatedMessages), 0);
+          }
           return prevMessages;
         }
       }
@@ -128,7 +121,7 @@ export const useMessageEdit = (
     setEditingMessageId(null);
     editingMessageRef.current = null;
     setEditValue('');
-    Toast.success({ content: t('消息已更新'), duration: 2 });
+    showSuccess(t('消息已更新'));
   }, [
     editingMessageId,
     editValue,

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Card, Tabs } from '@heroui/react';
 import { PieChart } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 
@@ -38,56 +38,54 @@ const ChartsPanel = ({
   hasApiInfoPanel,
   t,
 }) => {
+  // Build static tab items so the underlying RAC collection sees a stable
+  // list (HeroUI Tabs is a `react-aria-components` Tabs and rejects raw
+  // conditional children inside <Tabs.List/>).
+  const tabItems = [
+    { id: '1', title: t('消耗分布'), spec: spec_line },
+    { id: '2', title: t('调用趋势'), spec: spec_model_line },
+    { id: '3', title: t('调用次数分布'), spec: spec_pie },
+    { id: '4', title: t('调用次数排行'), spec: spec_rank_bar },
+    isAdminUser && { id: '5', title: t('用户消耗排行'), spec: spec_user_rank },
+    isAdminUser && { id: '6', title: t('用户消耗趋势'), spec: spec_user_trend },
+  ].filter(Boolean);
+
   return (
     <Card
-      {...CARD_PROPS}
-      className={`!rounded-2xl ${hasApiInfoPanel ? 'lg:col-span-3' : ''}`}
-      title={
+      className={`rounded-2xl ${hasApiInfoPanel ? 'lg:col-span-3' : ''} ${CARD_PROPS?.className || ''}`}
+      shadow='none'
+    >
+      <Card.Header>
         <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between w-full gap-3'>
           <div className={FLEX_CENTER_GAP2}>
             <PieChart size={16} />
             {t('模型数据分析')}
           </div>
           <Tabs
-            type='slash'
-            activeKey={activeChartTab}
-            onChange={setActiveChartTab}
+            selectedKey={activeChartTab}
+            onSelectionChange={(key) => setActiveChartTab(String(key))}
+            variant='secondary'
           >
-            <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
-            <TabPane tab={<span>{t('调用趋势')}</span>} itemKey='2' />
-            <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
-            <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户消耗排行')}</span>} itemKey='5' />
-            )}
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户消耗趋势')}</span>} itemKey='6' />
-            )}
+            <Tabs.List aria-label={t('模型数据分析')}>
+              {tabItems.map((item) => (
+                <Tabs.Tab key={item.id} id={item.id}>
+                  {item.title}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
           </Tabs>
         </div>
-      }
-      bodyStyle={{ padding: 0 }}
-    >
-      <div className='h-96 p-2'>
-        {activeChartTab === '1' && (
-          <VChart spec={spec_line} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '2' && (
-          <VChart spec={spec_model_line} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '3' && (
-          <VChart spec={spec_pie} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '4' && (
-          <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '5' && isAdminUser && (
-          <VChart spec={spec_user_rank} option={CHART_CONFIG} />
-        )}
-        {activeChartTab === '6' && isAdminUser && (
-          <VChart spec={spec_user_trend} option={CHART_CONFIG} />
-        )}
-      </div>
+      </Card.Header>
+      <Card.Content className='p-0'>
+        <div className='h-96 p-2'>
+          {tabItems.map(
+            (item) =>
+              activeChartTab === item.id && (
+                <VChart key={item.id} spec={item.spec} option={CHART_CONFIG} />
+              ),
+          )}
+        </div>
+      </Card.Content>
     </Card>
   );
 };
