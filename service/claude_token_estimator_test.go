@@ -1,9 +1,9 @@
 package service
 
 import (
-	"encoding/json"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 )
 
@@ -70,7 +70,7 @@ func TestEstimateClaudeInputTokens(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var req dto.ClaudeRequest
 			if tc.body != "" {
-				if err := json.Unmarshal([]byte(tc.body), &req); err != nil {
+				if err := common.Unmarshal([]byte(tc.body), &req); err != nil {
 					t.Fatalf("unmarshal: %v", err)
 				}
 			} else {
