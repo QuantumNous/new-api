@@ -1,8 +1,7 @@
 package service
 
 import (
-	"encoding/json"
-
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 )
 
@@ -67,19 +66,19 @@ func normalizeRequestTools(req *dto.ClaudeRequest) {
 		if !ok {
 			continue
 		}
-		b, err := json.Marshal(m)
+		b, err := common.Marshal(m)
 		if err != nil {
 			continue
 		}
 		if _, isWebSearch := m["type"]; isWebSearch {
 			var ws dto.ClaudeWebSearchTool
-			if err := json.Unmarshal(b, &ws); err == nil && ws.Type != "" {
+			if err := common.Unmarshal(b, &ws); err == nil && ws.Type != "" {
 				normalized = append(normalized, &ws)
 			}
 			continue
 		}
 		var tool dto.Tool
-		if err := json.Unmarshal(b, &tool); err == nil && tool.Name != "" {
+		if err := common.Unmarshal(b, &tool); err == nil && tool.Name != "" {
 			normalized = append(normalized, &tool)
 		}
 	}
