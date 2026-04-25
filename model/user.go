@@ -336,7 +336,11 @@ func inviteUser(inviterId int) (err error) {
 	user.AffCount++
 	user.AffQuota += common.QuotaForInviter
 	user.AffHistoryQuota += common.QuotaForInviter
-	return DB.Save(user).Error
+	if err = DB.Save(user).Error; err != nil {
+		return err
+	}
+	_, err = applyInviteGroupUpgradeForUser(user, true)
+	return err
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
@@ -423,10 +427,11 @@ func (user *User) Insert(inviterId int) error {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
+		if err := inviteUser(inviterId); err != nil {
+			common.SysLog("failed to process inviter invite count or auto-upgrade: " + err.Error())
+		}
 		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
 			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
 		}
 	}
 	return nil
@@ -484,9 +489,11 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
+		if err := inviteUser(inviterId); err != nil {
+			common.SysLog("failed to process inviter invite count or auto-upgrade: " + err.Error())
+		}
 		if common.QuotaForInviter > 0 {
 			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
 		}
 	}
 }

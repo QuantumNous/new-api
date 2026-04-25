@@ -306,6 +306,26 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "invite_group_upgrade_setting.rules":
+		rules, parseErr := operation_setting.ParseInviteGroupUpgradeRulesJSON(option.Value.(string))
+		if parseErr != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": parseErr.Error(),
+			})
+			return
+		}
+		groupMap := ratio_setting.GetGroupRatioCopy()
+		for _, rule := range rules {
+			if _, ok := groupMap[rule.TargetGroup]; !ok {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("目标分组不存在: %s", rule.TargetGroup),
+				})
+				return
+			}
+		}
+		option.Value = operation_setting.MustInviteGroupUpgradeRulesJSON(rules)
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

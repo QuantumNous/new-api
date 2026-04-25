@@ -32,17 +32,39 @@ const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
 };
 export default HTMLToastContent;
+
+export function parseJSONSafely(value, fallback = null) {
+  if (!value || typeof value !== 'string') {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return fallback;
+  }
+}
+
+export function getParsedUserFromLocalStorage() {
+  const rawUser = localStorage.getItem('user');
+  const parsedUser = parseJSONSafely(rawUser, null);
+
+  if (rawUser && !parsedUser) {
+    localStorage.removeItem('user');
+  }
+
+  return parsedUser;
+}
+
 export function isAdmin() {
-  let user = localStorage.getItem('user');
+  const user = getParsedUserFromLocalStorage();
   if (!user) return false;
-  user = JSON.parse(user);
   return user.role >= 10;
 }
 
 export function isRoot() {
-  let user = localStorage.getItem('user');
+  const user = getParsedUserFromLocalStorage();
   if (!user) return false;
-  user = JSON.parse(user);
   return user.role >= 100;
 }
 
@@ -59,9 +81,8 @@ export function getLogo() {
 }
 
 export function getUserIdFromLocalStorage() {
-  let user = localStorage.getItem('user');
+  const user = getParsedUserFromLocalStorage();
   if (!user) return -1;
-  user = JSON.parse(user);
   return user.id;
 }
 

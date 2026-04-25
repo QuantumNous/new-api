@@ -20,10 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { history } from './history';
+import { getParsedUserFromLocalStorage } from './utils';
 
 export function authHeader() {
   // return authorization header with jwt token
-  let user = JSON.parse(localStorage.getItem('user'));
+  const user = getParsedUserFromLocalStorage();
 
   if (user && user.token) {
     return { Authorization: 'Bearer ' + user.token };
