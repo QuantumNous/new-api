@@ -17,6 +17,7 @@ type UserSetting struct {
 	BillingPreference                string  `json:"billing_preference,omitempty"`                   // BillingPreference 扣费策略（订阅/钱包）
 	CurrencyPreference               string  `json:"currency_preference,omitempty"`                   // CurrencyPreference 货币偏好
 	Language                         string  `json:"language,omitempty"`                             // Language 用户语言偏好 (zh, en)
+	SaveImageToServer                bool    `json:"save_image_to_server,omitempty"`                 // SaveImageToServer 是否开启服务端保存生图结果
 }
 
 var (

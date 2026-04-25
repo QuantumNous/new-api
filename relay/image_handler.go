@@ -106,6 +106,11 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		}
 	}
 
+	// Set flag for image saving before DoResponse reads the body
+	if info.UserSetting.SaveImageToServer {
+		c.Set("save_image_to_server", true)
+	}
+
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
@@ -150,6 +155,21 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		logContent = append(logContent, fmt.Sprintf("生成数量 %d", imageN))
 	}
 
+	if info.UserSetting.SaveImageToServer {
+		logContent = append(logContent, "服务端保存图片已开启")
+		info.PriceData.AddOtherRatio("save_server", 1.5)
+	}
+
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
+
+	// Trigger async image saving if enabled
+	if info.UserSetting.SaveImageToServer {
+		if respBody, exists := c.Get("image_response_body"); exists {
+			if bodyBytes, ok := respBody.([]byte); ok {
+				service.SaveImageFromResponse(info, bodyBytes)
+			}
+		}
+	}
+
 	return nil
 }

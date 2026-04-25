@@ -54,6 +54,7 @@ import {
   Package,
   Server,
   CalendarClock,
+  Palette,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -126,6 +127,8 @@ export function getLucideIcon(key, selected = false) {
       return <CalendarClock {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
+    case 'image-studio':
+      return <Palette {...commonProps} color={iconColor} />;
     default:
       return <CircleUser {...commonProps} color={iconColor} />;
   }
@@ -1199,6 +1202,7 @@ export function renderModelPrice(opts) {
     audio_input_price: audioInputPrice = 0,
     image_generation_call: imageGenerationCall = false,
     image_generation_call_price: imageGenerationCallPrice = 0,
+    save_server_surcharge: saveServerSurcharge = 0,
     displayMode = 'price',
   } = opts;
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
@@ -1216,7 +1220,24 @@ export function renderModelPrice(opts) {
 
   if (modelPrice !== -1) {
     const displayPrice = dp(modelPrice);
-    const displayTotal = dp(modelPrice * groupRatio);
+    let total = modelPrice * groupRatio;
+    if (saveServerSurcharge > 0) {
+      const pct = Math.round((saveServerSurcharge - 1) * 100);
+      total = total * saveServerSurcharge;
+      const displayTotal = dp(total);
+      return i18next.t(
+        '模型价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} + 服务端存储服务费（7天） {{pct}}% = {{symbol}}{{total}}',
+        {
+          symbol: symbol,
+          price: displayPrice,
+          ratio: groupRatio,
+          total: displayTotal,
+          ratioType: ratioLabel,
+          pct,
+        },
+      );
+    }
+    const displayTotal = dp(total);
     return i18next.t(
       '模型价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}',
       {
@@ -1242,13 +1263,16 @@ export function renderModelPrice(opts) {
     if (audioInputTokens > 0) {
       effectiveInputTokens -= audioInputTokens;
     }
-    const price =
+    let price =
       (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
       (audioInputTokens / 1000000) * audioInputPrice * groupRatio +
       (completionTokens / 1000000) * completionRatioPrice * groupRatio +
       (webSearchCallCount / 1000) * webSearchPrice * groupRatio +
       (fileSearchCallCount / 1000) * fileSearchPrice * groupRatio +
       imageGenerationCallPrice * groupRatio;
+    if (saveServerSurcharge > 0) {
+      price = price * saveServerSurcharge;
+    }
 
     return (
       <>
@@ -1422,12 +1446,16 @@ export function renderModelPrice(opts) {
                   : '',
               ].join('');
 
+              const surchargeDesc = saveServerSurcharge > 0
+                ? i18next.t(' + 服务端存储服务费（7天） {{pct}}%', { pct: Math.round((saveServerSurcharge - 1) * 100) })
+                : '';
               return i18next.t(
-                '{{inputDesc}} + {{outputDesc}}{{extraServices}} = {{symbol}}{{total}}',
+                '{{inputDesc}} + {{outputDesc}}{{extraServices}}{{surchargeDesc}} = {{symbol}}{{total}}',
                 {
                   inputDesc,
                   outputDesc,
                   extraServices,
+                  surchargeDesc,
                   symbol: symbol,
                   total: dp(price),
                 },

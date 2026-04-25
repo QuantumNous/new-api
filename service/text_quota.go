@@ -427,6 +427,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["image_generation_call"] = true
 		other["image_generation_call_price"] = summary.ImageGenerationCallPrice
 	}
+	if saveServerRatio, ok := relayInfo.PriceData.OtherRatios["save_server"]; ok {
+		other["save_server_surcharge"] = saveServerRatio
+	}
 	if summary.CacheCreationTokens > 0 {
 		other["cache_creation_tokens"] = summary.CacheCreationTokens
 		other["cache_creation_ratio"] = summary.CacheCreationRatio

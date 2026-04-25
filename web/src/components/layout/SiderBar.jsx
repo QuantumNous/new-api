@@ -49,7 +49,11 @@ const routerMap = {
   deployment: '/console/deployment',
   playground: '/console/playground',
   personal: '/console/personal',
+  'image-studio': '/console/image-studio',
 };
+
+// 需要在新标签页打开的外部路径
+const externalRoutes = new Set([]);
 
 const SiderBar = ({ onNavigate = () => {} }) => {
   const { t } = useTranslation();
@@ -133,6 +137,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('个人设置'),
         itemKey: 'personal',
         to: '/personal',
+      },
+      {
+        text: t('生图工具'),
+        itemKey: 'image-studio',
+        to: '/console/image-studio',
       },
     ];
 
@@ -415,6 +424,21 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
             // 如果没有路由，直接返回元素
             if (!to) return itemElement;
+
+            // 外部链接在新标签页打开
+            if (externalRoutes.has(props.itemKey)) {
+              return (
+                <a
+                  style={{ textDecoration: 'none' }}
+                  href={to}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  onClick={onNavigate}
+                >
+                  {itemElement}
+                </a>
+              );
+            }
 
             return (
               <Link

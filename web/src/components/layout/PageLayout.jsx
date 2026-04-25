@@ -59,6 +59,7 @@ const PageLayout = () => {
     '/console/midjourney',
     '/console/task',
     '/console/models',
+    '/console/image-studio',
     '/pricing',
   ];
 

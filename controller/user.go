@@ -1179,6 +1179,7 @@ type UpdateUserSettingRequest struct {
 	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
 	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                      bool    `json:"record_ip_log"`
+	SaveImageToServer                *bool   `json:"save_image_to_server,omitempty"`
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1275,12 +1276,18 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 构建设置
+	saveImageToServer := existingSettings.SaveImageToServer
+	if req.SaveImageToServer != nil {
+		saveImageToServer = *req.SaveImageToServer
+	}
+
 	settings := dto.UserSetting{
 		NotifyType:                       req.QuotaWarningType,
 		QuotaWarningThreshold:            req.QuotaWarningThreshold,
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		SaveImageToServer:                saveImageToServer,
 	}
 
 	// 如果是webhook类型,添加webhook相关设置
@@ -1314,6 +1321,37 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 更新用户设置
+	user.SetSetting(settings)
+	if err := user.Update(false); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUpdateFailed)
+		return
+	}
+
+	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
+}
+
+func UpdateUserSettingPartial(c *gin.Context) {
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	userId := c.GetInt("id")
+	user, err := model.GetUserById(userId, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	settings := user.GetSetting()
+
+	if v, ok := req["save_image_to_server"]; ok {
+		if boolVal, ok := v.(bool); ok {
+			settings.SaveImageToServer = boolVal
+		}
+	}
+
 	user.SetSetting(settings)
 	if err := user.Update(false); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUpdateFailed)

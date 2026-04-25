@@ -574,6 +574,11 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
+	// Store response body for image saving if enabled
+	if _, ok := c.Get("save_image_to_server"); ok {
+		c.Set("image_response_body", responseBody)
+	}
+
 	// Once we've written to the client, we should not return errors anymore
 	// because the upstream has already consumed resources and returned content
 	// We should still perform billing even if parsing fails

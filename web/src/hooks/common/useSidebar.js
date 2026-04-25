@@ -43,6 +43,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     enabled: true,
     topup: true,
     personal: true,
+    'image-studio': true,
   },
   admin: {
     enabled: true,

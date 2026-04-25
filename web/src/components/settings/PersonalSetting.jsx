@@ -40,6 +40,7 @@ import UserInfoHeader from './personal/components/UserInfoHeader';
 import AccountManagement from './personal/cards/AccountManagement';
 import NotificationSettings from './personal/cards/NotificationSettings';
 import PreferencesSettings from './personal/cards/PreferencesSettings';
+import ImageStudioCard from './personal/cards/ImageStudioCard';
 import CheckinCalendar from './personal/cards/CheckinCalendar';
 import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
@@ -585,6 +586,9 @@ const PersonalSetting = () => {
 
               {/* 偏好设置（语言等） */}
               <PreferencesSettings t={t} />
+
+              {/* 生图工具 */}
+              <ImageStudioCard t={t} />
             </div>
 
             {/* 右侧：其他设置 */}

@@ -67,6 +67,15 @@ func SetApiRouter(router *gin.Engine) {
 			userRoute.GET("/epay/notify", controller.EpayNotify)
 			userRoute.GET("/groups", controller.GetUserGroups)
 
+			// Image query routes - use session-only auth (no New-Api-User header required)
+			// so <img src="..."> tags can load images with just the session cookie
+			imageRoute := userRoute.Group("/")
+			imageRoute.Use(middleware.TokenOrUserAuth())
+			{
+				imageRoute.GET("/images/:request_id", controller.GetSavedImages)
+				imageRoute.GET("/images/:request_id/:index", controller.GetSavedImageFile)
+			}
+
 			selfRoute := userRoute.Group("/")
 			selfRoute.Use(middleware.UserAuth())
 			{
@@ -97,6 +106,7 @@ func SetApiRouter(router *gin.Engine) {
 				//selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
+				selfRoute.PATCH("/setting", controller.UpdateUserSettingPartial)
 				selfRoute.POST("/upgrade-vip", controller.UpgradeVIP)
 
 				// 2FA routes
