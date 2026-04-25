@@ -29,6 +29,7 @@ import {
   Tooltip,
   Select,
   Modal,
+  Spin,
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { RefreshCcw, CheckSquare, AlertTriangle } from 'lucide-react';
@@ -878,6 +879,17 @@ export default function UpstreamRatioSync(props) {
     };
 
     if (filteredDataSource.length === 0) {
+      if (syncLoading) {
+        return (
+          <div className='flex min-h-[260px] flex-col items-center justify-center gap-3'>
+            <Spin size='large' />
+            <div className='text-sm text-gray-500'>
+              {t('正在同步上游价格，请稍候')}
+            </div>
+          </div>
+        );
+      }
+
       return (
         <Empty
           image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
