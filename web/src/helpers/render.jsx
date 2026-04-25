@@ -232,13 +232,15 @@ import {
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
   const size = 16;
-  const strokeWidth = 2;
-  const SELECTED_COLOR = 'var(--app-primary)';
-  const iconColor = selected ? SELECTED_COLOR : 'currentColor';
+  // Selected icons stay on `currentColor` (which is text-foreground for an
+  // active Sidebar.MenuItem) but bump stroke weight so they read as
+  // "deepened" instead of changing tint to the primary color.
+  const strokeWidth = selected ? 2.5 : 2;
+  const iconColor = 'currentColor';
   const commonProps = {
     size,
     strokeWidth,
-    className: `transition-colors duration-200 ${selected ? 'transition-transform duration-200 scale-105' : ''}`,
+    className: 'transition-colors duration-200',
   };
 
   // 根据不同的key返回不同的图标

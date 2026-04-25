@@ -28,10 +28,14 @@
 :root {
   --font-geist: 'Geist Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --app-font-sans: var(--font-sans);
-  --sidebar-width: 18rem;
-  --sidebar-width-collapsed: 4.75rem;
-  --sidebar-current-width: var(--sidebar-width);
 }
+
+/* The previous custom sidebar tracked its own collapsed state via
+   `body.sidebar-collapsed` + a CSS-driven `--sidebar-current-width`. Since
+   the sidebar now uses heroui-pro's <Sidebar.Provider> (which manages width
+   via its own --sidebar-width / --sidebar-width-icon vars internally),
+   those overrides have been removed. Don't reintroduce them or they'll
+   collide with heroui-pro's collapse animation. */
 
 :root,
 .light,
@@ -123,10 +127,6 @@
   --app-success: var(--success);
   --app-warning: var(--warning);
   --app-danger: var(--danger);
-}
-
-body.sidebar-collapsed {
-  --sidebar-current-width: var(--sidebar-width-collapsed);
 }
 
 * {

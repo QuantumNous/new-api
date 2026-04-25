@@ -24,7 +24,7 @@ import FooterBar from './Footer';
 import ToastViewport from '../ui/ToastViewport';
 import ErrorBoundary from '../common/ErrorBoundary';
 import React, { useCallback, useContext, useEffect } from 'react';
-import { Sidebar } from '@heroui-pro/react';
+import { Sidebar, useSidebar } from '@heroui-pro/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -192,9 +192,13 @@ const PageLayout = () => {
       onOpenChange={handleSidebarOpenChange}
       navigate={navigate}
       collapsible='icon'
-      className='app-layout flex !flex-col min-h-dvh'
+      // Constrain to viewport height + clip overflow so the *main* element
+      // becomes the scroll container instead of the document body. Without
+      // this, tall console pages caused the whole page (sidebar included)
+      // to scroll, which broke the sticky-sidebar UX.
+      className='app-layout flex !flex-col h-dvh overflow-hidden'
     >
-      <header className='sticky top-0 z-50 w-full'>
+      <header className='shrink-0 z-50 w-full'>
         <HeaderBar />
       </header>
 
@@ -202,13 +206,13 @@ const PageLayout = () => {
         {isConsoleRoute && <SiderBar />}
 
         <main
-          className='flex-1 min-w-0 relative'
+          className='flex-1 min-w-0 relative overflow-y-auto'
           style={{
             padding: shouldInnerPadding ? '24px' : 0,
-            overflowY: 'auto',
             WebkitOverflowScrolling: 'touch',
           }}
         >
+          {isConsoleRoute ? <ConsolePageTrigger /> : null}
           <ErrorBoundary key={location.pathname}>
             <App />
           </ErrorBoundary>
@@ -224,5 +228,23 @@ const PageLayout = () => {
     </Sidebar.Provider>
   );
 };
+
+// Renders <Sidebar.Trigger /> at the top-left of every console page's
+// content area, but only while the sidebar is expanded. Combined with
+// NavbarTrigger (which only renders while the sidebar is collapsed), the
+// trigger always has exactly one visible spot, but moves out of the navbar
+// once the sidebar is open so it doesn't sit flush against the sidebar's
+// right edge.
+function ConsolePageTrigger() {
+  // heroui-pro's useSidebar() exposes the desktop expanded/collapsed flag
+  // as `isOpen` (not `open`).
+  const { isOpen } = useSidebar();
+  if (!isOpen) return null;
+  return (
+    <div className='mb-3 flex items-center'>
+      <Sidebar.Trigger />
+    </div>
+  );
+}
 
 export default PageLayout;

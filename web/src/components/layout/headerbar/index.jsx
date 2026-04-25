@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Sidebar } from '@heroui-pro/react';
+import { Sidebar, useSidebar } from '@heroui-pro/react';
 import { useHeaderBar } from '../../../hooks/common/useHeaderBar';
 import { useNotifications } from '../../../hooks/common/useNotifications';
 import { useNavigation } from '../../../hooks/common/useNavigation';
@@ -82,12 +82,13 @@ const HeaderBar = () => {
               t={t}
             />
 
-            {/* Desktop sidebar collapse trigger — mirrors template-dashboard's
-                navbar layout where <Sidebar.Trigger /> sits at the top-left,
-                NOT inside the sidebar itself. Only render on console routes
-                (where the sidebar exists) and on non-mobile widths (mobile
-                uses MobileMenuButton instead). */}
-            {isConsoleRoute && !isMobile ? <Sidebar.Trigger /> : null}
+            {/* Desktop sidebar collapse trigger. We render it in the navbar
+                ONLY when the sidebar is currently collapsed — when the
+                sidebar is expanded the trigger lives inside the page content
+                (rendered by ConsolePageTrigger / DashboardHeader), per
+                product spec, so it's never visually crowded against the
+                expanded sidebar's right edge. */}
+            {isConsoleRoute && !isMobile ? <NavbarTrigger /> : null}
 
             <HeaderLogo
               isMobile={isMobile}
@@ -131,5 +132,16 @@ const HeaderBar = () => {
     </header>
   );
 };
+
+// Renders <Sidebar.Trigger /> only while the sidebar is collapsed. When the
+// sidebar is expanded, ConsolePageTrigger inside the page content takes over
+// so the trigger never sits flush against the expanded sidebar's right edge.
+function NavbarTrigger() {
+  // heroui-pro's useSidebar() exposes the desktop expanded/collapsed flag
+  // as `isOpen` (not `open` — that one's only on the Provider props).
+  const { isOpen } = useSidebar();
+  if (isOpen) return null;
+  return <Sidebar.Trigger />;
+}
 
 export default HeaderBar;
