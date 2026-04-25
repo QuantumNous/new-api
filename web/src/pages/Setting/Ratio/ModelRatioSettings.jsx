@@ -48,6 +48,8 @@ export default function ModelRatioSettings(props) {
     ImageRatio: '',
     AudioRatio: '',
     AudioCompletionRatio: '',
+    ContextTierRatio: '',
+    AudioMinutePrice: '',
     ExposeRatioEnabled: false,
   });
   const refForm = useRef();
@@ -315,6 +317,58 @@ export default function ModelRatioSettings(props) {
               ]}
               onChange={(value) =>
                 setInputs({ ...inputs, AudioCompletionRatio: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('上下文分级定价（按 Token 数量分档）')}
+              extraText={t(
+                '适用于 qwen3-max 等按上下文长度分档定价的模型。每档配置 max_tokens（-1 表示兜底）、input_ratio（输入倍率）、completion_ratio（补全倍率）',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为有序 tier 数组，例如：{"qwen3-max": [{"max_tokens": 32768, "input_ratio": 2.5, "completion_ratio": 2}, {"max_tokens": -1, "input_ratio": 3.5, "completion_ratio": 4}]}',
+              )}
+              field={'ContextTierRatio'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, ContextTierRatio: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('语音转文本按分钟计费（STT 模型）')}
+              extraText={t(
+                '适用于 whisper-1 等按音频时长计费的 STT 模型，优先级高于 Token 计费。值为每分钟价格（美元），需要上游返回 verbose_json 格式以获取音频时长',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为每分钟美元价格，例如：{"whisper-1": 0.006}',
+              )}
+              field={'AudioMinutePrice'}
+              autosize={{ minRows: 4, maxRows: 8 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, AudioMinutePrice: value })
               }
             />
           </Col>

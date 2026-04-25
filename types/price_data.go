@@ -20,6 +20,7 @@ type PriceData struct {
 	ImageRatio           float64
 	AudioRatio           float64
 	AudioCompletionRatio float64
+	AudioMinutePrice     float64 // >0 时对 STT 模型按分钟计费（美元/分钟），覆盖 token 计费
 	OtherRatios          map[string]float64
 	UsePrice             bool
 	Quota                int // 按次计费的最终额度（MJ / Task）

@@ -349,6 +349,8 @@ func InitRatioSettings() {
 	imageRatioMap.AddAll(defaultImageRatio)
 	audioRatioMap.AddAll(defaultAudioRatio)
 	audioCompletionRatioMap.AddAll(defaultAudioCompletionRatio)
+	contextTierRatioMap.AddAll(defaultContextTierRatio)
+	audioMinutePriceMap.AddAll(defaultAudioMinutePrice)
 }
 
 func GetModelPriceMap() map[string]float64 {
@@ -737,4 +739,55 @@ func GetModelRatioOrPrice(model string) (float64, bool, bool) { // price or rati
 		return modelRatio, false, true
 	}
 	return 37.5, false, false
+}
+
+// ContextTierRatio — 按上下文长度分档定价
+// key: 模型名, value: 有序 tier 列表（从小到大排列 MaxTokens，最后一项 MaxTokens=-1 兜底）
+// input_ratio 对应 ModelRatio，completion_ratio 对应 CompletionRatio
+var defaultContextTierRatio = map[string][]types.ContextTierRatio{
+	// qwen3-max: 32K / 32-128K / 128-252K 三档
+	"qwen3-max": {
+		{MaxTokens: 32768, InputRatio: 2.5, CompletionRatio: 2},
+		{MaxTokens: 131072, InputRatio: 2.0, CompletionRatio: 4},
+		{MaxTokens: -1, InputRatio: 3.5, CompletionRatio: 4},
+	},
+}
+
+var contextTierRatioMap = types.NewRWMap[string, []types.ContextTierRatio]()
+
+func ContextTierRatio2JSONString() string {
+	return contextTierRatioMap.MarshalJSONString()
+}
+
+func UpdateContextTierRatioByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(contextTierRatioMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetContextTierRatio(name string) ([]types.ContextTierRatio, bool) {
+	name = FormatMatchingModelName(name)
+	tiers, ok := contextTierRatioMap.Get(name)
+	return tiers, ok
+}
+
+// AudioMinutePrice — 按音频时长（分钟）计费，适用于 STT 模型（如 whisper-1）
+// key: 模型名, value: 每分钟音频的价格（美元）
+var defaultAudioMinutePrice = map[string]float64{
+	"whisper-1": 0.006, // $0.006 per minute
+}
+
+var audioMinutePriceMap = types.NewRWMap[string, float64]()
+
+func AudioMinutePrice2JSONString() string {
+	return audioMinutePriceMap.MarshalJSONString()
+}
+
+func UpdateAudioMinutePriceByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(audioMinutePriceMap, jsonStr, InvalidateExposedDataCache)
+}
+
+// GetAudioMinutePrice 返回模型的每分钟音频价格（美元），若未配置返回 0, false
+func GetAudioMinutePrice(name string) (float64, bool) {
+	name = FormatMatchingModelName(name)
+	price, ok := audioMinutePriceMap.Get(name)
+	return price, ok
 }

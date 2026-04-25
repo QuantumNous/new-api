@@ -76,6 +76,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var cacheCreationRatio1h float64
 	var audioRatio float64
 	var audioCompletionRatio float64
+	var audioMinutePrice float64
 	var freeModel bool
 	if !usePrice {
 		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
@@ -95,6 +96,15 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 			}
 		}
 		completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
+
+		// 分级定价：若配置了上下文分档，按 promptTokens 选择对应档位覆盖 modelRatio/completionRatio
+		if tiers, hasTier := ratio_setting.GetContextTierRatio(info.OriginModelName); hasTier {
+			if tier := types.SelectContextTier(tiers, promptTokens); tier != nil {
+				modelRatio = tier.InputRatio
+				completionRatio = tier.CompletionRatio
+			}
+		}
+
 		cacheRatio, _ = ratio_setting.GetCacheRatio(info.OriginModelName)
 		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(info.OriginModelName)
 		cacheCreationRatio5m = cacheCreationRatio
@@ -103,6 +113,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		imageRatio, _ = ratio_setting.GetImageRatio(info.OriginModelName)
 		audioRatio = ratio_setting.GetAudioRatio(info.OriginModelName)
 		audioCompletionRatio = ratio_setting.GetAudioCompletionRatio(info.OriginModelName)
+		audioMinutePrice, _ = ratio_setting.GetAudioMinutePrice(info.OriginModelName)
 		ratio := modelRatio * groupRatioInfo.GroupRatio
 		preConsumedQuota = int(float64(preConsumedTokens) * ratio)
 	} else {
@@ -142,6 +153,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		ImageRatio:           imageRatio,
 		AudioRatio:           audioRatio,
 		AudioCompletionRatio: audioCompletionRatio,
+		AudioMinutePrice:     audioMinutePrice,
 		CacheCreationRatio:   cacheCreationRatio,
 		CacheCreation5mRatio: cacheCreationRatio5m,
 		CacheCreation1hRatio: cacheCreationRatio1h,

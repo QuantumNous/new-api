@@ -121,19 +121,42 @@ func OpenaiSTTHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
-	var responseData struct {
-		Usage *dto.Usage `json:"usage"`
-	}
-	if err := common.Unmarshal(responseBody, &responseData); err == nil && responseData.Usage != nil {
-		if responseData.Usage.TotalTokens > 0 {
-			usage := responseData.Usage
-			if usage.PromptTokens == 0 {
-				usage.PromptTokens = usage.InputTokens
+	// 尝试从 verbose_json 响应中提取音频时长，用于按分钟计费
+	if responseFormat == "verbose_json" || responseFormat == "" {
+		var verboseResp struct {
+			Duration float64    `json:"duration"`
+			Usage    *dto.Usage `json:"usage"`
+		}
+		if err := common.Unmarshal(responseBody, &verboseResp); err == nil {
+			if verboseResp.Duration > 0 {
+				info.AudioDurationSeconds = verboseResp.Duration
 			}
-			if usage.CompletionTokens == 0 {
-				usage.CompletionTokens = usage.OutputTokens
+			if verboseResp.Usage != nil && verboseResp.Usage.TotalTokens > 0 {
+				usage := verboseResp.Usage
+				if usage.PromptTokens == 0 {
+					usage.PromptTokens = usage.InputTokens
+				}
+				if usage.CompletionTokens == 0 {
+					usage.CompletionTokens = usage.OutputTokens
+				}
+				return nil, usage
 			}
-			return nil, usage
+		}
+	} else {
+		var responseData struct {
+			Usage *dto.Usage `json:"usage"`
+		}
+		if err := common.Unmarshal(responseBody, &responseData); err == nil && responseData.Usage != nil {
+			if responseData.Usage.TotalTokens > 0 {
+				usage := responseData.Usage
+				if usage.PromptTokens == 0 {
+					usage.PromptTokens = usage.InputTokens
+				}
+				if usage.CompletionTokens == 0 {
+					usage.CompletionTokens = usage.OutputTokens
+				}
+				return nil, usage
+			}
 		}
 	}
 

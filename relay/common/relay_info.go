@@ -151,6 +151,7 @@ type RelayInfo struct {
 	RuntimeHeadersOverride                map[string]interface{}
 	UseRuntimeHeadersOverride             bool
 	ParamOverrideAudit                    []string
+	AudioDurationSeconds                  float64 // STT 响应中提取的音频时长（秒），用于按分钟计费
 
 	PriceData types.PriceData
 

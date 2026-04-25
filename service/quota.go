@@ -274,35 +274,47 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
 	modelPrice := relayInfo.PriceData.ModelPrice
 	usePrice := relayInfo.PriceData.UsePrice
+	audioMinutePrice := relayInfo.PriceData.AudioMinutePrice
 
-	quotaInfo := QuotaInfo{
-		InputDetails: TokenDetails{
-			TextTokens:  textInputTokens,
-			AudioTokens: audioInputTokens,
-		},
-		OutputDetails: TokenDetails{
-			TextTokens:  textOutTokens,
-			AudioTokens: audioOutTokens,
-		},
-		ModelName:  relayInfo.OriginModelName,
-		UsePrice:   usePrice,
-		ModelRatio: modelRatio,
-		GroupRatio: groupRatio,
-	}
-
-	quota := calculateAudioQuota(quotaInfo)
-
-	totalTokens := usage.TotalTokens
+	var quota int
 	var logContent string
-	if !usePrice {
-		logContent = fmt.Sprintf("模型倍率 %.2f，补全倍率 %.2f，音频倍率 %.2f，音频补全倍率 %.2f，分组倍率 %.2f",
-			modelRatio, completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), groupRatio)
+
+	// 按音频时长（分钟）计费：优先级高于 token 计费
+	if audioMinutePrice > 0 && relayInfo.AudioDurationSeconds > 0 {
+		durationMinutes := math.Ceil(relayInfo.AudioDurationSeconds / 60.0)
+		quotaDecimal := decimal.NewFromFloat(durationMinutes).
+			Mul(decimal.NewFromFloat(audioMinutePrice)).
+			Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+			Mul(decimal.NewFromFloat(groupRatio))
+		quota = int(quotaDecimal.Round(0).IntPart())
+		logContent = fmt.Sprintf("按时长计费：%.1f 秒（%.0f 分钟），每分钟 $%.4f，分组倍率 %.2f",
+			relayInfo.AudioDurationSeconds, durationMinutes, audioMinutePrice, groupRatio)
 	} else {
-		logContent = fmt.Sprintf("模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
+		quotaInfo := QuotaInfo{
+			InputDetails: TokenDetails{
+				TextTokens:  textInputTokens,
+				AudioTokens: audioInputTokens,
+			},
+			OutputDetails: TokenDetails{
+				TextTokens:  textOutTokens,
+				AudioTokens: audioOutTokens,
+			},
+			ModelName:  relayInfo.OriginModelName,
+			UsePrice:   usePrice,
+			ModelRatio: modelRatio,
+			GroupRatio: groupRatio,
+		}
+		quota = calculateAudioQuota(quotaInfo)
+		if !usePrice {
+			logContent = fmt.Sprintf("模型倍率 %.2f，补全倍率 %.2f，音频倍率 %.2f，音频补全倍率 %.2f，分组倍率 %.2f",
+				modelRatio, completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), groupRatio)
+		} else {
+			logContent = fmt.Sprintf("模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
+		}
 	}
 
 	// record all the consume log even if quota is 0
-	if totalTokens == 0 {
+	if usage.TotalTokens == 0 && relayInfo.AudioDurationSeconds == 0 {
 		// in this case, must be some error happened
 		// we cannot just return, because we may have to return the pre-consumed quota
 		quota = 0
