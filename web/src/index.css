@@ -1,5 +1,11 @@
 @import 'tailwindcss';
 @import '@heroui/styles';
+/* MUST import heroui-pro stylesheet alongside @heroui/styles, otherwise the
+   <Sidebar> / <AppLayout> / <KPI> / etc. components from @heroui-pro/react
+   render with no flexbox layout — sidebar menu icons stack on top of labels
+   instead of sitting beside them, group labels disappear, etc. Mirrors the
+   template-dashboard's globals.css which imports both. */
+@import '@heroui-pro/react/css';
 
 @font-face {
   font-family: 'Geist Sans';

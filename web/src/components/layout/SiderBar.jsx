@@ -63,19 +63,22 @@ const SidebarBody = ({
   selectedKeys,
   expandedChatKeys,
   setExpandedChatKeys,
-  userHeader,
+  userMenuFooter,
   t,
 }) => {
   const renderMenuItem = (item) => {
     if (item.className === 'tableHiddle') return null;
     const path = routerMapState[item.itemKey] || routerMap[item.itemKey] || item.to;
+    // Skip items with no resolvable route — see renderChatMenuItem comment
+    // for why a hrefless Sidebar.MenuItem breaks the menu layout.
+    if (!path) return null;
     const isCurrent = selectedKeys.includes(item.itemKey);
 
     return (
       <Sidebar.MenuItem
         key={item.itemKey}
         id={item.itemKey}
-        href={path || undefined}
+        href={path}
         isCurrent={isCurrent}
         textValue={item.text}
       >
@@ -86,34 +89,36 @@ const SidebarBody = ({
   };
 
   // Chat parent item with optional sub-list of saved chats.
+  //
+  // Two non-obvious constraints from heroui-pro <Sidebar.MenuItem>:
+  //   - Every MenuItem must be pressable (href OR onPress). A MenuItem
+  //     without either fires `PressResponder was rendered without a
+  //     pressable child` from react-aria and breaks subsequent siblings'
+  //     layout in the menu.
+  //   - The chat parent has no inherent route (no entry in routerMap, no
+  //     `to` field), so when there are no saved chats we just skip it
+  //     instead of emitting a hrefless item.
   const renderChatMenuItem = (item) => {
     if (item.className === 'tableHiddle') return null;
     const isCurrent = selectedKeys.includes(item.itemKey);
     const hasChildren = Array.isArray(item.items) && item.items.length > 0;
 
     if (!hasChildren) {
-      const path =
-        routerMapState[item.itemKey] || routerMap[item.itemKey] || item.to;
-      return (
-        <Sidebar.MenuItem
-          key={item.itemKey}
-          id={item.itemKey}
-          href={path || undefined}
-          isCurrent={isCurrent}
-          textValue={item.text}
-        >
-          <Sidebar.MenuIcon>
-            {getLucideIcon(item.itemKey, isCurrent)}
-          </Sidebar.MenuIcon>
-          <Sidebar.MenuLabel>{item.text}</Sidebar.MenuLabel>
-        </Sidebar.MenuItem>
-      );
+      // No saved chats yet — don't render an empty placeholder.
+      return null;
     }
+
+    // Point the parent at the first saved chat so the MenuItem stays
+    // pressable; the MenuTrigger inside takes care of expanding the
+    // submenu without losing this fallback navigation.
+    const fallbackHref =
+      routerMapState[item.items[0].itemKey] || item.items[0].to;
 
     return (
       <Sidebar.MenuItem
         key={item.itemKey}
         id={item.itemKey}
+        href={fallbackHref || undefined}
         isCurrent={isCurrent}
         textValue={item.text}
       >
@@ -129,11 +134,14 @@ const SidebarBody = ({
             const subPath =
               routerMapState[subItem.itemKey] || subItem.to;
             const subIsCurrent = selectedKeys.includes(subItem.itemKey);
+            // Skip sub-items missing a route to avoid the same
+            // PressResponder error documented above.
+            if (!subPath) return null;
             return (
               <Sidebar.MenuItem
                 key={subItem.itemKey}
                 id={subItem.itemKey}
-                href={subPath || undefined}
+                href={subPath}
                 isCurrent={subIsCurrent}
                 textValue={subItem.text}
               >
@@ -182,6 +190,11 @@ const SidebarBody = ({
   //      via <Sidebar.Trigger />), not inside the sidebar itself.
   //   2. The user avatar / role block sits at the BOTTOM of the sidebar
   //      (Sidebar.Footer), not at the top.
+  //
+  // Always render Sidebar.Footer (even with empty user) so the slot is
+  // present in the DOM at mount and heroui-pro lays out Content vs Footer
+  // correctly. Conditionally rendering Footer caused it to silently
+  // disappear when userState.user resolved after the initial render.
   return (
     <>
       <Sidebar.Content>
@@ -202,7 +215,7 @@ const SidebarBody = ({
           </Sidebar.Group>
         ))}
       </Sidebar.Content>
-      {userHeader ? <Sidebar.Footer>{userHeader}</Sidebar.Footer> : null}
+      {userMenuFooter ? <Sidebar.Footer>{userMenuFooter}</Sidebar.Footer> : null}
     </>
   );
 };
@@ -427,9 +440,12 @@ const SiderBar = () => {
     }
   }, [location.pathname, routerMapState]);
 
-  // Template-style header block: avatar + display name + role.
-  // Mirrors `dashboard-sidebar.tsx`'s <Sidebar.Header> layout.
-  const userHeader = useMemo(() => {
+  // Template-style user block: avatar + display name + role rendered as a
+  // single Sidebar.MenuItem inside Sidebar.Footer's Sidebar.Menu. Reusing
+  // Sidebar.MenuItem's slot system is what gets the avatar visible at all
+  // — Sidebar.Footer otherwise refuses to render arbitrary children with
+  // the same alignment/spacing the rest of the sidebar uses.
+  const userMenuFooter = useMemo(() => {
     if (!userState?.user) return null;
     const username =
       userState.user.display_name || userState.user.username || '';
@@ -442,25 +458,32 @@ const SiderBar = () => {
     const avatarBg = stringToColor(username);
 
     return (
-      <div className='flex items-center gap-3 px-1 py-1'>
-        <Avatar
-          size='sm'
-          className='h-9 w-9 shrink-0 text-xs text-white'
-          style={{ backgroundColor: avatarBg }}
-          name={initial}
-        />
-        <div
-          className='flex min-w-0 flex-col group-data-[state=collapsed]/sidebar:hidden'
-          data-sidebar='label'
+      <Sidebar.Menu aria-label={t('账户信息')}>
+        <Sidebar.MenuItem
+          id='__user'
+          href='/console/personal'
+          textValue={username}
         >
-          <span className='truncate text-sm font-medium leading-tight text-foreground'>
-            {username}
-          </span>
-          <span className='truncate text-xs font-medium leading-tight text-muted'>
-            {roleLabel}
-          </span>
-        </div>
-      </div>
+          <Sidebar.MenuIcon>
+            <Avatar
+              size='sm'
+              className='h-6 w-6 shrink-0 text-[10px] text-white'
+              style={{ backgroundColor: avatarBg }}
+              name={initial}
+            />
+          </Sidebar.MenuIcon>
+          <Sidebar.MenuLabel>
+            <span className='flex flex-col leading-tight'>
+              <span className='truncate text-sm font-medium text-foreground'>
+                {username}
+              </span>
+              <span className='truncate text-xs font-medium text-muted'>
+                {roleLabel}
+              </span>
+            </span>
+          </Sidebar.MenuLabel>
+        </Sidebar.MenuItem>
+      </Sidebar.Menu>
     );
   }, [userState?.user, t]);
 
@@ -474,7 +497,7 @@ const SiderBar = () => {
     selectedKeys,
     expandedChatKeys,
     setExpandedChatKeys,
-    userHeader,
+    userMenuFooter,
     t,
   };
 
