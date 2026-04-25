@@ -59,7 +59,7 @@ func valuesEqual(a, b interface{}) bool {
 	return a == b
 }
 
-var ratioTypes = []string{"model_ratio", "completion_ratio", "cache_ratio", "model_price"}
+var ratioTypes = []string{"model_ratio", "completion_ratio", "cache_ratio", "create_cache_ratio", "model_price"}
 
 type upstreamResult struct {
 	Name string         `json:"name"`
@@ -611,9 +611,10 @@ func convertOpenRouterToRatioData(reader io.Reader) (map[string]any, error) {
 		Data []struct {
 			ID      string `json:"id"`
 			Pricing struct {
-				Prompt         string `json:"prompt"`
-				Completion     string `json:"completion"`
-				InputCacheRead string `json:"input_cache_read"`
+				Prompt          string `json:"prompt"`
+				Completion      string `json:"completion"`
+				InputCacheRead  string `json:"input_cache_read"`
+				InputCacheWrite string `json:"input_cache_write"`
 			} `json:"pricing"`
 		} `json:"data"`
 	}
@@ -625,6 +626,7 @@ func convertOpenRouterToRatioData(reader io.Reader) (map[string]any, error) {
 	modelRatioMap := make(map[string]any)
 	completionRatioMap := make(map[string]any)
 	cacheRatioMap := make(map[string]any)
+	createCacheRatioMap := make(map[string]any)
 
 	for _, m := range orResp.Data {
 		promptPrice, promptErr := strconv.ParseFloat(m.Pricing.Prompt, 64)
@@ -675,6 +677,15 @@ func convertOpenRouterToRatioData(reader io.Reader) (map[string]any, error) {
 				cacheRatioMap[m.ID] = cacheRatio
 			}
 		}
+
+		// Convert input_cache_write to create_cache_ratio (= cache_write_price / prompt_price)
+		if m.Pricing.InputCacheWrite != "" {
+			if cacheWritePrice, err := strconv.ParseFloat(m.Pricing.InputCacheWrite, 64); err == nil && cacheWritePrice >= 0 {
+				createCacheRatio := cacheWritePrice / promptPrice
+				createCacheRatio = roundRatioValue(createCacheRatio)
+				createCacheRatioMap[m.ID] = createCacheRatio
+			}
+		}
 	}
 
 	converted := make(map[string]any)
@@ -686,6 +697,9 @@ func convertOpenRouterToRatioData(reader io.Reader) (map[string]any, error) {
 	}
 	if len(cacheRatioMap) > 0 {
 		converted["cache_ratio"] = cacheRatioMap
+	}
+	if len(createCacheRatioMap) > 0 {
+		converted["create_cache_ratio"] = createCacheRatioMap
 	}
 
 	return converted, nil
@@ -700,16 +714,18 @@ type modelsDevModel struct {
 }
 
 type modelsDevCost struct {
-	Input     *float64 `json:"input"`
-	Output    *float64 `json:"output"`
-	CacheRead *float64 `json:"cache_read"`
+	Input      *float64 `json:"input"`
+	Output     *float64 `json:"output"`
+	CacheRead  *float64 `json:"cache_read"`
+	CacheWrite *float64 `json:"cache_write"`
 }
 
 type modelsDevCandidate struct {
-	Provider  string
-	Input     float64
-	Output    *float64
-	CacheRead *float64
+	Provider   string
+	Input      float64
+	Output     *float64
+	CacheRead  *float64
+	CacheWrite *float64
 }
 
 func cloneFloatPtr(v *float64) *float64 {
@@ -755,11 +771,17 @@ func buildModelsDevCandidate(provider string, cost modelsDevCost) (modelsDevCand
 		cacheRead = cloneFloatPtr(cost.CacheRead)
 	}
 
+	var cacheWrite *float64
+	if cost.CacheWrite != nil && isValidNonNegativeCost(*cost.CacheWrite) {
+		cacheWrite = cloneFloatPtr(cost.CacheWrite)
+	}
+
 	return modelsDevCandidate{
-		Provider:  provider,
-		Input:     input,
-		Output:    output,
-		CacheRead: cacheRead,
+		Provider:   provider,
+		Input:      input,
+		Output:     output,
+		CacheRead:  cacheRead,
+		CacheWrite: cacheWrite,
 	}, true
 }
 
@@ -773,17 +795,38 @@ func shouldReplaceModelsDevCandidate(current, next modelsDevCandidate) bool {
 	if nextNonZero && !nearlyEqual(next.Input, current.Input) {
 		return next.Input < current.Input
 	}
+	// At equal input price, prefer richer cache metadata. Resellers that
+	// mirror list prices (e.g. 302ai for Claude) often sort lexicographically
+	// first but omit cache_read/cache_write; preferring candidates with more
+	// cache fields keeps authoritative values like Anthropic's cache_write.
+	currentCacheFields := cacheFieldCount(current)
+	nextCacheFields := cacheFieldCount(next)
+	if nextCacheFields != currentCacheFields {
+		return nextCacheFields > currentCacheFields
+	}
 	// Stable tie-breaker for deterministic result.
 	return next.Provider < current.Provider
 }
 
+func cacheFieldCount(c modelsDevCandidate) int {
+	count := 0
+	if c.CacheRead != nil {
+		count++
+	}
+	if c.CacheWrite != nil {
+		count++
+	}
+	return count
+}
+
 // convertModelsDevToRatioData parses models.dev /api.json and converts
 // provider pricing metadata into local ratio format.
-// models.dev costs are USD per 1M tokens:
+// models.dev costs are USD per 1M tokens. Four ratios may be emitted:
 //
-//	model_ratio = input_cost_per_1M / 2
-//	completion_ratio = output_cost / input_cost
-//	cache_ratio = cache_read_cost / input_cost
+//	model_ratio        = input_cost_per_1M / 2
+//	completion_ratio   = output_cost / input_cost
+//	cache_ratio        = cache_read_cost / input_cost
+//	create_cache_ratio = cache_write_cost / input_cost
 //
 // Duplicate model keys across providers are resolved by selecting the
 // cheapest non-zero input cost. If only zero-priced candidates exist,
@@ -835,6 +878,7 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 	modelRatioMap := make(map[string]any)
 	completionRatioMap := make(map[string]any)
 	cacheRatioMap := make(map[string]any)
+	createCacheRatioMap := make(map[string]any)
 
 	for modelName, candidate := range selectedCandidates {
 		if candidate.Input == 0 {
@@ -854,6 +898,11 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 			cacheRatio := *candidate.CacheRead / candidate.Input
 			cacheRatioMap[modelName] = roundRatioValue(cacheRatio)
 		}
+
+		if candidate.CacheWrite != nil {
+			createCacheRatio := *candidate.CacheWrite / candidate.Input
+			createCacheRatioMap[modelName] = roundRatioValue(createCacheRatio)
+		}
 	}
 
 	converted := make(map[string]any)
@@ -865,6 +914,9 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 	}
 	if len(cacheRatioMap) > 0 {
 		converted["cache_ratio"] = cacheRatioMap
+	}
+	if len(createCacheRatioMap) > 0 {
+		converted["create_cache_ratio"] = createCacheRatioMap
 	}
 	return converted, nil
 }

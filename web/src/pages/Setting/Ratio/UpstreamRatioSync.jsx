@@ -293,6 +293,7 @@ export default function UpstreamRatioSync(props) {
       ModelRatio: JSON.parse(props.options.ModelRatio || '{}'),
       CompletionRatio: JSON.parse(props.options.CompletionRatio || '{}'),
       CacheRatio: JSON.parse(props.options.CacheRatio || '{}'),
+      CreateCacheRatio: JSON.parse(props.options.CreateCacheRatio || '{}'),
       ModelPrice: JSON.parse(props.options.ModelPrice || '{}'),
     };
 
@@ -303,7 +304,8 @@ export default function UpstreamRatioSync(props) {
       if (
         currentRatios.ModelRatio[model] !== undefined ||
         currentRatios.CompletionRatio[model] !== undefined ||
-        currentRatios.CacheRatio[model] !== undefined
+        currentRatios.CacheRatio[model] !== undefined ||
+        currentRatios.CreateCacheRatio[model] !== undefined
       )
         return 'ratio';
       return null;
@@ -366,6 +368,7 @@ export default function UpstreamRatioSync(props) {
         ModelRatio: { ...currentRatios.ModelRatio },
         CompletionRatio: { ...currentRatios.CompletionRatio },
         CacheRatio: { ...currentRatios.CacheRatio },
+        CreateCacheRatio: { ...currentRatios.CreateCacheRatio },
         ModelPrice: { ...currentRatios.ModelPrice },
       };
 
@@ -378,6 +381,7 @@ export default function UpstreamRatioSync(props) {
           delete finalRatios.ModelRatio[model];
           delete finalRatios.CompletionRatio[model];
           delete finalRatios.CacheRatio[model];
+          delete finalRatios.CreateCacheRatio[model];
         }
         if (hasRatio) {
           delete finalRatios.ModelPrice[model];
@@ -500,6 +504,9 @@ export default function UpstreamRatioSync(props) {
                 {t('补全倍率')}
               </Select.Option>
               <Select.Option value='cache_ratio'>{t('缓存倍率')}</Select.Option>
+              <Select.Option value='create_cache_ratio'>
+                {t('缓存创建倍率')}
+              </Select.Option>
               <Select.Option value='model_price'>{t('固定价格')}</Select.Option>
             </Select>
           </div>
@@ -518,6 +525,7 @@ export default function UpstreamRatioSync(props) {
           'model_ratio',
           'completion_ratio',
           'cache_ratio',
+          'create_cache_ratio',
         ].some((rt) => rt in ratioTypes);
         const billingConflict = hasPrice && hasOtherRatio;
 
@@ -597,6 +605,7 @@ export default function UpstreamRatioSync(props) {
             model_ratio: t('模型倍率'),
             completion_ratio: t('补全倍率'),
             cache_ratio: t('缓存倍率'),
+            create_cache_ratio: t('缓存创建倍率'),
             model_price: t('固定价格'),
           };
           const baseTag = (
@@ -880,6 +889,9 @@ export default function UpstreamRatioSync(props) {
             ModelRatio: JSON.parse(props.options.ModelRatio || '{}'),
             CompletionRatio: JSON.parse(props.options.CompletionRatio || '{}'),
             CacheRatio: JSON.parse(props.options.CacheRatio || '{}'),
+            CreateCacheRatio: JSON.parse(
+              props.options.CreateCacheRatio || '{}',
+            ),
             ModelPrice: JSON.parse(props.options.ModelPrice || '{}'),
           };
           await performSync(curRatios);
