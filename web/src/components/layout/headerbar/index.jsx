@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { Sidebar } from '@heroui-pro/react';
 import { useHeaderBar } from '../../../hooks/common/useHeaderBar';
 import { useNotifications } from '../../../hooks/common/useNotifications';
 import { useNavigation } from '../../../hooks/common/useNavigation';
@@ -74,12 +75,19 @@ const HeaderBar = () => {
 
       <div className='w-full px-2'>
         <div className='flex items-center justify-between h-16'>
-          <div className='flex items-center'>
+          <div className='flex items-center gap-1'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}
               t={t}
             />
+
+            {/* Desktop sidebar collapse trigger — mirrors template-dashboard's
+                navbar layout where <Sidebar.Trigger /> sits at the top-left,
+                NOT inside the sidebar itself. Only render on console routes
+                (where the sidebar exists) and on non-mobile widths (mobile
+                uses MobileMenuButton instead). */}
+            {isConsoleRoute && !isMobile ? <Sidebar.Trigger /> : null}
 
             <HeaderLogo
               isMobile={isMobile}

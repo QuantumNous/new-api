@@ -25,9 +25,7 @@ import { Sidebar } from '@heroui-pro/react';
 import { getLucideIcon } from '../../helpers/render';
 import { isAdmin, isRoot, showError, stringToColor } from '../../helpers';
 import { useSidebar } from '../../hooks/common/useSidebar';
-import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { UserContext } from '../../context/User';
-import SkeletonWrapper from './components/SkeletonWrapper';
 
 // Maps an item key to its concrete route. Mirrors the router definitions in
 // `src/App.jsx`. Chat sub-items are appended dynamically below.
@@ -179,9 +177,13 @@ const SidebarBody = ({
     },
   ].filter((section) => section.visible && section.items.length > 0);
 
+  // Per product spec we deviate from template-dashboard in two ways:
+  //   1. The collapse trigger lives in the top navbar (rendered by HeaderBar
+  //      via <Sidebar.Trigger />), not inside the sidebar itself.
+  //   2. The user avatar / role block sits at the BOTTOM of the sidebar
+  //      (Sidebar.Footer), not at the top.
   return (
     <>
-      <Sidebar.Header>{userHeader}</Sidebar.Header>
       <Sidebar.Content>
         {visibleSections.map((section) => (
           <Sidebar.Group key={section.key}>
@@ -200,9 +202,7 @@ const SidebarBody = ({
           </Sidebar.Group>
         ))}
       </Sidebar.Content>
-      <Sidebar.Footer>
-        <Sidebar.Trigger />
-      </Sidebar.Footer>
+      {userHeader ? <Sidebar.Footer>{userHeader}</Sidebar.Footer> : null}
     </>
   );
 };
@@ -210,13 +210,7 @@ const SidebarBody = ({
 const SiderBar = () => {
   const { t } = useTranslation();
   const [userState] = useContext(UserContext);
-  const {
-    isModuleVisible,
-    hasSectionVisibleModules,
-    loading: sidebarLoading,
-  } = useSidebar();
-
-  const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
+  const { isModuleVisible, hasSectionVisibleModules } = useSidebar();
 
   const [selectedKeys, setSelectedKeys] = useState(['home']);
   const [chatItems, setChatItems] = useState([]);
@@ -484,17 +478,17 @@ const SiderBar = () => {
     t,
   };
 
+  // The custom skeleton previously wrapped <SidebarBody/> using the old
+  // self-implemented sidebar's dimensions, which broke alignment when nested
+  // inside heroui-pro's <Sidebar> (which expects Sidebar.Header / .Content /
+  // .Footer children with its own internal layout). Render the real Sidebar
+  // structure immediately — visibleSections already gracefully empties while
+  // useSidebar() is still resolving, so the menu just briefly shows nothing
+  // instead of misaligned placeholder bars.
   return (
     <>
       <Sidebar>
-        <SkeletonWrapper
-          loading={showSkeleton}
-          type='sidebar'
-          collapsed={false}
-          showAdmin={isAdmin()}
-        >
-          <SidebarBody {...sharedBodyProps} />
-        </SkeletonWrapper>
+        <SidebarBody {...sharedBodyProps} />
       </Sidebar>
       <Sidebar.Mobile>
         <SidebarBody {...sharedBodyProps} />
