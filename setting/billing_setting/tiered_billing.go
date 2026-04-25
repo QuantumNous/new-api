@@ -54,10 +54,10 @@ func SmokeTestExpr(exprStr string) error {
 
 func smokeTestExpr(exprStr string) error {
 	vectors := []billingexpr.TokenParams{
-		{P: 0, C: 0},
-		{P: 1000, C: 1000},
-		{P: 100000, C: 100000},
-		{P: 1000000, C: 1000000},
+		{P: 0, C: 0, Len: 0},
+		{P: 1000, C: 1000, Len: 1000},
+		{P: 100000, C: 100000, Len: 100000},
+		{P: 1000000, C: 1000000, Len: 1000000},
 	}
 	requests := []billingexpr.RequestInput{
 		{},

@@ -31,9 +31,10 @@ import {
   TextArea,
   Typography,
 } from '@douyinfe/semi-ui';
-import { IconDelete, IconPlus } from '@douyinfe/semi-icons';
+import { IconCopy, IconDelete, IconPlus } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../../helpers/render';
-import { BILLING_EXTRA_VARS, BILLING_CACHE_VAR_MAP } from '../../../../constants';
+import { copy, showSuccess } from '../../../../helpers';
+import { BILLING_EXTRA_VARS, BILLING_CACHE_VAR_MAP, BILLING_CONDITION_VARS } from '../../../../constants';
 import {
   createEmptyCondition,
   createEmptyTimeCondition,
@@ -70,6 +71,7 @@ function priceToUnitCost(price) {
 
 const OPS = ['<', '<=', '>', '>='];
 const VAR_OPTIONS = [
+  { value: 'len', label: 'len (长度)' },
   { value: 'p', label: 'p (输入)' },
   { value: 'c', label: 'c (输出)' },
 ];
@@ -224,7 +226,7 @@ function tryParseVisualConfig(exprStr) {
     }
 
     // Multi-tier: cond1 ? tier(body) : cond2 ? tier(body) : tier(body)
-    const condGroup = `((?:(?:p|c)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`;
+    const condGroup = `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`;
     const tierRe = new RegExp(
       `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*${bodyPat}\\)`,
       'g',
@@ -237,7 +239,7 @@ function tryParseVisualConfig(exprStr) {
       if (condStr) {
         const condParts = condStr.split(/\s*&&\s*/);
         for (const cp of condParts) {
-          const cm = cp.trim().match(/^(p|c)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/);
+          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/);
           if (cm) {
             conditions.push({ var: cm[1], op: cm[2], value: Number(cm[3]) });
           }
@@ -283,7 +285,7 @@ function ConditionRow({ cond, onChange, onRemove, t }) {
     }}>
       <Select
         size='small'
-        value={cond.var || 'p'}
+        value={cond.var || 'len'}
         onChange={(val) => onChange({ ...cond, var: val })}
       >
         {VAR_OPTIONS.map((v) => (
@@ -500,7 +502,7 @@ function ExtendedPriceBlock({ tier, index, onUpdate, t }) {
 function VisualTierCard({ tier, index, isLast, isOnly, onUpdate, onRemove, t }) {
   const conditions = tier.conditions || [];
 
-  const varLabel = { p: t('输入'), c: t('输出') };
+  const varLabel = { len: t('长度'), p: t('输入'), c: t('输出') };
   const condSummary = useMemo(() => {
     if (conditions.length === 0) return t('无条件（兜底档）');
     return conditions
@@ -525,7 +527,7 @@ function VisualTierCard({ tier, index, isLast, isOnly, onUpdate, onRemove, t }) 
   const addCondition = () => {
     if (conditions.length >= 2) return;
     const usedVars = conditions.map((c) => c.var);
-    const nextVar = usedVars.includes('p') ? 'c' : 'p';
+    const nextVar = usedVars.includes('len') ? 'c' : 'len';
     onUpdate(index, 'conditions', [
       ...conditions,
       { var: nextVar, op: '<', value: 200000 },
@@ -694,7 +696,7 @@ function VisualEditor({ visualConfig, onChange, t }) {
     ) {
       newTiers[newTiers.length - 1] = {
         ...newTiers[newTiers.length - 1],
-        conditions: [{ var: 'p', op: '<', value: 200000 }],
+        conditions: [{ var: 'len', op: '<', value: 200000 }],
       };
     }
     newTiers.push({
@@ -723,7 +725,7 @@ function VisualEditor({ visualConfig, onChange, t }) {
     <div>
       <Banner
         type='info'
-        description={t('每个档位可设置 0~2 个条件（对 p 和 c），最后一档为兜底档无需条件。')}
+        description={t('每个档位可设置 0~2 个条件（对 len、p 和 c），最后一档为兜底档无需条件。len 为输入上下文总长度（含缓存），推荐用于阶梯条件。')}
         style={{ marginBottom: 12 }}
       />
 
@@ -762,16 +764,16 @@ const PRESET_GROUPS = [
     presets: [
       { key: 'flat', label: 'Flat', expr: 'tier("base", p * 2 + c * 4)' },
       { key: 'claude-opus', label: 'Claude Opus 4.6', expr: 'tier("base", p * 5 + c * 25 + cr * 0.5 + cc * 6.25 + cc1h * 10)' },
-      { key: 'gpt-5.4', label: 'GPT-5.4', expr: 'p <= 272000 ? tier("standard", p * 2.5 + c * 15 + cr * 0.25) : tier("long_context", p * 5 + c * 22.5 + cr * 0.5)' },
+      { key: 'gpt-5.4', label: 'GPT-5.4', expr: 'len <= 272000 ? tier("standard", p * 2.5 + c * 15 + cr * 0.25) : tier("long_context", p * 5 + c * 22.5 + cr * 0.5)' },
     ],
   },
   {
     group: '阶梯计费',
     presets: [
-      { key: 'claude-sonnet', label: 'Claude Sonnet 4.5', expr: 'p <= 200000 ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6) : tier("long_context", p * 6 + c * 22.5 + cr * 0.6 + cc * 7.5 + cc1h * 12)' },
-      { key: 'qwen3-max', label: 'Qwen3 Max', expr: 'p <= 32000 ? tier("short", p * 1.2 + c * 6 + cr * 0.24 + cc * 1.5) : p <= 128000 ? tier("mid", p * 2.4 + c * 12 + cr * 0.48 + cc * 3) : tier("long", p * 3 + c * 15 + cr * 0.6 + cc * 3.75)' },
-      { key: 'glm-4.5-air', label: 'GLM-4.5 Air', expr: 'p < 32000 && c < 200 ? tier("short_output", p * 0.8 + c * 2 + cr * 0.16) : p < 32000 && c >= 200 ? tier("long_output", p * 0.8 + c * 6 + cr * 0.16) : tier("mid_context", p * 1.2 + c * 8 + cr * 0.24)' },
-      { key: 'doubao-seed-1.8', label: 'Doubao Seed 1.8', expr: 'p <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : p <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : p <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)' },
+      { key: 'claude-sonnet', label: 'Claude Sonnet 4.5', expr: 'len <= 200000 ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6) : tier("long_context", p * 6 + c * 22.5 + cr * 0.6 + cc * 7.5 + cc1h * 12)' },
+      { key: 'qwen3-max', label: 'Qwen3 Max', expr: 'len <= 32000 ? tier("short", p * 1.2 + c * 6 + cr * 0.24 + cc * 1.5) : len <= 128000 ? tier("mid", p * 2.4 + c * 12 + cr * 0.48 + cc * 3) : tier("long", p * 3 + c * 15 + cr * 0.6 + cc * 3.75)' },
+      { key: 'glm-4.5-air', label: 'GLM-4.5 Air', expr: 'len < 32000 && c < 200 ? tier("short_output", p * 0.8 + c * 2 + cr * 0.16) : len < 32000 && c >= 200 ? tier("long_output", p * 0.8 + c * 6 + cr * 0.16) : tier("mid_context", p * 1.2 + c * 8 + cr * 0.24)' },
+      { key: 'doubao-seed-1.8', label: 'Doubao Seed 1.8', expr: 'len <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : len <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : len <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)' },
     ],
   },
   {
@@ -793,7 +795,7 @@ const PRESET_GROUPS = [
       },
       {
         key: 'gpt-5.4-tiers', label: 'GPT-5.4 Priority/Flex',
-        expr: 'p <= 272000 ? tier("standard", p * 2.5 + c * 15 + cr * 0.25) : tier("long_context", p * 5 + c * 22.5 + cr * 0.5)',
+        expr: 'len <= 272000 ? tier("standard", p * 2.5 + c * 15 + cr * 0.25) : tier("long_context", p * 5 + c * 22.5 + cr * 0.5)',
         requestRules: [
           { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'priority' }], multiplier: '2' },
           { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
@@ -880,7 +882,8 @@ function RawExprEditor({ exprString, onChange, t }) {
           <div>
             <div>
               {t('变量')}: <code>p</code> ({t('输入 Token')}), <code>c</code> (
-              {t('输出 Token')}), <code>cr</code> ({t('缓存读取')}),{' '}
+              {t('输出 Token')}), <code>len</code> ({t('输入长度')}),{' '}
+              <code>cr</code> ({t('缓存读取')}),{' '}
               <code>cc</code> ({t('缓存创建')}),{' '}
               <code>cc1h</code> ({t('缓存创建-1小时')})
             </div>
@@ -968,7 +971,11 @@ function evalExprLocally(exprStr, p, c, extraTokenValues) {
       matchedTier = name;
       return value;
     };
-    const env = { p, c, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
+    const cacheReadTokens = extraTokenValues.cacheReadTokens || 0;
+    const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0;
+    const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0;
+    const len = p + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens;
+    const env = { p, c, len, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
     for (const field of EXTRA_ESTIMATOR_FIELDS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0;
     }
@@ -1216,6 +1223,146 @@ function RuleGroupCard({ group, index, onChange, onRemove, t }) {
           style={{ width: 160 }}
         />
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LLM prompt helper — copyable prompt for LLM-assisted expression design
+// ---------------------------------------------------------------------------
+
+const LLM_PROMPT_TEMPLATE = `你是一个 AI API 计费表达式设计助手。用户需要你帮忙设计一个计费表达式（billing expression），用于 AI API 网关的模型计费。
+
+## 表达式语言
+
+表达式基于 expr-lang/expr，支持标准算术运算和三元运算符。
+
+### Token 变量
+
+输入侧：
+- p — 输入 token 数（计价用）。系统会自动排除表达式中单独计价的子类别（如用了 cr，缓存 token 就从 p 中扣除）
+- len — 输入上下文总长度（条件判断用）。不受自动排除影响，始终反映完整输入长度。用于阶梯条件判断
+- cr — 缓存命中（读取）token 数
+- cc — 缓存创建 token 数（5分钟 TTL）
+- cc1h — 缓存创建 token 数（1小时 TTL，Claude 专用）
+- img — 图片输入 token 数
+- ai — 音频输入 token 数
+
+输出侧：
+- c — 输出 token 数。同样会自动排除单独计价的子类别
+- img_o — 图片输出 token 数
+- ao — 音频输出 token 数
+
+### p/c 自动排除机制
+
+p 和 c 是兜底变量，代表所有没有被表达式单独定价的 token。如果表达式使用了某个子类别变量（如 cr），对应 token 就从 p 中扣除，避免重复计费。没用到的子类别 token 则留在 p/c 中按基础价格计费。
+
+重要：len 不受自动排除影响。阶梯条件应使用 len 而非 p，以避免缓存命中导致 p 降低而误判档位。
+
+### 内置函数
+
+- tier(name, value) — 标记计费档位名称，必须包裹费用表达式
+- max(a, b)、min(a, b) — 取大/小值
+- ceil(x)、floor(x)、abs(x) — 向上取整、向下取整、绝对值
+- header(name) — 读取请求头
+- param(path) — 读取请求体 JSON 路径（gjson 语法）
+- has(source, substr) — 子字符串检查
+- hour(tz)、minute(tz)、weekday(tz)、month(tz)、day(tz) — 时间函数，tz 为时区如 "Asia/Shanghai"
+
+### 价格系数
+
+表达式中的数字系数是 $/1M tokens 的价格。例如 p * 2.5 表示输入 $2.50/1M tokens。
+
+## 表达式示例
+
+简单定价：
+tier("base", p * 2.5 + c * 15)
+
+带缓存的定价：
+tier("base", p * 2.5 + c * 15 + cr * 0.25)
+
+多档阶梯（用 len 做条件）：
+len <= 200000
+  ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6)
+  : tier("long_context", p * 6 + c * 22.5 + cr * 0.6 + cc * 7.5 + cc1h * 12)
+
+图片模型：
+tier("base", p * 2 + c * 8 + img * 2.5)
+
+多模态含音频：
+tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
+
+三档阶梯示例：
+len <= 128000
+  ? tier("standard", p * 1.1 + c * 4.4)
+  : (len <= 1000000
+    ? tier("medium", p * 2.2 + c * 8.8)
+    : tier("long", p * 4.4 + c * 17.6))
+
+## 规则
+
+1. 每个叶子分支必须用 tier("名称", 费用表达式) 包裹
+2. tier 名称用英文，如 "base"、"standard"、"long_context"
+3. 阶梯条件用 len（不要用 p），支持 <、<=、>、>=
+4. 多档用嵌套三元运算符：条件1 ? tier(...) : (条件2 ? tier(...) : tier(...))
+5. 价格系数直接写供应商官方 $/1M tokens 价格
+6. 不需要缓存/图片/音频单独定价时可以不写对应变量，它们的 token 会自动包含在 p/c 中
+
+请根据用户提供的模型信息和定价需求，生成计费表达式。`;
+
+function LlmPromptHelper({ t, model }) {
+  const [open, setOpen] = useState(false);
+
+  const modelName = model?.name || '';
+  const prompt = useMemo(() => {
+    if (modelName) {
+      return LLM_PROMPT_TEMPLATE + `\n\n当前模型：${modelName}`;
+    }
+    return LLM_PROMPT_TEMPLATE;
+  }, [modelName]);
+
+  const handleCopy = useCallback(async () => {
+    const ok = await copy(prompt);
+    if (ok) showSuccess(t('已复制到剪贴板'));
+  }, [prompt, t]);
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <Button
+        theme='borderless'
+        size='small'
+        icon={<IconCopy />}
+        onClick={() => setOpen(!open)}
+        style={{ color: 'var(--semi-color-tertiary)' }}
+      >
+        {t('LLM 辅助设计提示词')}
+      </Button>
+      <Collapsible isOpen={open}>
+        <Card
+          bodyStyle={{ padding: 12 }}
+          style={{ marginTop: 8, background: 'var(--semi-color-fill-0)' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text size='small' type='secondary'>
+              {t('复制以下提示词发送给 LLM（如 ChatGPT / Claude），让它帮你设计计费表达式')}
+            </Text>
+            <Button
+              icon={<IconCopy />}
+              size='small'
+              theme='light'
+              onClick={handleCopy}
+            >
+              {t('复制提示词')}
+            </Button>
+          </div>
+          <TextArea
+            value={prompt}
+            readonly
+            autosize={{ minRows: 6, maxRows: 20 }}
+            style={{ fontFamily: 'monospace', fontSize: 12 }}
+          />
+        </Card>
+      </Collapsible>
     </div>
   );
 }
@@ -1542,6 +1689,8 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
           )}
         </div>
       </Card>
+
+      <LlmPromptHelper t={t} model={model} />
 
     </div>
   );

@@ -13,6 +13,7 @@
 export const BILLING_VARS = [
   { key: 'p', field: 'inputPrice', tierField: 'input_unit_cost', label: '输入价格', shortLabel: '输入', side: 'input', isBase: true },
   { key: 'c', field: 'outputPrice', tierField: 'output_unit_cost', label: '补全价格', shortLabel: '补全', side: 'output', isBase: true },
+  { key: 'len', field: null, tierField: null, label: '输入长度', shortLabel: '长度', side: 'condition', isConditionOnly: true },
   { key: 'cr', field: 'cacheReadPrice', tierField: 'cache_read_unit_cost', label: '缓存读取价格', shortLabel: '缓存读', side: 'input', group: 'cache' },
   { key: 'cc', field: 'cacheCreatePrice', tierField: 'cache_create_unit_cost', label: '缓存创建价格', shortLabel: '缓存创建', side: 'input', group: 'cache' },
   { key: 'cc1h', field: 'cacheCreate1hPrice', tierField: 'cache_create_1h_unit_cost', label: '1h缓存创建价格', shortLabel: '1h缓存创建', side: 'input', group: 'cache' },
@@ -24,18 +25,20 @@ export const BILLING_VARS = [
 
 export const BILLING_VAR_KEYS = BILLING_VARS.map((v) => v.key);
 
-export const BILLING_EXTRA_VARS = BILLING_VARS.filter((v) => !v.isBase);
+export const BILLING_PRICING_VARS = BILLING_VARS.filter((v) => !v.isConditionOnly);
+
+export const BILLING_EXTRA_VARS = BILLING_VARS.filter((v) => !v.isBase && !v.isConditionOnly);
 
 export const BILLING_VAR_KEY_TO_FIELD = Object.fromEntries(
-  BILLING_VARS.map((v) => [v.key, v.field]),
+  BILLING_PRICING_VARS.map((v) => [v.key, v.field]),
 );
 
 export const BILLING_VAR_FIELD_TO_LABEL = Object.fromEntries(
-  BILLING_VARS.map((v) => [v.field, v.label]),
+  BILLING_PRICING_VARS.map((v) => [v.field, v.label]),
 );
 
 export const BILLING_VAR_FIELD_TO_SHORT_LABEL = Object.fromEntries(
-  BILLING_VARS.map((v) => [v.field, v.shortLabel]),
+  BILLING_PRICING_VARS.map((v) => [v.field, v.shortLabel]),
 );
 
 export const BILLING_CACHE_VAR_MAP = BILLING_EXTRA_VARS.map((v) => ({
@@ -44,6 +47,10 @@ export const BILLING_CACHE_VAR_MAP = BILLING_EXTRA_VARS.map((v) => ({
 }));
 
 export const BILLING_VAR_REGEX = new RegExp(
-  `\\b(${BILLING_VAR_KEYS.join('|')})\\s*\\*\\s*([\\d.eE+-]+)`,
+  `\\b(${BILLING_PRICING_VARS.map((v) => v.key).join('|')})\\s*\\*\\s*([\\d.eE+-]+)`,
   'g',
 );
+
+export const BILLING_CONDITION_VARS = BILLING_VARS.filter(
+  (v) => v.isBase || v.isConditionOnly,
+).map((v) => v.key);

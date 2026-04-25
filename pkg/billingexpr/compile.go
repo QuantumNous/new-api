@@ -41,6 +41,7 @@ var (
 var compileEnvPrototypeV1 = map[string]interface{}{
 	"p":    float64(0),
 	"c":    float64(0),
+	"len":  float64(0),
 	"cr":   float64(0),
 	"cc":   float64(0),
 	"cc1h": float64(0),
