@@ -875,6 +875,24 @@ html.dark .with-pastel-balls::before {
     height: calc(100vh - 77px);
     max-height: calc(100vh - 77px);
   }
+
+  .semi-input-suffix-text {
+    font-size: 11px;
+    padding: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
+  }
+
+  .semi-input-prefix-text, .semi-input-suffix-text {
+    margin: 0;
+  }
+
+  .semi-select-arrow {
+    margin-left: 2px;
+    margin-right: 2px;
+  }
 }
 
 /* ==================== 模型定价页面布局 ==================== */
