@@ -17,16 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon } from '../../helpers/render';
-import { Button, Tooltip } from '@heroui/react';
+import { Avatar, Button, Tooltip } from '@heroui/react';
 import { ChevronDown, ChevronLeft } from 'lucide-react';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { isAdmin, isRoot, showError } from '../../helpers';
+import { isAdmin, isRoot, showError, stringToColor } from '../../helpers';
+import { UserContext } from '../../context/User';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
 const routerMap = {
@@ -52,6 +53,7 @@ const routerMap = {
 
 const SiderBar = ({ onNavigate = () => {} }) => {
   const { t } = useTranslation();
+  const [userState] = useContext(UserContext);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const {
     isModuleVisible,
@@ -305,12 +307,14 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     }
   }, [collapsed]);
 
+  // Match template-dashboard Sidebar.MenuItem styling: rounded-md, font-medium,
+  // semantic foreground/muted colors, surface-secondary surface for active state.
   const itemBaseClass =
-    'group flex min-h-10 w-full items-center gap-3 rounded-2xl px-3 text-sm font-medium transition-all duration-200';
+    'group flex min-h-9 w-full items-center gap-2.5 rounded-md px-3 text-sm font-medium transition-colors duration-150';
   const itemActiveClass =
-    'bg-primary/10 text-primary shadow-[inset_0_0_0_1px_rgba(37,99,235,0.10)] dark:bg-primary/15';
+    'bg-surface-secondary text-foreground';
   const itemIdleClass =
-    'text-slate-600 hover:bg-slate-900/[0.04] hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white';
+    'text-muted hover:bg-surface-secondary hover:text-foreground';
 
   const getItemPath = (item) =>
     routerMapState[item.itemKey] || routerMap[item.itemKey] || item.to;
@@ -327,7 +331,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {!collapsed && (
         <span
           className={`min-w-0 flex-1 truncate text-left ${
-            nested ? 'text-[13px] font-medium' : 'font-semibold'
+            nested ? 'text-[13px] font-normal' : 'font-medium'
           }`}
         >
           {item.text}
@@ -448,24 +452,62 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     return renderNavItem(item);
   };
 
+  // Template-dashboard groups items with a thin bottom-aligned label (or no
+  // label at all), keeping visual weight low. We mirror that with a small
+  // muted label and tighter spacing.
   const renderSection = (label, items, renderItem = renderNavItem) => (
-    <section className='space-y-1.5'>
+    <section className='space-y-0.5'>
       {!collapsed && (
-        <div className='px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500'>
+        <div className='px-3 pb-1 pt-1 text-xs font-medium text-muted'>
           {label}
         </div>
       )}
-      <div className='space-y-1'>{items.map((item) => renderItem(item))}</div>
+      <div className='space-y-0.5'>{items.map((item) => renderItem(item))}</div>
     </section>
   );
 
   const renderDivider = () => (
-    <div className='mx-3 my-3 h-px bg-slate-200/80 dark:bg-white/10' />
+    <div className='mx-2 my-2 h-px bg-border' />
   );
+
+  // Template-style header block: avatar + display name + role.
+  // Mirrors `dashboard-sidebar.tsx`'s <Sidebar.Header> layout.
+  const renderUserHeader = () => {
+    if (!userState?.user) return null;
+    const username = userState.user.display_name || userState.user.username || '';
+    const initial = username ? username[0].toUpperCase() : '?';
+    const roleLabel = isRoot()
+      ? t('超级管理员')
+      : isAdmin()
+        ? t('管理员')
+        : t('用户');
+    const avatarBg = stringToColor(username);
+
+    return (
+      <div className={`flex items-center gap-3 px-1 pb-3 ${collapsed ? 'justify-center' : ''}`}>
+        <Avatar
+          size='sm'
+          className='h-9 w-9 shrink-0 text-xs text-white'
+          style={{ backgroundColor: avatarBg }}
+          name={initial}
+        />
+        {!collapsed && (
+          <div className='flex min-w-0 flex-col'>
+            <span className='truncate text-sm font-medium leading-tight text-foreground'>
+              {username}
+            </span>
+            <span className='truncate text-xs font-medium leading-tight text-muted'>
+              {roleLabel}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
-      className='sidebar-container sidebar-shell flex h-full flex-col border-r border-slate-200/70 p-3 shadow-[12px_0_36px_rgba(15,23,42,0.05)] backdrop-blur-xl dark:border-white/10'
+      className='sidebar-container flex h-full flex-col border-r border-border bg-background p-3'
       style={{
         width: 'var(--sidebar-current-width)',
       }}
@@ -477,6 +519,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         collapsed={collapsed}
         showAdmin={isAdmin()}
       >
+        {renderUserHeader()}
         <nav className='flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden pr-1 scrollbar-none'>
           {/* 聊天区域 */}
           {hasSectionVisibleModules('chat') && (
@@ -522,17 +565,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         >
           <Button
             size='sm'
-            radius='full'
-            variant='bordered'
+            variant='ghost'
             isIconOnly={collapsed}
             onPress={toggleCollapsed}
-            className={`border-slate-200/80 bg-white/70 text-slate-500 shadow-sm backdrop-blur transition-colors hover:border-primary/30 hover:text-primary dark:border-white/10 dark:bg-white/5 dark:text-slate-300 ${
+            className={`text-muted hover:bg-surface-secondary hover:text-foreground ${
               collapsed ? 'h-9 w-9 min-w-9' : 'w-full justify-start'
             }`}
             startContent={
               <ChevronLeft
                 size={16}
-                strokeWidth={2.5}
+                strokeWidth={2}
                 className={`transition-transform duration-200 ${
                   collapsed ? 'rotate-180' : ''
                 }`}

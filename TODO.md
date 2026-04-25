@@ -144,6 +144,13 @@
 - [x] Add `tabular-nums` + semantic color to KPI numbers in `StatsCards` to match template KPI styling.
 - [x] `bun run build` passed after style migration.
 
+### Sidebar (follow-up after first round of feedback)
+- [x] Drop `sidebar-shell` glassmorphism + heavy box-shadow + backdrop-blur; sidebar now uses flat `bg-background border-r border-border` like template.
+- [x] Replace uppercase tracking-wide section headers with quiet `text-xs text-muted` labels.
+- [x] Menu items: `rounded-2xl` → `rounded-md`, `font-semibold` → `font-medium`, slate colors → semantic `text-foreground`/`text-muted`, primary tinted active state → `bg-surface-secondary`.
+- [x] Add template-style header block (avatar + display name + role) at top of sidebar.
+- [x] Simplify collapse button (drop bordered/backdrop-blur styling, use ghost variant).
+
 ### Next steps
 - [ ] Visual QA all `/console` sub-pages in light + dark themes; capture before/after.
 - [ ] Consider centering page content with `max-w-7xl mx-auto` like template (currently console pages stretch full width).
