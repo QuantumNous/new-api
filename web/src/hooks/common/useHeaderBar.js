@@ -26,15 +26,17 @@ import { useSetTheme, useTheme, useActualTheme } from '../../context/Theme';
 import { getLogo, getSystemName, API, showSuccess } from '../../helpers';
 import { normalizeLanguage } from '../../i18n/language';
 import { useIsMobile } from './useIsMobile';
-import { useSidebarCollapsed } from './useSidebarCollapsed';
 import { useMinimumLoadingTime } from './useMinimumLoadingTime';
 
-export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
+// Sidebar drawer state lives in the surrounding `Sidebar.Provider` (mounted
+// in PageLayout) — useHeaderBar no longer needs to touch the legacy
+// `useSidebarCollapsed` hook. MobileMenuButton consumes `useSidebar()`
+// directly when it needs to toggle the mobile sheet.
+export const useHeaderBar = () => {
   const { t, i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
   const isMobile = useIsMobile();
-  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
   const navigate = useNavigate();
   const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
@@ -210,20 +212,11 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     [setTheme],
   );
 
-  const handleMobileMenuToggle = useCallback(() => {
-    if (isMobile) {
-      onMobileMenuToggle();
-    } else {
-      toggleCollapsed();
-    }
-  }, [isMobile, onMobileMenuToggle, toggleCollapsed]);
-
   return {
     // State
     userState,
     statusState,
     isMobile,
-    collapsed,
     logoLoaded,
     currentLang,
     location,
@@ -236,7 +229,6 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     isDemoSiteMode,
     isConsoleRoute,
     theme,
-    drawerOpen,
     headerNavModules,
     pricingRequireAuth,
 
@@ -244,7 +236,6 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     logout,
     handleLanguageChange,
     handleThemeToggle,
-    handleMobileMenuToggle,
     navigate,
     t,
   };

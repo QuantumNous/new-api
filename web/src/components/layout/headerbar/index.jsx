@@ -27,12 +27,11 @@ import HeaderLogo from './HeaderLogo';
 import Navigation from './Navigation';
 import ActionButtons from './ActionButtons';
 
-const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
+const HeaderBar = () => {
   const {
     userState,
     statusState,
     isMobile,
-    collapsed,
     logoLoaded,
     currentLang,
     isLoading,
@@ -49,10 +48,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     logout,
     handleLanguageChange,
     handleThemeToggle,
-    handleMobileMenuToggle,
     navigate,
     t,
-  } = useHeaderBar({ onMobileMenuToggle, drawerOpen });
+  } = useHeaderBar();
 
   const {
     noticeVisible,
@@ -65,7 +63,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
 
   return (
-    <header className='sticky top-0 z-50 bg-white/75 text-slate-900 backdrop-blur-lg transition-colors duration-300 dark:bg-zinc-900/75 dark:text-slate-100'>
+    <header className='sticky top-0 z-50 border-b border-border bg-background text-foreground transition-colors duration-300'>
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
@@ -80,9 +78,6 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}
-              drawerOpen={drawerOpen}
-              collapsed={collapsed}
-              onToggle={handleMobileMenuToggle}
               t={t}
             />
 

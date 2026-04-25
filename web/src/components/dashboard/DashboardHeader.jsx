@@ -37,13 +37,13 @@ const DashboardHeader = ({
       >
         {getGreeting}
       </h2>
-      <div className='flex gap-3'>
+      <div className='flex gap-2'>
         <Button
           isIconOnly
           aria-label={t('搜索条件')}
-          variant='primary'
+          size='sm'
+          variant='tertiary'
           onPress={showSearchModal}
-          className='rounded-full bg-emerald-500 text-white hover:bg-emerald-600'
         >
           <Search size={16} />
         </Button>
@@ -51,9 +51,9 @@ const DashboardHeader = ({
           isIconOnly
           aria-label={t('刷新')}
           isPending={loading}
-          variant='primary'
+          size='sm'
+          variant='tertiary'
           onPress={refresh}
-          className='rounded-full bg-blue-500 text-white hover:bg-blue-600'
         >
           <RefreshCw size={16} />
         </Button>

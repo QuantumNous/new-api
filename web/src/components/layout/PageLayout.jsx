@@ -23,9 +23,9 @@ import App from '../../App';
 import FooterBar from './Footer';
 import ToastViewport from '../ui/ToastViewport';
 import ErrorBoundary from '../common/ErrorBoundary';
-import React, { useContext, useEffect, useState } from 'react';
-import { useIsMobile } from '../../hooks/common/useIsMobile';
-import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
+import React, { useCallback, useContext, useEffect } from 'react';
+import { Sidebar } from '@heroui-pro/react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -36,8 +36,19 @@ import {
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
-import { useLocation } from 'react-router-dom';
 import { normalizeLanguage } from '../../i18n/language';
+
+// Bridges the existing localStorage-backed sidebar collapsed flag with
+// `Sidebar.Provider`'s open/onOpenChange API. Reading the cookie or
+// localStorage at module load gives the initial value with no flash.
+const SIDEBAR_COLLAPSED_KEY = 'default_collapse_sidebar';
+const readSidebarDefaultOpen = () => {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) !== 'true';
+  } catch {
+    return true;
+  }
+};
 
 const getFallbackStatus = () => {
   try {
@@ -68,11 +79,9 @@ const getFallbackStatus = () => {
 const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
   const [, statusDispatch] = useContext(StatusContext);
-  const isMobile = useIsMobile();
-  const [collapsed, , setCollapsed] = useSidebarCollapsed();
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const { i18n } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const cardProPages = [
     '/console/channel',
@@ -95,13 +104,15 @@ const PageLayout = () => {
     !location.pathname.startsWith('/console/chat') &&
     location.pathname !== '/console/playground';
 
-  const showSider = isConsoleRoute && (!isMobile || drawerOpen);
-
-  useEffect(() => {
-    if (isMobile && drawerOpen && collapsed) {
-      setCollapsed(false);
+  // Persist sidebar open state back to localStorage so refresh / cross-tab
+  // matches the previous behavior of `useSidebarCollapsed`.
+  const handleSidebarOpenChange = useCallback((open) => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, (!open).toString());
+    } catch {
+      // Ignore quota / privacy errors — Sidebar.Provider keeps state in memory.
     }
-  }, [isMobile, drawerOpen, collapsed, setCollapsed]);
+  }, []);
 
   const loadUser = () => {
     let user = localStorage.getItem('user');
@@ -171,108 +182,46 @@ const PageLayout = () => {
     }
   }, [i18n, userState?.user?.setting]);
 
+  // Hoist Sidebar.Provider to the root so HeaderBar (mobile menu toggle) and
+  // SiderBar both have access to `useSidebar()`. The provider's default flex
+  // layout is overridden to flex-col via className so our fixed header can
+  // sit on top of the sidebar+main row.
   return (
-    <div
-      className='app-layout'
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: isMobile ? 'auto' : '100dvh',
-        overflow: isMobile ? 'visible' : 'hidden',
-      }}
+    <Sidebar.Provider
+      defaultOpen={readSidebarDefaultOpen()}
+      onOpenChange={handleSidebarOpenChange}
+      navigate={navigate}
+      collapsible='icon'
+      className='app-layout flex !flex-col min-h-dvh'
     >
-      <header
-        style={{
-          padding: 0,
-          height: 'auto',
-          lineHeight: 'normal',
-          position: 'fixed',
-          width: '100%',
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <HeaderBar
-          onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
-          drawerOpen={drawerOpen}
-        />
+      <header className='sticky top-0 z-50 w-full'>
+        <HeaderBar />
       </header>
-      <div
-        style={{
-          overflow: isMobile ? 'visible' : 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: isMobile ? 'auto' : '100dvh',
-        }}
-      >
-        {showSider && (
-          <aside
-            className='app-sider'
-            style={{
-              position: 'fixed',
-              left: 0,
-              top: '64px',
-              zIndex: 99,
-              border: 'none',
-              paddingRight: '0',
-              width: 'var(--sidebar-current-width)',
-            }}
-          >
-            <SiderBar
-              onNavigate={() => {
-                if (isMobile) setDrawerOpen(false);
-              }}
-            />
-          </aside>
-        )}
-        <div
+
+      <div className='flex flex-1 min-h-0 w-full'>
+        {isConsoleRoute && <SiderBar />}
+
+        <main
+          className='flex-1 min-w-0 relative'
           style={{
-            marginLeft: isMobile
-              ? '0'
-              : showSider
-                ? 'var(--sidebar-current-width)'
-                : '0',
-            flex: '1 1 auto',
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: 0,
-            height: isMobile ? 'auto' : '100dvh',
+            padding: shouldInnerPadding ? '24px' : 0,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
           }}
         >
-          <main
-            style={{
-              // Use flex: 1 1 0 (with minHeight: 0) so <main> shrinks to
-              // its parent rather than growing to its content. Without
-              // this, flex: 1 0 auto kept <main> at content height, the
-              // grandparent's overflow: hidden clipped the bottom, and
-              // <main>'s own overflowY: auto never engaged. Pages that
-              // already pad past the fixed 64px header (e.g. mt-[60px])
-              // continue to render correctly inside the scrollable region.
-              flex: isMobile ? '1 1 auto' : '1 1 0',
-              minHeight: 0,
-              overflowY: isMobile ? 'visible' : 'auto',
-              WebkitOverflowScrolling: 'touch',
-              padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
-              position: 'relative',
-            }}
-          >
-            <ErrorBoundary key={location.pathname}>
-              <App />
-            </ErrorBoundary>
-            {!shouldHideFooter && (
-              <footer
-                style={{
-                  width: '100%',
-                }}
-              >
-                <FooterBar />
-              </footer>
-            )}
-          </main>
-        </div>
+          <ErrorBoundary key={location.pathname}>
+            <App />
+          </ErrorBoundary>
+          {!shouldHideFooter && (
+            <footer className='w-full'>
+              <FooterBar />
+            </footer>
+          )}
+        </main>
       </div>
+
       <ToastViewport />
-    </div>
+    </Sidebar.Provider>
   );
 };
 

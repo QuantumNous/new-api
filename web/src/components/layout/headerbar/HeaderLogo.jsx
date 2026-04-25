@@ -55,7 +55,7 @@ const HeaderLogo = ({
             width={120}
             height={24}
           >
-            <h1 className='mb-0 text-lg font-semibold text-slate-950 dark:text-white'>
+            <h1 className='mb-0 text-lg font-semibold text-foreground'>
               {systemName}
             </h1>
           </SkeletonWrapper>

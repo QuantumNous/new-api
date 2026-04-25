@@ -140,7 +140,7 @@ const UserArea = ({
           aria-haspopup='menu'
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
-          className='inline-flex h-9 items-center gap-1.5 rounded-full bg-slate-900/[0.04] px-1.5 pr-2 text-slate-700 transition-colors hover:bg-slate-900/[0.07] dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15'
+          className='inline-flex h-9 items-center gap-1.5 rounded-full bg-surface-secondary px-1.5 pr-2 text-foreground transition-colors hover:bg-surface-tertiary'
         >
           <Avatar
             size='sm'
@@ -152,13 +152,13 @@ const UserArea = ({
             name={userState.user.username[0].toUpperCase()}
           />
           <span className='hidden md:inline'>
-            <span className='mr-1 text-xs font-semibold text-slate-600 dark:text-slate-300'>
+            <span className='mr-1 text-xs font-medium text-foreground'>
               {userState.user.username}
             </span>
           </span>
           <ChevronDown
             size={14}
-            className='text-slate-400 dark:text-slate-500'
+            className='text-muted'
           />
         </button>
 
@@ -166,7 +166,7 @@ const UserArea = ({
           <div
             role='menu'
             aria-label={t('用户菜单')}
-            className='absolute right-0 top-full z-50 mt-2 min-w-44 rounded-2xl border border-slate-200/80 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/95'
+            className='absolute right-0 top-full z-50 mt-2 min-w-44 rounded-xl border border-border bg-background p-1 shadow-lg'
           >
             {menuItems.map((item) => (
               <button
@@ -174,8 +174,8 @@ const UserArea = ({
                 type='button'
                 role='menuitem'
                 onClick={() => handleMenuAction(item)}
-                className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-900/[0.04] dark:hover:bg-white/10 ${
-                  item.danger ? 'text-danger' : ''
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface-secondary ${
+                  item.danger ? 'text-danger' : 'text-foreground'
                 }`}
               >
                 {item.icon}
@@ -193,7 +193,7 @@ const UserArea = ({
       <div className='flex items-center'>
         <Link to='/login' className='flex'>
           <span
-            className={`inline-flex h-9 items-center justify-center bg-slate-900/[0.04] px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-900/[0.07] dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15 ${
+            className={`inline-flex h-9 items-center justify-center bg-surface-secondary px-3 text-xs font-medium text-foreground transition-colors hover:bg-surface-tertiary ${
               showRegisterButton && !isMobile
                 ? 'rounded-l-full rounded-r-none'
                 : 'rounded-full'
@@ -205,7 +205,7 @@ const UserArea = ({
         {showRegisterButton && (
           <div className='hidden md:block'>
             <Link to='/register' className='flex -ml-px'>
-              <span className='inline-flex h-9 items-center justify-center rounded-l-none rounded-r-full bg-primary px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90'>
+              <span className='inline-flex h-9 items-center justify-center rounded-l-none rounded-r-full bg-primary px-3 text-xs font-medium text-white transition-opacity hover:opacity-90'>
                 {t('注册')}
               </span>
             </Link>

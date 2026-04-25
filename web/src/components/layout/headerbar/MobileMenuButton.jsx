@@ -19,16 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@heroui/react';
+import { useSidebar } from '@heroui-pro/react';
 import { Menu, X } from 'lucide-react';
 
-const MobileMenuButton = ({
-  isConsoleRoute,
-  isMobile,
-  drawerOpen,
-  collapsed,
-  onToggle,
-  t,
-}) => {
+// Mobile-only sidebar drawer toggle. Reads / writes the mobile-sheet open
+// state from the surrounding `Sidebar.Provider` (mounted in PageLayout) so
+// the button stays in sync with the actual sheet rather than tracking a
+// separate piece of local state.
+const MobileMenuButton = ({ isConsoleRoute, isMobile, t }) => {
+  const { isMobileOpen, setMobileOpen } = useSidebar();
+
   if (!isConsoleRoute || !isMobile) {
     return null;
   }
@@ -39,13 +39,11 @@ const MobileMenuButton = ({
       size='sm'
       radius='full'
       variant='light'
-      aria-label={
-        (isMobile ? drawerOpen : collapsed) ? t('关闭侧边栏') : t('打开侧边栏')
-      }
-      onPress={onToggle}
-      className='text-slate-700 hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10'
+      aria-label={isMobileOpen ? t('关闭侧边栏') : t('打开侧边栏')}
+      onPress={() => setMobileOpen(!isMobileOpen)}
+      className='text-foreground hover:bg-surface-secondary'
     >
-      {(isMobile ? drawerOpen : collapsed) ? (
+      {isMobileOpen ? (
         <X size={19} strokeWidth={2.4} />
       ) : (
         <Menu size={19} strokeWidth={2.4} />
