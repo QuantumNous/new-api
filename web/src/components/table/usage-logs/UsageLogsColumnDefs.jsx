@@ -231,6 +231,7 @@ function renderUseTime(type, t) {
 }
 
 function renderFirstUseTime(type, t) {
+  if (type == null) return null;
   let time = parseFloat(type) / 1000.0;
   time = time.toFixed(1);
   if (time < 3) {
