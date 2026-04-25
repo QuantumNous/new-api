@@ -77,6 +77,17 @@ const TokensFilters = ({
             size='small'
           />
         </div>
+        
+        <div className='relative w-full md:w-56'>
+          <Form.Input
+            field='searchGroup'
+            prefix={<IconSearch />}
+            placeholder={t('分组')}
+            showClear
+            pure
+            size='small'
+          />
+        </div>
 
         <div className='flex gap-2 w-full md:w-auto'>
           <Button
