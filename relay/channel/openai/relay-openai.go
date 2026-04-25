@@ -372,12 +372,11 @@ func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 		})
 	}
 
-	createdAny := any(createdAt)
 	simpleResponse := dto.OpenAITextResponse{
 		Id:      responseId,
 		Model:   model,
 		Object:  object,
-		Created: createdAny,
+		Created: createdAt,
 		Choices: responseChoices,
 		Usage:   *usage,
 	}
@@ -387,10 +386,6 @@ func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 	}
 	applyUsagePostProcessing(info, &simpleResponse.Usage, common.StringToByteSlice(lastStreamData))
-	responseBody, err = common.Marshal(simpleResponse)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
-	}
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
