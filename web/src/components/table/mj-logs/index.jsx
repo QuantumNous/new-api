@@ -38,25 +38,24 @@ const MjLogsPage = () => {
       <ColumnSelectorModal {...mjLogsData} />
       <ContentModal {...mjLogsData} />
 
-      <div className='flex min-h-0 min-w-0'>
-        <CardPro
-          type='type2'
-          statsArea={<MjLogsActions {...mjLogsData} />}
-          searchArea={<MjLogsFilters {...mjLogsData} />}
-          paginationArea={createCardProPagination({
-            currentPage: mjLogsData.activePage,
-            pageSize: mjLogsData.pageSize,
-            total: mjLogsData.logCount,
-            onPageChange: mjLogsData.handlePageChange,
-            onPageSizeChange: mjLogsData.handlePageSizeChange,
-            isMobile: isMobile,
-            t: mjLogsData.t,
-          })}
-          t={mjLogsData.t}
-        >
-          <MjLogsTable {...mjLogsData} />
-        </CardPro>
-      </div>
+      <CardPro
+        type='type2'
+        className='w-full'
+        statsArea={<MjLogsActions {...mjLogsData} />}
+        searchArea={<MjLogsFilters {...mjLogsData} />}
+        paginationArea={createCardProPagination({
+          currentPage: mjLogsData.activePage,
+          pageSize: mjLogsData.pageSize,
+          total: mjLogsData.logCount,
+          onPageChange: mjLogsData.handlePageChange,
+          onPageSizeChange: mjLogsData.handlePageSizeChange,
+          isMobile: isMobile,
+          t: mjLogsData.t,
+        })}
+        t={mjLogsData.t}
+      >
+        <MjLogsTable {...mjLogsData} />
+      </CardPro>
     </>
   );
 };
