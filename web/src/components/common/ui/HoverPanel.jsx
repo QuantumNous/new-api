@@ -80,7 +80,7 @@ const HoverPanel = ({
       {open ? (
         <div
           role='tooltip'
-          className={`absolute z-30 rounded-lg border border-[color:var(--app-border)] bg-white p-3 text-xs shadow-lg dark:bg-slate-900 ${place} ${panelClassName}`}
+          className={`absolute z-30 rounded-lg border border-border bg-background p-3 text-xs shadow-lg ${place} ${panelClassName}`}
         >
           {content}
         </div>

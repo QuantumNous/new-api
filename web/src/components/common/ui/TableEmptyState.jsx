@@ -23,18 +23,16 @@ import { SearchX } from 'lucide-react';
 const TableEmptyState = ({ title, description }) => {
   return (
     <div className='flex min-h-48 items-center justify-center px-4 py-8'>
-      <div className='flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-8 text-center dark:border-slate-800 dark:bg-slate-900/60'>
-        <div className='flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+      <div className='flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-surface-secondary/70 px-6 py-8 text-center'>
+        <div className='flex h-12 w-12 items-center justify-center rounded-full bg-surface-secondary text-muted'>
           <SearchX size={24} />
         </div>
         {title ? (
-          <h3 className='text-sm font-semibold text-slate-900 dark:text-slate-100'>
+          <h3 className='text-sm font-semibold text-foreground'>
             {title}
           </h3>
         ) : null}
-        <p className='text-sm text-slate-500 dark:text-slate-400'>
-          {description}
-        </p>
+        <p className='text-sm text-muted'>{description}</p>
       </div>
     </div>
   );

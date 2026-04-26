@@ -75,7 +75,7 @@ function ColorTag({ color = 'grey', prefixIcon, children, onClick, title }) {
       <span
         title={title}
         onClick={onClick}
-        className={`inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200 ${
+        className={`inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-xs font-medium text-foreground ${
           onClick ? 'cursor-pointer' : ''
         }`}
       >

@@ -67,7 +67,7 @@ const CardPro = ({
   };
 
   const hasMobileHideableContent = actionsArea || searchArea;
-  const divider = <div className='my-3 h-px w-full bg-slate-200/80 dark:bg-white/10' />;
+  const divider = <div className='my-3 h-px w-full bg-border' />;
 
   const renderHeader = () => {
     const hasContent =
@@ -145,7 +145,7 @@ const CardPro = ({
 
     return (
       <div
-        className={`flex w-full border-t border-slate-200/80 pt-4 dark:border-white/10 ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
+        className={`flex w-full border-t border-border pt-4 ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
       >
         {paginationArea}
       </div>
@@ -156,7 +156,7 @@ const CardPro = ({
 
   return (
     <section
-      className={`table-scroll-card rounded-2xl bg-white/90 shadow-sm backdrop-blur dark:bg-slate-950/70 ${bordered ? 'border border-slate-200/80 dark:border-white/10' : ''} ${className}`}
+      className={`table-scroll-card rounded-2xl bg-background/90 shadow-sm backdrop-blur ${bordered ? 'border border-border' : ''} ${className}`}
       style={style}
       data-shadow={shadows || undefined}
       {...props}

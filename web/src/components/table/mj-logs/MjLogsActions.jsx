@@ -37,7 +37,7 @@ const MjLogsActions = ({
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
       {showSkeleton ? (
         <div className='mb-2 flex items-center md:mb-0'>
-          <Eye size={16} className='mr-2 text-slate-400' />
+          <Eye size={16} className='mr-2 text-muted' />
           <Skeleton className='h-5 w-[300px] rounded-md' />
         </div>
       ) : (

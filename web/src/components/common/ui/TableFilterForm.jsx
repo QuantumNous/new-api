@@ -107,7 +107,7 @@ export function FilterInput({
       value={value ?? ''}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className={`h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900 ${className}`}
+      className={`h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary ${className}`}
     />
   );
 }
@@ -124,7 +124,7 @@ export function FilterSelect({
     <select
       value={value ?? ''}
       onChange={(event) => onChange(event.target.value)}
-      className={`h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900 ${className}`}
+      className={`h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary ${className}`}
     >
       {placeholder ? <option value=''>{placeholder}</option> : null}
       {options.map((option) => (
@@ -161,14 +161,14 @@ export function FilterDateRange({
           value={toDateTimeInputValue(start)}
           onChange={(event) => setRangeValue(0, event.target.value)}
           aria-label={startPlaceholder}
-          className='h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900'
+          className='h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
         />
         <input
           type='datetime-local'
           value={toDateTimeInputValue(end)}
           onChange={(event) => setRangeValue(1, event.target.value)}
           aria-label={endPlaceholder}
-          className='h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900'
+          className='h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
         />
       </div>
       {presets.length > 0 ? (
@@ -178,7 +178,7 @@ export function FilterDateRange({
               key={preset.text}
               type='button'
               onClick={() => onChange([preset.start, preset.end])}
-              className='rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600 transition hover:border-sky-300 hover:text-sky-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-sky-500 dark:hover:text-sky-200'
+              className='rounded-full border border-border bg-surface-secondary px-2.5 py-1 text-xs text-muted transition hover:border-primary hover:text-foreground'
             >
               {preset.text}
             </button>

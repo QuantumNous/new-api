@@ -65,7 +65,7 @@ const STATUS_TAG_CONFIG = {
   stopped: {
     color: 'grey',
     labelKey: '已停止',
-    icon: <FaStop size={12} className='text-gray-500' />,
+    icon: <FaStop size={12} className='text-muted' />,
   },
   error: {
     color: 'red',
@@ -102,7 +102,7 @@ const STATUS_TAG_CONFIG = {
 const DEFAULT_STATUS_CONFIG = {
   color: 'grey',
   labelKey: null,
-  icon: <FaInfoCircle size={12} className='text-gray-500' />,
+  icon: <FaInfoCircle size={12} className='text-muted' />,
 };
 
 const parsePercentValue = (value) => {
@@ -330,7 +330,7 @@ export const getDeploymentsColumns = ({
           <Typography.Text
             type='tertiary'
             size='small'
-            className='text-xs text-gray-500'
+            className='text-xs text-muted'
           >
             {t('暂无')}
           </Typography.Text>
@@ -433,7 +433,7 @@ export const getDeploymentsColumns = ({
               {record.hardware_name}
             </span>
           </div>
-          <span className='text-xs text-gray-500 font-medium'>
+          <span className='text-xs text-muted font-medium'>
             x{record.hardware_quantity}
           </span>
         </div>
@@ -445,7 +445,7 @@ export const getDeploymentsColumns = ({
       key: COLUMN_KEYS.created_at,
       width: 150,
       render: (text) => (
-        <span className='text-sm text-gray-600'>{timestamp2string(text)}</span>
+        <span className='text-sm text-muted tabular-nums'>{timestamp2string(text)}</span>
       ),
     },
     {
