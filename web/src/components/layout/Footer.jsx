@@ -48,13 +48,13 @@ const FooterBar = () => {
               <img
                 src={logo}
                 alt={systemName}
-                className='w-16 h-16 rounded-full bg-gray-800 p-1.5 object-contain'
+                className='w-16 h-16 rounded-full bg-foreground p-1.5 object-contain'
               />
             </div>
 
             <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 w-full'>
               <div className='text-left'>
-                <p className='mb-5 font-semibold text-slate-950 dark:text-white'>
+                <p className='mb-5 font-semibold text-foreground'>
                   {t('关于我们')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -62,7 +62,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/wiki/project-introduction/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     {t('关于项目')}
                   </a>
@@ -70,7 +70,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/support/community-interaction/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     {t('联系我们')}
                   </a>
@@ -78,7 +78,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/wiki/features-introduction/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     {t('功能特性')}
                   </a>
@@ -86,7 +86,7 @@ const FooterBar = () => {
               </div>
 
               <div className='text-left'>
-                <p className='mb-5 font-semibold text-slate-950 dark:text-white'>
+                <p className='mb-5 font-semibold text-foreground'>
                   {t('文档')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -94,7 +94,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/getting-started/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     {t('快速开始')}
                   </a>
@@ -102,7 +102,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/installation/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     {t('安装指南')}
                   </a>
@@ -110,7 +110,7 @@ const FooterBar = () => {
                     href='https://docs.newapi.pro/api/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     {t('API 文档')}
                   </a>
@@ -118,7 +118,7 @@ const FooterBar = () => {
               </div>
 
               <div className='text-left'>
-                <p className='mb-5 font-semibold text-slate-950 dark:text-white'>
+                <p className='mb-5 font-semibold text-foreground'>
                   {t('相关项目')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -126,7 +126,7 @@ const FooterBar = () => {
                     href='https://github.com/songquanpeng/one-api'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     One API
                   </a>
@@ -134,7 +134,7 @@ const FooterBar = () => {
                     href='https://github.com/novicezk/midjourney-proxy'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     Midjourney-Proxy
                   </a>
@@ -142,7 +142,7 @@ const FooterBar = () => {
                     href='https://github.com/Calcium-Ion/neko-api-key-tool'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     neko-api-key-tool
                   </a>
@@ -150,7 +150,7 @@ const FooterBar = () => {
               </div>
 
               <div className='text-left'>
-                <p className='mb-5 font-semibold text-slate-950 dark:text-white'>
+                <p className='mb-5 font-semibold text-foreground'>
                   {t('友情链接')}
                 </p>
                 <div className='flex flex-col gap-4'>
@@ -158,7 +158,7 @@ const FooterBar = () => {
                     href='https://github.com/Calcium-Ion/new-api-horizon'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     new-api-horizon
                   </a>
@@ -166,7 +166,7 @@ const FooterBar = () => {
                     href='https://github.com/coaidev/coai'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     CoAI
                   </a>
@@ -174,7 +174,7 @@ const FooterBar = () => {
                     href='https://www.gpt-load.com/'
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='text-slate-600 hover:text-primary dark:text-slate-300'
+                    className='text-muted hover:text-primary'
                   >
                     GPT-Load
                   </a>
@@ -186,13 +186,13 @@ const FooterBar = () => {
 
         <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-6'>
           <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-sm text-slate-600 dark:text-slate-300'>
+            <span className='text-sm text-muted'>
               © {currentYear} {systemName}. {t('版权所有')}
             </span>
           </div>
 
           <div className='text-sm'>
-            <span className='text-slate-600 dark:text-slate-300'>
+            <span className='text-muted'>
               {t('设计与开发由')}{' '}
             </span>
             <a
@@ -229,11 +229,11 @@ const FooterBar = () => {
         <footer className='relative h-auto py-4 px-6 md:px-24 w-full flex items-center justify-center overflow-hidden'>
           <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-4'>
             <div
-              className='custom-footer na-cb6feafeb3990c78 text-sm text-slate-600 dark:text-slate-300'
+              className='custom-footer na-cb6feafeb3990c78 text-sm text-muted'
               dangerouslySetInnerHTML={{ __html: footer }}
             ></div>
             <div className='text-sm flex-shrink-0'>
-              <span className='text-slate-600 dark:text-slate-300'>
+              <span className='text-muted'>
                 {t('设计与开发由')}{' '}
               </span>
               <a

@@ -127,7 +127,7 @@ const NoticeModal = ({
   const renderMarkdownNotice = () => {
     if (loading) {
       return (
-        <div className='flex flex-col items-center justify-center gap-3 py-12 text-slate-500 dark:text-slate-400'>
+        <div className='flex flex-col items-center justify-center gap-3 py-12 text-muted'>
           <Spinner color='primary' />
           <span className='text-sm'>{t('加载中...')}</span>
         </div>
@@ -157,7 +157,7 @@ const NoticeModal = ({
 
     return (
       <div className='card-content-scroll max-h-[55vh] overflow-y-auto pr-2'>
-        <div className='space-y-5 border-l border-slate-200 pl-5 dark:border-white/10'>
+        <div className='space-y-5 border-l border-border pl-5'>
           {processedAnnouncements.map((item, idx) => (
             <AnnouncementItem key={idx} item={item} />
           ))}
@@ -181,8 +181,8 @@ const NoticeModal = ({
           scroll='inside'
           placement='center'
         >
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
           <div className='flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between'>
             <span>{t('系统公告')}</span>
             <Tabs
@@ -212,7 +212,7 @@ const NoticeModal = ({
           </div>
             </ModalHeader>
             <ModalBody>{renderBody()}</ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
           <Button variant='flat' onPress={handleCloseTodayNotice}>
             {t('今日关闭')}
           </Button>
@@ -228,8 +228,8 @@ const NoticeModal = ({
 };
 
 const EmptyState = ({ description }) => (
-  <div className='flex flex-col items-center justify-center gap-3 py-12 text-slate-500 dark:text-slate-400'>
-    <div className='flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-900/[0.04] text-slate-400 dark:bg-white/10 dark:text-slate-500'>
+  <div className='flex flex-col items-center justify-center gap-3 py-12 text-muted'>
+    <div className='flex h-16 w-16 items-center justify-center rounded-3xl bg-surface-secondary text-muted'>
       <Inbox size={30} />
     </div>
     <span className='text-sm'>{description}</span>
@@ -241,7 +241,7 @@ const typeColorClass = {
   danger: 'bg-danger',
   success: 'bg-success',
   primary: 'bg-primary',
-  default: 'bg-slate-300 dark:bg-slate-600',
+  default: 'bg-muted',
 };
 
 const AnnouncementItem = ({ item }) => {
@@ -251,12 +251,12 @@ const AnnouncementItem = ({ item }) => {
   return (
     <article className='relative'>
       <span
-        className={`absolute -left-[27px] top-1.5 h-3 w-3 rounded-full ring-4 ring-white dark:ring-slate-950 ${
+        className={`absolute -left-[27px] top-1.5 h-3 w-3 rounded-full ring-4 ring-background ${
           typeColorClass[item.type] || typeColorClass.default
         }`}
       />
-      <div className='space-y-2 rounded-2xl border border-slate-200/70 bg-white/70 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]'>
-        <div className='text-xs font-medium text-slate-500 dark:text-slate-400'>
+      <div className='space-y-2 rounded-2xl border border-border bg-background/70 p-4 shadow-sm'>
+        <div className='text-xs font-medium text-muted'>
           {`${item.relative ? item.relative + ' ' : ''}${item.time}`}
         </div>
         <div
@@ -265,7 +265,7 @@ const AnnouncementItem = ({ item }) => {
         />
         {item.extra && (
           <div
-            className='text-xs text-slate-500 dark:text-slate-400'
+            className='text-xs text-muted'
             dangerouslySetInnerHTML={{ __html: htmlExtra }}
           />
         )}
