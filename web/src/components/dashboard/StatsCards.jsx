@@ -77,7 +77,7 @@ const StatsCards = ({
                     <Button
                       className='shrink-0'
                       size='sm'
-                      variant='secondary'
+                      variant='primary'
                       onPress={() => navigate('/console/topup')}
                     >
                       {t('充值')}

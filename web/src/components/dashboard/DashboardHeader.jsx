@@ -37,12 +37,14 @@ const DashboardHeader = ({
       >
         {getGreeting}
       </h2>
-      <div className='flex gap-2'>
+      {/* Use the `ghost` variant so the trigger reads as a bare icon — the
+          surrounding pill only fades in on hover/press, not at rest. */}
+      <div className='flex gap-1'>
         <Button
           isIconOnly
           aria-label={t('搜索条件')}
           size='sm'
-          variant='tertiary'
+          variant='ghost'
           onPress={showSearchModal}
         >
           <Search size={16} />
@@ -52,7 +54,7 @@ const DashboardHeader = ({
           aria-label={t('刷新')}
           isPending={loading}
           size='sm'
-          variant='tertiary'
+          variant='ghost'
           onPress={refresh}
         >
           <RefreshCw size={16} />
