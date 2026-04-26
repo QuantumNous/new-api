@@ -19,11 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Card, Checkbox, Chip, Pagination, Tooltip } from '@heroui/react';
-import { CircleHelp, Copy } from 'lucide-react';
+import { CircleHelp, Copy, SearchX } from 'lucide-react';
 import { EmptyState } from '@heroui-pro/react';
-import {
-  IllustrationNoResult,
-} from '@/components/common/ui/HeroIllustrationsCompat';
 import {
   calculateModelPrice,
   formatPriceInfo,
@@ -204,7 +201,7 @@ const PricingCardView = ({
         <EmptyState size='sm'>
           <EmptyState.Header>
             <EmptyState.Media variant='illustration'>
-              <IllustrationNoResult style={{ width: 120, height: 120 }} />
+              <SearchX size={96} className='text-muted/60' strokeWidth={1.25} />
             </EmptyState.Media>
             <EmptyState.Title>{t('暂无内容')}</EmptyState.Title>
             <EmptyState.Description>{t('搜索无结果')}</EmptyState.Description>
