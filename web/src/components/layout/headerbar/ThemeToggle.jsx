@@ -103,10 +103,16 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
       </button>
 
       {open ? (
+        // Font-size lives on the wrapper, not the buttons: `@heroui/styles`
+        // resets `button { font-size: inherit }` outside any @layer, which
+        // beats every Tailwind utility per CSS Cascade Layers, so the
+        // buttons would otherwise inherit body's 16px. Set 14px here and
+        // let the menu items inherit it; nested spans (description / auto
+        // hint) keep their own `text-xs` since spans aren't reset-targeted.
         <div
           role='menu'
           aria-label={t('切换主题')}
-          className='absolute right-0 top-full z-50 mt-2 min-w-52 rounded-2xl border border-border bg-background/95 p-1 shadow-xl backdrop-blur'
+          className='absolute right-0 top-full z-50 mt-2 min-w-52 rounded-2xl border border-border bg-background/95 p-1 text-[14px] leading-5 shadow-xl backdrop-blur'
         >
           {themeOptions.map((option) => (
             <button
@@ -115,13 +121,11 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
               role='menuitemradio'
               aria-checked={theme === option.key}
               onClick={() => handleThemeSelect(option.key)}
-              className={`flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-surface-secondary ${
+              className={`flex w-full items-start gap-2 rounded-xl px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary ${
                 theme === option.key ? 'bg-primary/10 text-primary' : ''
               }`}
             >
-              <span className='mt-0.5 text-muted'>
-                {option.icon}
-              </span>
+              <span className='mt-0.5 text-muted'>{option.icon}</span>
               <span className='flex flex-col'>
                 <span>{option.label}</span>
                 <span className='text-xs text-muted'>
