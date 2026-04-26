@@ -13,7 +13,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Switch } from '@heroui/react';
+import { Avatar, Button, Card, Switch, Tabs } from '@heroui/react';
 import {
   Bell,
   DollarSign,
@@ -467,71 +467,63 @@ const NotificationSettings = ({
   ];
 
   return (
-    <Card className='!rounded-2xl border-0 shadow-sm'>
+    <Card className='!rounded-2xl' shadow='none'>
       <Card.Content className='p-5'>
-        {/* 卡片头部 */}
-        <div className='mb-4 flex items-center'>
-          <div className='mr-3 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary shadow-md'>
-            <Bell size={16} />
-          </div>
-          <div>
-            <div className='text-base font-semibold text-foreground'>
+        {/* Card header */}
+        <div className='mb-4 flex items-center gap-3'>
+          <Avatar size='sm' className='shadow-md'>
+            <Avatar.Fallback className='!bg-primary/10 !text-primary'>
+              <Bell size={16} />
+            </Avatar.Fallback>
+          </Avatar>
+          <div className='flex flex-col'>
+            <span className='text-base font-semibold text-foreground'>
               {t('其他设置')}
-            </div>
-            <div className='text-xs text-muted'>
+            </span>
+            <span className='text-xs text-muted'>
               {t('通知、价格和隐私相关设置')}
-            </div>
+            </span>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className='mb-4 inline-flex flex-wrap overflow-hidden rounded-xl border border-border'>
-          {tabs.map((tab) => {
-            const active = tab.key === activeTabKey;
-            return (
-              <button
-                key={tab.key}
-                type='button'
-                onClick={() => setActiveTabKey(tab.key)}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-foreground text-background'
-                    : 'bg-background text-muted hover:bg-surface-secondary'
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <Tabs
+          selectedKey={activeTabKey}
+          onSelectionChange={(key) => setActiveTabKey(String(key))}
+          className='mb-4'
+        >
+          <Tabs.List aria-label={t('其他设置')}>
+            {tabs.map((tab) => (
+              <Tabs.Tab key={tab.key} id={tab.key}>
+                <span className='flex items-center gap-1.5'>
+                  {tab.icon}
+                  {tab.label}
+                </span>
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
 
-        {/* 通知配置 Tab */}
+        {/* Notification config tab */}
         {activeTabKey === 'notification' && (
           <div className='py-2'>
-            {/* 通知方式 segmented control */}
+            {/* Notification method segmented control */}
             <div className='mb-4 space-y-2'>
               <FieldLabel required>{t('通知方式')}</FieldLabel>
-              <div className='inline-flex flex-wrap overflow-hidden rounded-xl border border-border'>
-                {NOTIFICATION_OPTIONS.map((option) => {
-                  const active =
-                    option.value === notificationSettings.warningType;
-                  return (
-                    <button
-                      key={option.value}
-                      type='button'
-                      onClick={() => setField('warningType')(option.value)}
-                      className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                        active
-                          ? 'bg-foreground text-background'
-                          : 'bg-background text-muted hover:bg-surface-secondary'
-                      }`}
-                    >
+              <Tabs
+                selectedKey={notificationSettings.warningType}
+                onSelectionChange={(key) =>
+                  setField('warningType')(String(key))
+                }
+              >
+                <Tabs.List aria-label={t('通知方式')}>
+                  {NOTIFICATION_OPTIONS.map((option) => (
+                    <Tabs.Tab key={option.value} id={option.value}>
                       {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+              </Tabs>
               <FieldError>{errors.warningType}</FieldError>
             </div>
 
