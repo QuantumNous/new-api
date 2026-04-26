@@ -18,8 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Badge, Tooltip } from '@heroui/react';
-import { Modal, Typography, Tag, Progress, Descriptions, Spin, Empty } from '@/components/common/ui/HeroCompat';
+import {
+  Button,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  Spinner,
+  Tooltip,
+  useOverlayState,
+} from '@heroui/react';
 import {
   FaInfoCircle,
   FaServer,
@@ -31,7 +42,7 @@ import {
   FaCopy,
   FaLink,
 } from 'react-icons/fa';
-import { IconRefresh } from '@/components/common/ui/HeroIconsCompat';
+import { Inbox, RefreshCw } from 'lucide-react';
 import {
   API,
   showError,
@@ -39,13 +50,95 @@ import {
   timestamp2string,
 } from '../../../../helpers';
 
-const { Text, Title } = Typography;
+const TAG_TONE = {
+  green: 'bg-success/15 text-success',
+  blue: 'bg-primary/15 text-primary',
+  orange: 'bg-warning/15 text-warning',
+  red: 'bg-danger/15 text-danger',
+  grey: 'bg-surface-secondary text-muted',
+};
+
+function StatusTag({ tone, size = 'sm', children }) {
+  const cls = TAG_TONE[tone] || TAG_TONE.grey;
+  const sizeCls = size === 'lg' ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs';
+  return (
+    <span
+      className={`inline-flex items-center rounded-full font-medium ${cls} ${sizeCls}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+// Lightweight section card — replaces Semi `<Card title=...>` with a flat
+// surface that follows the rest of /console (no shadow, just a thin border).
+function SectionCard({ title, icon, iconClass = 'text-primary', children }) {
+  return (
+    <section className='rounded-2xl border border-border bg-background'>
+      <header className='flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-semibold text-foreground'>
+        <span className={iconClass}>{icon}</span>
+        <span>{title}</span>
+      </header>
+      <div className='px-4 py-3'>{children}</div>
+    </section>
+  );
+}
+
+// Replaces Semi `<Descriptions data=[{key, value}]>` with a stacked
+// label/value list. Wider screens get 2-column layout.
+function DescList({ items }) {
+  return (
+    <dl className='grid grid-cols-1 gap-y-2 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-x-4'>
+      {items.map((item, idx) => (
+        <React.Fragment key={`${item.key}-${idx}`}>
+          <dt className='text-xs font-medium text-muted sm:pt-1'>
+            {item.key}
+          </dt>
+          <dd className='text-sm text-foreground'>{item.value}</dd>
+        </React.Fragment>
+      ))}
+    </dl>
+  );
+}
+
+// Tailwind progress bar — replaces Semi `<Progress>` for the completed
+// percent indicator.
+function ProgressBar({ percent }) {
+  const clamped = Math.min(100, Math.max(0, Number(percent) || 0));
+  const tone = clamped >= 100 ? 'bg-success' : 'bg-primary';
+  return (
+    <div className='h-2 w-full overflow-hidden rounded-full bg-surface-secondary'>
+      <div
+        className={`h-full rounded-full transition-all ${tone}`}
+        style={{ width: `${clamped}%` }}
+      />
+    </div>
+  );
+}
+
+function EmptyBlock({ description }) {
+  return (
+    <div className='flex flex-col items-center gap-3 py-10 text-center'>
+      <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
+        <Inbox size={28} />
+      </div>
+      <span className='text-sm text-muted'>{description}</span>
+    </div>
+  );
+}
 
 const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [containers, setContainers] = useState([]);
   const [containersLoading, setContainersLoading] = useState(false);
+
+  const modalState = useOverlayState({
+    isOpen: visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
 
   const fetchDetails = async () => {
     if (!deployment?.id) return;
@@ -128,461 +221,447 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
   const statusConfig = getStatusConfig(deployment?.status);
 
   return (
-    <Modal
-      title={
-        <div className='flex items-center gap-2'>
-          <FaInfoCircle className='text-blue-500' />
-          <span>{t('容器详情')}</span>
-        </div>
-      }
-      visible={visible}
-      onCancel={onCancel}
-      footer={
-        <div className='flex justify-between'>
-          <Button
-            icon={<IconRefresh />}
-            onClick={handleRefresh}
-            loading={loading || containersLoading}
-            theme='borderless'
-          >
-            {t('刷新')}
-          </Button>
-          <Button onClick={onCancel}>{t('关闭')}</Button>
-        </div>
-      }
-      width={800}
-      className='deployment-details-modal'
-    >
-      {loading && !details ? (
-        <div className='flex items-center justify-center py-12'>
-          <Spin size='large' tip={t('加载详情中...')} />
-        </div>
-      ) : details ? (
-        <div className='space-y-4 max-h-[600px] overflow-y-auto'>
-          {/* Basic Info */}
-          <Card
-            title={
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='2xl' scroll='inside' placement='center'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               <div className='flex items-center gap-2'>
-                <FaServer className='text-blue-500' />
-                <span>{t('基本信息')}</span>
+                <FaInfoCircle className='text-primary' />
+                <span>{t('容器详情')}</span>
               </div>
-            }
-            className='border-0 shadow-sm'
-          >
-            <Descriptions
-              data={[
-                {
-                  key: t('容器名称'),
-                  value: (
-                    <div className='flex items-center gap-2'>
-                      <Text strong className='text-base'>
-                        {details.deployment_name || details.id}
-                      </Text>
-                      <Button
-                        size='small'
-                        theme='borderless'
-                        icon={<FaCopy />}
-                        onClick={handleCopyId}
-                        className='opacity-70 hover:opacity-100'
+            </ModalHeader>
+            <ModalBody className='max-h-[70vh] overflow-y-auto px-4 py-4 md:px-6'>
+              {loading && !details ? (
+                <div className='flex flex-col items-center justify-center gap-3 py-12'>
+                  <Spinner color='primary' />
+                  <span className='text-sm text-muted'>
+                    {t('加载详情中...')}
+                  </span>
+                </div>
+              ) : details ? (
+                <div className='space-y-4'>
+                  {/* Basic Info */}
+                  <SectionCard
+                    title={t('基本信息')}
+                    icon={<FaServer />}
+                    iconClass='text-primary'
+                  >
+                    <DescList
+                      items={[
+                        {
+                          key: t('容器名称'),
+                          value: (
+                            <div className='flex items-center gap-2'>
+                              <span className='text-base font-semibold text-foreground'>
+                                {details.deployment_name || details.id}
+                              </span>
+                              <Button
+                                isIconOnly
+                                size='sm'
+                                variant='light'
+                                onPress={handleCopyId}
+                                aria-label={t('复制')}
+                                className='opacity-70 hover:opacity-100'
+                              >
+                                <FaCopy />
+                              </Button>
+                            </div>
+                          ),
+                        },
+                        {
+                          key: t('容器ID'),
+                          value: (
+                            <span className='font-mono text-sm text-muted'>
+                              {details.id}
+                            </span>
+                          ),
+                        },
+                        {
+                          key: t('状态'),
+                          value: (
+                            <div className='flex items-center gap-2'>
+                              <span>{statusConfig.icon}</span>
+                              <StatusTag tone={statusConfig.color}>
+                                {t(statusConfig.text)}
+                              </StatusTag>
+                            </div>
+                          ),
+                        },
+                        {
+                          key: t('创建时间'),
+                          value: (
+                            <span className='tabular-nums'>
+                              {timestamp2string(details.created_at)}
+                            </span>
+                          ),
+                        },
+                      ]}
+                    />
+                  </SectionCard>
+
+                  {/* Hardware & Performance */}
+                  <SectionCard
+                    title={t('硬件与性能')}
+                    icon={<FaChartLine />}
+                    iconClass='text-success'
+                  >
+                    <div className='space-y-4'>
+                      <DescList
+                        items={[
+                          {
+                            key: t('硬件类型'),
+                            value: (
+                              <div className='flex items-center gap-2'>
+                                <StatusTag tone='blue'>
+                                  {details.brand_name}
+                                </StatusTag>
+                                <span className='font-semibold'>
+                                  {details.hardware_name}
+                                </span>
+                              </div>
+                            ),
+                          },
+                          {
+                            key: t('GPU数量'),
+                            value: (
+                              <div className='flex items-center gap-2'>
+                                <span className='inline-flex items-center justify-center rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-white'>
+                                  {details.total_gpus}
+                                </span>
+                                <span>
+                                  {t('总计')} {details.total_gpus}{' '}
+                                  {t('个GPU')}
+                                </span>
+                              </div>
+                            ),
+                          },
+                          {
+                            key: t('容器配置'),
+                            value: (
+                              <div className='space-y-1'>
+                                <div>
+                                  {t('每容器GPU数')}: {details.gpus_per_container}
+                                </div>
+                                <div>
+                                  {t('容器总数')}: {details.total_containers}
+                                </div>
+                              </div>
+                            ),
+                          },
+                        ]}
                       />
-                    </div>
-                  ),
-                },
-                {
-                  key: t('容器ID'),
-                  value: (
-                    <Text type='secondary' className='font-mono text-sm'>
-                      {details.id}
-                    </Text>
-                  ),
-                },
-                {
-                  key: t('状态'),
-                  value: (
-                    <div className='flex items-center gap-2'>
-                      <span>{statusConfig.icon}</span>
-                      <Tag color={statusConfig.color}>
-                        {t(statusConfig.text)}
-                      </Tag>
-                    </div>
-                  ),
-                },
-                {
-                  key: t('创建时间'),
-                  value: timestamp2string(details.created_at),
-                },
-              ]}
-            />
-          </Card>
 
-          {/* Hardware & Performance */}
-          <Card
-            title={
-              <div className='flex items-center gap-2'>
-                <FaChartLine className='text-green-500' />
-                <span>{t('硬件与性能')}</span>
-              </div>
-            }
-            className='border-0 shadow-sm'
-          >
-            <div className='space-y-4'>
-              <Descriptions
-                data={[
-                  {
-                    key: t('硬件类型'),
-                    value: (
-                      <div className='flex items-center gap-2'>
-                        <Tag color='blue'>{details.brand_name}</Tag>
-                        <Text strong>{details.hardware_name}</Text>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: t('GPU数量'),
-                    value: (
-                      <div className='flex items-center gap-2'>
-                        <Badge
-                          count={details.total_gpus}
-                          theme='solid'
-                          type='primary'
-                        >
-                          <FaServer className='text-purple-500' />
-                        </Badge>
-                        <Text>
-                          {t('总计')} {details.total_gpus} {t('个GPU')}
-                        </Text>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: t('容器配置'),
-                    value: (
-                      <div className='space-y-1'>
-                        <div>
-                          {t('每容器GPU数')}: {details.gpus_per_container}
+                      {/* Progress Bar */}
+                      <div className='space-y-2'>
+                        <div className='flex items-center justify-between text-sm'>
+                          <span className='font-semibold text-foreground'>
+                            {t('完成进度')}
+                          </span>
+                          <span className='tabular-nums text-foreground'>
+                            {details.completed_percent}%
+                          </span>
                         </div>
-                        <div>
-                          {t('容器总数')}: {details.total_containers}
+                        <ProgressBar percent={details.completed_percent} />
+                        <div className='flex justify-between text-xs text-muted'>
+                          <span>
+                            {t('已服务')}: {details.compute_minutes_served}{' '}
+                            {t('分钟')}
+                          </span>
+                          <span>
+                            {t('剩余')}: {details.compute_minutes_remaining}{' '}
+                            {t('分钟')}
+                          </span>
                         </div>
                       </div>
-                    ),
-                  },
-                ]}
-              />
+                    </div>
+                  </SectionCard>
 
-              {/* Progress Bar */}
-              <div className='space-y-2'>
-                <div className='flex items-center justify-between'>
-                  <Text strong>{t('完成进度')}</Text>
-                  <Text>{details.completed_percent}%</Text>
-                </div>
-                <Progress
-                  percent={details.completed_percent}
-                  status={
-                    details.completed_percent === 100 ? 'success' : 'normal'
-                  }
-                  strokeWidth={8}
-                  showInfo={false}
-                />
-                <div className='flex justify-between text-xs text-muted'>
-                  <span>
-                    {t('已服务')}: {details.compute_minutes_served} {t('分钟')}
-                  </span>
-                  <span>
-                    {t('剩余')}: {details.compute_minutes_remaining} {t('分钟')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </Card>
+                  {/* Container Configuration */}
+                  {details.container_config && (
+                    <SectionCard
+                      title={t('容器配置')}
+                      icon={<FaDocker />}
+                      iconClass='text-primary'
+                    >
+                      <div className='space-y-3'>
+                        <DescList
+                          items={[
+                            {
+                              key: t('镜像地址'),
+                              value: (
+                                <span className='break-all font-mono text-sm'>
+                                  {details.container_config.image_url || 'N/A'}
+                                </span>
+                              ),
+                            },
+                            {
+                              key: t('流量端口'),
+                              value: details.container_config.traffic_port || 'N/A',
+                            },
+                            {
+                              key: t('启动命令'),
+                              value: (
+                                <span className='font-mono text-sm'>
+                                  {details.container_config.entrypoint
+                                    ? details.container_config.entrypoint.join(' ')
+                                    : 'N/A'}
+                                </span>
+                              ),
+                            },
+                          ]}
+                        />
 
-          {/* Container Configuration */}
-          {details.container_config && (
-            <Card
-              title={
-                <div className='flex items-center gap-2'>
-                  <FaDocker className='text-blue-600' />
-                  <span>{t('容器配置')}</span>
-                </div>
-              }
-              className='border-0 shadow-sm'
-            >
-              <div className='space-y-3'>
-                <Descriptions
-                  data={[
-                    {
-                      key: t('镜像地址'),
-                      value: (
-                        <Text className='font-mono text-sm break-all'>
-                          {details.container_config.image_url || 'N/A'}
-                        </Text>
-                      ),
-                    },
-                    {
-                      key: t('流量端口'),
-                      value: details.container_config.traffic_port || 'N/A',
-                    },
-                    {
-                      key: t('启动命令'),
-                      value: (
-                        <Text className='font-mono text-sm'>
-                          {details.container_config.entrypoint
-                            ? details.container_config.entrypoint.join(' ')
-                            : 'N/A'}
-                        </Text>
-                      ),
-                    },
-                  ]}
-                />
+                        {/* Environment Variables */}
+                        {details.container_config.env_variables &&
+                          Object.keys(details.container_config.env_variables)
+                            .length > 0 && (
+                            <div className='mt-4'>
+                              <div className='mb-2 text-sm font-semibold text-foreground'>
+                                {t('环境变量')}:
+                              </div>
+                              <div className='max-h-32 overflow-y-auto rounded-lg bg-surface-secondary p-3'>
+                                {Object.entries(
+                                  details.container_config.env_variables,
+                                ).map(([key, value]) => (
+                                  <div
+                                    key={key}
+                                    className='mb-1 flex gap-2 font-mono text-sm'
+                                  >
+                                    <span className='font-medium text-primary'>
+                                      {key}=
+                                    </span>
+                                    <span className='break-all text-foreground'>
+                                      {String(value)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    </SectionCard>
+                  )}
 
-                {/* Environment Variables */}
-                {details.container_config.env_variables &&
-                  Object.keys(details.container_config.env_variables).length >
-                    0 && (
-                    <div className='mt-4'>
-                      <Text strong className='block mb-2'>
-                        {t('环境变量')}:
-                      </Text>
-                      <div className='bg-surface-secondary p-3 rounded-lg max-h-32 overflow-y-auto'>
-                        {Object.entries(
-                          details.container_config.env_variables,
-                        ).map(([key, value]) => (
+                  {/* Containers List */}
+                  <SectionCard
+                    title={t('容器实例')}
+                    icon={<FaServer />}
+                    iconClass='text-accent'
+                  >
+                    {containersLoading ? (
+                      <div className='flex flex-col items-center justify-center gap-3 py-6'>
+                        <Spinner color='primary' />
+                        <span className='text-sm text-muted'>
+                          {t('加载容器信息中...')}
+                        </span>
+                      </div>
+                    ) : containers.length === 0 ? (
+                      <EmptyBlock description={t('暂无容器信息')} />
+                    ) : (
+                      <div className='space-y-3'>
+                        {containers.map((ctr) => (
                           <div
-                            key={key}
-                            className='flex gap-2 text-sm font-mono mb-1'
+                            key={ctr.container_id}
+                            className='rounded-xl border border-border bg-surface-secondary px-4 py-3'
                           >
-                            <span className='text-blue-600 font-medium'>
-                              {key}=
-                            </span>
-                            <span className='text-foreground break-all'>
-                              {String(value)}
-                            </span>
+                            <div className='flex flex-wrap items-center justify-between gap-3'>
+                              <div className='flex flex-col gap-1'>
+                                <span className='font-mono text-sm font-semibold'>
+                                  {ctr.container_id}
+                                </span>
+                                <span className='text-xs text-muted'>
+                                  {t('设备')} {ctr.device_id || '--'} ·{' '}
+                                  {t('状态')} {ctr.status || '--'}
+                                </span>
+                                <span className='text-xs text-muted'>
+                                  {t('创建时间')}:{' '}
+                                  {ctr.created_at
+                                    ? timestamp2string(ctr.created_at)
+                                    : '--'}
+                                </span>
+                              </div>
+                              <div className='flex flex-col items-end gap-2'>
+                                <StatusTag tone='blue'>
+                                  {t('GPU/容器')}:{' '}
+                                  {ctr.gpus_per_container ?? '--'}
+                                </StatusTag>
+                                {ctr.public_url && (
+                                  <Tooltip content={ctr.public_url}>
+                                    <Button
+                                      size='sm'
+                                      variant='flat'
+                                      startContent={<FaLink />}
+                                      onPress={() =>
+                                        window.open(
+                                          ctr.public_url,
+                                          '_blank',
+                                          'noopener,noreferrer',
+                                        )
+                                      }
+                                    >
+                                      {t('访问容器')}
+                                    </Button>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            </div>
+
+                            {ctr.events && ctr.events.length > 0 && (
+                              <div className='mt-3 rounded-md border border-border bg-background p-3'>
+                                <div className='mb-2 text-xs text-muted'>
+                                  {t('最近事件')}
+                                </div>
+                                <div className='max-h-32 space-y-2 overflow-y-auto'>
+                                  {ctr.events.map((event, index) => (
+                                    <div
+                                      key={`${ctr.container_id}-${event.time}-${index}`}
+                                      className='flex gap-3 font-mono text-xs'
+                                    >
+                                      <span className='min-w-[140px] text-muted'>
+                                        {event.time
+                                          ? timestamp2string(event.time)
+                                          : '--'}
+                                      </span>
+                                      <span className='flex-1 break-all text-foreground'>
+                                        {event.message || '--'}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
-                    </div>
+                    )}
+                  </SectionCard>
+
+                  {/* Location Information */}
+                  {details.locations && details.locations.length > 0 && (
+                    <SectionCard
+                      title={t('部署位置')}
+                      icon={<FaMapMarkerAlt />}
+                      iconClass='text-warning'
+                    >
+                      <div className='flex flex-wrap gap-2'>
+                        {details.locations.map((location) => (
+                          <StatusTag
+                            key={location.id}
+                            tone='orange'
+                            size='lg'
+                          >
+                            <span className='mr-1'>🌍</span>
+                            <span>
+                              {location.name} ({location.iso2})
+                            </span>
+                          </StatusTag>
+                        ))}
+                      </div>
+                    </SectionCard>
                   )}
-              </div>
-            </Card>
-          )}
 
-          {/* Containers List */}
-          <Card
-            title={
-              <div className='flex items-center gap-2'>
-                <FaServer className='text-indigo-500' />
-                <span>{t('容器实例')}</span>
-              </div>
-            }
-            className='border-0 shadow-sm'
-          >
-            {containersLoading ? (
-              <div className='flex items-center justify-center py-6'>
-                <Spin tip={t('加载容器信息中...')} />
-              </div>
-            ) : containers.length === 0 ? (
-              <Empty
-                description={t('暂无容器信息')}
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              />
-            ) : (
-              <div className='space-y-3'>
-                {containers.map((ctr) => (
-                  <Card
-                    key={ctr.container_id}
-                    className='bg-surface-secondary border border-border'
-                    bodyStyle={{ padding: '12px 16px' }}
+                  {/* Cost Information */}
+                  <SectionCard
+                    title={t('费用信息')}
+                    icon={<FaMoneyBillWave />}
+                    iconClass='text-success'
                   >
-                    <div className='flex flex-wrap items-center justify-between gap-3'>
-                      <div className='flex flex-col gap-1'>
-                        <Text strong className='font-mono text-sm'>
-                          {ctr.container_id}
-                        </Text>
-                        <Text size='small' type='secondary'>
-                          {t('设备')} {ctr.device_id || '--'} · {t('状态')}{' '}
-                          {ctr.status || '--'}
-                        </Text>
-                        <Text size='small' type='secondary'>
-                          {t('创建时间')}:{' '}
-                          {ctr.created_at
-                            ? timestamp2string(ctr.created_at)
-                            : '--'}
-                        </Text>
+                    <div className='space-y-3'>
+                      <div className='flex items-center justify-between rounded-lg bg-success/10 p-3'>
+                        <span>{t('已支付金额')}</span>
+                        <span className='text-lg font-semibold text-success tabular-nums'>
+                          $
+                          {details.amount_paid
+                            ? details.amount_paid.toFixed(2)
+                            : '0.00'}{' '}
+                          USDC
+                        </span>
                       </div>
-                      <div className='flex flex-col items-end gap-2'>
-                        <Tag color='blue' size='small'>
-                          {t('GPU/容器')}: {ctr.gpus_per_container ?? '--'}
-                        </Tag>
-                        {ctr.public_url && (
-                          <Tooltip content={ctr.public_url}>
-                            <Button
-                              icon={<FaLink />}
-                              size='small'
-                              theme='light'
-                              onClick={() =>
-                                window.open(
-                                  ctr.public_url,
-                                  '_blank',
-                                  'noopener,noreferrer',
-                                )
-                              }
-                            >
-                              {t('访问容器')}
-                            </Button>
-                          </Tooltip>
-                        )}
-                      </div>
-                    </div>
 
-                    {ctr.events && ctr.events.length > 0 && (
-                      <div className='mt-3 bg-white rounded-md border border-border p-3'>
-                        <Text
-                          size='small'
-                          type='secondary'
-                          className='block mb-2'
-                        >
-                          {t('最近事件')}
-                        </Text>
-                        <div className='space-y-2 max-h-32 overflow-y-auto'>
-                          {ctr.events.map((event, index) => (
-                            <div
-                              key={`${ctr.container_id}-${event.time}-${index}`}
-                              className='flex gap-3 text-xs font-mono'
-                            >
-                              <span className='text-muted min-w-[140px]'>
-                                {event.time
-                                  ? timestamp2string(event.time)
-                                  : '--'}
-                              </span>
-                              <span className='text-foreground break-all flex-1'>
-                                {event.message || '--'}
-                              </span>
-                            </div>
-                          ))}
+                      <div className='grid grid-cols-1 gap-4 text-sm sm:grid-cols-2'>
+                        <div className='flex justify-between'>
+                          <span className='text-muted'>
+                            {t('计费开始')}:
+                          </span>
+                          <span className='tabular-nums'>
+                            {details.started_at
+                              ? timestamp2string(details.started_at)
+                              : 'N/A'}
+                          </span>
+                        </div>
+                        <div className='flex justify-between'>
+                          <span className='text-muted'>
+                            {t('预计结束')}:
+                          </span>
+                          <span className='tabular-nums'>
+                            {details.finished_at
+                              ? timestamp2string(details.finished_at)
+                              : 'N/A'}
+                          </span>
                         </div>
                       </div>
-                    )}
-                  </Card>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Location Information */}
-          {details.locations && details.locations.length > 0 && (
-            <Card
-              title={
-                <div className='flex items-center gap-2'>
-                  <FaMapMarkerAlt className='text-orange-500' />
-                  <span>{t('部署位置')}</span>
-                </div>
-              }
-              className='border-0 shadow-sm'
-            >
-              <div className='flex flex-wrap gap-2'>
-                {details.locations.map((location) => (
-                  <Tag key={location.id} color='orange' size='large'>
-                    <div className='flex items-center gap-1'>
-                      <span>🌍</span>
-                      <span>
-                        {location.name} ({location.iso2})
-                      </span>
                     </div>
-                  </Tag>
-                ))}
-              </div>
-            </Card>
-          )}
+                  </SectionCard>
 
-          {/* Cost Information */}
-          <Card
-            title={
-              <div className='flex items-center gap-2'>
-                <FaMoneyBillWave className='text-green-500' />
-                <span>{t('费用信息')}</span>
-              </div>
-            }
-            className='border-0 shadow-sm'
-          >
-            <div className='space-y-3'>
-              <div className='flex items-center justify-between p-3 bg-green-50 rounded-lg'>
-                <Text>{t('已支付金额')}</Text>
-                <Text strong className='text-lg text-green-600'>
-                  $
-                  {details.amount_paid
-                    ? details.amount_paid.toFixed(2)
-                    : '0.00'}{' '}
-                  USDC
-                </Text>
-              </div>
-
-              <div className='grid grid-cols-2 gap-4 text-sm'>
-                <div className='flex justify-between'>
-                  <Text type='secondary'>{t('计费开始')}:</Text>
-                  <Text>
-                    {details.started_at
-                      ? timestamp2string(details.started_at)
-                      : 'N/A'}
-                  </Text>
+                  {/* Time Information */}
+                  <SectionCard
+                    title={t('时间信息')}
+                    icon={<FaClock />}
+                    iconClass='text-accent'
+                  >
+                    <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                      <div className='space-y-2'>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted'>{t('已运行时间')}:</span>
+                          <span className='font-semibold tabular-nums'>
+                            {Math.floor(details.compute_minutes_served / 60)}h{' '}
+                            {details.compute_minutes_served % 60}m
+                          </span>
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted'>{t('剩余时间')}:</span>
+                          <span className='font-semibold text-warning tabular-nums'>
+                            {Math.floor(details.compute_minutes_remaining / 60)}
+                            h {details.compute_minutes_remaining % 60}m
+                          </span>
+                        </div>
+                      </div>
+                      <div className='space-y-2'>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted'>{t('创建时间')}:</span>
+                          <span className='tabular-nums'>
+                            {timestamp2string(details.created_at)}
+                          </span>
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted'>{t('最后更新')}:</span>
+                          <span className='tabular-nums'>
+                            {timestamp2string(details.updated_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </SectionCard>
                 </div>
-                <div className='flex justify-between'>
-                  <Text type='secondary'>{t('预计结束')}:</Text>
-                  <Text>
-                    {details.finished_at
-                      ? timestamp2string(details.finished_at)
-                      : 'N/A'}
-                  </Text>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Time Information */}
-          <Card
-            title={
-              <div className='flex items-center gap-2'>
-                <FaClock className='text-purple-500' />
-                <span>{t('时间信息')}</span>
-              </div>
-            }
-            className='border-0 shadow-sm'
-          >
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-              <div className='space-y-2'>
-                <div className='flex items-center justify-between'>
-                  <Text type='secondary'>{t('已运行时间')}:</Text>
-                  <Text strong>
-                    {Math.floor(details.compute_minutes_served / 60)}h{' '}
-                    {details.compute_minutes_served % 60}m
-                  </Text>
-                </div>
-                <div className='flex items-center justify-between'>
-                  <Text type='secondary'>{t('剩余时间')}:</Text>
-                  <Text strong className='text-orange-600'>
-                    {Math.floor(details.compute_minutes_remaining / 60)}h{' '}
-                    {details.compute_minutes_remaining % 60}m
-                  </Text>
-                </div>
-              </div>
-              <div className='space-y-2'>
-                <div className='flex items-center justify-between'>
-                  <Text type='secondary'>{t('创建时间')}:</Text>
-                  <Text>{timestamp2string(details.created_at)}</Text>
-                </div>
-                <div className='flex items-center justify-between'>
-                  <Text type='secondary'>{t('最后更新')}:</Text>
-                  <Text>{timestamp2string(details.updated_at)}</Text>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      ) : (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={t('无法获取容器详情')}
-        />
-      )}
+              ) : (
+                <EmptyBlock description={t('无法获取容器详情')} />
+              )}
+            </ModalBody>
+            <ModalFooter className='flex justify-between border-t border-border'>
+              <Button
+                variant='light'
+                startContent={<RefreshCw size={14} />}
+                onPress={handleRefresh}
+                isPending={loading || containersLoading}
+              >
+                {t('刷新')}
+              </Button>
+              <Button onPress={onCancel}>{t('关闭')}</Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };
