@@ -157,6 +157,21 @@
 - [x] Add template-style header block (avatar + display name + role) at top of sidebar.
 - [x] Simplify collapse button (drop bordered/backdrop-blur styling, use ghost variant).
 
+## Header Navbar Rebuild (feature/header-navbar-rebuild)
+
+- [x] Adopt `@heroui-pro/react` `Navbar` as the headerbar root: `Navbar.Header`, `Navbar.Brand`, `Navbar.Content`, `Navbar.Spacer`, `Navbar.Item`, `Navbar.MenuToggle`, `Navbar.Menu`, `Navbar.MenuItem`.
+- [x] Wire `navigate` prop to `react-router` so `Navbar.Item` performs client-side navigation and external links open in a new tab.
+- [x] Refactor `Navigation.jsx` to render desktop nav links via `Navbar.Item` with `isCurrent` derived from `useLocation()`.
+- [x] Add `MobileNavMenu.jsx` rendering `Navbar.Menu` / `Navbar.MenuItem` for non-console mobile routes; the existing `MobileMenuButton` (sidebar drawer trigger) still owns the console-mobile case.
+- [x] Convert `ActionButtons.jsx` to a fragment so `Navbar.Content` (the new flex parent) controls spacing.
+- [x] Add `Navbar.MenuToggle` only on non-console routes (md:hidden) so the hamburger never overlaps the sidebar drawer trigger.
+- [x] Localize new strings `主导航` and `打开菜单` across `zh-CN`, `zh-TW`, `en`, `fr`, `ja`, `ru`, `vi`.
+- [x] `bun run build` passes after the rebuild.
+
+### Follow-ups
+- [ ] Manual QA pass on responsive breakpoints (xs/sm/md), console + non-console routes, and the mobile menu open/close animation while the sidebar drawer is also available.
+- [ ] Verify `hideOnScroll` is intentionally off — current layout pins the header inside `Sidebar.Provider`'s flex column, so sticky/scroll-hide does not apply.
+
 ### Next steps
 - [ ] Visual QA all `/console` sub-pages in light + dark themes; capture before/after.
 - [ ] Consider centering page content with `max-w-7xl mx-auto` like template (currently console pages stretch full width).

@@ -40,8 +40,10 @@ const ActionButtons = ({
   navigate,
   t,
 }) => {
+  // Returns a fragment because the parent is a `Navbar.Content` flex
+  // container — wrapping these in another <div> would break gap spacing.
   return (
-    <div className='flex shrink-0 items-center gap-2 md:gap-3'>
+    <>
       <NewYearButton isNewYear={isNewYear} />
 
       <NotificationButton
@@ -67,7 +69,7 @@ const ActionButtons = ({
         navigate={navigate}
         t={t}
       />
-    </div>
+    </>
   );
 };
 
