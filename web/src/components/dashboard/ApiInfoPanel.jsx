@@ -29,12 +29,11 @@ const ApiInfoPanel = ({
   handleSpeedTest,
   CARD_PROPS,
   FLEX_CENTER_GAP2,
-  ILLUSTRATION_SIZE,
   t,
 }) => {
   return (
     <Widget className={CARD_PROPS?.className || ''}>
-      <Widget.Header>
+      <Widget.Header className='h-12'>
         <div className={`${FLEX_CENTER_GAP2} whitespace-nowrap`}>
           <Server size={16} className='shrink-0' />
           <Widget.Title>{t('API信息')}</Widget.Title>
@@ -103,19 +102,17 @@ const ApiInfoPanel = ({
               </React.Fragment>
             ))
           ) : (
-            <div className='flex justify-center items-center min-h-[20rem] w-full'>
-              <EmptyState>
-                <EmptyState.Header>
-                  <EmptyState.Media variant='icon'>
-                    <Server size={32} style={ILLUSTRATION_SIZE} />
-                  </EmptyState.Media>
-                  <EmptyState.Title>{t('暂无API信息')}</EmptyState.Title>
-                  <EmptyState.Description>
-                    {t('请联系管理员在系统设置中配置API信息')}
-                  </EmptyState.Description>
-                </EmptyState.Header>
-              </EmptyState>
-            </div>
+            <EmptyState size='sm'>
+              <EmptyState.Header>
+                <EmptyState.Media variant='icon'>
+                  <Server />
+                </EmptyState.Media>
+                <EmptyState.Title>{t('暂无API信息')}</EmptyState.Title>
+                <EmptyState.Description>
+                  {t('请联系管理员在系统设置中配置API信息')}
+                </EmptyState.Description>
+              </EmptyState.Header>
+            </EmptyState>
           )}
         </ScrollableContainer>
       </Widget.Content>

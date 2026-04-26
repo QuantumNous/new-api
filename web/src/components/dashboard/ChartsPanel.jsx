@@ -53,27 +53,36 @@ const ChartsPanel = ({
 
   return (
     <Widget
-      className={`${hasApiInfoPanel ? 'lg:col-span-3' : ''} ${CARD_PROPS?.className || ''}`}
+      className={`${hasApiInfoPanel ? 'lg:col-span-2 xl:col-span-3' : ''} ${CARD_PROPS?.className || ''}`}
     >
-      {/* Override the default fixed h-8 header to fit the inline Tabs strip */}
-      <Widget.Header className='h-auto min-h-12 flex-col items-start gap-3 py-3 lg:flex-row lg:items-center'>
+      {/* The Tabs strip carries 4–6 entries and only fits on the same row as
+          the title at xl+, so keep the header column-stacked through lg and
+          let the tab list scroll horizontally when it would otherwise squeeze
+          tab labels into vertical CJK character columns. */}
+      <Widget.Header className='h-auto min-h-12 flex-col items-start gap-3 py-3 xl:flex-row xl:items-center'>
         <div className={`${FLEX_CENTER_GAP2} whitespace-nowrap`}>
           <PieChart size={16} className='shrink-0' />
           <Widget.Title>{t('模型数据分析')}</Widget.Title>
         </div>
-        <Tabs
-          selectedKey={activeChartTab}
-          onSelectionChange={(key) => setActiveChartTab(String(key))}
-          variant='secondary'
-        >
-          <Tabs.List aria-label={t('模型数据分析')}>
-            {tabItems.map((item) => (
-              <Tabs.Tab key={item.id} id={item.id}>
-                {item.title}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs>
+        <div className='-mx-1 w-full overflow-x-auto px-1 xl:w-auto'>
+          <Tabs
+            selectedKey={activeChartTab}
+            onSelectionChange={(key) => setActiveChartTab(String(key))}
+            variant='secondary'
+          >
+            <Tabs.List aria-label={t('模型数据分析')}>
+              {tabItems.map((item) => (
+                <Tabs.Tab
+                  key={item.id}
+                  id={item.id}
+                  className='whitespace-nowrap'
+                >
+                  {item.title}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs>
+        </div>
       </Widget.Header>
       <Widget.Content className='p-0'>
         <div className='h-96 p-2'>

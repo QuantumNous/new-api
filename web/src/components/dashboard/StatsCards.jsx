@@ -35,13 +35,16 @@ const StatsCards = ({
   const { t } = useTranslation();
   return (
     <div className='mb-4'>
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+      {/* Use 2-col through `lg` so each KPI card has enough room for the
+          avatar + label + value + sparkline row, then collapse to 4-col only
+          at xl where the main area is wide enough for ~280px per card. */}
+      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4'>
         {groupedStatsData.map((group, idx) => (
           <Widget
             key={idx}
             className={`w-full ${group.color || ''} ${CARD_PROPS?.className || ''}`}
           >
-            <Widget.Header>{group.title}</Widget.Header>
+            <Widget.Header className='h-12'>{group.title}</Widget.Header>
             {/* Tighten the default Widget.Content p-4 to p-3 so the inner shell
                 still has room for value + sparkline/button on narrow widths. */}
             <Widget.Content className='space-y-4 p-3'>

@@ -32,12 +32,11 @@ const UptimePanel = ({
   uptimeLegendData,
   renderMonitorList,
   CARD_PROPS,
-  ILLUSTRATION_SIZE,
   t,
 }) => {
   return (
     <Widget className={`lg:col-span-1 ${CARD_PROPS?.className || ''}`}>
-      <Widget.Header>
+      <Widget.Header className='h-12'>
         <div className='flex items-center gap-2 whitespace-nowrap'>
           <Gauge size={16} className='shrink-0' />
           <Widget.Title>{t('服务可用性')}</Widget.Title>
@@ -101,19 +100,17 @@ const UptimePanel = ({
               </Tabs>
             )
           ) : (
-            <div className='flex justify-center items-center py-8'>
-              <EmptyState size='sm'>
-                <EmptyState.Header>
-                  <EmptyState.Media variant='icon'>
-                    <Gauge size={28} style={ILLUSTRATION_SIZE} />
-                  </EmptyState.Media>
-                  <EmptyState.Title>{t('暂无监控数据')}</EmptyState.Title>
-                  <EmptyState.Description>
-                    {t('请联系管理员在系统设置中配置Uptime')}
-                  </EmptyState.Description>
-                </EmptyState.Header>
-              </EmptyState>
-            </div>
+            <EmptyState size='sm'>
+              <EmptyState.Header>
+                <EmptyState.Media variant='icon'>
+                  <Gauge />
+                </EmptyState.Media>
+                <EmptyState.Title>{t('暂无监控数据')}</EmptyState.Title>
+                <EmptyState.Description>
+                  {t('请联系管理员在系统设置中配置Uptime')}
+                </EmptyState.Description>
+              </EmptyState.Header>
+            </EmptyState>
           )}
         </div>
       </Widget.Content>

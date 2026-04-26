@@ -19,21 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Accordion, AccordionItem } from '@heroui/react';
-import { Widget } from '@heroui-pro/react';
+import { EmptyState, Widget } from '@heroui-pro/react';
 import { HelpCircle } from 'lucide-react';
 import { marked } from 'marked';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
-const FaqPanel = ({
-  faqData,
-  CARD_PROPS,
-  FLEX_CENTER_GAP2,
-  ILLUSTRATION_SIZE,
-  t,
-}) => {
+const FaqPanel = ({ faqData, CARD_PROPS, FLEX_CENTER_GAP2, t }) => {
   return (
     <Widget className={`lg:col-span-1 ${CARD_PROPS?.className || ''}`}>
-      <Widget.Header>
+      <Widget.Header className='h-12'>
         <div className={`${FLEX_CENTER_GAP2} whitespace-nowrap`}>
           <HelpCircle size={16} className='shrink-0' />
           <Widget.Title>{t('常见问答')}</Widget.Title>
@@ -59,20 +53,17 @@ const FaqPanel = ({
               ))}
             </Accordion>
           ) : (
-            <div className='flex flex-col items-center justify-center px-6 py-10 text-center'>
-              <div
-                className='mb-4 rounded-3xl bg-surface-secondary p-6 text-muted'
-                style={ILLUSTRATION_SIZE}
-              >
-                <HelpCircle size={42} />
-              </div>
-              <div className='text-sm font-semibold text-foreground'>
-                {t('暂无常见问答')}
-              </div>
-              <div className='mt-1 text-xs text-muted'>
-                {t('请联系管理员在系统设置中配置常见问答')}
-              </div>
-            </div>
+            <EmptyState size='sm'>
+              <EmptyState.Header>
+                <EmptyState.Media variant='icon'>
+                  <HelpCircle />
+                </EmptyState.Media>
+                <EmptyState.Title>{t('暂无常见问答')}</EmptyState.Title>
+                <EmptyState.Description>
+                  {t('请联系管理员在系统设置中配置常见问答')}
+                </EmptyState.Description>
+              </EmptyState.Header>
+            </EmptyState>
           )}
         </ScrollableContainer>
       </Widget.Content>

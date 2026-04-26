@@ -38,7 +38,6 @@ const AnnouncementsPanel = ({
   announcementData,
   announcementLegendData,
   CARD_PROPS,
-  ILLUSTRATION_SIZE,
   t,
 }) => {
   return (
@@ -91,19 +90,17 @@ const AnnouncementsPanel = ({
               })}
             </div>
           ) : (
-            <div className='flex justify-center items-center py-8'>
-              <EmptyState size='sm'>
-                <EmptyState.Header>
-                  <EmptyState.Media variant='icon'>
-                    <Bell size={28} style={ILLUSTRATION_SIZE} />
-                  </EmptyState.Media>
-                  <EmptyState.Title>{t('暂无系统公告')}</EmptyState.Title>
-                  <EmptyState.Description>
-                    {t('请联系管理员在系统设置中配置公告信息')}
-                  </EmptyState.Description>
-                </EmptyState.Header>
-              </EmptyState>
-            </div>
+            <EmptyState size='sm'>
+              <EmptyState.Header>
+                <EmptyState.Media variant='icon'>
+                  <Bell />
+                </EmptyState.Media>
+                <EmptyState.Title>{t('暂无系统公告')}</EmptyState.Title>
+                <EmptyState.Description>
+                  {t('请联系管理员在系统设置中配置公告信息')}
+                </EmptyState.Description>
+              </EmptyState.Header>
+            </EmptyState>
           )}
         </ScrollableContainer>
       </Widget.Content>
