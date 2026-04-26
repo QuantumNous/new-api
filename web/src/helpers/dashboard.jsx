@@ -173,14 +173,12 @@ export const renderMonitorList = (
     return (
       <div className='flex flex-col items-center justify-center py-8 text-center'>
         <div
-          className='mb-3 rounded-3xl bg-slate-100 p-5 text-slate-400 dark:bg-slate-900 dark:text-slate-500'
+          className='mb-3 rounded-3xl bg-surface-secondary p-5 text-muted'
           style={ILLUSTRATION_SIZE}
         >
           <span className='block text-2xl'>--</span>
         </div>
-        <div className='text-sm text-slate-500 dark:text-slate-400'>
-          {t('暂无监控数据')}
-        </div>
+        <div className='text-sm text-muted'>{t('暂无监控数据')}</div>
       </div>
     );
   }
@@ -193,28 +191,31 @@ export const renderMonitorList = (
   });
 
   const renderItem = (monitor, idx) => (
-    <div key={idx} className='p-2 hover:bg-white rounded-lg transition-colors'>
+    <div
+      key={idx}
+      className='p-2 hover:bg-surface-secondary rounded-lg transition-colors'
+    >
       <div className='flex items-center justify-between mb-1'>
         <div className='flex items-center gap-2'>
           <div
             className='w-2 h-2 rounded-full flex-shrink-0'
             style={{ backgroundColor: getUptimeStatusColor(monitor.status) }}
           />
-          <span className='text-sm font-medium text-gray-900'>
+          <span className='text-sm font-medium text-foreground'>
             {monitor.name}
           </span>
         </div>
-        <span className='text-xs text-gray-500'>
+        <span className='text-xs text-muted tabular-nums'>
           {((monitor.uptime || 0) * 100).toFixed(2)}%
         </span>
       </div>
       <div className='flex items-center gap-2'>
-        <span className='text-xs text-gray-500'>
+        <span className='text-xs text-muted'>
           {getUptimeStatusText(monitor.status)}
         </span>
         <div className='flex-1'>
           <div
-            className='h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800'
+            className='h-1.5 overflow-hidden rounded-full bg-surface-secondary'
             aria-label={`${monitor.name} uptime`}
           >
             <div
@@ -234,10 +235,10 @@ export const renderMonitorList = (
     <div key={gname || 'default'} className='mb-2'>
       {gname && (
         <>
-          <div className='text-md font-semibold text-gray-500 px-2 py-1'>
+          <div className='text-md font-semibold text-muted px-2 py-1'>
             {gname}
           </div>
-          <div className='my-1 h-px bg-slate-200 dark:bg-white/10' />
+          <div className='my-1 h-px bg-border' />
         </>
       )}
       {list.map(renderItem)}

@@ -41,10 +41,10 @@ const TONE_CLASSES = {
   red: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
   yellow:
     'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
-  grey: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  black: 'bg-slate-700 text-slate-100 dark:bg-slate-700 dark:text-slate-100',
+  grey: 'bg-surface-secondary text-muted',
+  black: 'bg-foreground text-background',
   white:
-    'border border-[color:var(--app-border)] bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200',
+    'border border-border bg-background text-foreground',
 };
 
 function Chip({ tone = 'white', className = '', children }) {
@@ -73,7 +73,7 @@ function CopyableLine({ value, children }) {
         type='button'
         onClick={handleCopy}
         aria-label='copy'
-        className='inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted opacity-0 transition group-hover:opacity-100 hover:bg-[color:var(--app-background)] hover:text-foreground'
+        className='inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted opacity-0 transition group-hover:opacity-100 hover:bg-surface-secondary hover:text-foreground'
       >
         <CopyIcon size={11} />
       </button>
@@ -88,7 +88,7 @@ function ProgressBar({ percent }) {
   else if (clamped <= 10) barClass = 'bg-red-500';
   else if (clamped <= 30) barClass = 'bg-amber-500';
   return (
-    <div className='h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800'>
+    <div className='h-1 w-full overflow-hidden rounded-full bg-surface-secondary'>
       <div
         className={`h-full rounded-full ${barClass} transition-all`}
         style={{ width: `${clamped}%` }}
@@ -102,7 +102,7 @@ function VendorAvatar({ children, label }) {
   return (
     <span
       aria-label={label}
-      className='inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border border-[color:var(--app-border)] bg-white text-[10px] font-semibold text-foreground dark:bg-slate-900'
+      className='inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border border-border bg-background text-[10px] font-semibold text-foreground'
     >
       {children}
     </span>
@@ -359,7 +359,7 @@ const renderQuotaUsage = (text, record, t) => {
 
   return (
     <HoverPanel content={popoverContent} placement='top'>
-      <span className='inline-flex flex-col items-stretch gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-1 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+      <span className='inline-flex flex-col items-stretch gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs text-foreground'>
         <span className='leading-none'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
         <ProgressBar percent={percent} />
       </span>
