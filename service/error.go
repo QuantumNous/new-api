@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -91,6 +92,12 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		return
 	}
 	CloseResponseBodyGracefully(resp)
+	resp.Body = io.NopCloser(bytes.NewReader(responseBody))
+	defer func() {
+		if newApiErr != nil {
+			newApiErr.ResponseBody = string(responseBody)
+		}
+	}()
 	var errResponse dto.GeneralErrorResponse
 	buildErrWithBody := func(message string) error {
 		if message == "" {
