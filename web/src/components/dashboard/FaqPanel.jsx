@@ -18,11 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Accordion,
-  AccordionItem,
-  Card,
-} from '@heroui/react';
+import { Accordion, AccordionItem } from '@heroui/react';
+import { Widget } from '@heroui-pro/react';
 import { HelpCircle } from 'lucide-react';
 import { marked } from 'marked';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
@@ -35,17 +32,14 @@ const FaqPanel = ({
   t,
 }) => {
   return (
-    <Card
-      className={`shadow-sm !rounded-2xl lg:col-span-1 ${CARD_PROPS?.className || ''}`}
-      shadow='none'
-    >
-      <div className='border-b border-border px-4 py-3'>
-        <div className={FLEX_CENTER_GAP2}>
-          <HelpCircle size={16} />
-          {t('常见问答')}
+    <Widget className={`lg:col-span-1 ${CARD_PROPS?.className || ''}`}>
+      <Widget.Header>
+        <div className={`${FLEX_CENTER_GAP2} whitespace-nowrap`}>
+          <HelpCircle size={16} className='shrink-0' />
+          <Widget.Title>{t('常见问答')}</Widget.Title>
         </div>
-      </div>
-      <div className='p-0'>
+      </Widget.Header>
+      <Widget.Content className='p-0'>
         <ScrollableContainer maxHeight='24rem'>
           {faqData.length > 0 ? (
             <Accordion selectionMode='multiple' variant='light'>
@@ -81,8 +75,8 @@ const FaqPanel = ({
             </div>
           )}
         </ScrollableContainer>
-      </div>
-    </Card>
+      </Widget.Content>
+    </Widget>
   );
 };
 

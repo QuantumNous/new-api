@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tabs } from '@heroui/react';
+import { Tabs } from '@heroui/react';
+import { Widget } from '@heroui-pro/react';
 import { PieChart } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 
@@ -51,32 +52,30 @@ const ChartsPanel = ({
   ].filter(Boolean);
 
   return (
-    <Card
-      className={`rounded-2xl ${hasApiInfoPanel ? 'lg:col-span-3' : ''} ${CARD_PROPS?.className || ''}`}
-      shadow='none'
+    <Widget
+      className={`${hasApiInfoPanel ? 'lg:col-span-3' : ''} ${CARD_PROPS?.className || ''}`}
     >
-      <Card.Header>
-        <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between w-full gap-3'>
-          <div className={FLEX_CENTER_GAP2}>
-            <PieChart size={16} />
-            {t('模型数据分析')}
-          </div>
-          <Tabs
-            selectedKey={activeChartTab}
-            onSelectionChange={(key) => setActiveChartTab(String(key))}
-            variant='secondary'
-          >
-            <Tabs.List aria-label={t('模型数据分析')}>
-              {tabItems.map((item) => (
-                <Tabs.Tab key={item.id} id={item.id}>
-                  {item.title}
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs>
+      {/* Override the default fixed h-8 header to fit the inline Tabs strip */}
+      <Widget.Header className='h-auto min-h-12 flex-col items-start gap-3 py-3 lg:flex-row lg:items-center'>
+        <div className={`${FLEX_CENTER_GAP2} whitespace-nowrap`}>
+          <PieChart size={16} className='shrink-0' />
+          <Widget.Title>{t('模型数据分析')}</Widget.Title>
         </div>
-      </Card.Header>
-      <Card.Content className='p-0'>
+        <Tabs
+          selectedKey={activeChartTab}
+          onSelectionChange={(key) => setActiveChartTab(String(key))}
+          variant='secondary'
+        >
+          <Tabs.List aria-label={t('模型数据分析')}>
+            {tabItems.map((item) => (
+              <Tabs.Tab key={item.id} id={item.id}>
+                {item.title}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      </Widget.Header>
+      <Widget.Content className='p-0'>
         <div className='h-96 p-2'>
           {tabItems.map(
             (item) =>
@@ -85,8 +84,8 @@ const ChartsPanel = ({
               ),
           )}
         </div>
-      </Card.Content>
-    </Card>
+      </Widget.Content>
+    </Widget>
   );
 };
 

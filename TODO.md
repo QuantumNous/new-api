@@ -278,3 +278,60 @@ Out of scope (still uses literals — not part of /console):
 `auth/*`, `pages/Home`, `pages/About`, `pages/NotFound`, `pages/Forbidden`,
 `dashboard/modals/SearchModal`, `model-deployments/DeploymentAccessGuard`,
 `common/ErrorBoundary`, `ui/semi.js` (compat shim).
+
+## /console Dashboard Cards → HeroUI Pro Widget (feature/widget-dashboard-cards)
+
+Replace every `Card` based panel under `/console` (the dashboard) with the
+HeroUI Pro `Widget` component (`@heroui-pro/react`) so the surface gets the
+characteristic gray outer shell + elevated white content area + subtle inner
+shadow defined by `widget.css`.
+
+- [x] StatsCards (top 4 KPI tiles: 账户数据 / 使用统计 / 资源消耗 / 性能指标) →
+  `Widget` + `Widget.Header` (renders the existing icon+text from
+  `createSectionTitle`) + `Widget.Content`. Tightened content padding from
+  default `p-4` to `p-3`, dropped value font size from `text-lg` to
+  `text-base`, added `min-w-0` to label cluster and `shrink-0` to the
+  trailing button / sparkline so the 充值 button no longer clips against
+  `$200.00` inside the narrower Widget content area.
+- [x] ChartsPanel (模型数据分析) → `Widget` + responsive `Widget.Header`
+  (`min-h-12 flex-col … lg:flex-row`) so the inline `Tabs.List` strip fits
+  next to `Widget.Title`. `whitespace-nowrap` + `shrink-0` icon prevents
+  CJK title characters from stacking when the column is narrow.
+- [x] ApiInfoPanel (API信息) → `Widget` with `Widget.Title` + scrollable
+  `Widget.Content className='p-0'` for the existing `ScrollableContainer`
+  list / `EmptyState`.
+- [x] AnnouncementsPanel (系统公告) → `Widget` with responsive header
+  (icon + title + 最新20条 chip on one row, then `Widget.Legend` /
+  `Widget.LegendItem` for the status colors). Dot colors are mapped through
+  a small `LEGEND_COLOR_MAP` so the existing `grey/blue/green/orange/red`
+  swatch keys keep working with `Widget.LegendItem` (which expects a CSS
+  color string).
+- [x] FaqPanel (常见问答) → `Widget` + `Widget.Title` + scrollable
+  `Widget.Content className='p-0'` for the `Accordion`/empty state.
+- [x] UptimePanel (服务可用性) → `Widget` + `Widget.Header` (refresh button
+  on the right) + `Widget.Content className='p-0'` for the
+  `Tabs`/`ScrollableContainer` and `Widget.Footer` for the legend.
+
+### Notes
+
+- All headers use a `whitespace-nowrap` flex cluster around the lucide icon
+  + `Widget.Title` to keep the title text on one line at narrow widths.
+- `Widget.LegendItem` requires an explicit `color` CSS string, so semantic
+  legend keys are translated via a local color map only in
+  `AnnouncementsPanel`. `UptimePanel` already stores hex strings on the
+  `UPTIME_STATUS_MAP` constant, so it passes them through directly.
+- `Widget.Header` defaults to `h-8` and `align-items: center`. Headers that
+  carry inline tabs or a wrapping legend (`ChartsPanel`, `AnnouncementsPanel`)
+  override to `h-auto min-h-12 flex-col items-start … lg:flex-row
+  lg:items-center` so the row can grow vertically on small viewports.
+- `widget.css` is already pulled in via `@import '@heroui-pro/react/css';`
+  in `web/src/index.css`, so no extra CSS plumbing was required.
+
+### Verification
+
+- `bunx prettier --check` (touched dashboard files): passed.
+- `bunx eslint` (touched dashboard files): passed (no warnings, no errors).
+- Manual screenshot QA at `/console`: stats cards, model analytics chart,
+  API info panel, announcements panel, FAQ panel, and uptime panel all
+  render with the Widget surface (gray outer shell + elevated white
+  content area + subtle shadow) and remain functional.

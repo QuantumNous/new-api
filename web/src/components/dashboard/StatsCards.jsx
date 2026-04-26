@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Avatar, Button, Card, Skeleton } from '@heroui/react';
+import { Avatar, Button, Skeleton } from '@heroui/react';
+import { Widget } from '@heroui-pro/react';
 import { VChart } from '@visactor/react-vchart';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -36,32 +37,31 @@ const StatsCards = ({
     <div className='mb-4'>
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
         {groupedStatsData.map((group, idx) => (
-          <Card
+          <Widget
             key={idx}
-            className={`${group.color} w-full rounded-2xl border-0 ${CARD_PROPS?.className || ''}`}
-            shadow='none'
+            className={`w-full ${group.color || ''} ${CARD_PROPS?.className || ''}`}
           >
-            <Card.Header>
-              <Card.Title className='text-base'>{group.title}</Card.Title>
-            </Card.Header>
-            <Card.Content className='space-y-4'>
+            <Widget.Header>{group.title}</Widget.Header>
+            {/* Tighten the default Widget.Content p-4 to p-3 so the inner shell
+                still has room for value + sparkline/button on narrow widths. */}
+            <Widget.Content className='space-y-4 p-3'>
               {group.items.map((item, itemIdx) => (
                 <div
                   key={itemIdx}
-                  className='flex items-center justify-between cursor-pointer'
+                  className='flex items-center justify-between gap-2 cursor-pointer'
                   onClick={item.onClick}
                 >
-                  <div className='flex items-center'>
+                  <div className='flex items-center min-w-0 flex-1'>
                     <Avatar
-                      className='mr-3'
+                      className='mr-2 shrink-0'
                       size='sm'
                       color={item.avatarColor}
                     >
                       <Avatar.Fallback>{item.icon}</Avatar.Fallback>
                     </Avatar>
-                    <div>
+                    <div className='min-w-0'>
                       <div className='text-xs text-muted'>{item.title}</div>
-                      <div className='text-lg font-semibold tabular-nums text-foreground'>
+                      <div className='text-base font-semibold tabular-nums text-foreground'>
                         {loading ? (
                           <Skeleton className='mt-1 h-6 w-16 rounded-lg' />
                         ) : (
@@ -72,6 +72,7 @@ const StatsCards = ({
                   </div>
                   {item.title === t('当前余额') ? (
                     <Button
+                      className='shrink-0'
                       size='sm'
                       variant='secondary'
                       onPress={() => navigate('/console/topup')}
@@ -81,7 +82,7 @@ const StatsCards = ({
                   ) : (
                     (loading ||
                       (item.trendData && item.trendData.length > 0)) && (
-                      <div className='w-24 h-10'>
+                      <div className='w-24 h-10 shrink-0'>
                         <VChart
                           spec={getTrendSpec(item.trendData, item.trendColor)}
                           option={CHART_CONFIG}
@@ -91,8 +92,8 @@ const StatsCards = ({
                   )}
                 </div>
               ))}
-            </Card.Content>
-          </Card>
+            </Widget.Content>
+          </Widget>
         ))}
       </div>
     </div>

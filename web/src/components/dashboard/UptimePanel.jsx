@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Card, Chip, Spinner, Tabs } from '@heroui/react';
-import { EmptyState } from '@heroui-pro/react';
+import { Button, Chip, Spinner, Tabs } from '@heroui/react';
+import { EmptyState, Widget } from '@heroui-pro/react';
 import { Gauge, RefreshCw } from 'lucide-react';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
@@ -36,30 +36,24 @@ const UptimePanel = ({
   t,
 }) => {
   return (
-    <Card
-      className={`rounded-2xl lg:col-span-1 ${CARD_PROPS?.className || ''}`}
-      shadow='none'
-    >
-      <Card.Header className='border-b border-border'>
-        <div className='flex items-center justify-between w-full gap-2'>
-          <div className='flex items-center gap-2'>
-            <Gauge size={16} />
-            {t('服务可用性')}
-          </div>
-          <Button
-            isIconOnly
-            isPending={uptimeLoading}
-            size='sm'
-            variant='ghost'
-            onPress={loadUptimeData}
-            className='rounded-full text-muted hover:text-primary'
-          >
-            <RefreshCw size={14} />
-          </Button>
+    <Widget className={`lg:col-span-1 ${CARD_PROPS?.className || ''}`}>
+      <Widget.Header>
+        <div className='flex items-center gap-2 whitespace-nowrap'>
+          <Gauge size={16} className='shrink-0' />
+          <Widget.Title>{t('服务可用性')}</Widget.Title>
         </div>
-      </Card.Header>
-      <Card.Content className='p-0'>
-        {/* 内容区域 */}
+        <Button
+          isIconOnly
+          isPending={uptimeLoading}
+          size='sm'
+          variant='ghost'
+          onPress={loadUptimeData}
+          className='rounded-full text-muted hover:text-primary'
+        >
+          <RefreshCw size={14} />
+        </Button>
+      </Widget.Header>
+      <Widget.Content className='p-0'>
         <div className='relative'>
           {uptimeLoading ? (
             <div className='flex min-h-48 items-center justify-center'>
@@ -122,25 +116,19 @@ const UptimePanel = ({
             </div>
           )}
         </div>
-
-      {/* 图例 */}
-        {uptimeData.length > 0 && (
-          <div className='p-3 border-t border-border rounded-b-2xl'>
-            <div className='flex flex-wrap gap-3 text-xs justify-center'>
-              {uptimeLegendData.map((legend, index) => (
-                <div key={index} className='flex items-center gap-1'>
-                  <div
-                    className='w-2 h-2 rounded-full'
-                    style={{ backgroundColor: legend.color }}
-                  />
-                  <span className='text-muted'>{legend.label}</span>
-                </div>
-              ))}
-              </div>
-            </div>
-        )}
-      </Card.Content>
-    </Card>
+      </Widget.Content>
+      {uptimeData.length > 0 && (
+        <Widget.Footer className='justify-center'>
+          <Widget.Legend className='flex-wrap'>
+            {uptimeLegendData.map((legend, index) => (
+              <Widget.LegendItem key={index} color={legend.color}>
+                {legend.label}
+              </Widget.LegendItem>
+            ))}
+          </Widget.Legend>
+        </Widget.Footer>
+      )}
+    </Widget>
   );
 };
 
