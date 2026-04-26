@@ -125,8 +125,8 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='lg' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('Codex 授权')}
             </ModalHeader>
             <ModalBody className='space-y-4 px-6 py-5'>
@@ -167,7 +167,7 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
                 )}
               </div>
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='light' onPress={onCancel} isDisabled={loading}>
                 {t('取消')}
               </Button>

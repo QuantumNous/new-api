@@ -36,7 +36,7 @@ const UserInfoModal = ({
   t,
 }) => {
   const renderLabel = (text, type = 'tertiary') => (
-    <div className='mb-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400'>
+    <div className='mb-1 flex items-center gap-1.5 text-xs text-muted'>
       <span
         className={`h-2 w-2 rounded-full ${
           type === 'primary'
@@ -45,7 +45,7 @@ const UserInfoModal = ({
               ? 'bg-success'
               : type === 'warning'
                 ? 'bg-warning'
-                : 'bg-slate-400'
+                : 'bg-muted'
         }`}
       />
       {text}
@@ -58,14 +58,14 @@ const UserInfoModal = ({
       if (!isOpen) setShowUserInfoModal(false);
     },
   });
-  const valueClass = 'text-sm font-semibold text-slate-800 dark:text-slate-100';
+  const valueClass = 'text-sm font-semibold text-foreground';
 
   return (
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='2xl' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('用户信息')}
             </ModalHeader>
             <ModalBody className='p-6'>

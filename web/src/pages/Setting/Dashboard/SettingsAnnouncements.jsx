@@ -59,7 +59,7 @@ const textareaClass =
   'w-full resize-y rounded-lg border border-[color:var(--app-border)] bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary';
 
 const TONE_CHIP = {
-  grey: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  grey: 'bg-surface-secondary text-foreground',
   blue: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
   green:
     'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
@@ -465,7 +465,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
               <tr>
                 <td colSpan={6} className='py-12 text-center text-sm text-muted'>
                   <div className='flex flex-col items-center gap-3'>
-                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                       <Inbox size={28} />
                     </div>
                     <div>{t('暂无系统公告')}</div>
@@ -590,8 +590,8 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       <Modal state={editModalState}>
         <ModalBackdrop variant='blur'>
           <ModalContainer size='md' placement='center'>
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
                 {editingAnnouncement ? t('编辑公告') : t('添加公告')}
               </ModalHeader>
               <ModalBody className='space-y-4 px-6 py-5'>
@@ -698,7 +698,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                   />
                 </div>
               </ModalBody>
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 <Button
                   variant='light'
                   onPress={() => setShowAnnouncementModal(false)}
@@ -721,8 +721,8 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       <Modal state={contentModalState}>
         <ModalBackdrop variant='blur'>
           <ModalContainer size='lg' placement='center'>
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
                 {t('编辑公告内容')}
               </ModalHeader>
               <ModalBody className='px-6 py-5'>
@@ -741,7 +741,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                   className={textareaClass}
                 />
               </ModalBody>
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 <Button variant='light' onPress={() => setShowContentModal(false)}>
                   {t('取消')}
                 </Button>

@@ -423,7 +423,7 @@ function FluentNoticePanel({
       aria-label={t('检测到 FluentRead（流畅阅读）')}
       className='pointer-events-none fixed right-4 top-20 z-40 flex w-full max-w-sm justify-end px-2'
     >
-      <div className='pointer-events-auto w-full overflow-hidden rounded-2xl border border-[color:var(--app-border)] bg-white/95 shadow-xl backdrop-blur dark:bg-slate-950/95'>
+      <div className='pointer-events-auto w-full overflow-hidden rounded-2xl border border-border bg-background/95 shadow-xl backdrop-blur'>
         <div className='flex items-start justify-between gap-3 border-b border-[color:var(--app-border)] px-4 py-3'>
           <div className='text-sm font-semibold text-foreground'>
             {t('检测到 FluentRead（流畅阅读）')}
@@ -444,7 +444,7 @@ function FluentNoticePanel({
           <select
             value={selectedModel || ''}
             onChange={(event) => onSelectModel(event.target.value)}
-            className='h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900'
+            className='h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
           >
             <option value=''>{t('请选择模型')}</option>
             {(modelOptions || []).map((option) => (

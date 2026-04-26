@@ -40,7 +40,7 @@ function StatusChip({ tone, children }) {
   const cls =
     tone === 'green'
       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-      : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+      : 'bg-surface-secondary text-muted';
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
@@ -372,7 +372,7 @@ const UserSubscriptionsModal = ({
         aria-modal='true'
         aria-hidden={!visible}
         style={{ width: isMobile ? '100%' : 920 }}
-        className={`fixed bottom-0 right-0 top-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-950 ${
+        className={`fixed bottom-0 right-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
           visible ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -447,7 +447,7 @@ const UserSubscriptionsModal = ({
             }}
             empty={
               <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
-                <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                   <Inbox size={28} />
                 </div>
                 <div>{t('暂无订阅记录')}</div>

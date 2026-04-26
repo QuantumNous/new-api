@@ -305,7 +305,7 @@ const ExtendDurationModal = ({
       className='extend-duration-modal'
     >
       <div className='space-y-4'>
-        <Card className='border-0 bg-gray-50'>
+        <Card className='border-0 bg-surface-secondary'>
           <div className='flex items-center justify-between'>
             <div>
               <Text strong className='text-base'>
@@ -491,7 +491,7 @@ const ExtendDurationModal = ({
               </div>
             </div>
           ) : (
-            <div className='text-center text-gray-500 py-4'>
+            <div className='text-center text-muted py-4'>
               {costLoading ? (
                 <Space align='center' className='justify-center'>
                   <Spin size='small' />

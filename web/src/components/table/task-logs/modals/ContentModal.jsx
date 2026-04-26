@@ -77,16 +77,16 @@ const ContentModal = ({
     if (videoError) {
       return (
         <div className='flex flex-col items-center px-4 py-10 text-center'>
-          <p className='mb-4 text-sm text-slate-500 dark:text-slate-400'>
+          <p className='mb-4 text-sm text-muted'>
             {t('视频无法在当前浏览器中播放，这可能是由于：')}
           </p>
-          <p className='mb-2 text-xs text-slate-500 dark:text-slate-400'>
+          <p className='mb-2 text-xs text-muted'>
             {t('• 视频服务商的跨域限制')}
           </p>
-          <p className='mb-2 text-xs text-slate-500 dark:text-slate-400'>
+          <p className='mb-2 text-xs text-muted'>
             {t('• 需要特定的请求头或认证')}
           </p>
-          <p className='mb-4 text-xs text-slate-500 dark:text-slate-400'>
+          <p className='mb-4 text-xs text-muted'>
             {t('• 防盗链保护机制')}
           </p>
 
@@ -109,7 +109,7 @@ const ContentModal = ({
             </Button>
           </div>
 
-          <div className='mt-4 max-w-full break-all rounded-xl bg-slate-100 p-2 text-[10px] text-slate-500 dark:bg-slate-900 dark:text-slate-400'>
+          <div className='mt-4 max-w-full break-all rounded-xl bg-surface-secondary p-2 text-[10px] text-muted'>
             {modalContent}
           </div>
         </div>
@@ -139,20 +139,20 @@ const ContentModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size={isVideo ? '5xl' : '3xl'} scroll='inside'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {isVideo ? t('视频预览') : t('内容预览')}
             </ModalHeader>
             <ModalBody className={isVideo ? 'h-[70vh] p-4' : 'max-h-[70vh] p-6'}>
               {isVideo ? (
                 renderVideoContent()
               ) : (
-                <p className='whitespace-pre-line text-sm text-slate-700 dark:text-slate-200'>
+                <p className='whitespace-pre-line text-sm text-foreground'>
                   {modalContent}
                 </p>
               )}
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button color='primary' onPress={() => setIsModalOpen(false)}>
                 {t('确定')}
               </Button>

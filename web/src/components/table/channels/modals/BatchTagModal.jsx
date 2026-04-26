@@ -51,8 +51,8 @@ const BatchTagModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='sm' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('批量设置标签')}
             </ModalHeader>
             <ModalBody className='space-y-4 px-6 py-5'>
@@ -74,7 +74,7 @@ const BatchTagModal = ({
                 )}
               </div>
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='light' onPress={() => setShowBatchSetTag(false)}>
                 {t('取消')}
               </Button>

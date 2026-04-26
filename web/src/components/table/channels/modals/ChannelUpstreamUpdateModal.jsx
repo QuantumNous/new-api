@@ -234,8 +234,8 @@ const ChannelUpstreamUpdateModal = ({
       <Modal state={modalState}>
         <ModalBackdrop variant='blur'>
           <ModalContainer size='lg' placement='center'>
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
                 {t('处理上游模型更新')}
               </ModalHeader>
               <ModalBody className='space-y-3 px-6 py-5'>
@@ -257,8 +257,8 @@ const ChannelUpstreamUpdateModal = ({
                         disabled={tab.disabled}
                         className={`inline-flex items-center rounded-full border px-3 py-1 text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
                           active
-                            ? 'border-transparent bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900'
-                            : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
+                            ? 'border-transparent bg-foreground text-background shadow-sm'
+                            : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-surface-secondary'
                         }`}
                         onClick={() => setActiveTab(tab.key)}
                       >
@@ -301,7 +301,7 @@ const ChannelUpstreamUpdateModal = ({
                 <div className='max-h-80 overflow-y-auto pr-1'>
                   {currentModels.length === 0 ? (
                     <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
-                      <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                      <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                         <Inbox size={28} />
                       </div>
                       <div>{t('暂无匹配模型')}</div>
@@ -346,7 +346,7 @@ const ChannelUpstreamUpdateModal = ({
                   />
                 </div>
               </ModalBody>
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 <Button variant='light' onPress={onCancel}>
                   {t('取消')}
                 </Button>

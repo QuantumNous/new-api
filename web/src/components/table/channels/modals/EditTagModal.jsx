@@ -418,7 +418,7 @@ const EditTagModal = (props) => {
                   </Avatar>
                   <div>
                     <Text className='text-lg font-medium'>{t('标签信息')}</Text>
-                    <div className='text-xs text-gray-600'>
+                    <div className='text-xs text-muted'>
                       {t('标签的基本配置')}
                     </div>
                   </div>
@@ -452,7 +452,7 @@ const EditTagModal = (props) => {
                   </Avatar>
                   <div>
                     <Text className='text-lg font-medium'>{t('模型配置')}</Text>
-                    <div className='text-xs text-gray-600'>
+                    <div className='text-xs text-muted'>
                       {t('模型选择和映射设置')}
                     </div>
                   </div>
@@ -562,7 +562,7 @@ const EditTagModal = (props) => {
                   </Avatar>
                   <div>
                     <Text className='text-lg font-medium'>{t('高级设置')}</Text>
-                    <div className='text-xs text-gray-600'>
+                    <div className='text-xs text-muted'>
                       {t('渠道的高级配置选项')}
                     </div>
                   </div>
@@ -711,7 +711,7 @@ const EditTagModal = (props) => {
                   </Avatar>
                   <div>
                     <Text className='text-lg font-medium'>{t('分组设置')}</Text>
-                    <div className='text-xs text-gray-600'>
+                    <div className='text-xs text-muted'>
                       {t('用户分组配置')}
                     </div>
                   </div>

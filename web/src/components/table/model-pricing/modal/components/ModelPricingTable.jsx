@@ -28,7 +28,7 @@ function GroupChip({ children, tone = 'default' }) {
       ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
       : tone === 'teal'
         ? 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300'
-        : 'border border-[color:var(--app-border)] bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200';
+        : 'border border-[color:var(--app-border)] bg-background text-foreground';
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass}`}

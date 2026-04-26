@@ -98,10 +98,10 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
                     </p>
                     {window.electron?.dataDir && (
                       <div className='rounded-2xl bg-white/70 p-3 dark:bg-slate-950/50'>
-                        <div className='mb-1 text-xs font-medium text-slate-500 dark:text-slate-400'>
+                        <div className='mb-1 text-xs font-medium text-muted'>
                           {t('数据存储位置：')}
                         </div>
-                        <code className='break-all text-xs text-slate-700 dark:text-slate-200'>
+                        <code className='break-all text-xs text-foreground'>
                           {window.electron.dataDir}
                         </code>
                       </div>
@@ -146,7 +146,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
           <div className='text-sm font-semibold text-slate-950 dark:text-white'>
             {t('连接状态')}
           </div>
-          <div className='mt-2 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400'>
+          <div className='mt-2 flex items-center gap-2 text-sm text-muted'>
             <Info size={16} />
             <span>{t('已读取当前数据库配置')}</span>
           </div>

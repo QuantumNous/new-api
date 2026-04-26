@@ -212,7 +212,7 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
         aria-modal='true'
         aria-hidden={!visible}
         style={{ width: isMobile ? '100%' : 800 }}
-        className={`fixed bottom-0 left-0 top-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-950 ${
+        className={`fixed bottom-0 left-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
           visible ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -279,7 +279,7 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
                 />
               ) : (
                 <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
-                  <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                  <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                     <Inbox size={28} />
                   </div>
                   <div>{t('暂无预填组')}</div>

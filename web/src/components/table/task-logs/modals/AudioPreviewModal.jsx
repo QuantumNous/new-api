@@ -55,7 +55,7 @@ const AudioClipCard = ({ clip }) => {
   const audioUrl = clip.audio_url;
 
   return (
-    <div className='flex gap-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900/70'>
+    <div className='flex gap-4 rounded-2xl border border-border bg-background p-4'>
       {imageUrl && (
         <img
           src={imageUrl}
@@ -68,7 +68,7 @@ const AudioClipCard = ({ clip }) => {
       )}
       <div className='min-w-0 flex-1'>
         <div className='mb-1 flex items-center gap-2'>
-          <span className='truncate text-[15px] font-semibold text-slate-800 dark:text-slate-100'>
+          <span className='truncate text-[15px] font-semibold text-foreground'>
             {title}
           </span>
           {duration > 0 && (
@@ -79,7 +79,7 @@ const AudioClipCard = ({ clip }) => {
         </div>
 
         {tags && (
-          <div className='mb-2 truncate text-xs text-slate-500 dark:text-slate-400'>
+          <div className='mb-2 truncate text-xs text-muted'>
             {tags}
           </div>
         )}
@@ -135,13 +135,13 @@ const AudioPreviewModal = ({ isModalOpen, setIsModalOpen, audioClips }) => {
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='2xl' scroll='inside'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('音乐预览')}
             </ModalHeader>
             <ModalBody className='max-h-[70vh] p-4'>
               {clips.length === 0 ? (
-                <span className='text-sm text-slate-500 dark:text-slate-400'>
+                <span className='text-sm text-muted'>
                   {t('无')}
                 </span>
               ) : (

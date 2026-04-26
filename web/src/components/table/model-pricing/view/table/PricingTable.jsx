@@ -109,7 +109,7 @@ const PricingTable = ({
           })}
           empty={
             <div className='flex flex-col items-center gap-3 py-10 text-center'>
-              <div className='flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+              <div className='flex h-20 w-20 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                 <Inbox size={36} />
               </div>
               <div className='text-sm text-muted'>{t('搜索无结果')}</div>

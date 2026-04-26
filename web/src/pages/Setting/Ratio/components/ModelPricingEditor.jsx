@@ -51,7 +51,7 @@ const PriceInput = ({
   hidden = false,
 }) => (
   <div style={{ marginBottom: 16 }}>
-    <div className='mb-1 font-medium text-gray-700 flex items-center justify-between gap-3'>
+    <div className='mb-1 font-medium text-foreground flex items-center justify-between gap-3'>
       <span>{label}</span>
       {headerAction}
     </div>
@@ -65,7 +65,7 @@ const PriceInput = ({
       />
     ) : null}
     {extraText ? (
-      <div className='mt-1 text-xs text-gray-500'>{extraText}</div>
+      <div className='mt-1 text-xs text-muted'>{extraText}</div>
     ) : null}
   </div>
 );
@@ -262,7 +262,7 @@ export default function ModelPricingEditor({
         </Space>
 
         {listDescription ? (
-          <div className='text-sm text-gray-500'>{listDescription}</div>
+          <div className='text-sm text-muted'>{listDescription}</div>
         ) : null}
         {selectedModelNames.length > 0 ? (
           <div
@@ -357,7 +357,7 @@ export default function ModelPricingEditor({
             ) : (
               <div>
                 <div className='mb-4'>
-                  <div className='mb-2 font-medium text-gray-700'>
+                  <div className='mb-2 font-medium text-foreground'>
                     {t('计费方式')}
                   </div>
                   <RadioGroup
@@ -368,7 +368,7 @@ export default function ModelPricingEditor({
                     <Radio value='per-token'>{t('按量计费')}</Radio>
                     <Radio value='per-request'>{t('按次计费')}</Radio>
                   </RadioGroup>
-                  <div className='mt-2 text-xs text-gray-500'>
+                  <div className='mt-2 text-xs text-muted'>
                     {t(
                       '这个界面默认按价格填写，保存时会自动换算回后端需要的倍率 JSON。',
                     )}
@@ -385,7 +385,7 @@ export default function ModelPricingEditor({
                   >
                     <div className='font-medium mb-2'>{t('当前提示')}</div>
                     {selectedWarnings.map((warning) => (
-                      <div key={warning} className='text-sm text-gray-700 mb-1'>
+                      <div key={warning} className='text-sm text-foreground mb-1'>
                         {warning}
                       </div>
                     ))}
@@ -541,7 +541,7 @@ export default function ModelPricingEditor({
                     >
                       <div className='mb-3'>
                         <div className='font-medium'>{t('扩展价格')}</div>
-                        <div className='text-xs text-gray-500 mt-1'>
+                        <div className='text-xs text-muted mt-1'>
                           {t('这些价格都是可选项，不填也可以。')}
                         </div>
                       </div>
@@ -647,7 +647,7 @@ export default function ModelPricingEditor({
                   style={{ background: 'var(--app-surface-muted)' }}
                 >
                   <div className='font-medium mb-3'>{t('保存预览')}</div>
-                  <div className='text-xs text-gray-500 mb-3'>
+                  <div className='text-xs text-muted mb-3'>
                     {t(
                       '下面展示这个模型保存后会写入哪些后端字段，便于和原始 JSON 编辑框保持一致。',
                     )}
@@ -701,7 +701,7 @@ export default function ModelPricingEditor({
           }
         }}
       >
-        <div className='text-sm text-gray-600'>
+        <div className='text-sm text-muted'>
           {selectedModel
             ? t(
                 '将把当前编辑中的模型 {{name}} 的价格配置，批量应用到已勾选的 {{count}} 个模型。',
@@ -713,7 +713,7 @@ export default function ModelPricingEditor({
             : t('请先选择一个作为模板的模型')}
         </div>
         {selectedModel ? (
-          <div className='text-xs text-gray-500 mt-3'>
+          <div className='text-xs text-muted mt-3'>
             {t(
               '适合同系列模型一起定价，例如把 gpt-5.1 的价格批量同步到 gpt-5.1-high、gpt-5.1-low 等模型。',
             )}

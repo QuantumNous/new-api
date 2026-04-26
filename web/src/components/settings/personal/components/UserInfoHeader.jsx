@@ -33,7 +33,7 @@ const UserInfoHeader = ({ t, userState }) => {
     blue: 'bg-blue-500',
     cyan: 'bg-cyan-500',
     green: 'bg-green-500',
-    grey: 'bg-gray-500',
+    grey: 'bg-muted',
     indigo: 'bg-indigo-500',
     'light-blue': 'bg-sky-500',
     lime: 'bg-lime-500',
@@ -68,7 +68,7 @@ const UserInfoHeader = ({ t, userState }) => {
       ? t('管理员')
       : t('普通用户');
   const avatarColorClass =
-    avatarColorClasses[stringToColor(getUsername())] || 'bg-slate-500';
+    avatarColorClasses[stringToColor(getUsername())] || 'bg-muted';
 
   const StatLabel = ({ children }) => (
     <span className='text-sm text-muted'>{children}</span>

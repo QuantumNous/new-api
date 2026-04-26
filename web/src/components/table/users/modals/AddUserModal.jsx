@@ -105,7 +105,7 @@ const AddUserModal = (props) => {
         aria-modal='true'
         aria-hidden={!props.visible}
         style={{ width: isMobile ? '100%' : 600 }}
-        className={`fixed bottom-0 left-0 top-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-950 ${
+        className={`fixed bottom-0 left-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
           props.visible ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

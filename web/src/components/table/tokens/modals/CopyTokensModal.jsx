@@ -59,14 +59,14 @@ const CopyTokensModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='md' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('复制令牌')}
             </ModalHeader>
-            <ModalBody className='px-6 py-5 text-sm text-slate-600 dark:text-slate-300'>
+            <ModalBody className='px-6 py-5 text-sm text-muted'>
               {t('请选择你的复制方式')}
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='flat' onPress={handleCopyWithName}>
                 {t('名称+密钥')}
               </Button>

@@ -76,7 +76,7 @@ const PricingCardSkeleton = ({
 
             {/* Ratio info skeleton. */}
             {showRatio && (
-              <div className='mt-4 pt-3 border-t border-gray-100'>
+              <div className='mt-4 pt-3 border-t border-border'>
                 <div className='flex items-center space-x-1 mb-2'>
                   <SkeletonLine className='h-3 w-14' />
                   <SkeletonLine className='h-3.5 w-3.5 rounded-full' />

@@ -364,7 +364,7 @@ const SettingsFAQ = ({ options, refresh }) => {
               <tr>
                 <td colSpan={4} className='py-12 text-center text-sm text-muted'>
                   <div className='flex flex-col items-center gap-3'>
-                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                       <Inbox size={28} />
                     </div>
                     <div>{t('暂无常见问答')}</div>
@@ -473,8 +473,8 @@ const SettingsFAQ = ({ options, refresh }) => {
       <Modal state={modalState}>
         <ModalBackdrop variant='blur'>
           <ModalContainer size='lg' placement='center'>
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
                 {editingFaq ? t('编辑问答') : t('添加问答')}
               </ModalHeader>
               <ModalBody className='space-y-4 px-6 py-5'>
@@ -530,7 +530,7 @@ const SettingsFAQ = ({ options, refresh }) => {
                   ) : null}
                 </div>
               </ModalBody>
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 <Button variant='light' onPress={() => setShowFaqModal(false)}>
                   {t('取消')}
                 </Button>

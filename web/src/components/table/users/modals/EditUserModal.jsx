@@ -272,7 +272,7 @@ const EditUserModal = (props) => {
                       <Text className='text-lg font-medium'>
                         {t('基本信息')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='text-xs text-muted'>
                         {t('用户的基本账户信息')}
                       </div>
                     </div>
@@ -334,7 +334,7 @@ const EditUserModal = (props) => {
                         <Text className='text-lg font-medium'>
                           {t('权限设置')}
                         </Text>
-                        <div className='text-xs text-gray-600'>
+                        <div className='text-xs text-muted'>
                           {t('用户分组和额度管理')}
                         </div>
                       </div>
@@ -416,7 +416,7 @@ const EditUserModal = (props) => {
                           <Text className='text-lg font-medium'>
                             {t('绑定信息')}
                           </Text>
-                          <div className='text-xs text-gray-600'>
+                          <div className='text-xs text-muted'>
                             {t('管理用户已绑定的第三方账户，支持筛选与解绑')}
                           </div>
                         </div>

@@ -59,16 +59,16 @@ const ContentModal = ({
       <Modal state={textModalState}>
         <ModalBackdrop variant='blur'>
           <ModalContainer size='3xl' scroll='inside'>
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
                 {t('内容预览')}
               </ModalHeader>
               <ModalBody className='max-h-[70vh] p-6'>
-                <p className='whitespace-pre-line text-sm text-slate-700 dark:text-slate-200'>
+                <p className='whitespace-pre-line text-sm text-foreground'>
                   {modalContent}
                 </p>
               </ModalBody>
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 <Button color='primary' onPress={() => setIsModalOpen(false)}>
                   {t('确定')}
                 </Button>

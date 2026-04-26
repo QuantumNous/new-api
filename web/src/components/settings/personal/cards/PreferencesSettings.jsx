@@ -127,7 +127,7 @@ const PreferencesSettings = ({ t }) => {
 					<div className="text-lg font-medium text-foreground">
 						{t("偏好设置")}
 					</div>
-					<div className="text-xs text-gray-600 dark:text-gray-400">
+					<div className="text-xs text-muted">
 						{t("界面语言和其他个人偏好")}
 					</div>
 				</div>
@@ -169,7 +169,7 @@ const PreferencesSettings = ({ t }) => {
 			</Card>
 
 			{/* Additional info */}
-			<div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+			<div className="mt-4 text-xs text-muted">
 				<span className="text-muted">
 					{t(
 						"提示：语言偏好会同步到您登录的所有设备，并影响API返回的错误消息语言。",

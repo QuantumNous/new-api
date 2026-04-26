@@ -78,8 +78,8 @@ const ChangePasswordModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='sm' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               <div className='flex items-center gap-2'>
                 <LockKeyhole className='text-orange-500' size={18} />
                 {t('修改密码')}
@@ -113,7 +113,7 @@ const ChangePasswordModal = ({
                 </div>
               )}
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button
                 variant='ghost'
                 onPress={() => setShowChangePasswordModal(false)}

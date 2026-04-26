@@ -88,7 +88,7 @@ const UsageModeStep = ({
                   <Label className='text-base font-semibold text-slate-950 dark:text-slate-50'>
                     {t(title)}
                   </Label>
-                  <Description className='mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400'>
+                  <Description className='mt-2 text-sm leading-6 text-muted'>
                     {t(description)}
                   </Description>
                 </div>

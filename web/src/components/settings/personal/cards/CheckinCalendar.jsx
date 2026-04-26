@@ -323,8 +323,8 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
         <Modal state={turnstileModalState}>
           <ModalBackdrop variant='blur'>
             <ModalContainer size='sm' placement='center'>
-              <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-                <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <ModalDialog className='bg-background/95 backdrop-blur'>
+                <ModalHeader className='border-b border-border'>
                   Security Check
                 </ModalHeader>
                 <ModalBody className='flex justify-center px-6 py-5'>
@@ -386,19 +386,19 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
         {isCollapsed === false ? (
           <div className='mt-4 space-y-4'>
             <div className='grid grid-cols-3 gap-3'>
-              <div className='rounded-lg bg-slate-50 p-2.5 text-center dark:bg-slate-800'>
+              <div className='rounded-lg bg-surface-secondary p-2.5 text-center'>
                 <div className='text-xl font-bold text-emerald-600'>
                   {checkinData.stats?.total_checkins || 0}
                 </div>
                 <div className='text-xs text-muted'>{t('累计签到')}</div>
               </div>
-              <div className='rounded-lg bg-slate-50 p-2.5 text-center dark:bg-slate-800'>
+              <div className='rounded-lg bg-surface-secondary p-2.5 text-center'>
                 <div className='text-xl font-bold text-orange-600'>
                   {renderQuota(monthlyQuota, 6)}
                 </div>
                 <div className='text-xs text-muted'>{t('本月获得')}</div>
               </div>
-              <div className='rounded-lg bg-slate-50 p-2.5 text-center dark:bg-slate-800'>
+              <div className='rounded-lg bg-surface-secondary p-2.5 text-center'>
                 <div className='text-xl font-bold text-sky-600'>
                   {renderQuota(checkinData.stats?.total_quota || 0, 6)}
                 </div>
@@ -408,7 +408,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
 
             <div className='relative'>
               {loading ? (
-                <div className='absolute inset-0 z-10 flex items-center justify-center bg-white/60 dark:bg-slate-950/60'>
+                <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/60'>
                   <Spinner size='sm' />
                 </div>
               ) : null}
@@ -420,7 +420,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
               />
             </div>
 
-            <div className='rounded-lg bg-slate-50 p-2.5 dark:bg-slate-800'>
+            <div className='rounded-lg bg-surface-secondary p-2.5'>
               <ul className='list-inside list-disc space-y-0.5 text-xs text-muted'>
                 <li>{t('每日签到可获得随机额度奖励')}</li>
                 <li>{t('签到奖励将直接添加到您的账户余额')}</li>

@@ -284,7 +284,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                   strokeWidth={8}
                   showInfo={false}
                 />
-                <div className='flex justify-between text-xs text-gray-500'>
+                <div className='flex justify-between text-xs text-muted'>
                   <span>
                     {t('已服务')}: {details.compute_minutes_served} {t('分钟')}
                   </span>
@@ -343,7 +343,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                       <Text strong className='block mb-2'>
                         {t('环境变量')}:
                       </Text>
-                      <div className='bg-gray-50 p-3 rounded-lg max-h-32 overflow-y-auto'>
+                      <div className='bg-surface-secondary p-3 rounded-lg max-h-32 overflow-y-auto'>
                         {Object.entries(
                           details.container_config.env_variables,
                         ).map(([key, value]) => (
@@ -354,7 +354,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                             <span className='text-blue-600 font-medium'>
                               {key}=
                             </span>
-                            <span className='text-gray-700 break-all'>
+                            <span className='text-foreground break-all'>
                               {String(value)}
                             </span>
                           </div>
@@ -390,7 +390,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                 {containers.map((ctr) => (
                   <Card
                     key={ctr.container_id}
-                    className='bg-gray-50 border border-gray-100'
+                    className='bg-surface-secondary border border-border'
                     bodyStyle={{ padding: '12px 16px' }}
                   >
                     <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -435,7 +435,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                     </div>
 
                     {ctr.events && ctr.events.length > 0 && (
-                      <div className='mt-3 bg-white rounded-md border border-gray-100 p-3'>
+                      <div className='mt-3 bg-white rounded-md border border-border p-3'>
                         <Text
                           size='small'
                           type='secondary'
@@ -449,12 +449,12 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                               key={`${ctr.container_id}-${event.time}-${index}`}
                               className='flex gap-3 text-xs font-mono'
                             >
-                              <span className='text-gray-500 min-w-[140px]'>
+                              <span className='text-muted min-w-[140px]'>
                                 {event.time
                                   ? timestamp2string(event.time)
                                   : '--'}
                               </span>
-                              <span className='text-gray-700 break-all flex-1'>
+                              <span className='text-foreground break-all flex-1'>
                                 {event.message || '--'}
                               </span>
                             </div>

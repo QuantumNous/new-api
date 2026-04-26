@@ -39,7 +39,7 @@ function SetupInput({
 
   return (
     <label className='block'>
-      <span className='mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200'>
+      <span className='mb-2 block text-sm font-medium text-foreground'>
         {label}
       </span>
       <div className='relative'>
@@ -58,7 +58,7 @@ function SetupInput({
         />
       </div>
       {helper ? (
-        <span className='mt-2 block text-xs leading-5 text-slate-500 dark:text-slate-400'>
+        <span className='mt-2 block text-xs leading-5 text-muted'>
           {helper}
         </span>
       ) : null}
@@ -97,7 +97,7 @@ const AdminStep = ({
               <h3 className='text-lg font-semibold text-slate-950 dark:text-white'>
                 {t('管理员账号')}
               </h3>
-              <p className='mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300'>
+              <p className='mt-2 text-sm leading-6 text-foreground'>
                 {t('管理员账号已经初始化过，请继续设置其他参数')}
               </p>
             </div>

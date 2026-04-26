@@ -61,7 +61,7 @@ function HoverPopover({ children, content }) {
       {open ? (
         <div
           role='tooltip'
-          className='absolute left-1/2 top-full z-30 mt-2 w-[320px] -translate-x-1/2 rounded-lg border border-[color:var(--app-border)] bg-white p-3 text-sm shadow-lg dark:bg-slate-900'
+          className='absolute left-1/2 top-full z-30 mt-2 w-[320px] -translate-x-1/2 rounded-lg border border-[color:var(--app-border)] bg-background p-3 text-sm shadow-lg'
         >
           {content}
         </div>

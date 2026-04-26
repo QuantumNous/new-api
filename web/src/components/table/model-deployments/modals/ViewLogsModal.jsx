@@ -370,7 +370,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
   const renderLogEntry = (line, index) => (
     <div
       key={`${index}-${line.slice(0, 20)}`}
-      className='py-1 px-3 hover:bg-gray-50 font-mono text-sm border-b border-gray-100 whitespace-pre-wrap break-words'
+      className='py-1 px-3 hover:bg-surface-secondary font-mono text-sm border-b border-border whitespace-pre-wrap break-words'
     >
       {line}
     </div>
@@ -422,7 +422,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                       <span className='font-mono text-xs'>
                         {ctr.container_id}
                       </span>
-                      <span className='text-xs text-gray-500'>
+                      <span className='text-xs text-muted'>
                         {ctr.brand_name || 'IO.NET'}
                         {ctr.hardware ? ` · ${ctr.hardware}` : ''}
                       </span>
@@ -634,7 +634,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
 
                 {containerDetails?.events &&
                   containerDetails.events.length > 0 && (
-                    <div className='bg-gray-50 rounded-lg p-3'>
+                    <div className='bg-surface-secondary rounded-lg p-3'>
                       <Text size='small' type='secondary'>
                         {t('最近事件')}
                       </Text>
@@ -646,12 +646,12 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                               key={`${event.time}-${index}`}
                               className='flex gap-3 text-xs font-mono'
                             >
-                              <span className='text-gray-500'>
+                              <span className='text-muted'>
                                 {event.time
                                   ? timestamp2string(event.time)
                                   : '--'}
                               </span>
-                              <span className='text-gray-700 break-all flex-1'>
+                              <span className='text-foreground break-all flex-1'>
                                 {event.message}
                               </span>
                             </div>
@@ -665,7 +665,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
         </Card>
 
         {/* Log Content */}
-        <div className='flex-1 flex flex-col border rounded-lg bg-gray-50 overflow-hidden'>
+        <div className='flex-1 flex flex-col border rounded-lg bg-surface-secondary overflow-hidden'>
           <div
             ref={logContainerRef}
             className='flex-1 overflow-y-auto bg-white'
@@ -692,7 +692,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
 
           {/* Footer status */}
           {logLines.length > 0 && (
-            <div className='flex items-center justify-between px-3 py-2 bg-gray-50 border-t text-xs text-gray-500'>
+            <div className='flex items-center justify-between px-3 py-2 bg-surface-secondary border-t text-xs text-muted'>
               <span>{following ? t('正在跟随最新日志') : t('日志已加载')}</span>
               <span>
                 {t('最后更新')}:{' '}

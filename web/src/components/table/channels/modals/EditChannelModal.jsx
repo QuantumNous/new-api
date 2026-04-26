@@ -2071,7 +2071,7 @@ const EditChannelModal = (props) => {
       selected &&
         'bg-blue-100 text-blue-700 shadow-lg ring-2 ring-blue-200 ring-opacity-50',
       disabled && 'opacity-50 cursor-not-allowed',
-      !disabled && 'hover:bg-gray-50 hover:shadow-md cursor-pointer',
+      !disabled && 'hover:bg-surface-secondary hover:shadow-md cursor-pointer',
       className,
     ]
       .filter(Boolean)
@@ -2175,8 +2175,8 @@ const EditChannelModal = (props) => {
               <div className='space-y-4'>
                 {/* Upstream Model Management Section */}
                 {MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type) && (
-                <div className='pb-3 border-b border-gray-100'>
-                  <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                <div className='pb-3 border-b border-border'>
+                  <Text className='text-sm font-medium text-muted mb-3 block'>
                     {t('上游模型管理')}
                   </Text>
 
@@ -2223,13 +2223,13 @@ const EditChannelModal = (props) => {
                     }
                     showClear
                   />
-                  <div className='text-xs text-gray-500 mb-2'>
+                  <div className='text-xs text-muted mb-2'>
                     {t('上次检测时间')}:&nbsp;
                     {formatUnixTime(
                       inputs.upstream_model_update_last_check_time,
                     )}
                   </div>
-                  <div className='text-xs text-gray-500 mb-3'>
+                  <div className='text-xs text-muted mb-3'>
                     {t('上次检测到可加入模型')}:&nbsp;
                     {upstreamDetectedModels.length === 0 ? (
                       t('暂无')
@@ -2247,7 +2247,7 @@ const EditChannelModal = (props) => {
                             {upstreamDetectedModelsPreview.join(', ')}
                           </span>
                         </Tooltip>
-                        <span className='ml-1 text-gray-400'>
+                        <span className='ml-1 text-muted'>
                           {upstreamDetectedModelsOmittedCount > 0
                             ? t('（共 {{total}} 个，省略 {{omit}} 个）', {
                                 total: upstreamDetectedModels.length,
@@ -2264,8 +2264,8 @@ const EditChannelModal = (props) => {
                 )}
 
                 {/* Request Config Section */}
-                <div className='py-3 border-b border-gray-100'>
-                  <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                <div className='py-3 border-b border-border'>
+                  <Text className='text-sm font-medium text-muted mb-3 block'>
                     {t('请求配置')}
                   </Text>
 
@@ -2403,8 +2403,8 @@ const EditChannelModal = (props) => {
                 </div>
 
                 {/* Channel Behavior Section */}
-                <div className='py-3 border-b border-gray-100'>
-                  <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                <div className='py-3 border-b border-border'>
+                  <Text className='text-sm font-medium text-muted mb-3 block'>
                     {t('渠道行为')}
                   </Text>
 
@@ -2449,7 +2449,7 @@ const EditChannelModal = (props) => {
 
                   {inputs.type === 1 && (
                     <>
-                      <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
+                      <div className='mt-4 mb-2 text-sm font-medium text-foreground'>
                         {t('字段透传控制')}
                       </div>
                       <Form.Switch field='allow_service_tier' label={t('允许 service_tier 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_service_tier', value)} extraText={t('service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用')} />
@@ -2461,7 +2461,7 @@ const EditChannelModal = (props) => {
 
                   {inputs.type === 14 && (
                     <>
-                      <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
+                      <div className='mt-4 mb-2 text-sm font-medium text-foreground'>
                         {t('字段透传控制')}
                       </div>
                       <Form.Switch field='allow_service_tier' label={t('允许 service_tier 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_service_tier', value)} extraText={t('service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用')} />
@@ -2473,7 +2473,7 @@ const EditChannelModal = (props) => {
 
                 {/* Extra Settings Section */}
                 <div className='pt-3'>
-                  <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                  <Text className='text-sm font-medium text-muted mb-3 block'>
                     {t('额外设置')}
                   </Text>
 
@@ -2543,7 +2543,7 @@ const EditChannelModal = (props) => {
                       <Text className='text-lg font-medium'>
                         {t('核心配置')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='text-xs text-muted'>
                         {t('创建渠道所需的基本信息')}
                       </div>
                     </div>
@@ -3647,7 +3647,7 @@ const EditChannelModal = (props) => {
                 ) : (
                   /* Desktop: toggle button to open side panel */
                   <div
-                    className='flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-gray-50'
+                    className='flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-surface-secondary'
                     style={{
                       backgroundColor: advancedSettingsOpen ? 'color-mix(in srgb, var(--app-primary) 12%, transparent)' : 'var(--app-surface-muted)',
                       border: '1px solid var(--app-border)',
@@ -3725,7 +3725,7 @@ const EditChannelModal = (props) => {
                           <Text className='text-lg font-medium'>
                             {t('高级设置')}
                           </Text>
-                          <div className='text-xs text-gray-600'>
+                          <div className='text-xs text-muted'>
                             {t('渠道的高级配置选项')}
                           </div>
                         </div>

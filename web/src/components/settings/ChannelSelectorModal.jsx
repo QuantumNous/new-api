@@ -68,8 +68,8 @@ function StatusChip({ tone, children }) {
         : tone === 'yellow'
           ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
           : tone === 'green-light'
-            ? 'border border-emerald-300 bg-white text-emerald-700 dark:bg-slate-900 dark:text-emerald-300'
-            : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+            ? 'border border-emerald-300 bg-background text-emerald-700'
+            : 'bg-surface-secondary text-muted';
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
@@ -302,7 +302,7 @@ const ChannelSelectorModal = forwardRef(
             size={isMobile ? 'full' : 'xl'}
             placement='center'
           >
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
               <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
                 <span className='text-lg font-semibold'>
                   {t('选择同步渠道')}

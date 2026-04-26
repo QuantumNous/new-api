@@ -39,7 +39,7 @@ const CARD_STYLES = {
     'w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md',
   icon: 'w-8 h-8 flex items-center justify-center',
   selected: 'border-blue-500 bg-blue-50',
-  default: 'border-gray-200 hover:border-gray-300',
+  default: 'border-gray-200 hover:border-border',
 };
 
 const PricingCardView = ({
@@ -89,7 +89,7 @@ const PricingCardView = ({
     if (!model || !model.model_name) {
       return (
         <div className={CARD_STYLES.container}>
-          <span className='text-base font-semibold text-slate-700'>?</span>
+          <span className='text-base font-semibold text-foreground'>?</span>
         </div>
       );
     }
@@ -119,7 +119,7 @@ const PricingCardView = ({
     const avatarText = model.model_name.slice(0, 2).toUpperCase();
     return (
       <div className={CARD_STYLES.container}>
-        <span className='flex h-12 w-12 items-center justify-center rounded-2xl text-base font-bold text-slate-700'>
+        <span className='flex h-12 w-12 items-center justify-center rounded-2xl text-base font-bold text-foreground'>
           {avatarText}
         </span>
       </div>
@@ -243,7 +243,7 @@ const PricingCardView = ({
                   <div className='flex items-start space-x-3 flex-1 min-w-0'>
                     {getModelIcon(model)}
                     <div className='flex-1 min-w-0'>
-                      <h3 className='text-lg font-bold text-gray-900 truncate'>
+                      <h3 className='text-lg font-bold text-foreground truncate'>
                         {model.model_name}
                       </h3>
                       <div className='flex flex-col gap-1 text-xs mt-1'>
@@ -303,7 +303,7 @@ const PricingCardView = ({
                   {showRatio && (
                     <div className='pt-3'>
                       <div className='flex items-center space-x-1 mb-2'>
-                        <span className='text-xs font-medium text-gray-700'>
+                        <span className='text-xs font-medium text-foreground'>
                           {t('倍率信息')}
                         </span>
                         <Tooltip
@@ -320,7 +320,7 @@ const PricingCardView = ({
                           />
                         </Tooltip>
                       </div>
-                      <div className='grid grid-cols-3 gap-2 text-xs text-gray-600'>
+                      <div className='grid grid-cols-3 gap-2 text-xs text-muted'>
                         <div>
                           {t('模型')}:{' '}
                           {model.quota_type === 0 ? model.model_ratio : t('无')}

@@ -153,8 +153,8 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='md' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {isEdit ? t('编辑供应商') : t('新增供应商')}
             </ModalHeader>
             <ModalBody className='space-y-4 px-6 py-5'>
@@ -234,7 +234,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
                 </Switch>
               </label>
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='light' onPress={handleCancel}>
                 {t('取消')}
               </Button>

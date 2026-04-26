@@ -434,7 +434,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
               <tr>
                 <td colSpan={7} className='py-12 text-center text-sm text-muted'>
                   <div className='flex flex-col items-center gap-3'>
-                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                       <Inbox size={28} />
                     </div>
                     <div>{t('暂无API信息')}</div>
@@ -461,12 +461,12 @@ const SettingsAPIInfo = ({ options, refresh }) => {
                       <ColorChip color={record.color}>{record.url}</ColorChip>
                     </td>
                     <td className='px-3 py-2'>
-                      <span className='inline-flex items-center rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+                      <span className='inline-flex items-center rounded-full border border-[color:var(--app-border)] bg-background px-2 py-0.5 text-xs text-foreground'>
                         {record.route}
                       </span>
                     </td>
                     <td className='max-w-[260px] truncate px-3 py-2 text-foreground'>
-                      <span className='inline-flex items-center rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+                      <span className='inline-flex items-center rounded-full border border-[color:var(--app-border)] bg-background px-2 py-0.5 text-xs text-foreground'>
                         {record.description || '-'}
                       </span>
                     </td>
@@ -550,8 +550,8 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       <Modal state={modalState}>
         <ModalBackdrop variant='blur'>
           <ModalContainer size='md' placement='center'>
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
                 {editingApi ? t('编辑API') : t('添加API')}
               </ModalHeader>
               <ModalBody className='space-y-4 px-6 py-5'>
@@ -654,7 +654,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
                   </div>
                 </div>
               </ModalBody>
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 <Button variant='light' onPress={() => setShowApiModal(false)}>
                   {t('取消')}
                 </Button>

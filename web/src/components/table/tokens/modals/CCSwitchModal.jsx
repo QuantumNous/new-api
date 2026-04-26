@@ -131,7 +131,7 @@ export default function CCSwitchModal({
   };
 
   const fieldLabelStyle = useMemo(
-    () => 'mb-1 text-[13px] font-medium text-slate-600 dark:text-slate-300',
+    () => 'mb-1 text-[13px] font-medium text-foreground',
     [],
   );
 
@@ -139,8 +139,8 @@ export default function CCSwitchModal({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='lg' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('填入 CC Switch')}
             </ModalHeader>
             <ModalBody className='px-6 py-5'>
@@ -156,7 +156,7 @@ export default function CCSwitchModal({
                         className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
                           app === key
                             ? 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-500 dark:bg-sky-500/10 dark:text-sky-200'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                            : 'border-border bg-background text-muted hover:border-primary'
                         }`}
                       >
                         {cfg.label}
@@ -188,7 +188,7 @@ export default function CCSwitchModal({
                       onChange={(event) =>
                         handleModelChange(field.key, event.target.value)
                       }
-                      className='h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900'
+                      className='h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
                     >
                       <option value=''>{t('请选择模型')}</option>
                       {(modelOptions || []).map((option) => (
@@ -200,7 +200,7 @@ export default function CCSwitchModal({
                       ))}
                     </select>
                     {(modelOptions || []).length === 0 ? (
-                      <div className='mt-1 text-xs text-slate-500 dark:text-slate-400'>
+                      <div className='mt-1 text-xs text-muted'>
                         {t('暂无数据')}
                       </div>
                     ) : null}
@@ -208,7 +208,7 @@ export default function CCSwitchModal({
                 ))}
               </div>
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='light' onPress={onClose}>
                 {t('取消')}
               </Button>
