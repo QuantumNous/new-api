@@ -14,6 +14,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState } from 'react';
 import {
+  Avatar,
   Button,
   Card,
   Modal,
@@ -22,6 +23,7 @@ import {
   ModalContainer,
   ModalDialog,
   ModalHeader,
+  Tabs,
   Tooltip,
   useOverlayState,
 } from '@heroui/react';
@@ -55,8 +57,10 @@ import TwoFASetting from '../components/TwoFASetting';
 
 // ----------------------------- helpers -----------------------------
 
+// Round icon container used by binding rows and security rows. Sticks with a
+// neutral surface background so the colored CTA buttons own the visual focus.
 function IconTile({ size = 'md', children }) {
-  const sizeCls = size === 'lg' ? 'h-12 w-12' : 'h-10 w-10';
+  const sizeCls = size === 'lg' ? 'h-11 w-11' : 'h-10 w-10';
   return (
     <div
       className={`${sizeCls} flex shrink-0 items-center justify-center rounded-full bg-surface-secondary text-muted`}
@@ -203,14 +207,16 @@ const AccountManagement = ({
 
   // ----------------------------- BindingRow ----------------------------- //
   const BindingRow = ({ icon, title, info, action }) => (
-    <Card className='!rounded-xl'>
+    <Card className='!rounded-xl' shadow='none'>
       <Card.Content className='p-4'>
         <div className='flex items-center justify-between gap-3'>
-          <div className='flex min-w-0 flex-1 items-center'>
+          <div className='flex min-w-0 flex-1 items-center gap-3'>
             <IconTile size='md'>{icon}</IconTile>
-            <div className='ml-3 min-w-0 flex-1'>
-              <div className='font-medium text-foreground'>{title}</div>
-              <div className='truncate text-sm text-muted'>{info}</div>
+            <div className='min-w-0 flex-1'>
+              <div className='text-sm font-semibold text-foreground'>
+                {title}
+              </div>
+              <div className='truncate text-xs text-muted'>{info}</div>
             </div>
           </div>
           <div className='shrink-0'>{action}</div>
@@ -221,18 +227,16 @@ const AccountManagement = ({
 
   // ----------------------------- SecurityRow ----------------------------- //
   const SecurityRow = ({ icon, title, hint, extra, action }) => (
-    <Card className='!w-full !rounded-xl'>
+    <Card className='!w-full !rounded-xl' shadow='none'>
       <Card.Content className='p-5'>
         <div className='flex flex-col items-start gap-4 sm:flex-row sm:justify-between'>
-          <div className='flex w-full items-start sm:w-auto'>
-            <div className='mr-4'>
-              <IconTile size='lg'>{icon}</IconTile>
-            </div>
+          <div className='flex w-full items-start gap-4 sm:w-auto'>
+            <IconTile size='lg'>{icon}</IconTile>
             <div className='flex-1'>
-              <h6 className='m-0 mb-1 text-base font-semibold text-foreground'>
+              <div className='mb-1 text-sm font-semibold text-foreground'>
                 {title}
-              </h6>
-              <div className='text-sm text-muted'>{hint}</div>
+              </div>
+              <div className='text-xs text-muted'>{hint}</div>
               {extra}
             </div>
           </div>
@@ -243,69 +247,61 @@ const AccountManagement = ({
   );
 
   return (
-    <Card className='!rounded-2xl'>
+    <Card className='!rounded-2xl' shadow='none'>
       <Card.Content className='p-5'>
-        {/* 卡片头部 */}
-        <div className='mb-4 flex items-center'>
-          <div className='mr-3 flex h-9 w-9 items-center justify-center rounded-full bg-success/10 text-success shadow-md'>
-            <UserPlus size={16} />
-          </div>
-          <div>
-            <div className='text-base font-semibold text-foreground'>
+        {/* Card header */}
+        <div className='mb-4 flex items-center gap-3'>
+          <Avatar size='sm' color='success' className='shadow-md'>
+            <Avatar.Fallback>
+              <UserPlus size={16} />
+            </Avatar.Fallback>
+          </Avatar>
+          <div className='flex flex-col'>
+            <span className='text-base font-semibold text-foreground'>
               {t('账户管理')}
-            </div>
-            <div className='text-xs text-muted'>
+            </span>
+            <span className='text-xs text-muted'>
               {t('账户绑定、安全设置和身份验证')}
-            </div>
+            </span>
           </div>
         </div>
 
-        {/* Tabs (segmented control) */}
-        <div className='mb-4 inline-flex overflow-hidden rounded-xl border border-border'>
-          {[
-            {
-              key: 'binding',
-              label: t('账户绑定'),
-              icon: <UserPlus size={14} />,
-            },
-            {
-              key: 'security',
-              label: t('安全设置'),
-              icon: <ShieldCheck size={14} />,
-            },
-          ].map((tab) => {
-            const active = tab.key === activeTab;
-            return (
-              <button
-                key={tab.key}
-                type='button'
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-foreground text-background'
-                    : 'bg-background text-muted hover:bg-surface-secondary'
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Tabs */}
+        <Tabs
+          selectedKey={activeTab}
+          onSelectionChange={(key) => setActiveTab(String(key))}
+          className='mb-4'
+        >
+          <Tabs.List aria-label={t('账户管理')}>
+            <Tabs.Tab id='binding'>
+              <span className='flex items-center gap-1.5'>
+                <UserPlus size={14} />
+                {t('账户绑定')}
+              </span>
+            </Tabs.Tab>
+            <Tabs.Tab id='security'>
+              <span className='flex items-center gap-1.5'>
+                <ShieldCheck size={14} />
+                {t('安全设置')}
+              </span>
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
 
         {/* 账户绑定 Tab */}
         {activeTab === 'binding' && (
           <div className='py-2'>
             <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
-              {/* 邮箱 */}
+              {/* Email */}
               <BindingRow
                 icon={<Mail size={20} />}
                 title={t('邮箱')}
                 info={renderAccountInfo(userState.user?.email)}
                 action={
                   <Button
-                    color='primary'
-                    variant='bordered'
+                    variant={
+                      isBound(userState.user?.email) ? 'outline' : 'primary'
+                    }
                     size='sm'
                     onPress={() => setShowEmailBindModal(true)}
                   >
@@ -316,7 +312,7 @@ const AccountManagement = ({
                 }
               />
 
-              {/* 微信 */}
+              {/* WeChat */}
               <BindingRow
                 icon={<SiWechat size={20} />}
                 title={t('微信')}
@@ -328,19 +324,25 @@ const AccountManagement = ({
                       : t('未绑定')
                 }
                 action={
-                  <Button
-                    color='primary'
-                    variant='bordered'
-                    size='sm'
-                    isDisabled={!status.wechat_login}
-                    onPress={() => setShowWeChatBindModal(true)}
-                  >
-                    {isBound(userState.user?.wechat_id)
-                      ? t('修改绑定')
-                      : status.wechat_login
-                        ? t('绑定')
-                        : t('未启用')}
-                  </Button>
+                  !status.wechat_login ? (
+                    <Button variant='tertiary' size='sm' isDisabled>
+                      {t('未启用')}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant={
+                        isBound(userState.user?.wechat_id)
+                          ? 'outline'
+                          : 'primary'
+                      }
+                      size='sm'
+                      onPress={() => setShowWeChatBindModal(true)}
+                    >
+                      {isBound(userState.user?.wechat_id)
+                        ? t('修改绑定')
+                        : t('绑定')}
+                    </Button>
+                  )
                 }
               />
 
@@ -350,20 +352,25 @@ const AccountManagement = ({
                 title={t('GitHub')}
                 info={renderAccountInfo(userState.user?.github_id)}
                 action={
-                  <Button
-                    color='primary'
-                    variant='bordered'
-                    size='sm'
-                    onPress={() =>
-                      onGitHubOAuthClicked(status.github_client_id)
-                    }
-                    isDisabled={
-                      isBound(userState.user?.github_id) ||
-                      !status.github_oauth
-                    }
-                  >
-                    {status.github_oauth ? t('绑定') : t('未启用')}
-                  </Button>
+                  !status.github_oauth ? (
+                    <Button variant='tertiary' size='sm' isDisabled>
+                      {t('未启用')}
+                    </Button>
+                  ) : isBound(userState.user?.github_id) ? (
+                    <Button variant='outline' size='sm' isDisabled>
+                      {t('已绑定')}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant='primary'
+                      size='sm'
+                      onPress={() =>
+                        onGitHubOAuthClicked(status.github_client_id)
+                      }
+                    >
+                      {t('绑定')}
+                    </Button>
+                  )
                 }
               />
 
@@ -373,20 +380,25 @@ const AccountManagement = ({
                 title={t('Discord')}
                 info={renderAccountInfo(userState.user?.discord_id)}
                 action={
-                  <Button
-                    color='primary'
-                    variant='bordered'
-                    size='sm'
-                    onPress={() =>
-                      onDiscordOAuthClicked(status.discord_client_id)
-                    }
-                    isDisabled={
-                      isBound(userState.user?.discord_id) ||
-                      !status.discord_oauth
-                    }
-                  >
-                    {status.discord_oauth ? t('绑定') : t('未启用')}
-                  </Button>
+                  !status.discord_oauth ? (
+                    <Button variant='tertiary' size='sm' isDisabled>
+                      {t('未启用')}
+                    </Button>
+                  ) : isBound(userState.user?.discord_id) ? (
+                    <Button variant='outline' size='sm' isDisabled>
+                      {t('已绑定')}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant='primary'
+                      size='sm'
+                      onPress={() =>
+                        onDiscordOAuthClicked(status.discord_client_id)
+                      }
+                    >
+                      {t('绑定')}
+                    </Button>
+                  )
                 }
               />
 
@@ -396,22 +408,28 @@ const AccountManagement = ({
                 title={t('OIDC')}
                 info={renderAccountInfo(userState.user?.oidc_id)}
                 action={
-                  <Button
-                    color='primary'
-                    variant='bordered'
-                    size='sm'
-                    onPress={() =>
-                      onOIDCClicked(
-                        status.oidc_authorization_endpoint,
-                        status.oidc_client_id,
-                      )
-                    }
-                    isDisabled={
-                      isBound(userState.user?.oidc_id) || !status.oidc_enabled
-                    }
-                  >
-                    {status.oidc_enabled ? t('绑定') : t('未启用')}
-                  </Button>
+                  !status.oidc_enabled ? (
+                    <Button variant='tertiary' size='sm' isDisabled>
+                      {t('未启用')}
+                    </Button>
+                  ) : isBound(userState.user?.oidc_id) ? (
+                    <Button variant='outline' size='sm' isDisabled>
+                      {t('已绑定')}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant='primary'
+                      size='sm'
+                      onPress={() =>
+                        onOIDCClicked(
+                          status.oidc_authorization_endpoint,
+                          status.oidc_client_id,
+                        )
+                      }
+                    >
+                      {t('绑定')}
+                    </Button>
+                  )
                 }
               />
 
@@ -421,34 +439,21 @@ const AccountManagement = ({
                 title={t('Telegram')}
                 info={renderAccountInfo(userState.user?.telegram_id)}
                 action={
-                  status.telegram_oauth ? (
-                    isBound(userState.user?.telegram_id) ? (
-                      <Button
-                        size='sm'
-                        color='primary'
-                        variant='bordered'
-                        isDisabled
-                      >
-                        {t('已绑定')}
-                      </Button>
-                    ) : (
-                      <Button
-                        color='primary'
-                        variant='bordered'
-                        size='sm'
-                        onPress={() => setShowTelegramBindModal(true)}
-                      >
-                        {t('绑定')}
-                      </Button>
-                    )
+                  !status.telegram_oauth ? (
+                    <Button variant='tertiary' size='sm' isDisabled>
+                      {t('未启用')}
+                    </Button>
+                  ) : isBound(userState.user?.telegram_id) ? (
+                    <Button variant='outline' size='sm' isDisabled>
+                      {t('已绑定')}
+                    </Button>
                   ) : (
                     <Button
+                      variant='primary'
                       size='sm'
-                      color='primary'
-                      variant='bordered'
-                      isDisabled
+                      onPress={() => setShowTelegramBindModal(true)}
                     >
-                      {t('未启用')}
+                      {t('绑定')}
                     </Button>
                   )
                 }
@@ -460,24 +465,29 @@ const AccountManagement = ({
                 title={t('LinuxDO')}
                 info={renderAccountInfo(userState.user?.linux_do_id)}
                 action={
-                  <Button
-                    color='primary'
-                    variant='bordered'
-                    size='sm'
-                    onPress={() =>
-                      onLinuxDOOAuthClicked(status.linuxdo_client_id)
-                    }
-                    isDisabled={
-                      isBound(userState.user?.linux_do_id) ||
-                      !status.linuxdo_oauth
-                    }
-                  >
-                    {status.linuxdo_oauth ? t('绑定') : t('未启用')}
-                  </Button>
+                  !status.linuxdo_oauth ? (
+                    <Button variant='tertiary' size='sm' isDisabled>
+                      {t('未启用')}
+                    </Button>
+                  ) : isBound(userState.user?.linux_do_id) ? (
+                    <Button variant='outline' size='sm' isDisabled>
+                      {t('已绑定')}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant='primary'
+                      size='sm'
+                      onPress={() =>
+                        onLinuxDOOAuthClicked(status.linuxdo_client_id)
+                      }
+                    >
+                      {t('绑定')}
+                    </Button>
+                  )
                 }
               />
 
-              {/* 自定义 OAuth 提供商 */}
+              {/* Custom OAuth providers */}
               {status.custom_oauth_providers &&
                 status.custom_oauth_providers.map((provider) => {
                   const bound = isCustomOAuthBound(provider.id);
@@ -498,8 +508,7 @@ const AccountManagement = ({
                       action={
                         bound ? (
                           <Button
-                            color='danger'
-                            variant='bordered'
+                            variant='danger-soft'
                             size='sm'
                             isPending={customOAuthLoading[provider.id]}
                             onPress={() =>
@@ -513,8 +522,7 @@ const AccountManagement = ({
                           </Button>
                         ) : (
                           <Button
-                            color='primary'
-                            variant='bordered'
+                            variant='primary'
                             size='sm'
                             onPress={() => handleBindCustomOAuth(provider)}
                           >
@@ -558,28 +566,30 @@ const AccountManagement = ({
               }
               action={
                 <Button
-                  color='primary'
-                  startContent={<KeyRound size={14} />}
+                  variant='primary'
+                  size='sm'
                   onPress={generateAccessToken}
-                  className='w-full !bg-foreground/85 hover:!bg-foreground sm:w-auto'
+                  className='w-full sm:w-auto'
                 >
+                  <KeyRound size={14} />
                   {systemToken ? t('重新生成') : t('生成令牌')}
                 </Button>
               }
             />
 
-            {/* 密码管理 */}
+            {/* Password management */}
             <SecurityRow
               icon={<Lock size={20} />}
               title={t('密码管理')}
               hint={t('定期更改密码可以提高账户安全性')}
               action={
                 <Button
-                  color='primary'
-                  startContent={<Lock size={14} />}
+                  variant='primary'
+                  size='sm'
                   onPress={() => setShowChangePasswordModal(true)}
-                  className='w-full !bg-foreground/85 hover:!bg-foreground sm:w-auto'
+                  className='w-full sm:w-auto'
                 >
+                  <Lock size={14} />
                   {t('修改密码')}
                 </Button>
               }
@@ -608,8 +618,8 @@ const AccountManagement = ({
               }
               action={
                 <Button
-                  color={passkeyEnabled ? 'danger' : 'primary'}
-                  startContent={<KeyRound size={14} />}
+                  variant={passkeyEnabled ? 'danger-soft' : 'primary'}
+                  size='sm'
                   isDisabled={!passkeySupported && !passkeyEnabled}
                   isPending={
                     passkeyEnabled
@@ -621,28 +631,30 @@ const AccountManagement = ({
                       ? () => setUnbindPasskey(true)
                       : onPasskeyRegister
                   }
-                  className={`w-full sm:w-auto ${passkeyEnabled ? '!bg-foreground/70 hover:!bg-foreground/85' : ''}`}
+                  className='w-full sm:w-auto'
                 >
+                  <KeyRound size={14} />
                   {passkeyEnabled ? t('解绑 Passkey') : t('注册 Passkey')}
                 </Button>
               }
             />
 
-            {/* 两步验证 */}
+            {/* 2FA */}
             <TwoFASetting t={t} />
 
-            {/* 危险区域 */}
+            {/* Danger zone */}
             <SecurityRow
               icon={<Trash2 size={20} />}
               title={t('删除账户')}
               hint={t('此操作不可逆，所有数据将被永久删除')}
               action={
                 <Button
-                  color='danger'
-                  startContent={<Trash2 size={14} />}
+                  variant='danger'
+                  size='sm'
                   onPress={() => setShowAccountDeleteModal(true)}
-                  className='w-full !bg-foreground/70 hover:!bg-foreground/85 sm:w-auto'
+                  className='w-full sm:w-auto'
                 >
+                  <Trash2 size={14} />
                   {t('删除账户')}
                 </Button>
               }
