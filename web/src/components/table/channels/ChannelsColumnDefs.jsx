@@ -101,22 +101,19 @@ const renderEndpointRestrictions = (record = {}, t) => {
           <div className='mb-1 text-xs text-gray-600'>
             {t('仅支持这些端点')}
           </div>
-          <Space spacing={2} wrap>
-            {endpointLabels.map((label) => (
-              <Tag key={label} color='blue' size='small' type='light'>
-                {label}
-              </Tag>
-            ))}
-          </Space>
+          <div className='text-xs'>{endpointLabels.join('、')}</div>
         </div>
       }
     >
-      <span
-        aria-label={t('端点受限')}
-        className='inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full bg-blue-50 text-blue-600'
-        tabIndex={0}
-      >
-        <IconLock size='small' />
+      <span className='inline-flex cursor-help' tabIndex={0}>
+        <Tag
+          aria-label={t('端点受限')}
+          color='blue'
+          prefixIcon={<IconLock size='small' />}
+          shape='circle'
+          size='small'
+          type='light'
+        />
       </span>
     </Tooltip>
   );
