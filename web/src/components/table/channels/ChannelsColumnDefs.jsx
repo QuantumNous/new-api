@@ -49,6 +49,7 @@ import {
   IconTreeTriangleDown,
   IconMore,
   IconAlertTriangle,
+  IconLock,
 } from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
 
@@ -94,6 +95,7 @@ const renderEndpointRestrictions = (record = {}, t) => {
   );
   return (
     <Tooltip
+      position='top'
       content={
         <div className='max-w-xs'>
           <div className='mb-1 text-xs text-gray-600'>
@@ -109,9 +111,13 @@ const renderEndpointRestrictions = (record = {}, t) => {
         </div>
       }
     >
-      <Tag color='blue' size='small' type='light'>
-        {t('端点受限')}
-      </Tag>
+      <span
+        aria-label={t('端点受限')}
+        className='inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full bg-blue-50 text-blue-600'
+        tabIndex={0}
+      >
+        <IconLock size='small' />
+      </span>
     </Tooltip>
   );
 };
