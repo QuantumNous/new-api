@@ -18,10 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Descriptions, Spin, Typography } from '@douyinfe/semi-ui';
+import {
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  Spinner,
+  useOverlayState,
+} from '@heroui/react';
 import { API, showError, timestamp2string } from '../../../../helpers';
-
-const { Text } = Typography;
 
 function formatRate(hit, total) {
   if (!total || total <= 0) return '-';
@@ -63,6 +70,12 @@ const ChannelAffinityUsageCacheModal = ({
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const requestSeqRef = useRef(0);
+  const modalState = useOverlayState({
+    isOpen: showChannelAffinityUsageCacheModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowChannelAffinityUsageCacheModal(false);
+    },
+  });
 
   const params = useMemo(() => {
     const x = channelAffinityUsageCacheTarget || {};
@@ -192,48 +205,58 @@ const ChannelAffinityUsageCacheModal = ({
   }, [stats, params, t]);
 
   return (
-    <Modal
-      title={t('渠道亲和性：上游缓存命中')}
-      visible={showChannelAffinityUsageCacheModal}
-      onCancel={() => setShowChannelAffinityUsageCacheModal(false)}
-      footer={null}
-      centered
-      closable
-      maskClosable
-      width={640}
-    >
-      <div style={{ padding: 16 }}>
-        <div style={{ marginBottom: 12 }}>
-          <Text type='tertiary' size='small'>
-            {t(
-              '命中判定：usage 中存在 cached tokens（例如 cached_tokens/prompt_cache_hit_tokens）即视为命中。',
-            )}
-            {' '}
-            {t(
-              'Cached tokens 占比口径由后端返回：Claude 语义按 cached/(prompt+cached)，其余按 cached/prompt。',
-            )}
-            {' '}
-            {t('当前仅 OpenAI / Claude 语义支持缓存 token 统计，其他通道将隐藏 token 相关字段。')}
-            {stats && !supportsTokenStats ? (
-              <>
-                {' '}
-                {t('该记录不包含可用的 token 统计口径。')}
-              </>
-            ) : null}
-          </Text>
-        </div>
-        <Spin spinning={loading} tip={t('加载中...')}>
-          {stats && rows.length > 0 ? (
-            <Descriptions data={rows} />
-          ) : (
-            <div style={{ padding: '24px 0' }}>
-              <Text type='tertiary' size='small'>
-                {loading ? t('加载中...') : t('暂无可展示数据')}
-              </Text>
-            </div>
-          )}
-        </Spin>
-      </div>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='2xl' placement='center' scroll='inside'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {t('渠道亲和性：上游缓存命中')}
+            </ModalHeader>
+            <ModalBody className='p-6'>
+              <p className='mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400'>
+                {t(
+                  '命中判定：usage 中存在 cached tokens（例如 cached_tokens/prompt_cache_hit_tokens）即视为命中。',
+                )}{' '}
+                {t(
+                  'Cached tokens 占比口径由后端返回：Claude 语义按 cached/(prompt+cached)，其余按 cached/prompt。',
+                )}{' '}
+                {t(
+                  '当前仅 OpenAI / Claude 语义支持缓存 token 统计，其他通道将隐藏 token 相关字段。',
+                )}
+                {stats && !supportsTokenStats
+                  ? ` ${t('该记录不包含可用的 token 统计口径。')}`
+                  : ''}
+              </p>
+              {loading ? (
+                <div className='flex flex-col items-center justify-center gap-3 py-10 text-sm text-slate-500 dark:text-slate-400'>
+                  <Spinner />
+                  {t('加载中...')}
+                </div>
+              ) : stats && rows.length > 0 ? (
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                  {rows.map((row) => (
+                    <div
+                      key={row.key}
+                      className='rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-900/60'
+                    >
+                      <div className='mb-1 text-xs text-slate-500 dark:text-slate-400'>
+                        {row.key}
+                      </div>
+                      <div className='break-all text-sm font-semibold text-slate-800 dark:text-slate-100'>
+                        {row.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className='py-8 text-center text-sm text-slate-500 dark:text-slate-400'>
+                  {t('暂无可展示数据')}
+                </div>
+              )}
+            </ModalBody>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

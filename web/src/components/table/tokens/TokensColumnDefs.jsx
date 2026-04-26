@@ -18,21 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Button,
-  Dropdown,
-  Space,
-  SplitButtonGroup,
-  Tag,
-  AvatarGroup,
-  Avatar,
-  Tooltip,
-  Progress,
-  Popover,
-  Typography,
-  Input,
-  Modal,
-} from '@douyinfe/semi-ui';
+import { Button, Tooltip, Input } from '@heroui/react';
+import { Dropdown, Space, SplitButtonGroup, Tag, AvatarGroup, Avatar, Progress, Popover, Typography, Modal } from '@/components/common/ui/HeroCompat';
 import {
   timestamp2string,
   renderGroup,
@@ -45,13 +32,13 @@ import {
   IconCopy,
   IconEyeOpened,
   IconEyeClosed,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 
 // progress color helper
 const getProgressColor = (pct) => {
-  if (pct === 100) return 'var(--semi-color-success)';
-  if (pct <= 10) return 'var(--semi-color-danger)';
-  if (pct <= 30) return 'var(--semi-color-warning)';
+  if (pct === 100) return 'var(--app-success)';
+  if (pct <= 10) return 'var(--app-danger)';
+  if (pct <= 30) return 'var(--app-warning)';
   return undefined;
 };
 

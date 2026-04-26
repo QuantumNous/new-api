@@ -17,26 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { API, showError, showSuccess, showWarning } from '../../../../helpers';
-import {
-  Banner,
-  Button,
-  Card,
-  Checkbox,
-  Divider,
-  Input,
-  Modal,
-  Tag,
-  Typography,
-  Steps,
-  Space,
-  Badge,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Input, Badge } from '@heroui/react';
+import { Banner, Checkbox, Divider, Modal, Tag, Typography, Steps, Space } from '@/components/common/ui/HeroCompat';
 import {
   IconShield,
   IconAlertTriangle,
   IconRefresh,
   IconCopy,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import React, { useEffect, useState } from 'react';
 
 import { QRCodeSVG } from 'qrcode.react';

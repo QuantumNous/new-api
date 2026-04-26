@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef, useEffect } from 'react';
-import { Typography, TextArea, Button } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 import MarkdownRenderer from '../common/markdown/MarkdownRenderer';
 import ThinkingContent from './ThinkingContent';
 import { Loader2, Check, X, Settings, AlertTriangle } from 'lucide-react';
@@ -69,32 +69,29 @@ const MessageContent = ({
       return (
         <div className={`${className}`}>
           <div
-            className='rounded-lg p-3 space-y-2'
-            style={{
-              background: 'var(--semi-color-bg-0)',
-              border: '1px solid var(--semi-color-border)',
-            }}
+            className='space-y-2 rounded-lg border border-border bg-background p-3'
           >
             <div className='flex items-center gap-2'>
               <AlertTriangle size={16} className='text-orange-500 shrink-0' />
-              <Typography.Text strong className='!text-[var(--semi-color-text-0)]'>
+              <span className='font-semibold text-foreground'>
                 {t('模型价格未配置')}
-              </Typography.Text>
+              </span>
             </div>
-            <Typography.Paragraph
-              className='!text-[var(--semi-color-text-1)] !text-sm !mb-0'
+            <p
+              className='mb-0 text-sm text-muted'
               style={{ wordBreak: 'break-word' }}
             >
               {errorText}
-            </Typography.Paragraph>
+            </p>
             {isAdmin() && (
               <Button
-                size='small'
-                theme='light'
-                type='warning'
-                icon={<Settings size={14} />}
-                onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                size='sm'
+                variant='secondary'
+                onPress={() =>
+                  window.open('/console/setting?tab=ratio', '_blank')
+                }
               >
+                <Settings size={14} />
                 {t('前往设置')}
               </Button>
             )}
@@ -105,7 +102,7 @@ const MessageContent = ({
 
     return (
       <div className={`${className}`}>
-        <Typography.Text className='text-white'>{errorText}</Typography.Text>
+        <span className='text-white'>{errorText}</span>
       </div>
     );
   }
@@ -230,17 +227,16 @@ const MessageContent = ({
       {message.role === 'system' && (
         <div className='mb-2 sm:mb-4'>
           <div
-            className='flex items-center gap-2 p-2 sm:p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg'
-            style={{ border: '1px solid var(--semi-color-border)' }}
+            className='flex items-center gap-2 rounded-lg border border-border bg-gradient-to-r from-amber-50 to-orange-50 p-2 sm:p-3'
           >
             <div className='w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-sm'>
-              <Typography.Text className='text-white text-xs font-bold'>
+              <span className='text-xs font-bold text-white'>
                 S
-              </Typography.Text>
+              </span>
             </div>
-            <Typography.Text className='text-amber-700 text-xs sm:text-sm font-medium'>
+            <span className='text-xs font-medium text-amber-700 sm:text-sm'>
               {t('系统消息')}
-            </Typography.Text>
+            </span>
           </div>
         </div>
       )}
@@ -257,38 +253,36 @@ const MessageContent = ({
 
       {isEditing ? (
         <div className='space-y-3'>
-          <TextArea
+          <textarea
             value={editValue}
-            onChange={(value) => onEditValueChange(value)}
+            onChange={(event) => onEditValueChange(event.target.value)}
             placeholder={t('请输入消息内容...')}
-            autosize={{ minRows: 3, maxRows: 12 }}
+            rows={3}
             style={{
               resize: 'vertical',
               fontSize: styleState.isMobile ? '14px' : '15px',
               lineHeight: '1.6',
             }}
-            className='!border-blue-200 focus:!border-blue-400 !bg-blue-50/50'
+            className='w-full rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2 text-foreground outline-none transition focus:border-blue-400'
           />
           <div className='flex items-center gap-2 w-full'>
             <Button
-              size='small'
-              type='danger'
-              theme='light'
-              icon={<X size={14} />}
-              onClick={onEditCancel}
+              size='sm'
+              variant='danger-soft'
+              onPress={onEditCancel}
               className='flex-1'
             >
+              <X size={14} />
               {t('取消')}
             </Button>
             <Button
-              size='small'
-              type='warning'
-              theme='solid'
-              icon={<Check size={14} />}
-              onClick={onEditSave}
-              disabled={!editValue || editValue.trim() === ''}
+              size='sm'
+              variant='secondary'
+              onPress={onEditSave}
+              isDisabled={!editValue || editValue.trim() === ''}
               className='flex-1'
             >
+              <Check size={14} />
               {t('保存')}
             </Button>
           </div>
@@ -357,10 +351,10 @@ const MessageContent = ({
                 finalDisplayableFinalContent &&
                 finalDisplayableFinalContent.trim() !== ''
               ) {
-                // 获取上一次的内容长度
+                // Track previous content length for streaming animation.
                 let prevLength = 0;
                 if (isThinkingStatus && lastContentRef.current) {
-                  // 只有当前内容包含上一次内容时，才使用上一次的长度
+                  // Only reuse previous length when current content contains it.
                   if (
                     finalDisplayableFinalContent.startsWith(
                       lastContentRef.current,
@@ -370,7 +364,7 @@ const MessageContent = ({
                   }
                 }
 
-                // 更新最后内容的引用
+                // Update the last content reference.
                 if (isThinkingStatus) {
                   lastContentRef.current = finalDisplayableFinalContent;
                 }

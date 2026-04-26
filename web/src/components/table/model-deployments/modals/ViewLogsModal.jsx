@@ -18,22 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Modal,
-  Button,
-  Typography,
-  Select,
-  Input,
-  Space,
-  Spin,
-  Card,
-  Tag,
-  Empty,
-  Switch,
-  Divider,
-  Tooltip,
-  Radio,
-} from '@douyinfe/semi-ui';
+import { Button, Select, Input, Card, Switch, Tooltip } from '@heroui/react';
+import { Modal, Typography, Space, Spin, Tag, Empty, Divider, Radio } from '@/components/common/ui/HeroCompat';
 import {
   FaCopy,
   FaSearch,
@@ -43,7 +29,7 @@ import {
   FaInfoCircle,
   FaLink,
 } from 'react-icons/fa';
-import { IconRefresh, IconDownload } from '@douyinfe/semi-icons';
+import { IconRefresh, IconDownload } from '@/components/common/ui/HeroIconsCompat';
 import {
   API,
   showError,

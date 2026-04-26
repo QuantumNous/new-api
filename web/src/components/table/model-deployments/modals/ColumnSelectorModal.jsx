@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
-import { Modal, Button, Checkbox } from '@douyinfe/semi-ui';
+import ColumnSelectorDialog from '../../../common/ui/ColumnSelectorDialog';
 
 const ColumnSelectorModal = ({
   visible,
@@ -68,59 +68,25 @@ const ColumnSelectorModal = ({
     });
   };
 
-  const allSelected = columnOptions.every(
-    ({ key, required }) => required || visibleColumns[key],
-  );
-  const indeterminate =
-    columnOptions.some(
-      ({ key, required }) => !required && visibleColumns[key],
-    ) && !allSelected;
-
-  const handleConfirm = () => onCancel();
-
   return (
-    <Modal
+    <ColumnSelectorDialog
       title={t('列设置')}
       visible={visible}
-      onCancel={onCancel}
-      footer={
-        <div className='flex justify-end gap-2'>
-          <Button onClick={handleReset}>{t('重置')}</Button>
-          <Button onClick={onCancel}>{t('取消')}</Button>
-          <Button type='primary' onClick={handleConfirm}>
-            {t('确定')}
-          </Button>
-        </div>
-      }
-    >
-      <div style={{ marginBottom: 20 }}>
-        <Checkbox
-          checked={allSelected}
-          indeterminate={indeterminate}
-          onChange={(e) => handleSelectAll(e.target.checked)}
-        >
-          {t('全选')}
-        </Checkbox>
-      </div>
-      <div
-        className='flex flex-wrap max-h-96 overflow-y-auto rounded-lg p-4'
-        style={{ border: '1px solid var(--semi-color-border)' }}
-      >
-        {columnOptions.map(({ key, label, required }) => (
-          <div key={key} className='w-1/2 mb-4 pr-2'>
-            <Checkbox
-              checked={!!visibleColumns[key]}
-              disabled={required}
-              onChange={(e) =>
-                handleColumnVisibilityChange(key, e.target.checked)
-              }
-            >
-              {label}
-            </Checkbox>
-          </div>
-        ))}
-      </div>
-    </Modal>
+      onClose={onCancel}
+      resetText={t('重置')}
+      cancelText={t('取消')}
+      confirmText={t('确定')}
+      allText={t('全选')}
+      visibleColumns={visibleColumns}
+      columns={columnOptions.map(({ key, label, required }) => ({
+        key,
+        title: label,
+        disabled: required,
+      }))}
+      onColumnChange={handleColumnVisibilityChange}
+      onSelectAll={handleSelectAll}
+      onReset={handleReset}
+    />
   );
 };
 

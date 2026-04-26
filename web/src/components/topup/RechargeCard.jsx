@@ -18,23 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Avatar,
-  Typography,
-  Card,
-  Button,
-  Banner,
-  Skeleton,
-  Form,
-  Space,
-  Row,
-  Col,
-  Spin,
-  Tooltip,
-  Tag,
-  Tabs,
-  TabPane,
-} from '@douyinfe/semi-ui';
+import { Card, Button, Skeleton, Tooltip } from '@heroui/react';
+import { Avatar, Typography, Banner, Form, Space, Row, Col, Spin, Tag, Tabs, TabPane } from '@/components/common/ui/HeroCompat';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import {
   CreditCard,
@@ -45,7 +30,7 @@ import {
   Receipt,
   Sparkles,
 } from 'lucide-react';
-import { IconGift } from '@douyinfe/semi-icons';
+import { IconGift } from '@/components/common/ui/HeroIconsCompat';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
@@ -356,14 +341,14 @@ const RechargeCard = ({
                                   ) : payMethod.type === 'waffo_pancake' ? (
                                     <CreditCard
                                       size={18}
-                                      color='var(--semi-color-primary)'
+                                      color='var(--app-primary)'
                                     />
                                   ) : (
                                     <CreditCard
                                       size={18}
                                       color={
                                         payMethod.color ||
-                                        'var(--semi-color-text-2)'
+                                        'var(--app-muted)'
                                       }
                                     />
                                   )
@@ -411,7 +396,7 @@ const RechargeCard = ({
                         return (
                           <span
                             style={{
-                              color: 'var(--semi-color-text-2)',
+                              color: 'var(--app-muted)',
                               fontSize: '12px',
                               fontWeight: 'normal',
                             }}
@@ -471,8 +456,8 @@ const RechargeCard = ({
                             cursor: 'pointer',
                             border:
                               selectedPreset === preset.value
-                                ? '2px solid var(--semi-color-primary)'
-                                : '1px solid var(--semi-color-border)',
+                                ? '2px solid var(--app-primary)'
+                                : '1px solid var(--app-border)',
                             height: '100%',
                             width: '100%',
                           }}
@@ -506,7 +491,7 @@ const RechargeCard = ({
                             </Typography.Title>
                             <div
                               style={{
-                                color: 'var(--semi-color-text-2)',
+                                color: 'var(--app-muted)',
                                 fontSize: '12px',
                                 margin: '4px 0',
                               }}

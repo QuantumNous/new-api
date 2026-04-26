@@ -18,16 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 
 const SubscriptionsActions = ({ openCreate, t }) => {
   return (
     <div className='flex gap-2 w-full md:w-auto'>
       <Button
-        type='primary'
+        variant='primary'
         className='w-full md:w-auto'
-        onClick={openCreate}
-        size='small'
+        onPress={openCreate}
+        size='sm'
       >
         {t('新建套餐')}
       </Button>

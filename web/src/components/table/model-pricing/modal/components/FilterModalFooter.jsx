@@ -18,15 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 
 const FilterModalFooter = ({ onReset, onConfirm, t }) => {
   return (
-    <div className='flex justify-end'>
-      <Button theme='outline' type='tertiary' onClick={onReset}>
+    <div className='flex justify-end gap-2'>
+      <Button variant='outline' onPress={onReset}>
         {t('重置')}
       </Button>
-      <Button theme='solid' type='primary' onClick={onConfirm}>
+      <Button variant='primary' onPress={onConfirm}>
         {t('确定')}
       </Button>
     </div>

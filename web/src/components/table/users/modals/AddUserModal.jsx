@@ -17,168 +17,224 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Button, Card, Input } from '@heroui/react';
+import { Save, X, UserPlus } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import {
-  Button,
-  SideSheet,
-  Space,
-  Spin,
-  Typography,
-  Card,
-  Tag,
-  Avatar,
-  Form,
-  Row,
-  Col,
-} from '@douyinfe/semi-ui';
-import { IconSave, IconClose, IconUserAdd } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
-const { Text, Title } = Typography;
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
 
 const AddUserModal = (props) => {
   const { t } = useTranslation();
-  const formApiRef = useRef(null);
-  const [loading, setLoading] = useState(false);
   const isMobile = useIsMobile();
-
-  const getInitValues = () => ({
+  const [loading, setLoading] = useState(false);
+  const [values, setValues] = useState({
     username: '',
     display_name: '',
     password: '',
     remark: '',
   });
+  const [errors, setErrors] = useState({});
 
-  const submit = async (values) => {
-    setLoading(true);
-    const res = await API.post(`/api/user/`, values);
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('用户账户创建成功！'));
-      formApiRef.current?.setValues(getInitValues());
-      props.refresh();
-      props.handleClose();
-    } else {
-      showError(message);
-    }
-    setLoading(false);
+  const setField = (key) => (value) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
   };
 
-  const handleCancel = () => {
-    props.handleClose();
+  const reset = () => {
+    setValues({ username: '', display_name: '', password: '', remark: '' });
+    setErrors({});
+  };
+
+  useEffect(() => {
+    if (!props.visible) reset();
+  }, [props.visible]);
+
+  useEffect(() => {
+    if (!props.visible) return;
+    const onKey = (event) => {
+      if (event.key === 'Escape') props.handleClose?.();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [props.visible, props.handleClose]);
+
+  const validate = () => {
+    const next = {};
+    if (!values.username.trim()) next.username = t('请输入用户名');
+    if (!values.password.trim()) next.password = t('请输入密码');
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const submit = async () => {
+    if (!validate()) return;
+    setLoading(true);
+    try {
+      const res = await API.post('/api/user/', values);
+      const { success, message } = res.data || {};
+      if (success) {
+        showSuccess(t('用户账户创建成功！'));
+        reset();
+        props.refresh?.();
+        props.handleClose?.();
+      } else {
+        showError(message);
+      }
+    } catch (err) {
+      showError(err.response?.data?.message || t('创建失败'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <>
-      <SideSheet
-        placement={'left'}
-        title={
-          <Space>
-            <Tag color='green' shape='circle'>
-              {t('新建')}
-            </Tag>
-            <Title heading={4} className='m-0'>
-              {t('添加用户')}
-            </Title>
-          </Space>
-        }
-        bodyStyle={{ padding: '0' }}
-        visible={props.visible}
-        width={isMobile ? '100%' : 600}
-        footer={
-          <div className='flex justify-end bg-white'>
-            <Space>
-              <Button
-                theme='solid'
-                onClick={() => formApiRef.current?.submitForm()}
-                icon={<IconSave />}
-                loading={loading}
-              >
-                {t('提交')}
-              </Button>
-              <Button
-                theme='light'
-                type='primary'
-                onClick={handleCancel}
-                icon={<IconClose />}
-              >
-                {t('取消')}
-              </Button>
-            </Space>
-          </div>
-        }
-        closeIcon={null}
-        onCancel={() => handleCancel()}
+      <div
+        aria-hidden={!props.visible}
+        onClick={props.handleClose}
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
+          props.visible ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+      <aside
+        role='dialog'
+        aria-modal='true'
+        aria-hidden={!props.visible}
+        style={{ width: isMobile ? '100%' : 600 }}
+        className={`fixed bottom-0 left-0 top-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-950 ${
+          props.visible ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
-        <Spin spinning={loading}>
-          <Form
-            initValues={getInitValues()}
-            getFormApi={(api) => (formApiRef.current = api)}
-            onSubmit={submit}
-            onSubmitFail={(errs) => {
-              const first = Object.values(errs)[0];
-              if (first) showError(Array.isArray(first) ? first[0] : first);
-              formApiRef.current?.scrollToError();
-            }}
+        <header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
+          <div className='flex items-center gap-2'>
+            <span className='inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'>
+              {t('新建')}
+            </span>
+            <h4 className='m-0 text-lg font-semibold text-foreground'>
+              {t('添加用户')}
+            </h4>
+          </div>
+          <Button
+            isIconOnly
+            variant='light'
+            size='sm'
+            aria-label={t('关闭')}
+            onPress={props.handleClose}
           >
-            <div className='p-2'>
-              <Card className='!rounded-2xl shadow-sm border-0'>
-                <div className='flex items-center mb-2'>
-                  <Avatar size='small' color='blue' className='mr-2 shadow-md'>
-                    <IconUserAdd size={16} />
-                  </Avatar>
-                  <div>
-                    <Text className='text-lg font-medium'>{t('用户信息')}</Text>
-                    <div className='text-xs text-gray-600'>
-                      {t('创建新用户账户')}
-                    </div>
+            <X size={16} />
+          </Button>
+        </header>
+
+        <div className='flex-1 overflow-y-auto p-3'>
+          <Card className='!rounded-2xl border-0 shadow-sm'>
+            <Card.Content className='space-y-4 p-5'>
+              <div className='flex items-center gap-2'>
+                <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600 dark:bg-sky-950/40 dark:text-sky-300'>
+                  <UserPlus size={16} />
+                </div>
+                <div>
+                  <div className='text-base font-semibold text-foreground'>
+                    {t('用户信息')}
+                  </div>
+                  <div className='text-xs text-muted'>
+                    {t('创建新用户账户')}
                   </div>
                 </div>
+              </div>
 
-                <Row gutter={12}>
-                  <Col span={24}>
-                    <Form.Input
-                      field='username'
-                      label={t('用户名')}
-                      placeholder={t('请输入用户名')}
-                      rules={[{ required: true, message: t('请输入用户名') }]}
-                      showClear
-                    />
-                  </Col>
-                  <Col span={24}>
-                    <Form.Input
-                      field='display_name'
-                      label={t('显示名称')}
-                      placeholder={t('请输入显示名称')}
-                      showClear
-                    />
-                  </Col>
-                  <Col span={24}>
-                    <Form.Input
-                      field='password'
-                      label={t('密码')}
-                      type='password'
-                      placeholder={t('请输入密码')}
-                      rules={[{ required: true, message: t('请输入密码') }]}
-                      showClear
-                    />
-                  </Col>
-                  <Col span={24}>
-                    <Form.Input
-                      field='remark'
-                      label={t('备注')}
-                      placeholder={t('请输入备注（仅管理员可见）')}
-                      showClear
-                    />
-                  </Col>
-                </Row>
-              </Card>
-            </div>
-          </Form>
-        </Spin>
-      </SideSheet>
+              <div className='space-y-3'>
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('用户名')}
+                    <span className='ml-1 text-red-500'>*</span>
+                  </div>
+                  <Input
+                    type='text'
+                    value={values.username}
+                    onChange={(event) => setField('username')(event.target.value)}
+                    placeholder={t('请输入用户名')}
+                    aria-label={t('用户名')}
+                    className={inputClass}
+                  />
+                  {errors.username ? (
+                    <div className='text-xs text-red-600'>{errors.username}</div>
+                  ) : null}
+                </div>
+
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('显示名称')}
+                  </div>
+                  <Input
+                    type='text'
+                    value={values.display_name}
+                    onChange={(event) =>
+                      setField('display_name')(event.target.value)
+                    }
+                    placeholder={t('请输入显示名称')}
+                    aria-label={t('显示名称')}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('密码')}
+                    <span className='ml-1 text-red-500'>*</span>
+                  </div>
+                  <Input
+                    type='password'
+                    value={values.password}
+                    onChange={(event) => setField('password')(event.target.value)}
+                    placeholder={t('请输入密码')}
+                    aria-label={t('密码')}
+                    className={inputClass}
+                  />
+                  {errors.password ? (
+                    <div className='text-xs text-red-600'>{errors.password}</div>
+                  ) : null}
+                </div>
+
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('备注')}
+                  </div>
+                  <Input
+                    type='text'
+                    value={values.remark}
+                    onChange={(event) => setField('remark')(event.target.value)}
+                    placeholder={t('请输入备注（仅管理员可见）')}
+                    aria-label={t('备注')}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </Card.Content>
+          </Card>
+        </div>
+
+        <footer className='flex justify-end gap-2 border-t border-[color:var(--app-border)] bg-[color:var(--app-background)] px-5 py-3'>
+          <Button
+            variant='light'
+            onPress={props.handleClose}
+            startContent={<X size={14} />}
+          >
+            {t('取消')}
+          </Button>
+          <Button
+            color='primary'
+            onPress={submit}
+            isPending={loading}
+            startContent={<Save size={14} />}
+          >
+            {t('提交')}
+          </Button>
+        </footer>
+      </aside>
     </>
   );
 };

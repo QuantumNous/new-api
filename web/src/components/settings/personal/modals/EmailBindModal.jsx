@@ -18,8 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Input, Modal } from '@douyinfe/semi-ui';
-import { IconMail, IconKey } from '@douyinfe/semi-icons';
+import {
+  Button,
+  Input,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { KeyRound, Mail } from 'lucide-react';
 import Turnstile from 'react-turnstile';
 
 const EmailBindModal = ({
@@ -37,70 +48,102 @@ const EmailBindModal = ({
   turnstileSiteKey,
   setTurnstileToken,
 }) => {
+  const modalState = useOverlayState({
+    isOpen: showEmailBindModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowEmailBindModal(false);
+    },
+  });
+
   return (
-    <Modal
-      title={
-        <div className='flex items-center'>
-          <IconMail className='mr-2 text-blue-500' />
-          {t('绑定邮箱地址')}
-        </div>
-      }
-      visible={showEmailBindModal}
-      onCancel={() => setShowEmailBindModal(false)}
-      onOk={bindEmail}
-      size={'small'}
-      centered={true}
-      maskClosable={false}
-      className='modern-modal'
-    >
-      <div className='space-y-4 py-4'>
-        <div className='flex gap-3'>
-          <Input
-            placeholder={t('输入邮箱地址')}
-            onChange={(value) => handleInputChange('email', value)}
-            name='email'
-            type='email'
-            size='large'
-            className='!rounded-lg flex-1'
-            prefix={<IconMail />}
-          />
-          <Button
-            onClick={sendVerificationCode}
-            disabled={disableButton || loading}
-            className='!rounded-lg'
-            type='primary'
-            theme='outline'
-            size='large'
-          >
-            {disableButton
-              ? `${t('重新发送')} (${countdown})`
-              : t('获取验证码')}
-          </Button>
-        </div>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur' isDismissable={false}>
+        <ModalContainer size='sm' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <div className='flex items-center gap-2'>
+                <Mail className='text-blue-500' size={18} />
+                {t('绑定邮箱地址')}
+              </div>
+            </ModalHeader>
+            <ModalBody className='space-y-4 py-4'>
+              <div className='flex gap-3'>
+                <div className='relative flex-1'>
+                  <Mail
+                    size={16}
+                    className='pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted'
+                  />
+                  <Input
+                    placeholder={t('输入邮箱地址')}
+                    value={inputs.email}
+                    onChange={(event) =>
+                      handleInputChange('email', event.target.value)
+                    }
+                    name='email'
+                    type='email'
+                    size='lg'
+                    className='rounded-lg pl-9'
+                  />
+                </div>
+                <Button
+                  onPress={sendVerificationCode}
+                  isDisabled={disableButton || loading}
+                  isPending={loading}
+                  className='rounded-lg'
+                  variant='outline'
+                  size='lg'
+                >
+                  {disableButton
+                    ? `${t('重新发送')} (${countdown})`
+                    : t('获取验证码')}
+                </Button>
+              </div>
 
-        <Input
-          placeholder={t('验证码')}
-          name='email_verification_code'
-          value={inputs.email_verification_code}
-          onChange={(value) =>
-            handleInputChange('email_verification_code', value)
-          }
-          size='large'
-          className='!rounded-lg'
-          prefix={<IconKey />}
-        />
+              <div className='relative'>
+                <KeyRound
+                  size={16}
+                  className='pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted'
+                />
+                <Input
+                  placeholder={t('验证码')}
+                  name='email_verification_code'
+                  value={inputs.email_verification_code}
+                  onChange={(event) =>
+                    handleInputChange(
+                      'email_verification_code',
+                      event.target.value,
+                    )
+                  }
+                  size='lg'
+                  className='rounded-lg pl-9'
+                />
+              </div>
 
-        {turnstileEnabled && (
-          <div className='flex justify-center'>
-            <Turnstile
-              sitekey={turnstileSiteKey}
-              onVerify={(token) => {
-                setTurnstileToken(token);
-              }}
-            />
-          </div>
-        )}
-      </div>
+              {turnstileEnabled && (
+                <div className='flex justify-center'>
+                  <Turnstile
+                    sitekey={turnstileSiteKey}
+                    onVerify={(token) => {
+                      setTurnstileToken(token);
+                    }}
+                  />
+                </div>
+              )}
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button
+                variant='ghost'
+                onPress={() => setShowEmailBindModal(false)}
+              >
+                {t('取消')}
+              </Button>
+              <Button variant='primary' onPress={bindEmail} isPending={loading}>
+                {t('确定')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

@@ -18,13 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import {
-  TextArea,
-  Typography,
-  Button,
-  Switch,
-  Banner,
-} from '@douyinfe/semi-ui';
+import { Button, Switch } from '@heroui/react';
 import { Code, Edit, Check, X, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -40,7 +34,7 @@ const CustomRequestEditor = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [localValue, setLocalValue] = useState(customRequestBody || '');
 
-  // 当切换到自定义模式时，用默认payload初始化
+  // Initialize with the default payload when custom mode is enabled.
   useEffect(() => {
     if (
       customRequestMode &&
@@ -59,7 +53,7 @@ const CustomRequestEditor = ({
     onCustomRequestBodyChange,
   ]);
 
-  // 同步外部传入的customRequestBody到本地状态
+  // Sync external customRequestBody into local state.
   useEffect(() => {
     if (customRequestBody !== localValue) {
       setLocalValue(customRequestBody || '');
@@ -67,7 +61,7 @@ const CustomRequestEditor = ({
     }
   }, [customRequestBody]);
 
-  // 验证JSON格式
+  // Validate JSON format.
   const validateJson = (value) => {
     if (!value.trim()) {
       setIsValid(true);
@@ -90,7 +84,7 @@ const CustomRequestEditor = ({
   const handleValueChange = (value) => {
     setLocalValue(value);
     validateJson(value);
-    // 始终保存用户输入，让预览逻辑处理JSON解析错误
+    // Always save user input and let preview logic handle JSON parsing errors.
     onCustomRequestBodyChange(value);
   };
 
@@ -112,101 +106,100 @@ const CustomRequestEditor = ({
       setIsValid(true);
       setErrorMessage('');
     } catch (error) {
-      // 如果格式化失败，保持原样
+      // Keep the original value when formatting fails.
     }
   };
 
   return (
     <div className='space-y-4'>
-      {/* 自定义模式开关 */}
+      {/* Custom mode switch */}
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-2'>
           <Code size={16} className='text-gray-500' />
-          <Typography.Text strong className='text-sm'>
+          <span className='text-sm font-semibold text-foreground'>
             {t('自定义请求体模式')}
-          </Typography.Text>
+          </span>
         </div>
         <Switch
-          checked={customRequestMode}
+          isSelected={customRequestMode}
           onChange={handleModeToggle}
-          checkedText={t('开')}
-          uncheckedText={t('关')}
-          size='small'
-        />
+          aria-label={t('自定义请求体模式')}
+          size='sm'
+        >
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+        </Switch>
       </div>
 
       {customRequestMode && (
         <>
-          {/* 提示信息 */}
-          <Banner
-            type='warning'
-            description={t(
-              '启用此模式后，将使用您自定义的请求体发送API请求，模型配置面板的参数设置将被忽略。',
-            )}
-            icon={<AlertTriangle size={16} />}
-            className='!rounded-lg'
-            closeIcon={null}
-          />
+          {/* Help text */}
+          <div className='flex gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning'>
+            <AlertTriangle className='mt-0.5 shrink-0' size={16} />
+            <span>
+              {t(
+                '启用此模式后，将使用您自定义的请求体发送API请求，模型配置面板的参数设置将被忽略。',
+              )}
+            </span>
+          </div>
 
-          {/* JSON编辑器 */}
+          {/* JSON editor */}
           <div>
             <div className='flex items-center justify-between mb-2'>
-              <Typography.Text strong className='text-sm'>
+              <span className='text-sm font-semibold text-foreground'>
                 {t('请求体 JSON')}
-              </Typography.Text>
+              </span>
               <div className='flex items-center gap-2'>
                 {isValid ? (
                   <div className='flex items-center gap-1 text-green-600'>
                     <Check size={14} />
-                    <Typography.Text className='text-xs'>
-                      {t('格式正确')}
-                    </Typography.Text>
+                    <span className='text-xs'>{t('格式正确')}</span>
                   </div>
                 ) : (
                   <div className='flex items-center gap-1 text-red-600'>
                     <X size={14} />
-                    <Typography.Text className='text-xs'>
-                      {t('格式错误')}
-                    </Typography.Text>
+                    <span className='text-xs'>{t('格式错误')}</span>
                   </div>
                 )}
                 <Button
-                  theme='borderless'
-                  type='tertiary'
-                  size='small'
-                  icon={<Edit size={14} />}
-                  onClick={formatJson}
-                  disabled={!isValid}
-                  className='!rounded-lg'
+                  variant='ghost'
+                  size='sm'
+                  onPress={formatJson}
+                  isDisabled={!isValid}
+                  className='rounded-lg'
                 >
+                  <Edit size={14} />
                   {t('格式化')}
                 </Button>
               </div>
             </div>
 
-            <TextArea
+            <textarea
               value={localValue}
-              onChange={handleValueChange}
+              onChange={(event) => handleValueChange(event.target.value)}
               placeholder='{"model": "gpt-4o", "messages": [...], ...}'
-              autosize={{ minRows: 8, maxRows: 20 }}
-              className={`custom-request-textarea !rounded-lg font-mono text-sm ${!isValid ? '!border-red-500' : ''}`}
+              rows={8}
+              className={`custom-request-textarea w-full rounded-lg border bg-background px-3 py-2 font-mono text-sm text-foreground outline-none transition focus:border-accent ${!isValid ? 'border-red-500' : 'border-border'}`}
               style={{
                 fontFamily: 'Consolas, Monaco, "Courier New", monospace',
                 lineHeight: '1.5',
+                maxHeight: 320,
+                resize: 'vertical',
               }}
             />
 
             {!isValid && errorMessage && (
-              <Typography.Text type='danger' className='text-xs mt-1 block'>
+              <span className='mt-1 block text-xs text-danger'>
                 {errorMessage}
-              </Typography.Text>
+              </span>
             )}
 
-            <Typography.Text className='text-xs text-gray-500 mt-2 block'>
+            <span className='mt-2 block text-xs text-gray-500'>
               {t(
                 '请输入有效的JSON格式的请求体。您可以参考预览面板中的默认请求体格式。',
               )}
-            </Typography.Text>
+            </span>
           </div>
         </>
       )}

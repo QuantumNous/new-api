@@ -18,12 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Card, Divider, Typography, Button } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
-import { IconEyeOpened, IconEyeClosed } from '@douyinfe/semi-icons';
-
-const { Text } = Typography;
+import { Eye, EyeOff } from 'lucide-react';
 
 /**
  * CardPro 高级卡片组件
@@ -69,6 +67,7 @@ const CardPro = ({
   };
 
   const hasMobileHideableContent = actionsArea || searchArea;
+  const divider = <div className='my-3 h-px w-full bg-slate-200/80 dark:bg-white/10' />;
 
   const renderHeader = () => {
     const hasContent =
@@ -86,10 +85,9 @@ const CardPro = ({
         )}
 
         {/* 第一个分隔线 - 在描述信息或统计信息后面 */}
-        {((type === 'type1' || type === 'type3') && descriptionArea) ||
-        (type === 'type2' && statsArea) ? (
-          <Divider margin='12px' />
-        ) : null}
+        {(((type === 'type1' || type === 'type3') && descriptionArea) ||
+          (type === 'type2' && statsArea)) &&
+          divider}
 
         {/* 类型切换/标签区域 - 主要用于type3 */}
         {type === 'type3' && tabsArea && <>{tabsArea}</>}
@@ -99,12 +97,11 @@ const CardPro = ({
           <>
             <div className='w-full mb-2'>
               <Button
-                onClick={toggleMobileActions}
-                icon={showMobileActions ? <IconEyeClosed /> : <IconEyeOpened />}
-                type='tertiary'
-                size='small'
-                theme='outline'
-                block
+                onPress={toggleMobileActions}
+                startContent={showMobileActions ? <EyeOff size={16} /> : <Eye size={16} />}
+                variant='bordered'
+                size='sm'
+                className='w-full'
               >
                 {showMobileActions ? t('隐藏操作项') : t('显示操作项')}
               </Button>
@@ -122,7 +119,7 @@ const CardPro = ({
             (Array.isArray(actionsArea) ? (
               actionsArea.map((area, idx) => (
                 <React.Fragment key={idx}>
-                  {idx !== 0 && <Divider />}
+                  {idx !== 0 && divider}
                   <div className='w-full'>{area}</div>
                 </React.Fragment>
               ))
@@ -131,7 +128,7 @@ const CardPro = ({
             ))}
 
           {/* 当同时存在操作区和搜索区时，插入分隔线 */}
-          {actionsArea && searchArea && <Divider />}
+          {actionsArea && searchArea && divider}
 
           {/* 搜索表单区域 - 所有类型都可能有 */}
           {searchArea && <div className='w-full'>{searchArea}</div>}
@@ -148,8 +145,7 @@ const CardPro = ({
 
     return (
       <div
-        className={`flex w-full pt-4 border-t ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
-        style={{ borderColor: 'var(--semi-color-border)' }}
+        className={`flex w-full border-t border-slate-200/80 pt-4 dark:border-white/10 ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
       >
         {paginationArea}
       </div>
@@ -159,17 +155,16 @@ const CardPro = ({
   const footerContent = renderFooter();
 
   return (
-    <Card
-      className={`table-scroll-card !rounded-2xl ${className}`}
-      title={headerContent}
-      footer={footerContent}
-      shadows={shadows}
-      bordered={bordered}
+    <section
+      className={`table-scroll-card rounded-2xl bg-white/90 shadow-sm backdrop-blur dark:bg-slate-950/70 ${bordered ? 'border border-slate-200/80 dark:border-white/10' : ''} ${className}`}
       style={style}
+      data-shadow={shadows || undefined}
       {...props}
     >
-      {children}
-    </Card>
+      {headerContent && <div className='p-4 pb-3'>{headerContent}</div>}
+      <div className='p-4 pt-0'>{children}</div>
+      {footerContent && <div className='px-4 pb-4'>{footerContent}</div>}
+    </section>
   );
 };
 

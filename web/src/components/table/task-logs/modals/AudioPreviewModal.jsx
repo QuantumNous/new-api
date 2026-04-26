@@ -18,11 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Modal, Typography, Tag, Button } from '@douyinfe/semi-ui';
-import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
+import {
+  Button,
+  Chip,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { Copy, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-
-const { Text, Title } = Typography;
 
 const formatDuration = (seconds) => {
   if (!seconds || seconds <= 0) return '--:--';
@@ -47,86 +55,53 @@ const AudioClipCard = ({ clip }) => {
   const audioUrl = clip.audio_url;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: '16px',
-        padding: '16px',
-        borderRadius: '8px',
-        border: '1px solid var(--semi-color-border)',
-        background: 'var(--semi-color-bg-1)',
-      }}
-    >
+    <div className='flex gap-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900/70'>
       {imageUrl && (
         <img
           src={imageUrl}
           alt={title}
-          style={{
-            width: 80,
-            height: 80,
-            borderRadius: '8px',
-            objectFit: 'cover',
-            flexShrink: 0,
-          }}
+          className='h-20 w-20 shrink-0 rounded-xl object-cover'
           onError={(e) => {
             e.target.style.display = 'none';
           }}
         />
       )}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginBottom: '4px',
-          }}
-        >
-          <Text strong ellipsis={{ showTooltip: true }} style={{ fontSize: 15 }}>
+      <div className='min-w-0 flex-1'>
+        <div className='mb-1 flex items-center gap-2'>
+          <span className='truncate text-[15px] font-semibold text-slate-800 dark:text-slate-100'>
             {title}
-          </Text>
+          </span>
           {duration > 0 && (
-            <Tag size='small' color='grey' shape='circle'>
+            <Chip size='sm' variant='flat'>
               {formatDuration(duration)}
-            </Tag>
+            </Chip>
           )}
         </div>
 
         {tags && (
-          <div style={{ marginBottom: '8px' }}>
-            <Text
-              type='tertiary'
-              size='small'
-              ellipsis={{ showTooltip: true, rows: 1 }}
-            >
-              {tags}
-            </Text>
+          <div className='mb-2 truncate text-xs text-slate-500 dark:text-slate-400'>
+            {tags}
           </div>
         )}
 
         {hasError ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              flexWrap: 'wrap',
-            }}
-          >
-            <Text type='warning' size='small'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <span className='text-sm text-warning'>
               {t('音频无法播放')}
-            </Text>
+            </span>
             <Button
-              size='small'
-              icon={<IconExternalOpen />}
-              onClick={() => window.open(audioUrl, '_blank')}
+              size='sm'
+              startContent={<ExternalLink size={16} />}
+              onPress={() => window.open(audioUrl, '_blank')}
+              variant='flat'
             >
               {t('在新标签页中打开')}
             </Button>
             <Button
-              size='small'
-              icon={<IconCopy />}
-              onClick={() => navigator.clipboard.writeText(audioUrl)}
+              size='sm'
+              startContent={<Copy size={16} />}
+              onPress={() => navigator.clipboard.writeText(audioUrl)}
+              variant='flat'
             >
               {t('复制链接')}
             </Button>
@@ -138,7 +113,7 @@ const AudioClipCard = ({ clip }) => {
             controls
             preload='none'
             onError={() => setHasError(true)}
-            style={{ width: '100%', height: 36 }}
+            className='h-9 w-full'
           />
         )}
       </div>
@@ -149,31 +124,37 @@ const AudioClipCard = ({ clip }) => {
 const AudioPreviewModal = ({ isModalOpen, setIsModalOpen, audioClips }) => {
   const { t } = useTranslation();
   const clips = Array.isArray(audioClips) ? audioClips : [];
+  const modalState = useOverlayState({
+    isOpen: isModalOpen,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setIsModalOpen(false);
+    },
+  });
 
   return (
-    <Modal
-      title={t('音乐预览')}
-      visible={isModalOpen}
-      onOk={() => setIsModalOpen(false)}
-      onCancel={() => setIsModalOpen(false)}
-      closable={null}
-      footer={null}
-      bodyStyle={{
-        maxHeight: '70vh',
-        overflow: 'auto',
-        padding: '16px',
-      }}
-      width={560}
-    >
-      {clips.length === 0 ? (
-        <Text type='tertiary'>{t('无')}</Text>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {clips.map((clip, idx) => (
-            <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
-          ))}
-        </div>
-      )}
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='2xl' scroll='inside'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {t('音乐预览')}
+            </ModalHeader>
+            <ModalBody className='max-h-[70vh] p-4'>
+              {clips.length === 0 ? (
+                <span className='text-sm text-slate-500 dark:text-slate-400'>
+                  {t('无')}
+                </span>
+              ) : (
+                <div className='flex flex-col gap-3'>
+                  {clips.map((clip, idx) => (
+                    <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
+                  ))}
+                </div>
+              )}
+            </ModalBody>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

@@ -37,7 +37,6 @@ import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import { useChannelUpstreamUpdates } from './useChannelUpstreamUpdates';
 import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
-import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 
 export const useChannelsData = () => {
@@ -659,7 +658,7 @@ export const useChannelsData = () => {
     if (record.status !== 1) {
       return {
         style: {
-          background: 'var(--semi-color-disabled-border)',
+          background: 'var(--app-border)',
         },
       };
     } else {
@@ -823,29 +822,13 @@ export const useChannelsData = () => {
           }
         };
 
-        Modal.info({
-          title: t('Ollama 版本信息'),
-          content: infoMessage,
-          centered: true,
-          footer: (
-            <div className='flex justify-end gap-2'>
-              <Button type='tertiary' onClick={handleCopyVersion}>
-                {t('复制版本号')}
-              </Button>
-              <Button
-                type='primary'
-                theme='solid'
-                onClick={() => Modal.destroyAll()}
-              >
-                {t('关闭')}
-              </Button>
-            </div>
-          ),
-          hasCancel: false,
-          hasOk: false,
-          closable: true,
-          maskClosable: true,
-        });
+        showInfo(infoMessage);
+        const shouldCopy = window.confirm(
+          `${infoMessage}\n\n${t('是否复制版本号到剪贴板？')}`,
+        );
+        if (shouldCopy) {
+          await handleCopyVersion();
+        }
       } else {
         showError(message || t('获取 Ollama 版本失败'));
       }

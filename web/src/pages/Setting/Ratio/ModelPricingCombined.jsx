@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Radio, RadioGroup } from '@douyinfe/semi-ui';
+import { Button, ButtonGroup } from '@heroui/react';
 import { useTranslation } from 'react-i18next';
 import ModelPricingEditor from './components/ModelPricingEditor';
 import ModelRatioSettings from './ModelRatioSettings';
@@ -29,16 +29,21 @@ export default function ModelPricingCombined({ options, refresh }) {
 
   return (
     <div>
-      <div style={{ marginTop: 12, marginBottom: 16 }}>
-        <RadioGroup
-          type='button'
-          size='small'
-          value={editMode}
-          onChange={(e) => setEditMode(e.target.value)}
-        >
-          <Radio value='visual'>{t('可视化编辑')}</Radio>
-          <Radio value='manual'>{t('手动编辑')}</Radio>
-        </RadioGroup>
+      <div className='mb-4 mt-3'>
+        <ButtonGroup size='sm' variant='outline'>
+          <Button
+            variant={editMode === 'visual' ? 'primary' : 'outline'}
+            onPress={() => setEditMode('visual')}
+          >
+            {t('可视化编辑')}
+          </Button>
+          <Button
+            variant={editMode === 'manual' ? 'primary' : 'outline'}
+            onPress={() => setEditMode('manual')}
+          >
+            {t('手动编辑')}
+          </Button>
+        </ButtonGroup>
       </div>
       {editMode === 'visual' ? (
         <ModelPricingEditor options={options} refresh={refresh} />

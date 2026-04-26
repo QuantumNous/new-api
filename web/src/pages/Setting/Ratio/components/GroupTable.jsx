@@ -1,17 +1,8 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import {
-  Button,
-  Input,
-  InputNumber,
-  Checkbox,
-  Typography,
-  Popconfirm,
-} from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete } from '@douyinfe/semi-icons';
+import { Button, Input } from '@heroui/react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CardTable from '../../../../components/common/ui/CardTable';
-
-const { Text } = Typography;
 
 let _idCounter = 0;
 const uid = () => `gr_${++_idCounter}`;
@@ -61,6 +52,9 @@ export function serializeGroupTable(rows) {
   };
 }
 
+const baseInputClass =
+  'h-8 w-full rounded-md border border-[color:var(--app-border)] bg-background px-2 text-sm text-foreground outline-none transition focus:border-primary';
+
 export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
   const { t } = useTranslation();
 
@@ -68,9 +62,6 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
     buildRows(groupRatio, userUsableGroups),
   );
 
-  // Use functional setRows to keep updateRow/addRow/removeRow referentially
-  // stable, preventing columns useMemo from rebuilding on every keystroke
-  // which causes the Input cursor to jump to end (cursor reset bug).
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -115,9 +106,13 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
 
   const removeRow = useCallback(
     (id) => {
+      // eslint-disable-next-line no-alert
+      if (typeof window !== 'undefined' && !window.confirm(t('确认删除该分组？'))) {
+        return;
+      }
       emitAndSet((prev) => prev.filter((r) => r._id !== id));
     },
-    [emitAndSet],
+    [emitAndSet, t],
   );
 
   const groupNames = useMemo(() => rows.map((r) => r.name), [rows]);
@@ -130,8 +125,6 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
     return new Set(Object.keys(counts).filter((k) => counts[k] > 1));
   }, [groupNames]);
 
-  // Use ref so column render functions always read the latest duplicate set
-  // without adding duplicateNames to columns deps (which would break cursor).
   const duplicateNamesRef = useRef(duplicateNames);
   duplicateNamesRef.current = duplicateNames;
 
@@ -142,16 +135,20 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
         dataIndex: 'name',
         key: 'name',
         width: 180,
-        render: (_, record) => (
-          <Input
-            size='small'
-            value={record.name}
-            status={
-              duplicateNamesRef.current.has(record.name) ? 'warning' : undefined
-            }
-            onChange={(v) => updateRow(record._id, 'name', v)}
-          />
-        ),
+        render: (_, record) => {
+          const isDup = duplicateNamesRef.current.has(record.name);
+          return (
+            <Input
+              type='text'
+              value={record.name}
+              onChange={(event) => updateRow(record._id, 'name', event.target.value)}
+              aria-label={t('分组名称')}
+              className={`${baseInputClass} ${
+                isDup ? 'border-amber-400 focus:border-amber-500' : ''
+              }`}
+            />
+          );
+        },
       },
       {
         title: t('倍率'),
@@ -159,13 +156,17 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
         key: 'ratio',
         width: 120,
         render: (_, record) => (
-          <InputNumber
-            size='small'
+          <Input
+            type='number'
+            value={record.ratio === '' || record.ratio == null ? '' : String(record.ratio)}
             min={0}
             step={0.1}
-            value={record.ratio}
-            style={{ width: '100%' }}
-            onChange={(v) => updateRow(record._id, 'ratio', v ?? 0)}
+            onChange={(event) => {
+              const v = event.target.value;
+              updateRow(record._id, 'ratio', v === '' ? 0 : Number(v));
+            }}
+            aria-label={t('倍率')}
+            className={baseInputClass}
           />
         ),
       },
@@ -176,11 +177,14 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
         width: 90,
         align: 'center',
         render: (_, record) => (
-          <Checkbox
-            checked={record.selectable}
-            onChange={(e) =>
-              updateRow(record._id, 'selectable', e.target.checked)
+          <input
+            type='checkbox'
+            checked={!!record.selectable}
+            onChange={(event) =>
+              updateRow(record._id, 'selectable', event.target.checked)
             }
+            aria-label={t('用户可选')}
+            className='h-4 w-4 accent-primary'
           />
         ),
       },
@@ -191,15 +195,17 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
         render: (_, record) =>
           record.selectable ? (
             <Input
-              size='small'
-              value={record.description}
+              type='text'
+              value={record.description || ''}
               placeholder={t('分组描述')}
-              onChange={(v) => updateRow(record._id, 'description', v)}
+              onChange={(event) =>
+                updateRow(record._id, 'description', event.target.value)
+              }
+              aria-label={t('分组描述')}
+              className={baseInputClass}
             />
           ) : (
-            <Text type='tertiary' size='small'>
-              -
-            </Text>
+            <span className='text-sm text-muted'>-</span>
           ),
       },
       {
@@ -207,18 +213,16 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
         key: 'actions',
         width: 50,
         render: (_, record) => (
-          <Popconfirm
-            title={t('确认删除该分组？')}
-            onConfirm={() => removeRow(record._id)}
-            position='left'
+          <Button
+            isIconOnly
+            variant='light'
+            color='danger'
+            size='sm'
+            onPress={() => removeRow(record._id)}
+            aria-label={t('删除该分组')}
           >
-            <Button
-              icon={<IconDelete />}
-              type='danger'
-              theme='borderless'
-              size='small'
-            />
-          </Popconfirm>
+            <Trash2 size={14} />
+          </Button>
         ),
       },
     ],
@@ -233,18 +237,27 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
         rowKey='_id'
         hidePagination
         size='small'
-        empty={<Text type='tertiary'>{t('暂无分组，点击下方按钮添加')}</Text>}
+        empty={
+          <span className='text-sm text-muted'>
+            {t('暂无分组，点击下方按钮添加')}
+          </span>
+        }
       />
       <div className='mt-3 flex justify-center'>
-        <Button icon={<IconPlus />} theme='outline' onClick={addRow}>
+        <Button
+          variant='bordered'
+          startContent={<Plus size={14} />}
+          onPress={addRow}
+          size='sm'
+        >
           {t('添加分组')}
         </Button>
       </div>
       {duplicateNames.size > 0 && (
-        <Text type='warning' size='small' className='mt-2 block'>
+        <div className='mt-2 text-xs text-amber-600 dark:text-amber-300'>
           {t('存在重复的分组名称：')}
           {Array.from(duplicateNames).join(', ')}
-        </Text>
+        </div>
       )}
     </div>
   );

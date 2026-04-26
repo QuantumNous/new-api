@@ -18,8 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Avatar, Tag, Table, Typography } from '@douyinfe/semi-ui';
-import { IconPriceTag } from '@douyinfe/semi-icons';
+import {
+  Avatar,
+  Tag,
+  Table,
+  Typography,
+} from '@/components/common/ui/HeroCompat';
+import { IconPriceTag } from '@/components/common/ui/HeroIconsCompat';
 import { parseTiersFromExpr, getCurrencyConfig } from '../../../../../helpers';
 import { BILLING_PRICING_VARS } from '../../../../../constants';
 import {

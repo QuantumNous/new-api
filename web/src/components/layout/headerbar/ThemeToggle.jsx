@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo } from 'react';
-import { Button, Dropdown } from '@douyinfe/semi-ui';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useActualTheme } from '../../../context/Theme';
 
 const ThemeToggle = ({ theme, onThemeToggle, t }) => {
   const actualTheme = useActualTheme();
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   const themeOptions = useMemo(
     () => [
@@ -52,59 +53,93 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
     [t],
   );
 
-  const getItemClassName = (isSelected) =>
-    isSelected
-      ? '!bg-semi-color-primary-light-default !font-semibold'
-      : 'hover:!bg-semi-color-fill-1';
-
   const currentButtonIcon = useMemo(() => {
     const currentOption = themeOptions.find((option) => option.key === theme);
     return currentOption?.buttonIcon || themeOptions[2].buttonIcon;
   }, [theme, themeOptions]);
 
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!dropdownRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  const handleThemeSelect = (key) => {
+    onThemeToggle(key);
+    setOpen(false);
+  };
+
   return (
-    <Dropdown
-      position='bottomRight'
-      render={
-        <Dropdown.Menu>
+    <div className='relative' ref={dropdownRef}>
+      <button
+        type='button'
+        aria-label={t('切换主题')}
+        aria-haspopup='menu'
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/[0.04] text-slate-700 transition-colors hover:bg-slate-900/[0.07] dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15'
+      >
+        {currentButtonIcon}
+      </button>
+
+      {open ? (
+        <div
+          role='menu'
+          aria-label={t('切换主题')}
+          className='absolute right-0 top-full z-50 mt-2 min-w-52 rounded-2xl border border-slate-200/80 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/95'
+        >
           {themeOptions.map((option) => (
-            <Dropdown.Item
+            <button
               key={option.key}
-              icon={option.icon}
-              onClick={() => onThemeToggle(option.key)}
-              className={getItemClassName(theme === option.key)}
+              type='button'
+              role='menuitemradio'
+              aria-checked={theme === option.key}
+              onClick={() => handleThemeSelect(option.key)}
+              className={`flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-900/[0.04] dark:hover:bg-white/10 ${
+                theme === option.key ? 'bg-primary/10 text-primary' : ''
+              }`}
             >
-              <div className='flex flex-col'>
+              <span className='mt-0.5 text-slate-500 dark:text-slate-400'>
+                {option.icon}
+              </span>
+              <span className='flex flex-col'>
                 <span>{option.label}</span>
-                <span className='text-xs text-semi-color-text-2'>
+                <span className='text-xs text-slate-500 dark:text-slate-400'>
                   {option.description}
                 </span>
-              </div>
-            </Dropdown.Item>
+              </span>
+            </button>
           ))}
 
-          {theme === 'auto' && (
-            <>
-              <Dropdown.Divider />
-              <div className='px-3 py-2 text-xs text-semi-color-text-2'>
-                {t('当前跟随系统')}：
-                {actualTheme === 'dark' ? t('深色') : t('浅色')}
-              </div>
-            </>
-          )}
-        </Dropdown.Menu>
-      }
-    >
-      <span className='inline-flex'>
-        <Button
-          icon={currentButtonIcon}
-          aria-label={t('切换主题')}
-          theme='borderless'
-          type='tertiary'
-          className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 !rounded-full !bg-semi-color-fill-0 hover:!bg-semi-color-fill-1'
-        />
-      </span>
-    </Dropdown>
+          {theme === 'auto' ? (
+            <div className='px-3 py-2 text-xs text-slate-500 dark:text-slate-400'>
+              {t('当前跟随系统')}：
+              {actualTheme === 'dark' ? t('深色') : t('浅色')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 };
 

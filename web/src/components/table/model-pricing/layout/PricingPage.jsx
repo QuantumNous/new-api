@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Layout, ImagePreview } from '@douyinfe/semi-ui';
 import PricingSidebar from './PricingSidebar';
 import PricingContent from './content/PricingContent';
 import ModelDetailSideSheet from '../modal/ModelDetailSideSheet';
@@ -27,7 +26,6 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const PricingPage = () => {
   const pricingData = useModelPricingData();
-  const { Sider, Content } = Layout;
   const isMobile = useIsMobile();
   const [showRatio, setShowRatio] = React.useState(false);
   const [viewMode, setViewMode] = React.useState('card');
@@ -40,28 +38,36 @@ const PricingPage = () => {
   };
 
   return (
-    <div className='bg-white'>
-      <Layout className='pricing-layout'>
+    <div className='h-[100dvh] overflow-hidden bg-background pt-[60px]'>
+      <div className='flex h-[calc(100dvh-60px)] min-h-0 bg-transparent'>
         {!isMobile && (
-          <Sider className='pricing-scroll-hide pricing-sidebar'>
+          <aside className='pricing-scroll-hide h-full w-72 shrink-0 overflow-y-auto border-r border-border bg-background px-2 py-4'>
             <PricingSidebar {...allProps} />
-          </Sider>
+          </aside>
         )}
 
-        <Content className='pricing-scroll-hide pricing-content'>
+        <main className='pricing-scroll-hide h-full min-w-0 flex-1 overflow-y-auto bg-background'>
           <PricingContent
             {...allProps}
             isMobile={isMobile}
             sidebarProps={allProps}
           />
-        </Content>
-      </Layout>
+        </main>
+      </div>
 
-      <ImagePreview
-        src={pricingData.modalImageUrl}
-        visible={pricingData.isModalOpenurl}
-        onVisibleChange={(visible) => pricingData.setIsModalOpenurl(visible)}
-      />
+      {pricingData.isModalOpenurl && pricingData.modalImageUrl ? (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4'
+          onClick={() => pricingData.setIsModalOpenurl(false)}
+        >
+          <img
+            src={pricingData.modalImageUrl}
+            alt=''
+            className='max-h-[90vh] max-w-[90vw] rounded-2xl bg-white object-contain shadow-2xl'
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      ) : null}
 
       <ModelDetailSideSheet
         visible={pricingData.showModelDetail}

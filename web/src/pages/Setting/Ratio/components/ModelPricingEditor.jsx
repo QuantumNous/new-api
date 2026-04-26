@@ -18,28 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useCallback, useMemo, useState } from 'react';
+import { Button, Card, Input, Switch } from '@heroui/react';
 import {
   Banner,
-  Button,
-  Card,
   Checkbox,
   Empty,
-  Input,
   Modal,
   Radio,
   RadioGroup,
   Space,
-  Switch,
   Table,
   Tag,
   Typography,
-} from '@douyinfe/semi-ui';
+} from '@/components/common/ui/HeroCompat';
 import {
   IconDelete,
   IconPlus,
   IconSave,
   IconSearch,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import { useTranslation } from 'react-i18next';
 import {
   PAGE_SIZE,
@@ -163,7 +160,7 @@ export default function ModelPricingEditor({
                 padding: 0,
                 color:
                   record.name === selectedModelName
-                    ? 'var(--semi-color-primary)'
+                    ? 'var(--app-primary)'
                     : undefined,
               }}
             >
@@ -307,9 +304,9 @@ export default function ModelPricingEditor({
               width: '100%',
               padding: '10px 12px',
               borderRadius: 8,
-              background: 'var(--semi-color-primary-light-default)',
-              border: '1px solid var(--semi-color-primary)',
-              color: 'var(--semi-color-primary)',
+              background: 'color-mix(in srgb, var(--app-primary) 12%, transparent)',
+              border: '1px solid var(--app-primary)',
+              color: 'var(--app-primary)',
               fontWeight: 600,
             }}
           >
@@ -353,14 +350,14 @@ export default function ModelPricingEditor({
                 onRow={(record) => ({
                   style: {
                     background: selectedModelNames.includes(record.name)
-                      ? 'var(--semi-color-success-light-default)'
+                      ? 'color-mix(in srgb, var(--app-success) 12%, transparent)'
                       : record.name === selectedModelName
-                        ? 'var(--semi-color-primary-light-default)'
+                        ? 'color-mix(in srgb, var(--app-primary) 12%, transparent)'
                         : undefined,
                     boxShadow: selectedModelNames.includes(record.name)
-                      ? 'inset 4px 0 0 var(--semi-color-success)'
+                      ? 'inset 4px 0 0 var(--app-success)'
                       : record.name === selectedModelName
-                        ? 'inset 4px 0 0 var(--semi-color-primary)'
+                        ? 'inset 4px 0 0 var(--app-primary)'
                         : undefined,
                     transition: 'background 0.2s ease, box-shadow 0.2s ease',
                   },
@@ -428,7 +425,7 @@ export default function ModelPricingEditor({
                     bodyStyle={{ padding: 12 }}
                     style={{
                       marginBottom: 16,
-                      background: 'var(--semi-color-warning-light-default)',
+                      background: 'color-mix(in srgb, var(--app-warning) 12%, transparent)',
                     }}
                   >
                     <div className='font-medium mb-2'>{t('当前提示')}</div>
@@ -463,7 +460,7 @@ export default function ModelPricingEditor({
                       bodyStyle={{ padding: 16 }}
                       style={{
                         marginBottom: 16,
-                        background: 'var(--semi-color-fill-0)',
+                        background: 'var(--app-surface-muted)',
                       }}
                     >
                       <div className='font-medium mb-3'>{t('基础价格')}</div>
@@ -592,7 +589,7 @@ export default function ModelPricingEditor({
                       bodyStyle={{ padding: 16 }}
                       style={{
                         marginBottom: 16,
-                        background: 'var(--semi-color-fill-0)',
+                        background: 'var(--app-surface-muted)',
                       }}
                     >
                       <div className='mb-3'>
@@ -700,7 +697,7 @@ export default function ModelPricingEditor({
 
                 <Card
                   bodyStyle={{ padding: 16 }}
-                  style={{ background: 'var(--semi-color-fill-0)' }}
+                  style={{ background: 'var(--app-surface-muted)' }}
                 >
                   <div className='font-medium mb-3'>{t('保存预览')}</div>
                   <div className='text-xs text-gray-500 mb-3'>

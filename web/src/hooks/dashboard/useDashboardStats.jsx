@@ -18,17 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useMemo } from 'react';
-import { Wallet, Activity, Zap, Gauge } from 'lucide-react';
 import {
-  IconMoneyExchangeStroked,
-  IconHistogram,
-  IconCoinMoneyStroked,
-  IconTextStroked,
-  IconPulse,
-  IconStopwatchStroked,
-  IconTypograph,
-  IconSend,
-} from '@douyinfe/semi-icons';
+  Activity,
+  BarChart3,
+  CircleDollarSign,
+  Coins,
+  Gauge,
+  Send,
+  Timer,
+  Type,
+  Wallet,
+  Waves,
+  Zap,
+} from 'lucide-react';
 import { renderQuota } from '../../helpers';
 import { createSectionTitle } from '../../helpers/dashboard';
 
@@ -46,12 +48,12 @@ export const useDashboardStats = (
     () => [
       {
         title: createSectionTitle(Wallet, t('账户数据')),
-        color: 'bg-blue-50',
+        color: '',
         items: [
           {
             title: t('当前余额'),
             value: renderQuota(userState?.user?.quota),
-            icon: <IconMoneyExchangeStroked />,
+            icon: <CircleDollarSign size={16} />,
             avatarColor: 'blue',
             trendData: [],
             trendColor: '#3b82f6',
@@ -59,7 +61,7 @@ export const useDashboardStats = (
           {
             title: t('历史消耗'),
             value: renderQuota(userState?.user?.used_quota),
-            icon: <IconHistogram />,
+            icon: <BarChart3 size={16} />,
             avatarColor: 'purple',
             trendData: [],
             trendColor: '#8b5cf6',
@@ -68,12 +70,12 @@ export const useDashboardStats = (
       },
       {
         title: createSectionTitle(Activity, t('使用统计')),
-        color: 'bg-green-50',
+        color: '',
         items: [
           {
             title: t('请求次数'),
             value: userState.user?.request_count,
-            icon: <IconSend />,
+            icon: <Send size={16} />,
             avatarColor: 'green',
             trendData: [],
             trendColor: '#10b981',
@@ -81,7 +83,7 @@ export const useDashboardStats = (
           {
             title: t('统计次数'),
             value: times,
-            icon: <IconPulse />,
+            icon: <Waves size={16} />,
             avatarColor: 'cyan',
             trendData: trendData.times,
             trendColor: '#06b6d4',
@@ -90,12 +92,12 @@ export const useDashboardStats = (
       },
       {
         title: createSectionTitle(Zap, t('资源消耗')),
-        color: 'bg-yellow-50',
+        color: '',
         items: [
           {
             title: t('统计额度'),
             value: renderQuota(consumeQuota),
-            icon: <IconCoinMoneyStroked />,
+            icon: <Coins size={16} />,
             avatarColor: 'yellow',
             trendData: trendData.consumeQuota,
             trendColor: '#f59e0b',
@@ -103,7 +105,7 @@ export const useDashboardStats = (
           {
             title: t('统计Tokens'),
             value: isNaN(consumeTokens) ? 0 : consumeTokens.toLocaleString(),
-            icon: <IconTextStroked />,
+            icon: <Type size={16} />,
             avatarColor: 'pink',
             trendData: trendData.tokens,
             trendColor: '#ec4899',
@@ -112,12 +114,12 @@ export const useDashboardStats = (
       },
       {
         title: createSectionTitle(Gauge, t('性能指标')),
-        color: 'bg-indigo-50',
+        color: '',
         items: [
           {
             title: t('平均RPM'),
             value: performanceMetrics.avgRPM,
-            icon: <IconStopwatchStroked />,
+            icon: <Timer size={16} />,
             avatarColor: 'indigo',
             trendData: trendData.rpm,
             trendColor: '#6366f1',
@@ -125,7 +127,7 @@ export const useDashboardStats = (
           {
             title: t('平均TPM'),
             value: performanceMetrics.avgTPM,
-            icon: <IconTypograph />,
+            icon: <Gauge size={16} />,
             avatarColor: 'orange',
             trendData: trendData.tpm,
             trendColor: '#f97316',

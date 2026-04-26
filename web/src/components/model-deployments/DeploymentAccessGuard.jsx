@@ -18,12 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Button, Typography } from '@douyinfe/semi-ui';
+import { Button, Card, Spinner } from '@heroui/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Server, AlertCircle, WifiOff } from 'lucide-react';
-
-const { Title, Text } = Typography;
 
 const DeploymentAccessGuard = ({
   children,
@@ -44,9 +42,12 @@ const DeploymentAccessGuard = ({
   if (loading) {
     return (
       <div className='mt-[60px] px-2'>
-        <Card loading={true} style={{ minHeight: '400px' }}>
-          <div style={{ textAlign: 'center', padding: '50px 0' }}>
-            <Text type='secondary'>{t('加载设置中...')}</Text>
+        <Card className='min-h-[400px] rounded-2xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-800 dark:bg-slate-950/80'>
+          <div className='flex flex-col items-center justify-center gap-3 py-20 text-center'>
+            <Spinner size='lg' />
+            <span className='text-sm text-slate-500 dark:text-slate-400'>
+              {t('加载设置中...')}
+            </span>
           </div>
         </Card>
       </div>
@@ -55,225 +56,63 @@ const DeploymentAccessGuard = ({
 
   if (!isEnabled) {
     return (
-      <div
-        className='mt-[60px] px-4'
-        style={{
-          minHeight: 'calc(100vh - 60px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '600px',
-            width: '100%',
-            textAlign: 'center',
-            padding: '0 20px',
-          }}
-        >
-          <Card
-            style={{
-              padding: '60px 40px',
-              borderRadius: '16px',
-              border: '1px solid var(--semi-color-border)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-              background:
-                'linear-gradient(135deg, var(--semi-color-bg-0) 0%, var(--semi-color-fill-0) 100%)',
-            }}
-          >
-            {/* 图标区域 */}
-            <div style={{ marginBottom: '32px' }}>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  background:
-                    'linear-gradient(135deg, rgba(var(--semi-orange-4), 0.15) 0%, rgba(var(--semi-orange-5), 0.1) 100%)',
-                  border: '3px solid rgba(var(--semi-orange-4), 0.3)',
-                  marginBottom: '24px',
-                }}
-              >
-                <AlertCircle size={56} color='var(--semi-color-warning)' />
+      <div className='mt-[60px] flex min-h-[calc(100vh-60px)] items-center justify-center px-4'>
+        <div className='w-full max-w-2xl px-5 text-center'>
+          <Card className='rounded-[28px] border border-amber-200/70 bg-gradient-to-br from-white to-amber-50/70 p-10 shadow-[0_24px_80px_rgba(15,23,42,0.12)] dark:border-amber-900/40 dark:from-slate-950 dark:to-amber-950/20'>
+            <div className='mb-8'>
+              <div className='mb-6 inline-flex h-28 w-28 items-center justify-center rounded-full border-4 border-amber-200 bg-amber-100/80 text-amber-600 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300'>
+                <AlertCircle size={56} />
               </div>
             </div>
 
-            {/* 标题区域 */}
-            <div style={{ marginBottom: '24px' }}>
-              <Title
-                heading={2}
-                style={{
-                  color: 'var(--semi-color-text-0)',
-                  margin: '0 0 12px 0',
-                  fontSize: '28px',
-                  fontWeight: '700',
-                }}
-              >
+            <div className='mb-6'>
+              <h2 className='mb-3 text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-50'>
                 {t('模型部署服务未启用')}
-              </Title>
-              <Text
-                style={{
-                  fontSize: '18px',
-                  lineHeight: '1.6',
-                  color: 'var(--semi-color-text-1)',
-                  display: 'block',
-                }}
-              >
+              </h2>
+              <p className='text-lg leading-8 text-slate-600 dark:text-slate-300'>
                 {t('访问模型部署功能需要先启用 io.net 部署服务')}
-              </Text>
+              </p>
             </div>
 
-            {/* 配置要求区域 */}
-            <div
-              style={{
-                backgroundColor: 'var(--semi-color-bg-1)',
-                padding: '24px',
-                borderRadius: '12px',
-                border: '1px solid var(--semi-color-border)',
-                margin: '32px 0',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '12px',
-                  marginBottom: '16px',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    backgroundColor: 'rgba(var(--semi-blue-4), 0.15)',
-                  }}
-                >
-                  <Server size={20} color='var(--semi-color-primary)' />
+            <div className='my-8 rounded-2xl border border-slate-200 bg-white/75 p-6 text-left shadow-sm dark:border-slate-800 dark:bg-slate-900/60'>
+              <div className='mb-4 flex items-center justify-center gap-3 text-center'>
+                <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-300'>
+                  <Server size={20} />
                 </div>
-                <Text
-                  strong
-                  style={{
-                    fontSize: '16px',
-                    color: 'var(--semi-color-text-0)',
-                  }}
-                >
+                <span className='font-semibold text-slate-900 dark:text-slate-100'>
                   {t('需要配置的项目')}
-                </Text>
+                </span>
               </div>
 
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  alignItems: 'flex-start',
-                  textAlign: 'left',
-                  maxWidth: '320px',
-                  margin: '0 auto',
-                }}
-              >
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
-                >
-                  <div
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--semi-color-primary)',
-                      flexShrink: 0,
-                    }}
-                  ></div>
-                  <Text
-                    style={{
-                      fontSize: '15px',
-                      color: 'var(--semi-color-text-1)',
-                    }}
-                  >
+              <div className='mx-auto flex max-w-sm flex-col gap-3'>
+                <div className='flex items-center gap-3'>
+                  <span className='h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500' />
+                  <span className='text-sm text-slate-600 dark:text-slate-300'>
                     {t('启用 io.net 部署开关')}
-                  </Text>
+                  </span>
                 </div>
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
-                >
-                  <div
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--semi-color-primary)',
-                      flexShrink: 0,
-                    }}
-                  ></div>
-                  <Text
-                    style={{
-                      fontSize: '15px',
-                      color: 'var(--semi-color-text-1)',
-                    }}
-                  >
+                <div className='flex items-center gap-3'>
+                  <span className='h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500' />
+                  <span className='text-sm text-slate-600 dark:text-slate-300'>
                     {t('配置有效的 io.net API Key')}
-                  </Text>
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* 操作链接区域 */}
-            <div style={{ marginBottom: '20px' }}>
-              <div
-                onClick={handleGoToSettings}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: '500',
-                  color: 'var(--semi-color-primary)',
-                  background: 'var(--semi-color-fill-0)',
-                  border: '1px solid var(--semi-color-border)',
-                  transition: 'all 0.2s ease',
-                  textDecoration: 'none',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--semi-color-fill-1)';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow =
-                    '0 2px 8px rgba(0, 0, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'var(--semi-color-fill-0)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
+            <div className='mb-5'>
+              <Button
+                variant='outline'
+                startContent={<Settings size={18} />}
+                onPress={handleGoToSettings}
               >
-                <Settings size={18} />
                 {t('前往设置页面')}
-              </div>
+              </Button>
             </div>
 
-            {/* 底部提示 */}
-            <Text
-              type='tertiary'
-              style={{
-                fontSize: '14px',
-                color: 'var(--semi-color-text-2)',
-                lineHeight: '1.5',
-              }}
-            >
+            <p className='text-sm leading-6 text-slate-500 dark:text-slate-400'>
               {t('配置完成后刷新页面即可使用模型部署功能')}
-            </Text>
+            </p>
           </Card>
         </div>
       </div>
@@ -283,9 +122,12 @@ const DeploymentAccessGuard = ({
   if (connectionLoading || (connectionOk === null && !connectionError)) {
     return (
       <div className='mt-[60px] px-2'>
-        <Card loading={true} style={{ minHeight: '400px' }}>
-          <div style={{ textAlign: 'center', padding: '50px 0' }}>
-            <Text type='secondary'>{t('正在检查 io.net 连接...')}</Text>
+        <Card className='min-h-[400px] rounded-2xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-800 dark:bg-slate-950/80'>
+          <div className='flex flex-col items-center justify-center gap-3 py-20 text-center'>
+            <Spinner size='lg' />
+            <span className='text-sm text-slate-500 dark:text-slate-400'>
+              {t('正在检查 io.net 连接...')}
+            </span>
           </div>
         </Card>
       </div>
@@ -301,101 +143,39 @@ const DeploymentAccessGuard = ({
     const detail = connectionError?.message || '';
 
     return (
-      <div
-        className='mt-[60px] px-4'
-        style={{
-          minHeight: 'calc(100vh - 60px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '600px',
-            width: '100%',
-            textAlign: 'center',
-            padding: '0 20px',
-          }}
-        >
-          <Card
-            style={{
-              padding: '60px 40px',
-              borderRadius: '16px',
-              border: '1px solid var(--semi-color-border)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-              background:
-                'linear-gradient(135deg, var(--semi-color-bg-0) 0%, var(--semi-color-fill-0) 100%)',
-            }}
-          >
-            <div style={{ marginBottom: '32px' }}>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  background:
-                    'linear-gradient(135deg, rgba(var(--semi-red-4), 0.15) 0%, rgba(var(--semi-red-5), 0.1) 100%)',
-                  border: '3px solid rgba(var(--semi-red-4), 0.3)',
-                  marginBottom: '24px',
-                }}
-              >
-                <WifiOff size={56} color='var(--semi-color-danger)' />
+      <div className='mt-[60px] flex min-h-[calc(100vh-60px)] items-center justify-center px-4'>
+        <div className='w-full max-w-2xl px-5 text-center'>
+          <Card className='rounded-[28px] border border-rose-200/70 bg-gradient-to-br from-white to-rose-50/70 p-10 shadow-[0_24px_80px_rgba(15,23,42,0.12)] dark:border-rose-900/40 dark:from-slate-950 dark:to-rose-950/20'>
+            <div className='mb-8'>
+              <div className='mb-6 inline-flex h-28 w-28 items-center justify-center rounded-full border-4 border-rose-200 bg-rose-100/80 text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/50 dark:text-rose-300'>
+                <WifiOff size={56} />
               </div>
             </div>
 
-            <div style={{ marginBottom: '24px' }}>
-              <Title
-                heading={2}
-                style={{
-                  color: 'var(--semi-color-text-0)',
-                  margin: '0 0 12px 0',
-                  fontSize: '28px',
-                  fontWeight: '700',
-                }}
-              >
+            <div className='mb-6'>
+              <h2 className='mb-3 text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-50'>
                 {title}
-              </Title>
-              <Text
-                style={{
-                  fontSize: '18px',
-                  lineHeight: '1.6',
-                  color: 'var(--semi-color-text-1)',
-                  display: 'block',
-                }}
-              >
+              </h2>
+              <p className='text-lg leading-8 text-slate-600 dark:text-slate-300'>
                 {description}
-              </Text>
+              </p>
               {detail ? (
-                <Text
-                  type='tertiary'
-                  style={{
-                    fontSize: '14px',
-                    lineHeight: '1.5',
-                    display: 'block',
-                    marginTop: '8px',
-                  }}
-                >
+                <p className='mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400'>
                   {detail}
-                </Text>
+                </p>
               ) : null}
             </div>
 
-            <div
-              style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}
-            >
+            <div className='flex justify-center gap-3'>
               <Button
-                type='primary'
-                icon={<Settings size={18} />}
-                onClick={handleGoToSettings}
+                variant='primary'
+                startContent={<Settings size={18} />}
+                onPress={handleGoToSettings}
               >
                 {t('前往设置')}
               </Button>
               {onRetry ? (
-                <Button type='tertiary' onClick={onRetry}>
+                <Button variant='outline' onPress={onRetry}>
                   {t('重试连接')}
                 </Button>
               ) : null}

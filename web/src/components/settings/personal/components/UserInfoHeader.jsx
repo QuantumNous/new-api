@@ -18,14 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Avatar,
-  Card,
-  Tag,
-  Divider,
-  Typography,
-  Badge,
-} from '@douyinfe/semi-ui';
+import { Card, Badge } from '@heroui/react';
 import {
   isRoot,
   isAdmin,
@@ -35,6 +28,24 @@ import {
 import { Coins, BarChart2, Users } from 'lucide-react';
 
 const UserInfoHeader = ({ t, userState }) => {
+  const avatarColorClasses = {
+    amber: 'bg-amber-500',
+    blue: 'bg-blue-500',
+    cyan: 'bg-cyan-500',
+    green: 'bg-green-500',
+    grey: 'bg-gray-500',
+    indigo: 'bg-indigo-500',
+    'light-blue': 'bg-sky-500',
+    lime: 'bg-lime-500',
+    orange: 'bg-orange-500',
+    pink: 'bg-pink-500',
+    purple: 'bg-purple-500',
+    red: 'bg-red-500',
+    teal: 'bg-teal-500',
+    violet: 'bg-violet-500',
+    yellow: 'bg-yellow-500',
+  };
+
   const getUsername = () => {
     if (userState.user) {
       return userState.user.username;
@@ -51,168 +62,132 @@ const UserInfoHeader = ({ t, userState }) => {
     return 'NA';
   };
 
+  const roleLabel = isRoot()
+    ? t('超级管理员')
+    : isAdmin()
+      ? t('管理员')
+      : t('普通用户');
+  const avatarColorClass =
+    avatarColorClasses[stringToColor(getUsername())] || 'bg-slate-500';
+
+  const StatLabel = ({ children }) => (
+    <span className='text-sm text-muted'>{children}</span>
+  );
+
+  const StatValue = ({ children }) => (
+    <span className='text-sm font-semibold text-muted'>{children}</span>
+  );
+
+  const Divider = ({ className = '' }) => (
+    <div className={`bg-border ${className}`} />
+  );
+
   return (
-    <Card
-      className='!rounded-2xl overflow-hidden'
-      cover={
-        <div
-          className='relative h-32'
-          style={{
-            '--palette-primary-darkerChannel': '0 75 80',
-            backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-          }}
-        >
-          {/* 用户信息内容 */}
-          <div className='relative z-10 h-full flex flex-col justify-end p-6'>
-            <div className='flex items-center'>
-              <div className='flex items-stretch gap-3 sm:gap-4 flex-1 min-w-0'>
-                <Avatar size='large' color={stringToColor(getUsername())}>
-                  {getAvatarText()}
-                </Avatar>
-                <div className='flex-1 min-w-0 flex flex-col justify-between'>
-                  <div
-                    className='text-3xl font-bold truncate'
-                    style={{ color: 'white' }}
-                  >
-                    {getUsername()}
-                  </div>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    {isRoot() ? (
-                      <Tag
-                        size='large'
-                        shape='circle'
-                        style={{ color: 'white' }}
-                      >
-                        {t('超级管理员')}
-                      </Tag>
-                    ) : isAdmin() ? (
-                      <Tag
-                        size='large'
-                        shape='circle'
-                        style={{ color: 'white' }}
-                      >
-                        {t('管理员')}
-                      </Tag>
-                    ) : (
-                      <Tag
-                        size='large'
-                        shape='circle'
-                        style={{ color: 'white' }}
-                      >
-                        {t('普通用户')}
-                      </Tag>
-                    )}
-                    <Tag size='large' shape='circle' style={{ color: 'white' }}>
-                      ID: {userState?.user?.id}
-                    </Tag>
-                  </div>
+    <Card className='overflow-hidden rounded-2xl'>
+      <div
+        className='relative h-32'
+        style={{
+          '--palette-primary-darkerChannel': '0 75 80',
+          backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        {/* User info content */}
+        <div className='relative z-10 flex h-full flex-col justify-end p-6'>
+          <div className='flex items-center'>
+            <div className='flex min-w-0 flex-1 items-stretch gap-3 sm:gap-4'>
+              <div
+                className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white shadow-lg ${avatarColorClass}`}
+              >
+                {getAvatarText()}
+              </div>
+              <div className='flex min-w-0 flex-1 flex-col justify-between'>
+                <div className='truncate text-3xl font-bold text-white'>
+                  {getUsername()}
+                </div>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <span className='rounded-full bg-white/20 px-3 py-1 text-sm font-medium text-white backdrop-blur'>
+                    {roleLabel}
+                  </span>
+                  <span className='rounded-full bg-white/20 px-3 py-1 text-sm font-medium text-white backdrop-blur'>
+                    ID: {userState?.user?.id}
+                  </span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      }
-    >
-      {/* 当前余额和桌面版统计信息 */}
+      </div>
+
+      <Card.Content className='p-6'>
+      {/* Current balance and desktop stats */}
       <div className='flex items-start justify-between gap-6'>
-        {/* 当前余额显示 */}
+        {/* Current balance */}
         <Badge count={t('当前余额')} position='rightTop' type='danger'>
           <div className='text-2xl sm:text-3xl md:text-4xl font-bold tracking-wide'>
             {renderQuota(userState?.user?.quota)}
           </div>
         </Badge>
 
-        {/* 桌面版统计信息（Semi UI 卡片） */}
+        {/* Desktop stats */}
         <div className='hidden lg:block flex-shrink-0'>
-          <Card
-            size='small'
-            className='!rounded-xl'
-            bodyStyle={{ padding: '12px 16px' }}
-          >
+          <div className='rounded-xl border border-border bg-background px-4 py-3'>
             <div className='flex items-center gap-4'>
               <div className='flex items-center gap-2'>
                 <Coins size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('历史消耗')}
-                </Typography.Text>
-                <Typography.Text size='small' type='tertiary' strong>
-                  {renderQuota(userState?.user?.used_quota)}
-                </Typography.Text>
+                <StatLabel>{t('历史消耗')}</StatLabel>
+                <StatValue>{renderQuota(userState?.user?.used_quota)}</StatValue>
               </div>
-              <Divider layout='vertical' />
+              <Divider className='h-6 w-px' />
               <div className='flex items-center gap-2'>
                 <BarChart2 size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('请求次数')}
-                </Typography.Text>
-                <Typography.Text size='small' type='tertiary' strong>
-                  {userState.user?.request_count || 0}
-                </Typography.Text>
+                <StatLabel>{t('请求次数')}</StatLabel>
+                <StatValue>{userState.user?.request_count || 0}</StatValue>
               </div>
-              <Divider layout='vertical' />
+              <Divider className='h-6 w-px' />
               <div className='flex items-center gap-2'>
                 <Users size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('用户分组')}
-                </Typography.Text>
-                <Typography.Text size='small' type='tertiary' strong>
-                  {userState?.user?.group || t('默认')}
-                </Typography.Text>
+                <StatLabel>{t('用户分组')}</StatLabel>
+                <StatValue>{userState?.user?.group || t('默认')}</StatValue>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
 
-      {/* 移动端和中等屏幕统计信息卡片 */}
+      {/* Mobile and tablet stats */}
       <div className='lg:hidden mt-2'>
-        <Card
-          size='small'
-          className='!rounded-xl'
-          bodyStyle={{ padding: '12px 16px' }}
-        >
+        <div className='rounded-xl border border-border bg-background px-4 py-3'>
           <div className='space-y-3'>
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 <Coins size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('历史消耗')}
-                </Typography.Text>
+                <StatLabel>{t('历史消耗')}</StatLabel>
               </div>
-              <Typography.Text size='small' type='tertiary' strong>
-                {renderQuota(userState?.user?.used_quota)}
-              </Typography.Text>
+              <StatValue>{renderQuota(userState?.user?.used_quota)}</StatValue>
             </div>
-            <Divider margin='8px' />
+            <Divider className='h-px w-full' />
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 <BarChart2 size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('请求次数')}
-                </Typography.Text>
+                <StatLabel>{t('请求次数')}</StatLabel>
               </div>
-              <Typography.Text size='small' type='tertiary' strong>
-                {userState.user?.request_count || 0}
-              </Typography.Text>
+              <StatValue>{userState.user?.request_count || 0}</StatValue>
             </div>
-            <Divider margin='8px' />
+            <Divider className='h-px w-full' />
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 <Users size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('用户分组')}
-                </Typography.Text>
+                <StatLabel>{t('用户分组')}</StatLabel>
               </div>
-              <Typography.Text size='small' type='tertiary' strong>
-                {userState?.user?.group || t('默认')}
-              </Typography.Text>
+              <StatValue>{userState?.user?.group || t('默认')}</StatValue>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
+      </Card.Content>
     </Card>
   );
 };

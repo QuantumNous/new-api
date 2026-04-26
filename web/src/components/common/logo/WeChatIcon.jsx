@@ -18,11 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Icon } from '@douyinfe/semi-ui';
 
-const WeChatIcon = () => {
-  function CustomIcon() {
-    return (
+const WeChatIcon = (props) => {
+  return (
       <svg
         t='1709714447384'
         className='icon'
@@ -32,6 +30,7 @@ const WeChatIcon = () => {
         p-id='5091'
         width='20'
         height='20'
+        {...props}
       >
         <path
           d='M690.1 377.4c5.9 0 11.8 0.2 17.6 0.5-24.4-128.7-158.3-227.1-319.9-227.1C209 150.8 64 271.4 64 420.2c0 81.1 43.6 154.2 111.9 203.6 5.5 3.9 9.1 10.3 9.1 17.6 0 2.4-0.5 4.6-1.1 6.9-5.5 20.3-14.2 52.8-14.6 54.3-0.7 2.6-1.7 5.2-1.7 7.9 0 5.9 4.8 10.8 10.8 10.8 2.3 0 4.2-0.9 6.2-2l70.9-40.9c5.3-3.1 11-5 17.2-5 3.2 0 6.4 0.5 9.5 1.4 33.1 9.5 68.8 14.8 105.7 14.8 6 0 11.9-0.1 17.8-0.4-7.1-21-10.9-43.1-10.9-66 0-135.8 132.2-245.8 295.3-245.8z m-194.3-86.5c23.8 0 43.2 19.3 43.2 43.1s-19.3 43.1-43.2 43.1c-23.8 0-43.2-19.3-43.2-43.1s19.4-43.1 43.2-43.1z m-215.9 86.2c-23.8 0-43.2-19.3-43.2-43.1s19.3-43.1 43.2-43.1 43.2 19.3 43.2 43.1-19.4 43.1-43.2 43.1z'
@@ -43,13 +42,6 @@ const WeChatIcon = () => {
         ></path>
       </svg>
     );
-  }
-
-  return (
-    <div>
-      <Icon svg={<CustomIcon />} />
-    </div>
-  );
 };
 
 export default WeChatIcon;

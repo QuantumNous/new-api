@@ -18,18 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo, useState } from 'react';
-import {
-  Badge,
-  Button,
-  Card,
-  Divider,
-  Select,
-  Skeleton,
-  Space,
-  Tag,
-  Tooltip,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Badge, Button, Card, Chip, Separator, Tooltip } from '@heroui/react';
 import { API, showError, showSuccess, renderQuota } from '../../helpers';
 import { getCurrencyConfig } from '../../helpers/render';
 import { RefreshCw, Sparkles } from 'lucide-react';
@@ -39,16 +28,14 @@ import {
   formatSubscriptionResetPeriod,
 } from '../../helpers/subscriptionFormat';
 
-const { Text } = Typography;
-
-// 过滤易支付方式
+// Filter EPay methods.
 function getEpayMethods(payMethods = []) {
   return (payMethods || []).filter(
     (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem',
   );
 }
 
-// 提交易支付表单
+// Submit EPay form.
 function submitEpayForm({ url, params }) {
   const form = document.createElement('form');
   form.action = url;
@@ -198,7 +185,30 @@ const SubscriptionPlansCard = ({
     }
   };
 
-  // 当前订阅信息 - 支持多个订阅
+  const SkeletonLine = ({ className = '' }) => (
+    <div className={`animate-pulse rounded bg-surface-secondary ${className}`} />
+  );
+
+  const StatusChip = ({ children, tone = 'default', dot = false }) => {
+    const colorMap = {
+      default: 'default',
+      success: 'success',
+      purple: 'secondary',
+    };
+
+    return (
+      <Chip size='sm' color={colorMap[tone] || 'default'} variant='secondary'>
+        {dot ? <Badge dot type='success' className='mr-1' /> : null}
+        {children}
+      </Chip>
+    );
+  };
+
+  const SectionSeparator = ({ className = '' }) => (
+    <Separator className={`my-3 ${className}`} />
+  );
+
+  // Current subscription info, supports multiple subscriptions.
   const hasActiveSubscription = activeSubscriptions.length > 0;
   const hasAnySubscription = allSubscriptions.length > 0;
   const disableSubscriptionPreference = !hasActiveSubscription;
@@ -235,7 +245,7 @@ const SubscriptionPlansCard = ({
   const getPlanPurchaseCount = (planId) =>
     planPurchaseCountMap.get(planId) || 0;
 
-  // 计算单个订阅的剩余天数
+  // Calculate remaining days for one subscription.
   const getRemainingDays = (sub) => {
     if (!sub?.subscription?.end_time) return 0;
     const now = Date.now() / 1000;
@@ -243,7 +253,7 @@ const SubscriptionPlansCard = ({
     return Math.max(0, Math.ceil(remaining / 86400));
   };
 
-  // 计算单个订阅的使用进度
+  // Calculate usage progress for one subscription.
   const getUsagePercent = (sub) => {
     const total = Number(sub?.subscription?.amount_total || 0);
     const used = Number(sub?.subscription?.amount_used || 0);
@@ -253,130 +263,120 @@ const SubscriptionPlansCard = ({
 
   const cardContent = (
     <>
-      {/* 卡片头部 */}
+      {/* Card content */}
       {loading ? (
         <div className='space-y-4'>
-          {/* 我的订阅骨架屏 */}
-          <Card className='!rounded-xl w-full' bodyStyle={{ padding: '12px' }}>
+          {/* My subscription skeleton */}
+          <Card className='!rounded-xl w-full'>
+            <Card.Content className='p-3'>
             <div className='flex items-center justify-between mb-3'>
-              <Skeleton.Title active style={{ width: 100, height: 20 }} />
-              <Skeleton.Button active style={{ width: 24, height: 24 }} />
+              <SkeletonLine className='h-5 w-24' />
+              <SkeletonLine className='h-6 w-6 rounded-full' />
             </div>
             <div className='space-y-2'>
-              <Skeleton.Paragraph active rows={2} />
+              <SkeletonLine className='h-4 w-full' />
+              <SkeletonLine className='h-4 w-2/3' />
             </div>
+            </Card.Content>
           </Card>
-          {/* 套餐列表骨架屏 */}
+          {/* Plan list skeleton */}
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full px-1'>
             {[1, 2, 3].map((i) => (
-              <Card
-                key={i}
-                className='!rounded-xl w-full h-full'
-                bodyStyle={{ padding: 16 }}
-              >
-                <Skeleton.Title
-                  active
-                  style={{ width: '60%', height: 24, marginBottom: 8 }}
-                />
-                <Skeleton.Paragraph
-                  active
-                  rows={1}
-                  style={{ marginBottom: 12 }}
-                />
+              <Card key={i} className='!rounded-xl w-full h-full'>
+                <Card.Content className='p-4'>
+                <SkeletonLine className='mb-2 h-6 w-3/5' />
+                <SkeletonLine className='mb-3 h-4 w-4/5' />
                 <div className='text-center py-4'>
-                  <Skeleton.Title
-                    active
-                    style={{ width: '40%', height: 32, margin: '0 auto' }}
-                  />
+                  <SkeletonLine className='mx-auto h-8 w-2/5' />
                 </div>
-                <Skeleton.Paragraph active rows={3} style={{ marginTop: 12 }} />
-                <Skeleton.Button
-                  active
-                  block
-                  style={{ marginTop: 16, height: 32 }}
-                />
+                <div className='mt-3 space-y-2'>
+                  <SkeletonLine className='h-4 w-full' />
+                  <SkeletonLine className='h-4 w-4/5' />
+                  <SkeletonLine className='h-4 w-2/3' />
+                </div>
+                <SkeletonLine className='mt-4 h-8 w-full' />
+                </Card.Content>
               </Card>
             ))}
           </div>
         </div>
       ) : (
-        <Space vertical style={{ width: '100%' }} spacing={8}>
-          {/* 当前订阅状态 */}
-          <Card className='!rounded-xl w-full' bodyStyle={{ padding: '12px' }}>
+        <div className='flex w-full flex-col gap-2'>
+          {/* Current subscription status */}
+          <Card className='!rounded-xl w-full'>
+            <Card.Content className='p-3'>
             <div className='flex items-center justify-between mb-2 gap-3'>
               <div className='flex items-center gap-2 flex-1 min-w-0'>
-                <Text strong>{t('我的订阅')}</Text>
+                <span className='font-semibold text-foreground'>
+                  {t('我的订阅')}
+                </span>
                 {hasActiveSubscription ? (
-                  <Tag
-                    color='white'
-                    size='small'
-                    shape='circle'
-                    prefixIcon={<Badge dot type='success' />}
-                  >
+                  <StatusChip tone='success' dot>
                     {activeSubscriptions.length} {t('个生效中')}
-                  </Tag>
+                  </StatusChip>
                 ) : (
-                  <Tag color='white' size='small' shape='circle'>
-                    {t('无生效')}
-                  </Tag>
+                  <StatusChip>{t('无生效')}</StatusChip>
                 )}
                 {allSubscriptions.length > activeSubscriptions.length && (
-                  <Tag color='white' size='small' shape='circle'>
+                  <StatusChip>
                     {allSubscriptions.length - activeSubscriptions.length}{' '}
                     {t('个已过期')}
-                  </Tag>
+                  </StatusChip>
                 )}
               </div>
               <div className='flex items-center gap-2'>
-                <Select
+                <select
                   value={displayBillingPreference}
-                  onChange={onChangeBillingPreference}
-                  size='small'
-                  optionList={[
-                    {
-                      value: 'subscription_first',
-                      label: disableSubscriptionPreference
-                        ? `${t('优先订阅')} (${t('无生效')})`
-                        : t('优先订阅'),
-                      disabled: disableSubscriptionPreference,
-                    },
-                    { value: 'wallet_first', label: t('优先钱包') },
-                    {
-                      value: 'subscription_only',
-                      label: disableSubscriptionPreference
-                        ? `${t('仅用订阅')} (${t('无生效')})`
-                        : t('仅用订阅'),
-                      disabled: disableSubscriptionPreference,
-                    },
-                    { value: 'wallet_only', label: t('仅用钱包') },
-                  ]}
-                />
-                <Button
-                  size='small'
-                  theme='light'
-                  type='tertiary'
-                  icon={
-                    <RefreshCw
-                      size={12}
-                      className={refreshing ? 'animate-spin' : ''}
-                    />
+                  onChange={(event) =>
+                    onChangeBillingPreference?.(event.target.value)
                   }
-                  onClick={handleRefresh}
-                  loading={refreshing}
-                />
+                  className='h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none transition focus:border-accent'
+                >
+                  <option
+                    value='subscription_first'
+                    disabled={disableSubscriptionPreference}
+                  >
+                    {disableSubscriptionPreference
+                      ? `${t('优先订阅')} (${t('无生效')})`
+                      : t('优先订阅')}
+                  </option>
+                  <option value='wallet_first'>{t('优先钱包')}</option>
+                  <option
+                    value='subscription_only'
+                    disabled={disableSubscriptionPreference}
+                  >
+                    {disableSubscriptionPreference
+                      ? `${t('仅用订阅')} (${t('无生效')})`
+                      : t('仅用订阅')}
+                  </option>
+                  <option value='wallet_only'>{t('仅用钱包')}</option>
+                </select>
+                <Button
+                  isIconOnly
+                  size='sm'
+                  variant='ghost'
+                  onPress={handleRefresh}
+                  isPending={refreshing}
+                  aria-label={t('刷新')}
+                >
+                  <RefreshCw
+                    size={12}
+                    className={refreshing ? 'animate-spin' : ''}
+                  />
+                </Button>
               </div>
             </div>
             {disableSubscriptionPreference && isSubscriptionPreference && (
-              <Text type='tertiary' size='small'>
+              <span className='text-sm text-muted'>
                 {t('已保存偏好为')}
                 {subscriptionPreferenceLabel}
                 {t('，当前无生效订阅，将自动使用钱包')}
-              </Text>
+              </span>
             )}
 
             {hasAnySubscription ? (
               <>
-                <Divider margin={8} />
+                <SectionSeparator className='my-2' />
                 <div className='max-h-64 overflow-y-auto pr-1 semi-table-body'>
                   {allSubscriptions.map((sub, subIndex) => {
                     const isLast = subIndex === allSubscriptions.length - 1;
@@ -399,7 +399,7 @@ const SubscriptionPlansCard = ({
 
                     return (
                       <div key={subscription?.id || subIndex}>
-                        {/* 订阅概要 */}
+                        {/* Subscription summary */}
                         <div className='flex items-center justify-between text-xs mb-2'>
                           <div className='flex items-center gap-2'>
                             <span className='font-medium'>
@@ -408,22 +408,13 @@ const SubscriptionPlansCard = ({
                                 : `${t('订阅')} #${subscription?.id}`}
                             </span>
                             {isActive ? (
-                              <Tag
-                                color='white'
-                                size='small'
-                                shape='circle'
-                                prefixIcon={<Badge dot type='success' />}
-                              >
+                              <StatusChip tone='success' dot>
                                 {t('生效')}
-                              </Tag>
+                              </StatusChip>
                             ) : isCancelled ? (
-                              <Tag color='white' size='small' shape='circle'>
-                                {t('已作废')}
-                              </Tag>
+                              <StatusChip>{t('已作废')}</StatusChip>
                             ) : (
-                              <Tag color='white' size='small' shape='circle'>
-                                {t('已过期')}
-                              </Tag>
+                              <StatusChip>{t('已过期')}</StatusChip>
                             )}
                           </div>
                           {isActive && (
@@ -471,7 +462,7 @@ const SubscriptionPlansCard = ({
                             </span>
                           )}
                         </div>
-                        {!isLast && <Divider margin={12} />}
+                        {!isLast && <SectionSeparator />}
                       </div>
                     );
                   })}
@@ -482,9 +473,10 @@ const SubscriptionPlansCard = ({
                 {t('购买套餐后即可享受模型权益')}
               </div>
             )}
+            </Card.Content>
           </Card>
 
-          {/* 可购买套餐 - 标准定价卡片 */}
+          {/* Purchasable plans */}
           {plans.length > 0 ? (
             <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full px-1'>
               {plans.map((p, index) => {
@@ -531,40 +523,30 @@ const SubscriptionPlansCard = ({
                     className={`!rounded-xl transition-all hover:shadow-lg w-full h-full ${
                       isPopular ? 'ring-2 ring-purple-500' : ''
                     }`}
-                    bodyStyle={{ padding: 0 }}
                   >
-                    <div className='p-4 h-full flex flex-col'>
-                      {/* 推荐标签 */}
+                    <Card.Content className='p-4 h-full flex flex-col'>
+                      {/* Recommended label */}
                       {isPopular && (
                         <div className='mb-2'>
-                          <Tag color='purple' shape='circle' size='small'>
+                          <StatusChip tone='purple'>
                             <Sparkles size={10} className='mr-1' />
                             {t('推荐')}
-                          </Tag>
+                          </StatusChip>
                         </div>
                       )}
-                      {/* 套餐名称 */}
+                      {/* Plan name */}
                       <div className='mb-3'>
-                        <Typography.Title
-                          heading={5}
-                          ellipsis={{ rows: 1, showTooltip: true }}
-                          style={{ margin: 0 }}
-                        >
+                        <h5 className='m-0 truncate text-xl font-semibold text-foreground'>
                           {plan?.title || t('订阅套餐')}
-                        </Typography.Title>
+                        </h5>
                         {plan?.subtitle && (
-                          <Text
-                            type='tertiary'
-                            size='small'
-                            ellipsis={{ rows: 1, showTooltip: true }}
-                            style={{ display: 'block' }}
-                          >
+                          <span className='block truncate text-sm text-muted'>
                             {plan.subtitle}
-                          </Text>
+                          </span>
                         )}
                       </div>
 
-                      {/* 价格区域 */}
+                      {/* Price */}
                       <div className='py-2'>
                         <div className='flex items-baseline justify-start'>
                           <span className='text-xl font-bold text-purple-600'>
@@ -576,7 +558,7 @@ const SubscriptionPlansCard = ({
                         </div>
                       </div>
 
-                      {/* 套餐权益描述 */}
+                      {/* Plan benefits */}
                       <div className='flex flex-col items-start gap-1 pb-2'>
                         {planBenefits.map((item) => {
                           const content = (
@@ -606,9 +588,9 @@ const SubscriptionPlansCard = ({
                       </div>
 
                       <div className='mt-auto'>
-                        <Divider margin={12} />
+                        <SectionSeparator />
 
-                        {/* 购买按钮 */}
+                        {/* Purchase button */}
                         {(() => {
                           const count = getPlanPurchaseCount(p?.plan?.id);
                           const reached = limit > 0 && count >= limit;
@@ -617,11 +599,10 @@ const SubscriptionPlansCard = ({
                             : '';
                           const buttonEl = (
                             <Button
-                              theme='outline'
-                              type='primary'
-                              block
-                              disabled={reached}
-                              onClick={() => {
+                              variant='outline'
+                              fullWidth
+                              isDisabled={reached}
+                              onPress={() => {
                                 if (!reached) openBuy(p);
                               }}
                             >
@@ -637,7 +618,7 @@ const SubscriptionPlansCard = ({
                           );
                         })()}
                       </div>
-                    </div>
+                    </Card.Content>
                   </Card>
                 );
               })}
@@ -647,7 +628,7 @@ const SubscriptionPlansCard = ({
               {t('暂无可购买套餐')}
             </div>
           )}
-        </Space>
+        </div>
       )}
     </>
   );
@@ -660,7 +641,7 @@ const SubscriptionPlansCard = ({
         <div className='space-y-3'>{cardContent}</div>
       )}
 
-      {/* 购买确认弹窗 */}
+      {/* Purchase confirmation modal */}
       <SubscriptionPurchaseModal
         t={t}
         visible={open}

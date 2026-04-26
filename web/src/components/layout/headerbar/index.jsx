@@ -27,12 +27,11 @@ import HeaderLogo from './HeaderLogo';
 import Navigation from './Navigation';
 import ActionButtons from './ActionButtons';
 
-const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
+const HeaderBar = () => {
   const {
     userState,
     statusState,
     isMobile,
-    collapsed,
     logoLoaded,
     currentLang,
     isLoading,
@@ -49,10 +48,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     logout,
     handleLanguageChange,
     handleThemeToggle,
-    handleMobileMenuToggle,
     navigate,
     t,
-  } = useHeaderBar({ onMobileMenuToggle, drawerOpen });
+  } = useHeaderBar();
 
   const {
     noticeVisible,
@@ -65,7 +63,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
 
   return (
-    <header className='text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg'>
+    <header className='sticky top-0 z-50 border-b border-border bg-background text-foreground transition-colors duration-300'>
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
@@ -76,15 +74,17 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
       <div className='w-full px-2'>
         <div className='flex items-center justify-between h-16'>
-          <div className='flex items-center'>
+          <div className='flex items-center gap-1'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}
-              drawerOpen={drawerOpen}
-              collapsed={collapsed}
-              onToggle={handleMobileMenuToggle}
               t={t}
             />
+
+            {/* Desktop sidebar trigger lives in the page content area
+                (PageLayout's ConsolePageTrigger), not here. Keeping the
+                trigger position fixed across expand/collapse states is
+                explicit product spec. */}
 
             <HeaderLogo
               isMobile={isMobile}

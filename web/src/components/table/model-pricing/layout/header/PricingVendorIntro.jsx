@@ -19,17 +19,20 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import {
+  Button,
   Card,
-  Tag,
-  Avatar,
-  Typography,
-  Tooltip,
+  Chip,
   Modal,
-} from '@douyinfe/semi-ui';
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
 import { getLobeHubIcon } from '../../../../../helpers';
 import SearchActions from './SearchActions';
-
-const { Paragraph } = Typography;
 
 const CONFIG = {
   CAROUSEL_INTERVAL: 2000,
@@ -86,9 +89,9 @@ const getVendorDisplayName = (vendorName, t) => {
 
 const createDefaultAvatar = () => (
   <div className={COMPONENT_STYLES.avatarContainer}>
-    <Avatar size='large' color='transparent'>
+    <span className='text-base font-semibold text-slate-700'>
       AI
-    </Avatar>
+    </span>
   </div>
 );
 
@@ -108,12 +111,12 @@ const createAvatarContent = (vendor, isAllVendors) => {
   }
 
   return (
-    <Avatar
-      size='large'
+    <div
+      className='flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-slate-700'
       style={{ backgroundColor: getAvatarBackgroundColor(isAllVendors) }}
     >
       {getAvatarText(vendor.name)}
-    </Avatar>
+    </div>
   );
 };
 
@@ -126,9 +129,9 @@ const renderVendorAvatar = (vendor, t, isAllVendors = false) => {
   const avatarContent = createAvatarContent(vendor, isAllVendors);
 
   return (
-    <Tooltip content={displayName} position='top'>
-      <div className={COMPONENT_STYLES.avatarContainer}>{avatarContent}</div>
-    </Tooltip>
+    <div className={COMPONENT_STYLES.avatarContainer} title={displayName}>
+      {avatarContent}
+    </div>
   );
 };
 
@@ -161,32 +164,45 @@ const PricingVendorIntro = memo(
     const [descModalVisible, setDescModalVisible] = useState(false);
     const [descModalContent, setDescModalContent] = useState('');
 
+    const handleCloseDescModal = useCallback(() => {
+      setDescModalVisible(false);
+    }, []);
+
+    const descModalState = useOverlayState({
+      isOpen: descModalVisible,
+      onOpenChange: (isOpen) => {
+        if (!isOpen) handleCloseDescModal();
+      },
+    });
+
     const handleOpenDescModal = useCallback((content) => {
       setDescModalContent(content || '');
       setDescModalVisible(true);
     }, []);
 
-    const handleCloseDescModal = useCallback(() => {
-      setDescModalVisible(false);
-    }, []);
-
     const renderDescriptionModal = useCallback(
       () => (
-        <Modal
-          title={t('供应商介绍')}
-          visible={descModalVisible}
-          onCancel={handleCloseDescModal}
-          footer={null}
-          width={isMobile ? '95%' : 600}
-          bodyStyle={{
-            maxHeight: isMobile ? '70vh' : '60vh',
-            overflowY: 'auto',
-          }}
-        >
-          <div className='text-sm mb-4'>{descModalContent}</div>
+        <Modal state={descModalState}>
+          <ModalBackdrop variant='blur'>
+            <ModalContainer size={isMobile ? 'full' : 'lg'} placement='center'>
+              <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+                <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                  {t('供应商介绍')}
+                </ModalHeader>
+                <ModalBody className='max-h-[70vh] overflow-y-auto text-sm'>
+                  {descModalContent}
+                </ModalBody>
+                <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                  <Button variant='primary' onPress={handleCloseDescModal}>
+                    {t('确定')}
+                  </Button>
+                </ModalFooter>
+              </ModalDialog>
+            </ModalContainer>
+          </ModalBackdrop>
         </Modal>
       ),
-      [descModalVisible, descModalContent, handleCloseDescModal, isMobile, t],
+      [descModalState, descModalContent, handleCloseDescModal, isMobile, t],
     );
 
     const vendorInfo = useMemo(() => {
@@ -319,11 +335,9 @@ const PricingVendorIntro = memo(
 
     const renderHeaderCard = useCallback(
       ({ title, count, description, rightContent, primaryDarkerChannel }) => (
-        <Card
-          className='!rounded-2xl shadow-sm border-0'
-          cover={
+        <Card className='overflow-hidden rounded-2xl border-0 shadow-sm'>
             <div
-              className='relative h-full'
+              className='relative min-h-28'
               style={createCoverStyle(primaryDarkerChannel)}
             >
               <div className='relative z-10 h-full flex items-center justify-between p-4'>
@@ -335,31 +349,29 @@ const PricingVendorIntro = memo(
                     >
                       {title}
                     </h2>
-                    <Tag
+                    <Chip
                       style={COMPONENT_STYLES.tag}
-                      shape='circle'
-                      size='small'
+                      size='sm'
+                      variant='secondary'
                       className='self-center'
                     >
                       {t('共 {{count}} 个模型', { count })}
-                    </Tag>
+                    </Chip>
                   </div>
-                  <Paragraph
-                    className='text-xs sm:text-sm leading-relaxed !mb-0 cursor-pointer'
+                  <button
+                    type='button'
+                    className='line-clamp-2 text-left text-xs leading-relaxed sm:text-sm'
                     style={COMPONENT_STYLES.descriptionText}
-                    ellipsis={{ rows: 2 }}
                     onClick={() => handleOpenDescModal(description)}
                   >
                     {description}
-                  </Paragraph>
+                  </button>
                 </div>
 
                 <div className='flex-shrink-0'>{rightContent}</div>
               </div>
             </div>
-          }
-        >
-          {renderSearchActions()}
+          <Card.Content className='p-4'>{renderSearchActions()}</Card.Content>
         </Card>
       ),
       [renderSearchActions, createCoverStyle, handleOpenDescModal, t],

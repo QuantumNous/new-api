@@ -18,9 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useCallback } from 'react';
-import { Toast, Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { getTextContent } from '../../helpers';
+import {
+  getTextContent,
+  showError,
+  showSuccess,
+  showWarning,
+} from '../../helpers';
 import { ERROR_MESSAGES } from '../../constants/playground.constants';
 
 export const useMessageActions = (
@@ -37,10 +41,7 @@ export const useMessageActions = (
       const textToCopy = getTextContent(targetMessage);
 
       if (!textToCopy) {
-        Toast.warning({
-          content: t(ERROR_MESSAGES.NO_TEXT_CONTENT),
-          duration: 2,
-        });
+        showWarning(t(ERROR_MESSAGES.NO_TEXT_CONTENT));
         return;
       }
 
@@ -48,10 +49,7 @@ export const useMessageActions = (
         if (navigator.clipboard?.writeText) {
           try {
             await navigator.clipboard.writeText(text);
-            Toast.success({
-              content: t('消息已复制到剪贴板'),
-              duration: 2,
-            });
+            showSuccess(t('消息已复制到剪贴板'));
           } catch (err) {
             console.error('Clipboard API 复制失败:', err);
             fallbackCopy(text);
@@ -83,10 +81,7 @@ export const useMessageActions = (
           document.body.removeChild(textArea);
 
           if (successful) {
-            Toast.success({
-              content: t('消息已复制到剪贴板'),
-              duration: 2,
-            });
+            showSuccess(t('消息已复制到剪贴板'));
           } else {
             throw new Error('execCommand copy failed');
           }
@@ -103,10 +98,7 @@ export const useMessageActions = (
             errorMessage = t(ERROR_MESSAGES.BROWSER_NOT_SUPPORTED);
           }
 
-          Toast.error({
-            content: errorMessage,
-            duration: 4,
-          });
+          showError(errorMessage);
         }
       };
 
@@ -176,69 +168,48 @@ export const useMessageActions = (
   // 删除消息
   const handleMessageDelete = useCallback(
     (targetMessage) => {
-      Modal.confirm({
-        title: t('确认删除'),
-        content: t('确定要删除这条消息吗？'),
-        okText: t('确定'),
-        cancelText: t('取消'),
-        okButtonProps: {
-          type: 'danger',
-        },
-        onOk: () => {
-          setMessage((prevMessages) => {
-            // 使用引用查找索引，防止重复 id 造成误匹配
-            let messageIndex = prevMessages.findIndex(
-              (msg) => msg === targetMessage,
+      const shouldDelete = window.confirm(t('确定要删除这条消息吗？'));
+      if (!shouldDelete) return;
+      setMessage((prevMessages) => {
+        // 使用引用查找索引，防止重复 id 造成误匹配
+        let messageIndex = prevMessages.findIndex((msg) => msg === targetMessage);
+
+        // 回退到 id 匹配（兼容不同引用场景）
+        if (messageIndex === -1) {
+          messageIndex = prevMessages.findIndex(
+            (msg) => msg.id === targetMessage.id,
+          );
+        }
+
+        if (messageIndex === -1) return prevMessages;
+
+        let updatedMessages;
+        if (
+          targetMessage.role === 'user' &&
+          messageIndex < prevMessages.length - 1
+        ) {
+          const nextMessage = prevMessages[messageIndex + 1];
+          if (nextMessage.role === 'assistant') {
+            showSuccess(t('已删除消息及其回复'));
+            updatedMessages = prevMessages.filter(
+              (_, index) => index !== messageIndex && index !== messageIndex + 1,
             );
+          } else {
+            showSuccess(t('消息已删除'));
+            updatedMessages = prevMessages.filter(
+              (msg) => msg.id !== targetMessage.id,
+            );
+          }
+        } else {
+          showSuccess(t('消息已删除'));
+          updatedMessages = prevMessages.filter(
+            (msg) => msg.id !== targetMessage.id,
+          );
+        }
 
-            // 回退到 id 匹配（兼容不同引用场景）
-            if (messageIndex === -1) {
-              messageIndex = prevMessages.findIndex(
-                (msg) => msg.id === targetMessage.id,
-              );
-            }
-
-            if (messageIndex === -1) return prevMessages;
-
-            let updatedMessages;
-            if (
-              targetMessage.role === 'user' &&
-              messageIndex < prevMessages.length - 1
-            ) {
-              const nextMessage = prevMessages[messageIndex + 1];
-              if (nextMessage.role === 'assistant') {
-                Toast.success({
-                  content: t('已删除消息及其回复'),
-                  duration: 2,
-                });
-                updatedMessages = prevMessages.filter(
-                  (_, index) =>
-                    index !== messageIndex && index !== messageIndex + 1,
-                );
-              } else {
-                Toast.success({
-                  content: t('消息已删除'),
-                  duration: 2,
-                });
-                updatedMessages = prevMessages.filter(
-                  (msg) => msg.id !== targetMessage.id,
-                );
-              }
-            } else {
-              Toast.success({
-                content: t('消息已删除'),
-                duration: 2,
-              });
-              updatedMessages = prevMessages.filter(
-                (msg) => msg.id !== targetMessage.id,
-              );
-            }
-
-            // 删除消息后保存，传入更新后的消息列表
-            setTimeout(() => saveMessages(updatedMessages), 0);
-            return updatedMessages;
-          });
-        },
+        // 删除消息后保存，传入更新后的消息列表
+        setTimeout(() => saveMessages(updatedMessages), 0);
+        return updatedMessages;
       });
     },
     [setMessage, t, saveMessages],
@@ -272,12 +243,9 @@ export const useMessageActions = (
         return updatedMessages;
       });
 
-      Toast.success({
-        content: t(
-          `已切换为${newRole === 'system' ? 'System' : 'Assistant'}角色`,
-        ),
-        duration: 2,
-      });
+      showSuccess(
+        t(`已切换为${newRole === 'system' ? 'System' : 'Assistant'}角色`),
+      );
     },
     [setMessage, t, saveMessages],
   );

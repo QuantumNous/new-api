@@ -27,18 +27,8 @@ import {
   verifyJSON,
   selectFilter,
 } from '../../../../helpers';
-import {
-  SideSheet,
-  Space,
-  Button,
-  Typography,
-  Spin,
-  Banner,
-  Card,
-  Tag,
-  Avatar,
-  Form,
-} from '@douyinfe/semi-ui';
+import { Button, Card } from '@heroui/react';
+import { SideSheet, Space, Typography, Spin, Banner, Tag, Avatar, Form } from '@/components/common/ui/HeroCompat';
 import {
   IconSave,
   IconClose,
@@ -46,7 +36,7 @@ import {
   IconUser,
   IconCode,
   IconSetting,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import { getChannelModels } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -314,7 +304,7 @@ const EditTagModal = (props) => {
     fetchTagModels().then();
     setModelSearchValue('');
     if (formApiRef.current) {
-      formApiRef.current.setValues({
+      formApiRef.current?.setValues?.({
         ...getInitValues(),
         tag: tag,
         new_tag: tag,
@@ -330,7 +320,7 @@ const EditTagModal = (props) => {
 
   useEffect(() => {
     if (formApiRef.current) {
-      formApiRef.current.setValues(inputs);
+      formApiRef.current?.setValues?.(inputs);
     }
   }, [inputs]);
 

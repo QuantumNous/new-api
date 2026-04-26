@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin, Tabs } from '@douyinfe/semi-ui';
+import { Card, Spinner } from '@heroui/react';
 
 import { API, showError, showSuccess, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
@@ -107,30 +107,33 @@ const ModelSetting = () => {
   }, []);
 
   return (
-    <>
-      <Spin spinning={loading} size='large'>
-        {/* OpenAI */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingGlobalModel options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* Channel affinity */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* Gemini */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingGeminiModel options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* Claude */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingClaudeModel options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* Grok */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingGrokModel options={inputs} refresh={onRefresh} />
-        </Card>
-      </Spin>
-    </>
+    <div className='relative'>
+      {loading ? (
+        <div className='absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-sm'>
+          <Spinner size='lg' />
+        </div>
+      ) : null}
+      {/* OpenAI */}
+      <Card className='mt-2.5'>
+        <SettingGlobalModel options={inputs} refresh={onRefresh} />
+      </Card>
+      {/* Channel affinity */}
+      <Card className='mt-2.5'>
+        <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
+      </Card>
+      {/* Gemini */}
+      <Card className='mt-2.5'>
+        <SettingGeminiModel options={inputs} refresh={onRefresh} />
+      </Card>
+      {/* Claude */}
+      <Card className='mt-2.5'>
+        <SettingClaudeModel options={inputs} refresh={onRefresh} />
+      </Card>
+      {/* Grok */}
+      <Card className='mt-2.5'>
+        <SettingGrokModel options={inputs} refresh={onRefresh} />
+      </Card>
+    </div>
   );
 };
 

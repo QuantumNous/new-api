@@ -18,7 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import {
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
 import { resetPricingFilters } from '../../../../helpers/utils';
 import FilterModalContent from './components/FilterModalContent';
 import FilterModalFooter from './components/FilterModalFooter';
@@ -40,26 +49,40 @@ const PricingFilterModal = ({ visible, onClose, sidebarProps, t }) => {
       setTokenUnit: sidebarProps.setTokenUnit,
     });
 
-  const footer = (
-    <FilterModalFooter onReset={handleResetFilters} onConfirm={onClose} t={t} />
-  );
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onClose?.();
+    },
+  });
 
   return (
-    <Modal
-      title={t('筛选')}
-      visible={visible}
-      onCancel={onClose}
-      footer={footer}
-      style={{ width: '100%', height: '100%', margin: 0 }}
-      bodyStyle={{
-        padding: 0,
-        height: 'calc(100vh - 160px)',
-        overflowY: 'auto',
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
-      }}
-    >
-      <FilterModalContent sidebarProps={sidebarProps} t={t} />
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='full' placement='center'>
+          <ModalDialog className='flex h-full max-h-[100vh] flex-col bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {t('筛选')}
+            </ModalHeader>
+            <ModalBody
+              className='flex-1 overflow-y-auto p-0'
+              style={{
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              }}
+            >
+              <FilterModalContent sidebarProps={sidebarProps} t={t} />
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <FilterModalFooter
+                onReset={handleResetFilters}
+                onConfirm={onClose}
+                t={t}
+              />
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

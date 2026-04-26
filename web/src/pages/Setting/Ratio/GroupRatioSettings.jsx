@@ -18,22 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import {
-  Button,
-  Col,
-  Collapsible,
-  Form,
-  Radio,
-  RadioGroup,
-  Row,
-  SideSheet,
-  Spin,
-  Switch,
-  Tabs,
-  Typography,
-} from '@douyinfe/semi-ui';
-import { IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
-import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { Button, Switch } from '@heroui/react';
+import { Col, Collapsible, Form, Radio, RadioGroup, Row, SideSheet, Spin, Tabs, Typography } from '@/components/common/ui/HeroCompat';
+import { IconChevronDown, IconChevronUp } from '@/components/common/ui/HeroIconsCompat';
+import { IconHelpCircle } from '@/components/common/ui/HeroIconsCompat';
 import {
   compareObjects,
   API,
@@ -150,7 +138,7 @@ export default function GroupRatioSettings(props) {
     setInputsRow(structuredClone(currentInputs));
     dataVersionRef.current += 1;
     if (refForm.current) {
-      refForm.current.setValues(currentInputs);
+      refForm.current?.setValues?.(currentInputs);
     }
   }, [props.options]);
 
@@ -255,7 +243,7 @@ export default function GroupRatioSettings(props) {
 
   useEffect(() => {
     if (editMode === 'manual' && refForm.current) {
-      refForm.current.setValues(inputs);
+      refForm.current?.setValues?.(inputs);
     }
   }, [editMode]);
 
@@ -429,14 +417,14 @@ export default function GroupRatioSettings(props) {
           size='small'
           icon={open ? <IconChevronUp /> : <IconChevronDown />}
           onClick={() => setOpen(!open)}
-          style={{ padding: '4px 0', color: 'var(--semi-color-primary)' }}
+          style={{ padding: '4px 0', color: 'var(--app-primary)' }}
         >
           {title}
         </Button>
         <Collapsible isOpen={open} keepDOM>
           <div
             style={{
-              background: 'var(--semi-color-fill-0)',
+              background: 'var(--app-surface-muted)',
               padding: '12px 16px',
               borderRadius: 8,
               marginTop: 8,
@@ -452,8 +440,8 @@ export default function GroupRatioSettings(props) {
   const CodeBlock = ({ children }) => (
     <pre
       style={{
-        background: 'var(--semi-color-bg-2)',
-        border: '1px solid var(--semi-color-border)',
+        background: 'var(--app-surface-muted)',
+        border: '1px solid var(--app-border)',
         padding: '10px 14px',
         borderRadius: 6,
         fontFamily: 'monospace',

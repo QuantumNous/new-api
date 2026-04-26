@@ -18,9 +18,22 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tabs, TabPane, Tag } from '@douyinfe/semi-ui';
 import { CHANNEL_OPTIONS } from '../../../constants';
 import { getChannelIcon } from '../../../helpers';
+
+function CountChip({ active, count }) {
+  return (
+    <span
+      className={`inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+        active
+          ? 'bg-red-500 text-white'
+          : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+      }`}
+    >
+      {count}
+    </span>
+  );
+}
 
 const ChannelsTabs = ({
   enableTagMode,
@@ -43,54 +56,51 @@ const ChannelsTabs = ({
     loadChannels(1, pageSize, idSort, enableTagMode, key);
   };
 
-  return (
-    <Tabs
-      activeKey={activeTypeKey}
-      type='card'
-      collapsible
-      onChange={handleTabChange}
-      className='mb-2'
-    >
-      <TabPane
-        itemKey='all'
-        tab={
-          <span className='flex items-center gap-2'>
-            {t('全部')}
-            <Tag
-              color={activeTypeKey === 'all' ? 'red' : 'grey'}
-              shape='circle'
-            >
-              {channelTypeCounts['all'] || 0}
-            </Tag>
-          </span>
-        }
-      />
+  const tabs = [
+    {
+      key: 'all',
+      label: t('全部'),
+      icon: null,
+      count: channelTypeCounts['all'] || 0,
+    },
+    ...CHANNEL_OPTIONS.filter((opt) =>
+      availableTypeKeys.includes(String(opt.value)),
+    ).map((option) => ({
+      key: String(option.value),
+      label: option.label,
+      icon: getChannelIcon(option.value),
+      count: channelTypeCounts[option.value] || 0,
+    })),
+  ];
 
-      {CHANNEL_OPTIONS.filter((opt) =>
-        availableTypeKeys.includes(String(opt.value)),
-      ).map((option) => {
-        const key = String(option.value);
-        const count = channelTypeCounts[option.value] || 0;
+  return (
+    <div
+      role='tablist'
+      aria-label={t('渠道类型')}
+      className='mb-3 flex flex-wrap items-center gap-2'
+    >
+      {tabs.map((tab) => {
+        const active = activeTypeKey === tab.key;
         return (
-          <TabPane
-            key={key}
-            itemKey={key}
-            tab={
-              <span className='flex items-center gap-2'>
-                {getChannelIcon(option.value)}
-                {option.label}
-                <Tag
-                  color={activeTypeKey === key ? 'red' : 'grey'}
-                  shape='circle'
-                >
-                  {count}
-                </Tag>
-              </span>
-            }
-          />
+          <button
+            key={tab.key}
+            role='tab'
+            aria-selected={active}
+            type='button'
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+              active
+                ? 'border-transparent bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900'
+                : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+            onClick={() => handleTabChange(tab.key)}
+          >
+            {tab.icon}
+            <span className='whitespace-nowrap'>{tab.label}</span>
+            <CountChip active={active} count={tab.count} />
+          </button>
         );
       })}
-    </Tabs>
+    </div>
   );
 };
 

@@ -17,11 +17,39 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Button, Dropdown } from '@douyinfe/semi-ui';
+import React, { useEffect, useRef, useState } from 'react';
 import fireworks from 'react-fireworks';
 
 const NewYearButton = ({ isNewYear }) => {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!dropdownRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
   if (!isNewYear) {
     return null;
   }
@@ -29,33 +57,42 @@ const NewYearButton = ({ isNewYear }) => {
   const handleNewYearClick = () => {
     fireworks.init('root', {});
     fireworks.start();
+    setOpen(false);
     setTimeout(() => {
       fireworks.stop();
     }, 3000);
   };
 
   return (
-    <Dropdown
-      position='bottomRight'
-      render={
-        <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
-          <Dropdown.Item
+    <div className='relative' ref={dropdownRef}>
+      <button
+        type='button'
+        aria-label='New Year'
+        aria-haspopup='menu'
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className='inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-700 transition-colors hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10'
+      >
+        <span className='text-xl'>🎉</span>
+      </button>
+
+      {open ? (
+        <div
+          role='menu'
+          aria-label='New Year'
+          className='absolute right-0 top-full z-50 mt-2 min-w-44 rounded-2xl border border-slate-200/80 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/95'
+        >
+          <button
+            type='button'
+            role='menuitem'
             onClick={handleNewYearClick}
-            className='!text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-gray-600'
+            className='flex w-full items-center rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-900/[0.04] dark:hover:bg-white/10'
           >
             Happy New Year!!! 🎉
-          </Dropdown.Item>
-        </Dropdown.Menu>
-      }
-    >
-      <Button
-        theme='borderless'
-        type='tertiary'
-        icon={<span className='text-xl'>🎉</span>}
-        aria-label='New Year'
-        className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 dark:focus:!bg-gray-700 rounded-full'
-      />
-    </Dropdown>
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 };
 

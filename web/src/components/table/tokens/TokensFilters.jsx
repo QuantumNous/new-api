@@ -17,9 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef } from 'react';
-import { Form, Button } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import React from 'react';
+import { Button } from '@heroui/react';
+import {
+  FilterInput,
+  useTableFilterForm,
+} from '../../common/ui/TableFilterForm';
 
 const TokensFilters = ({
   formInitValues,
@@ -29,77 +32,65 @@ const TokensFilters = ({
   searching,
   t,
 }) => {
-  // Handle form reset and immediate search
-  const formApiRef = useRef(null);
+  const { values, setFieldValue, handleSubmit, api } = useTableFilterForm({
+    initValues: formInitValues,
+    setFormApi,
+    onSubmit: () => searchTokens(1),
+  });
 
   const handleReset = () => {
-    if (!formApiRef.current) return;
-    formApiRef.current.reset();
+    api.reset();
     setTimeout(() => {
       searchTokens();
     }, 100);
   };
 
   return (
-    <Form
-      initValues={formInitValues}
-      getFormApi={(api) => {
-        setFormApi(api);
-        formApiRef.current = api;
-      }}
-      onSubmit={() => searchTokens(1)}
-      allowEmpty={true}
+    <form
+      onSubmit={handleSubmit}
       autoComplete='off'
-      layout='horizontal'
-      trigger='change'
-      stopValidateWithError={false}
       className='w-full md:w-auto order-1 md:order-2'
     >
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
         <div className='relative w-full md:w-56'>
-          <Form.Input
-            field='searchKeyword'
-            prefix={<IconSearch />}
+          <FilterInput
+            value={values.searchKeyword}
+            onChange={(value) => setFieldValue('searchKeyword', value)}
             placeholder={t('搜索关键字')}
-            showClear
-            pure
-            size='small'
           />
         </div>
 
         <div className='relative w-full md:w-56'>
-          <Form.Input
-            field='searchToken'
-            prefix={<IconSearch />}
+          <FilterInput
+            value={values.searchToken}
+            onChange={(value) => setFieldValue('searchToken', value)}
             placeholder={t('密钥')}
-            showClear
-            pure
-            size='small'
           />
         </div>
 
         <div className='flex gap-2 w-full md:w-auto'>
           <Button
-            type='tertiary'
-            htmlType='submit'
-            loading={loading || searching}
+            type='submit'
+            variant='outline'
+            isPending={loading || searching}
             className='flex-1 md:flex-initial md:w-auto'
-            size='small'
+            size='sm'
           >
             {t('查询')}
           </Button>
 
           <Button
-            type='tertiary'
-            onClick={handleReset}
+            type='button'
+            variant='outline'
+            onPress={handleReset}
             className='flex-1 md:flex-initial md:w-auto'
-            size='small'
+            size='sm'
           >
             {t('重置')}
           </Button>
         </div>
       </div>
-    </Form>
+    </form>
   );
 };
 

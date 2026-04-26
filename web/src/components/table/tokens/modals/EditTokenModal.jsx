@@ -33,27 +33,15 @@ import {
   displayAmountToQuota,
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import {
-  Button,
-  SideSheet,
-  Space,
-  Spin,
-  Typography,
-  Card,
-  Tag,
-  Avatar,
-  Form,
-  Col,
-  Row,
-  InputNumber,
-} from '@douyinfe/semi-ui';
+import { Button, Card } from '@heroui/react';
+import { SideSheet, Space, Spin, Typography, Tag, Avatar, Form, Col, Row, InputNumber } from '@/components/common/ui/HeroCompat';
 import {
   IconCreditCard,
   IconLink,
   IconSave,
   IconClose,
   IconKey,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../../context/Status';
 
@@ -173,7 +161,7 @@ const EditTokenModal = (props) => {
         quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
       );
       if (formApiRef.current) {
-        formApiRef.current.setValues({ ...getInitValues(), ...data });
+        formApiRef.current?.setValues?.({ ...getInitValues(), ...data });
       }
     } else {
       showError(message);
@@ -184,7 +172,7 @@ const EditTokenModal = (props) => {
   useEffect(() => {
     if (formApiRef.current) {
       if (!isEdit) {
-        formApiRef.current.setValues(getInitValues());
+        formApiRef.current?.setValues?.(getInitValues());
       }
     }
     loadModels();
@@ -545,7 +533,7 @@ const EditTokenModal = (props) => {
                   <Col span={24}>
                     <div
                       className='text-xs cursor-pointer mt-1'
-                      style={{ color: 'var(--semi-color-text-2)' }}
+                      style={{ color: 'var(--app-muted)' }}
                       onClick={() => setShowQuotaInput((v) => !v)}
                     >
                       {showQuotaInput

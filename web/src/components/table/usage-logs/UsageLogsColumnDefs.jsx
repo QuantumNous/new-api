@@ -18,14 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Avatar,
-  Space,
-  Tag,
-  Tooltip,
-  Popover,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Tooltip } from '@heroui/react';
+import { Avatar, Space, Tag, Popover, Typography } from '@/components/common/ui/HeroCompat';
 import {
   renderGroup,
   renderQuota,
@@ -35,7 +29,7 @@ import {
   renderModelPriceSimple,
   renderTieredModelPriceSimple,
 } from '../../../helpers';
-import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { IconHelpCircle } from '@/components/common/ui/HeroIconsCompat';
 import { CircleAlert, Route, Sparkles } from 'lucide-react';
 
 const colors = [
@@ -772,7 +766,7 @@ export const getLogsColumns = ({
                 style={{
                   marginTop: 2,
                   fontSize: 11,
-                  color: 'var(--semi-color-text-2)',
+                  color: 'var(--app-muted)',
                   whiteSpace: 'nowrap',
                 }}
               >

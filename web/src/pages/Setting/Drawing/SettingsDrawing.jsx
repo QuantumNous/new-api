@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin, Tag } from '@douyinfe/semi-ui';
+import React, { useEffect, useState } from 'react';
+import { Button, Switch } from '@heroui/react';
 import {
   compareObjects,
   API,
@@ -28,183 +28,163 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
+const DEFAULT_INPUTS = {
+  DrawingEnabled: false,
+  MjNotifyEnabled: false,
+  MjAccountFilterEnabled: false,
+  MjForwardUrlEnabled: false,
+  MjModeClearEnabled: false,
+  MjActionCheckSuccessEnabled: false,
+};
+
+function ToggleRow({ label, helper, isSelected, onValueChange }) {
+  return (
+    <label className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+      <div className='min-w-0 flex-1'>
+        <div className='text-sm font-medium leading-snug text-foreground'>
+          {label}
+        </div>
+        {helper ? (
+          <div className='mt-1 text-xs leading-snug text-muted'>{helper}</div>
+        ) : null}
+      </div>
+      <Switch
+        isSelected={!!isSelected}
+        onChange={onValueChange}
+        aria-label={typeof label === 'string' ? label : undefined}
+        size='sm'
+      >
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
+    </label>
+  );
+}
+
 export default function SettingsDrawing(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    DrawingEnabled: false,
-    MjNotifyEnabled: false,
-    MjAccountFilterEnabled: false,
-    MjForwardUrlEnabled: false,
-    MjModeClearEnabled: false,
-    MjActionCheckSuccessEnabled: false,
-  });
-  const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [inputsRow, setInputsRow] = useState(DEFAULT_INPUTS);
 
-  function onSubmit() {
+  const setField = (field) => (value) =>
+    setInputs((prev) => ({ ...prev, [field]: value }));
+
+  const onSubmit = async () => {
     const updateArray = compareObjects(inputs, inputsRow);
-    if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
-    const requestQueue = updateArray.map((item) => {
-      let value = '';
-      if (typeof inputs[item.key] === 'boolean') {
-        value = String(inputs[item.key]);
-      } else {
-        value = inputs[item.key];
-      }
-      return API.put('/api/option/', {
-        key: item.key,
-        value,
-      });
-    });
+    if (!updateArray.length) {
+      showWarning(t('你似乎并没有修改什么'));
+      return;
+    }
     setLoading(true);
-    Promise.all(requestQueue)
-      .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+    try {
+      const requests = updateArray.map((item) =>
+        API.put('/api/option/', {
+          key: item.key,
+          value: String(inputs[item.key]),
+        }),
+      );
+      const results = await Promise.all(requests);
+      if (results.some((r) => r === undefined)) {
+        if (requests.length > 1) {
+          showError(t('部分保存失败，请重试'));
+          return;
         }
-        showSuccess(t('保存成功'));
-        props.refresh();
-      })
-      .catch(() => {
-        showError(t('保存失败，请重试'));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }
+        return;
+      }
+      showSuccess(t('保存成功'));
+      setInputsRow(structuredClone(inputs));
+      props.refresh?.();
+    } catch (e) {
+      showError(t('保存失败，请重试'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+    if (!props.options) return;
+    const next = { ...DEFAULT_INPUTS };
+    for (const key of Object.keys(DEFAULT_INPUTS)) {
+      if (key in props.options) {
+        const raw = props.options[key];
+        next[key] = raw === true || raw === 'true';
       }
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
-    localStorage.setItem('mj_notify_enabled', String(inputs.MjNotifyEnabled));
+    setInputs(next);
+    setInputsRow(structuredClone(next));
+    localStorage.setItem('mj_notify_enabled', String(next.MjNotifyEnabled));
   }, [props.options]);
 
   return (
-    <>
-      <Spin spinning={loading}>
-        <Form
-          values={inputs}
-          getFormApi={(formAPI) => (refForm.current = formAPI)}
-          style={{ marginBottom: 15 }}
+    <div className='p-6 space-y-6'>
+      <div>
+        <div className='text-base font-semibold text-foreground'>
+          {t('绘图设置')}
+        </div>
+      </div>
+
+      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+        <ToggleRow
+          label={t('启用绘图功能')}
+          isSelected={inputs.DrawingEnabled}
+          onValueChange={setField('DrawingEnabled')}
+        />
+        <ToggleRow
+          label={t('允许回调（会泄露服务器 IP 地址）')}
+          isSelected={inputs.MjNotifyEnabled}
+          onValueChange={setField('MjNotifyEnabled')}
+        />
+        <ToggleRow
+          label={t('允许 AccountFilter 参数')}
+          isSelected={inputs.MjAccountFilterEnabled}
+          onValueChange={setField('MjAccountFilterEnabled')}
+        />
+        <ToggleRow
+          label={t('开启之后将上游地址替换为服务器地址')}
+          isSelected={inputs.MjForwardUrlEnabled}
+          onValueChange={setField('MjForwardUrlEnabled')}
+        />
+        <ToggleRow
+          label={
+            <span>
+              {t('开启之后会清除用户提示词中的')}{' '}
+              <code className='rounded bg-[color:var(--app-surface-muted)] px-1 py-0.5 font-mono text-[11px]'>
+                --fast
+              </code>{' '}
+              、
+              <code className='rounded bg-[color:var(--app-surface-muted)] px-1 py-0.5 font-mono text-[11px]'>
+                --relax
+              </code>{' '}
+              {t('以及')}{' '}
+              <code className='rounded bg-[color:var(--app-surface-muted)] px-1 py-0.5 font-mono text-[11px]'>
+                --turbo
+              </code>{' '}
+              {t('参数')}
+            </span>
+          }
+          isSelected={inputs.MjModeClearEnabled}
+          onValueChange={setField('MjModeClearEnabled')}
+        />
+        <ToggleRow
+          label={t('检测必须等待绘图成功才能进行放大等操作')}
+          isSelected={inputs.MjActionCheckSuccessEnabled}
+          onValueChange={setField('MjActionCheckSuccessEnabled')}
+        />
+      </div>
+
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={onSubmit}
+          isPending={loading}
+          className='min-w-[100px]'
         >
-          <Form.Section text={t('绘图设置')}>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'DrawingEnabled'}
-                  label={t('启用绘图功能')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) => {
-                    setInputs({
-                      ...inputs,
-                      DrawingEnabled: value,
-                    });
-                  }}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjNotifyEnabled'}
-                  label={t('允许回调（会泄露服务器 IP 地址）')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjNotifyEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjAccountFilterEnabled'}
-                  label={t('允许 AccountFilter 参数')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjAccountFilterEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjForwardUrlEnabled'}
-                  label={t('开启之后将上游地址替换为服务器地址')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjForwardUrlEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjModeClearEnabled'}
-                  label={
-                    <>
-                      {t('开启之后会清除用户提示词中的')} <Tag>--fast</Tag> 、
-                      <Tag>--relax</Tag> {t('以及')} <Tag>--turbo</Tag>{' '}
-                      {t('参数')}
-                    </>
-                  }
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjModeClearEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjActionCheckSuccessEnabled'}
-                  label={t('检测必须等待绘图成功才能进行放大等操作')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjActionCheckSuccessEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-            </Row>
-            <Row>
-              <Button size='default' onClick={onSubmit}>
-                {t('保存绘图设置')}
-              </Button>
-            </Row>
-          </Form.Section>
-        </Form>
-      </Spin>
-    </>
+          {t('保存绘图设置')}
+        </Button>
+      </div>
+    </div>
   );
 }

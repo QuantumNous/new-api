@@ -18,13 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useState } from 'react';
-import {
-  Button,
-  Typography,
-  Input,
-  ScrollList,
-  ScrollItem,
-} from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 import { API, showError, copy, showSuccess } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { API_ENDPOINTS } from '../../constants/common.constant';
@@ -32,12 +26,7 @@ import { StatusContext } from '../../context/Status';
 import { useActualTheme } from '../../context/Theme';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
-import {
-  IconGithubLogo,
-  IconPlay,
-  IconFile,
-  IconCopy,
-} from '@douyinfe/semi-icons';
+import { CopyIcon, FileText, Github, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
 import {
@@ -63,8 +52,6 @@ import {
   Xinference,
 } from '@lobehub/icons';
 
-const { Text } = Typography;
-
 const Home = () => {
   const { t, i18n } = useTranslation();
   const [statusState] = useContext(StatusContext);
@@ -83,31 +70,39 @@ const Home = () => {
 
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
-    const res = await API.get('/api/home_page_content');
-    const { success, message, data } = res.data;
-    if (success) {
-      let content = data;
-      if (!data.startsWith('https://')) {
-        content = marked.parse(data);
-      }
-      setHomePageContent(content);
-      localStorage.setItem('home_page_content', content);
-
-      // 如果内容是 URL，则发送主题模式
-      if (data.startsWith('https://')) {
-        const iframe = document.querySelector('iframe');
-        if (iframe) {
-          iframe.onload = () => {
-            iframe.contentWindow.postMessage({ themeMode: actualTheme }, '*');
-            iframe.contentWindow.postMessage({ lang: i18n.language }, '*');
-          };
+    try {
+      const res = await API.get('/api/home_page_content', {
+        skipErrorHandler: true,
+      });
+      const { success, message, data } = res.data;
+      if (success) {
+        let content = data;
+        if (!data.startsWith('https://')) {
+          content = marked.parse(data);
         }
+        setHomePageContent(content);
+        localStorage.setItem('home_page_content', content);
+
+        // 如果内容是 URL，则发送主题模式
+        if (data.startsWith('https://')) {
+          const iframe = document.querySelector('iframe');
+          if (iframe) {
+            iframe.onload = () => {
+              iframe.contentWindow.postMessage({ themeMode: actualTheme }, '*');
+              iframe.contentWindow.postMessage({ lang: i18n.language }, '*');
+            };
+          }
+        }
+      } else {
+        showError(message);
+        setHomePageContent('加载首页内容失败...');
       }
-    } else {
-      showError(message);
-      setHomePageContent('加载首页内容失败...');
+    } catch (error) {
+      console.error('加载首页内容失败:', error);
+      setHomePageContent('');
+    } finally {
+      setHomePageContentLoaded(true);
     }
-    setHomePageContentLoaded(true);
   };
 
   const handleCopyBaseURL = async () => {
@@ -123,7 +118,7 @@ const Home = () => {
       const today = new Date().toDateString();
       if (lastCloseDate !== today) {
         try {
-          const res = await API.get('/api/notice');
+          const res = await API.get('/api/notice', { skipErrorHandler: true });
           const { success, data } = res.data;
           if (success && data && data.trim() !== '') {
             setNoticeVisible(true);
@@ -158,7 +153,7 @@ const Home = () => {
       {homePageContentLoaded && homePageContent === '' ? (
         <div className='w-full overflow-x-hidden'>
           {/* Banner 部分 */}
-          <div className='w-full border-b border-semi-color-border min-h-[500px] md:min-h-[600px] lg:min-h-[700px] relative overflow-x-hidden'>
+          <div className='relative min-h-[500px] w-full overflow-x-hidden border-b border-slate-200/80 md:min-h-[600px] lg:min-h-[700px] dark:border-white/10'>
             {/* 背景模糊晕染球 */}
             <div className='blur-ball blur-ball-indigo' />
             <div className='blur-ball blur-ball-teal' />
@@ -167,7 +162,7 @@ const Home = () => {
               <div className='flex flex-col items-center justify-center text-center max-w-4xl mx-auto'>
                 <div className='flex flex-col items-center justify-center mb-6 md:mb-8'>
                   <h1
-                    className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-semi-color-text-0 leading-tight ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
+                    className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-slate-950 leading-tight dark:text-white ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
                   >
                     <>
                       {t('统一的')}
@@ -175,61 +170,50 @@ const Home = () => {
                       <span className='shine-text'>{t('大模型接口网关')}</span>
                     </>
                   </h1>
-                  <p className='text-base md:text-lg lg:text-xl text-semi-color-text-1 mt-4 md:mt-6 max-w-xl'>
+                  <p className='mt-4 max-w-xl text-base text-slate-600 md:mt-6 md:text-lg lg:text-xl dark:text-slate-300'>
                     {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
                   </p>
                   {/* BASE URL 与端点选择 */}
                   <div className='flex flex-col md:flex-row items-center justify-center gap-4 w-full mt-4 md:mt-6 max-w-md'>
-                    <Input
-                      readonly
-                      value={serverAddress}
-                      className='flex-1 !rounded-full'
-                      size={isMobile ? 'default' : 'large'}
-                      suffix={
-                        <div className='flex items-center gap-2'>
-                          <ScrollList
-                            bodyHeight={32}
-                            style={{ border: 'unset', boxShadow: 'unset' }}
-                          >
-                            <ScrollItem
-                              mode='wheel'
-                              cycled={true}
-                              list={endpointItems}
-                              selectedIndex={endpointIndex}
-                              onSelect={({ index }) => setEndpointIndex(index)}
-                            />
-                          </ScrollList>
-                          <Button
-                            type='primary'
-                            onClick={handleCopyBaseURL}
-                            icon={<IconCopy />}
-                            className='!rounded-full'
-                          />
-                        </div>
-                      }
-                    />
+                    <div className='flex min-h-12 flex-1 items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-4 py-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10'>
+                      <input
+                        readOnly
+                        value={serverAddress}
+                        className='min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none dark:text-slate-100'
+                      />
+                      <span className='hidden rounded-full bg-slate-900/[0.04] px-2 py-1 text-xs font-medium text-slate-500 sm:inline-flex dark:bg-white/10 dark:text-slate-300'>
+                        {endpointItems[endpointIndex]?.value}
+                      </span>
+                      <Button
+                        isIconOnly
+                        color='primary'
+                        size='sm'
+                        radius='full'
+                        onPress={handleCopyBaseURL}
+                        aria-label={t('复制')}
+                      >
+                        <CopyIcon size={16} />
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
                 {/* 操作按钮 */}
                 <div className='flex flex-row gap-4 justify-center items-center'>
                   <Link to='/console'>
-                    <Button
-                      theme='solid'
-                      type='primary'
-                      size={isMobile ? 'default' : 'large'}
-                      className='!rounded-3xl px-8 py-2'
-                      icon={<IconPlay />}
-                    >
+                    <span className='inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3 font-semibold text-white shadow-lg shadow-primary/20 transition hover:opacity-90'>
+                      <Play size={18} />
                       {t('获取密钥')}
-                    </Button>
+                    </span>
                   </Link>
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
-                      size={isMobile ? 'default' : 'large'}
-                      className='flex items-center !rounded-3xl px-6 py-2'
-                      icon={<IconGithubLogo />}
-                      onClick={() =>
+                      size={isMobile ? 'md' : 'lg'}
+                      radius='full'
+                      variant='flat'
+                      className='px-6 py-2 font-semibold'
+                      startContent={<Github size={18} />}
+                      onPress={() =>
                         window.open(
                           'https://github.com/QuantumNous/new-api',
                           '_blank',
@@ -241,10 +225,12 @@ const Home = () => {
                   ) : (
                     docsLink && (
                       <Button
-                        size={isMobile ? 'default' : 'large'}
-                        className='flex items-center !rounded-3xl px-6 py-2'
-                        icon={<IconFile />}
-                        onClick={() => window.open(docsLink, '_blank')}
+                        size={isMobile ? 'md' : 'lg'}
+                        radius='full'
+                        variant='flat'
+                        className='px-6 py-2 font-semibold'
+                        startContent={<FileText size={18} />}
+                        onPress={() => window.open(docsLink, '_blank')}
                       >
                         {t('文档')}
                       </Button>
@@ -255,12 +241,9 @@ const Home = () => {
                 {/* 框架兼容性图标 */}
                 <div className='mt-12 md:mt-16 lg:mt-20 w-full'>
                   <div className='flex items-center mb-6 md:mb-8 justify-center'>
-                    <Text
-                      type='tertiary'
-                      className='text-lg md:text-xl lg:text-2xl font-light'
-                    >
+                    <span className='text-lg font-light text-slate-500 md:text-xl lg:text-2xl dark:text-slate-400'>
                       {t('支持众多的大模型供应商')}
-                    </Text>
+                    </span>
                   </div>
                   <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4'>
                     <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
@@ -324,9 +307,9 @@ const Home = () => {
                       <Xinference.Color size={40} />
                     </div>
                     <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Typography.Text className='!text-lg sm:!text-xl md:!text-2xl lg:!text-3xl font-bold'>
+                      <span className='text-lg font-bold sm:text-xl md:text-2xl lg:text-3xl'>
                         30+
-                      </Typography.Text>
+                      </span>
                     </div>
                   </div>
                 </div>

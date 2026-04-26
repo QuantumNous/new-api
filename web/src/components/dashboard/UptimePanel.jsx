@@ -18,20 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Card,
-  Button,
-  Spin,
-  Tabs,
-  TabPane,
-  Tag,
-  Empty,
-} from '@douyinfe/semi-ui';
+import { Button, Chip, Spinner, Tabs } from '@heroui/react';
+import { EmptyState, Widget } from '@heroui-pro/react';
 import { Gauge, RefreshCw } from 'lucide-react';
-import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
 const UptimePanel = ({
@@ -43,109 +32,104 @@ const UptimePanel = ({
   uptimeLegendData,
   renderMonitorList,
   CARD_PROPS,
-  ILLUSTRATION_SIZE,
   t,
 }) => {
   return (
-    <Card
-      {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
-      title={
-        <div className='flex items-center justify-between w-full gap-2'>
-          <div className='flex items-center gap-2'>
-            <Gauge size={16} />
-            {t('服务可用性')}
-          </div>
-          <Button
-            icon={<RefreshCw size={14} />}
-            onClick={loadUptimeData}
-            loading={uptimeLoading}
-            size='small'
-            theme='borderless'
-            type='tertiary'
-            className='text-gray-500 hover:text-blue-500 hover:bg-blue-50 !rounded-full'
-          />
+    <Widget className={`lg:col-span-1 ${CARD_PROPS?.className || ''}`}>
+      <Widget.Header className='h-12'>
+        <div className='flex items-center gap-2 whitespace-nowrap'>
+          <Gauge size={16} className='shrink-0' />
+          <Widget.Title>{t('服务可用性')}</Widget.Title>
         </div>
-      }
-      bodyStyle={{ padding: 0 }}
-    >
-      {/* 内容区域 */}
-      <div className='relative'>
-        <Spin spinning={uptimeLoading}>
-          {uptimeData.length > 0 ? (
+        {/* Force sub-`sm` dimensions: HeroUI Button only ships sm/md/lg, so
+            the trailing refresh action gets `!h-6 !w-6` overrides + a 12px
+            icon to read as a quiet inline affordance instead of a full-size
+            button against the compact 48px header. */}
+        <Button
+          isIconOnly
+          isPending={uptimeLoading}
+          size='sm'
+          variant='ghost'
+          onPress={loadUptimeData}
+          className='!h-6 !w-6 !min-w-0 rounded-full text-muted hover:text-primary [&_svg]:!size-3'
+        >
+          <RefreshCw size={12} />
+        </Button>
+      </Widget.Header>
+      <Widget.Content className='p-0'>
+        <div className='relative'>
+          {uptimeLoading ? (
+            <div className='flex min-h-48 items-center justify-center'>
+              <Spinner size='sm' />
+            </div>
+          ) : uptimeData.length > 0 ? (
             uptimeData.length === 1 ? (
               <ScrollableContainer maxHeight='24rem'>
                 {renderMonitorList(uptimeData[0].monitors)}
               </ScrollableContainer>
             ) : (
               <Tabs
-                type='card'
-                collapsible
-                activeKey={activeUptimeTab}
-                onChange={setActiveUptimeTab}
-                size='small'
+                selectedKey={activeUptimeTab}
+                onSelectionChange={(key) => setActiveUptimeTab(String(key))}
+                variant='secondary'
+                className='p-3'
               >
-                {uptimeData.map((group, groupIdx) => (
-                  <TabPane
-                    tab={
+                <Tabs.List aria-label={t('服务可用性')}>
+                  {uptimeData.map((group) => (
+                    <Tabs.Tab key={group.categoryName} id={group.categoryName}>
                       <span className='flex items-center gap-2'>
                         <Gauge size={14} />
                         {group.categoryName}
-                        <Tag
+                        <Chip
                           color={
                             activeUptimeTab === group.categoryName
-                              ? 'red'
-                              : 'grey'
+                              ? 'danger'
+                              : 'default'
                           }
-                          size='small'
-                          shape='circle'
+                          size='sm'
                         >
                           {group.monitors ? group.monitors.length : 0}
-                        </Tag>
+                        </Chip>
                       </span>
-                    }
-                    itemKey={group.categoryName}
-                    key={groupIdx}
-                  >
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+                {uptimeData.map((group) => (
+                  <Tabs.Panel key={group.categoryName} id={group.categoryName}>
                     <ScrollableContainer maxHeight='21.5rem'>
                       {renderMonitorList(group.monitors)}
                     </ScrollableContainer>
-                  </TabPane>
+                  </Tabs.Panel>
                 ))}
               </Tabs>
             )
           ) : (
-            <div className='flex justify-center items-center py-8'>
-              <Empty
-                image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-                darkModeImage={
-                  <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-                }
-                title={t('暂无监控数据')}
-                description={t('请联系管理员在系统设置中配置Uptime')}
-              />
-            </div>
+            <EmptyState size='sm'>
+              <EmptyState.Header>
+                <EmptyState.Media variant='icon'>
+                  <Gauge />
+                </EmptyState.Media>
+                <EmptyState.Title>{t('暂无监控数据')}</EmptyState.Title>
+                <EmptyState.Description>
+                  {t('请联系管理员在系统设置中配置Uptime')}
+                </EmptyState.Description>
+              </EmptyState.Header>
+            </EmptyState>
           )}
-        </Spin>
-      </div>
-
-      {/* 图例 */}
-      {uptimeData.length > 0 && (
-        <div className='p-3 bg-gray-50 rounded-b-2xl'>
-          <div className='flex flex-wrap gap-3 text-xs justify-center'>
-            {uptimeLegendData.map((legend, index) => (
-              <div key={index} className='flex items-center gap-1'>
-                <div
-                  className='w-2 h-2 rounded-full'
-                  style={{ backgroundColor: legend.color }}
-                />
-                <span className='text-gray-600'>{legend.label}</span>
-              </div>
-            ))}
-          </div>
         </div>
+      </Widget.Content>
+      {uptimeData.length > 0 && (
+        <Widget.Footer className='justify-center'>
+          <Widget.Legend className='flex-wrap'>
+            {uptimeLegendData.map((legend, index) => (
+              <Widget.LegendItem key={index} color={legend.color}>
+                {legend.label}
+              </Widget.LegendItem>
+            ))}
+          </Widget.Legend>
+        </Widget.Footer>
       )}
-    </Card>
+    </Widget>
   );
 };
 

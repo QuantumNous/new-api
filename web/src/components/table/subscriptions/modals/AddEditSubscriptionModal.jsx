@@ -18,26 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Avatar,
-  Button,
-  Card,
-  Col,
-  Form,
-  Row,
-  Select,
-  SideSheet,
-  Space,
-  Spin,
-  Tag,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Select } from '@heroui/react';
+import { Avatar, Col, Form, Row, SideSheet, Space, Spin, Tag, Typography } from '@/components/common/ui/HeroCompat';
 import {
   IconCalendarClock,
   IconClose,
   IconCreditCard,
   IconSave,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import { Clock, RefreshCw } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import {

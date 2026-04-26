@@ -18,19 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import ConfirmDialog from '../../../common/ui/ConfirmDialog';
 
 const PromoteUserModal = ({ visible, onCancel, onConfirm, user, t }) => {
   return (
-    <Modal
+    <ConfirmDialog
       title={t('确定要提升此用户吗？')}
       visible={visible}
       onCancel={onCancel}
-      onOk={onConfirm}
-      type='warning'
+      onConfirm={onConfirm}
+      cancelText={t('取消')}
+      confirmText={t('确定')}
     >
       {t('此操作将提升用户的权限级别')}
-    </Modal>
+    </ConfirmDialog>
   );
 };
 

@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Layout } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import TaskLogsTable from './TaskLogsTable';
 import TaskLogsActions from './TaskLogsActions';
@@ -52,7 +51,7 @@ const TaskLogsPage = () => {
         audioClips={taskLogsData.audioClips}
       />
 
-      <Layout>
+      <div className='flex min-h-0 min-w-0'>
         <CardPro
           type='type2'
           statsArea={<TaskLogsActions {...taskLogsData} />}
@@ -70,7 +69,7 @@ const TaskLogsPage = () => {
         >
           <TaskLogsTable {...taskLogsData} />
         </CardPro>
-      </Layout>
+      </div>
     </>
   );
 };

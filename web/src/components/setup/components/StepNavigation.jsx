@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
-import { IconCheckCircleStroked } from '@douyinfe/semi-icons';
+import { Button } from '@heroui/react';
+import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 /**
  * 步骤导航组件
@@ -35,32 +35,42 @@ const StepNavigation = ({
   t,
 }) => {
   return (
-    <div className='flex justify-between items-center pt-4'>
+    <div className='mt-8 flex flex-col-reverse gap-3 border-t border-slate-200/80 pt-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between'>
       {/* 上一步按钮 */}
       {currentStep > 0 && (
-        <Button onClick={prev} className='!rounded-lg'>
+        <Button
+          variant='outline'
+          className='h-11 rounded-full px-5'
+          onPress={prev}
+        >
+          <ArrowLeft size={16} />
           {t('上一步')}
         </Button>
       )}
 
-      <div className='flex-1'></div>
+      {currentStep === 0 ? <div className='hidden sm:block' /> : null}
 
       {/* 下一步按钮 */}
       {currentStep < steps.length - 1 && (
-        <Button type='primary' onClick={next} className='!rounded-lg'>
+        <Button
+          variant='primary'
+          className='h-11 rounded-full px-6'
+          onPress={next}
+        >
           {t('下一步')}
+          <ArrowRight size={16} />
         </Button>
       )}
 
       {/* 完成按钮 */}
       {currentStep === steps.length - 1 && (
         <Button
-          type='primary'
-          onClick={onSubmit}
-          loading={loading}
-          className='!rounded-lg'
-          icon={<IconCheckCircleStroked />}
+          variant='primary'
+          onPress={onSubmit}
+          isPending={loading}
+          className='h-11 rounded-full px-6'
         >
+          <CheckCircle2 size={16} />
           {t('初始化系统')}
         </Button>
       )}

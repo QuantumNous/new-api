@@ -17,24 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect } from 'react';
-import {
-  SideSheet,
-  Button,
-  Typography,
-  Space,
-  Tag,
-  Popconfirm,
-  Card,
-  Avatar,
-  Spin,
-  Empty,
-} from '@douyinfe/semi-ui';
-import { IconPlus, IconLayers } from '@douyinfe/semi-icons';
-import {
-  IllustrationNoResult,
-  IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
+import React, { useEffect, useState } from 'react';
+import { Button, Card, Spinner } from '@heroui/react';
+import { Inbox, Layers, Plus, X } from 'lucide-react';
 import {
   API,
   showError,
@@ -45,12 +30,11 @@ import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
 import EditPrefillGroupModal from './EditPrefillGroupModal';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 import {
   renderLimitedItems,
   renderDescription,
 } from '../../../common/ui/RenderUtils';
-
-const { Text, Title } = Typography;
 
 const PrefillGroupManagement = ({ visible, onClose }) => {
   const { t } = useTranslation();
@@ -59,6 +43,7 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
   const [groups, setGroups] = useState([]);
   const [showEdit, setShowEdit] = useState(false);
   const [editingGroup, setEditingGroup] = useState({ id: undefined });
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   const typeOptions = [
     { label: t('模型组'), value: 'model' },
@@ -66,71 +51,86 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
     { label: t('端点组'), value: 'endpoint' },
   ];
 
-  // 加载组列表
+  useEffect(() => {
+    if (!visible) return;
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose?.();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [visible, onClose]);
+
   const loadGroups = async () => {
     setLoading(true);
     try {
       const res = await API.get('/api/prefill_group');
-      if (res.data.success) {
+      if (res.data?.success) {
         setGroups(res.data.data || []);
       } else {
-        showError(res.data.message || t('获取组列表失败'));
+        showError(res.data?.message || t('获取组列表失败'));
       }
     } catch (error) {
       showError(t('获取组列表失败'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  // 删除组
   const deleteGroup = async (id) => {
     try {
       const res = await API.delete(`/api/prefill_group/${id}`);
-      if (res.data.success) {
+      if (res.data?.success) {
         showSuccess(t('删除成功'));
         loadGroups();
       } else {
-        showError(res.data.message || t('删除失败'));
+        showError(res.data?.message || t('删除失败'));
       }
     } catch (error) {
       showError(t('删除失败'));
     }
   };
 
-  // 编辑组
   const handleEdit = (group = {}) => {
     setEditingGroup(group);
     setShowEdit(true);
   };
 
-  // 关闭编辑
   const closeEdit = () => {
     setShowEdit(false);
-    setTimeout(() => {
-      setEditingGroup({ id: undefined });
-    }, 300);
+    setTimeout(() => setEditingGroup({ id: undefined }), 300);
   };
 
-  // 编辑成功回调
   const handleEditSuccess = () => {
     closeEdit();
     loadGroups();
   };
 
-  // 表格列定义
+  const renderItemTag = (text, key) => (
+    <span
+      key={key}
+      className='inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium'
+      style={{
+        backgroundColor: `${stringToColor(text)}1A`,
+        color: stringToColor(text),
+      }}
+    >
+      {text}
+    </span>
+  );
+
   const columns = [
     {
       title: t('组名'),
       dataIndex: 'name',
       key: 'name',
       render: (text, record) => (
-        <Space>
-          <Text strong>{text}</Text>
-          <Tag color='white' shape='circle' size='small'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <span className='text-sm font-semibold text-foreground'>{text}</span>
+          <span className='inline-flex items-center rounded-full border border-[color:var(--app-border)] px-2 py-0.5 text-[11px] font-medium text-muted'>
             {typeOptions.find((opt) => opt.value === record.type)?.label ||
               record.type}
-          </Tag>
-        </Space>
+          </span>
+        </div>
       ),
     },
     {
@@ -151,44 +151,27 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
                 ? JSON.parse(items || '{}')
                 : items || {};
             const keys = Object.keys(obj);
-            if (keys.length === 0)
-              return <Text type='tertiary'>{t('暂无项目')}</Text>;
+            if (keys.length === 0) {
+              return <span className='text-sm text-muted'>{t('暂无项目')}</span>;
+            }
             return renderLimitedItems({
               items: keys,
-              renderItem: (key, idx) => (
-                <Tag
-                  key={idx}
-                  size='small'
-                  shape='circle'
-                  color={stringToColor(key)}
-                >
-                  {key}
-                </Tag>
-              ),
+              renderItem: (key, idx) => renderItemTag(key, idx),
               maxDisplay: 3,
             });
           }
           const itemsArray =
             typeof items === 'string' ? JSON.parse(items) : items;
           if (!Array.isArray(itemsArray) || itemsArray.length === 0) {
-            return <Text type='tertiary'>{t('暂无项目')}</Text>;
+            return <span className='text-sm text-muted'>{t('暂无项目')}</span>;
           }
           return renderLimitedItems({
             items: itemsArray,
-            renderItem: (item, idx) => (
-              <Tag
-                key={idx}
-                size='small'
-                shape='circle'
-                color={stringToColor(item)}
-              >
-                {item}
-              </Tag>
-            ),
+            renderItem: (item, idx) => renderItemTag(item, idx),
             maxDisplay: 3,
           });
         } catch {
-          return <Text type='tertiary'>{t('数据格式错误')}</Text>;
+          return <span className='text-sm text-muted'>{t('数据格式错误')}</span>;
         }
       },
     },
@@ -198,75 +181,94 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
       fixed: 'right',
       width: 140,
       render: (_, record) => (
-        <Space>
-          <Button size='small' onClick={() => handleEdit(record)}>
+        <div className='flex items-center gap-2'>
+          <Button size='sm' variant='flat' onPress={() => handleEdit(record)}>
             {t('编辑')}
           </Button>
-          <Popconfirm
-            title={t('确定删除此组？')}
-            onConfirm={() => deleteGroup(record.id)}
+          <Button
+            size='sm'
+            color='danger'
+            variant='flat'
+            onPress={() => setPendingDelete(record)}
           >
-            <Button size='small' type='danger'>
-              {t('删除')}
-            </Button>
-          </Popconfirm>
-        </Space>
+            {t('删除')}
+          </Button>
+        </div>
       ),
     },
   ];
 
-  useEffect(() => {
-    if (visible) {
-      loadGroups();
-    }
-  }, [visible]);
-
   return (
     <>
-      <SideSheet
-        placement='left'
-        title={
-          <Space>
-            <Tag color='blue' shape='circle'>
-              {t('管理')}
-            </Tag>
-            <Title heading={4} className='m-0'>
-              {t('预填组管理')}
-            </Title>
-          </Space>
-        }
-        visible={visible}
-        onCancel={onClose}
-        width={isMobile ? '100%' : 800}
-        bodyStyle={{ padding: '0' }}
-        closeIcon={null}
+      <div
+        aria-hidden={!visible}
+        onClick={onClose}
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
+          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+      <aside
+        role='dialog'
+        aria-modal='true'
+        aria-hidden={!visible}
+        style={{ width: isMobile ? '100%' : 800 }}
+        className={`fixed bottom-0 left-0 top-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-950 ${
+          visible ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
-        <Spin spinning={loading}>
-          <div className='p-2'>
-            <Card className='!rounded-2xl shadow-sm border-0'>
-              <div className='flex items-center mb-2'>
-                <Avatar size='small' color='blue' className='mr-2 shadow-md'>
-                  <IconLayers size={16} />
-                </Avatar>
+        <header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
+          <div className='flex items-center gap-2'>
+            <span className='inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'>
+              {t('管理')}
+            </span>
+            <h4 className='m-0 text-lg font-semibold text-foreground'>
+              {t('预填组管理')}
+            </h4>
+          </div>
+          <Button
+            isIconOnly
+            variant='light'
+            size='sm'
+            aria-label={t('关闭')}
+            onPress={onClose}
+          >
+            <X size={16} />
+          </Button>
+        </header>
+
+        <div className='flex-1 overflow-y-auto p-3'>
+          <Card className='!rounded-2xl border-0 shadow-sm'>
+            <Card.Content className='space-y-4 p-5'>
+              <div className='flex items-center gap-2'>
+                <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600 dark:bg-sky-950/40 dark:text-sky-300'>
+                  <Layers size={16} />
+                </div>
                 <div>
-                  <Text className='text-lg font-medium'>{t('组列表')}</Text>
-                  <div className='text-xs text-gray-600'>
+                  <div className='text-base font-semibold text-foreground'>
+                    {t('组列表')}
+                  </div>
+                  <div className='text-xs text-muted'>
                     {t('管理模型、标签、端点等预填组')}
                   </div>
                 </div>
               </div>
-              <div className='flex justify-end mb-4'>
+
+              <div className='flex justify-end'>
                 <Button
-                  type='primary'
-                  theme='solid'
-                  size='small'
-                  icon={<IconPlus />}
-                  onClick={() => handleEdit()}
+                  color='primary'
+                  size='sm'
+                  startContent={<Plus size={14} />}
+                  onPress={() => handleEdit()}
                 >
                   {t('新建组')}
                 </Button>
               </div>
-              {groups.length > 0 ? (
+
+              {loading ? (
+                <div className='flex items-center justify-center py-10'>
+                  <Spinner />
+                </div>
+              ) : groups.length > 0 ? (
                 <CardTable
                   columns={columns}
                   dataSource={groups}
@@ -276,31 +278,40 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
                   scroll={{ x: 'max-content' }}
                 />
               ) : (
-                <Empty
-                  image={
-                    <IllustrationNoResult style={{ width: 150, height: 150 }} />
-                  }
-                  darkModeImage={
-                    <IllustrationNoResultDark
-                      style={{ width: 150, height: 150 }}
-                    />
-                  }
-                  description={t('暂无预填组')}
-                  style={{ padding: 30 }}
-                />
+                <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
+                  <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                    <Inbox size={28} />
+                  </div>
+                  <div>{t('暂无预填组')}</div>
+                </div>
               )}
-            </Card>
-          </div>
-        </Spin>
-      </SideSheet>
+            </Card.Content>
+          </Card>
+        </div>
+      </aside>
 
-      {/* 编辑组件 */}
       <EditPrefillGroupModal
         visible={showEdit}
         onClose={closeEdit}
         editingGroup={editingGroup}
         onSuccess={handleEditSuccess}
       />
+
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title={t('确认删除')}
+        cancelText={t('取消')}
+        confirmText={t('删除')}
+        danger
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const target = pendingDelete;
+          setPendingDelete(null);
+          if (target?.id) deleteGroup(target.id);
+        }}
+      >
+        {t('确定删除此组？')}
+      </ConfirmDialog>
     </>
   );
 };

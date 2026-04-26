@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin } from '@douyinfe/semi-ui';
+import { Card, Spinner } from '@heroui/react';
 import { API, showError, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import SettingModelDeployment from '../../pages/Setting/Model/SettingModelDeployment';
@@ -72,13 +72,16 @@ const ModelDeploymentSetting = () => {
   }, []);
 
   return (
-    <>
-      <Spin spinning={loading} size='large'>
-        <Card style={{ marginTop: '10px' }}>
-          <SettingModelDeployment options={inputs} refresh={onRefresh} />
-        </Card>
-      </Spin>
-    </>
+    <div className='relative'>
+      {loading ? (
+        <div className='absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-sm'>
+          <Spinner size='lg' />
+        </div>
+      ) : null}
+      <Card className='mt-2.5'>
+        <SettingModelDeployment options={inputs} refresh={onRefresh} />
+      </Card>
+    </div>
   );
 };
 

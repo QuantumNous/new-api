@@ -27,8 +27,12 @@ import {
   Table,
   TextArea,
   Typography,
-} from '@douyinfe/semi-ui';
-import { IconCopy, IconDelete, IconPlus } from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroCompat';
+import {
+  IconCopy,
+  IconDelete,
+  IconPlus,
+} from '@/components/common/ui/HeroIconsCompat';
 import { useTranslation } from 'react-i18next';
 import { API, copy, showError, showSuccess } from '../../../helpers';
 

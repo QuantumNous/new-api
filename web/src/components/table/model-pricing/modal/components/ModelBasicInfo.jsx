@@ -18,34 +18,21 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Avatar, Typography, Tag, Space } from '@douyinfe/semi-ui';
-import { IconInfoCircle } from '@douyinfe/semi-icons';
+import { Card } from '@heroui/react';
+import { Info } from 'lucide-react';
 import { stringToColor } from '../../../../../helpers';
 
-const { Text } = Typography;
-
 const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
-  // 获取模型描述（使用后端真实数据）
   const getModelDescription = () => {
     if (!modelData) return t('暂无模型描述');
-
-    // 优先使用后端提供的描述
-    if (modelData.description) {
-      return modelData.description;
-    }
-
-    // 如果没有描述但有供应商描述，显示供应商信息
-    if (modelData.vendor_description) {
+    if (modelData.description) return modelData.description;
+    if (modelData.vendor_description)
       return t('供应商信息：') + modelData.vendor_description;
-    }
-
     return t('暂无模型描述');
   };
 
-  // 获取模型标签
   const getModelTags = () => {
     const tags = [];
-
     if (modelData?.tags) {
       const customTags = modelData.tags.split(',').filter((tag) => tag.trim());
       customTags.forEach((tag) => {
@@ -53,36 +40,49 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
         tags.push({ text: tagText, color: stringToColor(tagText) });
       });
     }
-
     return tags;
   };
 
+  const tags = getModelTags();
+
   return (
-    <div>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='blue' className='mr-2 shadow-md'>
-          <IconInfoCircle size={16} />
-        </Avatar>
-        <div>
-          <Text className='text-lg font-medium'>{t('基本信息')}</Text>
-          <div className='text-xs text-gray-600'>
-            {t('模型的详细描述和基本特性')}
+    <Card className='!rounded-2xl mb-6 border border-[color:var(--app-border)] shadow-sm'>
+      <Card.Content className='space-y-4 p-5'>
+        <div className='flex items-center gap-2'>
+          <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600 dark:bg-sky-950/40 dark:text-sky-300'>
+            <Info size={16} />
+          </div>
+          <div>
+            <div className='text-base font-semibold text-foreground'>
+              {t('基本信息')}
+            </div>
+            <div className='text-xs text-muted'>
+              {t('模型的详细描述和基本特性')}
+            </div>
           </div>
         </div>
-      </div>
-      <div className='text-gray-600'>
-        <p className='mb-4'>{getModelDescription()}</p>
-        {getModelTags().length > 0 && (
-          <Space wrap>
-            {getModelTags().map((tag, index) => (
-              <Tag key={index} color={tag.color} shape='circle' size='small'>
-                {tag.text}
-              </Tag>
-            ))}
-          </Space>
-        )}
-      </div>
-    </div>
+
+        <div className='text-sm text-muted'>
+          <p className='mb-3 leading-relaxed'>{getModelDescription()}</p>
+          {tags.length > 0 && (
+            <div className='flex flex-wrap gap-1.5'>
+              {tags.map((tag, index) => (
+                <span
+                  key={index}
+                  className='inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium'
+                  style={{
+                    backgroundColor: `${tag.color}1A`,
+                    color: tag.color,
+                  }}
+                >
+                  {tag.text}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card.Content>
+    </Card>
   );
 };
 

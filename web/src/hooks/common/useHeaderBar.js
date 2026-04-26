@@ -26,15 +26,17 @@ import { useSetTheme, useTheme, useActualTheme } from '../../context/Theme';
 import { getLogo, getSystemName, API, showSuccess } from '../../helpers';
 import { normalizeLanguage } from '../../i18n/language';
 import { useIsMobile } from './useIsMobile';
-import { useSidebarCollapsed } from './useSidebarCollapsed';
 import { useMinimumLoadingTime } from './useMinimumLoadingTime';
 
-export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
+// Sidebar drawer state lives in the surrounding `Sidebar.Provider` (mounted
+// in PageLayout) — useHeaderBar no longer needs to touch the legacy
+// `useSidebarCollapsed` hook. MobileMenuButton consumes `useSidebar()`
+// directly when it needs to toggle the mobile sheet.
+export const useHeaderBar = () => {
   const { t, i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
   const isMobile = useIsMobile();
-  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
   const navigate = useNavigate();
   const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
@@ -149,47 +151,48 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   const handleLanguageChange = useCallback(
     async (lang) => {
-      // Change language immediately for responsive UX
-      const previousLang = normalizeLanguage(i18n.language);
+      // Change language immediately for responsive UX. We intentionally do NOT
+      // roll back on backend failure: the user's intent is to switch the UI
+      // language; if persistence fails we still keep the local change and
+      // localStorage so it survives reloads on the same device.
       i18n.changeLanguage(lang);
       localStorage.setItem('i18nextLng', lang);
 
-      // If user is logged in, save preference to backend
+      // Mirror the language into the cached user.setting so the
+      // UserContext / PageLayout effects that re-apply user.setting.language
+      // on subsequent mounts don't override the user's choice.
+      let settings = {};
+      if (userState?.user?.setting) {
+        try {
+          settings = JSON.parse(userState.user.setting) || {};
+        } catch (e) {
+          settings = {};
+        }
+      }
+      settings.language = lang;
+
+      if (userState?.user) {
+        const nextUser = {
+          ...userState.user,
+          setting: JSON.stringify(settings),
+        };
+        userDispatch({ type: 'login', payload: nextUser });
+        localStorage.setItem('user', JSON.stringify(nextUser));
+      }
+
+      // If logged in, persist preference to backend in the background. We
+      // don't roll back on failure - the local change has already taken
+      // effect and the user gets a console warning if persistence fails.
       if (userState?.user?.id) {
         try {
-          const res = await API.put('/api/user/self', {
-            language: lang,
-          });
-          if (res.data.success) {
-            // Keep user preference and local cache in sync so route changes
-            // don't reapply an older remembered language.
-            let settings = {};
-            if (userState?.user?.setting) {
-              try {
-                settings = JSON.parse(userState.user.setting) || {};
-              } catch (e) {
-                settings = {};
-              }
-            }
-
-            settings.language = lang;
-            const nextUser = {
-              ...userState.user,
-              setting: JSON.stringify(settings),
-            };
-
-            userDispatch({
-              type: 'login',
-              payload: nextUser,
-            });
-            localStorage.setItem('user', JSON.stringify(nextUser));
-          }
+          await API.put(
+            '/api/user/self',
+            { language: lang },
+            { skipErrorHandler: true },
+          );
         } catch (error) {
-          if (previousLang) {
-            i18n.changeLanguage(previousLang);
-            localStorage.setItem('i18nextLng', previousLang);
-          }
-          console.error('Failed to save language preference:', error);
+          // eslint-disable-next-line no-console
+          console.warn('Failed to save language preference:', error);
         }
       }
     },
@@ -209,20 +212,11 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     [setTheme],
   );
 
-  const handleMobileMenuToggle = useCallback(() => {
-    if (isMobile) {
-      onMobileMenuToggle();
-    } else {
-      toggleCollapsed();
-    }
-  }, [isMobile, onMobileMenuToggle, toggleCollapsed]);
-
   return {
     // State
     userState,
     statusState,
     isMobile,
-    collapsed,
     logoLoaded,
     currentLang,
     location,
@@ -235,7 +229,6 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     isDemoSiteMode,
     isConsoleRoute,
     theme,
-    drawerOpen,
     headerNavModules,
     pricingRequireAuth,
 
@@ -243,7 +236,6 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     logout,
     handleLanguageChange,
     handleThemeToggle,
-    handleMobileMenuToggle,
     navigate,
     t,
   };

@@ -18,22 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Modal,
-  Form,
-  Input,
-  InputNumber,
-  Typography,
-  Card,
-  Space,
-  Divider,
-  Button,
-  Banner,
-  Tag,
-  Collapse,
-  TextArea,
-  Switch,
-} from '@douyinfe/semi-ui';
+import { Input, Card, Button, Switch } from '@heroui/react';
+import { Modal, Form, InputNumber, Typography, Space, Divider, Banner, Tag, Collapse, TextArea } from '@/components/common/ui/HeroCompat';
 import {
   FaCog,
   FaDocker,
@@ -68,7 +54,7 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
       };
 
       if (formRef.current) {
-        formRef.current.setValues(initialValues);
+        formRef.current?.setValues?.(initialValues);
       }
 
       // Initialize environment variables

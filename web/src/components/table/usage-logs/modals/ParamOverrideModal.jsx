@@ -21,14 +21,16 @@ import React, { useMemo } from 'react';
 import {
   Modal,
   Button,
-  Empty,
-  Divider,
-  Typography,
-} from '@douyinfe/semi-ui';
-import { IconCopy } from '@douyinfe/semi-icons';
+  Chip,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { Copy } from 'lucide-react';
 import { copy, showError, showSuccess } from '../../../../helpers';
-
-const { Text } = Typography;
 
 const parseAuditLine = (line) => {
   if (typeof line !== 'string') {
@@ -104,6 +106,12 @@ const ParamOverrideModal = ({
   const lines = Array.isArray(paramOverrideTarget?.lines)
     ? paramOverrideTarget.lines
     : [];
+  const modalState = useOverlayState({
+    isOpen: showParamOverrideModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowParamOverrideModal(false);
+    },
+  });
 
   const parsedLines = useMemo(() => {
     return lines.map(parseAuditLine);
@@ -122,149 +130,80 @@ const ParamOverrideModal = ({
   };
 
   return (
-    <Modal
-      title={t('参数覆盖详情')}
-      visible={showParamOverrideModal}
-      onCancel={() => setShowParamOverrideModal(false)}
-      footer={null}
-      centered
-      closable
-      maskClosable
-      width={640}
-    >
-      <div style={{ padding: '8px 20px 20px' }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            gap: 12,
-            marginBottom: 10,
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <div style={{ marginBottom: 4 }}>
-              <Text style={{ fontWeight: 600 }}>
-                {t('{{count}} 项操作', { count: lines.length })}
-              </Text>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 8,
-                fontSize: 12,
-                color: 'var(--semi-color-text-2)',
-              }}
-            >
-              {paramOverrideTarget?.modelName ? (
-                <Text type='tertiary' size='small'>
-                  {paramOverrideTarget.modelName}
-                </Text>
-              ) : null}
-              {paramOverrideTarget?.requestId ? (
-                <Text type='tertiary' size='small'>
-                  {t('Request ID')}: {paramOverrideTarget.requestId}
-                </Text>
-              ) : null}
-              {paramOverrideTarget?.requestPath ? (
-                <Text type='tertiary' size='small'>
-                  {t('请求路径')}: {paramOverrideTarget.requestPath}
-                </Text>
-              ) : null}
-            </div>
-          </div>
-
-          <Button
-            icon={<IconCopy />}
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            onClick={copyAll}
-            disabled={lines.length === 0}
-          >
-            {t('复制')}
-          </Button>
-        </div>
-
-        <Divider margin='12px' />
-
-        {lines.length === 0 ? (
-          <Empty
-            description={t('暂无参数覆盖记录')}
-            style={{ padding: '24px 0 8px' }}
-          />
-        ) : (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              maxHeight: '56vh',
-              overflowY: 'auto',
-              paddingRight: 2,
-            }}
-          >
-            {parsedLines.map((item, index) => {
-              if (!item) {
-                return null;
-              }
-
-              return (
-                <div
-                  key={`${item.action}-${index}`}
-                  style={{
-                    padding: '10px 12px',
-                    borderRadius: 10,
-                    border: '1px solid var(--semi-color-border)',
-                    background: 'var(--semi-color-fill-0)',
-                    display: 'flex',
-                    gap: 12,
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <div
-                    style={{
-                      flex: '0 0 auto',
-                      minWidth: 74,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        display: 'inline-block',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        lineHeight: '20px',
-                        padding: '0 8px',
-                        borderRadius: 999,
-                        background: 'rgba(var(--semi-blue-5), 0.12)',
-                        color: 'var(--semi-color-primary)',
-                      }}
-                    >
-                      {getActionLabel(item.action, t)}
-                    </Text>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='2xl' placement='center' scroll='inside'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {t('参数覆盖详情')}
+            </ModalHeader>
+            <ModalBody className='p-6'>
+              <div className='mb-4 flex items-start justify-between gap-3'>
+                <div className='min-w-0'>
+                  <div className='mb-1 font-semibold text-slate-800 dark:text-slate-100'>
+                    {t('{{count}} 项操作', { count: lines.length })}
                   </div>
-                  <Text
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontFamily:
-                        'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace',
-                      fontSize: 12,
-                      lineHeight: 1.6,
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      color: 'var(--semi-color-text-0)',
-                    }}
-                  >
-                    {item.content}
-                  </Text>
+                  <div className='flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400'>
+                    {paramOverrideTarget?.modelName ? (
+                      <span>{paramOverrideTarget.modelName}</span>
+                    ) : null}
+                    {paramOverrideTarget?.requestId ? (
+                      <span>
+                        {t('Request ID')}: {paramOverrideTarget.requestId}
+                      </span>
+                    ) : null}
+                    {paramOverrideTarget?.requestPath ? (
+                      <span>
+                        {t('请求路径')}: {paramOverrideTarget.requestPath}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+
+                <Button
+                  startContent={<Copy size={16} />}
+                  variant='flat'
+                  size='sm'
+                  onPress={copyAll}
+                  isDisabled={lines.length === 0}
+                >
+                  {t('复制')}
+                </Button>
+              </div>
+
+              <div className='mb-4 h-px bg-slate-200 dark:bg-white/10' />
+
+              {lines.length === 0 ? (
+                <div className='py-8 text-center text-sm text-slate-500 dark:text-slate-400'>
+                  {t('暂无参数覆盖记录')}
+                </div>
+              ) : (
+                <div className='flex max-h-[56vh] flex-col gap-2 overflow-y-auto pr-1'>
+                  {parsedLines.map((item, index) => {
+                    if (!item) {
+                      return null;
+                    }
+
+                    return (
+                      <div
+                        key={`${item.action}-${index}`}
+                        className='flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-900/60'
+                      >
+                        <Chip color='primary' size='sm' variant='flat'>
+                          {getActionLabel(item.action, t)}
+                        </Chip>
+                        <pre className='min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-slate-800 dark:text-slate-100'>
+                          {item.content}
+                        </pre>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </ModalBody>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

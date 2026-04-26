@@ -17,26 +17,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Button,
-  Space,
-  Table,
-  Form,
-  Typography,
-  Empty,
-  Divider,
+  Input,
   Modal,
-  Tag,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
   Switch,
-  TextArea,
   Tooltip,
-} from '@douyinfe/semi-ui';
+  useOverlayState,
+} from '@heroui/react';
 import {
-  IllustrationNoResult,
-  IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
-import { Plus, Edit, Trash2, Save, Bell, Maximize2 } from 'lucide-react';
+  Bell,
+  Edit,
+  Inbox,
+  Maximize2,
+  Plus,
+  Save,
+  Trash2,
+} from 'lucide-react';
 import {
   API,
   showError,
@@ -45,17 +49,69 @@ import {
   formatDateTimeString,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 
-const { Text } = Typography;
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+const selectClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+const textareaClass =
+  'w-full resize-y rounded-lg border border-[color:var(--app-border)] bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary';
+
+const TONE_CHIP = {
+  grey: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  blue: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
+  green:
+    'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+  orange:
+    'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
+  red: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+};
+
+function TypeChip({ tone, children }) {
+  const cls = TONE_CHIP[tone] || TONE_CHIP.grey;
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function HeaderCheckbox({ checked, indeterminate, onChange, ariaLabel }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
+  }, [indeterminate, checked]);
+  return (
+    <input
+      ref={ref}
+      type='checkbox'
+      checked={!!checked}
+      onChange={(event) => onChange(event.target.checked)}
+      aria-label={ariaLabel}
+      className='h-4 w-4 accent-primary'
+    />
+  );
+}
+
+function toLocalDateTimeInputValue(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate(),
+  )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 const SettingsAnnouncements = ({ options, refresh }) => {
   const { t } = useTranslation();
 
   const [announcementsList, setAnnouncementsList] = useState([]);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showContentModal, setShowContentModal] = useState(false);
-  const [deletingAnnouncement, setDeletingAnnouncement] = useState(null);
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -66,14 +122,13 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     type: 'default',
     extra: '',
   });
+  const [formErrors, setFormErrors] = useState({});
+
+  const [pendingDelete, setPendingDelete] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-
-  // 面板启用状态
   const [panelEnabled, setPanelEnabled] = useState(true);
-
-  const formApiRef = useRef(null);
 
   const typeOptions = [
     { value: 'default', label: t('默认') },
@@ -94,118 +149,12 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     return colorMap[type] || 'grey';
   };
 
-  const columns = [
-    {
-      title: t('内容'),
-      dataIndex: 'content',
-      key: 'content',
-      render: (text) => (
-        <Tooltip content={text} position='topLeft' showArrow>
-          <div
-            style={{
-              maxWidth: '300px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {text}
-          </div>
-        </Tooltip>
-      ),
-    },
-    {
-      title: t('发布时间'),
-      dataIndex: 'publishDate',
-      key: 'publishDate',
-      width: 180,
-      render: (publishDate) => (
-        <div>
-          <div style={{ fontWeight: 'bold' }}>
-            {getRelativeTime(publishDate)}
-          </div>
-          <div
-            style={{
-              fontSize: '12px',
-              color: 'var(--semi-color-text-2)',
-              marginTop: '2px',
-            }}
-          >
-            {publishDate ? formatDateTimeString(new Date(publishDate)) : '-'}
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: t('类型'),
-      dataIndex: 'type',
-      key: 'type',
-      width: 100,
-      render: (type) => (
-        <Tag color={getTypeColor(type)} shape='circle'>
-          {typeOptions.find((opt) => opt.value === type)?.label || type}
-        </Tag>
-      ),
-    },
-    {
-      title: t('说明'),
-      dataIndex: 'extra',
-      key: 'extra',
-      render: (text) => (
-        <Tooltip content={text || '-'} showArrow>
-          <div
-            style={{
-              maxWidth: '200px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              color: 'var(--semi-color-text-2)',
-            }}
-          >
-            {text || '-'}
-          </div>
-        </Tooltip>
-      ),
-    },
-    {
-      title: t('操作'),
-      key: 'action',
-      fixed: 'right',
-      width: 150,
-      render: (text, record) => (
-        <Space>
-          <Button
-            icon={<Edit size={14} />}
-            theme='light'
-            type='tertiary'
-            size='small'
-            onClick={() => handleEditAnnouncement(record)}
-          >
-            {t('编辑')}
-          </Button>
-          <Button
-            icon={<Trash2 size={14} />}
-            type='danger'
-            theme='light'
-            size='small'
-            onClick={() => handleDeleteAnnouncement(record)}
-          >
-            {t('删除')}
-          </Button>
-        </Space>
-      ),
-    },
-  ];
-
   const updateOption = async (key, value) => {
-    const res = await API.put('/api/option/', {
-      key,
-      value,
-    });
-    const { success, message } = res.data;
+    const res = await API.put('/api/option/', { key, value });
+    const { success, message } = res.data || {};
     if (success) {
-      showSuccess('系统公告已更新');
-      if (refresh) refresh();
+      showSuccess(t('系统公告已更新'));
+      refresh?.();
     } else {
       showError(message);
     }
@@ -218,8 +167,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       await updateOption('console_setting.announcements', announcementsJson);
       setHasChanges(false);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('系统公告更新失败', error);
-      showError('系统公告更新失败');
+      showError(t('系统公告更新失败'));
     } finally {
       setLoading(false);
     }
@@ -233,6 +183,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       type: 'default',
       extra: '',
     });
+    setFormErrors({});
     setShowAnnouncementModal(true);
   };
 
@@ -246,42 +197,34 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       type: announcement.type || 'default',
       extra: announcement.extra || '',
     });
+    setFormErrors({});
     setShowAnnouncementModal(true);
   };
 
-  const handleDeleteAnnouncement = (announcement) => {
-    setDeletingAnnouncement(announcement);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeleteAnnouncement = () => {
-    if (deletingAnnouncement) {
-      const newList = announcementsList.filter(
-        (item) => item.id !== deletingAnnouncement.id,
-      );
-      setAnnouncementsList(newList);
-      setHasChanges(true);
-      showSuccess('公告已删除，请及时点击“保存设置”进行保存');
-    }
-    setShowDeleteModal(false);
-    setDeletingAnnouncement(null);
+  const performDeleteAnnouncement = (announcement) => {
+    if (!announcement) return;
+    const newList = announcementsList.filter(
+      (item) => item.id !== announcement.id,
+    );
+    setAnnouncementsList(newList);
+    setHasChanges(true);
+    showSuccess(t('公告已删除，请及时点击"保存设置"进行保存'));
   };
 
   const handleSaveAnnouncement = async () => {
-    if (!announcementForm.content || !announcementForm.publishDate) {
-      showError('请填写完整的公告信息');
-      return;
-    }
+    const next = {};
+    if (!announcementForm.content?.trim())
+      next.content = t('请输入公告内容');
+    if (!announcementForm.publishDate) next.publishDate = t('请选择发布日期');
+    setFormErrors(next);
+    if (Object.keys(next).length > 0) return;
 
     try {
       setModalLoading(true);
-
-      // 将publishDate转换为ISO字符串保存
       const formData = {
         ...announcementForm,
         publishDate: announcementForm.publishDate.toISOString(),
       };
-
       let newList;
       if (editingAnnouncement) {
         newList = announcementsList.map((item) =>
@@ -290,23 +233,18 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       } else {
         const newId =
           Math.max(...announcementsList.map((item) => item.id), 0) + 1;
-        const newAnnouncement = {
-          id: newId,
-          ...formData,
-        };
-        newList = [...announcementsList, newAnnouncement];
+        newList = [...announcementsList, { id: newId, ...formData }];
       }
-
       setAnnouncementsList(newList);
       setHasChanges(true);
       setShowAnnouncementModal(false);
       showSuccess(
         editingAnnouncement
-          ? '公告已更新，请及时点击“保存设置”进行保存'
-          : '公告已添加，请及时点击“保存设置”进行保存',
+          ? t('公告已更新，请及时点击"保存设置"进行保存')
+          : t('公告已添加，请及时点击"保存设置"进行保存'),
       );
     } catch (error) {
-      showError('操作失败: ' + error.message);
+      showError(t('操作失败') + ': ' + error.message);
     } finally {
       setModalLoading(false);
     }
@@ -317,17 +255,17 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       setAnnouncementsList([]);
       return;
     }
-
     try {
       const parsed = JSON.parse(announcementsStr);
       const list = Array.isArray(parsed) ? parsed : [];
-      // 确保每个项目都有id
-      const listWithIds = list.map((item, index) => ({
-        ...item,
-        id: item.id || index + 1,
-      }));
-      setAnnouncementsList(listWithIds);
+      setAnnouncementsList(
+        list.map((item, index) => ({
+          ...item,
+          id: item.id || index + 1,
+        })),
+      );
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('解析系统公告失败:', error);
       setAnnouncementsList([]);
     }
@@ -336,9 +274,8 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   useEffect(() => {
     const annStr =
       options['console_setting.announcements'] ?? options.Announcements;
-    if (annStr !== undefined) {
-      parseAnnouncements(annStr);
-    }
+    if (annStr !== undefined) parseAnnouncements(annStr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options['console_setting.announcements'], options.Announcements]);
 
   useEffect(() => {
@@ -348,7 +285,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         ? true
         : enabledStr === 'true' || enabledStr === true,
     );
-  }, [options['console_setting.announcements_enabled']]);
+  }, [options]);
 
   const handleToggleEnabled = async (checked) => {
     const newValue = checked ? 'true' : 'false';
@@ -357,12 +294,12 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         key: 'console_setting.announcements_enabled',
         value: newValue,
       });
-      if (res.data.success) {
+      if (res.data?.success) {
         setPanelEnabled(checked);
         showSuccess(t('设置已保存'));
         refresh?.();
       } else {
-        showError(res.data.message);
+        showError(res.data?.message);
       }
     } catch (err) {
       showError(err.message);
@@ -371,10 +308,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
 
   const handleBatchDelete = () => {
     if (selectedRowKeys.length === 0) {
-      showError('请先选择要删除的系统公告');
+      showError(t('请先选择要删除的系统公告'));
       return;
     }
-
     const newList = announcementsList.filter(
       (item) => !selectedRowKeys.includes(item.id),
     );
@@ -382,252 +318,461 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     setSelectedRowKeys([]);
     setHasChanges(true);
     showSuccess(
-      `已删除 ${selectedRowKeys.length} 个系统公告，请及时点击“保存设置”进行保存`,
+      t('已删除 {{count}} 个系统公告，请及时点击"保存设置"进行保存', {
+        count: selectedRowKeys.length,
+      }),
     );
   };
 
-  const renderHeader = () => (
-    <div className='flex flex-col w-full'>
-      <div className='mb-2'>
-        <div className='flex items-center text-blue-500'>
-          <Bell size={16} className='mr-2' />
-          <Text>
-            {t(
-              '系统公告管理，可以发布系统通知和重要消息（最多100个，前端显示最新20条）',
-            )}
-          </Text>
-        </div>
+  const sortedList = [...announcementsList].sort((a, b) => {
+    const dateA = new Date(a.publishDate).getTime();
+    const dateB = new Date(b.publishDate).getTime();
+    return dateB - dateA;
+  });
+  const totalPages = Math.max(1, Math.ceil(sortedList.length / pageSize));
+  const startIdx = (currentPage - 1) * pageSize;
+  const pagedData = sortedList.slice(startIdx, startIdx + pageSize);
+
+  const visiblePageKeys = pagedData.map((row) => row.id);
+  const allPageSelected =
+    visiblePageKeys.length > 0 &&
+    visiblePageKeys.every((key) => selectedRowKeys.includes(key));
+  const somePageSelected =
+    !allPageSelected &&
+    visiblePageKeys.some((key) => selectedRowKeys.includes(key));
+
+  const togglePageSelection = (checked) => {
+    const set = new Set(selectedRowKeys);
+    if (checked) visiblePageKeys.forEach((key) => set.add(key));
+    else visiblePageKeys.forEach((key) => set.delete(key));
+    setSelectedRowKeys(Array.from(set));
+  };
+  const toggleRowSelection = (key, checked) => {
+    const set = new Set(selectedRowKeys);
+    if (checked) set.add(key);
+    else set.delete(key);
+    setSelectedRowKeys(Array.from(set));
+  };
+
+  const editModalState = useOverlayState({
+    isOpen: showAnnouncementModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowAnnouncementModal(false);
+    },
+  });
+  const contentModalState = useOverlayState({
+    isOpen: showContentModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setShowContentModal(false);
+    },
+  });
+
+  return (
+    <div className='space-y-4'>
+      <div className='flex items-center text-sky-600'>
+        <Bell size={16} className='mr-2' />
+        <span className='text-sm'>
+          {t(
+            '系统公告管理，可以发布系统通知和重要消息（最多100个，前端显示最新20条）',
+          )}
+        </span>
       </div>
 
-      <Divider margin='12px' />
+      <div className='h-px bg-[color:var(--app-border)]' />
 
-      <div className='flex flex-col md:flex-row justify-between items-center gap-4 w-full'>
-        <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
+      <div className='flex w-full flex-col items-center justify-between gap-4 md:flex-row'>
+        <div className='order-2 flex w-full gap-2 md:order-1 md:w-auto'>
           <Button
-            theme='light'
-            type='primary'
-            icon={<Plus size={14} />}
+            color='primary'
+            variant='flat'
+            startContent={<Plus size={14} />}
+            onPress={handleAddAnnouncement}
             className='w-full md:w-auto'
-            onClick={handleAddAnnouncement}
           >
             {t('添加公告')}
           </Button>
           <Button
-            icon={<Trash2 size={14} />}
-            type='danger'
-            theme='light'
-            onClick={handleBatchDelete}
-            disabled={selectedRowKeys.length === 0}
+            color='danger'
+            variant='flat'
+            startContent={<Trash2 size={14} />}
+            isDisabled={selectedRowKeys.length === 0}
+            onPress={handleBatchDelete}
             className='w-full md:w-auto'
           >
             {t('批量删除')}{' '}
-            {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button
-            icon={<Save size={14} />}
-            onClick={submitAnnouncements}
-            loading={loading}
-            disabled={!hasChanges}
-            type='secondary'
+            variant='flat'
+            startContent={<Save size={14} />}
+            onPress={submitAnnouncements}
+            isPending={loading}
+            isDisabled={!hasChanges}
             className='w-full md:w-auto'
           >
             {t('保存设置')}
           </Button>
         </div>
 
-        {/* 启用开关 */}
-        <div className='order-1 md:order-2 flex items-center gap-2'>
-          <Switch checked={panelEnabled} onChange={handleToggleEnabled} />
-          <Text>{panelEnabled ? t('已启用') : t('已禁用')}</Text>
+        <label className='order-1 inline-flex items-center gap-2 md:order-2'>
+          <Switch
+            isSelected={!!panelEnabled}
+            onChange={handleToggleEnabled}
+            size='sm'
+            aria-label='enabled'
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
+          <span className='text-sm text-foreground'>
+            {panelEnabled ? t('已启用') : t('已禁用')}
+          </span>
+        </label>
+      </div>
+
+      <div className='overflow-x-auto rounded-xl border border-[color:var(--app-border)]'>
+        <table className='w-full text-sm'>
+          <thead className='bg-[color:var(--app-background)] text-xs uppercase text-muted'>
+            <tr>
+              <th className='w-10 px-3 py-2 text-left font-semibold'>
+                <HeaderCheckbox
+                  checked={allPageSelected}
+                  indeterminate={somePageSelected}
+                  onChange={togglePageSelection}
+                  ariaLabel={t('选择当前页')}
+                />
+              </th>
+              <th className='px-3 py-2 text-left font-semibold'>
+                {t('内容')}
+              </th>
+              <th className='w-44 px-3 py-2 text-left font-semibold'>
+                {t('发布时间')}
+              </th>
+              <th className='w-24 px-3 py-2 text-left font-semibold'>
+                {t('类型')}
+              </th>
+              <th className='px-3 py-2 text-left font-semibold'>
+                {t('说明')}
+              </th>
+              <th className='w-40 px-3 py-2 text-right font-semibold'>
+                {t('操作')}
+              </th>
+            </tr>
+          </thead>
+          <tbody className='divide-y divide-[color:var(--app-border)]'>
+            {pagedData.length === 0 ? (
+              <tr>
+                <td colSpan={6} className='py-12 text-center text-sm text-muted'>
+                  <div className='flex flex-col items-center gap-3'>
+                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                      <Inbox size={28} />
+                    </div>
+                    <div>{t('暂无系统公告')}</div>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              pagedData.map((record) => {
+                const checked = selectedRowKeys.includes(record.id);
+                return (
+                  <tr key={record.id}>
+                    <td className='px-3 py-2'>
+                      <input
+                        type='checkbox'
+                        checked={checked}
+                        onChange={(event) =>
+                          toggleRowSelection(record.id, event.target.checked)
+                        }
+                        className='h-4 w-4 accent-primary'
+                      />
+                    </td>
+                    <td className='max-w-[300px] truncate px-3 py-2 text-foreground'>
+                      <Tooltip content={record.content} placement='top'>
+                        <span>{record.content}</span>
+                      </Tooltip>
+                    </td>
+                    <td className='px-3 py-2 text-foreground'>
+                      <div className='font-semibold'>
+                        {getRelativeTime(record.publishDate)}
+                      </div>
+                      <div className='text-xs text-muted'>
+                        {record.publishDate
+                          ? formatDateTimeString(new Date(record.publishDate))
+                          : '-'}
+                      </div>
+                    </td>
+                    <td className='px-3 py-2'>
+                      <TypeChip tone={getTypeColor(record.type)}>
+                        {typeOptions.find((opt) => opt.value === record.type)
+                          ?.label || record.type}
+                      </TypeChip>
+                    </td>
+                    <td className='max-w-[200px] truncate px-3 py-2 text-muted'>
+                      <Tooltip content={record.extra || '-'} placement='top'>
+                        <span>{record.extra || '-'}</span>
+                      </Tooltip>
+                    </td>
+                    <td className='px-3 py-2 text-right'>
+                      <div className='inline-flex items-center gap-1.5'>
+                        <Button
+                          variant='light'
+                          size='sm'
+                          startContent={<Edit size={14} />}
+                          onPress={() => handleEditAnnouncement(record)}
+                        >
+                          {t('编辑')}
+                        </Button>
+                        <Button
+                          color='danger'
+                          variant='flat'
+                          size='sm'
+                          startContent={<Trash2 size={14} />}
+                          onPress={() => setPendingDelete(record)}
+                        >
+                          {t('删除')}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted'>
+        <div className='flex items-center gap-2'>
+          <span>{t('每页')}</span>
+          <select
+            value={String(pageSize)}
+            onChange={(event) => {
+              setPageSize(Number(event.target.value));
+              setCurrentPage(1);
+            }}
+            aria-label={t('每页数量')}
+            className='h-7 rounded-md border border-[color:var(--app-border)] bg-background px-2 text-xs outline-none focus:border-primary'
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <span>{t('共 {{total}} 条', { total: announcementsList.length })}</span>
+        </div>
+        <div className='flex items-center gap-1'>
+          <Button
+            size='sm'
+            variant='light'
+            isDisabled={currentPage <= 1}
+            onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            {t('上一页')}
+          </Button>
+          <span>
+            {currentPage} / {totalPages}
+          </span>
+          <Button
+            size='sm'
+            variant='light'
+            isDisabled={currentPage >= totalPages}
+            onPress={() =>
+              setCurrentPage((p) => Math.min(totalPages, p + 1))
+            }
+          >
+            {t('下一页')}
+          </Button>
         </div>
       </div>
-    </div>
-  );
 
-  // 计算当前页显示的数据（按发布时间倒序排序，最新优先显示）
-  const getCurrentPageData = () => {
-    const sortedList = [...announcementsList].sort((a, b) => {
-      const dateA = new Date(a.publishDate).getTime();
-      const dateB = new Date(b.publishDate).getTime();
-      return dateB - dateA; // 倒序，最新的排在前面
-    });
+      <Modal state={editModalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size='md' placement='center'>
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                {editingAnnouncement ? t('编辑公告') : t('添加公告')}
+              </ModalHeader>
+              <ModalBody className='space-y-4 px-6 py-5'>
+                <div className='space-y-2'>
+                  <div className='flex items-center justify-between'>
+                    <div className='text-sm font-medium text-foreground'>
+                      {t('公告内容')}
+                      <span className='ml-1 text-red-500'>*</span>
+                    </div>
+                    <Button
+                      variant='light'
+                      size='sm'
+                      startContent={<Maximize2 size={14} />}
+                      onPress={() => setShowContentModal(true)}
+                    >
+                      {t('放大编辑')}
+                    </Button>
+                  </div>
+                  <textarea
+                    value={announcementForm.content}
+                    onChange={(event) =>
+                      setAnnouncementForm((prev) => ({
+                        ...prev,
+                        content: event.target.value,
+                      }))
+                    }
+                    placeholder={t('请输入公告内容（支持 Markdown/HTML）')}
+                    rows={3}
+                    maxLength={500}
+                    aria-label={t('公告内容')}
+                    className={textareaClass}
+                  />
+                  {formErrors.content ? (
+                    <div className='text-xs text-red-600'>
+                      {formErrors.content}
+                    </div>
+                  ) : null}
+                </div>
 
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return sortedList.slice(startIndex, endIndex);
-  };
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('发布日期')}
+                    <span className='ml-1 text-red-500'>*</span>
+                  </div>
+                  <input
+                    type='datetime-local'
+                    value={toLocalDateTimeInputValue(announcementForm.publishDate)}
+                    onChange={(event) => {
+                      const v = event.target.value;
+                      setAnnouncementForm((prev) => ({
+                        ...prev,
+                        publishDate: v ? new Date(v) : null,
+                      }));
+                    }}
+                    aria-label={t('发布日期')}
+                    className={inputClass}
+                  />
+                  {formErrors.publishDate ? (
+                    <div className='text-xs text-red-600'>
+                      {formErrors.publishDate}
+                    </div>
+                  ) : null}
+                </div>
 
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (selectedRowKeys, selectedRows) => {
-      setSelectedRowKeys(selectedRowKeys);
-    },
-    onSelect: (record, selected, selectedRows) => {
-      console.log(`选择行: ${selected}`, record);
-    },
-    onSelectAll: (selected, selectedRows) => {
-      console.log(`全选: ${selected}`, selectedRows);
-    },
-    getCheckboxProps: (record) => ({
-      disabled: false,
-      name: record.id,
-    }),
-  };
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('公告类型')}
+                  </div>
+                  <select
+                    value={announcementForm.type}
+                    onChange={(event) =>
+                      setAnnouncementForm((prev) => ({
+                        ...prev,
+                        type: event.target.value,
+                      }))
+                    }
+                    aria-label={t('公告类型')}
+                    className={selectClass}
+                  >
+                    {typeOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-  return (
-    <>
-      <Form.Section text={renderHeader()}>
-        <Table
-          columns={columns}
-          dataSource={getCurrentPageData()}
-          rowSelection={rowSelection}
-          rowKey='id'
-          scroll={{ x: 'max-content' }}
-          pagination={{
-            currentPage: currentPage,
-            pageSize: pageSize,
-            total: announcementsList.length,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            pageSizeOptions: ['5', '10', '20', '50'],
-            onChange: (page, size) => {
-              setCurrentPage(page);
-              setPageSize(size);
-            },
-            onShowSizeChange: (current, size) => {
-              setCurrentPage(1);
-              setPageSize(size);
-            },
-          }}
-          size='middle'
-          loading={loading}
-          empty={
-            <Empty
-              image={
-                <IllustrationNoResult style={{ width: 150, height: 150 }} />
-              }
-              darkModeImage={
-                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-              }
-              description={t('暂无系统公告')}
-              style={{ padding: 30 }}
-            />
-          }
-          className='overflow-hidden'
-        />
-      </Form.Section>
-
-      <Modal
-        title={editingAnnouncement ? t('编辑公告') : t('添加公告')}
-        visible={showAnnouncementModal}
-        onOk={handleSaveAnnouncement}
-        onCancel={() => setShowAnnouncementModal(false)}
-        okText={t('保存')}
-        cancelText={t('取消')}
-        confirmLoading={modalLoading}
-      >
-        <Form
-          layout='vertical'
-          initValues={announcementForm}
-          key={editingAnnouncement ? editingAnnouncement.id : 'new'}
-          getFormApi={(api) => (formApiRef.current = api)}
-        >
-          <Form.TextArea
-            field='content'
-            label={t('公告内容')}
-            placeholder={t('请输入公告内容（支持 Markdown/HTML）')}
-            maxCount={500}
-            rows={3}
-            rules={[{ required: true, message: t('请输入公告内容') }]}
-            onChange={(value) =>
-              setAnnouncementForm({ ...announcementForm, content: value })
-            }
-          />
-          <Button
-            theme='light'
-            type='tertiary'
-            size='small'
-            icon={<Maximize2 size={14} />}
-            style={{ marginBottom: 16 }}
-            onClick={() => setShowContentModal(true)}
-          >
-            {t('放大编辑')}
-          </Button>
-          <Form.DatePicker
-            field='publishDate'
-            label={t('发布日期')}
-            type='dateTime'
-            rules={[{ required: true, message: t('请选择发布日期') }]}
-            onChange={(value) =>
-              setAnnouncementForm({ ...announcementForm, publishDate: value })
-            }
-          />
-          <Form.Select
-            field='type'
-            label={t('公告类型')}
-            optionList={typeOptions}
-            onChange={(value) =>
-              setAnnouncementForm({ ...announcementForm, type: value })
-            }
-          />
-          <Form.Input
-            field='extra'
-            label={t('说明信息')}
-            placeholder={t('可选，公告的补充说明')}
-            onChange={(value) =>
-              setAnnouncementForm({ ...announcementForm, extra: value })
-            }
-          />
-        </Form>
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('说明信息')}
+                  </div>
+                  <Input
+                    type='text'
+                    value={announcementForm.extra}
+                    onChange={(event) =>
+                      setAnnouncementForm((prev) => ({
+                        ...prev,
+                        extra: event.target.value,
+                      }))
+                    }
+                    placeholder={t('可选，公告的补充说明')}
+                    aria-label={t('说明信息')}
+                    className={inputClass}
+                  />
+                </div>
+              </ModalBody>
+              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                <Button
+                  variant='light'
+                  onPress={() => setShowAnnouncementModal(false)}
+                >
+                  {t('取消')}
+                </Button>
+                <Button
+                  color='primary'
+                  onPress={handleSaveAnnouncement}
+                  isPending={modalLoading}
+                >
+                  {t('保存')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
       </Modal>
 
-      <Modal
+      <Modal state={contentModalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size='lg' placement='center'>
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                {t('编辑公告内容')}
+              </ModalHeader>
+              <ModalBody className='px-6 py-5'>
+                <textarea
+                  value={announcementForm.content}
+                  onChange={(event) =>
+                    setAnnouncementForm((prev) => ({
+                      ...prev,
+                      content: event.target.value,
+                    }))
+                  }
+                  placeholder={t('请输入公告内容（支持 Markdown/HTML）')}
+                  rows={15}
+                  maxLength={500}
+                  aria-label={t('公告内容')}
+                  className={textareaClass}
+                />
+              </ModalBody>
+              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                <Button variant='light' onPress={() => setShowContentModal(false)}>
+                  {t('取消')}
+                </Button>
+                <Button
+                  color='primary'
+                  onPress={() => setShowContentModal(false)}
+                >
+                  {t('确定')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      </Modal>
+
+      <ConfirmDialog
+        visible={!!pendingDelete}
         title={t('确认删除')}
-        visible={showDeleteModal}
-        onOk={confirmDeleteAnnouncement}
-        onCancel={() => {
-          setShowDeleteModal(false);
-          setDeletingAnnouncement(null);
-        }}
-        okText={t('确认删除')}
         cancelText={t('取消')}
-        type='warning'
-        okButtonProps={{
-          type: 'danger',
-          theme: 'solid',
+        confirmText={t('确认删除')}
+        danger
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const target = pendingDelete;
+          setPendingDelete(null);
+          performDeleteAnnouncement(target);
         }}
       >
-        <Text>{t('确定要删除此公告吗？')}</Text>
-      </Modal>
-
-      {/* 公告内容放大编辑 Modal */}
-      <Modal
-        title={t('编辑公告内容')}
-        visible={showContentModal}
-        onOk={() => {
-          // 将内容同步到表单
-          if (formApiRef.current) {
-            formApiRef.current.setValue('content', announcementForm.content);
-          }
-          setShowContentModal(false);
-        }}
-        onCancel={() => setShowContentModal(false)}
-        okText={t('确定')}
-        cancelText={t('取消')}
-        width={800}
-      >
-        <TextArea
-          value={announcementForm.content}
-          placeholder={t('请输入公告内容（支持 Markdown/HTML）')}
-          maxCount={500}
-          rows={15}
-          style={{ width: '100%' }}
-          onChange={(value) =>
-            setAnnouncementForm({ ...announcementForm, content: value })
-          }
-        />
-      </Modal>
-    </>
+        {t('确定要删除此公告吗？')}
+      </ConfirmDialog>
+    </div>
   );
 };
 

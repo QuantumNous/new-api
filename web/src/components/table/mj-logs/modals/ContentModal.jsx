@@ -18,7 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, ImagePreview } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { useTranslation } from 'react-i18next';
 
 const ContentModal = ({
   isModalOpen,
@@ -28,26 +39,61 @@ const ContentModal = ({
   setIsModalOpenurl,
   modalImageUrl,
 }) => {
+  const { t } = useTranslation();
+  const textModalState = useOverlayState({
+    isOpen: isModalOpen,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setIsModalOpen(false);
+    },
+  });
+  const imageModalState = useOverlayState({
+    isOpen: isModalOpenurl,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) setIsModalOpenurl(false);
+    },
+  });
+
   return (
     <>
       {/* Text Content Modal */}
-      <Modal
-        visible={isModalOpen}
-        onOk={() => setIsModalOpen(false)}
-        onCancel={() => setIsModalOpen(false)}
-        closable={null}
-        bodyStyle={{ height: '400px', overflow: 'auto' }}
-        width={800}
-      >
-        <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
+      <Modal state={textModalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size='3xl' scroll='inside'>
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                {t('内容预览')}
+              </ModalHeader>
+              <ModalBody className='max-h-[70vh] p-6'>
+                <p className='whitespace-pre-line text-sm text-slate-700 dark:text-slate-200'>
+                  {modalContent}
+                </p>
+              </ModalBody>
+              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                <Button color='primary' onPress={() => setIsModalOpen(false)}>
+                  {t('确定')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
       </Modal>
 
       {/* Image Preview Modal */}
-      <ImagePreview
-        src={modalImageUrl}
-        visible={isModalOpenurl}
-        onVisibleChange={(visible) => setIsModalOpenurl(visible)}
-      />
+      <Modal state={imageModalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size='5xl' scroll='inside'>
+            <ModalDialog className='bg-black/90 text-white'>
+              <ModalBody className='flex max-h-[86vh] items-center justify-center p-4'>
+                <img
+                  src={modalImageUrl}
+                  alt='preview'
+                  className='max-h-[80vh] max-w-full rounded-2xl object-contain'
+                />
+              </ModalBody>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      </Modal>
     </>
   );
 };

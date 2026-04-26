@@ -17,29 +17,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  SideSheet,
-  Form,
   Button,
-  Space,
-  Spin,
-  Typography,
   Card,
-  InputNumber,
-  Select,
   Input,
-  Row,
-  Col,
-  Divider,
-  Tag,
-} from '@douyinfe/semi-ui';
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
 import { Save, X, Server } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
-const { Text, Title } = Typography;
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+
+const NAME_PATTERN = /^[a-zA-Z0-9-_\u4e00-\u9fa5]+$/;
 
 const EditDeploymentModal = ({
   refresh,
@@ -48,193 +47,161 @@ const EditDeploymentModal = ({
   handleClose,
 }) => {
   const { t } = useTranslation();
-  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
-  const [models, setModels] = useState([]);
-  const [loadingModels, setLoadingModels] = useState(false);
-  const formRef = useRef();
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
 
   const isEdit = Boolean(editingDeployment?.id);
   const title = t('重命名部署');
 
-  // Resource configuration options
-  const cpuOptions = [
-    { label: '0.5 Core', value: '0.5' },
-    { label: '1 Core', value: '1' },
-    { label: '2 Cores', value: '2' },
-    { label: '4 Cores', value: '4' },
-    { label: '8 Cores', value: '8' },
-  ];
-
-  const memoryOptions = [
-    { label: '1GB', value: '1Gi' },
-    { label: '2GB', value: '2Gi' },
-    { label: '4GB', value: '4Gi' },
-    { label: '8GB', value: '8Gi' },
-    { label: '16GB', value: '16Gi' },
-    { label: '32GB', value: '32Gi' },
-  ];
-
-  const gpuOptions = [
-    { label: t('无GPU'), value: '' },
-    { label: '1 GPU', value: '1' },
-    { label: '2 GPUs', value: '2' },
-    { label: '4 GPUs', value: '4' },
-  ];
-
-  // Load available models
-  const loadModels = async () => {
-    setLoadingModels(true);
-    try {
-      const res = await API.get('/api/models/?page_size=1000');
-      if (res.data.success) {
-        const items = res.data.data.items || res.data.data || [];
-        const modelOptions = items.map((model) => ({
-          label: `${model.model_name} (${model.vendor?.name || 'Unknown'})`,
-          value: model.model_name,
-          model_id: model.id,
-        }));
-        setModels(modelOptions);
-      }
-    } catch (error) {
-      console.error('Failed to load models:', error);
-      showError(t('加载模型列表失败'));
+  useEffect(() => {
+    if (visible) {
+      setName(editingDeployment?.deployment_name || '');
+      setError('');
+    } else {
+      setName('');
+      setError('');
     }
-    setLoadingModels(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, editingDeployment?.id]);
+
+  const validate = () => {
+    if (!name.trim()) {
+      setError(t('请输入部署名称'));
+      return false;
+    }
+    if (!NAME_PATTERN.test(name.trim())) {
+      setError(t('部署名称只能包含字母、数字、横线、下划线和中文'));
+      return false;
+    }
+    setError('');
+    return true;
   };
 
-  // Form submission
-  const handleSubmit = async (values) => {
+  const handleSubmit = async () => {
     if (!isEdit || !editingDeployment?.id) {
       showError(t('无效的部署信息'));
       return;
     }
+    if (!validate()) return;
 
     setLoading(true);
     try {
-      // Only handle name update for now
       const res = await API.put(
         `/api/deployments/${editingDeployment.id}/name`,
-        {
-          name: values.deployment_name,
-        },
+        { name: name.trim() },
       );
-
-      if (res.data.success) {
+      if (res.data?.success) {
         showSuccess(t('部署名称更新成功'));
-        handleClose();
-        refresh();
+        handleClose?.();
+        refresh?.();
       } else {
-        showError(res.data.message || t('更新失败'));
+        showError(res.data?.message || t('更新失败'));
       }
-    } catch (error) {
-      console.error('Submit error:', error);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Submit error:', err);
       showError(t('更新失败，请检查输入信息'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  // Load models when modal opens
-  useEffect(() => {
-    if (visible) {
-      loadModels();
-    }
-  }, [visible]);
-
-  // Set form values when editing
-  useEffect(() => {
-    if (formRef.current && editingDeployment && visible && isEdit) {
-      formRef.current.setValues({
-        deployment_name: editingDeployment.deployment_name || '',
-      });
-    }
-  }, [editingDeployment, visible, isEdit]);
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) handleClose?.();
+    },
+  });
 
   return (
-    <SideSheet
-      title={
-        <div className='flex items-center gap-2'>
-          <Server size={20} />
-          <span>{title}</span>
-        </div>
-      }
-      visible={visible}
-      onCancel={handleClose}
-      width={isMobile ? '100%' : 600}
-      bodyStyle={{ padding: 0 }}
-      maskClosable={false}
-      closeOnEsc={true}
-    >
-      <div className='p-6 h-full overflow-auto'>
-        <Spin spinning={loading} style={{ width: '100%' }}>
-          <Form
-            ref={formRef}
-            onSubmit={handleSubmit}
-            labelPosition='top'
-            style={{ width: '100%' }}
-          >
-            <Card>
-              <Title heading={5} style={{ marginBottom: 16 }}>
-                {t('修改部署名称')}
-              </Title>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='md' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <div className='flex items-center gap-2'>
+                <Server size={18} />
+                <span>{title}</span>
+              </div>
+            </ModalHeader>
+            <ModalBody className='space-y-4 px-6 py-5'>
+              <Card className='!rounded-xl border border-[color:var(--app-border)] shadow-sm'>
+                <Card.Content className='space-y-4 p-5'>
+                  <div className='text-base font-semibold text-foreground'>
+                    {t('修改部署名称')}
+                  </div>
 
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Form.Input
-                    field='deployment_name'
-                    label={t('部署名称')}
-                    placeholder={t('请输入新的部署名称')}
-                    rules={[
-                      { required: true, message: t('请输入部署名称') },
-                      {
-                        pattern: /^[a-zA-Z0-9-_\u4e00-\u9fa5]+$/,
-                        message: t(
-                          '部署名称只能包含字母、数字、横线、下划线和中文',
-                        ),
-                      },
-                    ]}
-                  />
-                </Col>
-              </Row>
+                  <div className='space-y-2'>
+                    <div className='text-sm font-medium text-foreground'>
+                      {t('部署名称')}
+                      <span className='ml-1 text-red-500'>*</span>
+                    </div>
+                    <Input
+                      type='text'
+                      value={name}
+                      onChange={(event) => {
+                        setName(event.target.value);
+                        if (error) setError('');
+                      }}
+                      placeholder={t('请输入新的部署名称')}
+                      aria-label={t('部署名称')}
+                      className={inputClass}
+                    />
+                    {error ? (
+                      <div className='text-xs text-red-600 dark:text-red-400'>
+                        {error}
+                      </div>
+                    ) : null}
+                  </div>
 
-              {isEdit && (
-                <div className='mt-4 p-3 bg-gray-50 rounded'>
-                  <Text type='secondary'>{t('部署ID')}: </Text>
-                  <Text code>{editingDeployment.id}</Text>
-                  <br />
-                  <Text type='secondary'>{t('当前状态')}: </Text>
-                  <Tag
-                    color={
-                      editingDeployment.status === 'running' ? 'green' : 'grey'
-                    }
-                  >
-                    {editingDeployment.status}
-                  </Tag>
-                </div>
-              )}
-            </Card>
-          </Form>
-        </Spin>
-      </div>
-
-      <div className='p-4 border-t border-gray-200 bg-gray-50 flex justify-end'>
-        <Space>
-          <Button theme='outline' onClick={handleClose} disabled={loading}>
-            <X size={16} className='mr-1' />
-            {t('取消')}
-          </Button>
-          <Button
-            theme='solid'
-            type='primary'
-            loading={loading}
-            onClick={() => formRef.current?.submitForm()}
-          >
-            <Save size={16} className='mr-1' />
-            {isEdit ? t('更新') : t('创建')}
-          </Button>
-        </Space>
-      </div>
-    </SideSheet>
+                  {isEdit ? (
+                    <div className='space-y-1 rounded-lg bg-[color:var(--app-background)] p-3 text-sm'>
+                      <div className='flex flex-wrap items-center gap-1'>
+                        <span className='text-muted'>{t('部署ID')}:</span>
+                        <code className='rounded bg-white px-1.5 py-0.5 text-xs text-foreground dark:bg-slate-900'>
+                          {editingDeployment.id}
+                        </code>
+                      </div>
+                      <div className='flex flex-wrap items-center gap-1'>
+                        <span className='text-muted'>{t('当前状态')}:</span>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            editingDeployment.status === 'running'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          {editingDeployment.status}
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
+                </Card.Content>
+              </Card>
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button
+                variant='light'
+                onPress={handleClose}
+                isDisabled={loading}
+                startContent={<X size={14} />}
+              >
+                {t('取消')}
+              </Button>
+              <Button
+                color='primary'
+                onPress={handleSubmit}
+                isPending={loading}
+                startContent={<Save size={14} />}
+              >
+                {isEdit ? t('更新') : t('创建')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
+    </Modal>
   );
 };
 

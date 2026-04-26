@@ -18,18 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Modal,
-  Button,
-  Input,
-  Table,
-  Tag,
-  Typography,
-  Select,
-  Switch,
-  Banner,
-} from '@douyinfe/semi-ui';
-import { IconSearch, IconInfoCircle } from '@douyinfe/semi-icons';
+import { Button, Input, Select, Switch } from '@heroui/react';
+import { Modal, Table, Tag, Typography, Banner } from '@/components/common/ui/HeroCompat';
+import { IconSearch, IconInfoCircle } from '@/components/common/ui/HeroIconsCompat';
 import { Settings } from 'lucide-react';
 import { copy, showError, showInfo, showSuccess } from '../../../../helpers';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
@@ -255,7 +246,7 @@ const ModelTestModal = ({
             <div className='flex items-center gap-2'>
               <Typography.Text
                 strong
-                className='!text-[var(--semi-color-text-0)] !text-base'
+                className='!text-[var(--app-foreground)] !text-base'
               >
                 {currentTestChannel.name} {t('渠道的模型测试')}
               </Typography.Text>

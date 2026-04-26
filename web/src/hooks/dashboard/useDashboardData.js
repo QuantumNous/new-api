@@ -235,12 +235,20 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [inputs, isAdminUser]);
 
   const getUserData = useCallback(async () => {
-    let res = await API.get(`/api/user/self`);
-    const { success, message, data } = res.data;
-    if (success) {
-      userDispatch({ type: 'login', payload: data });
-    } else {
-      showError(message);
+    try {
+      // Use skipErrorHandler so dashboard load doesn't trigger global 500 toast
+      // when backend is unavailable; we still log so we can debug if needed.
+      const res = await API.get(`/api/user/self`, { skipErrorHandler: true });
+      const { success, message, data } = res.data || {};
+      if (success && data) {
+        userDispatch({ type: 'login', payload: data });
+      } else if (message) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to refresh user info:', message);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to refresh user info', err);
     }
   }, [userDispatch]);
 

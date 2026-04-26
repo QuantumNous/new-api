@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Space, Tooltip } from '@douyinfe/semi-ui';
-import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { Tooltip } from '@heroui/react';
+import { HelpCircle } from 'lucide-react';
 import {
   renderModelTag,
   stringToColor,
@@ -31,56 +31,75 @@ import {
   renderLimitedItems,
   renderDescription,
 } from '../../../../common/ui/RenderUtils';
-import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
+
+function ColorChip({ color, children }) {
+  return (
+    <span
+      className='inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium'
+      style={{
+        backgroundColor: `${color}1A`,
+        color,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function WhiteChip({ children, prefix }) {
+  return (
+    <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+      {prefix}
+      {children}
+    </span>
+  );
+}
+
+function ToneChip({ tone, children }) {
+  const cls =
+    tone === 'teal'
+      ? 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300'
+      : tone === 'violet'
+        ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
+        : '';
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
+    >
+      {children}
+    </span>
+  );
+}
 
 function renderQuotaType(type, t) {
   switch (type) {
     case 1:
-      return (
-        <Tag color='teal' shape='circle'>
-          {t('按次计费')}
-        </Tag>
-      );
+      return <ToneChip tone='teal'>{t('按次计费')}</ToneChip>;
     case 0:
-      return (
-        <Tag color='violet' shape='circle'>
-          {t('按量计费')}
-        </Tag>
-      );
+      return <ToneChip tone='violet'>{t('按量计费')}</ToneChip>;
     default:
       return t('未知');
   }
 }
 
-// Render vendor name
-const renderVendor = (vendorName, vendorIcon, t) => {
+const renderVendor = (vendorName, vendorIcon) => {
   if (!vendorName) return '-';
   return (
-    <Tag
-      color='white'
-      shape='circle'
-      prefixIcon={getLobeHubIcon(vendorIcon || 'Layers', 14)}
-    >
+    <WhiteChip prefix={getLobeHubIcon(vendorIcon || 'Layers', 14)}>
       {vendorName}
-    </Tag>
+    </WhiteChip>
   );
 };
 
-// Render tags list using RenderUtils
 const renderTags = (text) => {
   if (!text) return '-';
   const tagsArr = text.split(',').filter((tag) => tag.trim());
   return renderLimitedItems({
     items: tagsArr,
     renderItem: (tag, idx) => (
-      <Tag
-        key={idx}
-        color={stringToColor(tag.trim())}
-        shape='circle'
-        size='small'
-      >
+      <ColorChip key={idx} color={stringToColor(tag.trim())}>
         {tag.trim()}
-      </Tag>
+      </ColorChip>
     ),
     maxDisplay: 3,
   });
@@ -91,13 +110,13 @@ function renderSupportedEndpoints(endpoints) {
     return null;
   }
   return (
-    <Space wrap>
-      {endpoints.map((endpoint, idx) => (
-        <Tag key={endpoint} color={stringToColor(endpoint)} shape='circle'>
+    <div className='flex flex-wrap items-center gap-1'>
+      {endpoints.map((endpoint) => (
+        <ColorChip key={endpoint} color={stringToColor(endpoint)}>
           {endpoint}
-        </Tag>
+        </ColorChip>
       ))}
-    </Space>
+    </div>
   );
 }
 
@@ -113,8 +132,8 @@ export const getPricingTableColumns = ({
   tokenUnit,
   displayPrice,
   showRatio,
+  isMobile,
 }) => {
-  const isMobile = useIsMobile();
   const priceDataCache = new WeakMap();
 
   const getPriceData = (record) => {
@@ -137,21 +156,16 @@ export const getPricingTableColumns = ({
   const endpointColumn = {
     title: t('可用端点类型'),
     dataIndex: 'supported_endpoint_types',
-    render: (text, record, index) => {
-      return renderSupportedEndpoints(text);
-    },
+    render: (text) => renderSupportedEndpoints(text),
   };
 
   const modelNameColumn = {
     title: t('模型名称'),
     dataIndex: 'model_name',
-    render: (text, record, index) => {
-      return renderModelTag(text, {
-        onClick: () => {
-          copyText(text);
-        },
-      });
-    },
+    render: (text) =>
+      renderModelTag(text, {
+        onClick: () => copyText(text),
+      }),
     onFilter: (value, record) =>
       record.model_name.toLowerCase().includes(value.toLowerCase()),
   };
@@ -159,9 +173,7 @@ export const getPricingTableColumns = ({
   const quotaColumn = {
     title: t('计费类型'),
     dataIndex: 'quota_type',
-    render: (text, record, index) => {
-      return renderQuotaType(parseInt(text), t);
-    },
+    render: (text) => renderQuotaType(parseInt(text), t),
     sorter: (a, b) => a.quota_type - b.quota_type,
   };
 
@@ -180,7 +192,7 @@ export const getPricingTableColumns = ({
   const vendorColumn = {
     title: t('供应商'),
     dataIndex: 'vendor_name',
-    render: (text, record) => renderVendor(text, record.vendor_icon, t),
+    render: (text, record) => renderVendor(text, record.vendor_icon),
   };
 
   const baseColumns = [
@@ -193,34 +205,41 @@ export const getPricingTableColumns = ({
 
   const ratioColumn = {
     title: () => (
-      <div className='flex items-center space-x-1'>
+      <div className='flex items-center gap-1'>
         <span>{t('倍率')}</span>
-        <Tooltip content={t('倍率是为了方便换算不同价格的模型')}>
-          <IconHelpCircle
-            className='text-blue-500 cursor-pointer'
+        <Tooltip
+          content={t('倍率是为了方便换算不同价格的模型')}
+          placement='top'
+        >
+          <button
+            type='button'
+            className='inline-flex h-4 w-4 items-center justify-center text-sky-500'
             onClick={() => {
               setModalImageUrl('/ratio.png');
               setIsModalOpenurl(true);
             }}
-          />
+            aria-label={t('倍率说明')}
+          >
+            <HelpCircle size={14} />
+          </button>
         </Tooltip>
       </div>
     ),
     dataIndex: 'model_ratio',
-    render: (text, record, index) => {
+    render: (text, record) => {
       const completionRatio = parseFloat(record.completion_ratio.toFixed(3));
       const priceData = getPriceData(record);
 
       return (
         <div className='space-y-1'>
-          <div className='text-gray-700'>
+          <div className='text-sm text-foreground'>
             {t('模型倍率')}：{record.quota_type === 0 ? text : t('无')}
           </div>
-          <div className='text-gray-700'>
+          <div className='text-sm text-foreground'>
             {t('补全倍率')}：
             {record.quota_type === 0 ? completionRatio : t('无')}
           </div>
-          <div className='text-gray-700'>
+          <div className='text-sm text-foreground'>
             {t('分组倍率')}：{priceData?.usedGroupRatio ?? '-'}
           </div>
         </div>
@@ -232,14 +251,14 @@ export const getPricingTableColumns = ({
     title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('模型价格'),
     dataIndex: 'model_price',
     ...(isMobile ? {} : { fixed: 'right' }),
-    render: (text, record, index) => {
+    render: (text, record) => {
       const priceData = getPriceData(record);
       const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
 
       return (
         <div className='space-y-1'>
           {priceItems.map((item) => (
-            <div key={item.key} className='text-gray-700'>
+            <div key={item.key} className='text-sm text-foreground'>
               {item.label} {item.value}
               {item.suffix}
             </div>

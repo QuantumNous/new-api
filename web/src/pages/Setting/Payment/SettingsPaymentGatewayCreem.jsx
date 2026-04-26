@@ -16,29 +16,60 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Banner,
   Button,
-  Form,
-  Row,
-  Col,
-  Typography,
-  Spin,
-  Table,
-  Modal,
   Input,
-  InputNumber,
-  Select,
-} from '@douyinfe/semi-ui';
-const { Text } = Typography;
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  Switch,
+  useOverlayState,
+} from '@heroui/react';
+import { BookOpen, Plus, Trash2 } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, Plus, Trash2 } from 'lucide-react';
+
+const inputClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+const selectClass =
+  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+
+function Field({ label, value, onChange, placeholder, type = 'text', helper, disabled }) {
+  return (
+    <div className='space-y-2'>
+      <div className='text-sm font-medium text-foreground'>{label}</div>
+      <Input
+        type={type}
+        value={value === '' || value == null ? '' : String(value)}
+        onChange={(event) => {
+          const v = event.target.value;
+          if (type === 'number') {
+            onChange(v === '' ? '' : Number(v));
+          } else {
+            onChange(v);
+          }
+        }}
+        placeholder={placeholder}
+        aria-label={label}
+        disabled={disabled}
+        className={inputClass}
+      />
+      {helper ? (
+        <div className='text-xs leading-snug text-muted'>{helper}</div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function SettingsPaymentGatewayCreem(props) {
   const { t } = useTranslation();
   const sectionTitle = props.hideSectionTitle ? undefined : t('Creem 设置');
+
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     CreemApiKey: '',
@@ -46,7 +77,6 @@ export default function SettingsPaymentGatewayCreem(props) {
     CreemProducts: '[]',
     CreemTestMode: false,
   });
-  const [originInputs, setOriginInputs] = useState({});
   const [products, setProducts] = useState([]);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -57,85 +87,62 @@ export default function SettingsPaymentGatewayCreem(props) {
     quota: 0,
     currency: 'USD',
   });
-  const formApiRef = useRef(null);
+
+  const setField = (key) => (value) =>
+    setInputs((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
-    if (props.options && formApiRef.current) {
-      const currentInputs = {
-        CreemApiKey: props.options.CreemApiKey || '',
-        CreemWebhookSecret: props.options.CreemWebhookSecret || '',
-        CreemProducts: props.options.CreemProducts || '[]',
-        CreemTestMode: props.options.CreemTestMode === 'true',
-      };
-      setInputs(currentInputs);
-      setOriginInputs({ ...currentInputs });
-      formApiRef.current.setValues(currentInputs);
-
-      // Parse products
-      try {
-        const parsedProducts = JSON.parse(currentInputs.CreemProducts);
-        setProducts(parsedProducts);
-      } catch (e) {
-        setProducts([]);
-      }
+    if (!props.options) return;
+    const next = {
+      CreemApiKey: props.options.CreemApiKey || '',
+      CreemWebhookSecret: props.options.CreemWebhookSecret || '',
+      CreemProducts: props.options.CreemProducts || '[]',
+      CreemTestMode: props.options.CreemTestMode === 'true',
+    };
+    setInputs(next);
+    try {
+      const parsedProducts = JSON.parse(next.CreemProducts);
+      setProducts(Array.isArray(parsedProducts) ? parsedProducts : []);
+    } catch (e) {
+      setProducts([]);
     }
   }, [props.options]);
 
-  const handleFormChange = (values) => {
-    setInputs(values);
-  };
-
-  const submitCreemSetting = async () => {
+  const submit = async () => {
     setLoading(true);
     try {
       const options = [];
-
-      if (inputs.CreemApiKey && inputs.CreemApiKey !== '') {
+      if (inputs.CreemApiKey) {
         options.push({ key: 'CreemApiKey', value: inputs.CreemApiKey });
       }
-
-      if (inputs.CreemWebhookSecret && inputs.CreemWebhookSecret !== '') {
+      if (inputs.CreemWebhookSecret) {
         options.push({
           key: 'CreemWebhookSecret',
           value: inputs.CreemWebhookSecret,
         });
       }
-
-      // Save test mode setting
       options.push({
         key: 'CreemTestMode',
         value: inputs.CreemTestMode ? 'true' : 'false',
       });
-
-      // Save products as JSON string
       options.push({ key: 'CreemProducts', value: JSON.stringify(products) });
 
-      // 发送请求
       const requestQueue = options.map((opt) =>
-        API.put('/api/option/', {
-          key: opt.key,
-          value: opt.value,
-        }),
+        API.put('/api/option/', { key: opt.key, value: opt.value }),
       );
-
       const results = await Promise.all(requestQueue);
-
-      // 检查所有请求是否成功
-      const errorResults = results.filter((res) => !res.data.success);
+      const errorResults = results.filter((res) => !res.data?.success);
       if (errorResults.length > 0) {
-        errorResults.forEach((res) => {
-          showError(res.data.message);
-        });
+        errorResults.forEach((res) => showError(res.data?.message));
       } else {
         showSuccess(t('更新成功'));
-        // 更新本地存储的原始值
-        setOriginInputs({ ...inputs });
         props.refresh?.();
       }
     } catch (error) {
       showError(t('更新失败'));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const openProductModal = (product = null) => {
@@ -181,7 +188,6 @@ export default function SettingsPaymentGatewayCreem(props) {
 
     let newProducts = [...products];
     if (editingProduct) {
-      // 编辑现有产品
       const index = newProducts.findIndex(
         (p) => p.productId === editingProduct.productId,
       );
@@ -189,7 +195,6 @@ export default function SettingsPaymentGatewayCreem(props) {
         newProducts[index] = { ...productForm };
       }
     } else {
-      // 添加新产品
       if (newProducts.find((p) => p.productId === productForm.productId)) {
         showError(t('产品ID已存在'));
         return;
@@ -206,225 +211,308 @@ export default function SettingsPaymentGatewayCreem(props) {
     setProducts(newProducts);
   };
 
-  const columns = [
-    {
-      title: t('产品名称'),
-      dataIndex: 'name',
-      key: 'name',
+  const productModalState = useOverlayState({
+    isOpen: showProductModal,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) closeProductModal();
     },
-    {
-      title: t('产品ID'),
-      dataIndex: 'productId',
-      key: 'productId',
-    },
-    {
-      title: t('展示价格'),
-      dataIndex: 'price',
-      key: 'price',
-      render: (price, record) =>
-        `${record.currency === 'EUR' ? '€' : '$'}${price}`,
-    },
-    {
-      title: t('充值额度'),
-      dataIndex: 'quota',
-      key: 'quota',
-    },
-    {
-      title: t('操作'),
-      key: 'action',
-      render: (_, record) => (
-        <div className='flex gap-2'>
-          <Button
-            type='tertiary'
-            size='small'
-            onClick={() => openProductModal(record)}
-          >
-            {t('编辑')}
-          </Button>
-          <Button
-            type='danger'
-            theme='borderless'
-            size='small'
-            icon={<Trash2 size={14} />}
-            onClick={() => deleteProduct(record.productId)}
-          />
-        </div>
-      ),
-    },
-  ];
+  });
 
   return (
-    <Spin spinning={loading}>
-      <Form
-        initValues={inputs}
-        onValueChange={handleFormChange}
-        getFormApi={(api) => (formApiRef.current = api)}
-      >
-        <Form.Section text={sectionTitle}>
-          <Banner
-            type='info'
-            icon={<BookOpen size={16} />}
-            description={
-              <>
-                {t('Creem 介绍')}
-                <a href='https://creem.io' target='_blank' rel='noreferrer'>
-                  Creem Official Site
-                </a>
-                <br />
-                {t('Creem Setting Tips')}
-              </>
-            }
-            style={{ marginBottom: 16 }}
-          />
-
-          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='CreemApiKey'
-                label={t('API 密钥')}
-                placeholder={t('Creem API 密钥，敏感信息不显示')}
-                type='password'
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='CreemWebhookSecret'
-                label={t('Webhook 签名密钥')}
-                placeholder={t(
-                  '用于验证回调 new-api 的 webhook 请求的密钥，敏感信息不显示',
-                )}
-                type='password'
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Switch
-                field='CreemTestMode'
-                label={t('沙盒模式')}
-                extraText={t('启用后将使用 Creem Test Mode')}
-              />
-            </Col>
-          </Row>
-
-          <div style={{ marginTop: 24 }}>
-            <div className='flex justify-between items-center mb-4'>
-              <Text strong>{t('产品配置')}</Text>
-              <Button
-                type='primary'
-                icon={<Plus size={16} />}
-                onClick={() => openProductModal()}
-              >
-                {t('添加产品')}
-              </Button>
-            </div>
-
-            <Table
-              columns={columns}
-              dataSource={products}
-              pagination={false}
-              empty={
-                <div className='text-center py-8'>
-                  <Text type='tertiary'>{t('暂无产品配置')}</Text>
-                </div>
-              }
-            />
-          </div>
-
-          <Button onClick={submitCreemSetting} style={{ marginTop: 16 }}>
-            {t('更新 Creem 设置')}
-          </Button>
-        </Form.Section>
-      </Form>
-
-      {/* 产品配置模态框 */}
-      <Modal
-        title={editingProduct ? t('编辑产品') : t('添加产品')}
-        visible={showProductModal}
-        onOk={saveProduct}
-        onCancel={closeProductModal}
-        maskClosable={false}
-        size='small'
-        centered
-      >
-        <div className='space-y-4'>
-          <div>
-            <Text strong className='block mb-2'>
-              {t('产品名称')}
-            </Text>
-            <Input
-              value={productForm.name}
-              onChange={(value) =>
-                setProductForm({ ...productForm, name: value })
-              }
-              placeholder={t('例如：基础套餐')}
-              size='large'
-            />
-          </div>
-          <div>
-            <Text strong className='block mb-2'>
-              {t('产品ID')}
-            </Text>
-            <Input
-              value={productForm.productId}
-              onChange={(value) =>
-                setProductForm({ ...productForm, productId: value })
-              }
-              placeholder={t('例如：prod_6I8rBerHpPxyoiU9WK4kot')}
-              size='large'
-              disabled={!!editingProduct}
-            />
-          </div>
-          <div>
-            <Text strong className='block mb-2'>
-              {t('货币')}
-            </Text>
-            <Select
-              value={productForm.currency}
-              onChange={(value) =>
-                setProductForm({ ...productForm, currency: value })
-              }
-              size='large'
-              className='w-full'
-            >
-              <Select.Option value='USD'>{t('USD (美元)')}</Select.Option>
-              <Select.Option value='EUR'>{t('EUR (欧元)')}</Select.Option>
-            </Select>
-          </div>
-          <div>
-            <Text strong className='block mb-2'>
-              {t('价格')} (
-              {productForm.currency === 'EUR' ? t('欧元') : t('美元')})
-            </Text>
-            <InputNumber
-              value={productForm.price}
-              onChange={(value) =>
-                setProductForm({ ...productForm, price: value })
-              }
-              placeholder={t('例如：4.99')}
-              min={0.01}
-              precision={2}
-              size='large'
-              className='w-full'
-              defaultValue={4.49}
-            />
-          </div>
-          <div>
-            <Text strong className='block mb-2'>
-              {t('充值额度')}
-            </Text>
-            <InputNumber
-              value={productForm.quota}
-              onChange={(value) =>
-                setProductForm({ ...productForm, quota: value })
-              }
-              placeholder={t('例如：100000')}
-              min={1}
-              precision={0}
-              size='large'
-              className='w-full'
-            />
-          </div>
+    <div className='p-6 space-y-6'>
+      {sectionTitle ? (
+        <div className='text-base font-semibold text-foreground'>
+          {sectionTitle}
         </div>
+      ) : null}
+
+      <div className='flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200'>
+        <BookOpen size={16} className='mt-0.5 shrink-0' />
+        <div className='space-y-1'>
+          <div>
+            {t('Creem 介绍')}
+            <a
+              href='https://creem.io'
+              target='_blank'
+              rel='noreferrer'
+              className='ml-1 text-primary underline'
+            >
+              Creem Official Site
+            </a>
+          </div>
+          <div>{t('Creem Setting Tips')}</div>
+        </div>
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+        <Field
+          label={t('API 密钥')}
+          value={inputs.CreemApiKey}
+          onChange={setField('CreemApiKey')}
+          placeholder={t('Creem API 密钥，敏感信息不显示')}
+          type='password'
+        />
+        <Field
+          label={t('Webhook 签名密钥')}
+          value={inputs.CreemWebhookSecret}
+          onChange={setField('CreemWebhookSecret')}
+          placeholder={t(
+            '用于验证回调 new-api 的 webhook 请求的密钥，敏感信息不显示',
+          )}
+          type='password'
+        />
+        <label className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+          <div className='min-w-0 flex-1'>
+            <div className='text-sm font-medium text-foreground'>
+              {t('沙盒模式')}
+            </div>
+            <div className='mt-1 text-xs leading-snug text-muted'>
+              {t('启用后将使用 Creem Test Mode')}
+            </div>
+          </div>
+          <Switch
+            isSelected={!!inputs.CreemTestMode}
+            onChange={setField('CreemTestMode')}
+            aria-label={t('沙盒模式')}
+            size='sm'
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
+        </label>
+      </div>
+
+      <div className='space-y-3'>
+        <div className='flex items-center justify-between'>
+          <div className='text-sm font-semibold text-foreground'>
+            {t('产品配置')}
+          </div>
+          <Button
+            color='primary'
+            size='sm'
+            startContent={<Plus size={14} />}
+            onPress={() => openProductModal()}
+          >
+            {t('添加产品')}
+          </Button>
+        </div>
+
+        {products.length === 0 ? (
+          <div className='rounded-xl border border-dashed border-[color:var(--app-border)] py-10 text-center text-sm text-muted'>
+            {t('暂无产品配置')}
+          </div>
+        ) : (
+          <div className='overflow-hidden rounded-xl border border-[color:var(--app-border)]'>
+            <table className='w-full text-sm'>
+              <thead className='bg-[color:var(--app-background)] text-xs uppercase text-muted'>
+                <tr>
+                  <th className='px-3 py-2 text-left font-semibold'>
+                    {t('产品名称')}
+                  </th>
+                  <th className='px-3 py-2 text-left font-semibold'>
+                    {t('产品ID')}
+                  </th>
+                  <th className='px-3 py-2 text-left font-semibold'>
+                    {t('展示价格')}
+                  </th>
+                  <th className='px-3 py-2 text-left font-semibold'>
+                    {t('充值额度')}
+                  </th>
+                  <th className='w-32 px-3 py-2 text-right font-semibold'>
+                    {t('操作')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className='divide-y divide-[color:var(--app-border)]'>
+                {products.map((product) => (
+                  <tr key={product.productId}>
+                    <td className='px-3 py-2 font-medium text-foreground'>
+                      {product.name}
+                    </td>
+                    <td className='px-3 py-2 text-xs text-muted'>
+                      {product.productId}
+                    </td>
+                    <td className='px-3 py-2 text-foreground'>
+                      {product.currency === 'EUR' ? '€' : '$'}
+                      {product.price}
+                    </td>
+                    <td className='px-3 py-2 text-foreground'>
+                      {product.quota}
+                    </td>
+                    <td className='px-3 py-2 text-right'>
+                      <div className='inline-flex items-center gap-1'>
+                        <Button
+                          variant='light'
+                          size='sm'
+                          onPress={() => openProductModal(product)}
+                        >
+                          {t('编辑')}
+                        </Button>
+                        <Button
+                          isIconOnly
+                          variant='light'
+                          color='danger'
+                          size='sm'
+                          aria-label={t('删除')}
+                          onPress={() => deleteProduct(product.productId)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={submit}
+          isPending={loading}
+          className='min-w-[140px]'
+        >
+          {t('更新 Creem 设置')}
+        </Button>
+      </div>
+
+      <Modal state={productModalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size='sm' placement='center'>
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                {editingProduct ? t('编辑产品') : t('添加产品')}
+              </ModalHeader>
+              <ModalBody className='space-y-4 px-6 py-5'>
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('产品名称')}
+                  </div>
+                  <Input
+                    type='text'
+                    value={productForm.name}
+                    onChange={(event) =>
+                      setProductForm({
+                        ...productForm,
+                        name: event.target.value,
+                      })
+                    }
+                    placeholder={t('例如：基础套餐')}
+                    aria-label={t('产品名称')}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('产品ID')}
+                  </div>
+                  <Input
+                    type='text'
+                    value={productForm.productId}
+                    onChange={(event) =>
+                      setProductForm({
+                        ...productForm,
+                        productId: event.target.value,
+                      })
+                    }
+                    placeholder={t('例如：prod_6I8rBerHpPxyoiU9WK4kot')}
+                    disabled={!!editingProduct}
+                    aria-label={t('产品ID')}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('货币')}
+                  </div>
+                  <select
+                    value={productForm.currency}
+                    onChange={(event) =>
+                      setProductForm({
+                        ...productForm,
+                        currency: event.target.value,
+                      })
+                    }
+                    aria-label={t('货币')}
+                    className={selectClass}
+                  >
+                    <option value='USD'>{t('USD (美元)')}</option>
+                    <option value='EUR'>{t('EUR (欧元)')}</option>
+                  </select>
+                </div>
+
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('价格')} (
+                    {productForm.currency === 'EUR' ? t('欧元') : t('美元')})
+                  </div>
+                  <Input
+                    type='number'
+                    value={
+                      productForm.price === '' || productForm.price == null
+                        ? ''
+                        : String(productForm.price)
+                    }
+                    onChange={(event) => {
+                      const v = event.target.value;
+                      setProductForm({
+                        ...productForm,
+                        price: v === '' ? 0 : Number(v),
+                      });
+                    }}
+                    placeholder={t('例如：4.99')}
+                    min={0.01}
+                    step={0.01}
+                    aria-label={t('价格')}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <div className='text-sm font-medium text-foreground'>
+                    {t('充值额度')}
+                  </div>
+                  <Input
+                    type='number'
+                    value={
+                      productForm.quota === '' || productForm.quota == null
+                        ? ''
+                        : String(productForm.quota)
+                    }
+                    onChange={(event) => {
+                      const v = event.target.value;
+                      setProductForm({
+                        ...productForm,
+                        quota: v === '' ? 0 : Number(v),
+                      });
+                    }}
+                    placeholder={t('例如：100000')}
+                    min={1}
+                    step={1}
+                    aria-label={t('充值额度')}
+                    className={inputClass}
+                  />
+                </div>
+              </ModalBody>
+              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                <Button variant='light' onPress={closeProductModal}>
+                  {t('取消')}
+                </Button>
+                <Button color='primary' onPress={saveProduct}>
+                  {t('确定')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
       </Modal>
-    </Spin>
+    </div>
   );
 }

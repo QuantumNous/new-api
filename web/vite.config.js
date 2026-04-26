@@ -19,12 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 
 import react from '@vitejs/plugin-react';
 import { defineConfig, transformWithEsbuild } from 'vite';
-import pkg from '@douyinfe/vite-plugin-semi';
 import path from 'path';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
-const { vitePluginSemi } = pkg;
 
-// https://vitejs.dev/config/
 export default defineConfig({
   resolve: {
     alias: {
@@ -42,8 +39,6 @@ export default defineConfig({
           return null;
         }
 
-        // Use the exposed transform from vite, instead of directly
-        // transforming with esbuild
         return transformWithEsbuild(code, id, {
           loader: 'jsx',
           jsx: 'automatic',
@@ -51,9 +46,6 @@ export default defineConfig({
       },
     },
     react(),
-    vitePluginSemi({
-      cssLayer: true,
-    }),
   ],
   optimizeDeps: {
     force: true,
@@ -69,13 +61,12 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-core': ['react', 'react-dom', 'react-router-dom'],
-          'semi-ui': ['@douyinfe/semi-icons', '@douyinfe/semi-ui'],
+          heroui: ['@heroui/react'],
           tools: ['axios', 'history', 'marked'],
           'react-components': [
             'react-dropzone',
             'react-fireworks',
             'react-telegram-login',
-            'react-toastify',
             'react-turnstile',
           ],
           i18n: [

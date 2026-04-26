@@ -18,7 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Button, Space } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
 
 const CopyTokensModal = ({
   visible,
@@ -26,6 +36,13 @@ const CopyTokensModal = ({
   batchCopyTokens,
   t,
 }) => {
+  const modalState = useOverlayState({
+    isOpen: visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel();
+    },
+  });
+
   // Handle copy with name and key format
   const handleCopyWithName = async () => {
     await batchCopyTokens('name+key');
@@ -39,21 +56,27 @@ const CopyTokensModal = ({
   };
 
   return (
-    <Modal
-      title={t('复制令牌')}
-      icon={null}
-      visible={visible}
-      onCancel={onCancel}
-      footer={
-        <Space>
-          <Button type='tertiary' onClick={handleCopyWithName}>
-            {t('名称+密钥')}
-          </Button>
-          <Button onClick={handleCopyKeyOnly}>{t('仅密钥')}</Button>
-        </Space>
-      }
-    >
-      {t('请选择你的复制方式')}
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='md' placement='center'>
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              {t('复制令牌')}
+            </ModalHeader>
+            <ModalBody className='px-6 py-5 text-sm text-slate-600 dark:text-slate-300'>
+              {t('请选择你的复制方式')}
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button variant='flat' onPress={handleCopyWithName}>
+                {t('名称+密钥')}
+              </Button>
+              <Button color='primary' onPress={handleCopyKeyOnly}>
+                {t('仅密钥')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };

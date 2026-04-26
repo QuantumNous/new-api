@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 import { Settings, Eye, EyeOff } from 'lucide-react';
 
 const FloatingButtons = ({
@@ -32,10 +32,10 @@ const FloatingButtons = ({
 
   return (
     <>
-      {/* 设置按钮 */}
+      {/* Settings button */}
       {!showSettings && (
         <Button
-          icon={<Settings size={18} />}
+          isIconOnly
           style={{
             position: 'fixed',
             right: 16,
@@ -48,20 +48,21 @@ const FloatingButtons = ({
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
             background: 'linear-gradient(to right, #8b5cf6, #6366f1)',
           }}
-          onClick={onToggleSettings}
-          theme='solid'
-          type='primary'
+          onPress={onToggleSettings}
+          variant='primary'
           className='lg:hidden'
-        />
+          aria-label='Settings'
+        >
+          <Settings size={18} />
+        </Button>
       )}
 
-      {/* 调试按钮 */}
+      {/* Debug button */}
       {!showSettings && (
         <Button
-          icon={showDebugPanel ? <EyeOff size={18} /> : <Eye size={18} />}
-          onClick={onToggleDebugPanel}
-          theme='solid'
-          type={showDebugPanel ? 'danger' : 'primary'}
+          isIconOnly
+          onPress={onToggleDebugPanel}
+          variant={showDebugPanel ? 'danger' : 'primary'}
           style={{
             position: 'fixed',
             right: 16,
@@ -77,7 +78,10 @@ const FloatingButtons = ({
               : 'linear-gradient(to right, #4f46e5, #6366f1)',
           }}
           className='lg:hidden'
-        />
+          aria-label='Debug'
+        >
+          {showDebugPanel ? <EyeOff size={18} /> : <Eye size={18} />}
+        </Button>
       )}
     </>
   );

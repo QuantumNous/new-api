@@ -18,8 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { Button } from '@heroui/react';
+import {
+  FilterInput,
+  FilterSelect,
+  useTableFilterForm,
+} from '../../common/ui/TableFilterForm';
 
 const ChannelsFilters = ({
   setEditingChannel,
@@ -30,21 +34,25 @@ const ChannelsFilters = ({
   setFormApi,
   searchChannels,
   enableTagMode,
-  formApi,
   groupOptions,
   loading,
   searching,
   t,
 }) => {
+  const { values, setFieldValue, handleSubmit, api } = useTableFilterForm({
+    initValues: formInitValues,
+    setFormApi,
+    onSubmit: () => searchChannels(enableTagMode),
+  });
+
   return (
     <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
       <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
         <Button
-          size='small'
-          theme='light'
-          type='primary'
+          size='sm'
+          variant='secondary'
           className='w-full md:w-auto'
-          onClick={() => {
+          onPress={() => {
             setEditingChannel({
               id: undefined,
             });
@@ -55,18 +63,18 @@ const ChannelsFilters = ({
         </Button>
 
         <Button
-          size='small'
-          type='tertiary'
+          size='sm'
+          variant='outline'
           className='w-full md:w-auto'
-          onClick={refresh}
+          onPress={refresh}
         >
           {t('刷新')}
         </Button>
 
         <Button
-          size='small'
-          type='tertiary'
-          onClick={() => setShowColumnSelector(true)}
+          size='sm'
+          variant='outline'
+          onPress={() => setShowColumnSelector(true)}
           className='w-full md:w-auto'
         >
           {t('列设置')}
@@ -74,83 +82,62 @@ const ChannelsFilters = ({
       </div>
 
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto order-1 md:order-2'>
-        <Form
-          initValues={formInitValues}
-          getFormApi={(api) => setFormApi(api)}
-          onSubmit={() => searchChannels(enableTagMode)}
-          allowEmpty={true}
+        <form
+          onSubmit={handleSubmit}
           autoComplete='off'
-          layout='horizontal'
-          trigger='change'
-          stopValidateWithError={false}
           className='flex flex-col md:flex-row items-center gap-2 w-full'
         >
           <div className='relative w-full md:w-64'>
-            <Form.Input
-              size='small'
-              field='searchKeyword'
-              prefix={<IconSearch />}
+            <FilterInput
+              value={values.searchKeyword}
+              onChange={(value) => setFieldValue('searchKeyword', value)}
               placeholder={t('渠道ID，名称，密钥，API地址')}
-              showClear
-              pure
             />
           </div>
           <div className='w-full md:w-48'>
-            <Form.Input
-              size='small'
-              field='searchModel'
-              prefix={<IconSearch />}
+            <FilterInput
+              value={values.searchModel}
+              onChange={(value) => setFieldValue('searchModel', value)}
               placeholder={t('模型关键字')}
-              showClear
-              pure
             />
           </div>
           <div className='w-full md:w-32'>
-            <Form.Select
-              size='small'
-              field='searchGroup'
-              placeholder={t('选择分组')}
-              optionList={[
-                { label: t('选择分组'), value: null },
-                ...groupOptions,
-              ]}
-              className='w-full'
-              showClear
-              pure
-              onChange={() => {
-                // 延迟执行搜索，让表单值先更新
+            <FilterSelect
+              value={values.searchGroup}
+              onChange={(value) => {
+                setFieldValue('searchGroup', value);
                 setTimeout(() => {
                   searchChannels(enableTagMode);
                 }, 0);
               }}
+              placeholder={t('选择分组')}
+              options={groupOptions}
             />
           </div>
           <Button
-            size='small'
-            type='tertiary'
-            htmlType='submit'
-            loading={loading || searching}
+            size='sm'
+            variant='outline'
+            type='submit'
+            isPending={loading || searching}
             className='w-full md:w-auto'
           >
             {t('查询')}
           </Button>
           <Button
-            size='small'
-            type='tertiary'
-            onClick={() => {
-              if (formApi) {
-                formApi.reset();
-                // 重置后立即查询，使用setTimeout确保表单重置完成
-                setTimeout(() => {
-                  refresh();
-                }, 100);
-              }
+            size='sm'
+            variant='outline'
+            type='button'
+            onPress={() => {
+              api.reset();
+              setTimeout(() => {
+                refresh();
+              }, 100);
             }}
             className='w-full md:w-auto'
           >
             {t('重置')}
           </Button>
-        </Form>
+        </form>
       </div>
     </div>
   );

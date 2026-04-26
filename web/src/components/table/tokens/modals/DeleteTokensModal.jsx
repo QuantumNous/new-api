@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import ConfirmDialog from '../../../common/ui/ConfirmDialog';
 
 const DeleteTokensModal = ({
   visible,
@@ -28,19 +28,20 @@ const DeleteTokensModal = ({
   t,
 }) => {
   return (
-    <Modal
+    <ConfirmDialog
       title={t('批量删除令牌')}
       visible={visible}
       onCancel={onCancel}
-      onOk={onConfirm}
-      type='warning'
+      onConfirm={onConfirm}
+      cancelText={t('取消')}
+      confirmText={t('确定')}
     >
       <div>
         {t('确定要删除所选的 {{count}} 个令牌吗？', {
           count: selectedKeys.length,
         })}
       </div>
-    </Modal>
+    </ConfirmDialog>
   );
 };
 

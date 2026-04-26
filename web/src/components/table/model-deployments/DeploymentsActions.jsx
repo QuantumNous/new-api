@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Popconfirm } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const DeploymentsActions = ({
@@ -47,7 +47,13 @@ const DeploymentsActions = ({
   };
 
   const handleBatchDelete = () => {
-    batchDeleteDeployments();
+    if (
+      window.confirm(
+        `${t('确定要删除选中的')} ${selectedKeys.length} ${t('个部署吗？此操作不可逆。')}`,
+      )
+    ) {
+      batchDeleteDeployments();
+    }
   };
 
   const handleDeselectAll = () => {
@@ -57,39 +63,31 @@ const DeploymentsActions = ({
   return (
     <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
       <Button
-        type='primary'
+        variant='primary'
         className='flex-1 md:flex-initial'
-        onClick={handleAddDeployment}
-        size='small'
+        onPress={handleAddDeployment}
+        size='sm'
       >
         {t('新建容器')}
       </Button>
 
       {hasSelected && (
         <>
-          <Popconfirm
-            title={t('确认删除')}
-            content={`${t('确定要删除选中的')} ${selectedKeys.length} ${t('个部署吗？此操作不可逆。')}`}
-            okText={t('删除')}
-            cancelText={t('取消')}
-            okType='danger'
-            onConfirm={handleBatchDelete}
+          <Button
+            variant='danger-soft'
+            className='flex-1 md:flex-initial'
+            isDisabled={selectedKeys.length === 0}
+            onPress={handleBatchDelete}
+            size='sm'
           >
-            <Button
-              type='danger'
-              className='flex-1 md:flex-initial'
-              disabled={selectedKeys.length === 0}
-              size='small'
-            >
-              {t('批量删除')} ({selectedKeys.length})
-            </Button>
-          </Popconfirm>
+            {t('批量删除')} ({selectedKeys.length})
+          </Button>
 
           <Button
-            type='tertiary'
+            variant='outline'
             className='flex-1 md:flex-initial'
-            onClick={handleDeselectAll}
-            size='small'
+            onPress={handleDeselectAll}
+            size='sm'
           >
             {t('取消选择')}
           </Button>

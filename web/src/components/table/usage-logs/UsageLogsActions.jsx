@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Space, Skeleton } from '@douyinfe/semi-ui';
+import { Chip, Skeleton } from '@heroui/react';
 import { renderQuota } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
@@ -34,54 +34,27 @@ const LogsActions = ({
   const showSkeleton = useMinimumLoadingTime(loadingStat);
   const needSkeleton = !showStat || showSkeleton;
 
-  const placeholder = (
-    <Space>
-      <Skeleton.Title style={{ width: 108, height: 21, borderRadius: 6 }} />
-      <Skeleton.Title style={{ width: 65, height: 21, borderRadius: 6 }} />
-      <Skeleton.Title style={{ width: 64, height: 21, borderRadius: 6 }} />
-    </Space>
-  );
-
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <Skeleton loading={needSkeleton} active placeholder={placeholder}>
-        <Space>
-          <Tag
-            color='blue'
-            style={{
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
+      {needSkeleton ? (
+        <div className='flex flex-wrap gap-2'>
+          <Skeleton className='h-8 w-28 rounded-lg' />
+          <Skeleton className='h-8 w-16 rounded-lg' />
+          <Skeleton className='h-8 w-16 rounded-lg' />
+        </div>
+      ) : (
+        <div className='flex flex-wrap gap-2'>
+          <Chip color='primary' variant='flat' className='rounded-lg px-3 py-4 font-medium shadow-sm'>
             {t('消耗额度')}: {renderQuota(stat.quota)}
-          </Tag>
-          <Tag
-            color='pink'
-            style={{
-              fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
+          </Chip>
+          <Chip color='secondary' variant='flat' className='rounded-lg px-3 py-4 font-medium shadow-sm'>
             RPM: {stat.rpm}
-          </Tag>
-          <Tag
-            color='white'
-            style={{
-              border: 'none',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              fontWeight: 500,
-              padding: 13,
-            }}
-            className='!rounded-lg'
-          >
+          </Chip>
+          <Chip variant='flat' className='rounded-lg px-3 py-4 font-medium shadow-sm'>
             TPM: {stat.tpm}
-          </Tag>
-        </Space>
-      </Skeleton>
+          </Chip>
+        </div>
+      )}
 
       <CompactModeToggle
         compactMode={compactMode}

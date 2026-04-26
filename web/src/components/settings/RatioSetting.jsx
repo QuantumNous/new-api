@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin, Tabs } from '@douyinfe/semi-ui';
+import { Card, Spinner, Tabs } from '@heroui/react';
 import { useTranslation } from 'react-i18next';
 
 import ModelPricingCombined from '../../pages/Setting/Ratio/ModelPricingCombined';
@@ -62,7 +62,7 @@ const RatioSetting = () => {
           try {
             item.value = JSON.stringify(JSON.parse(item.value), null, 2);
           } catch (e) {
-            // 如果后端返回的不是合法 JSON，直接展示
+            // Keep the raw value when the backend returns invalid JSON.
           }
         }
         if (['DefaultUseAutoGroup', 'ExposeRatioEnabled'].includes(item.key)) {
@@ -94,27 +94,39 @@ const RatioSetting = () => {
   }, []);
 
   return (
-    <Spin spinning={loading} size='large'>
-      <Card style={{ marginTop: '10px' }}>
-        <Tabs type='card' defaultActiveKey='pricing'>
-          <Tabs.TabPane tab={t('模型定价设置')} itemKey='pricing'>
+    <div className='relative'>
+      {loading ? (
+        <div className='absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-background/70 backdrop-blur-sm'>
+          <Spinner size='lg' />
+        </div>
+      ) : null}
+      <Card className='mt-2.5'>
+        <Tabs defaultSelectedKey='pricing' variant='secondary'>
+          <Tabs.List aria-label={t('倍率设置')}>
+            <Tabs.Tab id='pricing'>{t('模型定价设置')}</Tabs.Tab>
+            <Tabs.Tab id='group'>{t('分组相关设置')}</Tabs.Tab>
+            <Tabs.Tab id='unset_models'>{t('未设置价格模型')}</Tabs.Tab>
+            <Tabs.Tab id='upstream_sync'>{t('上游倍率同步')}</Tabs.Tab>
+            <Tabs.Tab id='tool_price'>{t('工具调用定价')}</Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel id='pricing' className='pt-6'>
             <ModelPricingCombined options={inputs} refresh={onRefresh} />
-          </Tabs.TabPane>
-          <Tabs.TabPane tab={t('分组相关设置')} itemKey='group'>
+          </Tabs.Panel>
+          <Tabs.Panel id='group' className='pt-6'>
             <GroupRatioSettings options={inputs} refresh={onRefresh} />
-          </Tabs.TabPane>
-          <Tabs.TabPane tab={t('未设置价格模型')} itemKey='unset_models'>
+          </Tabs.Panel>
+          <Tabs.Panel id='unset_models' className='pt-6'>
             <ModelRatioNotSetEditor options={inputs} refresh={onRefresh} />
-          </Tabs.TabPane>
-          <Tabs.TabPane tab={t('上游倍率同步')} itemKey='upstream_sync'>
+          </Tabs.Panel>
+          <Tabs.Panel id='upstream_sync' className='pt-6'>
             <UpstreamRatioSync options={inputs} refresh={onRefresh} />
-          </Tabs.TabPane>
-          <Tabs.TabPane tab={t('工具调用定价')} itemKey='tool_price'>
+          </Tabs.Panel>
+          <Tabs.Panel id='tool_price' className='pt-6'>
             <ToolPriceSettings options={inputs} />
-          </Tabs.TabPane>
+          </Tabs.Panel>
         </Tabs>
       </Card>
-    </Spin>
+    </div>
   );
 };
 

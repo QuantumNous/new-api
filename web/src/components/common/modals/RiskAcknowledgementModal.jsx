@@ -20,17 +20,20 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
   Button,
-  Typography,
   Checkbox,
   Input,
-  Space,
-} from '@douyinfe/semi-ui';
-import { IconAlertTriangle } from '@douyinfe/semi-icons';
+  useOverlayState,
+} from '@heroui/react';
+import { TriangleAlert } from 'lucide-react';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import MarkdownRenderer from '../markdown/MarkdownRenderer';
-
-const { Text } = Typography;
 
 const RiskMarkdownBlock = React.memo(function RiskMarkdownBlock({
   markdownContent,
@@ -41,12 +44,8 @@ const RiskMarkdownBlock = React.memo(function RiskMarkdownBlock({
 
   return (
     <div
-      className='rounded-lg'
-      style={{
-        border: '1px solid var(--semi-color-warning-light-hover)',
-        padding: '12px',
-        contentVisibility: 'auto',
-      }}
+      className='rounded-2xl border border-warning/30 bg-warning/5 p-3'
+      style={{ contentVisibility: 'auto' }}
     >
       <MarkdownRenderer content={markdownContent} />
     </div>
@@ -91,6 +90,12 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
 
   const detailText = useMemo(() => detailItems.join(', '), [detailItems]);
   const canConfirm = allChecked && typedMatched;
+  const modalState = useOverlayState({
+    isOpen: visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
 
   const handleChecklistChange = useCallback((index, checked) => {
     setCheckedItems((previous) => {
@@ -101,53 +106,31 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
   }, []);
 
   return (
-    <Modal
-      visible={visible}
-      title={
-        <Space align='center'>
-          <IconAlertTriangle style={{ color: 'var(--semi-color-warning)' }} />
-          <span>{title}</span>
-        </Space>
-      }
-      width={isMobile ? '100%' : 860}
-      centered
-      maskClosable={false}
-      closeOnEsc={false}
-      onCancel={onCancel}
-      bodyStyle={{
-        maxHeight: isMobile ? '70vh' : '72vh',
-        overflowY: 'auto',
-        padding: isMobile ? '12px 16px' : '18px 22px',
-      }}
-      footer={
-        <Space>
-          <Button onClick={onCancel}>{cancelText}</Button>
-          <Button
-            theme='solid'
-            type='danger'
-            disabled={!canConfirm}
-            onClick={onConfirm}
-          >
-            {confirmText}
-          </Button>
-        </Space>
-      }
-    >
-      <div className='flex flex-col gap-4'>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer
+          size={isMobile ? 'full' : 'xl'}
+          scroll='inside'
+          placement='center'
+        >
+          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <div className='flex items-center gap-2'>
+                <TriangleAlert className='text-warning' size={20} />
+                <span>{title}</span>
+              </div>
+            </ModalHeader>
+            <ModalBody className='max-h-[72vh] overflow-y-auto px-4 py-4 md:px-6'>
+              <div className='flex flex-col gap-4'>
 
         <RiskMarkdownBlock markdownContent={markdownContent} />
 
         {detailItems.length > 0 ? (
           <div
-            className='flex flex-col gap-2 rounded-lg'
-            style={{
-              border: '1px solid var(--semi-color-warning-light-hover)',
-              background: 'var(--semi-color-fill-0)',
-              padding: isMobile ? '10px 12px' : '12px 14px',
-            }}
+            className='flex flex-col gap-2 rounded-2xl border border-warning/30 bg-warning/5 p-3 md:p-4'
           >
-            {detailTitle ? <Text strong>{detailTitle}</Text> : null}
-            <div className='font-mono text-xs break-all bg-orange-50 border border-orange-200 rounded-md p-2'>
+            {detailTitle ? <strong className='text-sm'>{detailTitle}</strong> : null}
+            <div className='break-all rounded-xl border border-warning/20 bg-white/80 p-2 font-mono text-xs dark:bg-slate-900/80'>
               {detailText}
             </div>
           </div>
@@ -155,20 +138,13 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
 
         {checklist.length > 0 ? (
           <div
-            className='flex flex-col gap-2 rounded-lg'
-            style={{
-              border: '1px solid var(--semi-color-border)',
-              background: 'var(--semi-color-fill-0)',
-              padding: isMobile ? '10px 12px' : '12px 14px',
-            }}
+            className='flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/80 md:p-4'
           >
             {checklist.map((item, index) => (
               <Checkbox
                 key={`risk-check-${index}`}
-                checked={!!checkedItems[index]}
-                onChange={(event) => {
-                  handleChecklistChange(index, event.target.checked);
-                }}
+                isSelected={!!checkedItems[index]}
+                onValueChange={(checked) => handleChecklistChange(index, checked)}
               >
                 {item}
               </Checkbox>
@@ -178,20 +154,15 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
 
         {requiredText ? (
           <div
-            className='flex flex-col gap-2 rounded-lg'
-            style={{
-              border: '1px solid var(--semi-color-danger-light-hover)',
-              background: 'var(--semi-color-danger-light-default)',
-              padding: isMobile ? '10px 12px' : '12px 14px',
-            }}
+            className='flex flex-col gap-2 rounded-2xl border border-danger/30 bg-danger/5 p-3 md:p-4'
           >
-            {inputPrompt ? <Text strong>{inputPrompt}</Text> : null}
-            <div className='font-mono text-xs break-all rounded-md p-2 bg-gray-50 border border-gray-200'>
+            {inputPrompt ? <strong className='text-sm'>{inputPrompt}</strong> : null}
+            <div className='break-all rounded-xl border border-danger/20 bg-white/80 p-2 font-mono text-xs dark:bg-slate-900/80'>
               {requiredText}
             </div>
             <Input
               value={typedText}
-              onChange={setTypedText}
+              onChange={(event) => setTypedText(event.target.value)}
               placeholder={inputPlaceholder}
               autoFocus={visible}
               onCopy={(event) => event.preventDefault()}
@@ -200,13 +171,29 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
               onDrop={(event) => event.preventDefault()}
             />
             {!typedMatched && typedText ? (
-              <Text type='danger' size='small'>
+              <span className='text-sm text-danger'>
                 {mismatchText}
-              </Text>
+              </span>
             ) : null}
           </div>
         ) : null}
-      </div>
+              </div>
+            </ModalBody>
+            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <Button variant='outline' onPress={onCancel}>
+                {cancelText}
+              </Button>
+              <Button
+                variant='danger'
+                isDisabled={!canConfirm}
+                onPress={onConfirm}
+              >
+                {confirmText}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 });

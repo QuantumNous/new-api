@@ -20,7 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useContext, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
 
 // Context
 import { UserContext } from '../../context/User';
@@ -48,6 +47,8 @@ import {
   getTextContent,
   buildApiPayload,
   encodeToBase64,
+  showError,
+  showWarning,
 } from '../../helpers';
 
 // Components
@@ -61,7 +62,7 @@ import ChatArea from '../../components/playground/ChatArea';
 import FloatingButtons from '../../components/playground/FloatingButtons';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
-// 生成头像
+// Generate avatar.
 const generateAvatarDataUrl = (username) => {
   if (!username) {
     return 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/docs-icon.png';
@@ -120,7 +121,7 @@ const Playground = () => {
     setCustomRequestBody,
   } = state;
 
-  // API 请求相关
+  // API request handling.
   const { sendRequest, onStopGenerator } = useApiRequest(
     setMessage,
     setDebugData,
@@ -129,10 +130,10 @@ const Playground = () => {
     saveMessagesImmediately,
   );
 
-  // 数据加载
+  // Data loading.
   useDataLoader(userState, inputs, handleInputChange, setModels, setGroups);
 
-  // 消息编辑
+  // Message editing.
   const {
     editingMessageId,
     editValue,
@@ -148,7 +149,7 @@ const Playground = () => {
     saveMessagesImmediately,
   );
 
-  // 消息和自定义请求体同步
+  // Sync messages and custom request body.
   const { syncMessageToCustomBody, syncCustomBodyToMessage } =
     useSyncMessageAndCustomBody(
       customRequestMode,
@@ -160,7 +161,7 @@ const Playground = () => {
       debouncedSaveConfig,
     );
 
-  // 角色信息
+  // Role metadata.
   const roleInfo = {
     user: {
       name: userState?.user?.username || 'User',
@@ -176,7 +177,7 @@ const Playground = () => {
     },
   };
 
-  // 消息操作
+  // Message actions.
   const messageActions = useMessageActions(
     message,
     setMessage,
@@ -184,29 +185,29 @@ const Playground = () => {
     saveMessagesImmediately,
   );
 
-  // 构建预览请求体
+  // Build preview request body.
   const constructPreviewPayload = useCallback(() => {
     try {
-      // 如果是自定义请求体模式且有自定义内容，直接返回解析后的自定义请求体
+      // Use parsed custom body directly when custom request mode is enabled.
       if (customRequestMode && customRequestBody && customRequestBody.trim()) {
         try {
           return JSON.parse(customRequestBody);
         } catch (parseError) {
-          console.warn('自定义请求体JSON解析失败，回退到默认预览:', parseError);
+          console.warn('Failed to parse custom request body, fallback to preview:', parseError);
         }
       }
 
-      // 默认预览逻辑
+      // Default preview logic.
       let messages = [...message];
 
-      // 如果存在用户消息
+      // Handle images on the latest user message when present.
       if (
         !(
           messages.length === 0 ||
           messages.every((msg) => msg.role !== MESSAGE_ROLES.USER)
         )
       ) {
-        // 处理最后一个用户消息的图片
+                // Process images on the latest user message.
         for (let i = messages.length - 1; i >= 0; i--) {
           if (messages[i].role === MESSAGE_ROLES.USER) {
             if (inputs.imageEnabled && inputs.imageUrls) {
@@ -230,20 +231,20 @@ const Playground = () => {
 
       return buildApiPayload(messages, null, inputs, parameterEnabled);
     } catch (error) {
-      console.error('构造预览请求体失败:', error);
+      console.error('Failed to build preview request body:', error);
       return null;
     }
   }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
 
-  // 发送消息
+  // Send message.
   function onMessageSend(content, attachment) {
     console.log('attachment: ', attachment);
 
-    // 创建用户消息和加载消息
+    // Create user and loading messages.
     const userMessage = createMessage(MESSAGE_ROLES.USER, content);
     const loadingMessage = createLoadingAssistantMessage();
 
-    // 如果是自定义请求体模式
+    // Custom request body mode.
     if (customRequestMode && customRequestBody) {
       try {
         const customPayload = JSON.parse(customRequestBody);
@@ -251,23 +252,23 @@ const Playground = () => {
         setMessage((prevMessage) => {
           const newMessages = [...prevMessage, userMessage, loadingMessage];
 
-          // 发送自定义请求体
+          // Send custom request body.
           sendRequest(customPayload, customPayload.stream !== false);
 
-          // 发送消息后保存，传入新消息列表
+          // Save the new message list after sending.
           setTimeout(() => saveMessagesImmediately(newMessages), 0);
 
           return newMessages;
         });
         return;
       } catch (error) {
-        console.error('自定义请求体JSON解析失败:', error);
-        Toast.error(ERROR_MESSAGES.JSON_PARSE_ERROR);
+        console.error('Failed to parse custom request body:', error);
+        showError(ERROR_MESSAGES.JSON_PARSE_ERROR);
         return;
       }
     }
 
-    // 默认模式
+    // Default mode.
     const validImageUrls = inputs.imageUrls.filter((url) => url.trim() !== '');
     const messageContent = buildMessageContent(
       content,
@@ -290,14 +291,14 @@ const Playground = () => {
       );
       sendRequest(payload, inputs.stream);
 
-      // 禁用图片模式
+      // Disable image mode after sending.
       if (inputs.imageEnabled) {
         setTimeout(() => {
           handleInputChange('imageEnabled', false);
         }, 100);
       }
 
-      // 发送消息后保存，传入新消息列表（包含用户消息和加载消息）
+      // Save after sending with user and loading messages.
       const messagesWithLoading = [...newMessages, loadingMessage];
       setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
 
@@ -305,7 +306,7 @@ const Playground = () => {
     });
   }
 
-  // 切换推理展开状态
+  // Toggle reasoning expansion state.
   const toggleReasoningExpansion = useCallback(
     (messageId) => {
       setMessage((prevMessages) =>
@@ -319,7 +320,7 @@ const Playground = () => {
     [setMessage],
   );
 
-  // 渲染函数
+  // Render helpers.
   const renderCustomChatContent = useCallback(
     ({ message, className }) => {
       const isCurrentlyEditing = editingMessageId === message.id;
@@ -374,9 +375,9 @@ const Playground = () => {
     [messageActions, styleState, message, editingMessageId, handleMessageEdit],
   );
 
-  // Effects
+  // Effects.
 
-  // 同步消息和自定义请求体
+  // Sync messages and custom request body.
   useEffect(() => {
     syncMessageToCustomBody();
   }, [message, syncMessageToCustomBody]);
@@ -385,16 +386,16 @@ const Playground = () => {
     syncCustomBodyToMessage();
   }, [customRequestBody, syncCustomBodyToMessage]);
 
-  // 处理URL参数
+  // Handle URL params.
   useEffect(() => {
     if (searchParams.get('expired')) {
-      Toast.warning(t('登录过期，请重新登录！'));
+      showWarning(t('登录过期，请重新登录！'));
     }
   }, [searchParams, t]);
 
-  // Playground 组件无需再监听窗口变化，isMobile 由 useIsMobile Hook 自动更新
+  // useIsMobile keeps viewport state updated automatically.
 
-  // 构建预览payload
+  // Build preview payload.
   useEffect(() => {
     const timer = setTimeout(() => {
       const preview = constructPreviewPayload();
@@ -418,7 +419,7 @@ const Playground = () => {
     setDebugData,
   ]);
 
-  // 自动保存配置
+  // Autosave config.
   useEffect(() => {
     debouncedSaveConfig();
   }, [
@@ -430,27 +431,27 @@ const Playground = () => {
     debouncedSaveConfig,
   ]);
 
-  // 清空对话的处理函数
+  // Clear messages.
   const handleClearMessages = useCallback(() => {
     setMessage([]);
-    // 清空对话后保存，传入空数组
+    // Persist the empty message list after clearing.
     setTimeout(() => saveMessagesImmediately([]), 0);
   }, [setMessage, saveMessagesImmediately]);
 
-  // 处理粘贴图片
+  // Handle pasted images.
   const handlePasteImage = useCallback(
     (base64Data) => {
       if (!inputs.imageEnabled) {
         return;
       }
-      // 添加图片到 imageUrls 数组
+      // Add pasted image to imageUrls.
       const newUrls = [...(inputs.imageUrls || []), base64Data];
       handleInputChange('imageUrls', newUrls);
     },
     [inputs.imageEnabled, inputs.imageUrls, handleInputChange],
   );
 
-  // Playground Context 值
+  // Playground context value.
   const playgroundContextValue = {
     onPasteImage: handlePasteImage,
     imageUrls: inputs.imageUrls || [],
@@ -460,9 +461,9 @@ const Playground = () => {
   return (
     <PlaygroundProvider value={playgroundContextValue}>
       <div className='h-full'>
-        <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
+        <div className='flex h-full flex-col bg-transparent md:flex-row'>
           {(showSettings || !isMobile) && (
-            <Layout.Sider
+            <aside
               className={`
               bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
               ${
@@ -471,7 +472,6 @@ const Playground = () => {
                   : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
               }
             `}
-              width={isMobile ? '100%' : 320}
             >
               <OptimizedSettingsPanel
                 inputs={inputs}
@@ -493,10 +493,10 @@ const Playground = () => {
                 previewPayload={previewPayload}
                 messages={message}
               />
-            </Layout.Sider>
+            </aside>
           )}
 
-          <Layout.Content className='relative flex-1 overflow-hidden'>
+          <main className='relative flex-1 overflow-hidden'>
             <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
               <div className='flex-1 flex flex-col'>
                 <ChatArea
@@ -518,7 +518,7 @@ const Playground = () => {
                 />
               </div>
 
-              {/* 调试面板 - 桌面端 */}
+              {/* Desktop debug panel */}
               {showDebugPanel && !isMobile && (
                 <div className='w-96 flex-shrink-0 h-full'>
                   <OptimizedDebugPanel
@@ -532,7 +532,7 @@ const Playground = () => {
               )}
             </div>
 
-            {/* 调试面板 - 移动端覆盖层 */}
+            {/* Mobile debug panel overlay */}
             {showDebugPanel && isMobile && (
               <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
                 <OptimizedDebugPanel
@@ -547,7 +547,7 @@ const Playground = () => {
               </div>
             )}
 
-            {/* 浮动按钮 */}
+            {/* Floating buttons */}
             <FloatingButtons
               styleState={styleState}
               showSettings={showSettings}
@@ -555,8 +555,8 @@ const Playground = () => {
               onToggleSettings={() => setShowSettings(!showSettings)}
               onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
             />
-          </Layout.Content>
-        </Layout>
+          </main>
+        </div>
       </div>
     </PlaygroundProvider>
   );

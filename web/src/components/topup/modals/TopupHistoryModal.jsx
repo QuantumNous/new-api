@@ -19,25 +19,23 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
-  Table,
-  Badge,
-  Typography,
-  Toast,
-  Empty,
   Button,
+  Chip,
   Input,
-  Tag,
-} from '@douyinfe/semi-ui';
-import {
-  IllustrationNoResult,
-  IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
-import { Coins } from 'lucide-react';
-import { IconSearch } from '@douyinfe/semi-icons';
-import { API, timestamp2string } from '../../../helpers';
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  Pagination,
+  Spinner,
+  useOverlayState,
+} from '@heroui/react';
+import { Coins, Search } from 'lucide-react';
+import { API, copy, showError, showSuccess, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
-const { Text } = Typography;
+import ConfirmDialog from '../../common/ui/ConfirmDialog';
 
 // 状态映射配置
 const STATUS_CONFIG = {
@@ -63,7 +61,14 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
+  const [pendingTradeNo, setPendingTradeNo] = useState('');
   const isMobile = useIsMobile();
+  const modalState = useOverlayState({
+    isOpen: visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel();
+    },
+  });
 
   const loadTopups = async (currentPage, currentPageSize) => {
     setLoading(true);
@@ -79,10 +84,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         setTopups(data.items || []);
         setTotal(data.total || 0);
       } else {
-        Toast.error({ content: message || t('加载失败') });
+        showError(message || t('加载失败'));
       }
     } catch (error) {
-      Toast.error({ content: t('加载账单失败') });
+      showError(t('加载账单失败'));
     } finally {
       setLoading(false);
     }
@@ -116,39 +121,40 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       });
       const { success, message } = res.data;
       if (success) {
-        Toast.success({ content: t('补单成功') });
+        showSuccess(t('补单成功'));
         await loadTopups(page, pageSize);
       } else {
-        Toast.error({ content: message || t('补单失败') });
+        showError(message || t('补单失败'));
       }
     } catch (e) {
-      Toast.error({ content: t('补单失败') });
+      showError(t('补单失败'));
     }
   };
 
   const confirmAdminComplete = (tradeNo) => {
-    Modal.confirm({
-      title: t('确认补单'),
-      content: t('是否将该订单标记为成功并为用户入账？'),
-      onOk: () => handleAdminComplete(tradeNo),
-    });
+    setPendingTradeNo(tradeNo);
   };
 
   // 渲染状态徽章
   const renderStatusBadge = (status) => {
     const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
+    const colorMap = {
+      success: 'success',
+      warning: 'warning',
+      danger: 'danger',
+      primary: 'primary',
+    };
     return (
-      <span className='flex items-center gap-2'>
-        <Badge dot type={config.type} />
-        <span>{t(config.key)}</span>
-      </span>
+      <Chip color={colorMap[config.type] || 'default'} size='sm' variant='flat'>
+        {t(config.key)}
+      </Chip>
     );
   };
 
   // 渲染支付方式
   const renderPaymentMethod = (pm) => {
     const displayName = PAYMENT_METHOD_MAP[pm];
-    return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
+    return <span>{displayName ? t(displayName) : pm || '-'}</span>;
   };
 
   const isSubscriptionTopup = (record) => {
@@ -175,7 +181,21 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('订单号'),
         dataIndex: 'trade_no',
         key: 'trade_no',
-        render: (text) => <Text copyable>{text}</Text>,
+        render: (text) => (
+          <button
+            type='button'
+            onClick={async () => {
+              if (await copy(text)) {
+                showSuccess(t('已复制：') + text);
+              } else {
+                showError(t('无法复制到剪贴板，请手动复制'));
+              }
+            }}
+            className='max-w-[180px] truncate font-mono text-xs text-sky-600 hover:text-sky-700 dark:text-sky-300'
+          >
+            {text}
+          </button>
+        ),
       },
       {
         title: t('支付方式'),
@@ -190,15 +210,15 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         render: (amount, record) => {
           if (isSubscriptionTopup(record)) {
             return (
-              <Tag color='purple' shape='circle' size='small'>
+              <Chip color='secondary' size='sm' variant='flat'>
                 {t('订阅套餐')}
-              </Tag>
+              </Chip>
             );
           }
           return (
             <span className='flex items-center gap-1'>
               <Coins size={16} />
-              <Text>{amount}</Text>
+              <span>{amount}</span>
             </span>
           );
         },
@@ -207,7 +227,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money) => <Text type='danger'>¥{money.toFixed(2)}</Text>,
+        render: (money) => (
+          <span className='font-semibold text-danger'>¥{Number(money || 0).toFixed(2)}</span>
+        ),
       },
       {
         title: t('状态'),
@@ -228,10 +250,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
             actions.push(
               <Button
                 key="complete"
-                size='small'
-                type='primary'
-                theme='outline'
-                onClick={() => confirmAdminComplete(record.trade_no)}
+                size='sm'
+                color='primary'
+                variant='flat'
+                onPress={() => confirmAdminComplete(record.trade_no)}
               >
                 {t('补单')}
               </Button>
@@ -252,50 +274,147 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     return baseColumns;
   }, [t, userIsAdmin]);
 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageSizeOptions = [10, 20, 50, 100].map((value) => ({
+    value: String(value),
+    label: String(value),
+  }));
+
+  const renderCell = (record, column) => {
+    const value = record[column.dataIndex];
+    return column.render ? column.render(value, record) : value;
+  };
+
   return (
-    <Modal
-      title={t('充值账单')}
-      visible={visible}
-      onCancel={onCancel}
-      footer={null}
-      size={isMobile ? 'full-width' : 'large'}
-    >
-      <div className='mb-3'>
-        <Input
-          prefix={<IconSearch />}
-          placeholder={t('订单号')}
-          value={keyword}
-          onChange={handleKeywordChange}
-          showClear
-        />
-      </div>
-      <Table
-        columns={columns}
-        dataSource={topups}
-        loading={loading}
-        rowKey='id'
-        pagination={{
-          currentPage: page,
-          pageSize: pageSize,
-          total: total,
-          showSizeChanger: true,
-          pageSizeOpts: [10, 20, 50, 100],
-          onPageChange: handlePageChange,
-          onPageSizeChange: handlePageSizeChange,
+    <>
+      <Modal state={modalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size={isMobile ? 'full' : '5xl'} scroll='inside'>
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                {t('充值账单')}
+              </ModalHeader>
+              <ModalBody className='p-4 md:p-6'>
+                <div className='mb-4'>
+                  <Input
+                    startContent={<Search size={16} className='text-slate-400' />}
+                    placeholder={t('订单号')}
+                    value={keyword}
+                    onValueChange={handleKeywordChange}
+                    isClearable
+                    size='sm'
+                  />
+                </div>
+
+                {loading ? (
+                  <div className='flex flex-col items-center justify-center gap-3 py-12 text-sm text-slate-500 dark:text-slate-400'>
+                    <Spinner />
+                    {t('加载中...')}
+                  </div>
+                ) : topups.length === 0 ? (
+                  <div className='rounded-2xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:text-slate-400'>
+                    {t('暂无充值记录')}
+                  </div>
+                ) : isMobile ? (
+                  <div className='space-y-3'>
+                    {topups.map((record) => (
+                      <div
+                        key={record.id}
+                        className='rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-900/60'
+                      >
+                        <div className='mb-3 flex items-start justify-between gap-3'>
+                          {columns[0].render(record.trade_no, record)}
+                          {renderStatusBadge(record.status)}
+                        </div>
+                        <div className='grid grid-cols-2 gap-3 text-sm'>
+                          {columns.slice(1).map((column) => (
+                            <div key={column.key}>
+                              <div className='mb-1 text-xs text-slate-500 dark:text-slate-400'>
+                                {column.title}
+                              </div>
+                              <div className='text-slate-800 dark:text-slate-100'>
+                                {renderCell(record, column) || '-'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className='overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/10'>
+                    <table className='min-w-full divide-y divide-slate-200 text-sm dark:divide-white/10'>
+                      <thead className='bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/70 dark:text-slate-400'>
+                        <tr>
+                          {columns.map((column) => (
+                            <th key={column.key} className='px-4 py-3 text-left font-semibold'>
+                              {column.title}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className='divide-y divide-slate-100 dark:divide-white/10'>
+                        {topups.map((record) => (
+                          <tr
+                            key={record.id}
+                            className='bg-white transition hover:bg-slate-50 dark:bg-slate-950/60 dark:hover:bg-slate-900'
+                          >
+                            {columns.map((column) => (
+                              <td key={column.key} className='px-4 py-3 text-slate-700 dark:text-slate-200'>
+                                {renderCell(record, column) || '-'}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className='mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                  <select
+                    aria-label={t('每页数量')}
+                    value={String(pageSize)}
+                    onChange={(event) =>
+                      handlePageSizeChange(Number(event.target.value || 10))
+                    }
+                    className='h-9 w-32 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900'
+                  >
+                    {pageSizeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Pagination
+                    showControls
+                    page={page}
+                    total={totalPages}
+                    onChange={handlePageChange}
+                    size='sm'
+                  />
+                </div>
+              </ModalBody>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      </Modal>
+
+      <ConfirmDialog
+        visible={!!pendingTradeNo}
+        title={t('确认补单')}
+        onCancel={() => setPendingTradeNo('')}
+        onConfirm={async () => {
+          const tradeNo = pendingTradeNo;
+          setPendingTradeNo('');
+          await handleAdminComplete(tradeNo);
         }}
-        size='small'
-        empty={
-          <Empty
-            image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-            darkModeImage={
-              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-            }
-            description={t('暂无充值记录')}
-            style={{ padding: 30 }}
-          />
-        }
-      />
-    </Modal>
+        cancelText={t('取消')}
+        confirmText={t('确定')}
+      >
+        {t('是否将该订单标记为成功并为用户入账？')}
+      </ConfirmDialog>
+    </>
   );
 };
 

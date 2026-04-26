@@ -18,19 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  Button,
-  Table,
-  Tag,
-  Empty,
-  Checkbox,
-  Form,
-  Input,
-  Tooltip,
-  Select,
-  Modal,
-} from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { Button, Input, Tooltip, Select } from '@heroui/react';
+import { Table, Tag, Empty, Checkbox, Form, Modal } from '@/components/common/ui/HeroCompat';
+import { IconSearch } from '@/components/common/ui/HeroIconsCompat';
 import {
   RefreshCcw,
   CheckSquare,
@@ -50,7 +40,7 @@ import { useTranslation } from 'react-i18next';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
+} from '@/components/common/ui/HeroIllustrationsCompat';
 import ChannelSelectorModal from '../../../components/settings/ChannelSelectorModal';
 
 const OFFICIAL_RATIO_PRESET_ID = -100;

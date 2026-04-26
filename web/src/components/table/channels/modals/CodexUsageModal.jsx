@@ -18,16 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Modal,
-  Button,
-  Progress,
-  Typography,
-  Spin,
-  Tag,
-  Descriptions,
-  Collapse,
-} from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
+import { Modal, Progress, Typography, Spin, Tag, Descriptions, Collapse } from '@/components/common/ui/HeroCompat';
 import { API, showError } from '../../../../helpers';
 import { MOBILE_BREAKPOINT } from '../../../../hooks/common/useIsMobile';
 

@@ -18,70 +18,56 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Collapse, Empty } from '@douyinfe/semi-ui';
+import { Accordion, AccordionItem } from '@heroui/react';
+import { EmptyState, Widget } from '@heroui-pro/react';
 import { HelpCircle } from 'lucide-react';
-import { IconPlus, IconMinus } from '@douyinfe/semi-icons';
 import { marked } from 'marked';
-import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
-const FaqPanel = ({
-  faqData,
-  CARD_PROPS,
-  FLEX_CENTER_GAP2,
-  ILLUSTRATION_SIZE,
-  t,
-}) => {
+const FaqPanel = ({ faqData, CARD_PROPS, FLEX_CENTER_GAP2, t }) => {
   return (
-    <Card
-      {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
-      title={
-        <div className={FLEX_CENTER_GAP2}>
-          <HelpCircle size={16} />
-          {t('常见问答')}
+    <Widget className={`lg:col-span-1 ${CARD_PROPS?.className || ''}`}>
+      <Widget.Header className='h-12'>
+        <div className={`${FLEX_CENTER_GAP2} whitespace-nowrap`}>
+          <HelpCircle size={16} className='shrink-0' />
+          <Widget.Title>{t('常见问答')}</Widget.Title>
         </div>
-      }
-      bodyStyle={{ padding: 0 }}
-    >
-      <ScrollableContainer maxHeight='24rem'>
-        {faqData.length > 0 ? (
-          <Collapse
-            accordion
-            expandIcon={<IconPlus />}
-            collapseIcon={<IconMinus />}
-          >
-            {faqData.map((item, index) => (
-              <Collapse.Panel
-                key={index}
-                header={item.question}
-                itemKey={index.toString()}
-              >
-                <div
-                  dangerouslySetInnerHTML={{
-                    __html: marked.parse(item.answer || ''),
-                  }}
-                />
-              </Collapse.Panel>
-            ))}
-          </Collapse>
-        ) : (
-          <div className='flex justify-center items-center py-8'>
-            <Empty
-              image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-              darkModeImage={
-                <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-              }
-              title={t('暂无常见问答')}
-              description={t('请联系管理员在系统设置中配置常见问答')}
-            />
-          </div>
-        )}
-      </ScrollableContainer>
-    </Card>
+      </Widget.Header>
+      <Widget.Content className='p-0'>
+        <ScrollableContainer maxHeight='24rem'>
+          {faqData.length > 0 ? (
+            <Accordion selectionMode='multiple' variant='light'>
+              {faqData.map((item, index) => (
+                <AccordionItem
+                  key={index.toString()}
+                  aria-label={item.question}
+                  title={item.question}
+                >
+                  <div
+                    className='prose prose-sm max-w-none dark:prose-invert'
+                    dangerouslySetInnerHTML={{
+                      __html: marked.parse(item.answer || ''),
+                    }}
+                  />
+                </AccordionItem>
+              ))}
+            </Accordion>
+          ) : (
+            <EmptyState size='sm'>
+              <EmptyState.Header>
+                <EmptyState.Media variant='icon'>
+                  <HelpCircle />
+                </EmptyState.Media>
+                <EmptyState.Title>{t('暂无常见问答')}</EmptyState.Title>
+                <EmptyState.Description>
+                  {t('请联系管理员在系统设置中配置常见问答')}
+                </EmptyState.Description>
+              </EmptyState.Header>
+            </EmptyState>
+          )}
+        </ScrollableContainer>
+      </Widget.Content>
+    </Widget>
   );
 };
 

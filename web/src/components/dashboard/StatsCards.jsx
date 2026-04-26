@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Skeleton, Tag } from '@douyinfe/semi-ui';
+import { Avatar, Button, Skeleton } from '@heroui/react';
+import { Widget } from '@heroui-pro/react';
 import { VChart } from '@visactor/react-vchart';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -34,68 +35,57 @@ const StatsCards = ({
   const { t } = useTranslation();
   return (
     <div className='mb-4'>
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+      {/* Use 2-col through `lg` so each KPI card has enough room for the
+          avatar + label + value + sparkline row, then collapse to 4-col only
+          at xl where the main area is wide enough for ~280px per card. */}
+      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4'>
         {groupedStatsData.map((group, idx) => (
-          <Card
+          <Widget
             key={idx}
-            {...CARD_PROPS}
-            className={`${group.color} border-0 !rounded-2xl w-full`}
-            title={group.title}
+            className={`w-full ${group.color || ''} ${CARD_PROPS?.className || ''}`}
           >
-            <div className='space-y-4'>
+            <Widget.Header className='h-12'>{group.title}</Widget.Header>
+            {/* Tighten the default Widget.Content p-4 to p-3 so the inner shell
+                still has room for value + sparkline/button on narrow widths. */}
+            <Widget.Content className='space-y-4 p-3'>
               {group.items.map((item, itemIdx) => (
                 <div
                   key={itemIdx}
-                  className='flex items-center justify-between cursor-pointer'
+                  className='flex items-center justify-between gap-2 cursor-pointer'
                   onClick={item.onClick}
                 >
-                  <div className='flex items-center'>
+                  <div className='flex items-center min-w-0 flex-1'>
                     <Avatar
-                      className='mr-3'
-                      size='small'
+                      className='mr-2 shrink-0'
+                      size='sm'
                       color={item.avatarColor}
                     >
-                      {item.icon}
+                      <Avatar.Fallback>{item.icon}</Avatar.Fallback>
                     </Avatar>
-                    <div>
-                      <div className='text-xs text-gray-500'>{item.title}</div>
-                      <div className='text-lg font-semibold'>
-                        <Skeleton
-                          loading={loading}
-                          active
-                          placeholder={
-                            <Skeleton.Paragraph
-                              active
-                              rows={1}
-                              style={{
-                                width: '65px',
-                                height: '24px',
-                                marginTop: '4px',
-                              }}
-                            />
-                          }
-                        >
-                          {item.value}
-                        </Skeleton>
+                    <div className='min-w-0'>
+                      <div className='text-xs text-muted'>{item.title}</div>
+                      <div className='text-base font-semibold tabular-nums text-foreground'>
+                        {loading ? (
+                          <Skeleton className='mt-1 h-6 w-16 rounded-lg' />
+                        ) : (
+                          item.value
+                        )}
                       </div>
                     </div>
                   </div>
                   {item.title === t('当前余额') ? (
-                    <Tag
-                      color='white'
-                      shape='circle'
-                      size='large'
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate('/console/topup');
-                      }}
+                    <Button
+                      className='shrink-0'
+                      size='sm'
+                      variant='primary'
+                      onPress={() => navigate('/console/topup')}
                     >
                       {t('充值')}
-                    </Tag>
+                    </Button>
                   ) : (
                     (loading ||
                       (item.trendData && item.trendData.length > 0)) && (
-                      <div className='w-24 h-10'>
+                      <div className='w-24 h-10 shrink-0'>
                         <VChart
                           spec={getTrendSpec(item.trendData, item.trendColor)}
                           option={CHART_CONFIG}
@@ -105,8 +95,8 @@ const StatsCards = ({
                   )}
                 </div>
               ))}
-            </div>
-          </Card>
+            </Widget.Content>
+          </Widget>
         ))}
       </div>
     </div>

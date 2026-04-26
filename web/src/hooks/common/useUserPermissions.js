@@ -28,23 +28,23 @@ export const useUserPermissions = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 加载用户权限（从用户信息接口获取）
+  // Load user permissions from user/self. Skip global error handler so an
+  // unavailable backend doesn't spam toast popups; surface error via local state.
   const loadPermissions = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await API.get('/api/user/self');
-      if (res.data.success) {
-        const userPermissions = res.data.data.permissions;
+      const res = await API.get('/api/user/self', { skipErrorHandler: true });
+      if (res.data?.success) {
+        const userPermissions = res.data.data?.permissions;
         setPermissions(userPermissions);
-        console.log('用户权限加载成功:', userPermissions);
       } else {
-        setError(res.data.message || '获取权限失败');
-        console.error('获取权限失败:', res.data.message);
+        setError(res.data?.message || '获取权限失败');
       }
     } catch (error) {
       setError('网络错误，请重试');
-      console.error('加载用户权限异常:', error);
+      // eslint-disable-next-line no-console
+      console.warn('加载用户权限异常:', error);
     } finally {
       setLoading(false);
     }

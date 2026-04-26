@@ -17,19 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Avatar } from '@heroui/react';
+import { Sidebar, useSidebar as useSidebarUI } from '@heroui-pro/react';
 import { getLucideIcon } from '../../helpers/render';
-import { ChevronLeft } from 'lucide-react';
-import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
+import { isAdmin, isRoot, showError, stringToColor } from '../../helpers';
 import { useSidebar } from '../../hooks/common/useSidebar';
-import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { isAdmin, isRoot, showError } from '../../helpers';
-import SkeletonWrapper from './components/SkeletonWrapper';
+import { UserContext } from '../../context/User';
 
-import { Nav, Divider, Button } from '@douyinfe/semi-ui';
-
+// Maps an item key to its concrete route. Mirrors the router definitions in
+// `src/App.jsx`. Chat sub-items are appended dynamically below.
 const routerMap = {
   home: '/',
   channel: '/console/channel',
@@ -51,20 +50,197 @@ const routerMap = {
   personal: '/console/personal',
 };
 
-const SiderBar = ({ onNavigate = () => {} }) => {
-  const { t } = useTranslation();
-  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
-  const {
-    isModuleVisible,
-    hasSectionVisibleModules,
-    loading: sidebarLoading,
-  } = useSidebar();
+// Wraps the menu items in both the desktop Sidebar and the mobile sheet.
+// Centralized here so both code paths stay structurally identical and only
+// differ in their wrapper component.
+const SidebarBody = ({
+  workspaceItems,
+  financeItems,
+  adminItems,
+  chatMenuItems,
+  hasSectionVisibleModules,
+  routerMapState,
+  selectedKeys,
+  expandedChatKeys,
+  setExpandedChatKeys,
+  userMenuFooter,
+  t,
+}) => {
+  const renderMenuItem = (item) => {
+    if (item.className === 'tableHiddle') return null;
+    const path = routerMapState[item.itemKey] || routerMap[item.itemKey] || item.to;
+    // Skip items with no resolvable route — see renderChatMenuItem comment
+    // for why a hrefless Sidebar.MenuItem breaks the menu layout.
+    if (!path) return null;
+    const isCurrent = selectedKeys.includes(item.itemKey);
 
-  const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
+    return (
+      <Sidebar.MenuItem
+        key={item.itemKey}
+        id={item.itemKey}
+        href={path}
+        isCurrent={isCurrent}
+        textValue={item.text}
+      >
+        <Sidebar.MenuIcon>{getLucideIcon(item.itemKey, isCurrent)}</Sidebar.MenuIcon>
+        <Sidebar.MenuLabel>{item.text}</Sidebar.MenuLabel>
+      </Sidebar.MenuItem>
+    );
+  };
+
+  // Chat parent item with optional sub-list of saved chats.
+  //
+  // Two non-obvious constraints from heroui-pro <Sidebar.MenuItem>:
+  //   - Every MenuItem must be pressable (href OR onPress). A MenuItem
+  //     without either fires `PressResponder was rendered without a
+  //     pressable child` from react-aria and breaks subsequent siblings'
+  //     layout in the menu.
+  //   - The chat parent has no inherent route (no entry in routerMap, no
+  //     `to` field), so when there are no saved chats we just skip it
+  //     instead of emitting a hrefless item.
+  const renderChatMenuItem = (item) => {
+    if (item.className === 'tableHiddle') return null;
+    const isCurrent = selectedKeys.includes(item.itemKey);
+    const hasChildren = Array.isArray(item.items) && item.items.length > 0;
+
+    if (!hasChildren) {
+      // No saved chats yet — don't render an empty placeholder.
+      return null;
+    }
+
+    // Point the parent at the first saved chat so the MenuItem stays
+    // pressable; the MenuTrigger inside takes care of expanding the
+    // submenu without losing this fallback navigation.
+    const fallbackHref =
+      routerMapState[item.items[0].itemKey] || item.items[0].to;
+
+    return (
+      <Sidebar.MenuItem
+        key={item.itemKey}
+        id={item.itemKey}
+        href={fallbackHref || undefined}
+        isCurrent={isCurrent}
+        textValue={item.text}
+      >
+        <Sidebar.MenuIcon>
+          {getLucideIcon(item.itemKey, isCurrent)}
+        </Sidebar.MenuIcon>
+        <Sidebar.MenuLabel>{item.text}</Sidebar.MenuLabel>
+        <Sidebar.MenuTrigger>
+          <Sidebar.MenuIndicator />
+        </Sidebar.MenuTrigger>
+        <Sidebar.Submenu>
+          {item.items.map((subItem) => {
+            const subPath =
+              routerMapState[subItem.itemKey] || subItem.to;
+            const subIsCurrent = selectedKeys.includes(subItem.itemKey);
+            // Skip sub-items missing a route to avoid the same
+            // PressResponder error documented above.
+            if (!subPath) return null;
+            return (
+              <Sidebar.MenuItem
+                key={subItem.itemKey}
+                id={subItem.itemKey}
+                href={subPath}
+                isCurrent={subIsCurrent}
+                textValue={subItem.text}
+              >
+                <Sidebar.MenuLabel>{subItem.text}</Sidebar.MenuLabel>
+              </Sidebar.MenuItem>
+            );
+          })}
+        </Sidebar.Submenu>
+      </Sidebar.MenuItem>
+    );
+  };
+
+  const visibleSections = [
+    {
+      key: 'chat',
+      label: t('聊天'),
+      visible: hasSectionVisibleModules('chat'),
+      items: chatMenuItems,
+      renderer: renderChatMenuItem,
+    },
+    {
+      key: 'console',
+      label: t('控制台'),
+      visible: hasSectionVisibleModules('console'),
+      items: workspaceItems,
+      renderer: renderMenuItem,
+    },
+    {
+      key: 'personal',
+      label: t('个人中心'),
+      visible: hasSectionVisibleModules('personal'),
+      items: financeItems,
+      renderer: renderMenuItem,
+    },
+    {
+      key: 'admin',
+      label: t('管理员'),
+      visible: isAdmin() && hasSectionVisibleModules('admin'),
+      items: adminItems,
+      renderer: renderMenuItem,
+    },
+  ].filter((section) => section.visible && section.items.length > 0);
+
+  // Per product spec we deviate from template-dashboard in two ways:
+  //   1. The collapse trigger lives in the top navbar (rendered by HeaderBar
+  //      via <Sidebar.Trigger />), not inside the sidebar itself.
+  //   2. The user avatar / role block sits at the BOTTOM of the sidebar
+  //      (Sidebar.Footer), not at the top.
+  //
+  return (
+    <>
+      <CollapsedHeaderTrigger />
+      <Sidebar.Content>
+        {visibleSections.map((section) => (
+          <Sidebar.Group key={section.key}>
+            <Sidebar.GroupLabel>{section.label}</Sidebar.GroupLabel>
+            <Sidebar.Menu
+              aria-label={section.label}
+              expandedKeys={
+                section.key === 'chat' ? expandedChatKeys : undefined
+              }
+              onExpandedChange={
+                section.key === 'chat' ? setExpandedChatKeys : undefined
+              }
+            >
+              {section.items.map(section.renderer)}
+            </Sidebar.Menu>
+          </Sidebar.Group>
+        ))}
+      </Sidebar.Content>
+      <Sidebar.Footer>{userMenuFooter}</Sidebar.Footer>
+    </>
+  );
+};
+
+// Renders <Sidebar.Trigger /> at the top of the sidebar (inside
+// Sidebar.Header) ONLY while the sidebar is collapsed. When expanded, the
+// trigger lives outside the sidebar — see ConsolePageTrigger in PageLayout.
+// Extra `pt-6` for visual breathing room from the sidebar's top edge.
+function CollapsedHeaderTrigger() {
+  // useSidebarUI = heroui-pro's hook (renamed to avoid colliding with our
+  // own ../../hooks/common/useSidebar which manages module visibility).
+  const { isOpen } = useSidebarUI();
+  if (isOpen) return null;
+  return (
+    <Sidebar.Header className='pt-6 pb-3'>
+      <Sidebar.Trigger />
+    </Sidebar.Header>
+  );
+}
+
+const SiderBar = () => {
+  const { t } = useTranslation();
+  const [userState] = useContext(UserContext);
+  const { isModuleVisible, hasSectionVisibleModules } = useSidebar();
 
   const [selectedKeys, setSelectedKeys] = useState(['home']);
   const [chatItems, setChatItems] = useState([]);
-  const [openedKeys, setOpenedKeys] = useState([]);
+  const [expandedChatKeys, setExpandedChatKeys] = useState(new Set());
   const location = useLocation();
   const [routerMapState, setRouterMapState] = useState(routerMap);
 
@@ -73,7 +249,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('数据看板'),
         itemKey: 'detail',
-        to: '/detail',
+        to: '/console',
         className:
           localStorage.getItem('enable_data_export') === 'true'
             ? ''
@@ -82,17 +258,17 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('令牌管理'),
         itemKey: 'token',
-        to: '/token',
+        to: '/console/token',
       },
       {
         text: t('使用日志'),
         itemKey: 'log',
-        to: '/log',
+        to: '/console/log',
       },
       {
         text: t('绘图日志'),
         itemKey: 'midjourney',
-        to: '/midjourney',
+        to: '/console/midjourney',
         className:
           localStorage.getItem('enable_drawing') === 'true'
             ? ''
@@ -101,19 +277,14 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('任务日志'),
         itemKey: 'task',
-        to: '/task',
+        to: '/console/task',
         className:
           localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
       },
     ];
 
-    // 根据配置过滤项目
-    const filteredItems = items.filter((item) => {
-      const configVisible = isModuleVisible('console', item.itemKey);
-      return configVisible;
-    });
-
-    return filteredItems;
+    return items.filter((item) => isModuleVisible('console', item.itemKey));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     localStorage.getItem('enable_data_export'),
     localStorage.getItem('enable_drawing'),
@@ -127,22 +298,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('钱包管理'),
         itemKey: 'topup',
-        to: '/topup',
+        to: '/console/topup',
       },
       {
         text: t('个人设置'),
         itemKey: 'personal',
-        to: '/personal',
+        to: '/console/personal',
       },
     ];
 
-    // 根据配置过滤项目
-    const filteredItems = items.filter((item) => {
-      const configVisible = isModuleVisible('personal', item.itemKey);
-      return configVisible;
-    });
-
-    return filteredItems;
+    return items.filter((item) => isModuleVisible('personal', item.itemKey));
   }, [t, isModuleVisible]);
 
   const adminItems = useMemo(() => {
@@ -150,13 +315,13 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('渠道管理'),
         itemKey: 'channel',
-        to: '/channel',
+        to: '/console/channel',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('订阅管理'),
         itemKey: 'subscription',
-        to: '/subscription',
+        to: '/console/subscription',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
@@ -168,36 +333,31 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('模型部署'),
         itemKey: 'deployment',
-        to: '/deployment',
+        to: '/console/deployment',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('兑换码管理'),
         itemKey: 'redemption',
-        to: '/redemption',
+        to: '/console/redemption',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('用户管理'),
         itemKey: 'user',
-        to: '/user',
+        to: '/console/user',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('系统设置'),
         itemKey: 'setting',
-        to: '/setting',
+        to: '/console/setting',
         className: isRoot() ? '' : 'tableHiddle',
       },
     ];
 
-    // 根据配置过滤项目
-    const filteredItems = items.filter((item) => {
-      const configVisible = isModuleVisible('admin', item.itemKey);
-      return configVisible;
-    });
-
-    return filteredItems;
+    return items.filter((item) => isModuleVisible('admin', item.itemKey));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin(), isRoot(), t, isModuleVisible]);
 
   const chatMenuItems = useMemo(() => {
@@ -205,7 +365,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('操练场'),
         itemKey: 'playground',
-        to: '/playground',
+        to: '/console/playground',
       },
       {
         text: t('聊天'),
@@ -214,16 +374,10 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       },
     ];
 
-    // 根据配置过滤项目
-    const filteredItems = items.filter((item) => {
-      const configVisible = isModuleVisible('chat', item.itemKey);
-      return configVisible;
-    });
-
-    return filteredItems;
+    return items.filter((item) => isModuleVisible('chat', item.itemKey));
   }, [chatItems, t, isModuleVisible]);
 
-  // 更新路由映射，添加聊天路由
+  // Add chat sub-routes to the router map so selection logic can match them.
   const updateRouterMapWithChats = (chats) => {
     const newRouterMap = { ...routerMap };
 
@@ -237,20 +391,19 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     return newRouterMap;
   };
 
-  // 加载聊天项
   useEffect(() => {
     let chats = localStorage.getItem('chats');
     if (chats) {
       try {
         chats = JSON.parse(chats);
         if (Array.isArray(chats)) {
-          let chatItems = [];
+          let parsed = [];
           for (let i = 0; i < chats.length; i++) {
             let shouldSkip = false;
             let chat = {};
             for (let key in chats[i]) {
               let link = chats[i][key];
-              if (typeof link !== 'string') continue; // 确保链接是字符串
+              if (typeof link !== 'string') continue;
               if (link.startsWith('fluent') || link.startsWith('ccswitch')) {
                 shouldSkip = true;
                 break;
@@ -259,10 +412,10 @@ const SiderBar = ({ onNavigate = () => {} }) => {
               chat.itemKey = 'chat' + i;
               chat.to = '/console/chat/' + i;
             }
-            if (shouldSkip || !chat.text) continue; // 避免推入空项
-            chatItems.push(chat);
+            if (shouldSkip || !chat.text) continue;
+            parsed.push(chat);
           }
-          setChatItems(chatItems);
+          setChatItems(parsed);
           updateRouterMapWithChats(chats);
         }
       } catch (e) {
@@ -271,14 +424,13 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     }
   }, []);
 
-  // 根据当前路径设置选中的菜单项
+  // Sync selected key + auto-expand chat group when on a chat sub-route.
   useEffect(() => {
     const currentPath = location.pathname;
     let matchingKey = Object.keys(routerMapState).find(
       (key) => routerMapState[key] === currentPath,
     );
 
-    // 处理聊天路由
     if (!matchingKey && currentPath.startsWith('/console/chat/')) {
       const chatIndex = currentPath.split('/').pop();
       if (!isNaN(chatIndex)) {
@@ -288,244 +440,96 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       }
     }
 
-    // 如果找到匹配的键，更新选中的键
     if (matchingKey) {
       setSelectedKeys([matchingKey]);
+      if (matchingKey.startsWith('chat')) {
+        setExpandedChatKeys((prev) => {
+          if (prev.has('chat')) return prev;
+          const next = new Set(prev);
+          next.add('chat');
+          return next;
+        });
+      }
     }
   }, [location.pathname, routerMapState]);
 
-  // 监控折叠状态变化以更新 body class
-  useEffect(() => {
-    if (collapsed) {
-      document.body.classList.add('sidebar-collapsed');
-    } else {
-      document.body.classList.remove('sidebar-collapsed');
-    }
-  }, [collapsed]);
-
-  // 选中高亮颜色（统一）
-  const SELECTED_COLOR = 'var(--semi-color-primary)';
-
-  // 渲染自定义菜单项
-  const renderNavItem = (item) => {
-    // 跳过隐藏的项目
-    if (item.className === 'tableHiddle') return null;
-
-    const isSelected = selectedKeys.includes(item.itemKey);
-    const textColor = isSelected ? SELECTED_COLOR : 'inherit';
+  // Template-style user block: avatar + display name + role rendered as a
+  // single Sidebar.MenuItem inside Sidebar.Footer's Sidebar.Menu. Reusing
+  // Sidebar.MenuItem's slot system is what gets the avatar visible at all
+  // — Sidebar.Footer otherwise refuses to render arbitrary children with
+  // the same alignment/spacing the rest of the sidebar uses.
+  const userMenuFooter = useMemo(() => {
+    if (!userState?.user) return null;
+    const username =
+      userState.user.display_name || userState.user.username || '';
+    const initial = username ? username[0].toUpperCase() : '?';
+    const roleLabel = isRoot()
+      ? t('超级管理员')
+      : isAdmin()
+        ? t('管理员')
+        : t('用户');
+    const avatarBg = stringToColor(username);
 
     return (
-      <Nav.Item
-        key={item.itemKey}
-        itemKey={item.itemKey}
-        text={
-          <span
-            className='truncate font-medium text-sm'
-            style={{ color: textColor }}
-          >
-            {item.text}
-          </span>
-        }
-        icon={
-          <div className='sidebar-icon-container flex-shrink-0'>
-            {getLucideIcon(item.itemKey, isSelected)}
-          </div>
-        }
-        className={item.className}
-      />
-    );
-  };
-
-  // 渲染子菜单项
-  const renderSubItem = (item) => {
-    if (item.items && item.items.length > 0) {
-      const isSelected = selectedKeys.includes(item.itemKey);
-      const textColor = isSelected ? SELECTED_COLOR : 'inherit';
-
-      return (
-        <Nav.Sub
-          key={item.itemKey}
-          itemKey={item.itemKey}
-          text={
-            <span
-              className='truncate font-medium text-sm'
-              style={{ color: textColor }}
-            >
-              {item.text}
+      <Sidebar.Menu aria-label={t('账户信息')}>
+        <Sidebar.MenuItem
+          id='__user'
+          href='/console/personal'
+          textValue={username}
+        >
+          <Sidebar.MenuIcon>
+            <Avatar
+              size='sm'
+              className='h-6 w-6 shrink-0 text-[10px] text-white'
+              style={{ backgroundColor: avatarBg }}
+              name={initial}
+            />
+          </Sidebar.MenuIcon>
+          <Sidebar.MenuLabel>
+            <span className='flex flex-col leading-tight'>
+              <span className='truncate text-sm font-medium text-foreground'>
+                {username}
+              </span>
+              <span className='truncate text-xs font-medium text-muted'>
+                {roleLabel}
+              </span>
             </span>
-          }
-          icon={
-            <div className='sidebar-icon-container flex-shrink-0'>
-              {getLucideIcon(item.itemKey, isSelected)}
-            </div>
-          }
-        >
-          {item.items.map((subItem) => {
-            const isSubSelected = selectedKeys.includes(subItem.itemKey);
-            const subTextColor = isSubSelected ? SELECTED_COLOR : 'inherit';
+          </Sidebar.MenuLabel>
+        </Sidebar.MenuItem>
+      </Sidebar.Menu>
+    );
+  }, [userState?.user, t]);
 
-            return (
-              <Nav.Item
-                key={subItem.itemKey}
-                itemKey={subItem.itemKey}
-                text={
-                  <span
-                    className='truncate font-medium text-sm'
-                    style={{ color: subTextColor }}
-                  >
-                    {subItem.text}
-                  </span>
-                }
-              />
-            );
-          })}
-        </Nav.Sub>
-      );
-    } else {
-      return renderNavItem(item);
-    }
+  const sharedBodyProps = {
+    workspaceItems,
+    financeItems,
+    adminItems,
+    chatMenuItems,
+    hasSectionVisibleModules,
+    routerMapState,
+    selectedKeys,
+    expandedChatKeys,
+    setExpandedChatKeys,
+    userMenuFooter,
+    t,
   };
 
+  // The custom skeleton previously wrapped <SidebarBody/> using the old
+  // self-implemented sidebar's dimensions, which broke alignment when nested
+  // inside heroui-pro's <Sidebar> (which expects Sidebar.Header / .Content /
+  // .Footer children with its own internal layout). Render the real Sidebar
+  // structure immediately — visibleSections already gracefully empties while
+  // useSidebar() is still resolving, so the menu just briefly shows nothing
+  // instead of misaligned placeholder bars.
   return (
-    <div
-      className='sidebar-container'
-      style={{
-        width: 'var(--sidebar-current-width)',
-      }}
-    >
-      <SkeletonWrapper
-        loading={showSkeleton}
-        type='sidebar'
-        className=''
-        collapsed={collapsed}
-        showAdmin={isAdmin()}
-      >
-        <Nav
-          className='sidebar-nav'
-          defaultIsCollapsed={collapsed}
-          isCollapsed={collapsed}
-          onCollapseChange={toggleCollapsed}
-          selectedKeys={selectedKeys}
-          itemStyle='sidebar-nav-item'
-          hoverStyle='sidebar-nav-item:hover'
-          selectedStyle='sidebar-nav-item-selected'
-          renderWrapper={({ itemElement, props }) => {
-            const to =
-              routerMapState[props.itemKey] || routerMap[props.itemKey];
-
-            // 如果没有路由，直接返回元素
-            if (!to) return itemElement;
-
-            return (
-              <Link
-                style={{ textDecoration: 'none' }}
-                to={to}
-                onClick={onNavigate}
-              >
-                {itemElement}
-              </Link>
-            );
-          }}
-          onSelect={(key) => {
-            // 如果点击的是已经展开的子菜单的父项，则收起子菜单
-            if (openedKeys.includes(key.itemKey)) {
-              setOpenedKeys(openedKeys.filter((k) => k !== key.itemKey));
-            }
-
-            setSelectedKeys([key.itemKey]);
-          }}
-          openKeys={openedKeys}
-          onOpenChange={(data) => {
-            setOpenedKeys(data.openKeys);
-          }}
-        >
-          {/* 聊天区域 */}
-          {hasSectionVisibleModules('chat') && (
-            <div className='sidebar-section'>
-              {!collapsed && (
-                <div className='sidebar-group-label'>{t('聊天')}</div>
-              )}
-              {chatMenuItems.map((item) => renderSubItem(item))}
-            </div>
-          )}
-
-          {/* 控制台区域 */}
-          {hasSectionVisibleModules('console') && (
-            <>
-              <Divider className='sidebar-divider' />
-              <div>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>{t('控制台')}</div>
-                )}
-                {workspaceItems.map((item) => renderNavItem(item))}
-              </div>
-            </>
-          )}
-
-          {/* 个人中心区域 */}
-          {hasSectionVisibleModules('personal') && (
-            <>
-              <Divider className='sidebar-divider' />
-              <div>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>{t('个人中心')}</div>
-                )}
-                {financeItems.map((item) => renderNavItem(item))}
-              </div>
-            </>
-          )}
-
-          {/* 管理员区域 - 只在管理员时显示且配置允许时显示 */}
-          {isAdmin() && hasSectionVisibleModules('admin') && (
-            <>
-              <Divider className='sidebar-divider' />
-              <div>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>{t('管理员')}</div>
-                )}
-                {adminItems.map((item) => renderNavItem(item))}
-              </div>
-            </>
-          )}
-        </Nav>
-      </SkeletonWrapper>
-
-      {/* 底部折叠按钮 */}
-      <div className='sidebar-collapse-button'>
-        <SkeletonWrapper
-          loading={showSkeleton}
-          type='button'
-          width={collapsed ? 36 : 156}
-          height={24}
-          className='w-full'
-        >
-          <Button
-            theme='outline'
-            type='tertiary'
-            size='small'
-            icon={
-              <ChevronLeft
-                size={16}
-                strokeWidth={2.5}
-                color='var(--semi-color-text-2)'
-                style={{
-                  transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)',
-                }}
-              />
-            }
-            onClick={toggleCollapsed}
-            icononly={collapsed}
-            style={
-              collapsed
-                ? { width: 36, height: 24, padding: 0 }
-                : { padding: '4px 12px', width: '100%' }
-            }
-          >
-            {!collapsed ? t('收起侧边栏') : null}
-          </Button>
-        </SkeletonWrapper>
-      </div>
-    </div>
+    <>
+      <Sidebar>
+        <SidebarBody {...sharedBodyProps} />
+      </Sidebar>
+      <Sidebar.Mobile>
+        <SidebarBody {...sharedBodyProps} />
+      </Sidebar.Mobile>
+    </>
   );
 };
 

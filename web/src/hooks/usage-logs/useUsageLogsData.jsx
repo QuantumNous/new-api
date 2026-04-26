@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal } from '@douyinfe/semi-ui';
 import {
   API,
   getTodayStartTimestamp,
@@ -684,7 +683,7 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('审计信息'),
             value: (
-              <span style={{ color: 'var(--semi-color-warning)' }}>
+              <span style={{ color: 'var(--app-warning)' }}>
                 {t(
                   '该记录由旧版本实例写入，缺少审计信息，建议将实例升级至最新版本以便记录服务器IP、回调IP、支付方式与系统版本等审计字段。',
                 )}
@@ -802,7 +801,7 @@ export const useLogsData = () => {
     if (await copy(text)) {
       showSuccess('已复制：' + text);
     } else {
-      Modal.error({ title: t('无法复制到剪贴板，请手动复制'), content: text });
+      showError(`${t('无法复制到剪贴板，请手动复制')}：${text}`);
     }
   };
 

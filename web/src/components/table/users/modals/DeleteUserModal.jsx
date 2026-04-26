@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import ConfirmDialog from '../../../common/ui/ConfirmDialog';
 
 const DeleteUserModal = ({
   visible,
@@ -43,15 +43,17 @@ const DeleteUserModal = ({
   };
 
   return (
-    <Modal
+    <ConfirmDialog
       title={t('确定是否要注销此用户？')}
       visible={visible}
       onCancel={onCancel}
-      onOk={handleConfirm}
-      type='danger'
+      onConfirm={handleConfirm}
+      cancelText={t('取消')}
+      confirmText={t('确定')}
+      danger
     >
       {t('相当于删除用户，此修改将不可逆')}
-    </Modal>
+    </ConfirmDialog>
   );
 };
 

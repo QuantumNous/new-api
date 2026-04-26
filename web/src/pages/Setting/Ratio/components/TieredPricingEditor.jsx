@@ -30,8 +30,12 @@ import {
   Tag,
   TextArea,
   Typography,
-} from '@douyinfe/semi-ui';
-import { IconCopy, IconDelete, IconPlus } from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroCompat';
+import {
+  IconCopy,
+  IconDelete,
+  IconPlus,
+} from '@/components/common/ui/HeroIconsCompat';
 import { renderQuota } from '../../../../helpers/render';
 import { copy, showSuccess } from '../../../../helpers';
 import { BILLING_EXTRA_VARS, BILLING_CACHE_VAR_MAP, BILLING_CONDITION_VARS } from '../../../../constants';

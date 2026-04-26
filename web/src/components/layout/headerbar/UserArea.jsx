@@ -17,18 +17,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Avatar, Button, Dropdown, Typography } from '@douyinfe/semi-ui';
-import { ChevronDown } from 'lucide-react';
+import { Avatar } from '@heroui/react';
 import {
-  IconExit,
-  IconUserSetting,
-  IconCreditCard,
-  IconKey,
-} from '@douyinfe/semi-icons';
+  ChevronDown,
+  CreditCard,
+  KeyRound,
+  LogOut,
+  UserCog,
+} from 'lucide-react';
 import { stringToColor } from '../../../helpers';
 import SkeletonWrapper from '../components/SkeletonWrapper';
+
+const avatarPalette = {
+  amber: '#d97706',
+  blue: '#2563eb',
+  cyan: '#0891b2',
+  green: '#16a34a',
+  grey: '#64748b',
+  indigo: '#4f46e5',
+  'light-blue': '#0284c7',
+  lime: '#65a30d',
+  orange: '#ea580c',
+  pink: '#db2777',
+  purple: '#9333ea',
+  red: '#dc2626',
+  teal: '#0d9488',
+  violet: '#7c3aed',
+  yellow: '#ca8a04',
+};
 
 const UserArea = ({
   userState,
@@ -40,6 +58,34 @@ const UserArea = ({
   t,
 }) => {
   const dropdownRef = useRef(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!dropdownRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
   if (isLoading) {
     return (
       <SkeletonWrapper
@@ -52,143 +98,116 @@ const UserArea = ({
   }
 
   if (userState.user) {
+    const avatarColor = stringToColor(userState.user.username);
+    const menuItems = [
+      {
+        key: 'personal',
+        label: t('个人设置'),
+        icon: <UserCog size={16} />,
+        action: () => navigate('/console/personal'),
+      },
+      {
+        key: 'token',
+        label: t('令牌管理'),
+        icon: <KeyRound size={16} />,
+        action: () => navigate('/console/token'),
+      },
+      {
+        key: 'topup',
+        label: t('钱包管理'),
+        icon: <CreditCard size={16} />,
+        action: () => navigate('/console/topup'),
+      },
+      {
+        key: 'logout',
+        label: t('退出'),
+        icon: <LogOut size={16} />,
+        action: logout,
+        danger: true,
+      },
+    ];
+
+    const handleMenuAction = (item) => {
+      setOpen(false);
+      item.action();
+    };
+
     return (
       <div className='relative' ref={dropdownRef}>
-        <Dropdown
-          position='bottomRight'
-          getPopupContainer={() => dropdownRef.current}
-          render={
-            <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
-              <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/personal');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-              >
-                <div className='flex items-center gap-2'>
-                  <IconUserSetting
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('个人设置')}</span>
-                </div>
-              </Dropdown.Item>
-              <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/token');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-              >
-                <div className='flex items-center gap-2'>
-                  <IconKey
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('令牌管理')}</span>
-                </div>
-              </Dropdown.Item>
-              <Dropdown.Item
-                onClick={() => {
-                  navigate('/console/topup');
-                }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
-              >
-                <div className='flex items-center gap-2'>
-                  <IconCreditCard
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('钱包管理')}</span>
-                </div>
-              </Dropdown.Item>
-              <Dropdown.Item
-                onClick={logout}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-red-500 dark:hover:!text-white'
-              >
-                <div className='flex items-center gap-2'>
-                  <IconExit
-                    size='small'
-                    className='text-gray-500 dark:text-gray-400'
-                  />
-                  <span>{t('退出')}</span>
-                </div>
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          }
+        <button
+          type='button'
+          aria-label={t('用户菜单')}
+          aria-haspopup='menu'
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+          className='inline-flex h-9 items-center gap-1.5 rounded-full bg-surface-secondary px-1.5 pr-2 text-foreground transition-colors hover:bg-surface-tertiary'
         >
-          <Button
-            theme='borderless'
-            type='tertiary'
-            className='flex items-center gap-1.5 !p-1 !rounded-full hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2'
-          >
-            <Avatar
-              size='extra-small'
-              color={stringToColor(userState.user.username)}
-              className='mr-1'
-            >
-              {userState.user.username[0].toUpperCase()}
-            </Avatar>
-            <span className='hidden md:inline'>
-              <Typography.Text className='!text-xs !font-medium !text-semi-color-text-1 dark:!text-gray-300 mr-1'>
-                {userState.user.username}
-              </Typography.Text>
+          <Avatar
+            size='sm'
+            className='h-7 w-7 text-xs text-white'
+            style={{
+              backgroundColor:
+                avatarPalette[avatarColor] || 'var(--app-primary)',
+            }}
+            name={userState.user.username[0].toUpperCase()}
+          />
+          <span className='hidden md:inline'>
+            <span className='mr-1 text-xs font-medium text-foreground'>
+              {userState.user.username}
             </span>
-            <ChevronDown
-              size={14}
-              className='text-xs text-semi-color-text-2 dark:text-gray-400'
-            />
-          </Button>
-        </Dropdown>
+          </span>
+          <ChevronDown
+            size={14}
+            className='text-muted'
+          />
+        </button>
+
+        {open ? (
+          <div
+            role='menu'
+            aria-label={t('用户菜单')}
+            className='absolute right-0 top-full z-50 mt-2 min-w-44 rounded-xl border border-border bg-background p-1 shadow-lg'
+          >
+            {menuItems.map((item) => (
+              <button
+                key={item.key}
+                type='button'
+                role='menuitem'
+                onClick={() => handleMenuAction(item)}
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface-secondary ${
+                  item.danger ? 'text-danger' : 'text-foreground'
+                }`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   } else {
     const showRegisterButton = !isSelfUseMode;
 
-    const commonSizingAndLayoutClass =
-      'flex items-center justify-center !py-[10px] !px-1.5';
-
-    const loginButtonSpecificStyling =
-      '!bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 transition-colors';
-    let loginButtonClasses = `${commonSizingAndLayoutClass} ${loginButtonSpecificStyling}`;
-
-    let registerButtonClasses = `${commonSizingAndLayoutClass}`;
-
-    const loginButtonTextSpanClass =
-      '!text-xs !text-semi-color-text-1 dark:!text-gray-300 !p-1.5';
-    const registerButtonTextSpanClass = '!text-xs !text-white !p-1.5';
-
-    if (showRegisterButton) {
-      if (isMobile) {
-        loginButtonClasses += ' !rounded-full';
-      } else {
-        loginButtonClasses += ' !rounded-l-full !rounded-r-none';
-      }
-      registerButtonClasses += ' !rounded-r-full !rounded-l-none';
-    } else {
-      loginButtonClasses += ' !rounded-full';
-    }
-
     return (
       <div className='flex items-center'>
         <Link to='/login' className='flex'>
-          <Button
-            theme='borderless'
-            type='tertiary'
-            className={loginButtonClasses}
+          <span
+            className={`inline-flex h-9 items-center justify-center bg-surface-secondary px-3 text-xs font-medium text-foreground transition-colors hover:bg-surface-tertiary ${
+              showRegisterButton && !isMobile
+                ? 'rounded-l-full rounded-r-none'
+                : 'rounded-full'
+            }`}
           >
-            <span className={loginButtonTextSpanClass}>{t('登录')}</span>
-          </Button>
+            {t('登录')}
+          </span>
         </Link>
         {showRegisterButton && (
           <div className='hidden md:block'>
             <Link to='/register' className='flex -ml-px'>
-              <Button
-                theme='solid'
-                type='primary'
-                className={registerButtonClasses}
-              >
-                <span className={registerButtonTextSpanClass}>{t('注册')}</span>
-              </Button>
+              <span className='inline-flex h-9 items-center justify-center rounded-l-none rounded-r-full bg-primary px-3 text-xs font-medium text-white transition-opacity hover:opacity-90'>
+                {t('注册')}
+              </span>
             </Link>
           </div>
         )}

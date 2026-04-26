@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Layout } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import MjLogsTable from './MjLogsTable';
 import MjLogsActions from './MjLogsActions';
@@ -39,7 +38,7 @@ const MjLogsPage = () => {
       <ColumnSelectorModal {...mjLogsData} />
       <ContentModal {...mjLogsData} />
 
-      <Layout>
+      <div className='flex min-h-0 min-w-0'>
         <CardPro
           type='type2'
           statsArea={<MjLogsActions {...mjLogsData} />}
@@ -57,7 +56,7 @@ const MjLogsPage = () => {
         >
           <MjLogsTable {...mjLogsData} />
         </CardPro>
-      </Layout>
+      </div>
     </>
   );
 };

@@ -18,8 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Input, Typography, Button, Switch } from '@douyinfe/semi-ui';
-import { IconFile } from '@douyinfe/semi-icons';
+import { Input, Button, Switch } from '@heroui/react';
 import { FileText, Plus, X, Image } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -57,54 +56,59 @@ const ImageUrlInput = ({
               imageEnabled && !disabled ? 'text-blue-500' : 'text-gray-400'
             }
           />
-          <Typography.Text strong className='text-sm'>
+          <span className='text-sm font-semibold text-foreground'>
             {t('图片地址')}
-          </Typography.Text>
+          </span>
           {disabled && (
-            <Typography.Text className='text-xs text-orange-600'>
+            <span className='text-xs text-orange-600'>
               ({t('已在自定义模式中忽略')})
-            </Typography.Text>
+            </span>
           )}
         </div>
         <div className='flex items-center gap-2'>
           <Switch
-            checked={imageEnabled}
+            isSelected={imageEnabled}
             onChange={onImageEnabledChange}
-            checkedText={t('启用')}
-            uncheckedText={t('停用')}
-            size='small'
+            aria-label={t('启用图片地址')}
+            size='sm'
             className='flex-shrink-0'
-            disabled={disabled}
-          />
+            isDisabled={disabled}
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
           <Button
-            icon={<Plus size={14} />}
-            size='small'
-            theme='solid'
-            type='primary'
-            onClick={handleAddImageUrl}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
-            disabled={!imageEnabled || disabled}
-          />
+            isIconOnly
+            size='sm'
+            variant='primary'
+            onPress={handleAddImageUrl}
+            className='h-6 min-w-6 rounded-full p-0'
+            isDisabled={!imageEnabled || disabled}
+            aria-label={t('添加图片地址')}
+          >
+            <Plus size={14} />
+          </Button>
         </div>
       </div>
 
       {!imageEnabled ? (
-        <Typography.Text className='text-xs text-gray-500 mb-2 block'>
+        <span className='mb-2 block text-xs text-gray-500'>
           {disabled
             ? t('图片功能在自定义请求体模式下不可用')
             : t('启用后可添加图片URL进行多模态对话')}
-        </Typography.Text>
+        </span>
       ) : imageUrls.length === 0 ? (
-        <Typography.Text className='text-xs text-gray-500 mb-2 block'>
+        <span className='mb-2 block text-xs text-gray-500'>
           {disabled
             ? t('图片功能在自定义请求体模式下不可用')
             : t('点击 + 按钮添加图片URL进行多模态对话')}
-        </Typography.Text>
+        </span>
       ) : (
-        <Typography.Text className='text-xs text-gray-500 mb-2 block'>
+        <span className='mb-2 block text-xs text-gray-500'>
           {t('已添加')} {imageUrls.length} {t('张图片')}
           {disabled ? ` (${t('自定义模式下不可用')})` : ''}
-        </Typography.Text>
+        </span>
       )}
 
       <div
@@ -112,26 +116,31 @@ const ImageUrlInput = ({
       >
         {imageUrls.map((url, index) => (
           <div key={index} className='flex items-center gap-2'>
-            <div className='flex-1'>
+            <div className='relative flex-1'>
+              <FileText
+                size={14}
+                className='pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted'
+              />
               <Input
                 placeholder={`https://example.com/image${index + 1}.jpg`}
                 value={url}
-                onChange={(value) => handleUpdateImageUrl(index, value)}
-                className='!rounded-lg'
-                size='small'
-                prefix={<IconFile size='small' />}
-                disabled={!imageEnabled || disabled}
+                onChange={(event) => handleUpdateImageUrl(index, event.target.value)}
+                className='rounded-lg pl-8'
+                size='sm'
+                isDisabled={!imageEnabled || disabled}
               />
             </div>
             <Button
-              icon={<X size={12} />}
-              size='small'
-              theme='borderless'
-              type='danger'
-              onClick={() => handleRemoveImageUrl(index)}
-              className='!rounded-full !w-6 !h-6 !p-0 !min-w-0 !text-red-500 hover:!bg-red-50 flex-shrink-0'
-              disabled={!imageEnabled || disabled}
-            />
+              isIconOnly
+              size='sm'
+              variant='danger-soft'
+              onPress={() => handleRemoveImageUrl(index)}
+              className='h-6 min-w-6 flex-shrink-0 rounded-full p-0'
+              isDisabled={!imageEnabled || disabled}
+              aria-label={t('删除图片地址')}
+            >
+              <X size={12} />
+            </Button>
           </div>
         ))}
       </div>

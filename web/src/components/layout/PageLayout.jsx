@@ -18,15 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import HeaderBar from './headerbar';
-import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
 import FooterBar from './Footer';
-import { ToastContainer } from 'react-toastify';
+import ToastViewport from '../ui/ToastViewport';
 import ErrorBoundary from '../common/ErrorBoundary';
-import React, { useContext, useEffect, useState } from 'react';
-import { useIsMobile } from '../../hooks/common/useIsMobile';
-import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
+import React, { useCallback, useContext, useEffect } from 'react';
+import { Sidebar, useSidebar } from '@heroui-pro/react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -37,18 +36,52 @@ import {
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
-import { useLocation } from 'react-router-dom';
 import { normalizeLanguage } from '../../i18n/language';
-const { Sider, Content, Header } = Layout;
+
+// Bridges the existing localStorage-backed sidebar collapsed flag with
+// `Sidebar.Provider`'s open/onOpenChange API. Reading the cookie or
+// localStorage at module load gives the initial value with no flash.
+const SIDEBAR_COLLAPSED_KEY = 'default_collapse_sidebar';
+const readSidebarDefaultOpen = () => {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) !== 'true';
+  } catch {
+    return true;
+  }
+};
+
+const getFallbackStatus = () => {
+  try {
+    const cachedStatus = localStorage.getItem('status');
+    if (cachedStatus) {
+      return JSON.parse(cachedStatus);
+    }
+  } catch (error) {
+    console.warn('Failed to parse cached status', error);
+  }
+
+  return {
+    system_name: getSystemName(),
+    logo: getLogo(),
+    footer_html: localStorage.getItem('footer_html') || '',
+    HeaderNavModules: '',
+    announcements: [],
+    docs_link: localStorage.getItem('docs_link') || '',
+    self_use_mode_enabled: false,
+    demo_site_enabled: false,
+    api_info_enabled: true,
+    announcements_enabled: true,
+    faq_enabled: true,
+    uptime_kuma_enabled: true,
+  };
+};
 
 const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
   const [, statusDispatch] = useContext(StatusContext);
-  const isMobile = useIsMobile();
-  const [collapsed, , setCollapsed] = useSidebarCollapsed();
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const { i18n } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const cardProPages = [
     '/console/channel',
@@ -62,21 +95,24 @@ const PageLayout = () => {
     '/pricing',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const isConsoleRoute = location.pathname.startsWith('/console');
+  const shouldHideFooter =
+    isConsoleRoute || cardProPages.includes(location.pathname);
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
     !location.pathname.startsWith('/console/chat') &&
     location.pathname !== '/console/playground';
 
-  const isConsoleRoute = location.pathname.startsWith('/console');
-  const showSider = isConsoleRoute && (!isMobile || drawerOpen);
-
-  useEffect(() => {
-    if (isMobile && drawerOpen && collapsed) {
-      setCollapsed(false);
+  // Persist sidebar open state back to localStorage so refresh / cross-tab
+  // matches the previous behavior of `useSidebarCollapsed`.
+  const handleSidebarOpenChange = useCallback((open) => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, (!open).toString());
+    } catch {
+      // Ignore quota / privacy errors — Sidebar.Provider keeps state in memory.
     }
-  }, [isMobile, drawerOpen, collapsed, setCollapsed]);
+  }, []);
 
   const loadUser = () => {
     let user = localStorage.getItem('user');
@@ -88,16 +124,18 @@ const PageLayout = () => {
 
   const loadStatus = async () => {
     try {
-      const res = await API.get('/api/status');
+      const res = await API.get('/api/status', { skipErrorHandler: true });
       const { success, data } = res.data;
       if (success) {
         statusDispatch({ type: 'set', payload: data });
         setStatusData(data);
       } else {
+        statusDispatch({ type: 'set', payload: getFallbackStatus() });
         showError('Unable to connect to server');
       }
     } catch (error) {
-      showError('Failed to load status');
+      console.error('Failed to load status', error);
+      statusDispatch({ type: 'set', payload: getFallbackStatus() });
     }
   };
 
@@ -144,98 +182,66 @@ const PageLayout = () => {
     }
   }, [i18n, userState?.user?.setting]);
 
+  // Hoist Sidebar.Provider to the root so HeaderBar (mobile menu toggle) and
+  // SiderBar both have access to `useSidebar()`. The provider's default flex
+  // layout is overridden to flex-col via className so our fixed header can
+  // sit on top of the sidebar+main row.
   return (
-    <Layout
-      className='app-layout'
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: isMobile ? 'visible' : 'hidden',
-      }}
+    <Sidebar.Provider
+      defaultOpen={readSidebarDefaultOpen()}
+      onOpenChange={handleSidebarOpenChange}
+      navigate={navigate}
+      collapsible='icon'
+      // Constrain to viewport height + clip overflow so the *main* element
+      // becomes the scroll container instead of the document body. Without
+      // this, tall console pages caused the whole page (sidebar included)
+      // to scroll, which broke the sticky-sidebar UX.
+      className='app-layout flex !flex-col h-dvh overflow-hidden'
     >
-      <Header
-        style={{
-          padding: 0,
-          height: 'auto',
-          lineHeight: 'normal',
-          position: 'fixed',
-          width: '100%',
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <HeaderBar
-          onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
-          drawerOpen={drawerOpen}
-        />
-      </Header>
-      <Layout
-        style={{
-          overflow: isMobile ? 'visible' : 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {showSider && (
-          <Sider
-            className='app-sider'
-            style={{
-              position: 'fixed',
-              left: 0,
-              top: '64px',
-              zIndex: 99,
-              border: 'none',
-              paddingRight: '0',
-              width: 'var(--sidebar-current-width)',
-            }}
-          >
-            <SiderBar
-              onNavigate={() => {
-                if (isMobile) setDrawerOpen(false);
-              }}
-            />
-          </Sider>
-        )}
-        <Layout
+      <header className='shrink-0 z-50 w-full'>
+        <HeaderBar />
+      </header>
+
+      <div className='flex flex-1 min-h-0 w-full'>
+        {isConsoleRoute && <SiderBar />}
+
+        <main
+          className='flex-1 min-w-0 relative overflow-y-auto'
           style={{
-            marginLeft: isMobile
-              ? '0'
-              : showSider
-                ? 'var(--sidebar-current-width)'
-                : '0',
-            flex: '1 1 auto',
-            display: 'flex',
-            flexDirection: 'column',
+            padding: shouldInnerPadding ? '24px' : 0,
+            WebkitOverflowScrolling: 'touch',
           }}
         >
-          <Content
-            style={{
-              flex: '1 0 auto',
-              overflowY: isMobile ? 'visible' : 'hidden',
-              WebkitOverflowScrolling: 'touch',
-              padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
-              position: 'relative',
-            }}
-          >
-            <ErrorBoundary>
-              <App />
-            </ErrorBoundary>
-          </Content>
+          {isConsoleRoute ? <ConsolePageTrigger /> : null}
+          <ErrorBoundary key={location.pathname}>
+            <App />
+          </ErrorBoundary>
           {!shouldHideFooter && (
-            <Layout.Footer
-              style={{
-                flex: '0 0 auto',
-                width: '100%',
-              }}
-            >
+            <footer className='w-full'>
               <FooterBar />
-            </Layout.Footer>
+            </footer>
           )}
-        </Layout>
-      </Layout>
-      <ToastContainer />
-    </Layout>
+        </main>
+      </div>
+
+      <ToastViewport />
+    </Sidebar.Provider>
   );
 };
+
+// Renders <Sidebar.Trigger /> at the top-left of every console page's
+// content area — but only while the sidebar is expanded. Once the sidebar
+// collapses, the trigger moves *into* the sidebar's top (rendered by
+// CollapsedHeaderTrigger inside SiderBar.jsx) so it's anchored to whichever
+// side of the page is most useful in each state.
+function ConsolePageTrigger() {
+  const { isOpen } = useSidebar();
+  if (!isOpen) return null;
+  return (
+    <div className='mb-3 flex items-center'>
+      <Sidebar.Trigger />
+    </div>
+  );
+}
 
 export default PageLayout;

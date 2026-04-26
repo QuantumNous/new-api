@@ -18,12 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Spin } from '@douyinfe/semi-ui';
+import { Spinner } from '@heroui/react';
 
 const Loading = ({ size = 'small' }) => {
   return (
     <div className='fixed inset-0 w-screen h-screen flex items-center justify-center'>
-      <Spin size={size} spinning={true} />
+      <Spinner size={size === 'large' ? 'lg' : 'sm'} color='primary' />
     </div>
   );
 };

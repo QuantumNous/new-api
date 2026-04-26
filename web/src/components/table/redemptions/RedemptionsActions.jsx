@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button } from '@heroui/react';
 
 const RedemptionsActions = ({
   selectedKeys,
@@ -39,28 +39,28 @@ const RedemptionsActions = ({
   return (
     <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
       <Button
-        type='primary'
+        variant='primary'
         className='flex-1 md:flex-initial'
-        onClick={handleAddRedemption}
-        size='small'
+        onPress={handleAddRedemption}
+        size='sm'
       >
         {t('添加兑换码')}
       </Button>
 
       <Button
-        type='tertiary'
+        variant='outline'
         className='flex-1 md:flex-initial'
-        onClick={batchCopyRedemptions}
-        size='small'
+        onPress={batchCopyRedemptions}
+        size='sm'
       >
         {t('复制所选兑换码到剪贴板')}
       </Button>
 
       <Button
-        type='danger'
+        variant='danger-soft'
         className='w-full md:w-auto'
-        onClick={batchDeleteRedemptions}
-        size='small'
+        onPress={batchDeleteRedemptions}
+        size='sm'
       >
         {t('清除失效兑换码')}
       </Button>

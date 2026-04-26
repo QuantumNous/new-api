@@ -19,22 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import JSONEditor from '../../../common/ui/JSONEditor';
-import {
-  Banner,
-  SideSheet,
-  Form,
-  Button,
-  Space,
-  Spin,
-  Typography,
-  Card,
-  Tag,
-  Avatar,
-  Col,
-  Row,
-} from '@douyinfe/semi-ui';
+import { Button, Card } from '@heroui/react';
+import { Banner, SideSheet, Form, Space, Spin, Typography, Tag, Avatar, Col, Row } from '@/components/common/ui/HeroCompat';
 import { Save, X, FileText } from 'lucide-react';
-import { IconAlertTriangle, IconLink } from '@douyinfe/semi-icons';
+import { IconAlertTriangle, IconLink } from '@/components/common/ui/HeroIconsCompat';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -152,7 +140,7 @@ const EditModelModal = (props) => {
         data.status = data.status === 1;
         data.sync_official = (data.sync_official ?? 1) === 1;
         if (formApiRef.current) {
-          formApiRef.current.setValues({ ...getInitValues(), ...data });
+          formApiRef.current?.setValues?.({ ...getInitValues(), ...data });
         }
       } else {
         showError(message);
@@ -166,7 +154,7 @@ const EditModelModal = (props) => {
   useEffect(() => {
     if (formApiRef.current) {
       if (!isEdit) {
-        formApiRef.current.setValues({
+        formApiRef.current?.setValues?.({
           ...getInitValues(),
           model_name: props.editingModel?.model_name || '',
         });
@@ -453,7 +441,7 @@ const EditModelModal = (props) => {
                       icon={
                         <IconAlertTriangle
                           size='large'
-                          style={{ color: 'var(--semi-color-warning)' }}
+                          style={{ color: 'var(--app-warning)' }}
                         />
                       }
                       description={t(

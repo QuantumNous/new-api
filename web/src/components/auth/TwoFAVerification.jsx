@@ -17,17 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { API, showError, showSuccess } from '../../helpers';
-import {
-  Button,
-  Card,
-  Divider,
-  Form,
-  Input,
-  Typography,
-} from '@douyinfe/semi-ui';
 import React, { useState } from 'react';
-
-const { Title, Text, Paragraph } = Typography;
+import { KeyRound, ShieldCheck } from 'lucide-react';
+import {
+  AuthDivider,
+  AuthGhostButton,
+  AuthPanel,
+  AuthPrimaryButton,
+  AuthTextField,
+} from './AuthLayout';
 
 const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
   const [loading, setLoading] = useState(false);
@@ -80,163 +78,123 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
   if (isModal) {
     return (
       <div className='space-y-4'>
-        <Paragraph className='text-gray-600 dark:text-gray-300'>
+        <p className='text-sm leading-6 text-slate-500 dark:text-slate-400'>
           请输入认证器应用显示的验证码完成登录
-        </Paragraph>
+        </p>
 
-        <Form onSubmit={handleSubmit}>
-          <Form.Input
-            field='code'
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleSubmit();
+          }}
+        >
+          <AuthTextField
             label={useBackupCode ? '备用码' : '验证码'}
             placeholder={useBackupCode ? '请输入8位备用码' : '请输入6位验证码'}
             value={verificationCode}
-            onChange={setVerificationCode}
-            onKeyPress={handleKeyPress}
-            size='large'
-            style={{ marginBottom: 16 }}
+            onChange={(event) => setVerificationCode(event.target.value)}
+            onKeyDown={handleKeyPress}
+            icon={useBackupCode ? <KeyRound size={18} /> : <ShieldCheck size={18} />}
+            className='mb-4'
             autoFocus
           />
 
-          <Button
-            htmlType='submit'
-            type='primary'
-            loading={loading}
-            block
-            size='large'
-            style={{ marginBottom: 16 }}
-          >
+          <AuthPrimaryButton onPress={handleSubmit} isPending={loading} className='mb-4'>
             验证并登录
-          </Button>
-        </Form>
+          </AuthPrimaryButton>
+        </form>
 
-        <Divider />
+        <AuthDivider>2FA</AuthDivider>
 
-        <div style={{ textAlign: 'center' }}>
-          <Button
-            theme='borderless'
-            type='tertiary'
-            onClick={() => {
+        <div className='flex flex-wrap items-center justify-center gap-3'>
+          <AuthGhostButton
+            onPress={() => {
               setUseBackupCode(!useBackupCode);
               setVerificationCode('');
             }}
-            style={{ marginRight: 16, color: '#1890ff', padding: 0 }}
+            className='h-auto w-auto px-0'
           >
             {useBackupCode ? '使用认证器验证码' : '使用备用码'}
-          </Button>
+          </AuthGhostButton>
 
           {onBack && (
-            <Button
-              theme='borderless'
-              type='tertiary'
-              onClick={onBack}
-              style={{ color: '#1890ff', padding: 0 }}
-            >
+            <AuthGhostButton onPress={onBack} className='h-auto w-auto px-0'>
               返回登录
-            </Button>
+            </AuthGhostButton>
           )}
         </div>
 
-        <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
-          <Text size='small' type='secondary'>
+        <div className='rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm leading-6 text-slate-500 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-400'>
             <strong>提示：</strong>
             <br />
             • 验证码每30秒更新一次
             <br />
             • 如果无法获取验证码，请使用备用码
             <br />• 每个备用码只能使用一次
-          </Text>
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '60vh',
-      }}
-    >
-      <Card style={{ width: 400, padding: 24 }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Title heading={3}>两步验证</Title>
-          <Paragraph type='secondary'>
-            请输入认证器应用显示的验证码完成登录
-          </Paragraph>
-        </div>
-
-        <Form onSubmit={handleSubmit}>
-          <Form.Input
-            field='code'
+    <div className='flex min-h-[60vh] items-center justify-center'>
+      <div className='w-full max-w-md'>
+        <AuthPanel
+          title='两步验证'
+          subtitle='请输入认证器应用显示的验证码完成登录'
+        >
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleSubmit();
+          }}
+        >
+          <AuthTextField
             label={useBackupCode ? '备用码' : '验证码'}
             placeholder={useBackupCode ? '请输入8位备用码' : '请输入6位验证码'}
             value={verificationCode}
-            onChange={setVerificationCode}
-            onKeyPress={handleKeyPress}
-            size='large'
-            style={{ marginBottom: 16 }}
+            onChange={(event) => setVerificationCode(event.target.value)}
+            onKeyDown={handleKeyPress}
+            icon={useBackupCode ? <KeyRound size={18} /> : <ShieldCheck size={18} />}
+            className='mb-4'
             autoFocus
           />
 
-          <Button
-            htmlType='submit'
-            type='primary'
-            loading={loading}
-            block
-            size='large'
-            style={{ marginBottom: 16 }}
-          >
+          <AuthPrimaryButton onPress={handleSubmit} isPending={loading} className='mb-4'>
             验证并登录
-          </Button>
-        </Form>
+          </AuthPrimaryButton>
+        </form>
 
-        <Divider />
+        <AuthDivider>2FA</AuthDivider>
 
-        <div style={{ textAlign: 'center' }}>
-          <Button
-            theme='borderless'
-            type='tertiary'
-            onClick={() => {
+        <div className='flex flex-wrap items-center justify-center gap-3'>
+          <AuthGhostButton
+            onPress={() => {
               setUseBackupCode(!useBackupCode);
               setVerificationCode('');
             }}
-            style={{ marginRight: 16, color: '#1890ff', padding: 0 }}
+            className='h-auto w-auto px-0'
           >
             {useBackupCode ? '使用认证器验证码' : '使用备用码'}
-          </Button>
+          </AuthGhostButton>
 
           {onBack && (
-            <Button
-              theme='borderless'
-              type='tertiary'
-              onClick={onBack}
-              style={{ color: '#1890ff', padding: 0 }}
-            >
+            <AuthGhostButton onPress={onBack} className='h-auto w-auto px-0'>
               返回登录
-            </Button>
+            </AuthGhostButton>
           )}
         </div>
 
-        <div
-          style={{
-            marginTop: 24,
-            padding: 16,
-            background: '#f6f8fa',
-            borderRadius: 6,
-          }}
-        >
-          <Text size='small' type='secondary'>
+        <div className='mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm leading-6 text-slate-500 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-400'>
             <strong>提示：</strong>
             <br />
             • 验证码每30秒更新一次
             <br />
             • 如果无法获取验证码，请使用备用码
             <br />• 每个备用码只能使用一次
-          </Text>
         </div>
-      </Card>
+        </AuthPanel>
+      </div>
     </div>
   );
 };

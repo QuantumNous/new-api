@@ -26,23 +26,20 @@ import {
   getOAuthProviderIcon,
 } from '../../../../helpers';
 import {
-  Modal,
-  Spin,
-  Typography,
-  Card,
-  Checkbox,
-  Tag,
   Button,
-} from '@douyinfe/semi-ui';
-import {
-  IconLink,
-  IconMail,
-  IconDelete,
-  IconGithubLogo,
-} from '@douyinfe/semi-icons';
+  Card,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  Spinner,
+  useOverlayState,
+} from '@heroui/react';
+import { Github, Link as LinkIcon, Mail, Trash2 } from 'lucide-react';
 import { SiDiscord, SiTelegram, SiWechat, SiLinux } from 'react-icons/si';
-
-const { Text } = Typography;
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 
 const UserBindingManagementModal = ({
   visible,
@@ -58,10 +55,10 @@ const UserBindingManagementModal = ({
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
   const [builtInBindings, setBuiltInBindings] = React.useState({});
   const [bindingActionLoading, setBindingActionLoading] = React.useState({});
+  const [pendingUnbind, setPendingUnbind] = React.useState(null);
 
   const loadBindingData = React.useCallback(async () => {
     if (!userId) return;
-
     setBindingLoading(true);
     try {
       const [statusRes, customBindingRes, userRes] = await Promise.all([
@@ -116,79 +113,65 @@ const UserBindingManagementModal = ({
     setBindingActionLoading((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleUnbindBuiltInAccount = (bindingItem) => {
+  const performUnbindBuiltIn = async (bindingItem) => {
     if (!userId) return;
-
-    Modal.confirm({
-      title: t('确认解绑'),
-      content: t('确定要解绑 {{name}} 吗？', { name: bindingItem.name }),
-      okText: t('确认'),
-      cancelText: t('取消'),
-      onOk: async () => {
-        const loadingKey = `builtin-${bindingItem.key}`;
-        setBindingLoadingState(loadingKey, true);
-        try {
-          const res = await API.delete(
-            `/api/user/${userId}/bindings/${bindingItem.key}`,
-          );
-          if (!res.data?.success) {
-            showError(res.data?.message || t('操作失败'));
-            return;
-          }
-          setBuiltInBindings((prev) => ({
-            ...prev,
-            [bindingItem.field]: '',
-          }));
-          formApiRef.current?.setValue(bindingItem.field, '');
-          showSuccess(t('解绑成功'));
-        } catch (error) {
-          showError(
-            error.response?.data?.message || error.message || t('操作失败'),
-          );
-        } finally {
-          setBindingLoadingState(loadingKey, false);
-        }
-      },
-    });
+    const loadingKey = `builtin-${bindingItem.key}`;
+    setBindingLoadingState(loadingKey, true);
+    try {
+      const res = await API.delete(
+        `/api/user/${userId}/bindings/${bindingItem.key}`,
+      );
+      if (!res.data?.success) {
+        showError(res.data?.message || t('操作失败'));
+        return;
+      }
+      setBuiltInBindings((prev) => ({
+        ...prev,
+        [bindingItem.field]: '',
+      }));
+      formApiRef?.current?.setValue?.(bindingItem.field, '');
+      showSuccess(t('解绑成功'));
+    } catch (error) {
+      showError(
+        error.response?.data?.message || error.message || t('操作失败'),
+      );
+    } finally {
+      setBindingLoadingState(loadingKey, false);
+    }
   };
 
-  const handleUnbindCustomOAuthAccount = (provider) => {
+  const performUnbindCustom = async (provider) => {
     if (!userId) return;
-
-    Modal.confirm({
-      title: t('确认解绑'),
-      content: t('确定要解绑 {{name}} 吗？', { name: provider.name }),
-      okText: t('确认'),
-      cancelText: t('取消'),
-      onOk: async () => {
-        const loadingKey = `custom-${provider.id}`;
-        setBindingLoadingState(loadingKey, true);
-        try {
-          const res = await API.delete(
-            `/api/user/${userId}/oauth/bindings/${provider.id}`,
-          );
-          if (!res.data?.success) {
-            showError(res.data?.message || t('操作失败'));
-            return;
-          }
-          setCustomOAuthBindings((prev) =>
-            prev.filter(
-              (item) => Number(item.provider_id) !== Number(provider.id),
-            ),
-          );
-          showSuccess(t('解绑成功'));
-        } catch (error) {
-          showError(
-            error.response?.data?.message || error.message || t('操作失败'),
-          );
-        } finally {
-          setBindingLoadingState(loadingKey, false);
-        }
-      },
-    });
+    const loadingKey = `custom-${provider.id}`;
+    setBindingLoadingState(loadingKey, true);
+    try {
+      const res = await API.delete(
+        `/api/user/${userId}/oauth/bindings/${provider.id}`,
+      );
+      if (!res.data?.success) {
+        showError(res.data?.message || t('操作失败'));
+        return;
+      }
+      setCustomOAuthBindings((prev) =>
+        prev.filter(
+          (item) => Number(item.provider_id) !== Number(provider.id),
+        ),
+      );
+      showSuccess(t('解绑成功'));
+    } catch (error) {
+      showError(
+        error.response?.data?.message || error.message || t('操作失败'),
+      );
+    } finally {
+      setBindingLoadingState(loadingKey, false);
+    }
   };
 
-  const currentValues = formApiRef.current?.getValues?.() || {};
+  const requestUnbind = (item) => {
+    setPendingUnbind(item);
+  };
+
+  const currentValues = formApiRef?.current?.getValues?.() || {};
   const getBuiltInBindingValue = (field) =>
     builtInBindings[field] || currentValues[field] || '';
 
@@ -199,12 +182,7 @@ const UserBindingManagementModal = ({
       name: t('邮箱'),
       enabled: true,
       value: getBuiltInBindingValue('email'),
-      icon: (
-        <IconMail
-          size='default'
-          className='text-slate-600 dark:text-slate-300'
-        />
-      ),
+      icon: <Mail size={20} className='text-slate-600 dark:text-slate-300' />,
     },
     {
       key: 'github',
@@ -212,12 +190,7 @@ const UserBindingManagementModal = ({
       name: 'GitHub',
       enabled: Boolean(statusInfo.github_oauth),
       value: getBuiltInBindingValue('github_id'),
-      icon: (
-        <IconGithubLogo
-          size='default'
-          className='text-slate-600 dark:text-slate-300'
-        />
-      ),
+      icon: <Github size={20} className='text-slate-600 dark:text-slate-300' />,
     },
     {
       key: 'discord',
@@ -236,10 +209,7 @@ const UserBindingManagementModal = ({
       enabled: Boolean(statusInfo.oidc_enabled),
       value: getBuiltInBindingValue('oidc_id'),
       icon: (
-        <IconLink
-          size='default'
-          className='text-slate-600 dark:text-slate-300'
-        />
+        <LinkIcon size={20} className='text-slate-600 dark:text-slate-300' />
       ),
     },
     {
@@ -325,108 +295,163 @@ const UserBindingManagementModal = ({
     ? allBindingItems.filter((item) => Boolean(item.value))
     : allBindingItems;
 
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
+
   return (
-    <Modal
-      centered
-      visible={visible}
-      onCancel={onCancel}
-      footer={null}
-      width={isMobile ? '100%' : 760}
-      title={
-        <div className='flex items-center'>
-          <IconLink className='mr-2' />
-          {t('账户绑定管理')}
-        </div>
-      }
-    >
-      <Spin spinning={bindingLoading}>
-        <div className='max-h-[68vh] overflow-y-auto pr-1 pb-2'>
-          <div className='flex items-center justify-between mb-4 gap-3 flex-wrap'>
-            <Checkbox
-              checked={showBoundOnly}
-              onChange={(e) => setShowBoundOnly(Boolean(e.target.checked))}
-            >
-              {t('仅显示已绑定')}
-            </Checkbox>
-            <Text type='tertiary'>
-              {t('已绑定')} {boundCount} / {allBindingItems.length}
-            </Text>
-          </div>
-
-          {visibleBindingItems.length === 0 ? (
-            <Card className='!rounded-xl border-dashed'>
-              <Text type='tertiary'>{t('暂无已绑定项')}</Text>
-            </Card>
-          ) : (
-            <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-              {visibleBindingItems.map((item, index) => {
-                const isBound = Boolean(item.value);
-                const loadingKey =
-                  item.type === 'builtin'
-                    ? `builtin-${item.key}`
-                    : `custom-${item.providerId}`;
-                const statusText = isBound
-                  ? item.value
-                  : item.enabled
-                    ? t('未绑定')
-                    : t('未启用');
-                const shouldSpanTwoColsOnDesktop =
-                  visibleBindingItems.length % 2 === 1 &&
-                  index === visibleBindingItems.length - 1;
-
-                return (
-                  <Card
-                    key={item.key}
-                    className={`!rounded-xl ${shouldSpanTwoColsOnDesktop ? 'lg:col-span-2' : ''}`}
-                  >
-                    <div className='flex items-center justify-between gap-3 min-h-[92px]'>
-                      <div className='flex items-center flex-1 min-w-0'>
-                        <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
-                          {item.icon}
-                        </div>
-                        <div className='min-w-0 flex-1'>
-                          <div className='font-medium text-gray-900 flex items-center gap-2'>
-                            <span>{item.name}</span>
-                            <Tag size='small' color='white'>
-                              {item.type === 'builtin'
-                                ? t('内置')
-                                : t('自定义')}
-                            </Tag>
-                          </div>
-                          <div className='text-sm text-gray-500 truncate'>
-                            {statusText}
-                          </div>
-                        </div>
-                      </div>
-                      <Button
-                        type='danger'
-                        theme='borderless'
-                        icon={<IconDelete />}
-                        size='small'
-                        disabled={!isBound}
-                        loading={Boolean(bindingActionLoading[loadingKey])}
-                        onClick={() => {
-                          if (item.type === 'builtin') {
-                            handleUnbindBuiltInAccount(item);
-                            return;
+    <>
+      <Modal state={modalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer
+            size={isMobile ? 'full' : 'xl'}
+            placement='center'
+          >
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                <div className='flex items-center gap-2'>
+                  <LinkIcon size={18} />
+                  {t('账户绑定管理')}
+                </div>
+              </ModalHeader>
+              <ModalBody className='max-h-[68vh] overflow-y-auto px-6 py-5'>
+                {bindingLoading ? (
+                  <div className='flex items-center justify-center py-10'>
+                    <Spinner />
+                  </div>
+                ) : (
+                  <>
+                    <div className='mb-4 flex flex-wrap items-center justify-between gap-3'>
+                      <label className='inline-flex cursor-pointer items-center gap-2 text-sm text-foreground'>
+                        <input
+                          type='checkbox'
+                          checked={showBoundOnly}
+                          onChange={(event) =>
+                            setShowBoundOnly(Boolean(event.target.checked))
                           }
-                          handleUnbindCustomOAuthAccount({
-                            id: item.providerId,
-                            name: item.name,
-                          });
-                        }}
-                      >
-                        {t('解绑')}
-                      </Button>
+                          className='h-4 w-4 accent-primary'
+                        />
+                        {t('仅显示已绑定')}
+                      </label>
+                      <span className='text-sm text-muted'>
+                        {t('已绑定')} {boundCount} / {allBindingItems.length}
+                      </span>
                     </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </Spin>
-    </Modal>
+
+                    {visibleBindingItems.length === 0 ? (
+                      <Card className='!rounded-xl border-2 border-dashed border-[color:var(--app-border)]'>
+                        <Card.Content className='p-5 text-sm text-muted'>
+                          {t('暂无已绑定项')}
+                        </Card.Content>
+                      </Card>
+                    ) : (
+                      <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+                        {visibleBindingItems.map((item, index) => {
+                          const isBound = Boolean(item.value);
+                          const loadingKey =
+                            item.type === 'builtin'
+                              ? `builtin-${item.key}`
+                              : `custom-${item.providerId}`;
+                          const statusText = isBound
+                            ? item.value
+                            : item.enabled
+                              ? t('未绑定')
+                              : t('未启用');
+                          const shouldSpanTwoCols =
+                            visibleBindingItems.length % 2 === 1 &&
+                            index === visibleBindingItems.length - 1;
+
+                          return (
+                            <Card
+                              key={item.key}
+                              className={`!rounded-xl border border-[color:var(--app-border)] shadow-sm ${
+                                shouldSpanTwoCols ? 'lg:col-span-2' : ''
+                              }`}
+                            >
+                              <Card.Content className='flex min-h-[92px] items-center justify-between gap-3 p-4'>
+                                <div className='flex flex-1 items-center min-w-0'>
+                                  <div className='mr-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800'>
+                                    {item.icon}
+                                  </div>
+                                  <div className='min-w-0 flex-1'>
+                                    <div className='flex items-center gap-2 text-sm font-medium text-foreground'>
+                                      <span>{item.name}</span>
+                                      <span className='inline-flex items-center rounded-full border border-[color:var(--app-border)] bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+                                        {item.type === 'builtin'
+                                          ? t('内置')
+                                          : t('自定义')}
+                                      </span>
+                                    </div>
+                                    <div className='truncate text-xs text-muted'>
+                                      {statusText}
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button
+                                  color='danger'
+                                  variant='light'
+                                  size='sm'
+                                  startContent={<Trash2 size={14} />}
+                                  isDisabled={!isBound}
+                                  isPending={Boolean(
+                                    bindingActionLoading[loadingKey],
+                                  )}
+                                  onPress={() => {
+                                    if (item.type === 'builtin') {
+                                      requestUnbind({
+                                        kind: 'builtin',
+                                        bindingItem: item,
+                                        name: item.name,
+                                      });
+                                    } else {
+                                      requestUnbind({
+                                        kind: 'custom',
+                                        provider: {
+                                          id: item.providerId,
+                                          name: item.name,
+                                        },
+                                        name: item.name,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  {t('解绑')}
+                                </Button>
+                              </Card.Content>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
+              </ModalBody>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      </Modal>
+
+      <ConfirmDialog
+        visible={!!pendingUnbind}
+        title={t('确认解绑')}
+        cancelText={t('取消')}
+        confirmText={t('确认')}
+        danger
+        onCancel={() => setPendingUnbind(null)}
+        onConfirm={() => {
+          const target = pendingUnbind;
+          setPendingUnbind(null);
+          if (!target) return;
+          if (target.kind === 'builtin') performUnbindBuiltIn(target.bindingItem);
+          else performUnbindCustom(target.provider);
+        }}
+      >
+        {t('确定要解绑 {{name}} 吗？', { name: pendingUnbind?.name || '' })}
+      </ConfirmDialog>
+    </>
   );
 };
 

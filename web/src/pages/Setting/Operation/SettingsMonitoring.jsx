@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button, Input, Switch } from '@heroui/react';
 import {
   compareObjects,
   API,
@@ -30,261 +30,285 @@ import {
 import { useTranslation } from 'react-i18next';
 import HttpStatusCodeRulesInput from '../../../components/settings/HttpStatusCodeRulesInput';
 
+const DEFAULT_INPUTS = {
+  ChannelDisableThreshold: '',
+  QuotaRemindThreshold: '',
+  AutomaticDisableChannelEnabled: false,
+  AutomaticEnableChannelEnabled: false,
+  AutomaticDisableKeywords: '',
+  AutomaticDisableStatusCodes: '401',
+  AutomaticRetryStatusCodes:
+    '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
+  'monitor_setting.auto_test_channel_enabled': false,
+  'monitor_setting.auto_test_channel_minutes': 10,
+};
+
+const BOOLEAN_FIELDS = new Set([
+  'AutomaticDisableChannelEnabled',
+  'AutomaticEnableChannelEnabled',
+  'monitor_setting.auto_test_channel_enabled',
+]);
+
+const NUMERIC_FIELDS = new Set([
+  'ChannelDisableThreshold',
+  'QuotaRemindThreshold',
+  'monitor_setting.auto_test_channel_minutes',
+]);
+
+function ToggleRow({ label, helper, isSelected, onValueChange }) {
+  return (
+    <label className='flex items-start justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+      <div className='min-w-0 flex-1'>
+        <div className='text-sm font-medium text-foreground'>{label}</div>
+        {helper ? (
+          <div className='mt-1 text-xs leading-snug text-muted'>{helper}</div>
+        ) : null}
+      </div>
+      <Switch
+        isSelected={!!isSelected}
+        onChange={onValueChange}
+        aria-label={label}
+        size='sm'
+      >
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+      </Switch>
+    </label>
+  );
+}
+
+function NumberField({ label, value, onChange, suffix, helper, placeholder, min = 0 }) {
+  return (
+    <div className='space-y-2'>
+      <div className='text-sm font-medium text-foreground'>{label}</div>
+      <div className='flex items-center gap-2'>
+        <Input
+          type='number'
+          min={min}
+          step={1}
+          value={value === '' || value == null ? '' : String(value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            onChange(v === '' ? '' : Number(v));
+          }}
+          placeholder={placeholder}
+          aria-label={label}
+          className='h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary'
+        />
+        {suffix ? (
+          <span className='text-xs text-muted shrink-0'>{suffix}</span>
+        ) : null}
+      </div>
+      {helper ? (
+        <div className='text-xs leading-snug text-muted'>{helper}</div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function SettingsMonitoring(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    ChannelDisableThreshold: '',
-    QuotaRemindThreshold: '',
-    AutomaticDisableChannelEnabled: false,
-    AutomaticEnableChannelEnabled: false,
-    AutomaticDisableKeywords: '',
-    AutomaticDisableStatusCodes: '401',
-    AutomaticRetryStatusCodes:
-      '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
-    'monitor_setting.auto_test_channel_enabled': false,
-    'monitor_setting.auto_test_channel_minutes': 10,
-  });
-  const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
-  const parsedAutoDisableStatusCodes = parseHttpStatusCodeRules(
-    inputs.AutomaticDisableStatusCodes || '',
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [inputsRow, setInputsRow] = useState(DEFAULT_INPUTS);
+
+  const setField = (field) => (value) =>
+    setInputs((prev) => ({ ...prev, [field]: value }));
+
+  const parsedDisable = useMemo(
+    () => parseHttpStatusCodeRules(inputs.AutomaticDisableStatusCodes || ''),
+    [inputs.AutomaticDisableStatusCodes],
   );
-  const parsedAutoRetryStatusCodes = parseHttpStatusCodeRules(
-    inputs.AutomaticRetryStatusCodes || '',
+  const parsedRetry = useMemo(
+    () => parseHttpStatusCodeRules(inputs.AutomaticRetryStatusCodes || ''),
+    [inputs.AutomaticRetryStatusCodes],
   );
 
-  function onSubmit() {
+  const onSubmit = async () => {
     const updateArray = compareObjects(inputs, inputsRow);
-    if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
-    if (!parsedAutoDisableStatusCodes.ok) {
-      const details =
-        parsedAutoDisableStatusCodes.invalidTokens &&
-        parsedAutoDisableStatusCodes.invalidTokens.length > 0
-          ? `: ${parsedAutoDisableStatusCodes.invalidTokens.join(', ')}`
-          : '';
-      return showError(`${t('自动禁用状态码格式不正确')}${details}`);
+    if (!updateArray.length) {
+      showWarning(t('你似乎并没有修改什么'));
+      return;
     }
-    if (!parsedAutoRetryStatusCodes.ok) {
+    if (!parsedDisable.ok) {
       const details =
-        parsedAutoRetryStatusCodes.invalidTokens &&
-        parsedAutoRetryStatusCodes.invalidTokens.length > 0
-          ? `: ${parsedAutoRetryStatusCodes.invalidTokens.join(', ')}`
+        parsedDisable.invalidTokens?.length > 0
+          ? `: ${parsedDisable.invalidTokens.join(', ')}`
           : '';
-      return showError(`${t('自动重试状态码格式不正确')}${details}`);
+      showError(`${t('自动禁用状态码格式不正确')}${details}`);
+      return;
     }
-    const requestQueue = updateArray.map((item) => {
-      let value = '';
-      if (typeof inputs[item.key] === 'boolean') {
-        value = String(inputs[item.key]);
-      } else {
-        const normalizedMap = {
-          AutomaticDisableStatusCodes: parsedAutoDisableStatusCodes.normalized,
-          AutomaticRetryStatusCodes: parsedAutoRetryStatusCodes.normalized,
-        };
-        value = normalizedMap[item.key] ?? inputs[item.key];
-      }
-      return API.put('/api/option/', {
-        key: item.key,
-        value,
-      });
-    });
+    if (!parsedRetry.ok) {
+      const details =
+        parsedRetry.invalidTokens?.length > 0
+          ? `: ${parsedRetry.invalidTokens.join(', ')}`
+          : '';
+      showError(`${t('自动重试状态码格式不正确')}${details}`);
+      return;
+    }
     setLoading(true);
-    Promise.all(requestQueue)
-      .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+    try {
+      const requests = updateArray.map((item) => {
+        let value;
+        if (typeof inputs[item.key] === 'boolean') {
+          value = String(inputs[item.key]);
+        } else if (item.key === 'AutomaticDisableStatusCodes') {
+          value = parsedDisable.normalized;
+        } else if (item.key === 'AutomaticRetryStatusCodes') {
+          value = parsedRetry.normalized;
+        } else {
+          value = String(inputs[item.key] ?? '');
         }
-        showSuccess(t('保存成功'));
-        props.refresh();
-      })
-      .catch(() => {
-        showError(t('保存失败，请重试'));
-      })
-      .finally(() => {
-        setLoading(false);
+        return API.put('/api/option/', { key: item.key, value });
       });
-  }
+      const results = await Promise.all(requests);
+      if (results.some((r) => r === undefined)) {
+        if (requests.length > 1) {
+          showError(t('部分保存失败，请重试'));
+          return;
+        }
+        return;
+      }
+      showSuccess(t('保存成功'));
+      setInputsRow(structuredClone(inputs));
+      props.refresh?.();
+    } catch (e) {
+      showError(t('保存失败，请重试'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+    if (!props.options) return;
+    const next = { ...DEFAULT_INPUTS };
+    for (const key of Object.keys(DEFAULT_INPUTS)) {
+      if (key in props.options) {
+        const raw = props.options[key];
+        if (BOOLEAN_FIELDS.has(key)) {
+          next[key] = raw === true || raw === 'true';
+        } else if (NUMERIC_FIELDS.has(key)) {
+          if (raw === '' || raw == null) {
+            next[key] = '';
+          } else {
+            const parsed = Number(raw);
+            next[key] = Number.isFinite(parsed) ? parsed : '';
+          }
+        } else {
+          next[key] = raw ?? '';
+        }
       }
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
+    setInputs(next);
+    setInputsRow(structuredClone(next));
   }, [props.options]);
 
   return (
-    <>
-      <Spin spinning={loading}>
-        <Form
-          values={inputs}
-          getFormApi={(formAPI) => (refForm.current = formAPI)}
-          style={{ marginBottom: 15 }}
+    <div className='p-6 space-y-6'>
+      <div>
+        <div className='text-base font-semibold text-foreground'>
+          {t('监控设置')}
+        </div>
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+        <ToggleRow
+          label={t('定时测试所有通道')}
+          helper={t('开启后系统会定期对所有通道发起健康检查')}
+          isSelected={inputs['monitor_setting.auto_test_channel_enabled']}
+          onValueChange={setField('monitor_setting.auto_test_channel_enabled')}
+        />
+        <NumberField
+          label={t('自动测试所有通道间隔时间')}
+          value={inputs['monitor_setting.auto_test_channel_minutes']}
+          onChange={setField('monitor_setting.auto_test_channel_minutes')}
+          suffix={t('分钟')}
+          helper={t('每隔多少分钟测试一次所有通道')}
+          min={1}
+        />
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+        <NumberField
+          label={t('测试所有渠道的最长响应时间')}
+          value={inputs.ChannelDisableThreshold}
+          onChange={setField('ChannelDisableThreshold')}
+          suffix={t('秒')}
+          helper={t('当运行通道全部测试时，超过此时间将自动禁用通道')}
+        />
+        <NumberField
+          label={t('额度提醒阈值')}
+          value={inputs.QuotaRemindThreshold}
+          onChange={setField('QuotaRemindThreshold')}
+          suffix='Token'
+          helper={t('低于此额度时将发送邮件提醒用户')}
+        />
+      </div>
+
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+        <ToggleRow
+          label={t('失败时自动禁用通道')}
+          isSelected={inputs.AutomaticDisableChannelEnabled}
+          onValueChange={setField('AutomaticDisableChannelEnabled')}
+        />
+        <ToggleRow
+          label={t('成功时自动启用通道')}
+          isSelected={inputs.AutomaticEnableChannelEnabled}
+          onValueChange={setField('AutomaticEnableChannelEnabled')}
+        />
+      </div>
+
+      <HttpStatusCodeRulesInput
+        label={t('自动禁用状态码')}
+        value={inputs.AutomaticDisableStatusCodes ?? ''}
+        onChange={setField('AutomaticDisableStatusCodes')}
+        placeholder={t('例如：401, 403, 429, 500-599')}
+        extraText={t('支持填写单个状态码或范围（含首尾），使用逗号分隔')}
+        parsed={parsedDisable}
+        invalidText={t('自动禁用状态码格式不正确')}
+      />
+
+      <HttpStatusCodeRulesInput
+        label={t('自动重试状态码')}
+        value={inputs.AutomaticRetryStatusCodes ?? ''}
+        onChange={setField('AutomaticRetryStatusCodes')}
+        placeholder={t('例如：401, 403, 429, 500-599')}
+        extraText={t(
+          '支持填写单个状态码或范围（含首尾），使用逗号分隔；504 和 524 始终不重试，不受此处配置影响',
+        )}
+        parsed={parsedRetry}
+        invalidText={t('自动重试状态码格式不正确')}
+      />
+
+      <div className='space-y-2'>
+        <div className='text-sm font-medium text-foreground'>
+          {t('自动禁用关键词')}
+        </div>
+        <textarea
+          value={inputs.AutomaticDisableKeywords ?? ''}
+          onChange={(e) => setField('AutomaticDisableKeywords')(e.target.value)}
+          placeholder={t('一行一个，不区分大小写')}
+          rows={6}
+          aria-label={t('自动禁用关键词')}
+          className='w-full resize-y rounded-lg border border-[color:var(--app-border)] bg-background px-3 py-2 font-mono text-sm text-foreground outline-none transition focus:border-primary'
+        />
+        <div className='text-xs leading-snug text-muted'>
+          {t('当上游通道返回错误中包含这些关键词时（不区分大小写），自动禁用通道')}
+        </div>
+      </div>
+
+      <div className='border-t border-[color:var(--app-border)] pt-4'>
+        <Button
+          color='primary'
+          size='md'
+          onPress={onSubmit}
+          isPending={loading}
+          className='min-w-[100px]'
         >
-          <Form.Section text={t('监控设置')}>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'monitor_setting.auto_test_channel_enabled'}
-                  label={t('定时测试所有通道')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      'monitor_setting.auto_test_channel_enabled': value,
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('自动测试所有通道间隔时间')}
-                  step={1}
-                  min={1}
-                  suffix={t('分钟')}
-                  extraText={t('每隔多少分钟测试一次所有通道')}
-                  placeholder={''}
-                  field={'monitor_setting.auto_test_channel_minutes'}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      'monitor_setting.auto_test_channel_minutes':
-                        parseInt(value),
-                    })
-                  }
-                />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('测试所有渠道的最长响应时间')}
-                  step={1}
-                  min={0}
-                  suffix={t('秒')}
-                  extraText={t(
-                    '当运行通道全部测试时，超过此时间将自动禁用通道',
-                  )}
-                  placeholder={''}
-                  field={'ChannelDisableThreshold'}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      ChannelDisableThreshold: String(value),
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('额度提醒阈值')}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
-                  extraText={t('低于此额度时将发送邮件提醒用户')}
-                  placeholder={''}
-                  field={'QuotaRemindThreshold'}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      QuotaRemindThreshold: String(value),
-                    })
-                  }
-                />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'AutomaticDisableChannelEnabled'}
-                  label={t('失败时自动禁用通道')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) => {
-                    setInputs({
-                      ...inputs,
-                      AutomaticDisableChannelEnabled: value,
-                    });
-                  }}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'AutomaticEnableChannelEnabled'}
-                  label={t('成功时自动启用通道')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      AutomaticEnableChannelEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col xs={24} sm={16}>
-                <HttpStatusCodeRulesInput
-                  label={t('自动禁用状态码')}
-                  placeholder={t('例如：401, 403, 429, 500-599')}
-                  extraText={t(
-                    '支持填写单个状态码或范围（含首尾），使用逗号分隔',
-                  )}
-                  field={'AutomaticDisableStatusCodes'}
-                  onChange={(value) =>
-                    setInputs({ ...inputs, AutomaticDisableStatusCodes: value })
-                  }
-                  parsed={parsedAutoDisableStatusCodes}
-                  invalidText={t('自动禁用状态码格式不正确')}
-                />
-                <HttpStatusCodeRulesInput
-                  label={t('自动重试状态码')}
-                  placeholder={t('例如：401, 403, 429, 500-599')}
-                  extraText={t(
-                    '支持填写单个状态码或范围（含首尾），使用逗号分隔；504 和 524 始终不重试，不受此处配置影响',
-                  )}
-                  field={'AutomaticRetryStatusCodes'}
-                  onChange={(value) =>
-                    setInputs({ ...inputs, AutomaticRetryStatusCodes: value })
-                  }
-                  parsed={parsedAutoRetryStatusCodes}
-                  invalidText={t('自动重试状态码格式不正确')}
-                />
-                <Form.TextArea
-                  label={t('自动禁用关键词')}
-                  placeholder={t('一行一个，不区分大小写')}
-                  extraText={t(
-                    '当上游通道返回错误中包含这些关键词时（不区分大小写），自动禁用通道',
-                  )}
-                  field={'AutomaticDisableKeywords'}
-                  autosize={{ minRows: 6, maxRows: 12 }}
-                  onChange={(value) =>
-                    setInputs({ ...inputs, AutomaticDisableKeywords: value })
-                  }
-                />
-              </Col>
-            </Row>
-            <Row>
-              <Button size='default' onClick={onSubmit}>
-                {t('保存监控设置')}
-              </Button>
-            </Row>
-          </Form.Section>
-        </Form>
-      </Spin>
-    </>
+          {t('保存监控设置')}
+        </Button>
+      </div>
+    </div>
   );
 }

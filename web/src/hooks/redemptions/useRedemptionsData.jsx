@@ -18,13 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useState, useEffect } from 'react';
-import { API, showError, showSuccess, copy } from '../../helpers';
+import { API, showError, showSuccess, copy, showInfo } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import {
   REDEMPTION_ACTIONS,
   REDEMPTION_STATUS,
 } from '../../constants/redemption.constants';
-import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
@@ -217,7 +216,7 @@ export const useRedemptionsData = () => {
     if (record.status !== REDEMPTION_STATUS.UNUSED || isExpired(record)) {
       return {
         style: {
-          background: 'var(--semi-color-disabled-border)',
+          background: 'var(--app-border)',
         },
       };
     } else {
@@ -230,11 +229,7 @@ export const useRedemptionsData = () => {
     if (await copy(text)) {
       showSuccess('已复制到剪贴板！');
     } else {
-      Modal.error({
-        title: '无法复制到剪贴板，请手动复制',
-        content: text,
-        size: 'large',
-      });
+      showError(`${t('无法复制到剪贴板，请手动复制')}：${text}`);
     }
   };
 
@@ -254,22 +249,23 @@ export const useRedemptionsData = () => {
 
   // Batch delete redemption codes (clear invalid)
   const batchDeleteRedemptions = async () => {
-    Modal.confirm({
-      title: t('确定清除所有失效兑换码？'),
-      content: t('将删除已使用、已禁用及过期的兑换码，此操作不可撤销。'),
-      onOk: async () => {
-        setLoading(true);
-        const res = await API.delete('/api/redemption/invalid');
-        const { success, message, data } = res.data;
-        if (success) {
-          showSuccess(t('已删除 {{count}} 条失效兑换码', { count: data }));
-          await refresh();
-        } else {
-          showError(message);
-        }
-        setLoading(false);
-      },
-    });
+    const shouldDelete = window.confirm(
+      t('将删除已使用、已禁用及过期的兑换码，此操作不可撤销。'),
+    );
+    if (!shouldDelete) {
+      showInfo(t('已取消清除操作'));
+      return;
+    }
+    setLoading(true);
+    const res = await API.delete('/api/redemption/invalid');
+    const { success, message, data } = res.data;
+    if (success) {
+      showSuccess(t('已删除 {{count}} 条失效兑换码', { count: data }));
+      await refresh();
+    } else {
+      showError(message);
+    }
+    setLoading(false);
   };
 
   // Close edit modal

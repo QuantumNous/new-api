@@ -17,22 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Modal,
-  Checkbox,
-  Empty,
+  Button,
   Input,
-  Tabs,
-  Typography,
-} from '@douyinfe/semi-ui';
-import {
-  IllustrationNoResult,
-  IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
-import { IconSearch } from '@douyinfe/semi-icons';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  useOverlayState,
+} from '@heroui/react';
+import { Inbox, Search } from 'lucide-react';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 
 const normalizeModels = (models = []) =>
   Array.from(
@@ -45,13 +45,28 @@ const filterByKeyword = (models = [], keyword = '') => {
   const normalizedKeyword = String(keyword || '')
     .trim()
     .toLowerCase();
-  if (!normalizedKeyword) {
-    return models;
-  }
+  if (!normalizedKeyword) return models;
   return models.filter((model) =>
     String(model).toLowerCase().includes(normalizedKeyword),
   );
 };
+
+function HeaderCheckbox({ checked, indeterminate, onChange, ariaLabel }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
+  }, [indeterminate, checked]);
+  return (
+    <input
+      ref={ref}
+      type='checkbox'
+      checked={!!checked}
+      onChange={(event) => onChange(event.target.checked)}
+      aria-label={ariaLabel}
+      className='h-4 w-4 accent-primary'
+    />
+  );
+}
 
 const ChannelUpstreamUpdateModal = ({
   visible,
@@ -63,7 +78,6 @@ const ChannelUpstreamUpdateModal = ({
   onCancel,
 }) => {
   const { t } = useTranslation();
-  const isMobile = useIsMobile();
 
   const normalizedAddModels = useMemo(
     () => normalizeModels(addModels),
@@ -79,6 +93,7 @@ const ChannelUpstreamUpdateModal = ({
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState('add');
   const [partialSubmitConfirmed, setPartialSubmitConfirmed] = useState(false);
+  const [partialConfirm, setPartialConfirm] = useState(null);
 
   const addTabEnabled = normalizedAddModels.length > 0;
   const removeTabEnabled = normalizedRemoveModels.length > 0;
@@ -92,9 +107,7 @@ const ChannelUpstreamUpdateModal = ({
   );
 
   useEffect(() => {
-    if (!visible) {
-      return;
-    }
+    if (!visible) return;
     setSelectedAddModels([]);
     setSelectedRemoveModels([]);
     setKeyword('');
@@ -142,18 +155,21 @@ const ChannelUpstreamUpdateModal = ({
     );
   };
 
-  const tabList = [
-    {
-      itemKey: 'add',
-      tab: `${t('新增模型')} (${selectedAddCount}/${normalizedAddModels.length})`,
-      disabled: !addTabEnabled,
-    },
-    {
-      itemKey: 'remove',
-      tab: `${t('删除模型')} (${selectedRemoveCount}/${normalizedRemoveModels.length})`,
-      disabled: !removeTabEnabled,
-    },
-  ];
+  const toggleModel = (model, checked) => {
+    if (activeTab === 'add') {
+      setSelectedAddModels((prev) =>
+        checked
+          ? Array.from(new Set([...prev, model]))
+          : prev.filter((item) => item !== model),
+      );
+    } else {
+      setSelectedRemoveModels((prev) =>
+        checked
+          ? Array.from(new Set([...prev, model]))
+          : prev.filter((item) => item !== model),
+      );
+    }
+  };
 
   const submitSelectedChanges = () => {
     onConfirm?.({
@@ -183,22 +199,9 @@ const ChannelUpstreamUpdateModal = ({
         ? normalizedAddModels.length
         : normalizedRemoveModels.length;
       setActiveTab(missingTab);
-      Modal.confirm({
-        title: t('仍有未处理项'),
-        content: t(
-          '你还没有处理{{type}}模型（{{count}}个）。是否仅提交当前已勾选内容？',
-          {
-            type: missingType,
-            count: missingCount,
-          },
-        ),
-        okText: t('仅提交已勾选'),
-        cancelText: t('去处理{{type}}', { type: missingType }),
-        centered: true,
-        onOk: () => {
-          setPartialSubmitConfirmed(true);
-          submitSelectedChanges();
-        },
+      setPartialConfirm({
+        type: missingType,
+        count: missingCount,
       });
       return;
     }
@@ -206,107 +209,183 @@ const ChannelUpstreamUpdateModal = ({
     submitSelectedChanges();
   };
 
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
+
+  const tabs = [
+    {
+      key: 'add',
+      label: `${t('新增模型')} (${selectedAddCount}/${normalizedAddModels.length})`,
+      disabled: !addTabEnabled,
+    },
+    {
+      key: 'remove',
+      label: `${t('删除模型')} (${selectedRemoveCount}/${normalizedRemoveModels.length})`,
+      disabled: !removeTabEnabled,
+    },
+  ];
+
   return (
-    <Modal
-      visible={visible}
-      title={t('处理上游模型更新')}
-      okText={t('确定')}
-      cancelText={t('取消')}
-      size={isMobile ? 'full-width' : 'medium'}
-      centered
-      closeOnEsc
-      maskClosable
-      confirmLoading={confirmLoading}
-      onCancel={onCancel}
-      onOk={handleSubmit}
-    >
-      <div className='flex flex-col gap-3'>
-        <Typography.Text type='secondary' size='small'>
-          {t(
-            '可勾选需要执行的变更：新增会加入渠道模型列表，删除会从渠道模型列表移除。',
-          )}
-        </Typography.Text>
+    <>
+      <Modal state={modalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size='lg' placement='center'>
+            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+                {t('处理上游模型更新')}
+              </ModalHeader>
+              <ModalBody className='space-y-3 px-6 py-5'>
+                <div className='text-xs text-muted'>
+                  {t(
+                    '可勾选需要执行的变更：新增会加入渠道模型列表，删除会从渠道模型列表移除。',
+                  )}
+                </div>
 
-        <Tabs
-          type='slash'
-          size='small'
-          tabList={tabList}
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key)}
-        />
-        <div className='flex items-center gap-3 text-xs text-gray-500'>
-          <span>
-            {t('新增已选 {{selected}} / {{total}}', {
-              selected: selectedAddCount,
-              total: normalizedAddModels.length,
-            })}
-          </span>
-          <span>
-            {t('删除已选 {{selected}} / {{total}}', {
-              selected: selectedRemoveCount,
-              total: normalizedRemoveModels.length,
-            })}
-          </span>
-        </div>
+                <div role='tablist' className='flex items-center gap-2'>
+                  {tabs.map((tab) => {
+                    const active = activeTab === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        role='tab'
+                        aria-selected={active}
+                        type='button'
+                        disabled={tab.disabled}
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                          active
+                            ? 'border-transparent bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900'
+                            : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                        onClick={() => setActiveTab(tab.key)}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
 
-        <Input
-          prefix={<IconSearch size={14} />}
-          placeholder={t('搜索模型')}
-          value={keyword}
-          onChange={(value) => setKeyword(value)}
-          showClear
-        />
+                <div className='flex items-center gap-3 text-xs text-muted'>
+                  <span>
+                    {t('新增已选 {{selected}} / {{total}}', {
+                      selected: selectedAddCount,
+                      total: normalizedAddModels.length,
+                    })}
+                  </span>
+                  <span>
+                    {t('删除已选 {{selected}} / {{total}}', {
+                      selected: selectedRemoveCount,
+                      total: normalizedRemoveModels.length,
+                    })}
+                  </span>
+                </div>
 
-        <div style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 8 }}>
-          {currentModels.length === 0 ? (
-            <Empty
-              image={
-                <IllustrationNoResult style={{ width: 150, height: 150 }} />
-              }
-              darkModeImage={
-                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-              }
-              description={t('暂无匹配模型')}
-              style={{ padding: 24 }}
-            />
-          ) : (
-            <Checkbox.Group
-              value={currentSelectedModels}
-              onChange={(values) =>
-                currentSetSelectedModels(normalizeModels(values))
-              }
-            >
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-x-4'>
-                {currentModels.map((model) => (
-                  <Checkbox
-                    key={`${activeTab}:${model}`}
-                    value={model}
-                    className='my-1'
-                  >
-                    {model}
-                  </Checkbox>
-                ))}
-              </div>
-            </Checkbox.Group>
-          )}
-        </div>
+                <div className='relative'>
+                  <Search
+                    size={14}
+                    className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted'
+                  />
+                  <Input
+                    type='text'
+                    placeholder={t('搜索模型')}
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    aria-label={t('搜索模型')}
+                    className='h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background pl-9 pr-3 text-sm text-foreground outline-none transition focus:border-primary'
+                  />
+                </div>
 
-        <div className='flex items-center justify-end gap-2'>
-          <Typography.Text type='secondary' size='small'>
-            {t('已选择 {{selected}} / {{total}}', {
-              selected: checkedCount,
-              total: currentModels.length,
-            })}
-          </Typography.Text>
-          <Checkbox
-            checked={isAllChecked}
-            indeterminate={isIndeterminate}
-            aria-label={t('全选当前列表模型')}
-            onChange={(e) => handleToggleAllCurrent(e.target.checked)}
-          />
-        </div>
-      </div>
-    </Modal>
+                <div className='max-h-80 overflow-y-auto pr-1'>
+                  {currentModels.length === 0 ? (
+                    <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
+                      <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                        <Inbox size={28} />
+                      </div>
+                      <div>{t('暂无匹配模型')}</div>
+                    </div>
+                  ) : (
+                    <div className='grid grid-cols-1 gap-x-4 md:grid-cols-2'>
+                      {currentModels.map((model) => {
+                        const checked = currentSelectedModels.includes(model);
+                        return (
+                          <label
+                            key={`${activeTab}:${model}`}
+                            className='my-1 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm text-foreground transition hover:bg-[color:var(--app-background)]'
+                          >
+                            <input
+                              type='checkbox'
+                              checked={checked}
+                              onChange={(event) =>
+                                toggleModel(model, event.target.checked)
+                              }
+                              className='h-3.5 w-3.5 accent-primary'
+                            />
+                            <span className='min-w-0 truncate'>{model}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className='flex items-center justify-end gap-2'>
+                  <span className='text-xs text-muted'>
+                    {t('已选择 {{selected}} / {{total}}', {
+                      selected: checkedCount,
+                      total: currentModels.length,
+                    })}
+                  </span>
+                  <HeaderCheckbox
+                    checked={isAllChecked}
+                    indeterminate={isIndeterminate}
+                    onChange={handleToggleAllCurrent}
+                    ariaLabel={t('全选当前列表模型')}
+                  />
+                </div>
+              </ModalBody>
+              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                <Button variant='light' onPress={onCancel}>
+                  {t('取消')}
+                </Button>
+                <Button
+                  color='primary'
+                  onPress={handleSubmit}
+                  isPending={confirmLoading}
+                >
+                  {t('确定')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      </Modal>
+
+      <ConfirmDialog
+        visible={!!partialConfirm}
+        title={t('仍有未处理项')}
+        cancelText={t('去处理{{type}}', {
+          type: partialConfirm?.type || '',
+        })}
+        confirmText={t('仅提交已勾选')}
+        onCancel={() => setPartialConfirm(null)}
+        onConfirm={() => {
+          setPartialConfirm(null);
+          setPartialSubmitConfirmed(true);
+          submitSelectedChanges();
+        }}
+      >
+        {t(
+          '你还没有处理{{type}}模型（{{count}}个）。是否仅提交当前已勾选内容？',
+          {
+            type: partialConfirm?.type || '',
+            count: partialConfirm?.count || 0,
+          },
+        )}
+      </ConfirmDialog>
+    </>
   );
 };
 

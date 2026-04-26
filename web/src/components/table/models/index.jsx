@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Banner, Button, Modal } from '@douyinfe/semi-ui';
-import { IconAlertTriangle, IconClose } from '@douyinfe/semi-icons';
+import { Button } from '@heroui/react';
+import { TriangleAlert, X } from 'lucide-react';
 import CardPro from '../../common/ui/CardPro';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 import ModelsTable from './ModelsTable';
 import ModelsActions from './ModelsActions';
 import ModelsFilters from './ModelsFilters';
@@ -86,25 +87,13 @@ const ModelsPage = () => {
         return true;
       }
     });
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
-  const confirmCloseMarketplaceDisplayNotice = () => {
-    Modal.confirm({
-      title: t('确认关闭提示'),
-      content: t(
-        '关闭后将不再显示此提示（仅对当前浏览器生效）。确定要关闭吗？',
-      ),
-      okText: t('关闭提示'),
-      cancelText: t('取消'),
-      okButtonProps: {
-        type: 'danger',
-      },
-      onOk: () => {
-        try {
-          localStorage.setItem(MARKETPLACE_DISPLAY_NOTICE_STORAGE_KEY, '1');
-        } catch (_) {}
-        setShowMarketplaceDisplayNotice(false);
-      },
-    });
+  const dismissMarketplaceDisplayNotice = () => {
+    try {
+      localStorage.setItem(MARKETPLACE_DISPLAY_NOTICE_STORAGE_KEY, '1');
+    } catch (_) {}
+    setShowMarketplaceDisplayNotice(false);
   };
 
   return (
@@ -131,32 +120,38 @@ const ModelsPage = () => {
       />
 
       {showMarketplaceDisplayNotice ? (
-        <div style={{ position: 'relative', marginBottom: 12 }}>
-          <Banner
-            type='warning'
-            closeIcon={null}
-            icon={
-              <IconAlertTriangle
-                size='large'
-                style={{ color: 'var(--semi-color-warning)' }}
-              />
-            }
-            description={t(
+        <div className='relative mb-3 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 pr-12 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100'>
+          <TriangleAlert size={18} className='mt-0.5 shrink-0' />
+          <div className='min-w-0 flex-1'>
+            {t(
               '提示：此处配置仅用于控制「模型广场」对用户的展示效果，不会影响模型的实际调用与路由。若需配置真实调用行为，请前往「渠道管理」进行设置。',
             )}
-            style={{ marginBottom: 0 }}
-          />
-          <Button
-            theme='borderless'
-            size='small'
-            type='tertiary'
-            icon={<IconClose aria-hidden={true} />}
-            onClick={confirmCloseMarketplaceDisplayNotice}
-            style={{ position: 'absolute', top: 8, right: 8 }}
+          </div>
+          <button
+            type='button'
+            onClick={() => setShowCloseConfirm(true)}
             aria-label={t('关闭')}
-          />
+            className='absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-amber-700/70 transition hover:bg-amber-100 hover:text-amber-700 dark:text-amber-100/70 dark:hover:bg-amber-900/50 dark:hover:text-amber-100'
+          >
+            <X size={14} />
+          </button>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        visible={showCloseConfirm}
+        title={t('确认关闭提示')}
+        cancelText={t('取消')}
+        confirmText={t('关闭提示')}
+        danger
+        onCancel={() => setShowCloseConfirm(false)}
+        onConfirm={() => {
+          setShowCloseConfirm(false);
+          dismissMarketplaceDisplayNotice();
+        }}
+      >
+        {t('关闭后将不再显示此提示（仅对当前浏览器生效）。确定要关闭吗？')}
+      </ConfirmDialog>
       <CardPro
         type='type3'
         tabsArea={<ModelsTabs {...modelsData} />}

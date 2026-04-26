@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui';
+import { Card, Select, Button, Switch } from '@heroui/react';
 import { Sparkles, Users, ToggleLeft, X, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
@@ -67,30 +67,32 @@ const SettingsPanel = ({
         flexDirection: 'column',
       }}
     >
-      {/* 标题区域 - 与调试面板保持一致 */}
+      {/* Header area, aligned with the debug panel */}
       <div className='flex items-center justify-between mb-6 flex-shrink-0'>
         <div className='flex items-center'>
           <div className='w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mr-3'>
             <Settings size={20} className='text-white' />
           </div>
-          <Typography.Title heading={5} className='mb-0'>
+          <h5 className='mb-0 text-xl font-semibold text-foreground'>
             {t('模型配置')}
-          </Typography.Title>
+          </h5>
         </div>
 
         {styleState.isMobile && onCloseSettings && (
           <Button
-            icon={<X size={16} />}
-            onClick={onCloseSettings}
-            theme='borderless'
-            type='tertiary'
-            size='small'
-            className='!rounded-lg'
-          />
+            isIconOnly
+            onPress={onCloseSettings}
+            variant='ghost'
+            size='sm'
+            className='rounded-lg'
+            aria-label={t('关闭设置')}
+          >
+            <X size={16} />
+          </Button>
         )}
       </div>
 
-      {/* 移动端配置管理 */}
+      {/* Mobile config management */}
       {styleState.isMobile && (
         <div className='mb-4 flex-shrink-0'>
           <ConfigManager
@@ -104,7 +106,7 @@ const SettingsPanel = ({
       )}
 
       <div className='space-y-6 overflow-y-auto flex-1 pr-2 model-settings-scroll'>
-        {/* 自定义请求体编辑器 */}
+        {/* Custom request body editor */}
         <CustomRequestEditor
           customRequestMode={customRequestMode}
           customRequestBody={customRequestBody}
@@ -113,17 +115,17 @@ const SettingsPanel = ({
           defaultPayload={previewPayload}
         />
 
-        {/* 分组选择 */}
+        {/* Group selector */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center gap-2 mb-2'>
             <Users size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
+            <span className='text-sm font-semibold text-foreground'>
               {t('分组')}
-            </Typography.Text>
+            </span>
             {customRequestMode && (
-              <Typography.Text className='text-xs text-orange-600'>
+              <span className='text-xs text-orange-600'>
                 ({t('已在自定义模式中忽略')})
-              </Typography.Text>
+              </span>
             )}
           </div>
           <Select
@@ -141,21 +143,21 @@ const SettingsPanel = ({
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
             className='!rounded-lg'
-            disabled={customRequestMode}
+            isDisabled={customRequestMode}
           />
         </div>
 
-        {/* 模型选择 */}
+        {/* Model selector */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center gap-2 mb-2'>
             <Sparkles size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
+            <span className='text-sm font-semibold text-foreground'>
               {t('模型')}
-            </Typography.Text>
+            </span>
             {customRequestMode && (
-              <Typography.Text className='text-xs text-orange-600'>
+              <span className='text-xs text-orange-600'>
                 ({t('已在自定义模式中忽略')})
-              </Typography.Text>
+              </span>
             )}
           </div>
           <Select
@@ -172,11 +174,11 @@ const SettingsPanel = ({
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
             className='!rounded-lg'
-            disabled={customRequestMode}
+            isDisabled={customRequestMode}
           />
         </div>
 
-        {/* 图片URL输入 */}
+        {/* Image URL input */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <ImageUrlInput
             imageUrls={inputs.imageUrls}
@@ -189,7 +191,7 @@ const SettingsPanel = ({
           />
         </div>
 
-        {/* 参数控制组件 */}
+        {/* Parameter controls */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <ParameterControl
             inputs={inputs}
@@ -200,33 +202,36 @@ const SettingsPanel = ({
           />
         </div>
 
-        {/* 流式输出开关 */}
+        {/* Stream output switch */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
               <ToggleLeft size={16} className='text-gray-500' />
-              <Typography.Text strong className='text-sm'>
+              <span className='text-sm font-semibold text-foreground'>
                 {t('流式输出')}
-              </Typography.Text>
+              </span>
               {customRequestMode && (
-                <Typography.Text className='text-xs text-orange-600'>
+                <span className='text-xs text-orange-600'>
                   ({t('已在自定义模式中忽略')})
-                </Typography.Text>
+                </span>
               )}
             </div>
             <Switch
-              checked={inputs.stream}
+              isSelected={inputs.stream}
               onChange={(checked) => onInputChange('stream', checked)}
-              checkedText={t('开')}
-              uncheckedText={t('关')}
-              size='small'
-              disabled={customRequestMode}
-            />
+              aria-label={t('流式输出')}
+              size='sm'
+              isDisabled={customRequestMode}
+            >
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch>
           </div>
         </div>
       </div>
 
-      {/* 桌面端的配置管理放在底部 */}
+      {/* Desktop config management in the footer */}
       {!styleState.isMobile && (
         <div className='flex-shrink-0 pt-3'>
           <ConfigManager

@@ -26,12 +26,18 @@ import {
   getLogo,
   getSystemName,
 } from '../../helpers';
-import { useSearchParams, Link } from 'react-router-dom';
-import { Button, Card, Form, Typography, Banner } from '@douyinfe/semi-ui';
-import { IconMail, IconLock, IconCopy } from '@douyinfe/semi-icons';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-
-const { Text, Title } = Typography;
+import { Button } from '@heroui/react';
+import { Copy, LockKeyhole, Mail, TriangleAlert } from 'lucide-react';
+import {
+  AuthBrand,
+  AuthLinkRow,
+  AuthPage,
+  AuthPanel,
+  AuthPrimaryButton,
+  AuthTextField,
+} from './AuthLayout';
 
 const PasswordResetConfirm = () => {
   const { t } = useTranslation();
@@ -46,8 +52,7 @@ const PasswordResetConfirm = () => {
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const [newPassword, setNewPassword] = useState('');
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [formApi, setFormApi] = useState(null);
+  const [searchParams] = useSearchParams();
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -59,13 +64,7 @@ const PasswordResetConfirm = () => {
       token: token || '',
       email: email || '',
     });
-    if (formApi) {
-      formApi.setValues({
-        email: email || '',
-        newPassword: newPassword || '',
-      });
-    }
-  }, [searchParams, newPassword, formApi]);
+  }, [searchParams]);
 
   useEffect(() => {
     let countdownInterval = null;
@@ -104,116 +103,71 @@ const PasswordResetConfirm = () => {
   }
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        <div className='flex flex-col items-center'>
-          <div className='w-full max-w-md'>
-            <div className='flex items-center justify-center mb-6 gap-2'>
-              <img src={logo} alt='Logo' className='h-10 rounded-full' />
-              <Title heading={3} className='!text-gray-800'>
-                {systemName}
-              </Title>
-            </div>
-
-            <Card className='border-0 !rounded-2xl overflow-hidden'>
-              <div className='flex justify-center pt-6 pb-2'>
-                <Title heading={3} className='text-gray-800 dark:text-gray-200'>
-                  {t('密码重置确认')}
-                </Title>
-              </div>
-              <div className='px-2 py-8'>
-                {!isValidResetLink && (
-                  <Banner
-                    type='danger'
-                    description={t('无效的重置链接，请重新发起密码重置请求')}
-                    className='mb-4 !rounded-lg'
-                    closeIcon={null}
-                  />
-                )}
-                <Form
-                  getFormApi={(api) => setFormApi(api)}
-                  initValues={{
-                    email: email || '',
-                    newPassword: newPassword || '',
-                  }}
-                  className='space-y-4'
-                >
-                  <Form.Input
-                    field='email'
-                    label={t('邮箱')}
-                    name='email'
-                    disabled={true}
-                    prefix={<IconMail />}
-                    placeholder={email ? '' : t('等待获取邮箱信息...')}
-                  />
-
-                  {newPassword && (
-                    <Form.Input
-                      field='newPassword'
-                      label={t('新密码')}
-                      name='newPassword'
-                      disabled={true}
-                      prefix={<IconLock />}
-                      suffix={
-                        <Button
-                          icon={<IconCopy />}
-                          type='tertiary'
-                          theme='borderless'
-                          onClick={async () => {
-                            await copy(newPassword);
-                            showNotice(
-                              `${t('密码已复制到剪贴板：')} ${newPassword}`,
-                            );
-                          }}
-                        >
-                          {t('复制')}
-                        </Button>
-                      }
-                    />
-                  )}
-
-                  <div className='space-y-2 pt-2'>
-                    <Button
-                      theme='solid'
-                      className='w-full !rounded-full'
-                      type='primary'
-                      htmlType='submit'
-                      onClick={handleSubmit}
-                      loading={loading}
-                      disabled={
-                        disableButton || newPassword || !isValidResetLink
-                      }
-                    >
-                      {newPassword ? t('密码重置完成') : t('确认重置密码')}
-                    </Button>
-                  </div>
-                </Form>
-
-                <div className='mt-6 text-center text-sm'>
-                  <Text>
-                    <Link
-                      to='/login'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
-                    >
-                      {t('返回登录')}
-                    </Link>
-                  </Text>
-                </div>
-              </div>
-            </Card>
+    <AuthPage>
+      <AuthBrand logo={logo} systemName={systemName} />
+      <AuthPanel
+        title={t('密码重置确认')}
+        subtitle={t('确认邮件信息后，系统会为你生成并复制一个新密码。')}
+      >
+        {!isValidResetLink && (
+          <div className='mb-4 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200'>
+            <TriangleAlert size={18} className='mt-0.5 shrink-0' />
+            <span>{t('无效的重置链接，请重新发起密码重置请求')}</span>
           </div>
-        </div>
-      </div>
-    </div>
+        )}
+        <form
+          className='space-y-4'
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleSubmit();
+          }}
+        >
+          <AuthTextField
+            label={t('邮箱')}
+            name='email'
+            value={email}
+            isDisabled
+            icon={<Mail size={18} />}
+            placeholder={email ? '' : t('等待获取邮箱信息...')}
+          />
+
+          {newPassword && (
+            <AuthTextField
+              label={t('新密码')}
+              name='newPassword'
+              value={newPassword}
+              isDisabled
+              icon={<LockKeyhole size={18} />}
+              action={
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  startContent={<Copy size={14} />}
+                  onPress={async () => {
+                    await copy(newPassword);
+                    showNotice(`${t('密码已复制到剪贴板：')} ${newPassword}`);
+                  }}
+                >
+                  {t('复制')}
+                </Button>
+              }
+            />
+          )}
+
+          <div className='pt-2'>
+            <AuthPrimaryButton
+              onPress={handleSubmit}
+              isPending={loading}
+              isDisabled={disableButton || newPassword || !isValidResetLink}
+            >
+              {newPassword ? t('密码重置完成') : t('确认重置密码')}
+            </AuthPrimaryButton>
+          </div>
+        </form>
+
+        <AuthLinkRow prefix='' linkText={t('返回登录')} to='/login' />
+      </AuthPanel>
+    </AuthPage>
   );
 };
 

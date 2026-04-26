@@ -18,21 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef, useEffect, useState, useContext } from 'react';
-import {
-  Button,
-  Typography,
-  Card,
-  Avatar,
-  Form,
-  Radio,
-  Toast,
-  Tabs,
-  TabPane,
-  Switch,
-  Row,
-  Col,
-} from '@douyinfe/semi-ui';
-import { IconMail, IconKey, IconBell, IconLink } from '@douyinfe/semi-icons';
+import { Button, Card, Switch } from '@heroui/react';
+import { Typography, Avatar, Form, Radio, Toast, Tabs, TabPane, Row, Col } from '@/components/common/ui/HeroCompat';
+import { IconMail, IconKey, IconBell, IconLink } from '@/components/common/ui/HeroIconsCompat';
 import { ShieldCheck, Bell, DollarSign, Settings } from 'lucide-react';
 import {
   renderQuotaWithPrompt,
@@ -220,7 +208,7 @@ const NotificationSettings = ({
   // 初始化表单值
   useEffect(() => {
     if (formApiRef.current && notificationSettings) {
-      formApiRef.current.setValues(notificationSettings);
+      formApiRef.current?.setValues?.(notificationSettings);
     }
   }, [notificationSettings]);
 
@@ -816,7 +804,7 @@ const NotificationSettings = ({
                       style={{
                         fontSize: '12px',
                         lineHeight: '1.5',
-                        color: 'var(--semi-color-text-2)',
+                        color: 'var(--app-muted)',
                       }}
                     >
                       {t('您可以个性化设置侧边栏的要显示功能')}
@@ -826,8 +814,8 @@ const NotificationSettings = ({
                   <div
                     className='border rounded-xl p-4'
                     style={{
-                      borderColor: 'var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-bg-1)',
+                      borderColor: 'var(--app-border)',
+                      backgroundColor: 'var(--app-background)',
                     }}
                   >
                     {sectionConfigs.map((section) => (
@@ -836,9 +824,9 @@ const NotificationSettings = ({
                         <div
                           className='flex justify-between items-center mb-4 p-4 rounded-lg'
                           style={{
-                            backgroundColor: 'var(--semi-color-fill-0)',
-                            border: '1px solid var(--semi-color-border-light)',
-                            borderColor: 'var(--semi-color-fill-1)',
+                            backgroundColor: 'var(--app-surface-muted)',
+                            border: '1px solid var(--app-border)',
+                            borderColor: 'color-mix(in srgb, var(--app-muted) 16%, transparent)',
                           }}
                         >
                           <div>
@@ -851,7 +839,7 @@ const NotificationSettings = ({
                               style={{
                                 fontSize: '12px',
                                 lineHeight: '1.5',
-                                color: 'var(--semi-color-text-2)',
+                                color: 'var(--app-muted)',
                               }}
                             >
                               {section.description}
@@ -903,7 +891,7 @@ const NotificationSettings = ({
                                         style={{
                                           fontSize: '12px',
                                           lineHeight: '1.5',
-                                          color: 'var(--semi-color-text-2)',
+                                          color: 'var(--app-muted)',
                                           marginTop: '4px',
                                         }}
                                       >

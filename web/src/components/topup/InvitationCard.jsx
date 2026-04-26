@@ -18,18 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Avatar,
-  Typography,
-  Card,
-  Button,
-  Input,
-  Badge,
-  Space,
-} from '@douyinfe/semi-ui';
+import { Avatar, Button, Card, Input } from '@heroui/react';
 import { Copy, Users, BarChart2, TrendingUp, Gift, Zap } from 'lucide-react';
-
-const { Text } = Typography;
 
 const InvitationCard = ({
   t,
@@ -40,26 +30,27 @@ const InvitationCard = ({
   handleAffLinkClick,
 }) => {
   return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
+    <Card className='rounded-2xl border-0 shadow-sm' shadow='none'>
+      <Card.Content>
       {/* 卡片头部 */}
       <div className='flex items-center mb-4'>
-        <Avatar size='small' color='green' className='mr-3 shadow-md'>
-          <Gift size={16} />
+        <Avatar size='sm' color='success' className='mr-3 shadow-md'>
+          <Avatar.Fallback>
+            <Gift size={16} />
+          </Avatar.Fallback>
         </Avatar>
         <div>
-          <Typography.Text className='text-lg font-medium'>
+          <div className='text-lg font-medium text-slate-900 dark:text-slate-100'>
             {t('邀请奖励')}
-          </Typography.Text>
+          </div>
           <div className='text-xs'>{t('邀请好友获得额外奖励')}</div>
         </div>
       </div>
 
       {/* 收益展示区域 */}
-      <Space vertical style={{ width: '100%' }}>
+      <div className='flex w-full flex-col gap-4'>
         {/* 统计数据统一卡片 */}
-        <Card
-          className='!rounded-xl w-full'
-          cover={
+        <Card className='w-full overflow-hidden rounded-xl' shadow='none'>
             <div
               className='relative h-30'
               style={{
@@ -73,19 +64,18 @@ const InvitationCard = ({
               {/* 标题和按钮 */}
               <div className='relative z-10 h-full flex flex-col justify-between p-4'>
                 <div className='flex justify-between items-center'>
-                  <Text strong style={{ color: 'white', fontSize: '16px' }}>
+                  <span className='text-base font-semibold text-white'>
                     {t('收益统计')}
-                  </Text>
+                  </span>
                   <Button
-                    type='primary'
-                    theme='solid'
-                    size='small'
-                    disabled={
+                    size='sm'
+                    variant='primary'
+                    isDisabled={
                       !userState?.user?.aff_quota ||
                       userState?.user?.aff_quota <= 0
                     }
-                    onClick={() => setOpenTransfer(true)}
-                    className='!rounded-lg'
+                    onPress={() => setOpenTransfer(true)}
+                    className='rounded-lg'
                   >
                     <Zap size={12} className='mr-1' />
                     {t('划转到余额')}
@@ -108,14 +98,9 @@ const InvitationCard = ({
                         className='mr-1'
                         style={{ color: 'rgba(255,255,255,0.8)' }}
                       />
-                      <Text
-                        style={{
-                          color: 'rgba(255,255,255,0.8)',
-                          fontSize: '12px',
-                        }}
-                      >
+                      <span className='text-xs text-white/80'>
                         {t('待使用收益')}
-                      </Text>
+                      </span>
                     </div>
                   </div>
 
@@ -133,14 +118,9 @@ const InvitationCard = ({
                         className='mr-1'
                         style={{ color: 'rgba(255,255,255,0.8)' }}
                       />
-                      <Text
-                        style={{
-                          color: 'rgba(255,255,255,0.8)',
-                          fontSize: '12px',
-                        }}
-                      >
+                      <span className='text-xs text-white/80'>
                         {t('总收益')}
-                      </Text>
+                      </span>
                     </div>
                   </div>
 
@@ -158,70 +138,70 @@ const InvitationCard = ({
                         className='mr-1'
                         style={{ color: 'rgba(255,255,255,0.8)' }}
                       />
-                      <Text
-                        style={{
-                          color: 'rgba(255,255,255,0.8)',
-                          fontSize: '12px',
-                        }}
-                      >
+                      <span className='text-xs text-white/80'>
                         {t('邀请人数')}
-                      </Text>
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          }
-        >
+          <Card.Content className='p-4'>
           {/* 邀请链接部分 */}
-          <Input
-            value={affLink}
-            readonly
-            className='!rounded-lg'
-            prefix={t('邀请链接')}
-            suffix={
+          <div className='flex flex-col gap-2 sm:flex-row'>
+            <Input
+              value={affLink}
+              readOnly
+              aria-label={t('邀请链接')}
+              className='flex-1 rounded-lg'
+              fullWidth
+            />
               <Button
-                type='primary'
-                theme='solid'
-                onClick={handleAffLinkClick}
-                icon={<Copy size={14} />}
-                className='!rounded-lg'
+                variant='primary'
+                onPress={handleAffLinkClick}
+                className='rounded-lg'
               >
+                <Copy size={14} />
                 {t('复制')}
               </Button>
-            }
-          />
+          </div>
+          </Card.Content>
         </Card>
 
         {/* 奖励说明 */}
-        <Card
-          className='!rounded-xl w-full'
-          title={<Text type='tertiary'>{t('奖励说明')}</Text>}
-        >
+        <Card className='w-full rounded-xl' shadow='none'>
+          <Card.Header>
+            <Card.Title className='text-sm text-slate-500 dark:text-slate-400'>
+              {t('奖励说明')}
+            </Card.Title>
+          </Card.Header>
+          <Card.Content>
           <div className='space-y-3'>
             <div className='flex items-start gap-2'>
-              <Badge dot type='success' />
-              <Text type='tertiary' className='text-sm'>
+              <span className='mt-2 size-2 rounded-full bg-emerald-500' />
+              <span className='text-sm text-slate-500 dark:text-slate-400'>
                 {t('邀请好友注册，好友充值后您可获得相应奖励')}
-              </Text>
+              </span>
             </div>
 
             <div className='flex items-start gap-2'>
-              <Badge dot type='success' />
-              <Text type='tertiary' className='text-sm'>
+              <span className='mt-2 size-2 rounded-full bg-emerald-500' />
+              <span className='text-sm text-slate-500 dark:text-slate-400'>
                 {t('通过划转功能将奖励额度转入到您的账户余额中')}
-              </Text>
+              </span>
             </div>
 
             <div className='flex items-start gap-2'>
-              <Badge dot type='success' />
-              <Text type='tertiary' className='text-sm'>
+              <span className='mt-2 size-2 rounded-full bg-emerald-500' />
+              <span className='text-sm text-slate-500 dark:text-slate-400'>
                 {t('邀请的好友越多，获得的奖励越多')}
-              </Text>
+              </span>
             </div>
           </div>
+          </Card.Content>
         </Card>
-      </Space>
+      </div>
+      </Card.Content>
     </Card>
   );
 };

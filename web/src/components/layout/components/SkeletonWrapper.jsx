@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Skeleton } from '@douyinfe/semi-ui';
+import { Skeleton } from '@heroui/react';
+
+const SkeletonBlock = ({ className = '', style }) => (
+  <Skeleton
+    className={`rounded-lg bg-slate-200/80 dark:bg-white/10 ${className}`}
+    style={style}
+  />
+);
 
 const SkeletonWrapper = ({
   loading = false,
@@ -47,15 +54,7 @@ const SkeletonWrapper = ({
       .fill(null)
       .map((_, index) => (
         <div key={index} className={skeletonLinkClasses}>
-          <Skeleton
-            loading={true}
-            active
-            placeholder={
-              <Skeleton.Title
-                style={{ width: isMobile ? 40 : width, height }}
-              />
-            }
-          />
+          <SkeletonBlock style={{ width: isMobile ? 40 : width, height }} />
         </div>
       ));
   };
@@ -64,25 +63,11 @@ const SkeletonWrapper = ({
   const renderUserAreaSkeleton = () => {
     return (
       <div
-        className={`flex items-center p-1 rounded-full bg-semi-color-fill-0 dark:bg-semi-color-fill-1 ${className}`}
+        className={`flex items-center rounded-full bg-slate-900/[0.04] p-1 dark:bg-white/10 ${className}`}
       >
-        <Skeleton
-          loading={true}
-          active
-          placeholder={
-            <Skeleton.Avatar size='extra-small' className='shadow-sm' />
-          }
-        />
+        <SkeletonBlock className='h-6 w-6 rounded-full shadow-sm' />
         <div className='ml-1.5 mr-1'>
-          <Skeleton
-            loading={true}
-            active
-            placeholder={
-              <Skeleton.Title
-                style={{ width: isMobile ? 15 : width, height: 12 }}
-              />
-            }
-          />
+          <SkeletonBlock style={{ width: isMobile ? 15 : width, height: 12 }} />
         </div>
       </div>
     );
@@ -91,15 +76,9 @@ const SkeletonWrapper = ({
   // Logo图片骨架屏
   const renderImageSkeleton = () => {
     return (
-      <Skeleton
-        loading={true}
-        active
-        placeholder={
-          <Skeleton.Image
-            className={`absolute inset-0 !rounded-full ${className}`}
-            style={{ width: '100%', height: '100%' }}
-          />
-        }
+      <SkeletonBlock
+        className={`absolute inset-0 rounded-full ${className}`}
+        style={{ width: '100%', height: '100%' }}
       />
     );
   };
@@ -107,11 +86,7 @@ const SkeletonWrapper = ({
   // 系统名称骨架屏
   const renderTitleSkeleton = () => {
     return (
-      <Skeleton
-        loading={true}
-        active
-        placeholder={<Skeleton.Title style={{ width, height: 24 }} />}
-      />
+      <SkeletonBlock style={{ width, height: 24 }} />
     );
   };
 
@@ -119,11 +94,7 @@ const SkeletonWrapper = ({
   const renderTextSkeleton = () => {
     return (
       <div className={className}>
-        <Skeleton
-          loading={true}
-          active
-          placeholder={<Skeleton.Title style={{ width, height }} />}
-        />
+        <SkeletonBlock style={{ width, height }} />
       </div>
     );
   };
@@ -132,13 +103,7 @@ const SkeletonWrapper = ({
   const renderButtonSkeleton = () => {
     return (
       <div className={className}>
-        <Skeleton
-          loading={true}
-          active
-          placeholder={
-            <Skeleton.Title style={{ width, height, borderRadius: 9999 }} />
-          }
-        />
+        <SkeletonBlock className='rounded-full' style={{ width, height }} />
       </div>
     );
   };
@@ -154,24 +119,10 @@ const SkeletonWrapper = ({
         >
           {/* 图标骨架屏 */}
           <div className='sidebar-icon-container flex-shrink-0'>
-            <Skeleton
-              loading={true}
-              active
-              placeholder={
-                <Skeleton.Avatar size='extra-small' shape='square' />
-              }
-            />
+            <SkeletonBlock className='h-5 w-5 rounded-md' />
           </div>
           {/* 文本骨架屏 */}
-          <Skeleton
-            loading={true}
-            active
-            placeholder={
-              <Skeleton.Title
-                style={{ width: width || 80, height: height || 14 }}
-              />
-            }
-          />
+          <SkeletonBlock style={{ width: width || 80, height: height || 14 }} />
         </div>
       ));
   };
@@ -180,15 +131,7 @@ const SkeletonWrapper = ({
   const renderSidebarGroupTitleSkeleton = () => {
     return (
       <div className={`mb-2 ${className}`}>
-        <Skeleton
-          loading={true}
-          active
-          placeholder={
-            <Skeleton.Title
-              style={{ width: width || 60, height: height || 12 }}
-            />
-          }
-        />
+        <SkeletonBlock style={{ width: width || 60, height: height || 12 }} />
       </div>
     );
   };
@@ -204,26 +147,14 @@ const SkeletonWrapper = ({
     const TEXT_HEIGHT = 16;
 
     const renderIcon = () => (
-      <Skeleton
-        loading={true}
-        active
-        placeholder={
-          <Skeleton.Avatar
-            shape='square'
-            style={{ width: ICON_SIZE, height: ICON_SIZE }}
-          />
-        }
+      <SkeletonBlock
+        className='rounded-md'
+        style={{ width: ICON_SIZE, height: ICON_SIZE }}
       />
     );
 
     const renderLabel = (labelWidth) => (
-      <Skeleton
-        loading={true}
-        active
-        placeholder={
-          <Skeleton.Title style={{ width: labelWidth, height: TEXT_HEIGHT }} />
-        }
-      />
+      <SkeletonBlock style={{ width: labelWidth, height: TEXT_HEIGHT }} />
     );
 
     const NavRow = ({ labelWidth }) => (
@@ -252,15 +183,9 @@ const SkeletonWrapper = ({
           margin: '0 8px 4px 8px',
         }}
       >
-        <Skeleton
-          loading={true}
-          active
-          placeholder={
-            <Skeleton.Avatar
-              shape='square'
-              style={{ width: ICON_SIZE, height: ICON_SIZE }}
-            />
-          }
+        <SkeletonBlock
+          className='rounded-md'
+          style={{ width: ICON_SIZE, height: ICON_SIZE }}
         />
       </div>
     );
@@ -311,14 +236,8 @@ const SkeletonWrapper = ({
                   className='sidebar-group-label'
                   style={{ padding: '4px 15px 8px' }}
                 >
-                  <Skeleton
-                    loading={true}
-                    active
-                    placeholder={
-                      <Skeleton.Title
-                        style={{ width: sec.titleWidth, height: TITLE_HEIGHT }}
-                      />
-                    }
+                  <SkeletonBlock
+                    style={{ width: sec.titleWidth, height: TITLE_HEIGHT }}
                   />
                 </div>
                 {sec.itemWidths.map((w, i) => (
@@ -331,14 +250,8 @@ const SkeletonWrapper = ({
                   className='sidebar-group-label'
                   style={{ padding: '4px 15px 8px' }}
                 >
-                  <Skeleton
-                    loading={true}
-                    active
-                    placeholder={
-                      <Skeleton.Title
-                        style={{ width: sec.titleWidth, height: TITLE_HEIGHT }}
-                      />
-                    }
+                  <SkeletonBlock
+                    style={{ width: sec.titleWidth, height: TITLE_HEIGHT }}
                   />
                 </div>
                 {sec.itemWidths.map((w, i) => (

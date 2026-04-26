@@ -18,12 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
-import { Card, Table, Empty } from '@douyinfe/semi-ui';
-import {
-  IllustrationNoResult,
-  IllustrationNoResultDark,
-} from '@douyinfe/semi-illustrations';
+import { Card } from '@heroui/react';
+import { Inbox } from 'lucide-react';
+import { Table } from '@/components/common/ui/HeroCompat';
 import { getPricingTableColumns } from './PricingTableColumns';
+import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 const PricingTable = ({
   filteredModels,
@@ -46,6 +45,8 @@ const PricingTable = ({
   openModelDetail,
   t,
 }) => {
+  const isMobile = useIsMobile();
+
   const columns = useMemo(() => {
     return getPricingTableColumns({
       t,
@@ -59,6 +60,7 @@ const PricingTable = ({
       tokenUnit,
       displayPrice,
       showRatio,
+      isMobile,
     });
   }, [
     t,
@@ -72,9 +74,9 @@ const PricingTable = ({
     tokenUnit,
     displayPrice,
     showRatio,
+    isMobile,
   ]);
 
-  // 更新列定义中的 searchValue
   const processedColumns = useMemo(() => {
     const cols = columns.map((column) => {
       if (column.dataIndex === 'model_name') {
@@ -86,7 +88,6 @@ const PricingTable = ({
       return column;
     });
 
-    // Remove fixed property when in compact mode (mobile view)
     if (compactMode) {
       return cols.map(({ fixed, ...rest }) => rest);
     }
@@ -95,7 +96,7 @@ const PricingTable = ({
 
   const ModelTable = useMemo(
     () => (
-      <Card className='!rounded-xl overflow-hidden' bordered={false}>
+      <Card className='!rounded-xl overflow-hidden border-0'>
         <Table
           columns={processedColumns}
           dataSource={filteredModels}
@@ -107,16 +108,12 @@ const PricingTable = ({
             style: { cursor: 'pointer' },
           })}
           empty={
-            <Empty
-              image={
-                <IllustrationNoResult style={{ width: 150, height: 150 }} />
-              }
-              darkModeImage={
-                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-              }
-              description={t('搜索无结果')}
-              style={{ padding: 30 }}
-            />
+            <div className='flex flex-col items-center gap-3 py-10 text-center'>
+              <div className='flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                <Inbox size={36} />
+              </div>
+              <div className='text-sm text-muted'>{t('搜索无结果')}</div>
+            </div>
           }
           pagination={{
             defaultPageSize: 20,

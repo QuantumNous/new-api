@@ -32,10 +32,9 @@ import {
   setUserData,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
-import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 
-// 导入子组件
+// Import child components.
 import UserInfoHeader from './personal/components/UserInfoHeader';
 import AccountManagement from './personal/cards/AccountManagement';
 import NotificationSettings from './personal/cards/NotificationSettings';
@@ -233,7 +232,7 @@ const PersonalSetting = () => {
         showError(message);
       }
     } catch (error) {
-      // 忽略错误，保留默认状态
+      // Ignore errors and keep the default state.
     }
   };
 
@@ -412,10 +411,6 @@ const PersonalSetting = () => {
   };
 
   const changePassword = async () => {
-    // if (inputs.original_password === '') {
-    //   showError(t('请输入原密码！'));
-    //   return;
-    // }
     if (inputs.set_new_password === '') {
       showError(t('请输入新密码！'));
       return;
@@ -491,7 +486,7 @@ const PersonalSetting = () => {
       showSuccess(t('已复制：') + text);
     } else {
       // setSearchKeyword(text);
-      Modal.error({ title: t('无法复制到剪贴板，请手动复制'), content: text });
+      showError(`${t('无法复制到剪贴板，请手动复制')}: ${text}`);
     }
   };
 
@@ -545,10 +540,10 @@ const PersonalSetting = () => {
     <div className='mt-[60px]'>
       <div className='flex justify-center'>
         <div className='w-full max-w-7xl mx-auto px-2'>
-          {/* 顶部用户信息区域 */}
+          {/* User info header */}
           <UserInfoHeader t={t} userState={userState} />
 
-          {/* 签到日历 - 仅在启用时显示 */}
+          {/* Checkin calendar, shown only when enabled */}
           {status?.checkin_enabled && (
             <div className='mt-4 md:mt-6'>
               <CheckinCalendar
@@ -560,9 +555,9 @@ const PersonalSetting = () => {
             </div>
           )}
 
-          {/* 账户管理和其他设置 */}
+          {/* Account management and other settings */}
           <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
-            {/* 左侧：账户管理设置 */}
+            {/* Left column: account management settings */}
             <div className='flex flex-col gap-4 md:gap-6'>
               <AccountManagement
                 t={t}
@@ -583,11 +578,11 @@ const PersonalSetting = () => {
                 onPasskeyDelete={handleRemovePasskey}
               />
 
-              {/* 偏好设置（语言等） */}
+              {/* Preferences, including language */}
               <PreferencesSettings t={t} />
             </div>
 
-            {/* 右侧：其他设置 */}
+            {/* Right column: notification settings */}
             <NotificationSettings
               t={t}
               notificationSettings={notificationSettings}
@@ -598,7 +593,7 @@ const PersonalSetting = () => {
         </div>
       </div>
 
-      {/* 模态框组件 */}
+      {/* Modal components */}
       <EmailBindModal
         t={t}
         showEmailBindModal={showEmailBindModal}

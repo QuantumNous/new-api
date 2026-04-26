@@ -18,9 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { usePlayground } from '../../contexts/PlaygroundContext';
+import { showError, showSuccess, showWarning } from '../../helpers';
 
 const CustomInputRender = (props) => {
   const { t } = useTranslation();
@@ -45,10 +45,7 @@ const CustomInputRender = (props) => {
           if (file) {
             try {
               if (!imageEnabled) {
-                Toast.warning({
-                  content: t('请先在设置中启用图片功能'),
-                  duration: 3,
-                });
+                showWarning(t('请先在设置中启用图片功能'));
                 return;
               }
 
@@ -58,31 +55,19 @@ const CustomInputRender = (props) => {
 
                 if (onPasteImage) {
                   onPasteImage(base64);
-                  Toast.success({
-                    content: t('图片已添加'),
-                    duration: 2,
-                  });
+                  showSuccess(t('图片已添加'));
                 } else {
-                  Toast.error({
-                    content: t('无法添加图片'),
-                    duration: 2,
-                  });
+                  showError(t('无法添加图片'));
                 }
               };
               reader.onerror = () => {
                 console.error('Failed to read image file:', reader.error);
-                Toast.error({
-                  content: t('粘贴图片失败'),
-                  duration: 2,
-                });
+                showError(t('粘贴图片失败'));
               };
               reader.readAsDataURL(file);
             } catch (error) {
               console.error('Failed to paste image:', error);
-              Toast.error({
-                content: t('粘贴图片失败'),
-                duration: 2,
-              });
+              showError(t('粘贴图片失败'));
             }
           }
           break;
@@ -102,7 +87,7 @@ const CustomInputRender = (props) => {
     };
   }, [handlePaste]);
 
-  // 清空按钮
+  // Clear button.
   const styledClearNode = clearContextNode
     ? React.cloneElement(clearContextNode, {
         className: `!rounded-full !bg-gray-100 hover:!bg-red-500 hover:!text-white flex-shrink-0 transition-all ${clearContextNode.props.className || ''}`,
@@ -119,7 +104,7 @@ const CustomInputRender = (props) => {
       })
     : null;
 
-  // 发送按钮
+  // Send button.
   const styledSendNode = React.cloneElement(sendNode, {
     className: `!rounded-full !bg-purple-500 hover:!bg-purple-600 flex-shrink-0 transition-all ${sendNode.props.className || ''}`,
     style: {
@@ -137,15 +122,14 @@ const CustomInputRender = (props) => {
   return (
     <div className='p-2 sm:p-4' ref={containerRef}>
       <div
-        className='flex items-center gap-2 sm:gap-3 p-2 bg-gray-50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-shadow'
-        style={{ border: '1px solid var(--semi-color-border)' }}
+        className='flex items-center gap-2 rounded-xl border border-border bg-gray-50 p-2 shadow-sm transition-shadow hover:shadow-md sm:gap-3 sm:rounded-2xl'
         onClick={onClick}
         title={t('支持 Ctrl+V 粘贴图片')}
       >
-        {/* 清空对话按钮 - 左边 */}
+        {/* Clear conversation button, left side. */}
         {styledClearNode}
         <div className='flex-1'>{inputNode}</div>
-        {/* 发送按钮 - 右边 */}
+        {/* Send button, right side. */}
         {styledSendNode}
       </div>
     </div>

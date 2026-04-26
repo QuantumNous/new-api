@@ -22,6 +22,12 @@ tiktoken_cache
 web/bun.lock
 plans
 .claude
+.playwright-mcp
+*.png
+*.jpg
+*.jpeg
+!web/public/**/*.png
+!web/public/**/*.jpg
 
 electron/node_modules
 electron/dist

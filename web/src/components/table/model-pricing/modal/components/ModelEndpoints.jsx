@@ -18,22 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Avatar, Typography, Badge } from '@douyinfe/semi-ui';
-import { IconLink } from '@douyinfe/semi-icons';
-
-const { Text } = Typography;
+import { Card } from '@heroui/react';
+import { Link as LinkIcon } from 'lucide-react';
 
 const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
   const renderAPIEndpoints = () => {
     if (!modelData) return null;
-
     const mapping = endpointMap;
     const types = modelData.supported_endpoint_types || [];
 
     return types.map((type) => {
       const info = mapping[type] || {};
       let path = info.path || '';
-      // 如果路径中包含 {model} 占位符，替换为真实模型名称
       if (path.includes('{model}')) {
         const modelName = modelData.model_name || modelData.modelName || '';
         path = path.replaceAll('{model}', modelName);
@@ -42,19 +38,24 @@ const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
       return (
         <div
           key={type}
-          className='flex justify-between border-b border-dashed last:border-0 py-2 last:pb-0'
-          style={{ borderColor: 'var(--semi-color-border)' }}
+          className='flex items-start justify-between gap-3 border-b border-dashed border-[color:var(--app-border)] py-2 last:border-0 last:pb-0'
         >
-          <span className='flex items-center pr-5'>
-            <Badge dot type='success' className='mr-2' />
-            {type}
-            {path && '：'}
+          <span className='flex min-w-0 flex-1 items-center gap-1.5 text-sm text-foreground'>
+            <span className='inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500' />
+            <span className='shrink-0 font-medium'>{type}</span>
             {path && (
-              <span className='text-gray-500 md:ml-1 break-all'>{path}</span>
+              <>
+                <span className='shrink-0 text-muted'>：</span>
+                <span className='min-w-0 break-all text-xs text-muted'>
+                  {path}
+                </span>
+              </>
             )}
           </span>
           {path && (
-            <span className='text-gray-500 text-xs md:ml-1'>{method}</span>
+            <span className='shrink-0 text-xs uppercase tracking-wide text-muted'>
+              {method}
+            </span>
           )}
         </div>
       );
@@ -62,20 +63,24 @@ const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
   };
 
   return (
-    <div>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='purple' className='mr-2 shadow-md'>
-          <IconLink size={16} />
-        </Avatar>
-        <div>
-          <Text className='text-lg font-medium'>{t('API端点')}</Text>
-          <div className='text-xs text-gray-600'>
-            {t('模型支持的接口端点信息')}
+    <Card className='!rounded-2xl mb-6 border border-[color:var(--app-border)] shadow-sm'>
+      <Card.Content className='space-y-3 p-5'>
+        <div className='flex items-center gap-2'>
+          <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600 dark:bg-purple-950/40 dark:text-purple-300'>
+            <LinkIcon size={16} />
+          </div>
+          <div>
+            <div className='text-base font-semibold text-foreground'>
+              {t('API端点')}
+            </div>
+            <div className='text-xs text-muted'>
+              {t('模型支持的接口端点信息')}
+            </div>
           </div>
         </div>
-      </div>
-      {renderAPIEndpoints()}
-    </div>
+        <div className='space-y-1'>{renderAPIEndpoints()}</div>
+      </Card.Content>
+    </Card>
   );
 };
 

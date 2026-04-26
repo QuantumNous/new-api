@@ -18,23 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Banner,
-  Button,
-  Col,
-  Collapse,
-  Divider,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Space,
-  Spin,
-  Table,
-  Tag,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Input, Select } from '@heroui/react';
+import { Banner, Col, Collapse, Divider, Form, Modal, Row, Space, Spin, Table, Tag, Typography } from '@/components/common/ui/HeroCompat';
 import {
   IconClose,
   IconCode,
@@ -43,7 +28,7 @@ import {
   IconPlus,
   IconRefresh,
   IconSearch,
-} from '@douyinfe/semi-icons';
+} from '@/components/common/ui/HeroIconsCompat';
 import {
   API,
   compareObjects,
@@ -357,8 +342,8 @@ export default function SettingsChannelAffinity(props) {
               lineHeight: 1.6,
               padding: 10,
               borderRadius: 8,
-              background: 'var(--semi-color-fill-0)',
-              border: '1px solid var(--semi-color-border)',
+              background: 'var(--app-surface-muted)',
+              border: '1px solid var(--app-border)',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
             }}
@@ -878,7 +863,7 @@ export default function SettingsChannelAffinity(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    if (refForm.current) refForm.current.setValues(currentInputs);
+    if (refForm.current) refForm.current?.setValues?.(currentInputs);
     setRules(parseRulesJson(currentInputs[KEY_RULES]));
     refreshCacheStats();
   }, [props.options]);
@@ -1218,8 +1203,8 @@ export default function SettingsChannelAffinity(props) {
                       marginTop: 8,
                       borderRadius: 10,
                       padding: 10,
-                      background: 'var(--semi-color-fill-0)',
-                      border: '1px solid var(--semi-color-border)',
+                      background: 'var(--app-surface-muted)',
+                      border: '1px solid var(--app-border)',
                     }}
                   >
                     <div

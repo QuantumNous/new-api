@@ -123,7 +123,7 @@
     "Client Secret": "Секрет клиента",
     "Codex 授权": "Авторизация Codex",
     "Codex 渠道不支持批量创建": "Канал Codex не поддерживает пакетное создание",
-    "common.changeLanguage": "common.changeLanguage",
+    "common.changeLanguage": "Сменить язык",
     "Completion tokens": "Completion tokens",
     "Configuration": "Конфигурация",
     "context_int/context_string 从请求上下文读取；gjson 从入口请求的 JSON body 按 gjson path 读取。": "context_int/context_string читаются из контекста запроса; gjson читает из JSON body входящего запроса по gjson path.",

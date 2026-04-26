@@ -18,14 +18,141 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import i18next from 'i18next';
-import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
-import { copy, showSuccess } from './utils';
+import { copy, showSuccess, showError } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import {
   BILLING_PRICING_VARS,
   BILLING_VAR_KEY_TO_FIELD,
   BILLING_VAR_REGEX,
 } from '../constants';
+
+// Map Semi UI Tag color names to inline backgroundColor/color values so
+// downstream callers (renderModelTag/renderGroup/etc.) keep working without
+// the HeroCompat Tag wrapper.
+const SEMI_TAG_PALETTE = {
+  white: '#ffffff',
+  grey: '#94a3b8',
+  red: '#ef4444',
+  orange: '#f97316',
+  yellow: '#eab308',
+  green: '#22c55e',
+  blue: '#3b82f6',
+  cyan: '#06b6d4',
+  teal: '#14b8a6',
+  pink: '#ec4899',
+  purple: '#a855f7',
+  violet: '#8b5cf6',
+  indigo: '#6366f1',
+  amber: '#f59e0b',
+  lime: '#84cc16',
+  'light-blue': '#0ea5e9',
+};
+
+const resolveTagColor = (color) => {
+  if (!color) return null;
+  if (typeof color === 'string' && color.startsWith('#')) return color;
+  if (typeof color === 'string' && color.startsWith('rgb')) return color;
+  return SEMI_TAG_PALETTE[color] || null;
+};
+
+function Tag({
+  children,
+  color,
+  prefixIcon,
+  suffixIcon,
+  size,
+  shape,
+  onClick,
+  className,
+}) {
+  const resolved = resolveTagColor(color);
+  const isWhite = color === 'white';
+  const baseStyle = resolved
+    ? isWhite
+      ? {
+          backgroundColor: '#ffffff',
+          color: '#475569',
+          borderColor: 'var(--app-border, #e5e7eb)',
+        }
+      : {
+          backgroundColor: `${resolved}1A`,
+          color: resolved,
+        }
+    : {};
+
+  const radiusClass = shape === 'circle' ? 'rounded-full' : 'rounded-md';
+  const sizeClass =
+    size === 'small'
+      ? 'px-2 py-0.5 text-[11px]'
+      : 'px-2.5 py-0.5 text-xs';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 border border-transparent font-medium ${radiusClass} ${sizeClass} ${className || ''}`}
+      style={baseStyle}
+      onClick={onClick}
+    >
+      {prefixIcon}
+      <span>{children}</span>
+      {suffixIcon}
+    </span>
+  );
+}
+
+function Avatar({ children, size, color, className, style, ...rest }) {
+  const sizePx =
+    size === 'extra-extra-small'
+      ? 18
+      : size === 'extra-small'
+        ? 22
+        : size === 'small'
+          ? 28
+          : size === 'large'
+            ? 48
+            : size === 'extra-large'
+              ? 64
+              : 36;
+  const resolved = color ? resolveTagColor(color) : null;
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-full text-xs font-semibold ${className || ''}`}
+      style={{
+        width: sizePx,
+        height: sizePx,
+        background: resolved ? `${resolved}26` : 'var(--app-background)',
+        color: resolved || 'var(--app-foreground)',
+        border: '1px solid var(--app-border, #e5e7eb)',
+        ...style,
+      }}
+      {...rest}
+    >
+      {children}
+    </span>
+  );
+}
+
+const Typography = {
+  Text: ({ children, strong, type, size, className, style, ...rest }) => {
+    const colorClass =
+      type === 'tertiary' || type === 'secondary'
+        ? 'text-muted'
+        : type === 'danger'
+          ? 'text-red-600 dark:text-red-400'
+          : type === 'warning'
+            ? 'text-amber-600 dark:text-amber-300'
+            : '';
+    const sizeClass = size === 'small' ? 'text-xs' : 'text-sm';
+    const weightClass = strong ? 'font-semibold' : '';
+    return (
+      <span
+        className={`${sizeClass} ${weightClass} ${colorClass} ${className || ''}`}
+        style={style}
+        {...rest}
+      >
+        {children}
+      </span>
+    );
+  },
+};
 import { visit } from 'unist-util-visit';
 import * as LobeIcons from '@lobehub/icons';
 import {
@@ -110,13 +237,16 @@ import {
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
   const size = 16;
+  // Plain currentColor + uniform stroke. heroui-pro's sidebar.css already
+  // deepens active icons from `--muted` to `--foreground` automatically via
+  // `.sidebar__menu-item[data-current=true] .sidebar__menu-icon`, so we
+  // don't need to manually toggle color or stroke weight here.
   const strokeWidth = 2;
-  const SELECTED_COLOR = 'var(--semi-color-primary)';
-  const iconColor = selected ? SELECTED_COLOR : 'currentColor';
+  const iconColor = 'currentColor';
   const commonProps = {
     size,
     strokeWidth,
-    className: `transition-colors duration-200 ${selected ? 'transition-transform duration-200 scale-105' : ''}`,
+    className: 'transition-colors duration-200',
   };
 
   // 根据不同的key返回不同的图标
@@ -561,7 +691,7 @@ export function getOAuthProviderIcon(iconName, size = 20) {
   const iconSize = Number(size) > 0 ? Number(size) : 20;
 
   if (!raw) {
-    return <Layers size={iconSize} color='var(--semi-color-text-2)' />;
+    return <Layers size={iconSize} color='var(--app-muted)' />;
   }
 
   if (isHttpUrl(raw)) {
@@ -812,10 +942,9 @@ export function renderGroup(group) {
             if (await copy(group)) {
               showSuccess(i18next.t('已复制：') + group);
             } else {
-              Modal.error({
-                title: i18next.t('无法复制到剪贴板，请手动复制'),
-                content: group,
-              });
+              showError(
+                `${i18next.t('无法复制到剪贴板，请手动复制')}: ${group}`,
+              );
             }
           }}
         >
@@ -942,13 +1071,13 @@ export const renderGroupOption = (item) => {
     alignItems: 'center',
     padding: '8px 16px',
     cursor: disabled ? 'not-allowed' : 'pointer',
-    backgroundColor: focused ? 'var(--semi-color-fill-0)' : 'transparent',
+    backgroundColor: focused ? 'var(--app-surface-muted)' : 'transparent',
     opacity: disabled ? 0.5 : 1,
     ...(selected && {
-      backgroundColor: 'var(--semi-color-primary-light-default)',
+      backgroundColor: 'color-mix(in srgb, var(--app-primary) 12%, transparent)',
     }),
     '&:hover': {
-      backgroundColor: !disabled && 'var(--semi-color-fill-1)',
+      backgroundColor: !disabled && 'color-mix(in srgb, var(--app-muted) 16%, transparent)',
     },
   };
 

@@ -19,14 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { API, showError } from '../../../helpers';
-import { Empty, Card, Spin, Typography } from '@douyinfe/semi-ui';
-const { Title } = Typography;
-import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
+import { Spinner } from '@heroui/react';
 import { useTranslation } from 'react-i18next';
 import MarkdownRenderer from '../markdown/MarkdownRenderer';
+import { Construction } from 'lucide-react';
 
 // Check whether content is a URL.
 const isUrl = (content) => {
@@ -142,7 +138,7 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   if (loading) {
     return (
       <div className='flex justify-center items-center min-h-screen'>
-        <Spin size='large' />
+        <Spinner size='lg' color='primary' />
       </div>
     );
   }
@@ -150,17 +146,15 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 如果没有内容，显示空状态
   if (!content || content.trim() === '') {
     return (
-      <div className='flex justify-center items-center min-h-screen bg-gray-50'>
-        <Empty
-          title={t('管理员未设置' + title + '内容')}
-          image={
-            <IllustrationConstruction style={{ width: 150, height: 150 }} />
-          }
-          darkModeImage={
-            <IllustrationConstructionDark style={{ width: 150, height: 150 }} />
-          }
-          className='p-8'
-        />
+      <div className='flex min-h-screen items-center justify-center bg-slate-50 p-6 dark:bg-slate-950'>
+        <div className='glass-panel flex max-w-md flex-col items-center gap-4 rounded-[2rem] p-8 text-center'>
+          <div className='flex h-24 w-24 items-center justify-center rounded-[2rem] bg-primary/10 text-primary'>
+            <Construction size={44} />
+          </div>
+          <h2 className='text-lg font-semibold text-slate-950 dark:text-white'>
+            {t('管理员未设置' + title + '内容')}
+          </h2>
+        </div>
       </div>
     );
   }
@@ -168,12 +162,12 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 如果是 URL，显示链接卡片
   if (isUrl(content)) {
     return (
-      <div className='flex justify-center items-center min-h-screen bg-gray-50 p-4'>
-        <Card className='max-w-md w-full'>
+      <div className='flex justify-center items-center min-h-screen bg-slate-50 p-4 dark:bg-slate-950'>
+        <div className='glass-panel max-w-md w-full rounded-[2rem] p-8'>
           <div className='text-center'>
-            <Title heading={4} className='mb-4'>
+            <h2 className='mb-4 text-xl font-semibold text-slate-950 dark:text-white'>
               {title}
-            </Title>
+            </h2>
             <p className='text-gray-600 mb-4'>
               {t('管理员设置了外部链接，点击下方按钮访问')}
             </p>
@@ -188,7 +182,7 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
               {t('访问' + title)}
             </a>
           </div>
-        </Card>
+        </div>
       </div>
     );
   }
@@ -196,12 +190,12 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 如果是 HTML 内容，直接渲染
   if (isHtmlContent(content)) {
     return (
-      <div className='min-h-screen bg-gray-50'>
-        <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
-          <div className='bg-white rounded-lg shadow-sm p-8'>
-            <Title heading={2} className='text-center mb-8'>
+    <div className='min-h-screen bg-slate-50 dark:bg-slate-950'>
+      <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
+          <div className='rounded-2xl bg-white p-8 shadow-sm dark:bg-white/[0.03]'>
+            <h1 className='mb-8 text-center text-3xl font-bold text-slate-950 dark:text-white'>
               {title}
-            </Title>
+            </h1>
             <div
               className='prose prose-lg max-w-none'
               dangerouslySetInnerHTML={{ __html: htmlPayload.content }}
@@ -214,12 +208,12 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
 
   // 其他内容统一使用 Markdown 渲染器
   return (
-    <div className='min-h-screen bg-gray-50'>
+    <div className='min-h-screen bg-slate-50 dark:bg-slate-950'>
       <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
-        <div className='bg-white rounded-lg shadow-sm p-8'>
-          <Title heading={2} className='text-center mb-8'>
+        <div className='rounded-2xl bg-white p-8 shadow-sm dark:bg-white/[0.03]'>
+          <h1 className='mb-8 text-center text-3xl font-bold text-slate-950 dark:text-white'>
             {title}
-          </Title>
+          </h1>
           <div className='prose prose-lg max-w-none'>
             <MarkdownRenderer content={content} />
           </div>
