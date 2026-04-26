@@ -130,6 +130,16 @@ func withSelfUseModeDisabled(t *testing.T) {
 	})
 }
 
+func withSelfUseModeEnabled(t *testing.T) {
+	t.Helper()
+
+	original := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = original
+	})
+}
+
 func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]struct{} {
 	t.Helper()
 
@@ -146,12 +156,105 @@ func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder)
 	return ids
 }
 
+func decodeAnthropicListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]struct{} {
+	t.Helper()
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Data []dto.AnthropicModel `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	ids := make(map[string]struct{}, len(payload.Data))
+	for _, item := range payload.Data {
+		ids[item.ID] = struct{}{}
+	}
+	return ids
+}
+
+func decodeGeminiListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]struct{} {
+	t.Helper()
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Models []dto.GeminiModel `json:"models"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	ids := make(map[string]struct{}, len(payload.Models))
+	for _, item := range payload.Models {
+		name, ok := item.Name.(string)
+		require.True(t, ok)
+		ids[name] = struct{}{}
+	}
+	return ids
+}
+
 func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
 	byName := make(map[string]model.Pricing, len(pricings))
 	for _, pricing := range pricings {
 		byName[pricing.ModelName] = pricing
 	}
 	return byName
+}
+
+func TestListModelsFiltersByEndpointSupport(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+
+	require.NoError(t, db.Create(&model.User{
+		Id:       1002,
+		Username: "endpoint-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	openAIChannel := model.Channel{Id: 101, Type: constant.ChannelTypeOpenAI, Name: "openai", Key: "sk-openai", Status: common.ChannelStatusEnabled}
+	openAIChannel.SetSetting(dto.ChannelSettings{SupportedEndpoints: string(constant.EndpointTypeOpenAI)})
+	anthropicChannel := model.Channel{Id: 102, Type: constant.ChannelTypeAnthropic, Name: "anthropic", Key: "sk-anthropic", Status: common.ChannelStatusEnabled}
+	anthropicChannel.SetSetting(dto.ChannelSettings{SupportedEndpoints: string(constant.EndpointTypeAnthropic)})
+	geminiChannel := model.Channel{Id: 103, Type: constant.ChannelTypeGemini, Name: "gemini", Key: "sk-gemini", Status: common.ChannelStatusEnabled}
+	geminiChannel.SetSetting(dto.ChannelSettings{SupportedEndpoints: string(constant.EndpointTypeGemini)})
+	unrestrictedChannel := model.Channel{Id: 104, Type: constant.ChannelTypeOpenAI, Name: "unrestricted", Key: "sk-any", Status: common.ChannelStatusEnabled}
+	require.NoError(t, db.Create(&[]model.Channel{openAIChannel, anthropicChannel, geminiChannel, unrestrictedChannel}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-openai-only-model", ChannelId: openAIChannel.Id, Enabled: true},
+		{Group: "default", Model: "zz-anthropic-only-model", ChannelId: anthropicChannel.Id, Enabled: true},
+		{Group: "default", Model: "zz-gemini-only-model", ChannelId: geminiChannel.Id, Enabled: true},
+		{Group: "default", Model: "zz-unrestricted-model", ChannelId: unrestrictedChannel.Id, Enabled: true},
+	}).Error)
+
+	openAIRecorder := httptest.NewRecorder()
+	openAICtx, _ := gin.CreateTestContext(openAIRecorder)
+	openAICtx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	openAICtx.Set("id", 1002)
+	ListModels(openAICtx, constant.ChannelTypeOpenAI)
+	openAIIDs := decodeListModelsResponse(t, openAIRecorder)
+	require.Contains(t, openAIIDs, "zz-openai-only-model")
+	require.Contains(t, openAIIDs, "zz-unrestricted-model")
+	require.NotContains(t, openAIIDs, "zz-anthropic-only-model")
+	require.NotContains(t, openAIIDs, "zz-gemini-only-model")
+
+	anthropicRecorder := httptest.NewRecorder()
+	anthropicCtx, _ := gin.CreateTestContext(anthropicRecorder)
+	anthropicCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	anthropicCtx.Set("id", 1002)
+	ListModels(anthropicCtx, constant.ChannelTypeAnthropic)
+	anthropicIDs := decodeAnthropicListModelsResponse(t, anthropicRecorder)
+	require.Contains(t, anthropicIDs, "zz-anthropic-only-model")
+	require.Contains(t, anthropicIDs, "zz-unrestricted-model")
+	require.NotContains(t, anthropicIDs, "zz-openai-only-model")
+	require.NotContains(t, anthropicIDs, "zz-gemini-only-model")
+
+	geminiRecorder := httptest.NewRecorder()
+	geminiCtx, _ := gin.CreateTestContext(geminiRecorder)
+	geminiCtx.Request = httptest.NewRequest(http.MethodGet, "/v1beta/models", nil)
+	geminiCtx.Set("id", 1002)
+	ListModels(geminiCtx, constant.ChannelTypeGemini)
+	geminiIDs := decodeGeminiListModelsResponse(t, geminiRecorder)
+	require.Contains(t, geminiIDs, "zz-gemini-only-model")
+	require.Contains(t, geminiIDs, "zz-unrestricted-model")
+	require.NotContains(t, geminiIDs, "zz-openai-only-model")
+	require.NotContains(t, geminiIDs, "zz-anthropic-only-model")
 }
 
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
@@ -221,6 +324,14 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 		"zz-token-tiered-empty-expr-model": "",
 	})
 
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-token-tiered-visible-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-token-tiered-empty-expr-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-token-tiered-missing-expr-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-token-unpriced-model", ChannelId: 1, Enabled: true},
+	}).Error)
+
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
@@ -239,4 +350,43 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-tiered-empty-expr-model")
 	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
 	require.NotContains(t, ids, "zz-token-unpriced-model")
+}
+
+func TestListModelsTokenLimitKeepsLegacyModelsWithoutAbilities(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	withTieredBillingConfig(t, map[string]string{
+		"zz-token-legacy-visible-model": "tiered_expr",
+	}, map[string]string{
+		"zz-token-legacy-visible-model": `tier("base", p + c)`,
+	})
+	setupModelListControllerTestDB(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
+		"zz-token-legacy-visible-model": true,
+	})
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "zz-token-legacy-visible-model")
+}
+
+func TestRetrieveModelKeepsLegacyBehaviorWithoutAbilities(t *testing.T) {
+	setupModelListControllerTestDB(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models/gpt-4", nil)
+	ctx.Params = gin.Params{{Key: "model", Value: "gpt-4"}}
+
+	RetrieveModel(ctx, constant.ChannelTypeOpenAI)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload dto.OpenAIModels
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Equal(t, "gpt-4", payload.Id)
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -44,6 +45,44 @@ func GetGroupEnabledModels(group string) []string {
 	// Find distinct models
 	DB.Table("abilities").Where(commonGroupCol+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &models)
 	return models
+}
+
+type abilityEndpointRow struct {
+	Model     string
+	ChannelId int
+	Setting   *string
+}
+
+func GetGroupEnabledModelsByEndpoint(group string, endpointType constant.EndpointType) []string {
+	if endpointType == "" {
+		return GetGroupEnabledModels(group)
+	}
+	rows := make([]abilityEndpointRow, 0)
+	DB.Table("abilities").
+		Select("abilities.model, abilities.channel_id, channels.setting").
+		Joins("left join channels on channels.id = abilities.channel_id").
+		Where("abilities."+commonGroupCol+" = ? and abilities.enabled = ?", group, true).
+		Scan(&rows)
+	supportedByChannel := make(map[int]bool)
+	return lo.Uniq(lo.FilterMap(rows, func(row abilityEndpointRow, _ int) (string, bool) {
+		supported, ok := supportedByChannel[row.ChannelId]
+		if !ok {
+			supported = channelSettingSupportsEndpoint(row.Setting, endpointType)
+			supportedByChannel[row.ChannelId] = supported
+		}
+		return row.Model, supported
+	}))
+}
+
+func channelSettingSupportsEndpoint(settingJSON *string, endpointType constant.EndpointType) bool {
+	if settingJSON == nil || strings.TrimSpace(*settingJSON) == "" {
+		return true
+	}
+	setting := dto.ChannelSettings{}
+	if err := common.UnmarshalJsonStr(*settingJSON, &setting); err != nil {
+		return true
+	}
+	return setting.SupportsEndpointType(endpointType)
 }
 
 func GetEnabledModels() []string {

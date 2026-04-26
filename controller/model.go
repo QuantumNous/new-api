@@ -111,6 +111,7 @@ func init() {
 
 func ListModels(c *gin.Context, modelType int) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0)
+	endpointType := endpointTypeForModelList(modelType)
 
 	acceptUnsetRatioModel := operation_setting.SelfUseModeEnabled
 	if !acceptUnsetRatioModel {
@@ -123,6 +124,15 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	}
 
+	groups, err := modelListGroups(c)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "get user group failed",
+		})
+		return
+	}
+
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 	if modelLimitEnable {
 		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
@@ -132,7 +142,18 @@ func ListModels(c *gin.Context, modelType int) {
 		} else {
 			tokenModelLimit = map[string]bool{}
 		}
+		enabledModelSet := lo.SliceToMap(enabledModelsForGroups(groups), func(modelName string) (string, struct{}) {
+			return modelName, struct{}{}
+		})
+		visibleModelSet := lo.SliceToMap(visibleModelsForEndpoint(groups, endpointType), func(modelName string) (string, struct{}) {
+			return modelName, struct{}{}
+		})
 		for allowModel, _ := range tokenModelLimit {
+			if _, enabled := enabledModelSet[allowModel]; enabled {
+				if _, visible := visibleModelSet[allowModel]; !visible {
+					continue
+				}
+			}
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(allowModel) {
 					continue
@@ -152,33 +173,7 @@ func ListModels(c *gin.Context, modelType int) {
 			}
 		}
 	} else {
-		userId := c.GetInt("id")
-		userGroup, err := model.GetUserGroup(userId, false)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "get user group failed",
-			})
-			return
-		}
-		group := userGroup
-		tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-		if tokenGroup != "" {
-			group = tokenGroup
-		}
-		var models []string
-		if tokenGroup == "auto" {
-			for _, autoGroup := range service.GetUserAutoGroup(userGroup) {
-				groupModels := model.GetGroupEnabledModels(autoGroup)
-				for _, g := range groupModels {
-					if !common.StringsContains(models, g) {
-						models = append(models, g)
-					}
-				}
-			}
-		} else {
-			models = model.GetGroupEnabledModels(group)
-		}
+		models := visibleModelsForEndpoint(groups, endpointType)
 		for _, modelName := range models {
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(modelName) {
@@ -211,12 +206,15 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
-		c.JSON(200, gin.H{
+		response := gin.H{
 			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
 			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
-		})
+		}
+		if len(useranthropicModels) > 0 {
+			response["first_id"] = useranthropicModels[0].ID
+			response["last_id"] = useranthropicModels[len(useranthropicModels)-1].ID
+		}
+		c.JSON(200, response)
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
 		for i, model := range userOpenAiModels {
@@ -236,6 +234,51 @@ func ListModels(c *gin.Context, modelType int) {
 			"object":  "list",
 		})
 	}
+}
+
+func endpointTypeForModelList(modelType int) constant.EndpointType {
+	switch modelType {
+	case constant.ChannelTypeAnthropic:
+		return constant.EndpointTypeAnthropic
+	case constant.ChannelTypeGemini:
+		return constant.EndpointTypeGemini
+	default:
+		return constant.EndpointTypeOpenAI
+	}
+}
+
+func modelListGroups(c *gin.Context) ([]string, error) {
+	userId := c.GetInt("id")
+	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+	if userId <= 0 {
+		if tokenGroup != "" && tokenGroup != "auto" {
+			return []string{tokenGroup}, nil
+		}
+		return []string{"default"}, nil
+	}
+	userGroup, err := model.GetUserGroup(userId, false)
+	if err != nil {
+		return nil, err
+	}
+	if tokenGroup == "auto" {
+		return service.GetUserAutoGroup(userGroup), nil
+	}
+	if tokenGroup != "" {
+		return []string{tokenGroup}, nil
+	}
+	return []string{userGroup}, nil
+}
+
+func visibleModelsForEndpoint(groups []string, endpointType constant.EndpointType) []string {
+	return lo.Uniq(lo.FlatMap(groups, func(group string, _ int) []string {
+		return model.GetGroupEnabledModelsByEndpoint(group, endpointType)
+	}))
+}
+
+func enabledModelsForGroups(groups []string) []string {
+	return lo.Uniq(lo.FlatMap(groups, func(group string, _ int) []string {
+		return model.GetGroupEnabledModels(group)
+	}))
 }
 
 func ChannelListModels(c *gin.Context) {
@@ -261,7 +304,7 @@ func EnabledListModels(c *gin.Context) {
 
 func RetrieveModel(c *gin.Context, modelType int) {
 	modelId := c.Param("model")
-	if aiModel, ok := openAIModelsMap[modelId]; ok {
+	if aiModel, ok := openAIModelsMap[modelId]; ok && modelVisibleForEndpoint(c, modelId, endpointTypeForModelList(modelType)) {
 		switch modelType {
 		case constant.ChannelTypeAnthropic:
 			c.JSON(200, dto.AnthropicModel{
@@ -284,4 +327,15 @@ func RetrieveModel(c *gin.Context, modelType int) {
 			"error": openAIError,
 		})
 	}
+}
+
+func modelVisibleForEndpoint(c *gin.Context, modelName string, endpointType constant.EndpointType) bool {
+	groups, err := modelListGroups(c)
+	if err != nil {
+		return false
+	}
+	if !lo.Contains(enabledModelsForGroups(groups), modelName) {
+		return true
+	}
+	return lo.Contains(visibleModelsForEndpoint(groups, endpointType), modelName)
 }
