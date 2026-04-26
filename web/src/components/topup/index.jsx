@@ -39,6 +39,11 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import {
+  closePaymentWindow,
+  openPaymentWindow,
+  redirectPaymentWindow,
+} from './paymentWindow';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -256,26 +261,34 @@ const TopUp = () => {
       return;
     }
 
-    if (payWay === 'stripe') {
-      // Stripe 支付处理
-      if (amount === 0) {
-        await getStripeAmount();
-      }
-    } else {
-      // 普通支付处理
-      if (amount === 0) {
-        await getAmount();
-      }
-    }
+    const isStripePayment = payWay === 'stripe';
+    const selectedMinTopUp = getPaymentMinTopUp(payWay);
 
-    if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+    if (topUpCount < selectedMinTopUp) {
+      showError(t('充值数量不能小于') + selectedMinTopUp);
       return;
     }
+
+    const stripePaymentWindow = isStripePayment
+      ? openPaymentWindow('Stripe')
+      : null;
+
     setConfirmLoading(true);
     try {
+      if (isStripePayment) {
+        // Stripe 支付处理
+        if (amount === 0) {
+          await getStripeAmount();
+        }
+      } else {
+        // 普通支付处理
+        if (amount === 0) {
+          await getAmount();
+        }
+      }
+
       let res;
-      if (payWay === 'stripe') {
+      if (isStripePayment) {
         // Stripe 支付请求
         res = await API.post('/api/user/stripe/pay', {
           amount: parseInt(topUpCount),
@@ -292,9 +305,15 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success') {
-          if (payWay === 'stripe') {
+          if (isStripePayment) {
             // Stripe 支付回调处理
-            window.open(data.pay_link, '_blank');
+            const payLink = data?.pay_link || '';
+            if (payLink) {
+              redirectPaymentWindow(stripePaymentWindow, payLink);
+            } else {
+              closePaymentWindow(stripePaymentWindow);
+              showError(t('支付请求失败'));
+            }
           } else {
             // 普通支付表单提交
             let params = data;
@@ -322,12 +341,15 @@ const TopUp = () => {
         } else {
           const errorMsg =
             typeof data === 'string' ? data : message || t('支付失败');
+          closePaymentWindow(stripePaymentWindow);
           showError(errorMsg);
         }
       } else {
+        closePaymentWindow(stripePaymentWindow);
         showError(res);
       }
     } catch (err) {
+      closePaymentWindow(stripePaymentWindow);
       showError(t('支付请求失败'));
     } finally {
       setOpen(false);
@@ -647,7 +669,7 @@ const TopUp = () => {
                 ? data.waffo_min_topup
                 : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
-                : 1;
+                  : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);

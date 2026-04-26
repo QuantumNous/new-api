@@ -49,6 +49,7 @@ const PaymentSetting = () => {
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
+    StripeEnabled: true,
 
     WaffoPancakeEnabled: false,
     WaffoPancakeSandbox: false,
