@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect, useContext } from 'react';
-import { Avatar, Card } from '@heroui/react';
-import { Languages } from 'lucide-react';
+import { Avatar, Card, ListBox } from '@heroui/react';
+import { CellSelect } from '@heroui-pro/react';
+import { ChevronsUpDown, Languages } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { API, showSuccess, showError } from '../../../../helpers';
 import { UserContext } from '../../../../context/User';
@@ -129,39 +130,53 @@ const PreferencesSettings = ({ t }) => {
 
         {/* Language preference row */}
         <Card className='!rounded-xl' shadow='none'>
-          <Card.Content className='p-4'>
-            <div className='flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between'>
-              <div className='flex w-full items-start gap-3 sm:w-auto'>
-                <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/30'>
-                  <Languages
-                    size={20}
-                    className='text-violet-600 dark:text-violet-400'
-                  />
-                </div>
-                <div>
-                  <div className='mb-1 text-sm font-semibold text-foreground'>
-                    {t('语言偏好')}
-                  </div>
-                  <p className='text-xs text-muted'>
-                    {t('选择您的首选界面语言，设置将自动保存并同步到所有设备')}
-                  </p>
-                </div>
+          <Card.Content className='flex flex-col gap-3 p-4'>
+            <div className='flex items-start gap-3'>
+              <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/30'>
+                <Languages
+                  size={20}
+                  className='text-violet-600 dark:text-violet-400'
+                />
               </div>
-              <select
-                value={currentLanguage}
-                onChange={(event) =>
-                  handleLanguagePreferenceChange(event.target.value)
-                }
-                disabled={loading}
-                className='h-10 w-full sm:w-[180px] rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:cursor-not-allowed disabled:opacity-60'
-              >
-                {languageOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <div className='min-w-0 flex-1'>
+                <div className='mb-1 text-sm font-semibold text-foreground'>
+                  {t('语言偏好')}
+                </div>
+                <p className='text-xs text-muted'>
+                  {t('选择您的首选界面语言，设置将自动保存并同步到所有设备')}
+                </p>
+              </div>
             </div>
+            <CellSelect
+              aria-label={t('语言偏好')}
+              isDisabled={loading}
+              selectedKey={currentLanguage}
+              onSelectionChange={(key) => {
+                if (key) handleLanguagePreferenceChange(String(key));
+              }}
+            >
+              <CellSelect.Trigger>
+                <CellSelect.Label>{t('界面语言')}</CellSelect.Label>
+                <CellSelect.Value />
+                <CellSelect.Indicator>
+                  <ChevronsUpDown size={14} />
+                </CellSelect.Indicator>
+              </CellSelect.Trigger>
+              <CellSelect.Popover>
+                <ListBox>
+                  {languageOptions.map((opt) => (
+                    <ListBox.Item
+                      key={opt.value}
+                      id={opt.value}
+                      textValue={opt.label}
+                    >
+                      {opt.label}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </CellSelect.Popover>
+            </CellSelect>
           </Card.Content>
         </Card>
 
