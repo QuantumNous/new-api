@@ -6,11 +6,6 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
@@ -18,8 +13,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Card, Button } from '@heroui/react';
-import { Modal, Form, InputNumber, Typography, Space, Divider, Tag, Banner, Spin } from '@/components/common/ui/HeroCompat';
+import {
+  Button,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  Spinner,
+  useOverlayState,
+} from '@heroui/react';
 import {
   FaClock,
   FaCalculator,
@@ -28,7 +33,28 @@ import {
 } from 'react-icons/fa';
 import { API, showError, showSuccess } from '../../../../helpers';
 
-const { Text } = Typography;
+const TAG_TONE = {
+  green: 'bg-success/15 text-success',
+  blue: 'bg-primary/15 text-primary',
+  orange: 'bg-warning/15 text-warning',
+  red: 'bg-danger/15 text-danger',
+  grey: 'bg-surface-secondary text-muted',
+};
+
+function StatusChip({ tone = 'grey', children }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+        TAG_TONE[tone] || TAG_TONE.grey
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+const MIN_HOURS = 1;
+const MAX_HOURS = 720;
 
 const ExtendDurationModal = ({
   visible,
@@ -37,9 +63,9 @@ const ExtendDurationModal = ({
   onSuccess,
   t,
 }) => {
-  const formRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [durationHours, setDurationHours] = useState(1);
+  const [durationError, setDurationError] = useState('');
   const [costLoading, setCostLoading] = useState(false);
   const [priceEstimation, setPriceEstimation] = useState(null);
   const [priceError, setPriceError] = useState(null);
@@ -47,13 +73,44 @@ const ExtendDurationModal = ({
   const [deploymentDetails, setDeploymentDetails] = useState(null);
   const costRequestIdRef = useRef(0);
 
+  const modalState = useOverlayState({
+    isOpen: visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
+
   const resetState = () => {
     costRequestIdRef.current += 1;
     setDurationHours(1);
+    setDurationError('');
     setPriceEstimation(null);
     setPriceError(null);
     setDeploymentDetails(null);
     setCostLoading(false);
+  };
+
+  const validateDuration = (value) => {
+    if (value === '' || value === null || value === undefined) {
+      return t('请输入延长时长');
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return t('请输入延长时长');
+    }
+    if (numeric < MIN_HOURS) {
+      return t('延长时长至少为1小时');
+    }
+    if (numeric > MAX_HOURS) {
+      return t('延长时长不能超过720小时（30天）');
+    }
+    return '';
+  };
+
+  const handleDurationChange = (raw) => {
+    const value = raw === '' ? '' : Number(raw);
+    setDurationHours(value);
+    setDurationError(validateDuration(value));
   };
 
   const fetchDeploymentDetails = async (deploymentId) => {
@@ -188,9 +245,6 @@ const ExtendDurationModal = ({
   useEffect(() => {
     if (visible && deployment?.id) {
       resetState();
-      if (formRef.current) {
-        formRef.current.setValue('duration_hours', 1);
-      }
       fetchDeploymentDetails(deployment.id);
     }
     if (!visible) {
@@ -200,27 +254,25 @@ const ExtendDurationModal = ({
   }, [visible, deployment?.id]);
 
   useEffect(() => {
-    if (!visible) {
-      return;
-    }
-    if (!deploymentDetails) {
-      return;
-    }
+    if (!visible || !deploymentDetails) return;
     calculatePrice(durationHours, deploymentDetails);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationHours, deploymentDetails, visible]);
 
   const handleExtend = async () => {
+    const error = validateDuration(durationHours);
+    if (error) {
+      setDurationError(error);
+      return;
+    }
+
     try {
-      if (formRef.current) {
-        await formRef.current.validate();
-      }
       setLoading(true);
 
       const response = await API.post(
         `/api/deployments/${deployment.id}/extend`,
         {
-          duration_hours: Math.round(durationHours),
+          duration_hours: Math.round(Number(durationHours)),
         },
       );
 
@@ -241,9 +293,6 @@ const ExtendDurationModal = ({
   };
 
   const handleCancel = () => {
-    if (formRef.current) {
-      formRef.current.reset();
-    }
     resetState();
     onCancel();
   };
@@ -280,250 +329,275 @@ const ExtendDurationModal = ({
     deploymentDetails?.total_gpus || deployment?.hardware_quantity || 0;
   const containers = deploymentDetails?.total_containers || 0;
 
+  const confirmDisabled =
+    !deployment?.id ||
+    detailsLoading ||
+    !durationHours ||
+    Number(durationHours) < MIN_HOURS ||
+    Number(durationHours) > MAX_HOURS ||
+    Boolean(durationError);
+
   return (
-    <Modal
-      title={
-        <div className='flex items-center gap-2'>
-          <FaClock className='text-blue-500' />
-          <span>{t('延长容器时长')}</span>
-        </div>
-      }
-      visible={visible}
-      onCancel={handleCancel}
-      onOk={handleExtend}
-      okText={t('确认延长')}
-      cancelText={t('取消')}
-      confirmLoading={loading}
-      okButtonProps={{
-        disabled:
-          !deployment?.id ||
-          detailsLoading ||
-          !durationHours ||
-          durationHours < 1,
-      }}
-      width={600}
-      className='extend-duration-modal'
-    >
-      <div className='space-y-4'>
-        <Card className='border-0 bg-surface-secondary'>
-          <div className='flex items-center justify-between'>
-            <div>
-              <Text strong className='text-base'>
-                {deployment?.container_name || deployment?.deployment_name}
-              </Text>
-              <div className='mt-1'>
-                <Text type='secondary' size='small'>
-                  ID: {deployment?.id}
-                </Text>
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer size='lg' scroll='inside' placement='center'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
+              <div className='flex items-center gap-2'>
+                <FaClock className='text-primary' />
+                <span>{t('延长容器时长')}</span>
               </div>
-            </div>
-            <div className='text-right'>
-              <div className='flex items-center gap-2 mb-1'>
-                <Tag color='blue' size='small'>
-                  {resolvedHardwareName}
-                  {gpuCount ? ` x${gpuCount}` : ''}
-                </Tag>
-              </div>
-              <Text size='small' type='secondary'>
-                {t('当前剩余')}: <Text strong>{currentRemainingTime}</Text>
-              </Text>
-            </div>
-          </div>
-        </Card>
+            </ModalHeader>
+            <ModalBody className='max-h-[70vh] overflow-y-auto px-4 py-4 md:px-6'>
+              <div className='space-y-4'>
+                {/* Container summary */}
+                <section className='rounded-2xl border border-border bg-surface-secondary px-4 py-3'>
+                  <div className='flex items-center justify-between gap-3'>
+                    <div>
+                      <div className='text-base font-semibold text-foreground'>
+                        {deployment?.container_name ||
+                          deployment?.deployment_name}
+                      </div>
+                      <div className='mt-1 text-xs text-muted'>
+                        ID: {deployment?.id}
+                      </div>
+                    </div>
+                    <div className='text-right'>
+                      <div className='mb-1'>
+                        <StatusChip tone='blue'>
+                          {resolvedHardwareName}
+                          {gpuCount ? ` x${gpuCount}` : ''}
+                        </StatusChip>
+                      </div>
+                      <div className='text-xs text-muted'>
+                        {t('当前剩余')}:{' '}
+                        <span className='font-semibold text-foreground'>
+                          {currentRemainingTime}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
 
-        <Banner
-          type='warning'
-          icon={<FaExclamationTriangle />}
-          title={t('重要提醒')}
-          description={
-            <div className='space-y-2'>
-              <p>
-                {t('延长容器时长将会产生额外费用，请确认您有足够的账户余额。')}
-              </p>
-              <p>{t('延长操作一旦确认无法撤销，费用将立即扣除。')}</p>
-            </div>
-          }
-        />
+                {/* Warning banner */}
+                <section className='rounded-2xl border border-warning/30 bg-warning/5 px-4 py-3'>
+                  <div className='flex items-start gap-3'>
+                    <FaExclamationTriangle className='mt-0.5 shrink-0 text-warning' />
+                    <div className='space-y-2 text-sm'>
+                      <div className='font-semibold text-foreground'>
+                        {t('重要提醒')}
+                      </div>
+                      <p className='text-muted'>
+                        {t(
+                          '延长容器时长将会产生额外费用，请确认您有足够的账户余额。',
+                        )}
+                      </p>
+                      <p className='text-muted'>
+                        {t('延长操作一旦确认无法撤销，费用将立即扣除。')}
+                      </p>
+                    </div>
+                  </div>
+                </section>
 
-        <Form
-          getFormApi={(api) => (formRef.current = api)}
-          layout='vertical'
-          onValueChange={(values) => {
-            if (values.duration_hours !== undefined) {
-              const numericValue = Number(values.duration_hours);
-              setDurationHours(
-                Number.isFinite(numericValue) ? numericValue : 0,
-              );
-            }
-          }}
-        >
-          <Form.InputNumber
-            field='duration_hours'
-            label={t('延长时长（小时）')}
-            placeholder={t('请输入要延长的小时数')}
-            min={1}
-            max={720}
-            step={1}
-            initValue={1}
-            style={{ width: '100%' }}
-            suffix={t('小时')}
-            rules={[
-              { required: true, message: t('请输入延长时长') },
-              {
-                type: 'number',
-                min: 1,
-                message: t('延长时长至少为1小时'),
-              },
-              {
-                type: 'number',
-                max: 720,
-                message: t('延长时长不能超过720小时（30天）'),
-              },
-            ]}
-          />
-        </Form>
-
-        <div className='space-y-2'>
-          <Text size='small' type='secondary'>
-            {t('快速选择')}:
-          </Text>
-          <Space wrap>
-            {[1, 2, 6, 12, 24, 48, 72, 168].map((hours) => (
-              <Button
-                key={hours}
-                size='small'
-                theme={durationHours === hours ? 'solid' : 'borderless'}
-                type={durationHours === hours ? 'primary' : 'secondary'}
-                onClick={() => {
-                  setDurationHours(hours);
-                  if (formRef.current) {
-                    formRef.current.setValue('duration_hours', hours);
-                  }
-                }}
-              >
-                {hours < 24
-                  ? `${hours}${t('小时')}`
-                  : `${hours / 24}${t('天')}`}
-              </Button>
-            ))}
-          </Space>
-        </div>
-
-        <Divider />
-
-        <Card
-          title={
-            <div className='flex items-center gap-2'>
-              <FaCalculator className='text-green-500' />
-              <span>{t('费用预估')}</span>
-            </div>
-          }
-          className='border border-green-200'
-        >
-          {priceEstimation ? (
-            <div className='space-y-3'>
-              <div className='flex items-center justify-between'>
-                <Text>{t('延长时长')}:</Text>
-                <Text strong>
-                  {Math.round(durationHours)} {t('小时')}
-                </Text>
-              </div>
-
-              <div className='flex items-center justify-between'>
-                <Text>{t('硬件配置')}:</Text>
-                <Text strong>
-                  {resolvedHardwareName}
-                  {gpuCount ? ` x${gpuCount}` : ''}
-                </Text>
-              </div>
-
-              {containers ? (
-                <div className='flex items-center justify-between'>
-                  <Text>{t('容器数量')}:</Text>
-                  <Text strong>{containers}</Text>
+                {/* Duration input */}
+                <div className='space-y-1.5'>
+                  <label className='text-sm font-medium text-foreground'>
+                    {t('延长时长（小时）')}
+                  </label>
+                  <div className='relative'>
+                    <input
+                      type='number'
+                      min={MIN_HOURS}
+                      max={MAX_HOURS}
+                      step={1}
+                      value={durationHours}
+                      onChange={(event) =>
+                        handleDurationChange(event.target.value)
+                      }
+                      placeholder={t('请输入要延长的小时数')}
+                      aria-label={t('延长时长（小时）')}
+                      className={`h-10 w-full rounded-xl border bg-background pl-3 pr-14 text-sm text-foreground outline-none transition focus:border-primary ${
+                        durationError ? 'border-danger' : 'border-border'
+                      }`}
+                    />
+                    <span className='pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted'>
+                      {t('小时')}
+                    </span>
+                  </div>
+                  {durationError ? (
+                    <div className='text-xs text-danger'>{durationError}</div>
+                  ) : null}
                 </div>
-              ) : null}
 
-              <div className='flex items-center justify-between'>
-                <Text>{t('单GPU小时费率')}:</Text>
-                <Text strong>
-                  {typeof hourlyRate === 'number'
-                    ? `${hourlyRate.toFixed(4)} ${currencyLabel}`
-                    : '--'}
-                </Text>
-              </div>
-
-              {typeof computeCost === 'number' && (
-                <div className='flex items-center justify-between'>
-                  <Text>{t('计算成本')}:</Text>
-                  <Text strong>
-                    {computeCost.toFixed(4)} {currencyLabel}
-                  </Text>
-                </div>
-              )}
-
-              <Divider margin='12px' />
-
-              <div className='flex items-center justify-between'>
-                <Text strong className='text-lg'>
-                  {t('预估总费用')}:
-                </Text>
-                <Text strong className='text-lg text-green-600'>
-                  {typeof estimatedTotalCost === 'number'
-                    ? `${estimatedTotalCost.toFixed(4)} ${currencyLabel}`
-                    : '--'}
-                </Text>
-              </div>
-
-              <div className='bg-blue-50 p-3 rounded-lg'>
-                <div className='flex items-start gap-2'>
-                  <FaInfoCircle className='text-blue-500 mt-0.5' />
-                  <div>
-                    <Text size='small' type='secondary'>
-                      {t('延长后总时长')}: <Text strong>{newTotalTime}</Text>
-                    </Text>
-                    <br />
-                    <Text size='small' type='secondary'>
-                      {t('预估费用仅供参考，实际费用可能略有差异')}
-                    </Text>
+                {/* Quick select chips */}
+                <div className='space-y-2'>
+                  <div className='text-xs text-muted'>{t('快速选择')}:</div>
+                  <div className='flex flex-wrap gap-2'>
+                    {[1, 2, 6, 12, 24, 48, 72, 168].map((hours) => {
+                      const active = Number(durationHours) === hours;
+                      return (
+                        <Button
+                          key={hours}
+                          size='sm'
+                          variant={active ? 'solid' : 'flat'}
+                          color={active ? 'primary' : undefined}
+                          onPress={() => handleDurationChange(hours)}
+                        >
+                          {hours < 24
+                            ? `${hours}${t('小时')}`
+                            : `${hours / 24}${t('天')}`}
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-            </div>
-          ) : (
-            <div className='text-center text-muted py-4'>
-              {costLoading ? (
-                <Space align='center' className='justify-center'>
-                  <Spin size='small' />
-                  <Text type='secondary'>{t('计算费用中...')}</Text>
-                </Space>
-              ) : priceError ? (
-                <Text type='danger'>{priceError}</Text>
-              ) : deploymentDetails ? (
-                <Text type='secondary'>{t('请输入延长时长')}</Text>
-              ) : (
-                <Text type='secondary'>{t('加载详情中...')}</Text>
-              )}
-            </div>
-          )}
-        </Card>
 
-        <div className='bg-red-50 border border-red-200 rounded-lg p-3'>
-          <div className='flex items-start gap-2'>
-            <FaExclamationTriangle className='text-red-500 mt-0.5' />
-            <div>
-              <Text strong className='text-red-700'>
-                {t('确认延长容器时长')}
-              </Text>
-              <div className='mt-1'>
-                <Text size='small' className='text-red-600'>
-                  {t('点击"确认延长"后将立即扣除费用并延长容器运行时间')}
-                </Text>
+                <div className='h-px bg-border' />
+
+                {/* Cost estimate card */}
+                <section className='rounded-2xl border border-success/30 bg-background'>
+                  <header className='flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-semibold text-foreground'>
+                    <FaCalculator className='text-success' />
+                    <span>{t('费用预估')}</span>
+                  </header>
+                  <div className='px-4 py-4'>
+                    {priceEstimation ? (
+                      <div className='space-y-3 text-sm'>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted'>{t('延长时长')}:</span>
+                          <span className='font-semibold tabular-nums'>
+                            {Math.round(Number(durationHours))} {t('小时')}
+                          </span>
+                        </div>
+
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted'>{t('硬件配置')}:</span>
+                          <span className='font-semibold'>
+                            {resolvedHardwareName}
+                            {gpuCount ? ` x${gpuCount}` : ''}
+                          </span>
+                        </div>
+
+                        {containers ? (
+                          <div className='flex items-center justify-between'>
+                            <span className='text-muted'>{t('容器数量')}:</span>
+                            <span className='font-semibold tabular-nums'>
+                              {containers}
+                            </span>
+                          </div>
+                        ) : null}
+
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted'>
+                            {t('单GPU小时费率')}:
+                          </span>
+                          <span className='font-semibold tabular-nums'>
+                            {typeof hourlyRate === 'number'
+                              ? `${hourlyRate.toFixed(4)} ${currencyLabel}`
+                              : '--'}
+                          </span>
+                        </div>
+
+                        {typeof computeCost === 'number' && (
+                          <div className='flex items-center justify-between'>
+                            <span className='text-muted'>
+                              {t('计算成本')}:
+                            </span>
+                            <span className='font-semibold tabular-nums'>
+                              {computeCost.toFixed(4)} {currencyLabel}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className='h-px bg-border' />
+
+                        <div className='flex items-center justify-between'>
+                          <span className='text-base font-semibold text-foreground'>
+                            {t('预估总费用')}:
+                          </span>
+                          <span className='text-lg font-semibold text-success tabular-nums'>
+                            {typeof estimatedTotalCost === 'number'
+                              ? `${estimatedTotalCost.toFixed(4)} ${currencyLabel}`
+                              : '--'}
+                          </span>
+                        </div>
+
+                        <div className='rounded-lg bg-primary/5 p-3'>
+                          <div className='flex items-start gap-2'>
+                            <FaInfoCircle className='mt-0.5 text-primary' />
+                            <div className='text-xs leading-5 text-muted'>
+                              <div>
+                                {t('延长后总时长')}:{' '}
+                                <span className='font-semibold text-foreground'>
+                                  {newTotalTime}
+                                </span>
+                              </div>
+                              <div>
+                                {t('预估费用仅供参考，实际费用可能略有差异')}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className='flex flex-col items-center justify-center gap-2 py-4 text-sm'>
+                        {costLoading ? (
+                          <>
+                            <Spinner color='primary' size='sm' />
+                            <span className='text-muted'>
+                              {t('计算费用中...')}
+                            </span>
+                          </>
+                        ) : priceError ? (
+                          <span className='text-danger'>{priceError}</span>
+                        ) : deploymentDetails ? (
+                          <span className='text-muted'>
+                            {t('请输入延长时长')}
+                          </span>
+                        ) : (
+                          <span className='text-muted'>
+                            {t('加载详情中...')}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                {/* Final confirm reminder */}
+                <section className='rounded-lg border border-danger/30 bg-danger/5 p-3'>
+                  <div className='flex items-start gap-2'>
+                    <FaExclamationTriangle className='mt-0.5 shrink-0 text-danger' />
+                    <div>
+                      <div className='font-semibold text-danger'>
+                        {t('确认延长容器时长')}
+                      </div>
+                      <div className='mt-1 text-xs text-danger/80'>
+                        {t(
+                          '点击"确认延长"后将立即扣除费用并延长容器运行时间',
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
+            </ModalBody>
+            <ModalFooter className='border-t border-border'>
+              <Button variant='light' onPress={handleCancel}>
+                {t('取消')}
+              </Button>
+              <Button
+                color='primary'
+                isPending={loading}
+                isDisabled={confirmDisabled}
+                onPress={handleExtend}
+              >
+                {t('确认延长')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
     </Modal>
   );
 };
