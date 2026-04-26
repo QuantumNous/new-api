@@ -175,4 +175,104 @@
 ### Next steps
 - [ ] Visual QA all `/console` sub-pages in light + dark themes; capture before/after.
 - [ ] Consider centering page content with `max-w-7xl mx-auto` like template (currently console pages stretch full width).
-- [ ] Audit remaining literal `text-gray-*` / `text-slate-*` usages elsewhere under `/console` (channels/user/log/topup/setting tables) and replace with semantic tokens in a follow-up pass.
+- [x] Audit remaining literal `text-gray-*` / `text-slate-*` usages elsewhere under `/console` (channels/user/log/topup/setting tables) and replace with semantic tokens in a follow-up pass.
+
+## Console Literal Color Audit (4 commits)
+
+Standardized literal slate/gray ramps across the entire `/console` surface to
+the HeroUI semantic tokens (`bg-background`, `bg-surface-secondary`,
+`text-foreground`, `text-muted`, `border-border`, `bg-border`,
+`bg-foreground text-background` for active pills, `border-border bg-background
+... focus:border-primary` for inline inputs, `bg-muted` for neutral status
+dots).
+
+Patterns standardized:
+- `bg-white/95 ... dark:bg-slate-950/95` → `bg-background/95 backdrop-blur`
+- `border-slate-200/80 dark:border-white/10` → `border-border`
+- `bg-slate-100/200 dark:bg-slate-800/900` → `bg-surface-secondary`
+- `bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500`
+  → `bg-surface-secondary text-muted`
+- `text-slate-500/600 dark:text-slate-300/400` → `text-muted`
+- `text-slate-700/800/900 dark:text-slate-100/200` → `text-foreground`
+- `bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900`
+  → `bg-foreground text-background`
+- `bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200` (chips,
+  table cells, inline pills) → `bg-background text-foreground`
+- `border-slate-200 bg-white ... focus:border-sky-400 dark:border-slate-700
+  dark:bg-slate-900` (inline selects, datetime inputs, single-line editors)
+  → `border-border bg-background ... focus:border-primary`
+- `text-gray-400/500/600/700/900` → `text-muted` / `text-foreground`
+- `bg-gray-50 / bg-gray-50/50` → `bg-surface-secondary` / `bg-surface-secondary/50`
+- `border-gray-100/200/300` → `border-border`
+- `hover:bg-gray-50` / `hover:bg-slate-100 dark:hover:bg-slate-800` →
+  `hover:bg-surface-secondary`
+
+Commits:
+
+1. `refactor(console): swap literal slate/gray tones for semantic tokens`
+   - TokensColumnDefs (TONE_CLASSES grey/black/white, CopyableLine hover,
+     ProgressBar, VendorAvatar, quota usage capsule).
+   - helpers/dashboard.jsx renderMonitorList (illustration tile, monitor
+     row hover, name/uptime/status, divider, uptime track + tabular-nums).
+
+2. `refactor(console): swap literal slate/gray tones for semantic tokens
+   (table + common/ui)`
+   - Column defs: UsersColumnDefs, ChannelsColumnDefs (IO.NET tooltip),
+     SubscriptionsColumnDefs, DeploymentsColumnDefs, MjLogsColumnDefs (and
+     MjLogsActions), UsageLogsColumnDefs.
+   - Shared common/ui: CardPro, CardTable, ColumnSelectorDialog,
+     ConfirmDialog, HoverPanel, TableEmptyState, RenderUtils,
+     TableFilterForm (FilterInput / FilterSelect / FilterDateRange).
+
+3. `refactor(console): swap literal slate/gray tones for semantic tokens
+   (topup + common)`
+   - Topup: InvitationCard, RechargeCard, SubscriptionPlansCard,
+     index (Creem confirm modal), PaymentConfirmModal,
+     SubscriptionPurchaseModal, TopupHistoryModal, TransferModal.
+   - Common: DocumentRenderer, MarkdownRenderer.PreCode,
+     RiskAcknowledgementModal, SecureVerificationModal, ChannelKeyDisplay,
+     ClickMenu, ColumnSelectorDialog, JSONEditor, SelectableButtonGroup.
+
+4. `refactor(console): swap literal slate/gray tones for semantic tokens
+   (table modals + settings + setup)` — 76 jsx files
+   - Side panels: AddUserModal, EditPrefillGroupModal,
+     PrefillGroupManagement, EditRedemptionModal, ModelDetailSideSheet,
+     UserSubscriptionsModal.
+   - Tabs / dropdowns / actions: ChannelsActions, ChannelsTabs,
+     ModelsActions, ModelsTabs, SelectionNotification.
+   - Table modals: BatchTagModal, ChannelUpstreamUpdateModal,
+     CodexOAuthModal, EditChannelModal (14 inline literals), EditTagModal,
+     SingleModelSelectModal, mj-logs ContentModal, AudioPreviewModal,
+     task-logs ContentModal, CopyTokensModal, EditTokenModal,
+     CCSwitchModal, EditModelModal, EditVendorModal, MissingModelsModal,
+     SyncWizardModal, UpstreamConflictModal, AddEditSubscriptionModal,
+     ChannelAffinityUsageCacheModal, ColumnSelectorModal,
+     ParamOverrideModal, UserInfoModal, ConfirmationDialog,
+     EditDeploymentModal, ExtendDurationModal, UpdateConfigModal,
+     ViewDetailsModal, ViewLogsModal, EditUserModal,
+     UserBindingManagementModal, ChannelSelectorModal.
+   - Pricing: PricingSidebar, PricingVendorIntro, SearchActions,
+     PricingFilterModal, ModelPricingTable, PricingCardSkeleton,
+     PricingCardView, PricingTable, PricingTableColumns.
+   - Other: ModelsColumnDefs, TaskLogsColumnDefs, tokens/index
+     (FluentNoticePanel + native model select), UsageLogsTable
+     (expanded-row grid).
+   - Settings personal: AccountManagement, CheckinCalendar,
+     NotificationSettings, PreferencesSettings, TwoFASetting,
+     UserInfoHeader, AccountDeleteModal, ChangePasswordModal,
+     EmailBindModal, WeChatBindModal.
+   - Setup wizard: AdminStep, CompleteStep, DatabaseStep, UsageModeStep.
+   - pages/Setting: SettingsAPIInfo, SettingsAnnouncements, SettingsFAQ,
+     SettingsUptimeKuma, SettingsPaymentGatewayCreem, ModelPricingEditor,
+     Setting/index (sidebar tabs).
+
+Verification: `bun run build` passes after every commit.
+`/components/table` and `/pages/Setting` now have zero literal slate/gray
+classes; `/components/settings`, `/components/topup`, `/components/setup`
+also clean.
+
+Out of scope (still uses literals — not part of /console):
+`playground/*`, `layout/headerbar/*`, `layout/Footer`, `layout/NoticeModal`,
+`auth/*`, `pages/Home`, `pages/About`, `pages/NotFound`, `pages/Forbidden`,
+`dashboard/modals/SearchModal`, `model-deployments/DeploymentAccessGuard`,
+`common/ErrorBoundary`, `ui/semi.js` (compat shim).
