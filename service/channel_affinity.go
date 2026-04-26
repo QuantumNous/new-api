@@ -195,6 +195,19 @@ func GetChannelAffinityCacheStats() ChannelAffinityCacheStats {
 	}
 }
 
+// InvalidateChannelAffinityByContext deletes the affinity cache entry
+// associated with the current request context (e.g. when the cached channel is disabled).
+func InvalidateChannelAffinityByContext(c *gin.Context) {
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok || cacheKey == "" {
+		return
+	}
+	cache := getChannelAffinityCache()
+	if _, err := cache.DeleteMany([]string{cacheKey}); err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache invalidate failed: key=%s, err=%v", cacheKey, err))
+	}
+}
+
 func ClearChannelAffinityCacheAll() int {
 	cache := getChannelAffinityCache()
 	keys, err := cache.Keys()
