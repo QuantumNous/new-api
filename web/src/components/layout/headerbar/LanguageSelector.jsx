@@ -76,10 +76,15 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
       </button>
 
       {open ? (
+        // Font-size lives on the wrapper, not the buttons: `@heroui/styles`
+        // resets `button { font-size: inherit }` outside any @layer, which
+        // beats every Tailwind utility per CSS Cascade Layers, so the
+        // buttons would otherwise inherit body's 16px. Set 14px here and
+        // let the menu items inherit it.
         <div
           role='menu'
           aria-label={t('common.changeLanguage')}
-          className='absolute right-0 top-full z-50 mt-2 min-w-36 rounded-xl border border-border bg-background p-1 shadow-lg'
+          className='absolute right-0 top-full z-50 mt-2 min-w-36 rounded-xl border border-border bg-background p-1 text-[14px] leading-5 shadow-lg'
         >
           {languages.map(([key, label]) => (
             <button
@@ -88,7 +93,7 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
               role='menuitemradio'
               aria-checked={currentLang === key}
               onClick={() => handleLanguageSelect(key)}
-              className={`flex w-full items-center rounded-md px-3 py-1.5 text-left text-[14px] leading-5 transition-colors hover:bg-surface-secondary ${
+              className={`flex w-full items-center rounded-md px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary ${
                 currentLang === key
                   ? 'bg-primary/10 text-primary'
                   : 'text-foreground'
