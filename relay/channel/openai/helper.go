@@ -257,5 +257,19 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 	if data == "" {
 		return
 	}
+	// dto.NormalizeResponsesStreamArgumentsJSON is type-aware: it only rewrites
+	// items whose declared `type` disagrees with the shape required by the
+	// Responses spec. This handler is shared across all channels that produce
+	// Responses stream events (codex, plain OpenAI, etc.); the normalization
+	// is a no-op when upstream events already match the spec, so passing
+	// non-Codex traffic through it is safe and cheap.
+	if normalizedData, changed, err := dto.NormalizeResponsesStreamArgumentsJSON(data); err != nil {
+		// Fail open: a normalization error should not abort the stream.
+		// The original `data` is whatever the upstream sent and remains
+		// the most authoritative source of truth on parse failure.
+		common.SysLog("failed to normalize responses stream arguments: " + err.Error())
+	} else if changed {
+		data = normalizedData
+	}
 	helper.ResponseChunkData(c, streamResponse, data)
 }

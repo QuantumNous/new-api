@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -52,8 +53,132 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	return nil, errors.New("codex channel: /v1/embeddings endpoint not supported")
 }
 
+// normalizeCodexResponsesInput rewrites the Responses-API `input` payload so the
+// Codex backend receives the per-item-type shapes it expects.
+//
+// Two shapes are observed in real Codex CLI / Codex Desktop sessions:
+//   - A bare JSON string: wrapped into a single user message so the upstream sees
+//     a list of message items (matching Codex CLI's behavior).
+//   - A JSON array of items: items whose `type` is listed in
+//     dto.ObjectArgumentItemTypes (tool_search_call / web_search_call / ...) must
+//     have `arguments` as a JSON object. function_call items keep `arguments`
+//     as a JSON string, per the OpenAI Responses spec. Items already in the
+//     correct shape are left untouched.
+//
+// Returns the original bytes unchanged when no rewrite is required.
+func normalizeCodexResponsesInput(raw json.RawMessage) (json.RawMessage, error) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
+		return raw, nil
+	}
+
+	if raw[0] == '"' {
+		var strInput string
+		if err := common.Unmarshal(raw, &strInput); err != nil {
+			return raw, err
+		}
+		wrapped := []map[string]string{
+			{"role": "user", "content": strInput},
+		}
+		return common.Marshal(wrapped)
+	}
+
+	if raw[0] == '[' {
+		var items []any
+		if err := common.Unmarshal(raw, &items); err != nil {
+			return raw, err
+		}
+		if convertCodexObjectArgItems(items) {
+			return common.Marshal(items)
+		}
+		return raw, nil
+	}
+
+	return raw, nil
+}
+
+// convertCodexObjectArgItems walks the input array and converts string
+// `arguments` values to JSON objects for item types that require it. Returns
+// true if any item was modified.
+func convertCodexObjectArgItems(items []any) bool {
+	changed := false
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		typ, _ := m["type"].(string)
+		if !dto.ObjectArgumentItemTypes[typ] {
+			continue
+		}
+		raw, has := m["arguments"]
+		if !has {
+			continue
+		}
+		switch v := raw.(type) {
+		case map[string]any, []any:
+			// already a JSON object/array
+			continue
+		case nil:
+			m["arguments"] = map[string]any{}
+			changed = true
+		case string:
+			m["arguments"] = parseStringArgsToObject(v)
+			changed = true
+		default:
+			m["arguments"] = map[string]any{"value": v}
+			changed = true
+		}
+	}
+	return changed
+}
+
+// parseStringArgsToObject parses a JSON-string arguments value into a map.
+//
+// Compliant clients (Codex Desktop, Codex CLI) always send object-shaped
+// arguments for the item types listed in dto.ObjectArgumentItemTypes, so this
+// function is only reached on misbehaving / legacy clients that wrap the
+// arguments into a string. Behavior:
+//
+//   - empty string                 -> {}
+//   - valid JSON object            -> the object itself
+//   - valid JSON null              -> {}
+//   - valid JSON of any other kind -> {"value": <parsed value>}
+//   - invalid JSON                 -> {"value": <original string>}
+//
+// The fallback wrapper (`{"value": ...}`) is best-effort: it preserves the
+// payload so the upstream can choose to accept or reject it, instead of
+// silently dropping data here. If the upstream's tool schema doesn't accept
+// the wrapped shape, the upstream will surface the error to the client,
+// which is the desired behavior for a relay.
+func parseStringArgsToObject(s string) map[string]any {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return map[string]any{}
+	}
+	var parsed any
+	if err := common.UnmarshalJsonStr(trimmed, &parsed); err != nil {
+		return map[string]any{"value": s}
+	}
+	if parsed == nil {
+		return map[string]any{}
+	}
+	if obj, ok := parsed.(map[string]any); ok {
+		return obj
+	}
+	return map[string]any{"value": parsed}
+}
+
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
+
+	if len(request.Input) > 0 {
+		normalizedInput, err := normalizeCodexResponsesInput(request.Input)
+		if err != nil {
+			return nil, err
+		}
+		request.Input = normalizedInput
+	}
 
 	if info != nil && info.ChannelSetting.SystemPrompt != "" {
 		systemPrompt := info.ChannelSetting.SystemPrompt

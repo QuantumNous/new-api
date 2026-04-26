@@ -345,7 +345,7 @@ type ResponsesOutput struct {
 	Size      string                   `json:"size"`
 	CallId    string                   `json:"call_id,omitempty"`
 	Name      string                   `json:"name,omitempty"`
-	Arguments string                   `json:"arguments,omitempty"`
+	Arguments FlexibleArguments        `json:"arguments,omitempty"`
 }
 
 type ResponsesOutputContent struct {
