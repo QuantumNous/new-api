@@ -205,19 +205,19 @@ const PricingTable = ({
     processedColumns[processedColumns.length - 1]?.fixed === 'right';
 
   const stickyHeadCellClass =
-    'sticky right-0 z-10 bg-slate-50 dark:bg-white/[0.04] shadow-[-1px_0_0_0_rgba(0,0,0,0.04)]';
+    'sticky right-0 z-10 bg-surface-secondary shadow-[-1px_0_0_0_rgba(0,0,0,0.04)]';
   const stickyBodyCellClass =
-    'sticky right-0 z-10 bg-white dark:bg-slate-950 shadow-[-1px_0_0_0_rgba(0,0,0,0.04)]';
+    'sticky right-0 z-10 bg-background shadow-[-1px_0_0_0_rgba(0,0,0,0.04)]';
 
   if (showSkeleton) {
     const colCount = processedColumns.length + (selectionEnabled ? 1 : 0);
     return (
-      <div className='overflow-hidden rounded-2xl border border-[color:var(--app-border)] bg-white dark:bg-slate-950'>
-        <div className='grid gap-px bg-slate-200/80 dark:bg-white/10'>
+      <div className='overflow-hidden rounded-2xl border border-border bg-background'>
+        <div className='grid gap-px bg-border'>
           {[0, 1, 2, 3].map((row) => (
             <div
               key={row}
-              className='grid bg-white p-3 dark:bg-slate-950'
+              className='grid bg-background p-3'
               style={{
                 gridTemplateColumns: `repeat(${Math.max(colCount, 1)}, minmax(0, 1fr))`,
               }}
@@ -225,7 +225,7 @@ const PricingTable = ({
               {Array.from({ length: colCount }).map((_, idx) => (
                 <Skeleton
                   key={idx}
-                  className='h-4 w-3/4 rounded-lg bg-slate-200 dark:bg-white/10'
+                  className='h-4 w-3/4 rounded-lg bg-surface-secondary'
                 />
               ))}
             </div>
@@ -237,10 +237,10 @@ const PricingTable = ({
 
   return (
     <div className='flex flex-col gap-3'>
-      <div className='overflow-hidden rounded-2xl border border-[color:var(--app-border)] bg-white dark:bg-slate-950'>
+      <div className='overflow-hidden rounded-2xl border border-border bg-background'>
         <div className='overflow-x-auto'>
           <table className='min-w-full border-collapse text-sm'>
-            <thead className='bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/[0.04] dark:text-slate-400'>
+            <thead className='bg-surface-secondary text-left text-xs font-semibold uppercase tracking-wide text-muted'>
               <tr>
                 {selectionEnabled && (
                   <th className='w-10 whitespace-nowrap px-3 py-3'>
@@ -277,7 +277,7 @@ const PricingTable = ({
                     className='py-12 text-center text-sm text-muted'
                   >
                     <div className='flex flex-col items-center gap-3'>
-                      <div className='flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                      <div className='flex h-20 w-20 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                         <Inbox size={36} />
                       </div>
                       <div>{t('搜索无结果')}</div>
@@ -291,7 +291,7 @@ const PricingTable = ({
                   return (
                     <tr
                       key={rowKey}
-                      className='cursor-pointer transition-colors hover:bg-slate-50/80 dark:hover:bg-white/[0.04]'
+                      className='cursor-pointer transition-colors hover:bg-surface-secondary/60'
                       onClick={() => openModelDetail && openModelDetail(record)}
                     >
                       {selectionEnabled && (
@@ -323,7 +323,7 @@ const PricingTable = ({
                         return (
                           <td
                             key={col.key || col.dataIndex || colIdx}
-                            className={`px-4 py-3 align-middle text-slate-700 dark:text-slate-200 ${sticky ? stickyBodyCellClass : ''}`}
+                            className={`px-4 py-3 align-middle text-foreground ${sticky ? stickyBodyCellClass : ''}`}
                           >
                             {cell}
                           </td>
