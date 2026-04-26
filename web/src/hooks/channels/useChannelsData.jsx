@@ -37,7 +37,9 @@ import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import { useChannelUpstreamUpdates } from './useChannelUpstreamUpdates';
 import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
-import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
+// CodexUsageModal is now state-driven; the page renders <CodexUsageModal>
+// using the `codexUsageOpen / codexUsageRecord / closeCodexUsage` triple
+// exposed below. The modal handles its own data fetching internally.
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -116,6 +118,19 @@ export const useChannelsData = () => {
   // Multi-key management states
   const [showMultiKeyManageModal, setShowMultiKeyManageModal] = useState(false);
   const [currentMultiKeyChannel, setCurrentMultiKeyChannel] = useState(null);
+
+  // Codex usage modal state
+  const [codexUsageOpen, setCodexUsageOpen] = useState(false);
+  const [codexUsageRecord, setCodexUsageRecord] = useState(null);
+  const closeCodexUsage = () => {
+    setCodexUsageOpen(false);
+    setCodexUsageRecord(null);
+  };
+  const onCopyCodexUsage = async (text) => {
+    const ok = await copy(text);
+    if (ok) showSuccess(t('已复制'));
+    else showError(t('复制失败'));
+  };
 
   // Refs
   const requestCounter = useRef(0);
@@ -754,15 +769,8 @@ export const useChannelsData = () => {
 
   const updateChannelBalance = async (record) => {
     if (record?.type === 57) {
-      openCodexUsageModal({
-        t,
-        record,
-        onCopy: async (text) => {
-          const ok = await copy(text);
-          if (ok) showSuccess(t('已复制'));
-          else showError(t('复制失败'));
-        },
-      });
+      setCodexUsageRecord(record);
+      setCodexUsageOpen(true);
       return;
     }
 
@@ -1186,6 +1194,13 @@ export const useChannelsData = () => {
     setShowMultiKeyManageModal,
     currentMultiKeyChannel,
     setCurrentMultiKeyChannel,
+
+    // Codex usage modal state
+    codexUsageOpen,
+    codexUsageRecord,
+    closeCodexUsage,
+    onCopyCodexUsage,
+
     ...upstreamUpdates,
 
     // Form
