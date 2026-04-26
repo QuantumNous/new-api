@@ -23,10 +23,10 @@ import {
   ModalContainer,
   ModalDialog,
   ModalHeader,
-  Tabs,
   Tooltip,
   useOverlayState,
 } from '@heroui/react';
+import { Segment } from '@heroui-pro/react';
 import { SiTelegram, SiWechat, SiLinux, SiDiscord } from 'react-icons/si';
 import {
   Copy,
@@ -266,27 +266,24 @@ const AccountManagement = ({
           </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs
+        {/* Segmented control */}
+        <Segment
+          aria-label={t('账户管理')}
           selectedKey={activeTab}
           onSelectionChange={(key) => setActiveTab(String(key))}
           className='mb-4'
         >
-          <Tabs.List aria-label={t('账户管理')}>
-            <Tabs.Tab id='binding'>
-              <span className='flex items-center gap-1.5'>
-                <UserPlus size={14} />
-                {t('账户绑定')}
-              </span>
-            </Tabs.Tab>
-            <Tabs.Tab id='security'>
-              <span className='flex items-center gap-1.5'>
-                <ShieldCheck size={14} />
-                {t('安全设置')}
-              </span>
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs>
+          <Segment.Item id='binding'>
+            <Segment.Separator />
+            <UserPlus size={14} />
+            {t('账户绑定')}
+          </Segment.Item>
+          <Segment.Item id='security'>
+            <Segment.Separator />
+            <ShieldCheck size={14} />
+            {t('安全设置')}
+          </Segment.Item>
+        </Segment>
 
         {/* 账户绑定 Tab */}
         {activeTab === 'binding' && (

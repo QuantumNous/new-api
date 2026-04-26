@@ -13,9 +13,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Card, Switch, Tabs } from '@heroui/react';
+import { Avatar, Button, Card, ListBox, Switch } from '@heroui/react';
+import { CellSelect, Segment } from '@heroui-pro/react';
 import {
   Bell,
+  ChevronsUpDown,
   DollarSign,
   Key,
   Link as LinkIcon,
@@ -486,23 +488,21 @@ const NotificationSettings = ({
           </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs
+        {/* Segmented control */}
+        <Segment
+          aria-label={t('其他设置')}
           selectedKey={activeTabKey}
           onSelectionChange={(key) => setActiveTabKey(String(key))}
-          className='mb-4'
+          className='mb-4 max-w-full overflow-x-auto'
         >
-          <Tabs.List aria-label={t('其他设置')}>
-            {tabs.map((tab) => (
-              <Tabs.Tab key={tab.key} id={tab.key}>
-                <span className='flex items-center gap-1.5'>
-                  {tab.icon}
-                  {tab.label}
-                </span>
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs>
+          {tabs.map((tab) => (
+            <Segment.Item key={tab.key} id={tab.key}>
+              <Segment.Separator />
+              {tab.icon}
+              {tab.label}
+            </Segment.Item>
+          ))}
+        </Segment>
 
         {/* Notification config tab */}
         {activeTabKey === 'notification' && (
@@ -510,20 +510,21 @@ const NotificationSettings = ({
             {/* Notification method segmented control */}
             <div className='mb-4 space-y-2'>
               <FieldLabel required>{t('通知方式')}</FieldLabel>
-              <Tabs
+              <Segment
+                aria-label={t('通知方式')}
                 selectedKey={notificationSettings.warningType}
                 onSelectionChange={(key) =>
                   setField('warningType')(String(key))
                 }
+                className='max-w-full overflow-x-auto'
               >
-                <Tabs.List aria-label={t('通知方式')}>
-                  {NOTIFICATION_OPTIONS.map((option) => (
-                    <Tabs.Tab key={option.value} id={option.value}>
-                      {option.label}
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
-              </Tabs>
+                {NOTIFICATION_OPTIONS.map((option) => (
+                  <Segment.Item key={option.value} id={option.value}>
+                    <Segment.Separator />
+                    {option.label}
+                  </Segment.Item>
+                ))}
+              </Segment>
               <FieldError>{errors.warningType}</FieldError>
             </div>
 
@@ -762,31 +763,46 @@ const NotificationSettings = ({
 
                 <div className='mb-4 max-w-[300px] space-y-2'>
                   <FieldLabel>{t('消息优先级')}</FieldLabel>
-                  <div className='relative'>
-                    <Bell
-                      size={14}
-                      className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted'
-                    />
-                    <select
-                      value={notificationSettings.gotifyPriority ?? ''}
-                      onChange={(event) => {
-                        const raw = event.target.value;
-                        setField('gotifyPriority')(
-                          raw === '' ? '' : Number(raw),
-                        );
-                      }}
-                      className={`${inputClass} pl-9`}
-                    >
-                      <option value=''>
-                        {t('请选择消息优先级')}
-                      </option>
-                      {GOTIFY_PRIORITY_PRESETS.map((preset) => (
-                        <option key={preset.value} value={preset.value}>
-                          {preset.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <CellSelect
+                    aria-label={t('消息优先级')}
+                    placeholder={t('请选择消息优先级')}
+                    selectedKey={
+                      notificationSettings.gotifyPriority === '' ||
+                      notificationSettings.gotifyPriority == null
+                        ? null
+                        : String(notificationSettings.gotifyPriority)
+                    }
+                    onSelectionChange={(key) => {
+                      setField('gotifyPriority')(
+                        key == null ? '' : Number(key),
+                      );
+                    }}
+                  >
+                    <CellSelect.Trigger>
+                      <CellSelect.Label>
+                        <Bell size={14} className='mr-1.5 inline text-muted' />
+                        {t('优先级')}
+                      </CellSelect.Label>
+                      <CellSelect.Value />
+                      <CellSelect.Indicator>
+                        <ChevronsUpDown size={14} />
+                      </CellSelect.Indicator>
+                    </CellSelect.Trigger>
+                    <CellSelect.Popover>
+                      <ListBox>
+                        {GOTIFY_PRIORITY_PRESETS.map((preset) => (
+                          <ListBox.Item
+                            key={preset.value}
+                            id={String(preset.value)}
+                            textValue={preset.label}
+                          >
+                            {preset.label}
+                            <ListBox.ItemIndicator />
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </CellSelect.Popover>
+                  </CellSelect>
                   <FieldHint>{t('消息优先级，范围0-10，默认为5')}</FieldHint>
                 </div>
 
