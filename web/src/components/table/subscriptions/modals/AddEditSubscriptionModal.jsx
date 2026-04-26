@@ -6,27 +6,22 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Button, Card, Select } from '@heroui/react';
-import { Avatar, Col, Form, Row, SideSheet, Space, Spin, Tag, Typography } from '@/components/common/ui/HeroCompat';
+import React, { useEffect, useState } from 'react';
+import { Button, Card, Spinner, Switch } from '@heroui/react';
 import {
-  IconCalendarClock,
-  IconClose,
-  IconCreditCard,
-  IconSave,
-} from '@/components/common/ui/HeroIconsCompat';
-import { Clock, RefreshCw } from 'lucide-react';
+  CalendarClock,
+  Clock,
+  CreditCard,
+  RefreshCw,
+  Save,
+  X,
+} from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import {
   quotaToDisplayAmount,
@@ -34,7 +29,62 @@ import {
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
-const { Text, Title } = Typography;
+const TAG_TONE = {
+  green: 'bg-success/15 text-success',
+  blue: 'bg-primary/15 text-primary',
+};
+
+function StatusChip({ tone, children }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+        TAG_TONE[tone] || TAG_TONE.blue
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function IconTile({ tone, children }) {
+  const cls =
+    {
+      blue: 'bg-primary/10 text-primary',
+      green: 'bg-success/10 text-success',
+      orange: 'bg-warning/10 text-warning',
+      purple:
+        'bg-[color-mix(in_oklab,var(--app-primary)_8%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_82%,var(--app-foreground))]',
+    }[tone] || 'bg-primary/10 text-primary';
+  return (
+    <div
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${cls}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+const inputClass =
+  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+
+function FieldLabel({ children, required }) {
+  return (
+    <label className='block text-sm font-medium text-foreground'>
+      {children}
+      {required ? <span className='ml-0.5 text-danger'>*</span> : null}
+    </label>
+  );
+}
+
+function FieldHint({ children }) {
+  if (!children) return null;
+  return <div className='mt-1.5 text-xs text-muted'>{children}</div>;
+}
+
+function FieldError({ children }) {
+  if (!children) return null;
+  return <div className='mt-1 text-xs text-danger'>{children}</div>;
+}
 
 const durationUnitOptions = [
   { value: 'year', label: '年' },
@@ -52,6 +102,25 @@ const resetPeriodOptions = [
   { value: 'custom', label: '自定义(秒)' },
 ];
 
+const INIT_VALUES = {
+  title: '',
+  subtitle: '',
+  price_amount: 0,
+  currency: 'USD',
+  duration_unit: 'month',
+  duration_value: 1,
+  custom_seconds: 0,
+  quota_reset_period: 'never',
+  quota_reset_custom_seconds: 0,
+  enabled: true,
+  sort_order: 0,
+  max_purchase_per_user: 0,
+  total_amount: 0,
+  upgrade_group: '',
+  stripe_price_id: '',
+  creem_product_id: '',
+};
+
 const AddEditSubscriptionModal = ({
   visible,
   handleClose,
@@ -64,35 +133,15 @@ const AddEditSubscriptionModal = ({
   const [groupOptions, setGroupOptions] = useState([]);
   const [groupLoading, setGroupLoading] = useState(false);
   const isMobile = useIsMobile();
-  const formApiRef = useRef(null);
   const isEdit = editingPlan?.plan?.id !== undefined;
-  const formKey = isEdit ? `edit-${editingPlan?.plan?.id}` : 'create';
-
-  const getInitValues = () => ({
-    title: '',
-    subtitle: '',
-    price_amount: 0,
-    currency: 'USD',
-    duration_unit: 'month',
-    duration_value: 1,
-    custom_seconds: 0,
-    quota_reset_period: 'never',
-    quota_reset_custom_seconds: 0,
-    enabled: true,
-    sort_order: 0,
-    max_purchase_per_user: 0,
-    total_amount: 0,
-    upgrade_group: '',
-    stripe_price_id: '',
-    creem_product_id: '',
-  });
+  const [values, setValues] = useState(INIT_VALUES);
+  const [errors, setErrors] = useState({});
 
   const buildFormValues = () => {
-    const base = getInitValues();
-    if (editingPlan?.plan?.id === undefined) return base;
+    if (editingPlan?.plan?.id === undefined) return INIT_VALUES;
     const p = editingPlan.plan || {};
     return {
-      ...base,
+      ...INIT_VALUES,
       title: p.title || '',
       subtitle: p.subtitle || '',
       price_amount: Number(p.price_amount || 0),
@@ -116,6 +165,8 @@ const AddEditSubscriptionModal = ({
 
   useEffect(() => {
     if (!visible) return;
+    setValues(buildFormValues());
+    setErrors({});
     setGroupLoading(true);
     API.get('/api/group')
       .then((res) => {
@@ -127,11 +178,75 @@ const AddEditSubscriptionModal = ({
       })
       .catch(() => setGroupOptions([]))
       .finally(() => setGroupLoading(false));
-  }, [visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, editingPlan?.plan?.id]);
 
-  const submit = async (values) => {
+  // ESC-to-close
+  useEffect(() => {
+    if (!visible) return;
+    const onKey = (event) => {
+      if (event.key === 'Escape') handleClose?.();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [visible, handleClose]);
+
+  const setField = (key) => (value) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
+  const setNumberField = (key) => (raw) => {
+    const value = raw === '' ? '' : Number(raw);
+    setField(key)(value);
+  };
+
+  const validate = () => {
+    const next = {};
     if (!values.title || values.title.trim() === '') {
-      showError(t('套餐标题不能为空'));
+      next.title = t('请输入套餐标题');
+    }
+    if (
+      values.price_amount === '' ||
+      values.price_amount === null ||
+      Number(values.price_amount) < 0
+    ) {
+      next.price_amount = t('请输入金额');
+    }
+    if (
+      values.total_amount === '' ||
+      values.total_amount === null ||
+      Number(values.total_amount) < 0
+    ) {
+      next.total_amount = t('请输入总额度');
+    }
+    if (!values.duration_unit) {
+      next.duration_unit = t('请选择有效期单位');
+    }
+    if (values.duration_unit === 'custom') {
+      if (!values.custom_seconds || Number(values.custom_seconds) < 1) {
+        next.custom_seconds = t('请输入秒数');
+      }
+    } else if (
+      !values.duration_value ||
+      Number(values.duration_value) < 1
+    ) {
+      next.duration_value = t('请输入数值');
+    }
+    if (
+      values.quota_reset_period === 'custom' &&
+      (!values.quota_reset_custom_seconds ||
+        Number(values.quota_reset_custom_seconds) < 60)
+    ) {
+      next.quota_reset_custom_seconds = t('请输入秒数');
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const submit = async () => {
+    if (!validate()) {
+      showError(t('请检查表单填写'));
       return;
     }
     setLoading(true);
@@ -183,357 +298,417 @@ const AddEditSubscriptionModal = ({
     }
   };
 
+  const slideClose =
+    placement === 'right' ? 'translate-x-full' : '-translate-x-full';
+  const positionClass =
+    placement === 'right'
+      ? 'fixed bottom-0 right-0 top-0'
+      : 'fixed bottom-0 left-0 top-0';
+
   return (
     <>
-      <SideSheet
-        placement={placement}
-        title={
-          <Space>
-            {isEdit ? (
-              <Tag color='blue' shape='circle'>
-                {t('更新')}
-              </Tag>
-            ) : (
-              <Tag color='green' shape='circle'>
-                {t('新建')}
-              </Tag>
-            )}
-            <Title heading={4} className='m-0'>
-              {isEdit ? t('更新套餐信息') : t('创建新的订阅套餐')}
-            </Title>
-          </Space>
-        }
-        bodyStyle={{ padding: '0' }}
-        visible={visible}
-        width={isMobile ? '100%' : 600}
-        footer={
-          <div className='flex justify-end bg-white'>
-            <Space>
-              <Button
-                theme='solid'
-                onClick={() => formApiRef.current?.submitForm()}
-                icon={<IconSave />}
-                loading={loading}
-              >
-                {t('提交')}
-              </Button>
-              <Button
-                theme='light'
-                type='primary'
-                onClick={handleClose}
-                icon={<IconClose />}
-              >
-                {t('取消')}
-              </Button>
-            </Space>
-          </div>
-        }
-        closeIcon={null}
-        onCancel={handleClose}
+      <div
+        aria-hidden={!visible}
+        onClick={handleClose}
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
+          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+      <aside
+        role='dialog'
+        aria-modal='true'
+        aria-hidden={!visible}
+        style={{ width: isMobile ? '100%' : 600 }}
+        className={`${positionClass} z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
+          visible ? 'translate-x-0' : slideClose
+        }`}
       >
-        <Spin spinning={loading}>
-          <Form
-            key={formKey}
-            initValues={buildFormValues()}
-            getFormApi={(api) => (formApiRef.current = api)}
-            onSubmit={submit}
+        <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
+          <div className='flex items-center gap-2'>
+            <StatusChip tone={isEdit ? 'blue' : 'green'}>
+              {isEdit ? t('更新') : t('新建')}
+            </StatusChip>
+            <h4 className='m-0 text-lg font-semibold text-foreground'>
+              {isEdit ? t('更新套餐信息') : t('创建新的订阅套餐')}
+            </h4>
+          </div>
+          <Button
+            isIconOnly
+            variant='light'
+            size='sm'
+            aria-label={t('关闭')}
+            onPress={handleClose}
           >
-            {({ values }) => (
-              <div className='p-2'>
-                {/* 基本信息 */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
-                  <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='blue'
-                      className='mr-2 shadow-md'
-                    >
-                      <IconCalendarClock size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('基本信息')}
-                      </Text>
-                      <div className='text-xs text-muted'>
-                        {t('套餐的基本信息和定价')}
-                      </div>
-                    </div>
+            <X size={16} />
+          </Button>
+        </header>
+
+        <div className='relative flex-1 overflow-y-auto p-3'>
+          {loading && (
+            <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px]'>
+              <Spinner color='primary' />
+            </div>
+          )}
+
+          {/* 基本信息 */}
+          <Card className='mb-3 !rounded-2xl border-0 shadow-sm'>
+            <Card.Content className='space-y-4 p-5'>
+              <div className='flex items-center gap-2'>
+                <IconTile tone='blue'>
+                  <CalendarClock size={16} />
+                </IconTile>
+                <div>
+                  <div className='text-base font-semibold text-foreground'>
+                    {t('基本信息')}
                   </div>
-
-                  <Row gutter={12}>
-                    <Col span={24}>
-                      <Form.Input
-                        field='title'
-                        label={t('套餐标题')}
-                        placeholder={t('例如：基础套餐')}
-                        required
-                        rules={[
-                          { required: true, message: t('请输入套餐标题') },
-                        ]}
-                        showClear
-                      />
-                    </Col>
-
-                    <Col span={24}>
-                      <Form.Input
-                        field='subtitle'
-                        label={t('套餐副标题')}
-                        placeholder={t('例如：适合轻度使用')}
-                        showClear
-                      />
-                    </Col>
-
-                    <Col span={12}>
-                      <Form.InputNumber
-                        field='price_amount'
-                        label={t('实付金额')}
-                        required
-                        min={0}
-                        precision={2}
-                        rules={[{ required: true, message: t('请输入金额') }]}
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
-
-                    <Col span={12}>
-                      <Form.InputNumber
-                        field='total_amount'
-                        label={t('总额度')}
-                        required
-                        min={0}
-                        precision={2}
-                        rules={[{ required: true, message: t('请输入总额度') }]}
-                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
-                          values.total_amount,
-                        )}`}
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
-
-                    <Col span={12}>
-                      <Form.Select
-                        field='upgrade_group'
-                        label={t('升级分组')}
-                        showClear
-                        loading={groupLoading}
-                        placeholder={t('不升级')}
-                        extraText={t(
-                          '购买或手动新增订阅会升级到该分组；当套餐失效/过期或手动作废/删除后，将回退到升级前分组。回退不会立即生效，通常会有几分钟延迟。',
-                        )}
-                      >
-                        <Select.Option value=''>{t('不升级')}</Select.Option>
-                        {(groupOptions || []).map((g) => (
-                          <Select.Option key={g} value={g}>
-                            {g}
-                          </Select.Option>
-                        ))}
-                      </Form.Select>
-                    </Col>
-
-                    <Col span={12}>
-                      <Form.Input
-                        field='currency'
-                        label={t('币种')}
-                        disabled
-                        extraText={t('由全站货币展示设置统一控制')}
-                      />
-                    </Col>
-
-                    <Col span={12}>
-                      <Form.InputNumber
-                        field='sort_order'
-                        label={t('排序')}
-                        precision={0}
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
-
-                    <Col span={12}>
-                      <Form.InputNumber
-                        field='max_purchase_per_user'
-                        label={t('购买上限')}
-                        min={0}
-                        precision={0}
-                        extraText={t('0 表示不限')}
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
-
-                    <Col span={12}>
-                      <Form.Switch
-                        field='enabled'
-                        label={t('启用状态')}
-                        size='large'
-                      />
-                    </Col>
-                  </Row>
-                </Card>
-
-                {/* 有效期设置 */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
-                  <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='green'
-                      className='mr-2 shadow-md'
-                    >
-                      <Clock size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('有效期设置')}
-                      </Text>
-                      <div className='text-xs text-muted'>
-                        {t('配置套餐的有效时长')}
-                      </div>
-                    </div>
+                  <div className='text-xs text-muted'>
+                    {t('套餐的基本信息和定价')}
                   </div>
-
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Select
-                        field='duration_unit'
-                        label={t('有效期单位')}
-                        required
-                        rules={[{ required: true }]}
-                      >
-                        {durationUnitOptions.map((o) => (
-                          <Select.Option key={o.value} value={o.value}>
-                            {o.label}
-                          </Select.Option>
-                        ))}
-                      </Form.Select>
-                    </Col>
-
-                    <Col span={12}>
-                      {values.duration_unit === 'custom' ? (
-                        <Form.InputNumber
-                          field='custom_seconds'
-                          label={t('自定义秒数')}
-                          required
-                          min={1}
-                          precision={0}
-                          rules={[{ required: true, message: t('请输入秒数') }]}
-                          style={{ width: '100%' }}
-                        />
-                      ) : (
-                        <Form.InputNumber
-                          field='duration_value'
-                          label={t('有效期数值')}
-                          required
-                          min={1}
-                          precision={0}
-                          rules={[{ required: true, message: t('请输入数值') }]}
-                          style={{ width: '100%' }}
-                        />
-                      )}
-                    </Col>
-                  </Row>
-                </Card>
-
-                {/* 额度重置 */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
-                  <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='orange'
-                      className='mr-2 shadow-md'
-                    >
-                      <RefreshCw size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('额度重置')}
-                      </Text>
-                      <div className='text-xs text-muted'>
-                        {t('支持周期性重置套餐权益额度')}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.Select
-                        field='quota_reset_period'
-                        label={t('重置周期')}
-                      >
-                        {resetPeriodOptions.map((o) => (
-                          <Select.Option key={o.value} value={o.value}>
-                            {o.label}
-                          </Select.Option>
-                        ))}
-                      </Form.Select>
-                    </Col>
-                    <Col span={12}>
-                      {values.quota_reset_period === 'custom' ? (
-                        <Form.InputNumber
-                          field='quota_reset_custom_seconds'
-                          label={t('自定义秒数')}
-                          required
-                          min={60}
-                          precision={0}
-                          rules={[{ required: true, message: t('请输入秒数') }]}
-                          style={{ width: '100%' }}
-                        />
-                      ) : (
-                        <Form.InputNumber
-                          field='quota_reset_custom_seconds'
-                          label={t('自定义秒数')}
-                          min={0}
-                          precision={0}
-                          style={{ width: '100%' }}
-                          disabled
-                        />
-                      )}
-                    </Col>
-                  </Row>
-                </Card>
-
-                {/* 第三方支付配置 */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
-                  <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='purple'
-                      className='mr-2 shadow-md'
-                    >
-                      <IconCreditCard size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('第三方支付配置')}
-                      </Text>
-                      <div className='text-xs text-muted'>
-                        {t('Stripe/Creem 商品ID（可选）')}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Row gutter={12}>
-                    <Col span={24}>
-                      <Form.Input
-                        field='stripe_price_id'
-                        label='Stripe PriceId'
-                        placeholder='price_...'
-                        showClear
-                      />
-                    </Col>
-
-                    <Col span={24}>
-                      <Form.Input
-                        field='creem_product_id'
-                        label='Creem ProductId'
-                        placeholder='prod_...'
-                        showClear
-                      />
-                    </Col>
-                  </Row>
-                </Card>
+                </div>
               </div>
-            )}
-          </Form>
-        </Spin>
-      </SideSheet>
+
+              <div className='space-y-3'>
+                <div className='space-y-2'>
+                  <FieldLabel required>{t('套餐标题')}</FieldLabel>
+                  <input
+                    type='text'
+                    value={values.title}
+                    onChange={(event) => setField('title')(event.target.value)}
+                    placeholder={t('例如：基础套餐')}
+                    className={inputClass}
+                  />
+                  <FieldError>{errors.title}</FieldError>
+                </div>
+
+                <div className='space-y-2'>
+                  <FieldLabel>{t('套餐副标题')}</FieldLabel>
+                  <input
+                    type='text'
+                    value={values.subtitle}
+                    onChange={(event) =>
+                      setField('subtitle')(event.target.value)
+                    }
+                    placeholder={t('例如：适合轻度使用')}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                  <div className='space-y-2'>
+                    <FieldLabel required>{t('实付金额')}</FieldLabel>
+                    <input
+                      type='number'
+                      min={0}
+                      step={0.01}
+                      value={values.price_amount}
+                      onChange={(event) =>
+                        setNumberField('price_amount')(event.target.value)
+                      }
+                      className={inputClass}
+                    />
+                    <FieldError>{errors.price_amount}</FieldError>
+                  </div>
+                  <div className='space-y-2'>
+                    <FieldLabel required>{t('总额度')}</FieldLabel>
+                    <input
+                      type='number'
+                      min={0}
+                      step={0.01}
+                      value={values.total_amount}
+                      onChange={(event) =>
+                        setNumberField('total_amount')(event.target.value)
+                      }
+                      className={inputClass}
+                    />
+                    <FieldHint>
+                      {`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                        values.total_amount,
+                      )}`}
+                    </FieldHint>
+                    <FieldError>{errors.total_amount}</FieldError>
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                  <div className='space-y-2'>
+                    <FieldLabel>{t('升级分组')}</FieldLabel>
+                    <select
+                      value={values.upgrade_group || ''}
+                      onChange={(event) =>
+                        setField('upgrade_group')(event.target.value)
+                      }
+                      disabled={groupLoading}
+                      className={inputClass}
+                    >
+                      <option value=''>{t('不升级')}</option>
+                      {(groupOptions || []).map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </select>
+                    <FieldHint>
+                      {t(
+                        '购买或手动新增订阅会升级到该分组；当套餐失效/过期或手动作废/删除后，将回退到升级前分组。回退不会立即生效，通常会有几分钟延迟。',
+                      )}
+                    </FieldHint>
+                  </div>
+                  <div className='space-y-2'>
+                    <FieldLabel>{t('币种')}</FieldLabel>
+                    <input
+                      type='text'
+                      value={values.currency}
+                      disabled
+                      className={inputClass}
+                    />
+                    <FieldHint>{t('由全站货币展示设置统一控制')}</FieldHint>
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+                  <div className='space-y-2'>
+                    <FieldLabel>{t('排序')}</FieldLabel>
+                    <input
+                      type='number'
+                      step={1}
+                      value={values.sort_order}
+                      onChange={(event) =>
+                        setNumberField('sort_order')(event.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <FieldLabel>{t('购买上限')}</FieldLabel>
+                    <input
+                      type='number'
+                      min={0}
+                      step={1}
+                      value={values.max_purchase_per_user}
+                      onChange={(event) =>
+                        setNumberField('max_purchase_per_user')(
+                          event.target.value,
+                        )
+                      }
+                      className={inputClass}
+                    />
+                    <FieldHint>{t('0 表示不限')}</FieldHint>
+                  </div>
+                  <div className='space-y-2'>
+                    <FieldLabel>{t('启用状态')}</FieldLabel>
+                    <div className='flex h-10 items-center'>
+                      <Switch
+                        isSelected={values.enabled}
+                        onValueChange={setField('enabled')}
+                        size='md'
+                        aria-label={t('启用状态')}
+                      >
+                        <Switch.Control>
+                          <Switch.Thumb />
+                        </Switch.Control>
+                      </Switch>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card.Content>
+          </Card>
+
+          {/* 有效期设置 */}
+          <Card className='mb-3 !rounded-2xl border-0 shadow-sm'>
+            <Card.Content className='space-y-4 p-5'>
+              <div className='flex items-center gap-2'>
+                <IconTile tone='green'>
+                  <Clock size={16} />
+                </IconTile>
+                <div>
+                  <div className='text-base font-semibold text-foreground'>
+                    {t('有效期设置')}
+                  </div>
+                  <div className='text-xs text-muted'>
+                    {t('配置套餐的有效时长')}
+                  </div>
+                </div>
+              </div>
+
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <div className='space-y-2'>
+                  <FieldLabel required>{t('有效期单位')}</FieldLabel>
+                  <select
+                    value={values.duration_unit}
+                    onChange={(event) =>
+                      setField('duration_unit')(event.target.value)
+                    }
+                    className={inputClass}
+                  >
+                    {durationUnitOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className='space-y-2'>
+                  {values.duration_unit === 'custom' ? (
+                    <>
+                      <FieldLabel required>{t('自定义秒数')}</FieldLabel>
+                      <input
+                        type='number'
+                        min={1}
+                        step={1}
+                        value={values.custom_seconds}
+                        onChange={(event) =>
+                          setNumberField('custom_seconds')(event.target.value)
+                        }
+                        className={inputClass}
+                      />
+                      <FieldError>{errors.custom_seconds}</FieldError>
+                    </>
+                  ) : (
+                    <>
+                      <FieldLabel required>{t('有效期数值')}</FieldLabel>
+                      <input
+                        type='number'
+                        min={1}
+                        step={1}
+                        value={values.duration_value}
+                        onChange={(event) =>
+                          setNumberField('duration_value')(event.target.value)
+                        }
+                        className={inputClass}
+                      />
+                      <FieldError>{errors.duration_value}</FieldError>
+                    </>
+                  )}
+                </div>
+              </div>
+            </Card.Content>
+          </Card>
+
+          {/* 额度重置 */}
+          <Card className='mb-3 !rounded-2xl border-0 shadow-sm'>
+            <Card.Content className='space-y-4 p-5'>
+              <div className='flex items-center gap-2'>
+                <IconTile tone='orange'>
+                  <RefreshCw size={16} />
+                </IconTile>
+                <div>
+                  <div className='text-base font-semibold text-foreground'>
+                    {t('额度重置')}
+                  </div>
+                  <div className='text-xs text-muted'>
+                    {t('支持周期性重置套餐权益额度')}
+                  </div>
+                </div>
+              </div>
+
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <div className='space-y-2'>
+                  <FieldLabel>{t('重置周期')}</FieldLabel>
+                  <select
+                    value={values.quota_reset_period}
+                    onChange={(event) =>
+                      setField('quota_reset_period')(event.target.value)
+                    }
+                    className={inputClass}
+                  >
+                    {resetPeriodOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className='space-y-2'>
+                  <FieldLabel
+                    required={values.quota_reset_period === 'custom'}
+                  >
+                    {t('自定义秒数')}
+                  </FieldLabel>
+                  <input
+                    type='number'
+                    min={values.quota_reset_period === 'custom' ? 60 : 0}
+                    step={1}
+                    value={values.quota_reset_custom_seconds}
+                    onChange={(event) =>
+                      setNumberField('quota_reset_custom_seconds')(
+                        event.target.value,
+                      )
+                    }
+                    disabled={values.quota_reset_period !== 'custom'}
+                    className={inputClass}
+                  />
+                  <FieldError>{errors.quota_reset_custom_seconds}</FieldError>
+                </div>
+              </div>
+            </Card.Content>
+          </Card>
+
+          {/* 第三方支付配置 */}
+          <Card className='!rounded-2xl border-0 shadow-sm'>
+            <Card.Content className='space-y-4 p-5'>
+              <div className='flex items-center gap-2'>
+                <IconTile tone='purple'>
+                  <CreditCard size={16} />
+                </IconTile>
+                <div>
+                  <div className='text-base font-semibold text-foreground'>
+                    {t('第三方支付配置')}
+                  </div>
+                  <div className='text-xs text-muted'>
+                    {t('Stripe/Creem 商品ID（可选）')}
+                  </div>
+                </div>
+              </div>
+
+              <div className='space-y-3'>
+                <div className='space-y-2'>
+                  <FieldLabel>Stripe PriceId</FieldLabel>
+                  <input
+                    type='text'
+                    value={values.stripe_price_id}
+                    onChange={(event) =>
+                      setField('stripe_price_id')(event.target.value)
+                    }
+                    placeholder='price_...'
+                    className={inputClass}
+                  />
+                </div>
+                <div className='space-y-2'>
+                  <FieldLabel>Creem ProductId</FieldLabel>
+                  <input
+                    type='text'
+                    value={values.creem_product_id}
+                    onChange={(event) =>
+                      setField('creem_product_id')(event.target.value)
+                    }
+                    placeholder='prod_...'
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </Card.Content>
+          </Card>
+        </div>
+
+        <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
+          <Button
+            variant='light'
+            startContent={<X size={14} />}
+            onPress={handleClose}
+          >
+            {t('取消')}
+          </Button>
+          <Button
+            color='primary'
+            isPending={loading}
+            startContent={<Save size={14} />}
+            onPress={submit}
+          >
+            {t('提交')}
+          </Button>
+        </footer>
+      </aside>
     </>
   );
 };
