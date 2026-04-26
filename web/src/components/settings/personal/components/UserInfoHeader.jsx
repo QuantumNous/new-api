@@ -65,9 +65,11 @@ const UserInfoHeader = ({ t, userState }) => {
     avatarColorClasses[stringToColor(username)] || 'bg-muted';
 
   const StatItem = ({ icon, label, value }) => (
-    <div className='flex items-center gap-2 min-w-0'>
-      <span className='text-muted shrink-0'>{icon}</span>
-      <span className='text-sm text-muted shrink-0'>{label}</span>
+    <div className='flex flex-col min-w-0 xl:flex-row xl:items-center xl:gap-2'>
+      <span className='flex items-center gap-1.5 text-xs text-muted xl:text-sm'>
+        <span className='text-muted'>{icon}</span>
+        <span className='truncate'>{label}</span>
+      </span>
       <span className='text-sm font-semibold text-foreground truncate'>
         {value}
       </span>
@@ -121,74 +123,45 @@ const UserInfoHeader = ({ t, userState }) => {
 
       <Card.Content className='p-4 sm:p-6'>
         {/* Balance + stats row (stacks on small screens) */}
-        <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
+        <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
           {/* Current balance */}
-          <div className='flex min-w-0 items-center gap-3'>
+          <div className='flex items-center gap-3'>
             <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary'>
               <Wallet size={18} />
             </span>
-            <div className='flex min-w-0 flex-col'>
+            <div className='flex flex-col'>
               <span className='text-xs text-muted'>{t('当前余额')}</span>
-              <span className='truncate text-2xl sm:text-3xl font-bold tracking-tight text-foreground'>
+              <span className='text-2xl sm:text-3xl font-bold tracking-tight text-foreground'>
                 {renderQuota(userState?.user?.quota)}
               </span>
             </div>
           </div>
 
-          {/* Desktop stats inline */}
-          <div className='hidden lg:flex items-center gap-4 rounded-xl border border-border bg-surface-secondary/40 px-4 py-2.5'>
+          {/* Stats grid – three columns on tablet, inline pill on xl */}
+          <div className='grid grid-cols-3 gap-3 rounded-xl border border-border bg-surface-secondary/40 px-3 py-2.5 xl:flex xl:items-center xl:gap-4 xl:px-4'>
             <StatItem
               icon={<Coins size={16} />}
               label={t('历史消耗')}
               value={renderQuota(userState?.user?.used_quota)}
             />
-            <span className='h-5 w-px bg-border' aria-hidden />
+            <span
+              className='hidden xl:block h-5 w-px bg-border'
+              aria-hidden
+            />
             <StatItem
               icon={<BarChart2 size={16} />}
               label={t('请求次数')}
               value={userState?.user?.request_count || 0}
             />
-            <span className='h-5 w-px bg-border' aria-hidden />
+            <span
+              className='hidden xl:block h-5 w-px bg-border'
+              aria-hidden
+            />
             <StatItem
               icon={<Users size={16} />}
               label={t('用户分组')}
               value={userState?.user?.group || t('默认')}
             />
-          </div>
-        </div>
-
-        {/* Mobile / tablet stats stacked */}
-        <div className='lg:hidden mt-4 rounded-xl border border-border bg-surface-secondary/40 px-4 py-3'>
-          <div className='space-y-3'>
-            <div className='flex items-center justify-between gap-3'>
-              <div className='flex items-center gap-2 text-sm text-muted'>
-                <Coins size={16} />
-                <span>{t('历史消耗')}</span>
-              </div>
-              <span className='text-sm font-semibold text-foreground'>
-                {renderQuota(userState?.user?.used_quota)}
-              </span>
-            </div>
-            <div className='h-px w-full bg-border' />
-            <div className='flex items-center justify-between gap-3'>
-              <div className='flex items-center gap-2 text-sm text-muted'>
-                <BarChart2 size={16} />
-                <span>{t('请求次数')}</span>
-              </div>
-              <span className='text-sm font-semibold text-foreground'>
-                {userState?.user?.request_count || 0}
-              </span>
-            </div>
-            <div className='h-px w-full bg-border' />
-            <div className='flex items-center justify-between gap-3'>
-              <div className='flex items-center gap-2 text-sm text-muted'>
-                <Users size={16} />
-                <span>{t('用户分组')}</span>
-              </div>
-              <span className='text-sm font-semibold text-foreground'>
-                {userState?.user?.group || t('默认')}
-              </span>
-            </div>
           </div>
         </div>
       </Card.Content>
