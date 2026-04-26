@@ -6,18 +6,23 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button, Card, Spinner } from '@heroui/react';
+import {
+  Bookmark,
+  Code2,
+  Save,
+  Settings,
+  User,
+  X,
+} from 'lucide-react';
 import {
   API,
   showError,
@@ -26,139 +31,303 @@ import {
   showWarning,
   verifyJSON,
   selectFilter,
+  getChannelModels,
 } from '../../../../helpers';
-import { Button, Card } from '@heroui/react';
-import { SideSheet, Space, Typography, Spin, Banner, Tag, Avatar, Form } from '@/components/common/ui/HeroCompat';
-import {
-  IconSave,
-  IconClose,
-  IconBookmark,
-  IconUser,
-  IconCode,
-  IconSetting,
-} from '@/components/common/ui/HeroIconsCompat';
-import { getChannelModels } from '../../../../helpers';
-import { useTranslation } from 'react-i18next';
 
-const { Text, Title } = Typography;
+// ----------------------------- helpers -----------------------------
+
+const TAG_TONE = {
+  blue: 'bg-primary/15 text-primary',
+};
+
+function StatusChip({ tone = 'blue', children }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+        TAG_TONE[tone] || TAG_TONE.blue
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function IconTile({ tone, children }) {
+  const cls =
+    {
+      blue: 'bg-primary/10 text-primary',
+      purple:
+        'bg-[color-mix(in_oklab,var(--app-primary)_8%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_82%,var(--app-foreground))]',
+      orange: 'bg-warning/10 text-warning',
+      green: 'bg-success/10 text-success',
+    }[tone] || 'bg-primary/10 text-primary';
+  return (
+    <div
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${cls}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+const inputClass =
+  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+
+const textareaClass =
+  'w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none transition focus:border-primary';
+
+function FieldLabel({ children }) {
+  return (
+    <label className='block text-sm font-medium text-foreground'>
+      {children}
+    </label>
+  );
+}
+
+function FieldHint({ children }) {
+  if (!children) return null;
+  return <div className='mt-1.5 text-xs text-muted'>{children}</div>;
+}
+
+function InfoBanner({ tone = 'info', children }) {
+  const cls =
+    tone === 'warning'
+      ? 'border-warning/30 bg-warning/5'
+      : 'border-primary/20 bg-primary/5';
+  return (
+    <div
+      className={`flex items-start gap-2 rounded-xl border ${cls} px-3 py-2 text-xs text-foreground`}
+    >
+      <span>{children}</span>
+    </div>
+  );
+}
+
+// MultiSelectChips: a chip-based multi-select with a filtered dropdown.
+// Mirrors the Semi `<Form.Select multiple filter allowCreate>` UX
+// (chips above + search + listbox).
+function MultiSelectChips({
+  value = [],
+  options = [],
+  placeholder,
+  allowCreate = false,
+  filter,
+  onChange,
+  onSearch,
+  hint,
+  emptyHint,
+}) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return options;
+    const matcher =
+      typeof filter === 'function'
+        ? (option) => filter(search, option)
+        : (option) => {
+            const label = String(option.label ?? option.value ?? '');
+            return label.toLowerCase().includes(search.toLowerCase());
+          };
+    return options.filter(matcher);
+  }, [options, search, filter]);
+
+  const removeAt = (val) => {
+    onChange?.((value || []).filter((v) => v !== val));
+  };
+
+  const toggle = (val) => {
+    if ((value || []).includes(val)) removeAt(val);
+    else onChange?.([...(value || []), val]);
+  };
+
+  const handleEnter = () => {
+    const trimmed = search.trim();
+    if (!trimmed) return;
+    if (filtered.length > 0) {
+      const first = filtered[0];
+      const v = first.value ?? first.label;
+      if (!(value || []).includes(v)) {
+        onChange?.([...(value || []), v]);
+      }
+      setSearch('');
+      onSearch?.('');
+      return;
+    }
+    if (allowCreate) {
+      if (!(value || []).includes(trimmed)) {
+        onChange?.([...(value || []), trimmed]);
+      }
+      setSearch('');
+      onSearch?.('');
+    }
+  };
+
+  return (
+    <div ref={ref} className='relative'>
+      <div
+        className='flex min-h-[40px] flex-wrap items-center gap-1.5 rounded-xl border border-border bg-background px-2 py-1.5 text-sm cursor-text focus-within:border-primary'
+        onClick={() => setOpen(true)}
+      >
+        {(value || []).map((v) => (
+          <span
+            key={v}
+            className='inline-flex items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs'
+          >
+            <span>{v}</span>
+            <button
+              type='button'
+              onClick={(event) => {
+                event.stopPropagation();
+                removeAt(v);
+              }}
+              aria-label='remove'
+              className='text-muted hover:text-foreground'
+            >
+              <X size={12} />
+            </button>
+          </span>
+        ))}
+        <input
+          type='text'
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            onSearch?.(event.target.value);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              handleEnter();
+            } else if (
+              event.key === 'Backspace' &&
+              search === '' &&
+              (value || []).length > 0
+            ) {
+              removeAt((value || [])[value.length - 1]);
+            }
+          }}
+          placeholder={(value || []).length === 0 ? placeholder : ''}
+          className='flex-1 min-w-[120px] bg-transparent text-foreground outline-none placeholder:text-muted'
+        />
+      </div>
+
+      {open && (
+        <div className='absolute left-0 right-0 z-30 mt-1 max-h-60 overflow-auto rounded-xl border border-border bg-background shadow-lg'>
+          {filtered.length === 0 ? (
+            <div className='px-3 py-2 text-xs text-muted'>
+              {emptyHint || hint}
+            </div>
+          ) : (
+            <ul className='py-1'>
+              {filtered.map((opt) => {
+                const v = opt.value ?? opt.label;
+                const selected = (value || []).includes(v);
+                return (
+                  <li key={String(v)}>
+                    <button
+                      type='button'
+                      onClick={() => toggle(v)}
+                      className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm transition hover:bg-surface-secondary ${
+                        selected ? 'text-primary' : 'text-foreground'
+                      }`}
+                    >
+                      <span className='truncate'>
+                        {opt.label ?? String(v)}
+                      </span>
+                      {selected ? (
+                        <span className='text-xs'>{'✓'}</span>
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {hint && filtered.length > 0 ? (
+            <div className='border-t border-border px-3 py-2 text-xs text-muted'>
+              {hint}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ----------------------------- main -----------------------------
 
 const MODEL_MAPPING_EXAMPLE = {
   'gpt-3.5-turbo': 'gpt-3.5-turbo-0125',
 };
 
-const EditTagModal = (props) => {
+const ORIGIN_INPUTS = {
+  tag: '',
+  new_tag: null,
+  model_mapping: null,
+  groups: [],
+  models: [],
+  param_override: null,
+  header_override: null,
+};
+
+const EditTagModal = ({ visible, tag, handleClose, refresh }) => {
   const { t } = useTranslation();
-  const { visible, tag, handleClose, refresh } = props;
   const [loading, setLoading] = useState(false);
   const [originModelOptions, setOriginModelOptions] = useState([]);
-  const [modelOptions, setModelOptions] = useState([]);
   const [groupOptions, setGroupOptions] = useState([]);
   const [customModel, setCustomModel] = useState('');
   const [modelSearchValue, setModelSearchValue] = useState('');
-  const originInputs = {
-    tag: '',
-    new_tag: null,
-    model_mapping: null,
-    groups: [],
-    models: [],
-    param_override: null,
-    header_override: null,
-  };
-  const [inputs, setInputs] = useState(originInputs);
+  const [inputs, setInputs] = useState(ORIGIN_INPUTS);
+
+  const modelOptions = useMemo(() => {
+    const opts = [...originModelOptions];
+    inputs.models.forEach((model) => {
+      if (!opts.find((option) => option.label === model)) {
+        opts.push({ label: model, value: model });
+      }
+    });
+    return opts;
+  }, [originModelOptions, inputs.models]);
+
   const modelSearchMatchedCount = useMemo(() => {
     const keyword = modelSearchValue.trim();
-    if (!keyword) {
-      return modelOptions.length;
-    }
+    if (!keyword) return modelOptions.length;
     return modelOptions.reduce(
       (count, option) => count + (selectFilter(keyword, option) ? 1 : 0),
       0,
     );
   }, [modelOptions, modelSearchValue]);
+
   const modelSearchHintText = useMemo(() => {
     const keyword = modelSearchValue.trim();
-    if (!keyword || modelSearchMatchedCount !== 0) {
-      return '';
-    }
+    if (!keyword || modelSearchMatchedCount !== 0) return '';
     return t('未匹配到模型，按回车键可将「{{name}}」作为自定义模型名添加', {
       name: keyword,
     });
   }, [modelSearchMatchedCount, modelSearchValue, t]);
-  const formApiRef = useRef(null);
-  const getInitValues = () => ({ ...originInputs });
 
-  const handleInputChange = (name, value) => {
-    setInputs((inputs) => ({ ...inputs, [name]: value }));
-    if (formApiRef.current) {
-      formApiRef.current.setValue(name, value);
-    }
-    if (name === 'type') {
-      let localModels = [];
-      switch (value) {
-        case 2:
-          localModels = [
-            'mj_imagine',
-            'mj_variation',
-            'mj_reroll',
-            'mj_blend',
-            'mj_upscale',
-            'mj_describe',
-            'mj_uploads',
-          ];
-          break;
-        case 5:
-          localModels = [
-            'swap_face',
-            'mj_imagine',
-            'mj_video',
-            'mj_edits',
-            'mj_variation',
-            'mj_reroll',
-            'mj_blend',
-            'mj_upscale',
-            'mj_describe',
-            'mj_zoom',
-            'mj_shorten',
-            'mj_modal',
-            'mj_inpaint',
-            'mj_custom_zoom',
-            'mj_high_variation',
-            'mj_low_variation',
-            'mj_pan',
-            'mj_uploads',
-          ];
-          break;
-        case 36:
-          localModels = ['suno_music', 'suno_lyrics'];
-          break;
-        case 53:
-          localModels = [
-            'NousResearch/Hermes-4-405B-FP8',
-            'Qwen/Qwen3-235B-A22B-Thinking-2507',
-            'Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8',
-            'Qwen/Qwen3-235B-A22B-Instruct-2507',
-            'zai-org/GLM-4.5-FP8',
-            'openai/gpt-oss-120b',
-            'deepseek-ai/DeepSeek-R1-0528',
-            'deepseek-ai/DeepSeek-R1',
-            'deepseek-ai/DeepSeek-V3-0324',
-            'deepseek-ai/DeepSeek-V3.1',
-          ];
-          break;
-        default:
-          localModels = getChannelModels(value);
-          break;
-      }
-      if (inputs.models.length === 0) {
-        setInputs((inputs) => ({ ...inputs, models: localModels }));
-      }
-    }
+  const setField = (key, value) => {
+    setInputs((prev) => ({ ...prev, [key]: value }));
   };
 
   const fetchModels = async () => {
     try {
-      let res = await API.get(`/api/channel/models`);
-      let localModelOptions = res.data.data.map((model) => ({
+      const res = await API.get(`/api/channel/models`);
+      const localModelOptions = res.data.data.map((model) => ({
         label: model.id,
         value: model.id,
       }));
@@ -170,25 +339,20 @@ const EditTagModal = (props) => {
 
   const fetchGroups = async () => {
     try {
-      let res = await API.get(`/api/group/`);
-      if (res === undefined) {
-        return;
-      }
+      const res = await API.get(`/api/group/`);
+      if (res === undefined) return;
       setGroupOptions(
-        res.data.data.map((group) => ({
-          label: group,
-          value: group,
-        })),
+        res.data.data.map((group) => ({ label: group, value: group })),
       );
     } catch (error) {
       showError(error.message);
     }
   };
 
-  const handleSave = async (values) => {
+  const handleSave = async () => {
     setLoading(true);
-    const formVals = values || formApiRef.current?.getValues() || {};
-    let data = { tag };
+    const formVals = inputs;
+    const data = { tag };
     if (formVals.model_mapping) {
       if (!verifyJSON(formVals.model_mapping)) {
         showInfo('模型映射必须是合法的 JSON 格式！');
@@ -230,7 +394,10 @@ const EditTagModal = (props) => {
         return;
       }
       const trimmedHeaderOverride = formVals.header_override.trim();
-      if (trimmedHeaderOverride !== '' && !verifyJSON(trimmedHeaderOverride)) {
+      if (
+        trimmedHeaderOverride !== '' &&
+        !verifyJSON(trimmedHeaderOverride)
+      ) {
         showInfo('请求头覆盖必须是合法的 JSON 格式！');
         setLoading(false);
         return;
@@ -250,11 +417,6 @@ const EditTagModal = (props) => {
       setLoading(false);
       return;
     }
-    await submit(data);
-    setLoading(false);
-  };
-
-  const submit = async (data) => {
     try {
       const res = await API.put('/api/channel/tag', data);
       if (res?.data?.success) {
@@ -265,22 +427,11 @@ const EditTagModal = (props) => {
     } catch (error) {
       showError(error);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
-    let localModelOptions = [...originModelOptions];
-    inputs.models.forEach((model) => {
-      if (!localModelOptions.find((option) => option.label === model)) {
-        localModelOptions.push({
-          label: model,
-          value: model,
-        });
-      }
-    });
-    setModelOptions(localModelOptions);
-  }, [originModelOptions, inputs.models]);
-
-  useEffect(() => {
+    if (!visible) return;
     const fetchTagModels = async () => {
       if (!tag) return;
       setLoading(true);
@@ -288,7 +439,7 @@ const EditTagModal = (props) => {
         const res = await API.get(`/api/channel/tag/models?tag=${tag}`);
         if (res?.data?.success) {
           const models = res.data.data ? res.data.data.split(',') : [];
-          handleInputChange('models', models);
+          setInputs((prev) => ({ ...prev, models }));
         } else {
           showError(res.data.message);
         }
@@ -303,50 +454,36 @@ const EditTagModal = (props) => {
     fetchGroups().then();
     fetchTagModels().then();
     setModelSearchValue('');
-    if (formApiRef.current) {
-      formApiRef.current?.setValues?.({
-        ...getInitValues(),
-        tag: tag,
-        new_tag: tag,
-      });
-    }
-
-    setInputs({
-      ...originInputs,
-      tag: tag,
-      new_tag: tag,
-    });
+    setInputs({ ...ORIGIN_INPUTS, tag: tag, new_tag: tag });
   }, [visible, tag]);
 
+  // ESC-to-close
   useEffect(() => {
-    if (formApiRef.current) {
-      formApiRef.current?.setValues?.(inputs);
-    }
-  }, [inputs]);
+    if (!visible) return;
+    const onKey = (event) => {
+      if (event.key === 'Escape') handleClose?.();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [visible, handleClose]);
 
   const addCustomModels = () => {
-    if (customModel.trim() === '') return;
-    const modelArray = customModel.split(',').map((model) => model.trim());
+    const trimmed = customModel.trim();
+    if (trimmed === '') return;
+    const modelArray = trimmed.split(',').map((model) => model.trim());
 
-    let localModels = [...inputs.models];
-    let localModelOptions = [...modelOptions];
+    const localModels = [...inputs.models];
     const addedModels = [];
 
     modelArray.forEach((model) => {
       if (model && !localModels.includes(model)) {
         localModels.push(model);
-        localModelOptions.push({
-          key: model,
-          text: model,
-          value: model,
-        });
         addedModels.push(model);
       }
     });
 
-    setModelOptions(localModelOptions);
     setCustomModel('');
-    handleInputChange('models', localModels);
+    setField('models', localModels);
 
     if (addedModels.length > 0) {
       showSuccess(
@@ -361,217 +498,215 @@ const EditTagModal = (props) => {
   };
 
   return (
-    <SideSheet
-      placement='right'
-      title={
-        <Space>
-          <Tag color='blue' shape='circle'>
-            {t('编辑')}
-          </Tag>
-          <Title heading={4} className='m-0'>
-            {t('编辑标签')}
-          </Title>
-        </Space>
-      }
-      bodyStyle={{ padding: '0' }}
-      visible={visible}
-      width={600}
-      onCancel={handleClose}
-      footer={
-        <div className='flex justify-end bg-white'>
-          <Space>
-            <Button
-              theme='solid'
-              onClick={() => formApiRef.current?.submitForm()}
-              loading={loading}
-              icon={<IconSave />}
-            >
-              {t('保存')}
-            </Button>
-            <Button
-              theme='light'
-              type='primary'
-              onClick={handleClose}
-              icon={<IconClose />}
-            >
-              {t('取消')}
-            </Button>
-          </Space>
-        </div>
-      }
-      closeIcon={null}
-    >
-      <Form
-        key={tag || 'edit'}
-        initValues={getInitValues()}
-        getFormApi={(api) => (formApiRef.current = api)}
-        onSubmit={handleSave}
+    <>
+      <div
+        aria-hidden={!visible}
+        onClick={handleClose}
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
+          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+      <aside
+        role='dialog'
+        aria-modal='true'
+        aria-hidden={!visible}
+        style={{ width: 600 }}
+        className={`fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-full flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
+          visible ? 'translate-x-0' : 'translate-x-full'
+        }`}
       >
-        {() => (
-          <Spin spinning={loading}>
-            <div className='p-2'>
-              <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                {/* Header: Tag Info */}
-                <div className='flex items-center mb-2'>
-                  <Avatar size='small' color='blue' className='mr-2 shadow-md'>
-                    <IconBookmark size={16} />
-                  </Avatar>
+        <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
+          <div className='flex items-center gap-2'>
+            <StatusChip tone='blue'>{t('编辑')}</StatusChip>
+            <h4 className='m-0 text-lg font-semibold text-foreground'>
+              {t('编辑标签')}
+            </h4>
+          </div>
+          <Button
+            isIconOnly
+            variant='light'
+            size='sm'
+            aria-label={t('关闭')}
+            onPress={handleClose}
+          >
+            <X size={16} />
+          </Button>
+        </header>
+
+        <div className='relative flex-1 overflow-y-auto p-3'>
+          {loading && (
+            <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px]'>
+              <Spinner color='primary' />
+            </div>
+          )}
+
+          <div className='space-y-3'>
+            {/* 标签信息 */}
+            <Card className='!rounded-2xl border-0 shadow-sm'>
+              <Card.Content className='space-y-4 p-5'>
+                <div className='flex items-center gap-2'>
+                  <IconTile tone='blue'>
+                    <Bookmark size={16} />
+                  </IconTile>
                   <div>
-                    <Text className='text-lg font-medium'>{t('标签信息')}</Text>
+                    <div className='text-base font-semibold text-foreground'>
+                      {t('标签信息')}
+                    </div>
                     <div className='text-xs text-muted'>
                       {t('标签的基本配置')}
                     </div>
                   </div>
                 </div>
 
-                <Banner
-                  type='warning'
-                  description={t('所有编辑均为覆盖操作，留空则不更改')}
-                  className='!rounded-lg mb-4'
-                />
+                <InfoBanner tone='warning'>
+                  {t('所有编辑均为覆盖操作，留空则不更改')}
+                </InfoBanner>
 
-                <div className='space-y-4'>
-                  <Form.Input
-                    field='new_tag'
-                    label={t('标签名称')}
+                <div className='space-y-2'>
+                  <FieldLabel>{t('标签名称')}</FieldLabel>
+                  <input
+                    type='text'
+                    value={inputs.new_tag ?? ''}
+                    onChange={(event) =>
+                      setField('new_tag', event.target.value)
+                    }
                     placeholder={t('请输入新标签，留空则解散标签')}
-                    onChange={(value) => handleInputChange('new_tag', value)}
+                    className={inputClass}
                   />
                 </div>
-              </Card>
+              </Card.Content>
+            </Card>
 
-              <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                {/* Header: Model Config */}
-                <div className='flex items-center mb-2'>
-                  <Avatar
-                    size='small'
-                    color='purple'
-                    className='mr-2 shadow-md'
-                  >
-                    <IconCode size={16} />
-                  </Avatar>
+            {/* 模型配置 */}
+            <Card className='!rounded-2xl border-0 shadow-sm'>
+              <Card.Content className='space-y-4 p-5'>
+                <div className='flex items-center gap-2'>
+                  <IconTile tone='purple'>
+                    <Code2 size={16} />
+                  </IconTile>
                   <div>
-                    <Text className='text-lg font-medium'>{t('模型配置')}</Text>
+                    <div className='text-base font-semibold text-foreground'>
+                      {t('模型配置')}
+                    </div>
                     <div className='text-xs text-muted'>
                       {t('模型选择和映射设置')}
                     </div>
                   </div>
                 </div>
 
-                <div className='space-y-4'>
-                  <Banner
-                    type='info'
-                    description={t(
-                      '当前模型列表为该标签下所有渠道模型列表最长的一个，并非所有渠道的并集，请注意可能导致某些渠道模型丢失。',
+                <InfoBanner>
+                  {t(
+                    '当前模型列表为该标签下所有渠道模型列表最长的一个，并非所有渠道的并集，请注意可能导致某些渠道模型丢失。',
+                  )}
+                </InfoBanner>
+
+                <div className='space-y-2'>
+                  <FieldLabel>{t('模型')}</FieldLabel>
+                  <MultiSelectChips
+                    value={inputs.models}
+                    options={modelOptions}
+                    placeholder={t(
+                      '请选择该渠道所支持的模型，留空则不更改',
                     )}
-                    className='!rounded-lg mb-4'
-                  />
-                  <Form.Select
-                    field='models'
-                    label={t('模型')}
-                    placeholder={t('请选择该渠道所支持的模型，留空则不更改')}
-                    multiple
                     filter={selectFilter}
                     allowCreate
-                    autoClearSearchValue={false}
-                    searchPosition='dropdown'
-                    optionList={modelOptions}
-                    onSearch={(value) => setModelSearchValue(value)}
-                    innerBottomSlot={
-                      modelSearchHintText ? (
-                        <Text className='px-3 py-2 block text-xs !text-semi-color-text-2'>
-                          {modelSearchHintText}
-                        </Text>
-                      ) : null
-                    }
-                    style={{ width: '100%' }}
-                    onChange={(value) => handleInputChange('models', value)}
+                    onChange={(v) => setField('models', v)}
+                    onSearch={setModelSearchValue}
+                    hint={modelSearchHintText || undefined}
+                    emptyHint={modelSearchHintText}
                   />
+                </div>
 
-                  <Form.Input
-                    field='custom_model'
-                    label={t('自定义模型名称')}
-                    placeholder={t('输入自定义模型名称')}
-                    onChange={(value) => setCustomModel(value.trim())}
-                    suffix={
-                      <Button
-                        size='small'
-                        type='primary'
-                        onClick={addCustomModels}
-                      >
-                        {t('填入')}
-                      </Button>
+                <div className='space-y-2'>
+                  <FieldLabel>{t('自定义模型名称')}</FieldLabel>
+                  <div className='flex items-center gap-2'>
+                    <input
+                      type='text'
+                      value={customModel}
+                      onChange={(event) =>
+                        setCustomModel(event.target.value.trim())
+                      }
+                      placeholder={t('输入自定义模型名称')}
+                      className={inputClass}
+                    />
+                    <Button color='primary' onPress={addCustomModels}>
+                      {t('填入')}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className='space-y-2'>
+                  <FieldLabel>{t('模型重定向')}</FieldLabel>
+                  <textarea
+                    rows={4}
+                    value={inputs.model_mapping ?? ''}
+                    onChange={(event) =>
+                      setField('model_mapping', event.target.value)
                     }
-                  />
-
-                  <Form.TextArea
-                    field='model_mapping'
-                    label={t('模型重定向')}
                     placeholder={t(
                       '此项可选，用于修改请求体中的模型名称，为一个 JSON 字符串，键为请求中模型名称，值为要替换的模型名称，留空则不更改',
                     )}
-                    autosize
-                    onChange={(value) =>
-                      handleInputChange('model_mapping', value)
-                    }
-                    extraText={
-                      <Space>
-                        <Text
-                          className='!text-semi-color-primary cursor-pointer'
-                          onClick={() =>
-                            handleInputChange(
-                              'model_mapping',
-                              JSON.stringify(MODEL_MAPPING_EXAMPLE, null, 2),
-                            )
-                          }
-                        >
-                          {t('填入模板')}
-                        </Text>
-                        <Text
-                          className='!text-semi-color-primary cursor-pointer'
-                          onClick={() =>
-                            handleInputChange(
-                              'model_mapping',
-                              JSON.stringify({}, null, 2),
-                            )
-                          }
-                        >
-                          {t('清空重定向')}
-                        </Text>
-                        <Text
-                          className='!text-semi-color-primary cursor-pointer'
-                          onClick={() => handleInputChange('model_mapping', '')}
-                        >
-                          {t('不更改')}
-                        </Text>
-                      </Space>
-                    }
+                    className={textareaClass}
                   />
+                  <div className='flex flex-wrap gap-3 text-xs'>
+                    <button
+                      type='button'
+                      className='cursor-pointer text-primary hover:underline'
+                      onClick={() =>
+                        setField(
+                          'model_mapping',
+                          JSON.stringify(MODEL_MAPPING_EXAMPLE, null, 2),
+                        )
+                      }
+                    >
+                      {t('填入模板')}
+                    </button>
+                    <button
+                      type='button'
+                      className='cursor-pointer text-primary hover:underline'
+                      onClick={() =>
+                        setField('model_mapping', JSON.stringify({}, null, 2))
+                      }
+                    >
+                      {t('清空重定向')}
+                    </button>
+                    <button
+                      type='button'
+                      className='cursor-pointer text-primary hover:underline'
+                      onClick={() => setField('model_mapping', '')}
+                    >
+                      {t('不更改')}
+                    </button>
+                  </div>
                 </div>
-              </Card>
+              </Card.Content>
+            </Card>
 
-              <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                {/* Header: Advanced Settings */}
-                <div className='flex items-center mb-2'>
-                  <Avatar
-                    size='small'
-                    color='orange'
-                    className='mr-2 shadow-md'
-                  >
-                    <IconSetting size={16} />
-                  </Avatar>
+            {/* 高级设置 */}
+            <Card className='!rounded-2xl border-0 shadow-sm'>
+              <Card.Content className='space-y-4 p-5'>
+                <div className='flex items-center gap-2'>
+                  <IconTile tone='orange'>
+                    <Settings size={16} />
+                  </IconTile>
                   <div>
-                    <Text className='text-lg font-medium'>{t('高级设置')}</Text>
+                    <div className='text-base font-semibold text-foreground'>
+                      {t('高级设置')}
+                    </div>
                     <div className='text-xs text-muted'>
                       {t('渠道的高级配置选项')}
                     </div>
                   </div>
                 </div>
 
-                <div className='space-y-4'>
-                  <Form.TextArea
-                    field='param_override'
-                    label={t('参数覆盖')}
+                <div className='space-y-2'>
+                  <FieldLabel>{t('参数覆盖')}</FieldLabel>
+                  <textarea
+                    rows={6}
+                    value={inputs.param_override ?? ''}
+                    onChange={(event) =>
+                      setField('param_override', event.target.value)
+                    }
                     placeholder={
                       t('此项可选，用于覆盖请求参数。不支持覆盖 stream 参数') +
                       '\n' +
@@ -581,163 +716,175 @@ const EditTagModal = (props) => {
                       t('新格式（支持条件判断与json自定义）：') +
                       '\n{\n  "operations": [\n    {\n      "path": "temperature",\n      "mode": "set",\n      "value": 0.7,\n      "conditions": [\n        {\n          "path": "model",\n          "mode": "prefix",\n          "value": "gpt"\n        }\n      ]\n    }\n  ]\n}'
                     }
-                    autosize
-                    showClear
-                    onChange={(value) =>
-                      handleInputChange('param_override', value)
-                    }
-                    extraText={
-                      <div className='flex gap-2 flex-wrap'>
-                        <Text
-                          className='!text-semi-color-primary cursor-pointer'
-                          onClick={() =>
-                            handleInputChange(
-                              'param_override',
-                              JSON.stringify({ temperature: 0 }, null, 2),
-                            )
-                          }
-                        >
-                          {t('旧格式模板')}
-                        </Text>
-                        <Text
-                          className='!text-semi-color-primary cursor-pointer'
-                          onClick={() =>
-                            handleInputChange(
-                              'param_override',
-                              JSON.stringify(
+                    className={textareaClass}
+                  />
+                  <div className='flex flex-wrap gap-3 text-xs'>
+                    <button
+                      type='button'
+                      className='cursor-pointer text-primary hover:underline'
+                      onClick={() =>
+                        setField(
+                          'param_override',
+                          JSON.stringify({ temperature: 0 }, null, 2),
+                        )
+                      }
+                    >
+                      {t('旧格式模板')}
+                    </button>
+                    <button
+                      type='button'
+                      className='cursor-pointer text-primary hover:underline'
+                      onClick={() =>
+                        setField(
+                          'param_override',
+                          JSON.stringify(
+                            {
+                              operations: [
                                 {
-                                  operations: [
+                                  path: 'temperature',
+                                  mode: 'set',
+                                  value: 0.7,
+                                  conditions: [
                                     {
-                                      path: 'temperature',
-                                      mode: 'set',
-                                      value: 0.7,
-                                      conditions: [
-                                        {
-                                          path: 'model',
-                                          mode: 'prefix',
-                                          value: 'gpt',
-                                        },
-                                      ],
-                                      logic: 'AND',
+                                      path: 'model',
+                                      mode: 'prefix',
+                                      value: 'gpt',
                                     },
                                   ],
+                                  logic: 'AND',
                                 },
-                                null,
-                                2,
-                              ),
-                            )
-                          }
-                        >
-                          {t('新格式模板')}
-                        </Text>
-                        <Text
-                          className='!text-semi-color-primary cursor-pointer'
-                          onClick={() =>
-                            handleInputChange('param_override', null)
-                          }
-                        >
-                          {t('不更改')}
-                        </Text>
-                      </div>
-                    }
-                  />
+                              ],
+                            },
+                            null,
+                            2,
+                          ),
+                        )
+                      }
+                    >
+                      {t('新格式模板')}
+                    </button>
+                    <button
+                      type='button'
+                      className='cursor-pointer text-primary hover:underline'
+                      onClick={() => setField('param_override', null)}
+                    >
+                      {t('不更改')}
+                    </button>
+                  </div>
+                </div>
 
-                  <Form.TextArea
-                    field='header_override'
-                    label={t('请求头覆盖')}
+                <div className='space-y-2'>
+                  <FieldLabel>{t('请求头覆盖')}</FieldLabel>
+                  <textarea
+                    rows={5}
+                    value={inputs.header_override ?? ''}
+                    onChange={(event) =>
+                      setField('header_override', event.target.value)
+                    }
                     placeholder={
                       t('此项可选，用于覆盖请求头参数') +
                       '\n' +
                       t('格式示例：') +
                       '\n{\n  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0",\n  "Authorization": "Bearer {api_key}"\n}'
                     }
-                    autosize
-                    showClear
-                    onChange={(value) =>
-                      handleInputChange('header_override', value)
-                    }
-                    extraText={
-                      <div className='flex flex-col gap-1'>
-                        <div className='flex gap-2 flex-wrap items-center'>
-                          <Text
-                            className='!text-semi-color-primary cursor-pointer'
-                            onClick={() =>
-                              handleInputChange(
-                                'header_override',
-                                JSON.stringify(
-                                  {
-                                    'User-Agent':
-                                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0',
-                                    Authorization: 'Bearer {api_key}',
-                                  },
-                                  null,
-                                  2,
-                                ),
-                              )
-                            }
-                          >
-                            {t('填入模板')}
-                          </Text>
-                          <Text
-                            className='!text-semi-color-primary cursor-pointer'
-                            onClick={() =>
-                              handleInputChange('header_override', null)
-                            }
-                          >
-                            {t('不更改')}
-                          </Text>
-                        </div>
-                        <div>
-                          <Text type='tertiary' size='small'>
-                            {t('支持变量：')}
-                          </Text>
-                          <div className='text-xs text-tertiary ml-2'>
-                            <div>
-                              {t('渠道密钥')}: {'{api_key}'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    }
+                    className={textareaClass}
                   />
+                  <div className='flex flex-wrap gap-3 text-xs'>
+                    <button
+                      type='button'
+                      className='cursor-pointer text-primary hover:underline'
+                      onClick={() =>
+                        setField(
+                          'header_override',
+                          JSON.stringify(
+                            {
+                              'User-Agent':
+                                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0',
+                              Authorization: 'Bearer {api_key}',
+                            },
+                            null,
+                            2,
+                          ),
+                        )
+                      }
+                    >
+                      {t('填入模板')}
+                    </button>
+                    <button
+                      type='button'
+                      className='cursor-pointer text-primary hover:underline'
+                      onClick={() => setField('header_override', null)}
+                    >
+                      {t('不更改')}
+                    </button>
+                  </div>
+                  <FieldHint>
+                    {t('支持变量：')}
+                    {' '}
+                    <span className='ml-1 text-foreground'>
+                      {t('渠道密钥')}: {'{api_key}'}
+                    </span>
+                  </FieldHint>
                 </div>
-              </Card>
+              </Card.Content>
+            </Card>
 
-              <Card className='!rounded-2xl shadow-sm border-0'>
-                {/* Header: Group Settings */}
-                <div className='flex items-center mb-2'>
-                  <Avatar size='small' color='green' className='mr-2 shadow-md'>
-                    <IconUser size={16} />
-                  </Avatar>
+            {/* 分组设置 */}
+            <Card className='!rounded-2xl border-0 shadow-sm'>
+              <Card.Content className='space-y-4 p-5'>
+                <div className='flex items-center gap-2'>
+                  <IconTile tone='green'>
+                    <User size={16} />
+                  </IconTile>
                   <div>
-                    <Text className='text-lg font-medium'>{t('分组设置')}</Text>
+                    <div className='text-base font-semibold text-foreground'>
+                      {t('分组设置')}
+                    </div>
                     <div className='text-xs text-muted'>
                       {t('用户分组配置')}
                     </div>
                   </div>
                 </div>
 
-                <div className='space-y-4'>
-                  <Form.Select
-                    field='groups'
-                    label={t('分组')}
-                    placeholder={t('请选择可以使用该渠道的分组，留空则不更改')}
-                    multiple
-                    allowAdditions
-                    additionLabel={t(
-                      '请在系统设置页面编辑分组倍率以添加新的分组：',
+                <div className='space-y-2'>
+                  <FieldLabel>{t('分组')}</FieldLabel>
+                  <MultiSelectChips
+                    value={inputs.groups}
+                    options={groupOptions}
+                    placeholder={t(
+                      '请选择可以使用该渠道的分组，留空则不更改',
                     )}
-                    optionList={groupOptions}
-                    style={{ width: '100%' }}
-                    onChange={(value) => handleInputChange('groups', value)}
+                    allowCreate
+                    onChange={(v) => setField('groups', v)}
                   />
+                  <FieldHint>
+                    {t('请在系统设置页面编辑分组倍率以添加新的分组：')}
+                  </FieldHint>
                 </div>
-              </Card>
-            </div>
-          </Spin>
-        )}
-      </Form>
-    </SideSheet>
+              </Card.Content>
+            </Card>
+          </div>
+        </div>
+
+        <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
+          <Button
+            variant='light'
+            startContent={<X size={14} />}
+            onPress={handleClose}
+          >
+            {t('取消')}
+          </Button>
+          <Button
+            color='primary'
+            isPending={loading}
+            startContent={<Save size={14} />}
+            onPress={handleSave}
+          >
+            {t('保存')}
+          </Button>
+        </footer>
+      </aside>
+    </>
   );
 };
 
