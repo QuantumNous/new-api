@@ -129,7 +129,7 @@ const PreferencesSettings = ({ t }) => {
 				</div>
 			</div>
 			{/* Language Setting Card */}
-			<Card className="!rounded-xl border dark:border-gray-700">
+			<Card className="!rounded-xl border border-border">
 				<div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
 					<div className="flex items-start w-full sm:w-auto">
 						<div className="w-12 h-12 rounded-full bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center mr-4 flex-shrink-0">

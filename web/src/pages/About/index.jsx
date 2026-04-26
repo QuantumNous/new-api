@@ -141,7 +141,7 @@ const About = () => {
             <div className='flex h-24 w-24 items-center justify-center rounded-[2rem] bg-primary/10 text-primary'>
               <Construction size={44} />
             </div>
-            <p className='text-base font-semibold text-slate-950 dark:text-white'>
+            <p className='text-base font-semibold text-foreground'>
               {t('管理员暂时未设置任何关于内容')}
             </p>
             {customDescription}

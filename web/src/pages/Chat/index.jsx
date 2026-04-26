@@ -66,7 +66,7 @@ const ChatPage = () => {
       allow='camera;microphone'
     />
   ) : (
-    <div className='fixed inset-0 z-[1000] mt-[60px] flex h-screen w-screen items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-slate-950/80'>
+    <div className='fixed inset-0 z-[1000] mt-[60px] flex h-screen w-screen items-center justify-center bg-background/80 backdrop-blur-sm'>
       <div className='flex flex-col items-center'>
         <Spinner size='lg' />
         <span className='mt-3 whitespace-nowrap text-center text-sm font-medium text-sky-600 dark:text-sky-300'>

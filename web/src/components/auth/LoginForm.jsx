@@ -607,7 +607,7 @@ const LoginForm = () => {
                   startContent={<Mail size={20} />}
                   onPress={handleEmailLoginClick}
                   isPending={emailLoginLoading}
-                  className='bg-slate-950 text-white dark:bg-slate-100 dark:text-slate-950'
+                  className='bg-foreground text-background'
                 >
                   {t('使用 邮箱或用户名 登录')}
                 </AuthPrimaryButton>

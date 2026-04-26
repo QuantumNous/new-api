@@ -33,7 +33,7 @@ const PricingCardSkeleton = ({
     <div className='px-2 pt-2'>
       <div className='grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4'>
         {Array.from({ length: skeletonCount }).map((_, index) => (
-          <Card key={index} className='rounded-2xl border border-gray-200'>
+          <Card key={index} className='rounded-2xl border border-border'>
             <Card.Content className='p-6'>
             {/* Header: icon, model name, actions. */}
             <div className='flex items-start justify-between mb-3'>

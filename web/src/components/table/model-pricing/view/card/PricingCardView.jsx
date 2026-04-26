@@ -39,7 +39,7 @@ const CARD_STYLES = {
     'w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md',
   icon: 'w-8 h-8 flex items-center justify-center',
   selected: 'border-blue-500 bg-blue-50',
-  default: 'border-gray-200 hover:border-border',
+  default: 'border-border hover:border-border',
 };
 
 const PricingCardView = ({

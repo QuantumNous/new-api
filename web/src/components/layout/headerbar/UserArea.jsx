@@ -163,16 +163,14 @@ const UserArea = ({
         </button>
 
         {open ? (
-          {/*
-            Font-size has to live on the wrapper div, not the buttons:
-            `@heroui/styles` ships a global `button, input, textarea,
-            select { font-size: inherit }` reset that's NOT inside any
-            @layer, so per-CSS-Cascade-Layers it beats every Tailwind
-            utility (including `text-sm` / `text-[14px]`). Buttons then
-            inherit body's 16px and look oversized. Putting the size on
-            the surrounding menu container side-steps the reset and the
-            buttons inherit the intended 14px.
-          */}
+          // Font-size has to live on the wrapper div, not the buttons:
+          // `@heroui/styles` ships a global `button, input, textarea,
+          // select { font-size: inherit }` reset that's NOT inside any
+          // @layer, so per-CSS-Cascade-Layers it beats every Tailwind
+          // utility (including `text-sm` / `text-[14px]`). Buttons then
+          // inherit body's 16px and look oversized. Putting the size on
+          // the surrounding menu container side-steps the reset and the
+          // buttons inherit the intended 14px.
           <div
             role='menu'
             aria-label={t('用户菜单')}

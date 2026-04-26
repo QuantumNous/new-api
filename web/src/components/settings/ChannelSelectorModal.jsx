@@ -303,7 +303,7 @@ const ChannelSelectorModal = forwardRef(
             placement='center'
           >
             <ModalDialog className='bg-background/95 backdrop-blur'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <ModalHeader className='border-b border-border'>
                 <span className='text-lg font-semibold'>
                   {t('选择同步渠道')}
                 </span>
@@ -452,7 +452,7 @@ const ChannelSelectorModal = forwardRef(
                   </div>
                 </div>
               </ModalBody>
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 <Button variant='light' onPress={onCancel}>
                   {t('取消')}
                 </Button>

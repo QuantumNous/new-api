@@ -950,7 +950,7 @@ const TopUp = () => {
                   </>
                 )}
               </ModalBody>
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 <Button variant='ghost' onPress={handleCreemCancel}>
                   {t('取消')}
                 </Button>
