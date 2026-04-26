@@ -103,10 +103,29 @@ func setupLogin(user *model.User, c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
+
+	// Ensure user has an access token for API authentication
+	token := user.GetAccessToken()
+	if token == "" {
+		randI := common.GetRandomInt(4)
+		key, err := common.GenerateRandomKey(29 + randI)
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgGenerateFailed)
+			return
+		}
+		token = key
+		user.SetAccessToken(token)
+		if err := user.Update(false); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
 		"data": map[string]any{
+			"token":        token,
 			"id":           user.Id,
 			"username":     user.Username,
 			"display_name": user.DisplayName,
