@@ -75,7 +75,7 @@ const ChartsPanel = ({
                 <Tabs.Tab
                   key={item.id}
                   id={item.id}
-                  className='whitespace-nowrap'
+                  className='whitespace-nowrap text-xs'
                 >
                   {item.title}
                 </Tabs.Tab>
