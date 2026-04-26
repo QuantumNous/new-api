@@ -73,7 +73,7 @@ const TokensFilters = ({
             type='submit'
             variant='outline'
             isPending={loading || searching}
-            className='flex-1 sm:flex-initial sm:w-auto text-sm'
+            className='flex-1 sm:flex-initial sm:w-auto'
             size='sm'
           >
             {t('查询')}
@@ -83,7 +83,7 @@ const TokensFilters = ({
             type='button'
             variant='outline'
             onPress={handleReset}
-            className='flex-1 sm:flex-initial sm:w-auto text-sm'
+            className='flex-1 sm:flex-initial sm:w-auto'
             size='sm'
           >
             {t('重置')}

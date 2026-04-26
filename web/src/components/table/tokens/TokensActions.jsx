@@ -64,7 +64,7 @@ const TokensActions = ({
       <div className='flex flex-wrap gap-2 w-full xl:w-auto order-2 xl:order-1'>
         <Button
           variant='primary'
-          className='flex-1 xl:flex-initial text-sm'
+          className='flex-1 xl:flex-initial'
           onPress={() => {
             setEditingToken({
               id: undefined,
@@ -78,7 +78,7 @@ const TokensActions = ({
 
         <Button
           variant='outline'
-          className='flex-1 xl:flex-initial text-sm'
+          className='flex-1 xl:flex-initial'
           onPress={handleCopySelectedTokens}
           size='sm'
         >
@@ -87,7 +87,7 @@ const TokensActions = ({
 
         <Button
           variant='danger-soft'
-          className='w-full xl:w-auto text-sm'
+          className='w-full xl:w-auto'
           onPress={handleDeleteSelectedTokens}
           size='sm'
         >

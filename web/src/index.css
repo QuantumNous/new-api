@@ -163,11 +163,19 @@ body {
   }
 }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
+/* This block is layered into `base` so it sits at the same priority as
+   Tailwind's preflight reset and *below* component-level styles from
+   @heroui/styles / @heroui-pro/react. Without the @layer wrapper this rule
+   becomes unlayered and silently overrides .button { font-size: 0.875rem }
+   from HeroUI, making every button render with the body's 16px instead of
+   the design system's 14px. */
+@layer base {
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
 }
 
 code,
