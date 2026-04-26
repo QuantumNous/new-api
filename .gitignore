@@ -35,3 +35,8 @@ data/
 .test
 token_estimator_test.go
 skills-lock.json
+.cla
+
+# repo-root screenshot artifacts and openapi dumps (not nested)
+/*.png
+/*.openapi.json
