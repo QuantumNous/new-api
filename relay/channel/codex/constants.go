@@ -12,7 +12,17 @@ var baseModelList = []string{
 	"gpt-5.4",
 }
 
-var ModelList = withCompactModelSuffix(baseModelList)
+const (
+	CodexImageModel        = "gpt-image-2"
+	defaultImagesMainModel = "gpt-5.4-mini"
+	imageGenerationTool    = "image_generation"
+)
+
+var builtinModelList = []string{
+	CodexImageModel,
+}
+
+var ModelList = lo.Uniq(append(withCompactModelSuffix(baseModelList), builtinModelList...))
 
 const ChannelName = "codex"
 

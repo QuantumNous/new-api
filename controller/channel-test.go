@@ -43,6 +43,12 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+func isCodexImageGenerationTestModel(channel *model.Channel, modelName string) bool {
+	return channel != nil &&
+		channel.Type == constant.ChannelTypeCodex &&
+		strings.EqualFold(strings.TrimSpace(modelName), "gpt-image-2")
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -50,6 +56,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	}
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
+	}
+	if isCodexImageGenerationTestModel(channel, modelName) {
+		return string(constant.EndpointTypeImageGeneration)
 	}
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
@@ -119,6 +128,10 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 		// VolcEngine 图像生成模型
 		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+			requestPath = "/v1/images/generations"
+		}
+
+		if isCodexImageGenerationTestModel(channel, testModel) {
 			requestPath = "/v1/images/generations"
 		}
 
@@ -770,6 +783,15 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		return &dto.OpenAIResponsesCompactionRequest{
 			Model: model,
 			Input: testResponsesInput,
+		}
+	}
+
+	if isCodexImageGenerationTestModel(channel, model) {
+		return &dto.ImageRequest{
+			Model:  model,
+			Prompt: "a cute cat",
+			N:      lo.ToPtr(uint(1)),
+			Size:   "1024x1024",
 		}
 	}
 

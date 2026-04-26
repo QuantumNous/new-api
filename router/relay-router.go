@@ -165,6 +165,21 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.DELETE("/models/:model", controller.RelayNotImplemented)
 	}
 
+	codexBackendRouter := router.Group("/backend-api/codex")
+	codexBackendRouter.Use(middleware.RouteTag("relay"))
+	codexBackendRouter.Use(middleware.SystemPerformanceCheck())
+	codexBackendRouter.Use(middleware.TokenAuth())
+	codexBackendRouter.Use(middleware.ModelRequestRateLimit())
+	codexBackendRouter.Use(middleware.Distribute())
+	{
+		codexBackendRouter.POST("/responses", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIResponses)
+		})
+		codexBackendRouter.POST("/responses/compact", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
+		})
+	}
+
 	relayMjRouter := router.Group("/mj")
 	relayMjRouter.Use(middleware.RouteTag("relay"))
 	relayMjRouter.Use(middleware.SystemPerformanceCheck())
