@@ -18,16 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Eye } from 'lucide-react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const TaskLogsActions = ({ compactMode, setCompactMode, t }) => {
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <div className='flex items-center text-orange-500 mb-2 md:mb-0'>
-        <Eye size={16} className='mr-2' />
-        <span className='text-sm font-medium'>{t('任务记录')}</span>
-      </div>
+      <span className='text-sm font-medium text-foreground'>
+        {t('任务记录')}
+      </span>
       <CompactModeToggle
         compactMode={compactMode}
         setCompactMode={setCompactMode}

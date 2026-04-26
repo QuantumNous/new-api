@@ -51,25 +51,24 @@ const TaskLogsPage = () => {
         audioClips={taskLogsData.audioClips}
       />
 
-      <div className='flex min-h-0 min-w-0'>
-        <CardPro
-          type='type2'
-          statsArea={<TaskLogsActions {...taskLogsData} />}
-          searchArea={<TaskLogsFilters {...taskLogsData} />}
-          paginationArea={createCardProPagination({
-            currentPage: taskLogsData.activePage,
-            pageSize: taskLogsData.pageSize,
-            total: taskLogsData.logCount,
-            onPageChange: taskLogsData.handlePageChange,
-            onPageSizeChange: taskLogsData.handlePageSizeChange,
-            isMobile: isMobile,
-            t: taskLogsData.t,
-          })}
-          t={taskLogsData.t}
-        >
-          <TaskLogsTable {...taskLogsData} />
-        </CardPro>
-      </div>
+      <CardPro
+        type='type2'
+        className='w-full'
+        statsArea={<TaskLogsActions {...taskLogsData} />}
+        searchArea={<TaskLogsFilters {...taskLogsData} />}
+        paginationArea={createCardProPagination({
+          currentPage: taskLogsData.activePage,
+          pageSize: taskLogsData.pageSize,
+          total: taskLogsData.logCount,
+          onPageChange: taskLogsData.handlePageChange,
+          onPageSizeChange: taskLogsData.handlePageSizeChange,
+          isMobile: isMobile,
+          t: taskLogsData.t,
+        })}
+        t={taskLogsData.t}
+      >
+        <TaskLogsTable {...taskLogsData} />
+      </CardPro>
     </>
   );
 };
