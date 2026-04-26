@@ -139,8 +139,8 @@ const DebugPanel = ({
                 type='button'
                 className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm transition ${
                   selected
-                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                    ? 'bg-foreground text-background'
+                    : 'bg-surface-secondary text-muted hover:bg-surface-secondary/80'
                 }`}
                 onClick={() => handleTabChange(tab.key)}
               >
@@ -161,8 +161,8 @@ const DebugPanel = ({
       <div className='flex items-center justify-between mt-4 pt-4 flex-shrink-0'>
         {(debugData.timestamp || debugData.previewTimestamp) && (
           <div className='flex items-center gap-2'>
-            <Clock size={14} className='text-gray-500' />
-            <span className='text-xs text-gray-500'>
+            <Clock size={14} className='text-muted' />
+            <span className='text-xs text-muted'>
               {activeKey === 'preview' && debugData.previewTimestamp
                 ? `${t('预览更新')}: ${new Date(debugData.previewTimestamp).toLocaleString()}`
                 : debugData.timestamp

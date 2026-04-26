@@ -115,7 +115,7 @@ const CustomRequestEditor = ({
       {/* Custom mode switch */}
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-2'>
-          <Code size={16} className='text-gray-500' />
+          <Code size={16} className='text-muted' />
           <span className='text-sm font-semibold text-foreground'>
             {t('自定义请求体模式')}
           </span>
@@ -195,7 +195,7 @@ const CustomRequestEditor = ({
               </span>
             )}
 
-            <span className='mt-2 block text-xs text-gray-500'>
+            <span className='mt-2 block text-xs text-muted'>
               {t(
                 '请输入有效的JSON格式的请求体。您可以参考预览面板中的默认请求体格式。',
               )}

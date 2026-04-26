@@ -32,7 +32,7 @@ import { copy, showError, showSuccess } from '../../helpers';
 
 const PILL_TONE_CLASS = {
   default:
-    'border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    'border-border bg-surface-secondary text-muted',
   primary:
     'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200',
   success:
@@ -166,7 +166,7 @@ const SSEViewer = ({ sseData }) => {
               {t('解析错误')}: {item.error}
             </span>
           </div>
-          <div className='p-3 bg-gray-100 dark:bg-gray-800 rounded-lg font-mono text-xs overflow-auto'>
+          <div className='p-3 bg-surface-secondary rounded-lg font-mono text-xs overflow-auto'>
             <pre>{item.raw}</pre>
           </div>
         </div>
@@ -221,16 +221,16 @@ const SSEViewer = ({ sseData }) => {
 
   if (!parsedSSEData || parsedSSEData.length === 0) {
     return (
-      <div className='flex items-center justify-center h-full min-h-[200px] text-gray-500'>
+      <div className='flex items-center justify-center h-full min-h-[200px] text-muted'>
         <span>{t('暂无SSE响应数据')}</span>
       </div>
     );
   }
 
   return (
-    <div className='h-full flex flex-col bg-gray-50 dark:bg-gray-900/50 rounded-lg'>
+    <div className='h-full flex flex-col bg-surface-secondary rounded-lg'>
       {/* Header toolbar */}
-      <div className='flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0'>
+      <div className='flex items-center justify-between p-4 border-b border-border flex-shrink-0'>
         <div className='flex items-center gap-3'>
           <Zap size={16} className='text-blue-500' />
           <span className='font-semibold text-foreground'>{t('SSE数据流')}</span>
@@ -278,12 +278,12 @@ const SSEViewer = ({ sseData }) => {
 
       {/* SSE data list */}
       <div className='flex-1 overflow-auto p-4'>
-        <div className='overflow-hidden rounded-lg bg-white dark:bg-gray-800'>
+        <div className='overflow-hidden rounded-lg bg-background'>
           {parsedSSEData.map((item) => (
-            <div key={item.key} className='border-b border-gray-100 last:border-b-0 dark:border-gray-700'>
+            <div key={item.key} className='border-b border-border last:border-b-0'>
               <button
                 type='button'
-                className='flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-gray-700/40'
+                className='flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-surface-secondary/60'
                 onClick={() =>
                   setExpandedKeys((prev) =>
                     prev.includes(item.key)
@@ -300,13 +300,13 @@ const SSEViewer = ({ sseData }) => {
                     <span className='text-red-600'>{t('解析错误')}</span>
                   ) : (
                     <>
-                      <span className='text-gray-600'>
+                      <span className='text-muted'>
                         {item.parsed?.id ||
                           item.parsed?.object ||
                           t('SSE 事件')}
                       </span>
                       {item.parsed?.choices?.[0]?.delta && (
-                        <span className='text-xs text-gray-400'>
+                        <span className='text-xs text-muted'>
                           •{' '}
                           {Object.keys(item.parsed.choices[0].delta)
                             .filter((k) => item.parsed.choices[0].delta[k])
@@ -317,9 +317,9 @@ const SSEViewer = ({ sseData }) => {
                   )}
                 </div>
                 {expandedKeys.includes(item.key) ? (
-                  <ChevronUp className='shrink-0 text-gray-400' size={16} />
+                  <ChevronUp className='shrink-0 text-muted' size={16} />
                 ) : (
-                  <ChevronDown className='shrink-0 text-gray-400' size={16} />
+                  <ChevronDown className='shrink-0 text-muted' size={16} />
                 )}
               </button>
               {expandedKeys.includes(item.key) && (

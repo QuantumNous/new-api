@@ -35,7 +35,7 @@ const StepNavigation = ({
   t,
 }) => {
   return (
-    <div className='mt-8 flex flex-col-reverse gap-3 border-t border-slate-200/80 pt-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between'>
+    <div className='mt-8 flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between'>
       {/* 上一步按钮 */}
       {currentStep > 0 && (
         <Button

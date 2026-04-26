@@ -97,7 +97,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
         aria-haspopup='menu'
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/[0.04] text-slate-700 transition-colors hover:bg-slate-900/[0.07] dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15'
+        className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-secondary text-foreground transition-colors hover:bg-surface-secondary/70'
       >
         {currentButtonIcon}
       </button>
@@ -106,7 +106,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
         <div
           role='menu'
           aria-label={t('切换主题')}
-          className='absolute right-0 top-full z-50 mt-2 min-w-52 rounded-2xl border border-slate-200/80 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/95'
+          className='absolute right-0 top-full z-50 mt-2 min-w-52 rounded-2xl border border-border bg-background/95 p-1 shadow-xl backdrop-blur'
         >
           {themeOptions.map((option) => (
             <button
@@ -115,16 +115,16 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
               role='menuitemradio'
               aria-checked={theme === option.key}
               onClick={() => handleThemeSelect(option.key)}
-              className={`flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-900/[0.04] dark:hover:bg-white/10 ${
+              className={`flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-surface-secondary ${
                 theme === option.key ? 'bg-primary/10 text-primary' : ''
               }`}
             >
-              <span className='mt-0.5 text-slate-500 dark:text-slate-400'>
+              <span className='mt-0.5 text-muted'>
                 {option.icon}
               </span>
               <span className='flex flex-col'>
                 <span>{option.label}</span>
-                <span className='text-xs text-slate-500 dark:text-slate-400'>
+                <span className='text-xs text-muted'>
                   {option.description}
                 </span>
               </span>
@@ -132,7 +132,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
           ))}
 
           {theme === 'auto' ? (
-            <div className='px-3 py-2 text-xs text-slate-500 dark:text-slate-400'>
+            <div className='px-3 py-2 text-xs text-muted'>
               {t('当前跟随系统')}：
               {actualTheme === 'dark' ? t('深色') : t('浅色')}
             </div>

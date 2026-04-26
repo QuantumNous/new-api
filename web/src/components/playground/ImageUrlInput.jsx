@@ -53,7 +53,7 @@ const ImageUrlInput = ({
           <Image
             size={16}
             className={
-              imageEnabled && !disabled ? 'text-blue-500' : 'text-gray-400'
+              imageEnabled && !disabled ? 'text-primary' : 'text-muted'
             }
           />
           <span className='text-sm font-semibold text-foreground'>
@@ -93,19 +93,19 @@ const ImageUrlInput = ({
       </div>
 
       {!imageEnabled ? (
-        <span className='mb-2 block text-xs text-gray-500'>
+        <span className='mb-2 block text-xs text-muted'>
           {disabled
             ? t('图片功能在自定义请求体模式下不可用')
             : t('启用后可添加图片URL进行多模态对话')}
         </span>
       ) : imageUrls.length === 0 ? (
-        <span className='mb-2 block text-xs text-gray-500'>
+        <span className='mb-2 block text-xs text-muted'>
           {disabled
             ? t('图片功能在自定义请求体模式下不可用')
             : t('点击 + 按钮添加图片URL进行多模态对话')}
         </span>
       ) : (
-        <span className='mb-2 block text-xs text-gray-500'>
+        <span className='mb-2 block text-xs text-muted'>
           {t('已添加')} {imageUrls.length} {t('张图片')}
           {disabled ? ` (${t('自定义模式下不可用')})` : ''}
         </span>

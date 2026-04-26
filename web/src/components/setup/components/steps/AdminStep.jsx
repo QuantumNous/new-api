@@ -43,7 +43,7 @@ function SetupInput({
         {label}
       </span>
       <div className='relative'>
-        <span className='pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-slate-400 dark:text-slate-500'>
+        <span className='pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted'>
           {icon}
         </span>
         <Input
@@ -54,7 +54,7 @@ function SetupInput({
           autoComplete={autoComplete}
           onValueChange={handleValueChange}
           onChange={handleValueChange}
-          className='h-12 rounded-2xl border border-slate-200 bg-white/85 pl-10 text-slate-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-100'
+          className='h-12 rounded-2xl border border-border bg-background/85 pl-10 text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10'
         />
       </div>
       {helper ? (
@@ -94,7 +94,7 @@ const AdminStep = ({
               <ShieldCheck size={24} />
             </div>
             <div>
-              <h3 className='text-lg font-semibold text-slate-950 dark:text-white'>
+              <h3 className='text-lg font-semibold text-foreground'>
                 {t('管理员账号')}
               </h3>
               <p className='mt-2 text-sm leading-6 text-foreground'>
@@ -135,11 +135,11 @@ const AdminStep = ({
             />
           </div>
 
-          <Card className='rounded-3xl border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-900/60'>
-            <div className='mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-600 shadow-sm dark:bg-slate-950 dark:text-slate-300'>
+          <Card className='rounded-3xl border border-border bg-surface-secondary/80 p-5'>
+            <div className='mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-background text-muted shadow-sm'>
               <ShieldCheck size={22} />
             </div>
-            <h3 className='text-sm font-semibold text-slate-950 dark:text-white'>
+            <h3 className='text-sm font-semibold text-foreground'>
               {t('安全检查')}
             </h3>
             <div className='mt-4 space-y-3'>

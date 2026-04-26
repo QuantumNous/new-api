@@ -118,7 +118,7 @@ const SettingsPanel = ({
         {/* Group selector */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center gap-2 mb-2'>
-            <Users size={16} className='text-gray-500' />
+            <Users size={16} className='text-muted' />
             <span className='text-sm font-semibold text-foreground'>
               {t('分组')}
             </span>
@@ -150,7 +150,7 @@ const SettingsPanel = ({
         {/* Model selector */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center gap-2 mb-2'>
-            <Sparkles size={16} className='text-gray-500' />
+            <Sparkles size={16} className='text-muted' />
             <span className='text-sm font-semibold text-foreground'>
               {t('模型')}
             </span>
@@ -206,7 +206,7 @@ const SettingsPanel = ({
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
-              <ToggleLeft size={16} className='text-gray-500' />
+              <ToggleLeft size={16} className='text-muted' />
               <span className='text-sm font-semibold text-foreground'>
                 {t('流式输出')}
               </span>
