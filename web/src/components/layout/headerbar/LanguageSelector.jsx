@@ -70,7 +70,7 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
         aria-haspopup='menu'
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-secondary text-foreground transition-colors hover:bg-surface-tertiary'
+        className='inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface-secondary text-foreground transition-colors hover:bg-surface-tertiary'
       >
         <Languages size={18} />
       </button>
@@ -93,7 +93,7 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
               role='menuitemradio'
               aria-checked={currentLang === key}
               onClick={() => handleLanguageSelect(key)}
-              className={`flex w-full items-center rounded-md px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary ${
+              className={`flex w-full cursor-pointer items-center rounded-md px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary ${
                 currentLang === key
                   ? 'bg-primary/10 text-primary'
                   : 'text-foreground'

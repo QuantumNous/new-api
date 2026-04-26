@@ -97,7 +97,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
         aria-haspopup='menu'
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-secondary text-foreground transition-colors hover:bg-surface-secondary/70'
+        className='inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface-secondary text-foreground transition-colors hover:bg-surface-secondary/70'
       >
         {currentButtonIcon}
       </button>
@@ -121,7 +121,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
               role='menuitemradio'
               aria-checked={theme === option.key}
               onClick={() => handleThemeSelect(option.key)}
-              className={`flex w-full items-start gap-2 rounded-xl px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary ${
+              className={`flex w-full cursor-pointer items-start gap-2 rounded-xl px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary ${
                 theme === option.key ? 'bg-primary/10 text-primary' : ''
               }`}
             >

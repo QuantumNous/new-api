@@ -140,7 +140,7 @@ const UserArea = ({
           aria-haspopup='menu'
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
-          className='inline-flex h-9 items-center gap-1.5 rounded-full bg-surface-secondary px-1.5 pr-2 text-foreground transition-colors hover:bg-surface-tertiary'
+          className='inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-surface-secondary px-1.5 pr-2 text-foreground transition-colors hover:bg-surface-tertiary'
         >
           <Avatar
             size='sm'
@@ -182,7 +182,7 @@ const UserArea = ({
                 type='button'
                 role='menuitem'
                 onClick={() => handleMenuAction(item)}
-                className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary ${
+                className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary ${
                   item.danger ? 'text-danger' : 'text-foreground'
                 }`}
               >
