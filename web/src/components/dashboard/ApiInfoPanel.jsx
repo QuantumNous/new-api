@@ -39,10 +39,16 @@ const ApiInfoPanel = ({
           <Widget.Title>{t('API信息')}</Widget.Title>
         </div>
       </Widget.Header>
-      <Widget.Content className='p-0'>
-        <ScrollableContainer maxHeight='24rem'>
-          {apiInfoData.length > 0 ? (
-            apiInfoData.map((api) => (
+      <Widget.Content className='flex p-0'>
+        {/* When the panel has API rows, defer to ScrollableContainer's
+            scroll-with-fade behavior. When empty, render a flex wrapper that
+            fills the Widget height so the EmptyState is vertically centered
+            inside whatever the grid row stretches us to (matches the chart
+            panel sitting next to it). `flex` on Widget.Content + `flex-1`
+            on the inner wrapper is what propagates the row height down. */}
+        {apiInfoData.length > 0 ? (
+          <ScrollableContainer className='flex-1' maxHeight='24rem'>
+            {apiInfoData.map((api) => (
               <React.Fragment key={api.id}>
                 <div className='flex p-2 hover:bg-surface-secondary rounded-lg transition-colors cursor-pointer'>
                   <div className='flex-shrink-0 mr-3'>
@@ -100,8 +106,10 @@ const ApiInfoPanel = ({
                 </div>
                 <div className='h-px bg-border' />
               </React.Fragment>
-            ))
-          ) : (
+            ))}
+          </ScrollableContainer>
+        ) : (
+          <div className='flex flex-1 min-h-80 items-center justify-center'>
             <EmptyState size='sm'>
               <EmptyState.Header>
                 <EmptyState.Media variant='icon'>
@@ -113,8 +121,8 @@ const ApiInfoPanel = ({
                 </EmptyState.Description>
               </EmptyState.Header>
             </EmptyState>
-          )}
-        </ScrollableContainer>
+          </div>
+        )}
       </Widget.Content>
     </Widget>
   );
