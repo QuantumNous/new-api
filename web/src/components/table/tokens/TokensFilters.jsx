@@ -49,10 +49,10 @@ const TokensFilters = ({
     <form
       onSubmit={handleSubmit}
       autoComplete='off'
-      className='w-full md:w-auto order-1 md:order-2'
+      className='w-full xl:w-auto order-1 xl:order-2'
     >
-      <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
-        <div className='relative w-full md:w-56'>
+      <div className='flex flex-col sm:flex-row sm:flex-wrap xl:flex-nowrap items-stretch sm:items-center gap-2 w-full xl:w-auto'>
+        <div className='relative w-full sm:flex-1 xl:flex-initial xl:w-56'>
           <FilterInput
             value={values.searchKeyword}
             onChange={(value) => setFieldValue('searchKeyword', value)}
@@ -60,7 +60,7 @@ const TokensFilters = ({
           />
         </div>
 
-        <div className='relative w-full md:w-56'>
+        <div className='relative w-full sm:flex-1 xl:flex-initial xl:w-56'>
           <FilterInput
             value={values.searchToken}
             onChange={(value) => setFieldValue('searchToken', value)}
@@ -68,12 +68,12 @@ const TokensFilters = ({
           />
         </div>
 
-        <div className='flex gap-2 w-full md:w-auto'>
+        <div className='flex gap-2 w-full sm:w-auto'>
           <Button
             type='submit'
             variant='outline'
             isPending={loading || searching}
-            className='flex-1 md:flex-initial md:w-auto'
+            className='flex-1 sm:flex-initial sm:w-auto text-sm'
             size='sm'
           >
             {t('查询')}
@@ -83,7 +83,7 @@ const TokensFilters = ({
             type='button'
             variant='outline'
             onPress={handleReset}
-            className='flex-1 md:flex-initial md:w-auto'
+            className='flex-1 sm:flex-initial sm:w-auto text-sm'
             size='sm'
           >
             {t('重置')}

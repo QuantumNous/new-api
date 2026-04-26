@@ -357,7 +357,7 @@ function TokensPage() {
           />
         }
         actionsArea={
-          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
+          <div className='flex flex-col xl:flex-row xl:justify-between xl:items-center gap-2 w-full'>
             <TokensActions
               selectedKeys={selectedKeys}
               setEditingToken={setEditingToken}
@@ -367,7 +367,7 @@ function TokensPage() {
               t={t}
             />
 
-            <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
+            <div className='w-full xl:w-auto order-1 xl:order-2'>
               <TokensFilters
                 formInitValues={formInitValues}
                 setFormApi={setFormApi}
@@ -460,7 +460,12 @@ function FluentNoticePanel({
 
         <div className='flex flex-wrap items-center justify-end gap-2 border-t border-[color:var(--app-border)] bg-surface-secondary/40 px-4 py-3'>
           {!prefillKey && (
-            <Button size='sm' variant='flat' color='warning' onPress={onSuppress}>
+            <Button
+              size='sm'
+              variant='flat'
+              color='warning'
+              onPress={onSuppress}
+            >
               {t('不再提醒')}
             </Button>
           )}
