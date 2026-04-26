@@ -25,15 +25,11 @@ import { API, showSuccess, showError } from "../../../../helpers";
 import { UserContext } from "../../../../context/User";
 import { normalizeLanguage } from "../../../../i18n/language";
 
-// Language options with native names
+// Only Chinese and English are surfaced as user-pickable options; other
+// locales remain bundled so saved preferences keep working.
 const languageOptions = [
 	{ value: "zh-CN", label: "简体中文" },
-	{ value: "zh-TW", label: "繁體中文" },
 	{ value: "en", label: "English" },
-	{ value: 'fr', label: 'Français'},
-	{ value: 'ru', label: 'Русский'},
-	{ value: 'ja', label: '日本語'},
-	{ value: "vi", label: "Tiếng Việt" },
 ];
 
 const PreferencesSettings = ({ t }) => {

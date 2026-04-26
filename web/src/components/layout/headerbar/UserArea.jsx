@@ -103,25 +103,25 @@ const UserArea = ({
       {
         key: 'personal',
         label: t('个人设置'),
-        icon: <UserCog size={16} />,
+        icon: <UserCog size={14} />,
         action: () => navigate('/console/personal'),
       },
       {
         key: 'token',
         label: t('令牌管理'),
-        icon: <KeyRound size={16} />,
+        icon: <KeyRound size={14} />,
         action: () => navigate('/console/token'),
       },
       {
         key: 'topup',
         label: t('钱包管理'),
-        icon: <CreditCard size={16} />,
+        icon: <CreditCard size={14} />,
         action: () => navigate('/console/topup'),
       },
       {
         key: 'logout',
         label: t('退出'),
-        icon: <LogOut size={16} />,
+        icon: <LogOut size={14} />,
         action: logout,
         danger: true,
       },
@@ -166,7 +166,7 @@ const UserArea = ({
           <div
             role='menu'
             aria-label={t('用户菜单')}
-            className='absolute right-0 top-full z-50 mt-2 min-w-44 rounded-xl border border-border bg-background p-1 shadow-lg'
+            className='absolute right-0 top-full z-50 mt-2 min-w-40 rounded-xl border border-border bg-background p-1 shadow-lg'
           >
             {menuItems.map((item) => (
               <button
@@ -174,7 +174,7 @@ const UserArea = ({
                 type='button'
                 role='menuitem'
                 onClick={() => handleMenuAction(item)}
-                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface-secondary ${
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[14px] leading-5 transition-colors hover:bg-surface-secondary ${
                   item.danger ? 'text-danger' : 'text-foreground'
                 }`}
               >

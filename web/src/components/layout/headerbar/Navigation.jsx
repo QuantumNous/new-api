@@ -72,11 +72,17 @@ const Navigation = ({
           const target = resolveTarget(link, userState, pricingRequireAuth);
           const current = isLinkCurrent(link, pathname);
           return (
+            // Navbar.Item ships with its own `text-muted` baseline that
+            // transitions to `text-foreground` on hover / `data-current`.
+            // The text-only color shift is subtle, so layer a surface tint
+            // on top via Tailwind utilities — both `hover:` and HeroUI's
+            // `data-[hovered=true]` selector cover mouse + a11y-driven
+            // hover (touch retains the no-bg muted baseline).
             <Navbar.Item
               key={link.itemKey}
               href={target}
               isCurrent={current}
-              className='text-foreground hover:text-primary'
+              className='transition-colors hover:bg-surface-secondary data-[hovered=true]:bg-surface-secondary data-[current=true]:bg-surface-secondary'
             >
               {link.text}
             </Navbar.Item>
