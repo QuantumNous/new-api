@@ -81,7 +81,7 @@ const renderUsername = (text, record) => {
         <Tag color='white' shape='circle' className='!text-xs'>
           <div className='flex items-center gap-1'>
             <div
-              className='w-2 h-2 flex-shrink-0 rounded-full'
+              className='w-2 h-2 flex-shrink-0 rounded-semi-border-radius-full'
               style={{ backgroundColor: '#10b981' }}
             />
             {displayRemark}
@@ -162,7 +162,11 @@ const renderQuotaUsage = (text, record, t) => {
             percent={percent}
             aria-label='quota usage'
             format={() => `${percent.toFixed(0)}%`}
-            style={{ width: '100%', marginTop: '1px', marginBottom: 0 }}
+            style={{
+              width: '100%',
+              marginTop: 'calc(var(--na-space-px) * 1)',
+              marginBottom: 0,
+            }}
           />
         </div>
       </Tag>

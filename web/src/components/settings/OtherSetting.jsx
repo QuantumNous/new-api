@@ -318,10 +318,10 @@ const OtherSetting = () => {
       <Col
         span={24}
         style={{
-          marginTop: '10px',
+          marginTop: 'calc(var(--na-space-px) * 10)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px',
+          gap: 'calc(var(--na-space-px) * 10)',
         }}
       >
         {/* 版本信息 */}

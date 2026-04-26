@@ -61,29 +61,34 @@ const PaymentConfirmModal = ({
       confirmLoading={confirmLoading}
     >
       <div className='space-y-4'>
-        <Card className='!rounded-xl !border-0 bg-slate-50 dark:bg-slate-800'>
+        <Card className='na-billing-card-soft !border-0'>
           <div className='space-y-3'>
             <div className='flex justify-between items-center'>
-              <Text strong className='text-slate-700 dark:text-slate-200'>
+              <Text strong className='text-semi-color-text-1'>
                 {t('充值数量')}：
               </Text>
-              <Text className='text-slate-900 dark:text-slate-100'>
+              <Text className='text-semi-color-text-0'>
                 {renderQuotaWithAmount(topUpCount)}
               </Text>
             </div>
             <div className='flex justify-between items-center'>
-              <Text strong className='text-slate-700 dark:text-slate-200'>
+              <Text strong className='text-semi-color-text-1'>
                 {t('实付金额')}：
               </Text>
               {amountLoading ? (
-                <Skeleton.Title style={{ width: '60px', height: '16px' }} />
+                <Skeleton.Title
+                  style={{
+                    width: 'calc(var(--na-space-px) * 60)',
+                    height: 'calc(var(--na-space-px) * 16)',
+                  }}
+                />
               ) : (
                 <div className='flex items-baseline space-x-2'>
-                  <Text strong className='font-bold' style={{ color: 'red' }}>
+                  <Text strong className='font-bold text-semi-color-danger'>
                     {renderAmount()}
                   </Text>
                   {hasDiscount && (
-                    <Text size='small' className='text-rose-500'>
+                    <Text size='small' className='text-semi-color-danger'>
                       {Math.round(discountRate * 100)}%
                     </Text>
                   )}
@@ -93,25 +98,21 @@ const PaymentConfirmModal = ({
             {hasDiscount && !amountLoading && (
               <>
                 <div className='flex justify-between items-center'>
-                  <Text className='text-slate-500 dark:text-slate-400'>
-                    {t('原价')}：
-                  </Text>
-                  <Text delete className='text-slate-500 dark:text-slate-400'>
+                  <Text className='text-semi-color-text-2'>{t('原价')}：</Text>
+                  <Text delete className='text-semi-color-text-2'>
                     {`${originalAmount.toFixed(2)} ${t('元')}`}
                   </Text>
                 </div>
                 <div className='flex justify-between items-center'>
-                  <Text className='text-slate-500 dark:text-slate-400'>
-                    {t('优惠')}：
-                  </Text>
-                  <Text className='text-emerald-600 dark:text-emerald-400'>
+                  <Text className='text-semi-color-text-2'>{t('优惠')}：</Text>
+                  <Text className='text-semi-color-success'>
                     {`- ${discountAmount.toFixed(2)} ${t('元')}`}
                   </Text>
                 </div>
               </>
             )}
             <div className='flex justify-between items-center'>
-              <Text strong className='text-slate-700 dark:text-slate-200'>
+              <Text strong className='text-semi-color-text-1'>
                 {t('支付方式')}：
               </Text>
               <div className='flex items-center'>
@@ -126,19 +127,19 @@ const PaymentConfirmModal = ({
                           <SiAlipay
                             className='mr-2'
                             size={16}
-                            color='#1677FF'
+                            color='var(--brand-alipay)'
                           />
                         ) : payMethod.type === 'wxpay' ? (
                           <SiWechat
                             className='mr-2'
                             size={16}
-                            color='#07C160'
+                            color='var(--brand-wechat)'
                           />
                         ) : payMethod.type === 'stripe' ? (
                           <SiStripe
                             className='mr-2'
                             size={16}
-                            color='#635BFF'
+                            color='var(--brand-stripe)'
                           />
                         ) : payMethod.icon ? (
                           <img
@@ -146,8 +147,8 @@ const PaymentConfirmModal = ({
                             alt={payMethod.name}
                             className='mr-2'
                             style={{
-                              width: 16,
-                              height: 16,
+                              width: 'var(--na-space-4)',
+                              height: 'var(--na-space-4)',
                               objectFit: 'contain',
                             }}
                           />
@@ -160,7 +161,7 @@ const PaymentConfirmModal = ({
                             }
                           />
                         )}
-                        <Text className='text-slate-900 dark:text-slate-100'>
+                        <Text className='text-semi-color-text-0'>
                           {payMethod.name}
                         </Text>
                       </>
@@ -173,9 +174,9 @@ const PaymentConfirmModal = ({
                           <SiAlipay
                             className='mr-2'
                             size={16}
-                            color='#1677FF'
+                            color='var(--brand-alipay)'
                           />
-                          <Text className='text-slate-900 dark:text-slate-100'>
+                          <Text className='text-semi-color-text-0'>
                             {t('支付宝')}
                           </Text>
                         </>
@@ -186,11 +187,9 @@ const PaymentConfirmModal = ({
                           <SiStripe
                             className='mr-2'
                             size={16}
-                            color='#635BFF'
+                            color='var(--brand-stripe)'
                           />
-                          <Text className='text-slate-900 dark:text-slate-100'>
-                            Stripe
-                          </Text>
+                          <Text className='text-semi-color-text-0'>Stripe</Text>
                         </>
                       );
                     } else {
@@ -199,9 +198,9 @@ const PaymentConfirmModal = ({
                           <SiWechat
                             className='mr-2'
                             size={16}
-                            color='#07C160'
+                            color='var(--brand-wechat)'
                           />
-                          <Text className='text-slate-900 dark:text-slate-100'>
+                          <Text className='text-semi-color-text-0'>
                             {t('微信')}
                           </Text>
                         </>

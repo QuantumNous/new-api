@@ -354,7 +354,7 @@ const UserBindingManagementModal = ({
           </div>
 
           {visibleBindingItems.length === 0 ? (
-            <Card className='!rounded-xl border-dashed'>
+            <Card className='!rounded-semi-border-radius-large border-dashed'>
               <Text type='tertiary'>{t('暂无已绑定项')}</Text>
             </Card>
           ) : (
@@ -377,15 +377,15 @@ const UserBindingManagementModal = ({
                 return (
                   <Card
                     key={item.key}
-                    className={`!rounded-xl ${shouldSpanTwoColsOnDesktop ? 'lg:col-span-2' : ''}`}
+                    className={`!rounded-semi-border-radius-large ${shouldSpanTwoColsOnDesktop ? 'lg:col-span-2' : ''}`}
                   >
-                    <div className='flex items-center justify-between gap-3 min-h-[92px]'>
+                    <div className='flex items-center justify-between gap-3 min-h-[calc(var(--na-space-px) * 92)]'>
                       <div className='flex items-center flex-1 min-w-0'>
-                        <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                        <div className='w-10 h-10 rounded-semi-border-radius-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
                           {item.icon}
                         </div>
                         <div className='min-w-0 flex-1'>
-                          <div className='font-medium text-gray-900 flex items-center gap-2'>
+                          <div className='font-medium text-semi-color-text-0 flex items-center gap-2'>
                             <span>{item.name}</span>
                             <Tag size='small' color='white'>
                               {item.type === 'builtin'
@@ -393,7 +393,7 @@ const UserBindingManagementModal = ({
                                 : t('自定义')}
                             </Tag>
                           </div>
-                          <div className='text-sm text-gray-500 truncate'>
+                          <div className='text-sm text-semi-color-text-2 truncate'>
                             {statusText}
                           </div>
                         </div>

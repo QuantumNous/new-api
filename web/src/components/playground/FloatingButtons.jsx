@@ -36,22 +36,10 @@ const FloatingButtons = ({
       {!showSettings && (
         <Button
           icon={<Settings size={18} />}
-          style={{
-            position: 'fixed',
-            right: 16,
-            bottom: 90,
-            zIndex: 1000,
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            padding: 0,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-            background: 'linear-gradient(to right, #8b5cf6, #6366f1)',
-          }}
           onClick={onToggleSettings}
           theme='solid'
           type='primary'
-          className='lg:hidden'
+          className='na-playground-floating-button na-playground-floating-settings lg:hidden'
         />
       )}
 
@@ -62,21 +50,9 @@ const FloatingButtons = ({
           onClick={onToggleDebugPanel}
           theme='solid'
           type={showDebugPanel ? 'danger' : 'primary'}
-          style={{
-            position: 'fixed',
-            right: 16,
-            bottom: 140,
-            zIndex: 1000,
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            padding: 0,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-            background: showDebugPanel
-              ? 'linear-gradient(to right, #e11d48, #be123c)'
-              : 'linear-gradient(to right, #4f46e5, #6366f1)',
-          }}
-          className='lg:hidden'
+          className={`na-playground-floating-button na-playground-floating-debug ${
+            showDebugPanel ? 'na-playground-floating-danger' : ''
+          } lg:hidden`}
         />
       )}
     </>

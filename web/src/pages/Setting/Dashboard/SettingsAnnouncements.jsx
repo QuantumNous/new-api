@@ -103,7 +103,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         <Tooltip content={text} position='topLeft' showArrow>
           <div
             style={{
-              maxWidth: '300px',
+              maxWidth: 'calc(var(--na-space-px) * 300)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -126,9 +126,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
           </div>
           <div
             style={{
-              fontSize: '12px',
+              fontSize: 'calc(var(--na-space-px) * 12)',
               color: 'var(--semi-color-text-2)',
-              marginTop: '2px',
+              marginTop: 'calc(var(--na-space-px) * 2)',
             }}
           >
             {publishDate ? formatDateTimeString(new Date(publishDate)) : '-'}
@@ -155,7 +155,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         <Tooltip content={text || '-'} showArrow>
           <div
             style={{
-              maxWidth: '200px',
+              maxWidth: 'calc(var(--na-space-px) * 200)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -399,7 +399,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         </div>
       </div>
 
-      <Divider margin='12px' />
+      <Divider margin='calc(var(--na-space-px) * 12)' />
 
       <div className='flex flex-col md:flex-row justify-between items-center gap-4 w-full'>
         <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>

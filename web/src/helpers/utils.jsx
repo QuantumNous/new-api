@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { Toast, Pagination } from '@douyinfe/semi-ui';
-import { toastConstants, BILLING_VARS, BILLING_VAR_REGEX } from '../constants';
+import { toastConstants, BILLING_PRICING_VARS, BILLING_VAR_REGEX } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
 import {
@@ -32,6 +32,30 @@ const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
 };
 export default HTMLToastContent;
+
+export const APP_DISPLAY_NAME = 'MO API';
+export const APP_DISPLAY_LOGO = '/mo-api-logo.svg';
+
+export function normalizeDisplaySystemName(systemName) {
+  const trimmedName = (systemName || '').trim();
+  const normalizedName = trimmedName.toLowerCase().replace(/[\s-]+/g, '');
+
+  if (!trimmedName || normalizedName === 'newapi') {
+    return APP_DISPLAY_NAME;
+  }
+
+  return systemName;
+}
+
+export function normalizeDisplayLogo(logo) {
+  const trimmedLogo = (logo || '').trim();
+
+  if (!trimmedLogo || trimmedLogo === '/logo.png') {
+    return APP_DISPLAY_LOGO;
+  }
+
+  return logo;
+}
 export function isAdmin() {
   let user = localStorage.getItem('user');
   if (!user) return false;
@@ -48,14 +72,27 @@ export function isRoot() {
 
 export function getSystemName() {
   let system_name = localStorage.getItem('system_name');
-  if (!system_name) return 'New API';
-  return system_name;
+  return normalizeDisplaySystemName(system_name);
 }
 
 export function getLogo() {
   let logo = localStorage.getItem('logo');
-  if (!logo) return '/logo.png';
-  return logo;
+  return normalizeDisplayLogo(logo);
+}
+
+export function applyPageBranding() {
+  const systemName = getSystemName();
+  if (systemName) {
+    document.title = systemName;
+  }
+
+  const logo = getLogo();
+  if (logo) {
+    const linkElement = document.querySelector("link[rel~='icon']");
+    if (linkElement) {
+      linkElement.href = logo;
+    }
+  }
 }
 
 export function getUserIdFromLocalStorage() {
@@ -925,9 +962,8 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
   while ((vm = varRe.exec(exprBody)) !== null) {
     if (!(vm[1] in varCoeffs)) varCoeffs[vm[1]] = Number(vm[2]);
   }
-  const hasCoeffs = 'p' in varCoeffs || 'c' in varCoeffs;
-
-  const varLabels = BILLING_VARS.map((v) => [v.key, v.label]);
+  const varLabels = BILLING_PRICING_VARS.map((v) => [v.key, v.label]);
+  const hasCoeffs = varLabels.some(([key]) => key in varCoeffs);
 
   const hasTimeCondition = /\b(?:hour|minute|weekday|month|day)\(/.test(exprBody);
   const hasRequestCondition = /\b(?:param|header)\(/.test(exprBody);

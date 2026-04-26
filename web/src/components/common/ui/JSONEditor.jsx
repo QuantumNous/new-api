@@ -465,7 +465,7 @@ const JSONEditor = ({
                         className='absolute right-2 top-1/2 transform -translate-y-1/2'
                         style={{
                           color: isLastDuplicate ? '#ff7d00' : '#faad14',
-                          fontSize: '14px',
+                          fontSize: 'calc(var(--na-space-px) * 14)',
                         }}
                       />
                     </Tooltip>
@@ -570,7 +570,10 @@ const JSONEditor = ({
                         <Tooltip content={t('重复的键名')}>
                           <IconAlertTriangle
                             className='absolute right-2 top-1/2 transform -translate-y-1/2'
-                            style={{ color: '#faad14', fontSize: '14px' }}
+                            style={{
+                              color: '#faad14',
+                              fontSize: 'calc(var(--na-space-px) * 14)',
+                            }}
                           />
                         </Tooltip>
                       )}
@@ -653,8 +656,11 @@ const JSONEditor = ({
             )}
           </div>
         }
-        headerStyle={{ padding: '12px 16px' }}
-        bodyStyle={{ padding: '16px' }}
+        headerStyle={{
+          padding:
+            'calc(var(--na-space-px) * 12) calc(var(--na-space-px) * 16)',
+        }}
+        bodyStyle={{ padding: 'calc(var(--na-space-px) * 16)' }}
         className='!rounded-2xl'
       >
         {/* JSON错误提示 */}
@@ -703,7 +709,7 @@ const JSONEditor = ({
 
         {/* 额外文本显示在卡片底部 */}
         {extraText && (
-          <Divider margin='12px' align='center'>
+          <Divider margin='calc(var(--na-space-px) * 12)' align='center'>
             <Text type='tertiary' size='small'>
               {extraText}
             </Text>

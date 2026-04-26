@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   Button,
@@ -64,13 +82,21 @@ export function serializeGroupGroupRatio(rules) {
     : JSON.stringify(nested, null, 2);
 }
 
-function GroupSection({ groupName, items, groupOptions, onUpdate, onRemove, onAdd, t }) {
+function GroupSection({
+  groupName,
+  items,
+  groupOptions,
+  onUpdate,
+  onRemove,
+  onAdd,
+  t,
+}) {
   const [open, setOpen] = useState(false);
 
   return (
     <div
       style={{
-        border: '1px solid var(--semi-color-border)',
+        border: 'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
         borderRadius: 8,
         overflow: 'hidden',
       }}
@@ -78,17 +104,26 @@ function GroupSection({ groupName, items, groupOptions, onUpdate, onRemove, onAd
       <div
         className='flex items-center justify-between cursor-pointer'
         style={{
-          padding: '8px 12px',
+          padding: 'calc(var(--na-space-px) * 8) calc(var(--na-space-px) * 12)',
           background: 'var(--semi-color-fill-0)',
         }}
         onClick={() => setOpen(!open)}
       >
         <div className='flex items-center gap-2'>
-          {open ? <IconChevronUp size='small' /> : <IconChevronDown size='small' />}
+          {open ? (
+            <IconChevronUp size='small' />
+          ) : (
+            <IconChevronDown size='small' />
+          )}
           <Text strong>{groupName}</Text>
-          <Tag size='small' color='blue'>{items.length} {t('条规则')}</Tag>
+          <Tag size='small' color='blue'>
+            {items.length} {t('条规则')}
+          </Tag>
         </div>
-        <div className='flex items-center gap-1' onClick={(e) => e.stopPropagation()}>
+        <div
+          className='flex items-center gap-1'
+          onClick={(e) => e.stopPropagation()}
+        >
           <Button
             icon={<IconPlus />}
             size='small'
@@ -110,7 +145,12 @@ function GroupSection({ groupName, items, groupOptions, onUpdate, onRemove, onAd
         </div>
       </div>
       <Collapsible isOpen={open} keepDOM>
-        <div style={{ padding: '8px 12px' }}>
+        <div
+          style={{
+            padding:
+              'calc(var(--na-space-px) * 8) calc(var(--na-space-px) * 12)',
+          }}
+        >
           {items.map((rule) => (
             <div
               key={rule._id}

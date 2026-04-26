@@ -71,38 +71,29 @@ const ThinkingContent = ({
   }
 
   return (
-    <div className='rounded-xl sm:rounded-2xl mb-2 sm:mb-4 overflow-hidden shadow-sm backdrop-blur-sm'>
+    <div className='na-thinking-card'>
       <div
-        className='flex items-center justify-between p-3 cursor-pointer hover:bg-gradient-to-r hover:from-white/20 hover:to-purple-50/30 transition-all'
-        style={{
-          background:
-            'linear-gradient(135deg, #4c1d95 0%, #6d28d9 50%, #7c3aed 100%)',
-          position: 'relative',
-        }}
+        className='na-thinking-header'
         onClick={() => onToggleReasoningExpansion(message.id)}
       >
-        <div className='absolute inset-0 overflow-hidden'>
-          <div className='absolute -top-10 -right-10 w-40 h-40 bg-white opacity-5 rounded-full'></div>
-          <div className='absolute -bottom-8 -left-8 w-24 h-24 bg-white opacity-10 rounded-full'></div>
-        </div>
         <div className='flex items-center gap-2 sm:gap-4 relative'>
-          <div className='w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white/20 flex items-center justify-center shadow-lg'>
+          <div className='na-thinking-icon'>
             <Brain
-              style={{ color: 'white' }}
+              style={{ color: 'var(--na-text-inverse)' }}
               size={styleState.isMobile ? 12 : 16}
             />
           </div>
           <div className='flex flex-col'>
             <Typography.Text
               strong
-              style={{ color: 'white' }}
+              style={{ color: 'var(--na-text-inverse)' }}
               className='text-sm sm:text-base'
             >
               {headerText}
             </Typography.Text>
             {thinkingSource && (
               <Typography.Text
-                style={{ color: 'white' }}
+                style={{ color: 'var(--na-text-inverse)' }}
                 className='text-xs mt-0.5 opacity-80 hidden sm:block'
               >
                 来源: {thinkingSource}
@@ -114,12 +105,12 @@ const ThinkingContent = ({
           {isThinkingStatus && !message.isThinkingComplete && (
             <div className='flex items-center gap-1 sm:gap-2'>
               <Loader2
-                style={{ color: 'white' }}
+                style={{ color: 'var(--na-text-inverse)' }}
                 className='animate-spin'
                 size={styleState.isMobile ? 14 : 18}
               />
               <Typography.Text
-                style={{ color: 'white' }}
+                style={{ color: 'var(--na-text-inverse)' }}
                 className='text-xs sm:text-sm font-medium opacity-90'
               >
                 思考中
@@ -127,16 +118,16 @@ const ThinkingContent = ({
             </div>
           )}
           {(!isThinkingStatus || message.isThinkingComplete) && (
-            <div className='w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center'>
+            <div className='na-thinking-toggle'>
               {message.isReasoningExpanded ? (
                 <ChevronUp
                   size={styleState.isMobile ? 12 : 16}
-                  style={{ color: 'white' }}
+                  style={{ color: 'var(--na-text-inverse)' }}
                 />
               ) : (
                 <ChevronRight
                   size={styleState.isMobile ? 12 : 16}
-                  style={{ color: 'white' }}
+                  style={{ color: 'var(--na-text-inverse)' }}
                 />
               )}
             </div>
@@ -144,22 +135,17 @@ const ThinkingContent = ({
         </div>
       </div>
       <div
-        className={`transition-all duration-500 ease-out ${
+        className={`transition-all duration-500 ease-out na-thinking-content-shell ${
           message.isReasoningExpanded
-            ? 'max-h-96 opacity-100'
-            : 'max-h-0 opacity-0'
-        } overflow-hidden bg-gradient-to-br from-purple-50 via-indigo-50 to-violet-50`}
+            ? 'na-thinking-content-shell-expanded'
+            : 'na-thinking-content-shell-collapsed'
+        }`}
       >
         {message.isReasoningExpanded && (
-          <div className='p-3 sm:p-5 pt-2 sm:pt-4'>
+          <div className='na-thinking-content'>
             <div
               ref={scrollRef}
-              className='bg-white/70 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 shadow-inner overflow-x-auto overflow-y-auto thinking-content-scroll'
-              style={{
-                maxHeight: '200px',
-                scrollbarWidth: 'thin',
-                scrollbarColor: 'rgba(0, 0, 0, 0.3) transparent',
-              }}
+              className='na-thinking-scroll thinking-content-scroll'
             >
               <div className='prose prose-xs sm:prose-sm prose-purple max-w-none text-xs sm:text-sm'>
                 <MarkdownRenderer

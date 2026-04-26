@@ -54,8 +54,8 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
 
   const getItemClassName = (isSelected) =>
     isSelected
-      ? '!bg-semi-color-primary-light-default !font-semibold'
-      : 'hover:!bg-semi-color-fill-1';
+      ? 'na-header-menu-item na-header-menu-item-selected'
+      : 'na-header-menu-item';
 
   const currentButtonIcon = useMemo(() => {
     const currentOption = themeOptions.find((option) => option.key === theme);
@@ -76,9 +76,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
             >
               <div className='flex flex-col'>
                 <span>{option.label}</span>
-                <span className='text-xs text-semi-color-text-2'>
-                  {option.description}
-                </span>
+                <span className='na-auth-copy'>{option.description}</span>
               </div>
             </Dropdown.Item>
           ))}
@@ -86,7 +84,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
           {theme === 'auto' && (
             <>
               <Dropdown.Divider />
-              <div className='px-3 py-2 text-xs text-semi-color-text-2'>
+              <div className='na-header-menu-item'>
                 {t('当前跟随系统')}：
                 {actualTheme === 'dark' ? t('深色') : t('浅色')}
               </div>
@@ -101,7 +99,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
           aria-label={t('切换主题')}
           theme='borderless'
           type='tertiary'
-          className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 !rounded-full !bg-semi-color-fill-0 hover:!bg-semi-color-fill-1'
+          className='na-icon-button'
         />
       </span>
     </Dropdown>

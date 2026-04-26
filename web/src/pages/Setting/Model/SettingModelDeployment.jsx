@@ -174,7 +174,11 @@ export default function SettingModelDeployment(props) {
           <Form.Section
             text={
               <div
-                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'calc(var(--na-space-px) * 8)',
+                }}
               >
                 <span>{t('模型部署设置')}</span>
               </div>
@@ -185,7 +189,7 @@ export default function SettingModelDeployment(props) {
             {/*  size="small"*/}
             {/*  style={{ */}
             {/*    display: 'block', */}
-            {/*    marginBottom: '20px',*/}
+            {/*    marginBottom: 'calc(var(--na-space-px) * 20)',*/}
             {/*    color: 'var(--semi-color-text-2)'*/}
             {/*  }}*/}
             {/*>*/}
@@ -195,14 +199,18 @@ export default function SettingModelDeployment(props) {
             <Card
               title={
                 <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'calc(var(--na-space-px) * 8)',
+                  }}
                 >
                   <Cloud size={18} />
                   <span>io.net</span>
                 </div>
               }
-              bodyStyle={{ padding: '20px' }}
-              style={{ marginBottom: '16px' }}
+              bodyStyle={{ padding: 'calc(var(--na-space-px) * 20)' }}
+              style={{ marginBottom: 'calc(var(--na-space-px) * 16)' }}
             >
               <Row gutter={24}>
                 <Col xs={24} lg={14}>
@@ -210,7 +218,7 @@ export default function SettingModelDeployment(props) {
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '16px',
+                      gap: 'calc(var(--na-space-px) * 16)',
                     }}
                   >
                     <Form.Switch
@@ -238,7 +246,12 @@ export default function SettingModelDeployment(props) {
                       extraText={t('请使用 Project 为 io.cloud 的密钥')}
                       mode='password'
                     />
-                    <div style={{ display: 'flex', gap: '12px' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 'calc(var(--na-space-px) * 12)',
+                      }}
+                    >
                       <Button
                         type='outline'
                         size='small'
@@ -247,9 +260,9 @@ export default function SettingModelDeployment(props) {
                         loading={testing}
                         disabled={!inputs['model_deployment.ionet.enabled']}
                         style={{
-                          height: '32px',
-                          fontSize: '13px',
-                          borderRadius: '6px',
+                          height: 'calc(var(--na-space-px) * 32)',
+                          fontSize: 'calc(var(--na-space-px) * 13)',
+                          borderRadius: 'calc(var(--na-space-px) * 6)',
                           fontWeight: '500',
                           borderColor: testing
                             ? 'var(--semi-color-primary)'
@@ -268,32 +281,36 @@ export default function SettingModelDeployment(props) {
                   <div
                     style={{
                       background: 'var(--semi-color-fill-0)',
-                      padding: '16px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--semi-color-border)',
+                      padding: 'calc(var(--na-space-px) * 16)',
+                      borderRadius: 'calc(var(--na-space-px) * 8)',
+                      border:
+                        'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                       height: '100%',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '12px',
+                      gap: 'calc(var(--na-space-px) * 12)',
                       justifyContent: 'space-between',
                     }}
                   >
                     <div>
                       <Text
                         strong
-                        style={{ display: 'block', marginBottom: '8px' }}
+                        style={{
+                          display: 'block',
+                          marginBottom: 'calc(var(--na-space-px) * 8)',
+                        }}
                       >
                         {t('获取 io.net API Key')}
                       </Text>
                       <ul
                         style={{
                           margin: 0,
-                          paddingLeft: '18px',
+                          paddingLeft: 'calc(var(--na-space-px) * 18)',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '6px',
+                          gap: 'calc(var(--na-space-px) * 6)',
                           color: 'var(--semi-color-text-2)',
-                          fontSize: '13px',
+                          fontSize: 'calc(var(--na-space-px) * 13)',
                           lineHeight: 1.6,
                         }}
                       >

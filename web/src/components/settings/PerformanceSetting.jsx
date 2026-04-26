@@ -69,7 +69,7 @@ const PerformanceSetting = () => {
     <>
       <Spin spinning={loading} size='large'>
         {/* 性能设置 */}
-        <Card style={{ marginTop: '10px' }}>
+        <Card style={{ marginTop: 'calc(var(--na-space-px) * 10)' }}>
           <SettingsPerformance options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { SideSheet, Typography, Button, Divider } from '@douyinfe/semi-ui';
+import { SideSheet, Typography, Button } from '@douyinfe/semi-ui';
 import { IconClose } from '@douyinfe/semi-icons';
 
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -26,7 +26,6 @@ import ModelHeader from './components/ModelHeader';
 import ModelBasicInfo from './components/ModelBasicInfo';
 import ModelEndpoints from './components/ModelEndpoints';
 import ModelPricingTable from './components/ModelPricingTable';
-import DynamicPricingBreakdown from './components/DynamicPricingBreakdown';
 
 const { Text } = Typography;
 
@@ -58,7 +57,8 @@ const ModelDetailSideSheet = ({
         padding: '0',
         display: 'flex',
         flexDirection: 'column',
-        borderBottom: '1px solid var(--semi-color-border)',
+        borderBottom:
+          'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
       }}
       visible={visible}
       width={isMobile ? '100%' : 600}
@@ -72,7 +72,7 @@ const ModelDetailSideSheet = ({
       }
       onCancel={onClose}
     >
-      <div style={{ paddingTop: 16, paddingBottom: 16 }}>
+      <div className='p-2'>
         {!modelData && (
           <div className='flex justify-center items-center py-10'>
             <Text type='secondary'>{t('加载中...')}</Text>
@@ -80,48 +80,28 @@ const ModelDetailSideSheet = ({
         )}
         {modelData && (
           <>
-            <div style={{ padding: '0 24px' }}>
-              <ModelBasicInfo
-                modelData={modelData}
-                vendorsMap={vendorsMap}
-                t={t}
-              />
-            </div>
-            <Divider margin={16} />
-            <div style={{ padding: '0 24px' }}>
-              <ModelEndpoints
-                modelData={modelData}
-                endpointMap={endpointMap}
-                t={t}
-              />
-            </div>
-            {modelData.billing_mode === 'tiered_expr' && modelData.billing_expr && (
-              <>
-                <Divider margin={16} />
-                <div style={{ padding: '0 24px' }}>
-                  <DynamicPricingBreakdown
-                    billingExpr={modelData.billing_expr}
-                    t={t}
-                  />
-                </div>
-              </>
-            )}
-            <Divider margin={16} />
-            <div style={{ padding: '0 24px' }}>
-              <ModelPricingTable
-                modelData={modelData}
-                groupRatio={groupRatio}
-                currency={currency}
-                siteDisplayType={siteDisplayType}
-                tokenUnit={tokenUnit}
-                displayPrice={displayPrice}
-                showRatio={showRatio}
-                usableGroup={usableGroup}
-                autoGroups={autoGroups}
-                t={t}
-              />
-            </div>
-            <Divider margin={16} />
+            <ModelBasicInfo
+              modelData={modelData}
+              vendorsMap={vendorsMap}
+              t={t}
+            />
+            <ModelEndpoints
+              modelData={modelData}
+              endpointMap={endpointMap}
+              t={t}
+            />
+            <ModelPricingTable
+              modelData={modelData}
+              groupRatio={groupRatio}
+              currency={currency}
+              siteDisplayType={siteDisplayType}
+              tokenUnit={tokenUnit}
+              displayPrice={displayPrice}
+              showRatio={showRatio}
+              usableGroup={usableGroup}
+              autoGroups={autoGroups}
+              t={t}
+            />
           </>
         )}
       </div>

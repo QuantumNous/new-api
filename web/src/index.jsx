@@ -27,6 +27,7 @@ import { StatusProvider } from './context/Status';
 import { ThemeProvider } from './context/Theme';
 import PageLayout from './components/layout/PageLayout';
 import './i18n/i18n';
+import './tokens.css';
 import './index.css';
 import { LocaleProvider } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -38,8 +39,8 @@ import en_GB from '@douyinfe/semi-ui/lib/es/locale/source/en_GB';
 if (typeof window !== 'undefined') {
   console.log(
     '%cWE ❤ NEWAPI%c Github: https://github.com/QuantumNous/new-api',
-    'color: #10b981; font-weight: bold; font-size: 24px;',
-    'color: inherit; font-size: 14px;',
+    'color: #10b981; font-weight: bold; font-size: calc(var(--na-space-px) * 24);',
+    'color: inherit; font-size: calc(var(--na-space-px) * 14);',
   );
 }
 

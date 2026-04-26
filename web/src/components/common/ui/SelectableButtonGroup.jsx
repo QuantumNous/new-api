@@ -108,12 +108,7 @@ const SelectableButtonGroup = ({
     return Math.floor(24 / perRow);
   };
 
-  const maskStyle = isOpen
-    ? {}
-    : {
-        WebkitMaskImage:
-          'linear-gradient(to bottom, black 0%, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0.2) 80%, transparent 100%)',
-      };
+  const maskStyle = isOpen ? {} : { opacity: 0.92 };
 
   const toggle = () => {
     setIsOpen(!isOpen);
@@ -127,7 +122,7 @@ const SelectableButtonGroup = ({
     bottom: -10,
     fontWeight: 400,
     cursor: 'pointer',
-    fontSize: '12px',
+    fontSize: 'calc(var(--na-space-px) * 12)',
     color: 'var(--semi-color-text-2)',
     display: 'flex',
     alignItems: 'center',
@@ -137,20 +132,24 @@ const SelectableButtonGroup = ({
 
   const renderSkeletonButtons = () => {
     const placeholder = (
-      <Row gutter={gutterSize} style={{ lineHeight: '32px', ...style }}>
+      <Row
+        gutter={gutterSize}
+        style={{ lineHeight: 'calc(var(--na-space-px) * 32)', ...style }}
+      >
         {Array.from({ length: skeletonCount }).map((_, index) => (
           <Col span={getColSpan()} key={index}>
             <div
               style={{
                 width: '100%',
-                height: '32px',
+                height: 'calc(var(--na-space-px) * 32)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-start',
-                border: '1px solid var(--semi-color-border)',
+                border:
+                  'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                 borderRadius: 'var(--semi-border-radius-medium)',
-                padding: '0 12px',
-                gap: '6px',
+                padding: '0 calc(var(--na-space-px) * 12)',
+                gap: 'calc(var(--na-space-px) * 6)',
               }}
             >
               {withCheckbox && (
@@ -177,7 +176,10 @@ const SelectableButtonGroup = ({
   const contentElement = showSkeleton ? (
     renderSkeletonButtons()
   ) : (
-    <Row gutter={gutterSize} style={{ lineHeight: '32px', ...style }}>
+    <Row
+      gutter={gutterSize}
+      style={{ lineHeight: 'calc(var(--na-space-px) * 32)', ...style }}
+    >
       {items.map((item) => {
         const isActive = Array.isArray(activeValue)
           ? activeValue.includes(item.value)
@@ -206,7 +208,9 @@ const SelectableButtonGroup = ({
                   {item.icon && <span className='sbg-icon'>{item.icon}</span>}
                   <ConditionalTooltipText text={item.label} />
                   {item.tagCount !== undefined && shouldShowTags && (
-                    <span className={`sbg-badge ${isActive ? 'sbg-badge-active' : ''}`}>
+                    <span
+                      className={`sbg-badge ${isActive ? 'sbg-badge-active' : ''}`}
+                    >
                       {item.tagCount}
                     </span>
                   )}
@@ -228,11 +232,15 @@ const SelectableButtonGroup = ({
               <div className='sbg-content'>
                 {item.icon && <span className='sbg-icon'>{item.icon}</span>}
                 <ConditionalTooltipText text={item.label} />
-                {item.tagCount !== undefined && shouldShowTags && item.tagCount !== '' && (
-                  <span className={`sbg-badge ${isActive ? 'sbg-badge-active' : ''}`}>
-                    {item.tagCount}
-                  </span>
-                )}
+                {item.tagCount !== undefined &&
+                  shouldShowTags &&
+                  item.tagCount !== '' && (
+                    <span
+                      className={`sbg-badge ${isActive ? 'sbg-badge-active' : ''}`}
+                    >
+                      {item.tagCount}
+                    </span>
+                  )}
               </div>
             </Button>
           </Col>
@@ -247,7 +255,7 @@ const SelectableButtonGroup = ({
       ref={containerRef}
     >
       {title && (
-        <Divider margin='12px' align='left'>
+        <Divider margin='calc(var(--na-space-px) * 12)' align='left'>
           {showSkeleton ? (
             <Skeleton.Title active style={{ width: 80, height: 14 }} />
           ) : (

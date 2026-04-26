@@ -144,16 +144,17 @@ const isMobileViewport = () =>
 const getCodexUsageModalLayout = () => {
   if (isMobileViewport()) {
     return {
-      width: 'calc(100vw - 16px)',
+      width: 'calc(100vw - calc(var(--na-space-px) * 16))',
       style: {
         top: 8,
-        maxWidth: 'calc(100vw - 16px)',
+        maxWidth: 'calc(100vw - calc(var(--na-space-px) * 16))',
         margin: '0 auto',
       },
       bodyStyle: {
-        maxHeight: 'calc(100vh - 148px)',
+        maxHeight: 'calc(100vh - calc(var(--na-space-px) * 148))',
         overflowY: 'auto',
-        padding: '16px 16px 12px',
+        padding:
+          'calc(var(--na-space-px) * 16) calc(var(--na-space-px) * 16) calc(var(--na-space-px) * 12)',
       },
     };
   }
@@ -162,12 +163,13 @@ const getCodexUsageModalLayout = () => {
     width: 900,
     style: {
       top: 24,
-      maxWidth: 'min(900px, 92vw)',
+      maxWidth: 'min(calc(var(--na-space-px) * 900), 92vw)',
     },
     bodyStyle: {
-      maxHeight: 'calc(100vh - 172px)',
+      maxHeight: 'calc(100vh - calc(var(--na-space-px) * 172))',
       overflowY: 'auto',
-      padding: '20px 24px 16px',
+      padding:
+        'calc(var(--na-space-px) * 20) calc(var(--na-space-px) * 24) calc(var(--na-space-px) * 16)',
     },
   };
 };
@@ -346,7 +348,7 @@ const RateLimitGroupSection = ({
               {description ? <span>{description}</span> : null}
               {featureText ? (
                 <div className='inline-flex max-w-full items-center gap-2 rounded-full bg-semi-color-fill-0 px-2 py-1'>
-                  <span className='text-[11px] text-semi-color-text-2'>
+                  <span className='text-[calc(var(--na-space-px) * 11)] text-semi-color-text-2'>
                     metered_feature
                   </span>
                   <span className='min-w-0 break-all font-mono text-xs text-semi-color-text-0'>

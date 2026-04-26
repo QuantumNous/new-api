@@ -53,7 +53,7 @@ const PricingFilterModal = ({ visible, onClose, sidebarProps, t }) => {
       style={{ width: '100%', height: '100%', margin: 0 }}
       bodyStyle={{
         padding: 0,
-        height: 'calc(100vh - 160px)',
+        height: 'calc(100vh - calc(var(--na-space-px) * 160))',
         overflowY: 'auto',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',

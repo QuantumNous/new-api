@@ -18,13 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useState } from 'react';
-import {
-  Button,
-  Typography,
-  Input,
-  ScrollList,
-  ScrollItem,
-} from '@douyinfe/semi-ui';
+import { Button, Typography, Input } from '@douyinfe/semi-ui';
 import { API, showError, copy, showSuccess } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { API_ENDPOINTS } from '../../constants/common.constant';
@@ -38,8 +32,23 @@ import {
   IconFile,
   IconCopy,
 } from '@douyinfe/semi-icons';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
+import {
+  Activity,
+  BookOpen,
+  Boxes,
+  ClipboardList,
+  Gauge,
+  KeyRound,
+  Network,
+  Route,
+  Settings2,
+  ShieldCheck,
+  TerminalSquare,
+  UsersRound,
+  WalletCards,
+} from 'lucide-react';
 import {
   Moonshot,
   OpenAI,
@@ -65,6 +74,29 @@ import {
 
 const { Text } = Typography;
 
+const providerItems = [
+  { name: 'OpenAI', Icon: OpenAI },
+  { name: 'Claude', Icon: Claude.Color },
+  { name: 'Gemini', Icon: Gemini.Color },
+  { name: 'xAI', Icon: XAI },
+  { name: 'DeepSeek', Icon: DeepSeek.Color },
+  { name: 'Qwen', Icon: Qwen.Color },
+  { name: 'Moonshot', Icon: Moonshot },
+  { name: 'Azure AI', Icon: AzureAI.Color },
+  { name: 'Grok', Icon: Grok },
+  { name: 'Zhipu', Icon: Zhipu.Color },
+  { name: 'Volcengine', Icon: Volcengine.Color },
+  { name: 'Cohere', Icon: Cohere.Color },
+  { name: 'Suno', Icon: Suno },
+  { name: 'Minimax', Icon: Minimax.Color },
+  { name: 'Wenxin', Icon: Wenxin.Color },
+  { name: 'Spark', Icon: Spark.Color },
+  { name: 'Qingyan', Icon: Qingyan.Color },
+  { name: 'Midjourney', Icon: Midjourney },
+  { name: 'Hunyuan', Icon: Hunyuan.Color },
+  { name: 'Xinference', Icon: Xinference.Color },
+];
+
 const Home = () => {
   const { t, i18n } = useTranslation();
   const [statusState] = useContext(StatusContext);
@@ -72,14 +104,107 @@ const Home = () => {
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false);
   const [homePageContent, setHomePageContent] = useState('');
   const [noticeVisible, setNoticeVisible] = useState(false);
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
   const docsLink = statusState?.status?.docs_link || '';
+  const normalizedDocsLink = docsLink.trim();
+  const useLocalDocs =
+    !normalizedDocsLink ||
+    normalizedDocsLink.replace(/\/$/, '').startsWith('https://docs.newapi.pro');
+  const docLinkTarget = useLocalDocs ? '/docs' : normalizedDocsLink;
   const serverAddress =
     statusState?.status?.server_address || `${window.location.origin}`;
   const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
   const [endpointIndex, setEndpointIndex] = useState(0);
-  const isChinese = i18n.language.startsWith('zh');
+  const activeEndpoint =
+    endpointItems[endpointIndex]?.value || API_ENDPOINTS[0];
+  const valueItems = [
+    {
+      icon: Route,
+      label: t('统一接入'),
+      title: t('一个基址接入多家模型'),
+      description: t(
+        '把 OpenAI、Claude、Gemini、DeepSeek 等上游统一到同一套兼容接口。',
+      ),
+    },
+    {
+      icon: Network,
+      label: t('稳定路由'),
+      title: t('按渠道状态自动调度'),
+      description: t(
+        '渠道、模型、分组和优先级集中管理，异常时更容易切换和回退。',
+      ),
+    },
+    {
+      icon: WalletCards,
+      label: t('成本优化'),
+      title: t('费用、倍率和额度可追踪'),
+      description: t(
+        '面向团队的余额、消耗、倍率、订阅和兑换码体系，账务更清楚。',
+      ),
+    },
+    {
+      icon: Gauge,
+      label: t('运营级控制'),
+      title: t('把日志、监控和权限放进同一个后台'),
+      description: t(
+        '从密钥到请求日志，从渠道到模型部署，日常运营有证据可查。',
+      ),
+    },
+  ];
+  const trustItems = [
+    {
+      icon: Boxes,
+      title: t('供应商矩阵'),
+      description: t('覆盖 30+ 上游供应商，适合把模型能力统一成团队内部服务。'),
+    },
+    {
+      icon: KeyRound,
+      title: t('统一密钥'),
+      description: t('用户、令牌、分组和额度统一管理，减少多平台密钥散落。'),
+    },
+    {
+      icon: Activity,
+      title: t('请求可观测'),
+      description: t(
+        '使用日志、绘图日志、任务日志和调试信息都能回到同一条运营线。',
+      ),
+    },
+  ];
+  const handleOpenDocs = () => {
+    if (docLinkTarget.startsWith('/')) {
+      navigate(docLinkTarget);
+      return;
+    }
+    window.open(docLinkTarget, '_blank', 'noopener,noreferrer');
+  };
+
+  const roleItems = [
+    {
+      icon: TerminalSquare,
+      title: t('开发者'),
+      description: t('复制基址，替换 SDK endpoint，即可把调用迁到统一入口。'),
+      action: t('查看接入文档'),
+      onClick: handleOpenDocs,
+    },
+    {
+      icon: ClipboardList,
+      title: t('运营者'),
+      description: t(
+        '查看消耗、余额、请求量、渠道健康和用户额度，及时处理异常。',
+      ),
+      action: t('进入控制台'),
+      to: '/console',
+    },
+    {
+      icon: Settings2,
+      title: t('团队管理员'),
+      description: t('统一维护渠道、模型、倍率、部署、兑换码和系统策略。'),
+      action: t('管理系统'),
+      to: '/console/setting',
+    },
+  ];
 
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
@@ -117,6 +242,10 @@ const Home = () => {
     }
   };
 
+  const handleEndpointCycle = () => {
+    setEndpointIndex((prev) => (prev + 1) % endpointItems.length);
+  };
+
   useEffect(() => {
     const checkNoticeAndShow = async () => {
       const lastCloseDate = localStorage.getItem('notice_close_date');
@@ -149,201 +278,237 @@ const Home = () => {
   }, [endpointItems.length]);
 
   return (
-    <div className='w-full overflow-x-hidden'>
+    <div className='na-public-page'>
       <NoticeModal
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}
         isMobile={isMobile}
       />
       {homePageContentLoaded && homePageContent === '' ? (
-        <div className='w-full overflow-x-hidden'>
-          {/* Banner 部分 */}
-          <div className='w-full border-b border-semi-color-border min-h-[500px] md:min-h-[600px] lg:min-h-[700px] relative overflow-x-hidden'>
-            {/* 背景模糊晕染球 */}
-            <div className='blur-ball blur-ball-indigo' />
-            <div className='blur-ball blur-ball-teal' />
-            <div className='flex items-center justify-center h-full px-4 py-20 md:py-24 lg:py-32 mt-10'>
-              {/* 居中内容区 */}
-              <div className='flex flex-col items-center justify-center text-center max-w-4xl mx-auto'>
-                <div className='flex flex-col items-center justify-center mb-6 md:mb-8'>
-                  <h1
-                    className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-semi-color-text-0 leading-tight ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
-                  >
-                    <>
-                      {t('统一的')}
-                      <br />
-                      <span className='shine-text'>{t('大模型接口网关')}</span>
-                    </>
-                  </h1>
-                  <p className='text-base md:text-lg lg:text-xl text-semi-color-text-1 mt-4 md:mt-6 max-w-xl'>
-                    {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
+        <main className='na-home'>
+          <section className='na-home-hero'>
+            <div className='na-home-hero-stage'>
+              <div className='na-home-hero-grid'>
+                <div className='na-home-copy'>
+                  <p className='na-home-kicker'>
+                    {t('统一接入')} / {t('稳定路由')} / {t('成本优化')}
                   </p>
-                  {/* BASE URL 与端点选择 */}
-                  <div className='flex flex-col md:flex-row items-center justify-center gap-4 w-full mt-4 md:mt-6 max-w-md'>
+                  <h1 className='na-home-title'>
+                    <span>MO API</span>
+                    <span className='na-home-title-subline'>
+                      {t('面向团队的统一 API')}
+                    </span>
+                  </h1>
+                  <p className='na-home-subtitle'>
+                    {t(
+                      '一个基址，接入多家模型；统一密钥、计费、路由与监控，让团队把 AI 能力当作稳定的基础设施来运营。',
+                    )}
+                  </p>
+                  <div className='na-home-actions'>
+                    <Link to='/console'>
+                      <Button
+                        theme='solid'
+                        type='primary'
+                        size={isMobile ? 'default' : 'large'}
+                        className='na-home-button na-home-button-primary'
+                        icon={<IconPlay />}
+                      >
+                        {t('进入控制台')}
+                      </Button>
+                    </Link>
+                    <Button
+                      size={isMobile ? 'default' : 'large'}
+                      className='na-home-button'
+                      icon={<IconFile />}
+                      onClick={handleOpenDocs}
+                    >
+                      {t('查看接入文档')}
+                    </Button>
+                    {isDemoSiteMode && statusState?.status?.version && (
+                      <Button
+                        size={isMobile ? 'default' : 'large'}
+                        className='na-home-button na-home-version-button'
+                        icon={<IconGithubLogo />}
+                        onClick={() =>
+                          window.open(
+                            'https://github.com/QuantumNous/new-api',
+                            '_blank',
+                          )
+                        }
+                      >
+                        {statusState.status.version}
+                      </Button>
+                    )}
+                  </div>
+                  <div className='na-home-proof-row' aria-label={t('产品能力')}>
+                    <span>{t('OpenAI 兼容')}</span>
+                    <span>{t('多模型调度')}</span>
+                    <span>{t('账单可追踪')}</span>
+                  </div>
+                </div>
+
+                <aside className='na-home-access-card'>
+                  <div className='na-home-access-card-header'>
+                    <div>
+                      <p className='na-home-card-eyebrow'>{t('接入卡')}</p>
+                      <h2>{t('把模型调用接到统一入口')}</h2>
+                    </div>
+                    <ShieldCheck className='na-home-card-icon' aria-hidden />
+                  </div>
+                  <div className='na-home-base-url'>
+                    <label className='na-home-field-label'>
+                      {t('基础 URL')}
+                    </label>
                     <Input
-                      readonly
+                      readOnly
                       value={serverAddress}
-                      className='flex-1 !rounded-full'
+                      className='na-home-input'
                       size={isMobile ? 'default' : 'large'}
                       suffix={
-                        <div className='flex items-center gap-2'>
-                          <ScrollList
-                            bodyHeight={32}
-                            style={{ border: 'unset', boxShadow: 'unset' }}
-                          >
-                            <ScrollItem
-                              mode='wheel'
-                              cycled={true}
-                              list={endpointItems}
-                              selectedIndex={endpointIndex}
-                              onSelect={({ index }) => setEndpointIndex(index)}
-                            />
-                          </ScrollList>
-                          <Button
-                            type='primary'
-                            onClick={handleCopyBaseURL}
-                            icon={<IconCopy />}
-                            className='!rounded-full'
-                          />
-                        </div>
+                        <Button
+                          type='primary'
+                          onClick={handleCopyBaseURL}
+                          icon={<IconCopy />}
+                          className='na-home-copy-button'
+                          aria-label={t('复制基础 URL')}
+                        />
                       }
                     />
                   </div>
-                </div>
-
-                {/* 操作按钮 */}
-                <div className='flex flex-row gap-4 justify-center items-center'>
-                  <Link to='/console'>
+                  <div className='na-home-endpoint-row'>
+                    <Text className='na-home-field-label'>{t('兼容端点')}</Text>
                     <Button
-                      theme='solid'
-                      type='primary'
-                      size={isMobile ? 'default' : 'large'}
-                      className='!rounded-3xl px-8 py-2'
-                      icon={<IconPlay />}
+                      theme='borderless'
+                      className='na-home-endpoint-button'
+                      onClick={handleEndpointCycle}
                     >
-                      {t('获取密钥')}
+                      {activeEndpoint}
                     </Button>
-                  </Link>
-                  {isDemoSiteMode && statusState?.status?.version ? (
-                    <Button
-                      size={isMobile ? 'default' : 'large'}
-                      className='flex items-center !rounded-3xl px-6 py-2'
-                      icon={<IconGithubLogo />}
-                      onClick={() =>
-                        window.open(
-                          'https://github.com/QuantumNous/new-api',
-                          '_blank',
-                        )
-                      }
-                    >
-                      {statusState.status.version}
-                    </Button>
-                  ) : (
-                    docsLink && (
-                      <Button
-                        size={isMobile ? 'default' : 'large'}
-                        className='flex items-center !rounded-3xl px-6 py-2'
-                        icon={<IconFile />}
-                        onClick={() => window.open(docsLink, '_blank')}
-                      >
-                        {t('文档')}
-                      </Button>
-                    )
-                  )}
-                </div>
-
-                {/* 框架兼容性图标 */}
-                <div className='mt-12 md:mt-16 lg:mt-20 w-full'>
-                  <div className='flex items-center mb-6 md:mb-8 justify-center'>
-                    <Text
-                      type='tertiary'
-                      className='text-lg md:text-xl lg:text-2xl font-light'
-                    >
-                      {t('支持众多的大模型供应商')}
-                    </Text>
                   </div>
-                  <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4'>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Moonshot size={40} />
+                  <div className='na-home-code-card'>
+                    <div className='na-home-code-line'>
+                      <span>base_url</span>
+                      <strong>{serverAddress}</strong>
                     </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <OpenAI size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <XAI size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Zhipu.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Volcengine.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Cohere.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Claude.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Gemini.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Suno size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Minimax.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Wenxin.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Spark.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Qingyan.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <DeepSeek.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Qwen.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Midjourney size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Grok size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <AzureAI.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Hunyuan.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Xinference.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Typography.Text className='!text-lg sm:!text-xl md:!text-2xl lg:!text-3xl font-bold'>
-                        30+
-                      </Typography.Text>
+                    <div className='na-home-code-line'>
+                      <span>endpoint</span>
+                      <strong>{activeEndpoint}</strong>
                     </div>
                   </div>
-                </div>
+                  <p className='na-home-access-note'>
+                    {t('替换 SDK 的 base_url，原有请求结构可以继续沿用。')}
+                  </p>
+                </aside>
+              </div>
+
+              <div className='na-home-value-band'>
+                {valueItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <article className='na-home-value-item' key={item.title}>
+                      <Icon className='na-home-card-icon' aria-hidden />
+                      <p>{item.label}</p>
+                      <h3>{item.title}</h3>
+                      <span>{item.description}</span>
+                    </article>
+                  );
+                })}
               </div>
             </div>
-          </div>
-        </div>
+          </section>
+
+          <section className='na-home-section na-home-trust-section'>
+            <div className='na-home-section-copy'>
+              <p className='na-home-kicker'>{t('供应商与能力')}</p>
+              <h2>{t('不是图标墙，是可运营的模型供应链')}</h2>
+              <p>
+                {t(
+                  'MO API 把上游供应商、密钥、倍率、日志和权限整理进同一套控制面板，适合长期运营而不是临时拼接口。',
+                )}
+              </p>
+            </div>
+            <div className='na-provider-matrix'>
+              {providerItems.map((provider) => {
+                const ProviderIcon = provider.Icon;
+                return (
+                  <div className='na-provider-icon-wrap' key={provider.name}>
+                    <ProviderIcon />
+                    <span>{provider.name}</span>
+                  </div>
+                );
+              })}
+              <div className='na-provider-icon-wrap na-provider-count'>
+                <strong>30+</strong>
+                <span>{t('上游供应商')}</span>
+              </div>
+            </div>
+          </section>
+
+          <section className='na-home-section na-home-compare-section'>
+            <div className='na-home-section-copy'>
+              <p className='na-home-kicker'>{t('为什么需要中转站')}</p>
+              <h2>{t('从多处直连，变成一个可管理的入口')}</h2>
+            </div>
+            <div className='na-home-compare-grid'>
+              <div className='na-home-compare-column'>
+                <h3>{t('多供应商直连')}</h3>
+                <p>{t('密钥分散，费用分散，故障定位依赖人工排查。')}</p>
+                <p>{t('每个团队成员都可能保留一份不同的接入配置。')}</p>
+              </div>
+              <div className='na-home-compare-column na-home-compare-column-strong'>
+                <h3>{t('MO API 统一入口')}</h3>
+                <p>{t('统一密钥、统一分组、统一倍率和统一日志。')}</p>
+                <p>{t('把稳定回退、费用透明和运营控制放到同一处。')}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className='na-home-section na-home-roles-section'>
+            <div className='na-home-section-copy'>
+              <p className='na-home-kicker'>{t('团队入口')}</p>
+              <h2>{t('不同角色进入同一套 AI 基础设施')}</h2>
+            </div>
+            <div className='na-home-role-grid'>
+              {roleItems.map((item) => {
+                const Icon = item.icon;
+                const content = (
+                  <>
+                    <Icon className='na-home-card-icon' aria-hidden />
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                    <span>{item.action}</span>
+                  </>
+                );
+
+                return item.to ? (
+                  <Link
+                    className='na-home-role-card'
+                    to={item.to}
+                    key={item.title}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <button
+                    type='button'
+                    className='na-home-role-card'
+                    onClick={item.onClick}
+                    key={item.title}
+                  >
+                    {content}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </main>
       ) : (
-        <div className='overflow-x-hidden w-full'>
+        <div className='na-home-custom-content'>
           {homePageContent.startsWith('https://') ? (
-            <iframe
-              src={homePageContent}
-              className='w-full h-screen border-none'
-            />
+            <iframe src={homePageContent} className='na-home-iframe' />
           ) : (
             <div
-              className='mt-[60px]'
+              className='na-home-custom-content'
               dangerouslySetInnerHTML={{ __html: homePageContent }}
             />
           )}

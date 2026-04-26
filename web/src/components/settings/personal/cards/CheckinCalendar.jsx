@@ -196,7 +196,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
             <div className='w-6 h-6 rounded-full bg-green-500 flex items-center justify-center mb-0.5 shadow-sm'>
               <Check size={14} className='text-white' strokeWidth={3} />
             </div>
-            <div className='text-[10px] font-medium text-green-600 dark:text-green-400 leading-none'>
+            <div className='text-[calc(var(--na-space-px) * 10)] font-medium text-green-600 dark:text-green-400 leading-none'>
               {renderQuota(quotaAwarded)}
             </div>
           </div>
@@ -315,24 +315,24 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
           <div className='border rounded-lg overflow-hidden checkin-calendar'>
             <style>{`
             .checkin-calendar .semi-calendar {
-              font-size: 13px;
+              font-size: calc(var(--na-space-px) * 13);
             }
             .checkin-calendar .semi-calendar-month-header {
-              padding: 8px 12px;
+              padding: calc(var(--na-space-px) * 8) calc(var(--na-space-px) * 12);
             }
             .checkin-calendar .semi-calendar-month-week-row {
-              height: 28px;
+              height: calc(var(--na-space-px) * 28);
             }
             .checkin-calendar .semi-calendar-month-week-row th {
-              font-size: 12px;
-              padding: 4px 0;
+              font-size: calc(var(--na-space-px) * 12);
+              padding: calc(var(--na-space-px) * 4) 0;
             }
             .checkin-calendar .semi-calendar-month-grid-row {
               height: auto;
             }
             .checkin-calendar .semi-calendar-month-grid-row td {
-              height: 56px;
-              padding: 2px;
+              height: calc(var(--na-space-px) * 56);
+              padding: calc(var(--na-space-px) * 2);
             }
             .checkin-calendar .semi-calendar-month-grid-row-cell {
               position: relative;
@@ -340,10 +340,10 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
             }
             .checkin-calendar .semi-calendar-month-grid-row-cell-day {
               position: absolute;
-              top: 4px;
+              top: calc(var(--na-space-px) * 4);
               left: 50%;
               transform: translateX(-50%);
-              font-size: 12px;
+              font-size: calc(var(--na-space-px) * 12);
               z-index: 1;
             }
             .checkin-calendar .semi-calendar-month-same {
@@ -352,8 +352,8 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
             .checkin-calendar .semi-calendar-month-today .semi-calendar-month-grid-row-cell-day {
               background: var(--semi-color-primary);
               color: white;border-radius: 50%;
-              width: 20px;
-              height: 20px;
+              width: calc(var(--na-space-px) * 20);
+              height: calc(var(--na-space-px) * 20);
               display: flex;
               align-items: center;
               justify-content: center;}

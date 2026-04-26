@@ -157,7 +157,7 @@ const PaymentSetting = () => {
   return (
     <>
       <Spin spinning={loading} size='large'>
-        <Card style={{ marginTop: '10px' }}>
+        <Card style={{ marginTop: 'calc(var(--na-space-px) * 10)' }}>
           <Tabs
             type='card'
             defaultActiveKey='general'

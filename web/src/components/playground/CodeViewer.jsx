@@ -31,39 +31,40 @@ const PERFORMANCE_CONFIG = {
 
 const codeThemeStyles = {
   container: {
-    backgroundColor: '#1e1e1e',
-    color: '#d4d4d4',
-    fontFamily: 'Consolas, "Courier New", Monaco, "SF Mono", monospace',
-    fontSize: '13px',
-    lineHeight: '1.4',
-    borderRadius: '8px',
-    border: '1px solid #3c3c3c',
+    backgroundColor: 'var(--na-color-dark-surface)',
+    color: 'var(--na-color-ivory)',
+    fontFamily: 'var(--na-font-mono)',
+    fontSize: 'var(--na-text-label)',
+    lineHeight: 'var(--na-leading-body)',
+    borderRadius: 'var(--na-radius-input)',
+    border: 'var(--na-space-px) solid var(--semi-color-border)',
     position: 'relative',
     overflow: 'hidden',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+    boxShadow: 'var(--na-shadow-card)',
   },
   content: {
     height: '100%',
     overflowY: 'auto',
     overflowX: 'auto',
-    padding: '16px',
+    padding: 'var(--na-space-4)',
     margin: 0,
     whiteSpace: 'pre',
     wordBreak: 'normal',
-    background: '#1e1e1e',
+    background: 'var(--na-color-dark-surface)',
   },
   actionButton: {
     position: 'absolute',
-    zIndex: 10,
-    backgroundColor: 'rgba(45, 45, 45, 0.9)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    color: '#d4d4d4',
-    borderRadius: '6px',
-    transition: 'all 0.2s ease',
+    zIndex: 'var(--na-z-sidebar)',
+    backgroundColor: 'var(--na-code-action-bg)',
+    border: 'var(--na-space-px) solid var(--na-code-action-border)',
+    color: 'var(--na-color-ivory)',
+    borderRadius: 'var(--na-radius-subtle)',
+    transition:
+      'transform var(--na-motion-duration-fast) var(--na-motion-ease-standard), background-color var(--na-motion-duration-base) var(--na-motion-ease-standard)',
   },
   actionButtonHover: {
-    backgroundColor: 'rgba(60, 60, 60, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'var(--na-code-action-bg-hover)',
+    borderColor: 'var(--na-code-action-border-hover)',
     transform: 'scale(1.05)',
   },
   noContent: {
@@ -71,23 +72,23 @@ const codeThemeStyles = {
     alignItems: 'center',
     justifyContent: 'center',
     height: '100%',
-    color: '#666',
-    fontSize: '14px',
+    color: 'var(--na-text-tertiary)',
+    fontSize: 'var(--na-text-caption)',
     fontStyle: 'italic',
     backgroundColor: 'var(--semi-color-fill-0)',
-    borderRadius: '8px',
+    borderRadius: 'var(--na-radius-input)',
   },
   performanceWarning: {
-    padding: '8px 12px',
-    backgroundColor: 'rgba(255, 193, 7, 0.1)',
-    border: '1px solid rgba(255, 193, 7, 0.3)',
-    borderRadius: '6px',
-    color: '#ffc107',
-    fontSize: '12px',
-    marginBottom: '8px',
+    padding: 'var(--na-space-2) var(--na-space-3)',
+    backgroundColor: 'var(--semi-color-warning-light-default)',
+    border: 'var(--na-space-px) solid var(--semi-color-warning)',
+    borderRadius: 'var(--na-radius-subtle)',
+    color: 'var(--semi-color-warning)',
+    fontSize: 'var(--na-text-label)',
+    marginBottom: 'var(--na-space-2)',
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: 'var(--na-space-2)',
   },
 };
 
@@ -113,11 +114,13 @@ const highlightJson = (str) => {
     result += escapeHtml(str.slice(lastIndex, match.index));
 
     const token = match[0];
-    let color = '#b5cea8';
+    let color = 'var(--semi-color-success)';
     if (/^"/.test(token)) {
-      color = /:$/.test(token) ? '#9cdcfe' : '#ce9178';
+      color = /:$/.test(token)
+        ? 'var(--semi-color-info)'
+        : 'var(--na-accent-primary-hover)';
     } else if (/true|false|null/.test(token)) {
-      color = '#569cd6';
+      color = 'var(--semi-color-primary)';
     }
     // Escape token content before wrapping in span
     result += `<span style="color: ${color}">${escapeHtml(token)}</span>`;
@@ -269,8 +272,12 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
     );
   }
 
-  const warningTop = contentMetrics.isLarge ? '52px' : '12px';
-  const contentPadding = contentMetrics.isLarge ? '52px' : '16px';
+  const warningTop = contentMetrics.isLarge
+    ? 'calc(var(--na-space-12) + var(--na-space-1))'
+    : 'var(--na-space-3)';
+  const contentPadding = contentMetrics.isLarge
+    ? 'calc(var(--na-space-12) + var(--na-space-1))'
+    : 'var(--na-space-4)';
 
   return (
     <div style={codeThemeStyles.container} className='h-full'>
@@ -292,7 +299,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
           ...codeThemeStyles.actionButton,
           ...(isHoveringCopy ? codeThemeStyles.actionButtonHover : {}),
           top: warningTop,
-          right: '12px',
+          right: 'var(--na-space-3)',
         }}
         onMouseEnter={() => setIsHoveringCopy(true)}
         onMouseLeave={() => setIsHoveringCopy(false)}
@@ -306,8 +313,10 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
             style={{
               backgroundColor: 'transparent',
               border: 'none',
-              color: copied ? '#4ade80' : '#d4d4d4',
-              padding: '6px',
+              color: copied
+                ? 'var(--semi-color-success)'
+                : 'var(--na-color-ivory)',
+              padding: 'var(--na-space-1-5)',
             }}
           />
         </Tooltip>
@@ -329,19 +338,21 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              height: '200px',
-              color: '#888',
+              height: '12.5rem',
+              color: 'var(--na-text-tertiary)',
             }}
           >
             <div
               style={{
-                width: '20px',
-                height: '20px',
-                border: '2px solid #444',
-                borderTop: '2px solid #888',
-                borderRadius: '50%',
+                width: 'var(--na-space-5)',
+                height: 'var(--na-space-5)',
+                border:
+                  'calc(var(--na-space-px) * 2) solid var(--na-color-charcoal)',
+                borderTop:
+                  'calc(var(--na-space-px) * 2) solid var(--na-text-tertiary)',
+                borderRadius: 'var(--na-radius-full)',
                 animation: 'spin 1s linear infinite',
-                marginRight: '8px',
+                marginRight: 'var(--na-space-2)',
               }}
             />
             {t('正在处理大内容...')}
@@ -356,7 +367,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
         <div
           style={{
             ...codeThemeStyles.actionButton,
-            bottom: '12px',
+            bottom: 'var(--na-space-3)',
             left: '50%',
             transform: 'translateX(-50%)',
           }}
@@ -372,14 +383,18 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
               style={{
                 backgroundColor: 'transparent',
                 border: 'none',
-                color: '#d4d4d4',
-                padding: '6px 12px',
+                color: 'var(--na-color-ivory)',
+                padding: 'var(--na-space-1-5) var(--na-space-3)',
               }}
             >
               {isExpanded ? t('收起') : t('展开')}
               {!isExpanded && (
                 <span
-                  style={{ fontSize: '11px', opacity: 0.7, marginLeft: '4px' }}
+                  style={{
+                    fontSize: 'var(--na-text-label)',
+                    opacity: 0.7,
+                    marginLeft: 'var(--na-space-1)',
+                  }}
                 >
                   (+
                   {Math.round(

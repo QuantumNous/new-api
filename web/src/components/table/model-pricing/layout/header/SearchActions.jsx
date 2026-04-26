@@ -65,8 +65,8 @@ const SearchActions = memo(
     }, [tokenUnit, setTokenUnit]);
 
     return (
-      <div className='flex items-center gap-2 w-full'>
-        <div className='flex-1'>
+      <div className='na-pricing-search-actions'>
+        <div className='na-pricing-search-input'>
           <Input
             prefix={<IconSearch />}
             placeholder={t('模糊搜索模型名称')}
@@ -84,19 +84,21 @@ const SearchActions = memo(
           icon={<IconCopy />}
           onClick={handleCopyClick}
           disabled={selectedRowKeys.length === 0}
-          className='!bg-blue-500 hover:!bg-blue-600 !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
+          className='na-pricing-copy-button'
         >
           {t('复制')}
         </Button>
 
         {!isMobile && (
           <>
-            <Divider layout='vertical' margin='8px' />
+            <Divider layout='vertical' margin='calc(var(--na-space-px) * 8)' />
 
             {/* 充值价格显示开关 */}
             {supportsCurrencyDisplay && (
               <div className='flex items-center gap-2'>
-                <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
+                <span className='text-sm text-semi-color-text-1'>
+                  {t('充值价格显示')}
+                </span>
                 <Switch
                   checked={showWithRecharge}
                   onChange={setShowWithRecharge}
@@ -119,7 +121,9 @@ const SearchActions = memo(
 
             {/* 显示倍率开关 */}
             <div className='flex items-center gap-2'>
-              <span className='text-sm text-gray-600'>{t('倍率')}</span>
+              <span className='text-sm text-semi-color-text-1'>
+                {t('倍率')}
+              </span>
               <Switch checked={showRatio} onChange={setShowRatio} />
             </div>
 

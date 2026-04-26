@@ -162,7 +162,7 @@ export const handleSpeedTest = (apiUrl) => {
 
 // ========== 状态映射函数 ==========
 export const getUptimeStatusColor = (status, uptimeStatusMap) =>
-  uptimeStatusMap[status]?.color || '#8b9aa7';
+  uptimeStatusMap[status]?.color || 'var(--na-text-tertiary)';
 
 export const getUptimeStatusText = (status, uptimeStatusMap, t) =>
   uptimeStatusMap[status]?.text || t('未知');
@@ -196,23 +196,23 @@ export const renderMonitorList = (
   });
 
   const renderItem = (monitor, idx) => (
-    <div key={idx} className='p-2 hover:bg-white rounded-lg transition-colors'>
-      <div className='flex items-center justify-between mb-1'>
-        <div className='flex items-center gap-2'>
+    <div key={idx} className='na-dashboard-list-item'>
+      <div className='na-dashboard-list-row justify-between mb-1'>
+        <div className='na-dashboard-list-row gap-2'>
           <div
-            className='w-2 h-2 rounded-full flex-shrink-0'
+            className='na-dashboard-status-dot'
             style={{ backgroundColor: getUptimeStatusColor(monitor.status) }}
           />
-          <span className='text-sm font-medium text-gray-900'>
+          <span className='text-sm font-medium text-semi-color-text-0'>
             {monitor.name}
           </span>
         </div>
-        <span className='text-xs text-gray-500'>
+        <span className='na-dashboard-meta'>
           {((monitor.uptime || 0) * 100).toFixed(2)}%
         </span>
       </div>
-      <div className='flex items-center gap-2'>
-        <span className='text-xs text-gray-500'>
+      <div className='na-dashboard-list-row gap-2'>
+        <span className='na-dashboard-meta'>
           {getUptimeStatusText(monitor.status)}
         </span>
         <div className='flex-1'>
@@ -231,7 +231,7 @@ export const renderMonitorList = (
     <div key={gname || 'default'} className='mb-2'>
       {gname && (
         <>
-          <div className='text-md font-semibold text-gray-500 px-2 py-1'>
+          <div className='text-md font-semibold text-semi-color-text-2 px-2 py-1'>
             {gname}
           </div>
           <Divider />

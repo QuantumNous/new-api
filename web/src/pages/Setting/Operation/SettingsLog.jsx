@@ -125,10 +125,10 @@ export default function SettingsLog(props) {
           <div
             style={{
               background: '#fff7e6',
-              border: '1px solid #ffd591',
-              padding: '12px',
-              borderRadius: '4px',
-              marginTop: '12px',
+              border: 'calc(var(--na-space-px) * 1) solid #ffd591',
+              padding: 'calc(var(--na-space-px) * 12)',
+              borderRadius: 'calc(var(--na-space-px) * 4)',
+              marginTop: 'calc(var(--na-space-px) * 12)',
               color: '#333',
             }}
           >
@@ -147,7 +147,7 @@ export default function SettingsLog(props) {
             )}
             <Text style={{ color: '#333' }}> {t('之前的所有日志')}</Text>
           </div>
-          <p style={{ marginTop: '12px' }}>
+          <p style={{ marginTop: 'calc(var(--na-space-px) * 12)' }}>
             <Text type='danger'>
               {t('此操作不可恢复，请仔细确认时间后再操作！')}
             </Text>

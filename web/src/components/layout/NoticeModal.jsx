@@ -189,7 +189,11 @@ const NoticeModal = ({
               >
                 <div>
                   <div
-                    className={item.isUnread ? 'shine-text' : ''}
+                    className={
+                      item.isUnread
+                        ? 'text-semi-color-primary font-semibold'
+                        : ''
+                    }
                     dangerouslySetInnerHTML={{ __html: htmlContent }}
                   />
                 </div>

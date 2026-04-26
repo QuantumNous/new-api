@@ -54,14 +54,14 @@ const DebugPanel = ({
 
   const renderArrow = (items, pos, handleArrowClick, defaultNode) => {
     const style = {
-      width: 32,
-      height: 32,
-      margin: '0 12px',
+      width: 'var(--na-space-8)',
+      height: 'var(--na-space-8)',
+      margin: '0 var(--na-space-3)',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: '100%',
-      background: 'rgba(var(--semi-grey-1), 1)',
+      borderRadius: 'var(--na-radius-full)',
+      background: 'var(--semi-color-fill-1)',
       color: 'var(--semi-color-text)',
       cursor: 'pointer',
     };
@@ -98,10 +98,12 @@ const DebugPanel = ({
 
   return (
     <Card
-      className='h-full flex flex-col'
+      className='na-playground-debug-card'
       bordered={false}
       bodyStyle={{
-        padding: styleState.isMobile ? '16px' : '24px',
+        padding: styleState.isMobile
+          ? 'calc(var(--na-space-px) * 16)'
+          : 'calc(var(--na-space-px) * 24)',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
@@ -109,11 +111,11 @@ const DebugPanel = ({
     >
       <div className='flex items-center justify-between mb-6 flex-shrink-0'>
         <div className='flex items-center'>
-          <div className='w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-blue-500 flex items-center justify-center mr-3'>
-            <Code size={20} className='text-white' />
+          <div className='na-playground-panel-icon'>
+            <Code size={20} />
           </div>
           <Typography.Title heading={5} className='mb-0'>
-            {t('调试信息')}
+            {t('调试证据')}
           </Typography.Title>
         </div>
 
@@ -124,7 +126,7 @@ const DebugPanel = ({
             theme='borderless'
             type='tertiary'
             size='small'
-            className='!rounded-lg'
+            className='na-icon-button'
           />
         )}
       </div>
@@ -145,9 +147,7 @@ const DebugPanel = ({
                 <Eye size={16} />
                 {t('预览请求体')}
                 {customRequestMode && (
-                  <span className='px-1.5 py-0.5 text-xs bg-orange-100 text-orange-600 rounded-full'>
-                    自定义
-                  </span>
+                  <span className='na-debug-pill'>自定义</span>
                 )}
               </div>
             }
@@ -182,7 +182,7 @@ const DebugPanel = ({
                 <Zap size={16} />
                 {t('响应')}
                 {debugData.sseMessages && debugData.sseMessages.length > 0 && (
-                  <span className='px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full'>
+                  <span className='na-debug-pill'>
                     SSE ({debugData.sseMessages.length})
                   </span>
                 )}
@@ -206,8 +206,8 @@ const DebugPanel = ({
       <div className='flex items-center justify-between mt-4 pt-4 flex-shrink-0'>
         {(debugData.timestamp || debugData.previewTimestamp) && (
           <div className='flex items-center gap-2'>
-            <Clock size={14} className='text-gray-500' />
-            <Typography.Text className='text-xs text-gray-500'>
+            <Clock size={14} className='text-semi-color-text-2' />
+            <Typography.Text className='text-xs text-semi-color-text-2'>
               {activeKey === 'preview' && debugData.previewTimestamp
                 ? `${t('预览更新')}: ${new Date(debugData.previewTimestamp).toLocaleString()}`
                 : debugData.timestamp

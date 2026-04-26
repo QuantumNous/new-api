@@ -39,12 +39,7 @@ const ParamOverrideEntry = ({ count, onOpen, t }) => {
       >
         {t('{{count}} 项操作', { count })}
       </Text>
-      <Text
-        link
-        size='small'
-        style={{ fontWeight: 600 }}
-        onClick={onOpen}
-      >
+      <Text link size='small' style={{ fontWeight: 600 }} onClick={onOpen}>
         {t('查看详情')}
       </Text>
     </div>

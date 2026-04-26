@@ -232,7 +232,7 @@ const SkeletonWrapper = ({
         style={{
           width: `${NAV_WIDTH}px`,
           height: `${NAV_HEIGHT}px`,
-          margin: '3px 8px',
+          margin: 'calc(var(--na-space-px) * 3) calc(var(--na-space-px) * 8)',
         }}
       >
         <div className='sidebar-icon-container flex-shrink-0'>
@@ -249,7 +249,8 @@ const SkeletonWrapper = ({
         style={{
           width: `${COLLAPSED_WIDTH}px`,
           height: `${COLLAPSED_HEIGHT}px`,
-          margin: '0 8px 4px 8px',
+          margin:
+            '0 calc(var(--na-space-px) * 8) calc(var(--na-space-px) * 4) calc(var(--na-space-px) * 8)',
         }}
       >
         <Skeleton
@@ -267,7 +268,10 @@ const SkeletonWrapper = ({
 
     if (collapsed) {
       return (
-        <div className={`w-full ${className}`} style={{ paddingTop: '12px' }}>
+        <div
+          className={`w-full ${className}`}
+          style={{ paddingTop: 'calc(var(--na-space-px) * 12)' }}
+        >
           {Array(2)
             .fill(null)
             .map((_, i) => (
@@ -302,14 +306,20 @@ const SkeletonWrapper = ({
     ];
 
     return (
-      <div className={`w-full ${className}`} style={{ paddingTop: '12px' }}>
+      <div
+        className={`w-full ${className}`}
+        style={{ paddingTop: 'calc(var(--na-space-px) * 12)' }}
+      >
         {sections.map((sec, idx) => (
           <React.Fragment key={sec.key}>
             {sec.wrapper === 'section' ? (
               <div className='sidebar-section'>
                 <div
                   className='sidebar-group-label'
-                  style={{ padding: '4px 15px 8px' }}
+                  style={{
+                    padding:
+                      'calc(var(--na-space-px) * 4) calc(var(--na-space-px) * 15) calc(var(--na-space-px) * 8)',
+                  }}
                 >
                   <Skeleton
                     loading={true}
@@ -329,7 +339,10 @@ const SkeletonWrapper = ({
               <div>
                 <div
                   className='sidebar-group-label'
-                  style={{ padding: '4px 15px 8px' }}
+                  style={{
+                    padding:
+                      'calc(var(--na-space-px) * 4) calc(var(--na-space-px) * 15) calc(var(--na-space-px) * 8)',
+                  }}
                 >
                   <Skeleton
                     loading={true}

@@ -41,32 +41,36 @@ const ActionButtons = ({
   t,
 }) => {
   return (
-    <div className='flex items-center gap-2 md:gap-3'>
-      <NewYearButton isNewYear={isNewYear} />
+    <div className='na-header-actions'>
+      <div className='na-header-tool-group'>
+        <NewYearButton isNewYear={isNewYear} />
 
-      <NotificationButton
-        unreadCount={unreadCount}
-        onNoticeOpen={onNoticeOpen}
-        t={t}
-      />
+        <NotificationButton
+          unreadCount={unreadCount}
+          onNoticeOpen={onNoticeOpen}
+          t={t}
+        />
 
-      <ThemeToggle theme={theme} onThemeToggle={onThemeToggle} t={t} />
+        <ThemeToggle theme={theme} onThemeToggle={onThemeToggle} t={t} />
 
-      <LanguageSelector
-        currentLang={currentLang}
-        onLanguageChange={onLanguageChange}
-        t={t}
-      />
+        <LanguageSelector
+          currentLang={currentLang}
+          onLanguageChange={onLanguageChange}
+          t={t}
+        />
+      </div>
 
-      <UserArea
-        userState={userState}
-        isLoading={isLoading}
-        isMobile={isMobile}
-        isSelfUseMode={isSelfUseMode}
-        logout={logout}
-        navigate={navigate}
-        t={t}
-      />
+      <div className='na-header-account-group'>
+        <UserArea
+          userState={userState}
+          isLoading={isLoading}
+          isMobile={isMobile}
+          isSelfUseMode={isSelfUseMode}
+          logout={logout}
+          navigate={navigate}
+          t={t}
+        />
+      </div>
     </div>
   );
 };

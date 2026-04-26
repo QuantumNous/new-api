@@ -110,23 +110,23 @@ const ModelSetting = () => {
     <>
       <Spin spinning={loading} size='large'>
         {/* OpenAI */}
-        <Card style={{ marginTop: '10px' }}>
+        <Card style={{ marginTop: 'calc(var(--na-space-px) * 10)' }}>
           <SettingGlobalModel options={inputs} refresh={onRefresh} />
         </Card>
         {/* Channel affinity */}
-        <Card style={{ marginTop: '10px' }}>
+        <Card style={{ marginTop: 'calc(var(--na-space-px) * 10)' }}>
           <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
         </Card>
         {/* Gemini */}
-        <Card style={{ marginTop: '10px' }}>
+        <Card style={{ marginTop: 'calc(var(--na-space-px) * 10)' }}>
           <SettingGeminiModel options={inputs} refresh={onRefresh} />
         </Card>
         {/* Claude */}
-        <Card style={{ marginTop: '10px' }}>
+        <Card style={{ marginTop: 'calc(var(--na-space-px) * 10)' }}>
           <SettingClaudeModel options={inputs} refresh={onRefresh} />
         </Card>
         {/* Grok */}
-        <Card style={{ marginTop: '10px' }}>
+        <Card style={{ marginTop: 'calc(var(--na-space-px) * 10)' }}>
           <SettingGrokModel options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>

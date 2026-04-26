@@ -18,13 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
-import {
-  Modal,
-  Button,
-  Empty,
-  Divider,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Modal, Button, Empty, Divider, Typography } from '@douyinfe/semi-ui';
 import { IconCopy } from '@douyinfe/semi-icons';
 import { copy, showError, showSuccess } from '../../../../helpers';
 
@@ -132,7 +126,12 @@ const ParamOverrideModal = ({
       maskClosable
       width={640}
     >
-      <div style={{ padding: '8px 20px 20px' }}>
+      <div
+        style={{
+          padding:
+            'calc(var(--na-space-px) * 8) calc(var(--na-space-px) * 20) calc(var(--na-space-px) * 20)',
+        }}
+      >
         <div
           style={{
             display: 'flex',
@@ -187,12 +186,15 @@ const ParamOverrideModal = ({
           </Button>
         </div>
 
-        <Divider margin='12px' />
+        <Divider margin='calc(var(--na-space-px) * 12)' />
 
         {lines.length === 0 ? (
           <Empty
             description={t('暂无参数覆盖记录')}
-            style={{ padding: '24px 0 8px' }}
+            style={{
+              padding:
+                'calc(var(--na-space-px) * 24) 0 calc(var(--na-space-px) * 8)',
+            }}
           />
         ) : (
           <div
@@ -214,9 +216,11 @@ const ParamOverrideModal = ({
                 <div
                   key={`${item.action}-${index}`}
                   style={{
-                    padding: '10px 12px',
+                    padding:
+                      'calc(var(--na-space-px) * 10) calc(var(--na-space-px) * 12)',
                     borderRadius: 10,
-                    border: '1px solid var(--semi-color-border)',
+                    border:
+                      'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                     background: 'var(--semi-color-fill-0)',
                     display: 'flex',
                     gap: 12,
@@ -234,8 +238,8 @@ const ParamOverrideModal = ({
                         display: 'inline-block',
                         fontSize: 11,
                         fontWeight: 700,
-                        lineHeight: '20px',
-                        padding: '0 8px',
+                        lineHeight: 'calc(var(--na-space-px) * 20)',
+                        padding: '0 calc(var(--na-space-px) * 8)',
                         borderRadius: 999,
                         background: 'rgba(var(--semi-blue-5), 0.12)',
                         color: 'var(--semi-color-primary)',

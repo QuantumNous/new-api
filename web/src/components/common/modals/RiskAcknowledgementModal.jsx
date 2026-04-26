@@ -43,8 +43,9 @@ const RiskMarkdownBlock = React.memo(function RiskMarkdownBlock({
     <div
       className='rounded-lg'
       style={{
-        border: '1px solid var(--semi-color-warning-light-hover)',
-        padding: '12px',
+        border:
+          'calc(var(--na-space-px) * 1) solid var(--semi-color-warning-light-hover)',
+        padding: 'calc(var(--na-space-px) * 12)',
         contentVisibility: 'auto',
       }}
     >
@@ -81,7 +82,9 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
 
   const allChecked = useMemo(() => {
     if (checklist.length === 0) return true;
-    return checkedItems.length === checklist.length && checkedItems.every(Boolean);
+    return (
+      checkedItems.length === checklist.length && checkedItems.every(Boolean)
+    );
   }, [checkedItems, checklist.length]);
 
   const typedMatched = useMemo(() => {
@@ -117,7 +120,9 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
       bodyStyle={{
         maxHeight: isMobile ? '70vh' : '72vh',
         overflowY: 'auto',
-        padding: isMobile ? '12px 16px' : '18px 22px',
+        padding: isMobile
+          ? 'calc(var(--na-space-px) * 12) calc(var(--na-space-px) * 16)'
+          : 'calc(var(--na-space-px) * 18) calc(var(--na-space-px) * 22)',
       }}
       footer={
         <Space>
@@ -134,16 +139,18 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
       }
     >
       <div className='flex flex-col gap-4'>
-
         <RiskMarkdownBlock markdownContent={markdownContent} />
 
         {detailItems.length > 0 ? (
           <div
             className='flex flex-col gap-2 rounded-lg'
             style={{
-              border: '1px solid var(--semi-color-warning-light-hover)',
+              border:
+                'calc(var(--na-space-px) * 1) solid var(--semi-color-warning-light-hover)',
               background: 'var(--semi-color-fill-0)',
-              padding: isMobile ? '10px 12px' : '12px 14px',
+              padding: isMobile
+                ? 'calc(var(--na-space-px) * 10) calc(var(--na-space-px) * 12)'
+                : 'calc(var(--na-space-px) * 12) calc(var(--na-space-px) * 14)',
             }}
           >
             {detailTitle ? <Text strong>{detailTitle}</Text> : null}
@@ -157,9 +164,12 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
           <div
             className='flex flex-col gap-2 rounded-lg'
             style={{
-              border: '1px solid var(--semi-color-border)',
+              border:
+                'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
               background: 'var(--semi-color-fill-0)',
-              padding: isMobile ? '10px 12px' : '12px 14px',
+              padding: isMobile
+                ? 'calc(var(--na-space-px) * 10) calc(var(--na-space-px) * 12)'
+                : 'calc(var(--na-space-px) * 12) calc(var(--na-space-px) * 14)',
             }}
           >
             {checklist.map((item, index) => (
@@ -180,9 +190,12 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
           <div
             className='flex flex-col gap-2 rounded-lg'
             style={{
-              border: '1px solid var(--semi-color-danger-light-hover)',
+              border:
+                'calc(var(--na-space-px) * 1) solid var(--semi-color-danger-light-hover)',
               background: 'var(--semi-color-danger-light-default)',
-              padding: isMobile ? '10px 12px' : '12px 14px',
+              padding: isMobile
+                ? 'calc(var(--na-space-px) * 10) calc(var(--na-space-px) * 12)'
+                : 'calc(var(--na-space-px) * 12) calc(var(--na-space-px) * 14)',
             }}
           >
             {inputPrompt ? <Text strong>{inputPrompt}</Text> : null}

@@ -122,21 +122,12 @@ const RechargeCard = ({
     <Space vertical style={{ width: '100%' }}>
       {/* 统计数据 */}
       <Card
-        className='!rounded-xl w-full'
+        className='na-billing-card-soft'
         cover={
-          <div
-            className='relative h-30'
-            style={{
-              '--palette-primary-darkerChannel': '37 99 235',
-              backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-            }}
-          >
-            <div className='relative z-10 h-full flex flex-col justify-between p-4'>
+          <div className='na-billing-cover'>
+            <div className='na-billing-cover-content'>
               <div className='flex justify-between items-center'>
-                <Text strong style={{ color: 'white', fontSize: '16px' }}>
+                <Text strong className='na-billing-cover-title'>
                   {t('账户统计')}
                 </Text>
               </div>
@@ -147,7 +138,7 @@ const RechargeCard = ({
                 <div className='text-center'>
                   <div
                     className='text-base sm:text-2xl font-bold mb-2'
-                    style={{ color: 'white' }}
+                    style={{ color: 'var(--na-billing-cover-text)' }}
                   >
                     {renderQuota(userState?.user?.quota)}
                   </div>
@@ -155,14 +146,9 @@ const RechargeCard = ({
                     <Wallet
                       size={14}
                       className='mr-1'
-                      style={{ color: 'rgba(255,255,255,0.8)' }}
+                      style={{ color: 'var(--na-billing-cover-muted-color)' }}
                     />
-                    <Text
-                      style={{
-                        color: 'rgba(255,255,255,0.8)',
-                        fontSize: '12px',
-                      }}
-                    >
+                    <Text className='na-billing-cover-muted'>
                       {t('当前余额')}
                     </Text>
                   </div>
@@ -172,7 +158,7 @@ const RechargeCard = ({
                 <div className='text-center'>
                   <div
                     className='text-base sm:text-2xl font-bold mb-2'
-                    style={{ color: 'white' }}
+                    style={{ color: 'var(--na-billing-cover-text)' }}
                   >
                     {renderQuota(userState?.user?.used_quota)}
                   </div>
@@ -180,14 +166,9 @@ const RechargeCard = ({
                     <TrendingUp
                       size={14}
                       className='mr-1'
-                      style={{ color: 'rgba(255,255,255,0.8)' }}
+                      style={{ color: 'var(--na-billing-cover-muted-color)' }}
                     />
-                    <Text
-                      style={{
-                        color: 'rgba(255,255,255,0.8)',
-                        fontSize: '12px',
-                      }}
-                    >
+                    <Text className='na-billing-cover-muted'>
                       {t('历史消耗')}
                     </Text>
                   </div>
@@ -197,7 +178,7 @@ const RechargeCard = ({
                 <div className='text-center'>
                   <div
                     className='text-base sm:text-2xl font-bold mb-2'
-                    style={{ color: 'white' }}
+                    style={{ color: 'var(--na-billing-cover-text)' }}
                   >
                     {userState?.user?.request_count || 0}
                   </div>
@@ -205,14 +186,9 @@ const RechargeCard = ({
                     <BarChart2
                       size={14}
                       className='mr-1'
-                      style={{ color: 'rgba(255,255,255,0.8)' }}
+                      style={{ color: 'var(--na-billing-cover-muted-color)' }}
                     />
-                    <Text
-                      style={{
-                        color: 'rgba(255,255,255,0.8)',
-                        fontSize: '12px',
-                      }}
-                    >
+                    <Text className='na-billing-cover-muted'>
                       {t('请求次数')}
                     </Text>
                   </div>
@@ -338,11 +314,20 @@ const RechargeCard = ({
                                 }
                                 icon={
                                   payMethod.type === 'alipay' ? (
-                                    <SiAlipay size={18} color='#1677FF' />
+                                    <SiAlipay
+                                      size={18}
+                                      color='var(--brand-alipay)'
+                                    />
                                   ) : payMethod.type === 'wxpay' ? (
-                                    <SiWechat size={18} color='#07C160' />
+                                    <SiWechat
+                                      size={18}
+                                      color='var(--brand-wechat)'
+                                    />
                                   ) : payMethod.type === 'stripe' ? (
-                                    <SiStripe size={18} color='#635BFF' />
+                                    <SiStripe
+                                      size={18}
+                                      color='var(--brand-stripe)'
+                                    />
                                   ) : payMethod.icon ? (
                                     <img
                                       src={payMethod.icon}
@@ -368,7 +353,7 @@ const RechargeCard = ({
                                     />
                                   )
                                 }
-                                className='!rounded-lg !px-4 !py-2'
+                                className='na-auth-secondary-button'
                               >
                                 {payMethod.name}
                               </Button>
@@ -412,7 +397,7 @@ const RechargeCard = ({
                           <span
                             style={{
                               color: 'var(--semi-color-text-2)',
-                              fontSize: '12px',
+                              fontSize: 'var(--na-text-label)',
                               fontWeight: 'normal',
                             }}
                           >
@@ -471,12 +456,12 @@ const RechargeCard = ({
                             cursor: 'pointer',
                             border:
                               selectedPreset === preset.value
-                                ? '2px solid var(--semi-color-primary)'
-                                : '1px solid var(--semi-color-border)',
+                                ? 'calc(var(--na-space-px) * 2) solid var(--semi-color-primary)'
+                                : 'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                             height: '100%',
                             width: '100%',
                           }}
-                          bodyStyle={{ padding: '12px' }}
+                          bodyStyle={{ padding: 'var(--na-space-3)' }}
                           onClick={() => {
                             selectPresetAmount(preset);
                             onlineFormApiRef.current?.setValue(
@@ -488,12 +473,15 @@ const RechargeCard = ({
                           <div style={{ textAlign: 'center' }}>
                             <Typography.Title
                               heading={6}
-                              style={{ margin: '0 0 8px 0' }}
+                              style={{ margin: '0 0 var(--na-space-2) 0' }}
                             >
                               <Coins size={18} />
                               {formatLargeNumber(displayValue)} {symbol}
                               {hasDiscount && (
-                                <Tag style={{ marginLeft: 4 }} color='green'>
+                                <Tag
+                                  style={{ marginLeft: 'var(--na-space-1)' }}
+                                  color='green'
+                                >
                                   {t('折').includes('off')
                                     ? (
                                         (1 - parseFloat(discount)) *
@@ -507,8 +495,8 @@ const RechargeCard = ({
                             <div
                               style={{
                                 color: 'var(--semi-color-text-2)',
-                                fontSize: '12px',
-                                margin: '4px 0',
+                                fontSize: 'var(--na-text-label)',
+                                margin: 'var(--na-space-1) 0',
                               }}
                             >
                               {t('实付')} {symbol}
@@ -533,16 +521,19 @@ const RechargeCard = ({
                       <Card
                         key={index}
                         onClick={() => creemPreTopUp(product)}
-                        className='cursor-pointer !rounded-2xl transition-all hover:shadow-md border-gray-200 hover:border-gray-300'
-                        bodyStyle={{ textAlign: 'center', padding: '16px' }}
+                        className='na-billing-plan-card cursor-pointer'
+                        bodyStyle={{
+                          textAlign: 'center',
+                          padding: 'var(--na-space-4)',
+                        }}
                       >
                         <div className='font-medium text-lg mb-2'>
                           {product.name}
                         </div>
-                        <div className='text-sm text-gray-600 mb-2'>
+                        <div className='na-billing-muted mb-2'>
                           {t('充值额度')}: {product.quota}
                         </div>
-                        <div className='text-lg font-semibold text-blue-600'>
+                        <div className='text-lg na-billing-price'>
                           {product.currency === 'EUR' ? '€' : '$'}
                           {product.price}
                         </div>
@@ -559,7 +550,7 @@ const RechargeCard = ({
             description={t(
               '管理员未开启在线充值功能，请联系管理员开启或使用兑换码充值。',
             )}
-            className='!rounded-xl'
+            className='na-billing-card-soft'
             closeIcon={null}
           />
         )}
@@ -567,7 +558,7 @@ const RechargeCard = ({
 
       {/* 兑换码充值 */}
       <Card
-        className='!rounded-xl w-full'
+        className='na-billing-card-soft'
         title={
           <Text type='tertiary' strong>
             {t('兑换码充值')}
@@ -592,6 +583,7 @@ const RechargeCard = ({
                   theme='solid'
                   onClick={topUp}
                   loading={isSubmitting}
+                  className='na-auth-secondary-button'
                 >
                   {t('兑换额度')}
                 </Button>
@@ -621,7 +613,7 @@ const RechargeCard = ({
   );
 
   return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
+    <Card className='na-billing-card'>
       {/* 卡片头部 */}
       <div className='flex items-center justify-between mb-4'>
         <div className='flex items-center'>
@@ -639,6 +631,7 @@ const RechargeCard = ({
           icon={<Receipt size={16} />}
           theme='solid'
           onClick={onOpenHistory}
+          className='na-auth-secondary-button na-button-inline'
         >
           {t('账单')}
         </Button>

@@ -101,7 +101,7 @@ const LogsTable = (logsData) => {
       rowKey='key'
       loading={loading}
       scroll={compactMode ? undefined : { x: 'max-content' }}
-      className='rounded-xl overflow-hidden'
+      className='rounded-semi-border-radius-large overflow-hidden'
       size='small'
       empty={
         <Empty

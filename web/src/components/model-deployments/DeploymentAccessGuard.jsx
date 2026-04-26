@@ -43,9 +43,17 @@ const DeploymentAccessGuard = ({
 
   if (loading) {
     return (
-      <div className='mt-[60px] px-2'>
-        <Card loading={true} style={{ minHeight: '400px' }}>
-          <div style={{ textAlign: 'center', padding: '50px 0' }}>
+      <div className='px-2'>
+        <Card
+          loading={true}
+          style={{ minHeight: 'calc(var(--na-space-px) * 400)' }}
+        >
+          <div
+            style={{
+              textAlign: 'center',
+              padding: 'calc(var(--na-space-px) * 50) 0',
+            }}
+          >
             <Text type='secondary'>{t('加载设置中...')}</Text>
           </div>
         </Card>
@@ -56,9 +64,9 @@ const DeploymentAccessGuard = ({
   if (!isEnabled) {
     return (
       <div
-        className='mt-[60px] px-4'
+        className='px-4'
         style={{
-          minHeight: 'calc(100vh - 60px)',
+          minHeight: 'calc(100vh - calc(var(--na-space-px) * 60))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -66,36 +74,36 @@ const DeploymentAccessGuard = ({
       >
         <div
           style={{
-            maxWidth: '600px',
+            maxWidth: 'calc(var(--na-space-px) * 600)',
             width: '100%',
             textAlign: 'center',
-            padding: '0 20px',
+            padding: '0 calc(var(--na-space-px) * 20)',
           }}
         >
           <Card
             style={{
-              padding: '60px 40px',
-              borderRadius: '16px',
-              border: '1px solid var(--semi-color-border)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-              background:
-                'linear-gradient(135deg, var(--semi-color-bg-0) 0%, var(--semi-color-fill-0) 100%)',
+              padding:
+                'calc(var(--na-space-px) * 60) calc(var(--na-space-px) * 40)',
+              borderRadius: 'var(--na-radius-panel)',
+              border: 'var(--na-space-px) solid var(--semi-color-border)',
+              boxShadow: 'var(--na-shadow-card)',
+              background: 'var(--semi-color-bg-2)',
             }}
           >
             {/* 图标区域 */}
-            <div style={{ marginBottom: '32px' }}>
+            <div style={{ marginBottom: 'calc(var(--na-space-px) * 32)' }}>
               <div
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  background:
-                    'linear-gradient(135deg, rgba(var(--semi-orange-4), 0.15) 0%, rgba(var(--semi-orange-5), 0.1) 100%)',
-                  border: '3px solid rgba(var(--semi-orange-4), 0.3)',
-                  marginBottom: '24px',
+                  width: 'calc(var(--na-space-px) * 120)',
+                  height: 'calc(var(--na-space-px) * 120)',
+                  borderRadius: 'var(--na-radius-full)',
+                  background: 'var(--semi-color-warning-light-default)',
+                  border:
+                    'calc(var(--na-space-px) * 3) solid var(--semi-color-warning-light-active)',
+                  marginBottom: 'calc(var(--na-space-px) * 24)',
                 }}
               >
                 <AlertCircle size={56} color='var(--semi-color-warning)' />
@@ -103,13 +111,13 @@ const DeploymentAccessGuard = ({
             </div>
 
             {/* 标题区域 */}
-            <div style={{ marginBottom: '24px' }}>
+            <div style={{ marginBottom: 'calc(var(--na-space-px) * 24)' }}>
               <Title
                 heading={2}
                 style={{
                   color: 'var(--semi-color-text-0)',
-                  margin: '0 0 12px 0',
-                  fontSize: '28px',
+                  margin: '0 0 calc(var(--na-space-px) * 12) 0',
+                  fontSize: 'calc(var(--na-space-px) * 28)',
                   fontWeight: '700',
                 }}
               >
@@ -117,7 +125,7 @@ const DeploymentAccessGuard = ({
               </Title>
               <Text
                 style={{
-                  fontSize: '18px',
+                  fontSize: 'calc(var(--na-space-px) * 18)',
                   lineHeight: '1.6',
                   color: 'var(--semi-color-text-1)',
                   display: 'block',
@@ -131,11 +139,11 @@ const DeploymentAccessGuard = ({
             <div
               style={{
                 backgroundColor: 'var(--semi-color-bg-1)',
-                padding: '24px',
-                borderRadius: '12px',
-                border: '1px solid var(--semi-color-border)',
-                margin: '32px 0',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                padding: 'calc(var(--na-space-px) * 24)',
+                borderRadius: 'var(--na-radius-card)',
+                border: 'var(--na-space-px) solid var(--semi-color-border)',
+                margin: 'calc(var(--na-space-px) * 32) 0',
+                boxShadow: 'var(--na-shadow-ring-subtle)',
               }}
             >
               <div
@@ -143,8 +151,8 @@ const DeploymentAccessGuard = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '12px',
-                  marginBottom: '16px',
+                  gap: 'calc(var(--na-space-px) * 12)',
+                  marginBottom: 'calc(var(--na-space-px) * 16)',
                 }}
               >
                 <div
@@ -152,9 +160,9 @@ const DeploymentAccessGuard = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
+                    width: 'calc(var(--na-space-px) * 32)',
+                    height: 'calc(var(--na-space-px) * 32)',
+                    borderRadius: 'var(--na-radius-input)',
                     backgroundColor: 'rgba(var(--semi-blue-4), 0.15)',
                   }}
                 >
@@ -163,7 +171,7 @@ const DeploymentAccessGuard = ({
                 <Text
                   strong
                   style={{
-                    fontSize: '16px',
+                    fontSize: 'calc(var(--na-space-px) * 16)',
                     color: 'var(--semi-color-text-0)',
                   }}
                 >
@@ -175,28 +183,32 @@ const DeploymentAccessGuard = ({
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px',
+                  gap: 'calc(var(--na-space-px) * 12)',
                   alignItems: 'flex-start',
                   textAlign: 'left',
-                  maxWidth: '320px',
+                  maxWidth: 'calc(var(--na-space-px) * 320)',
                   margin: '0 auto',
                 }}
               >
                 <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'calc(var(--na-space-px) * 12)',
+                  }}
                 >
                   <div
                     style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
+                      width: 'calc(var(--na-space-px) * 6)',
+                      height: 'calc(var(--na-space-px) * 6)',
+                      borderRadius: 'var(--na-radius-full)',
                       backgroundColor: 'var(--semi-color-primary)',
                       flexShrink: 0,
                     }}
                   ></div>
                   <Text
                     style={{
-                      fontSize: '15px',
+                      fontSize: 'calc(var(--na-space-px) * 15)',
                       color: 'var(--semi-color-text-1)',
                     }}
                   >
@@ -204,20 +216,24 @@ const DeploymentAccessGuard = ({
                   </Text>
                 </div>
                 <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'calc(var(--na-space-px) * 12)',
+                  }}
                 >
                   <div
                     style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
+                      width: 'calc(var(--na-space-px) * 6)',
+                      height: 'calc(var(--na-space-px) * 6)',
+                      borderRadius: 'var(--na-radius-full)',
                       backgroundColor: 'var(--semi-color-primary)',
                       flexShrink: 0,
                     }}
                   ></div>
                   <Text
                     style={{
-                      fontSize: '15px',
+                      fontSize: 'calc(var(--na-space-px) * 15)',
                       color: 'var(--semi-color-text-1)',
                     }}
                   >
@@ -228,29 +244,29 @@ const DeploymentAccessGuard = ({
             </div>
 
             {/* 操作链接区域 */}
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: 'calc(var(--na-space-px) * 20)' }}>
               <div
                 onClick={handleGoToSettings}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px',
+                  gap: 'calc(var(--na-space-px) * 8)',
                   cursor: 'pointer',
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  fontSize: '16px',
+                  padding:
+                    'calc(var(--na-space-px) * 12) calc(var(--na-space-px) * 24)',
+                  borderRadius: 'var(--na-radius-input)',
+                  fontSize: 'calc(var(--na-space-px) * 16)',
                   fontWeight: '500',
                   color: 'var(--semi-color-primary)',
                   background: 'var(--semi-color-fill-0)',
-                  border: '1px solid var(--semi-color-border)',
+                  border: 'var(--na-space-px) solid var(--semi-color-border)',
                   transition: 'all 0.2s ease',
                   textDecoration: 'none',
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = 'var(--semi-color-fill-1)';
                   e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow =
-                    '0 2px 8px rgba(0, 0, 0, 0.1)';
+                  e.currentTarget.style.boxShadow = 'var(--na-shadow-card)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'var(--semi-color-fill-0)';
@@ -267,7 +283,7 @@ const DeploymentAccessGuard = ({
             <Text
               type='tertiary'
               style={{
-                fontSize: '14px',
+                fontSize: 'calc(var(--na-space-px) * 14)',
                 color: 'var(--semi-color-text-2)',
                 lineHeight: '1.5',
               }}
@@ -282,9 +298,17 @@ const DeploymentAccessGuard = ({
 
   if (connectionLoading || (connectionOk === null && !connectionError)) {
     return (
-      <div className='mt-[60px] px-2'>
-        <Card loading={true} style={{ minHeight: '400px' }}>
-          <div style={{ textAlign: 'center', padding: '50px 0' }}>
+      <div className='px-2'>
+        <Card
+          loading={true}
+          style={{ minHeight: 'calc(var(--na-space-px) * 400)' }}
+        >
+          <div
+            style={{
+              textAlign: 'center',
+              padding: 'calc(var(--na-space-px) * 50) 0',
+            }}
+          >
             <Text type='secondary'>{t('正在检查 io.net 连接...')}</Text>
           </div>
         </Card>
@@ -302,9 +326,9 @@ const DeploymentAccessGuard = ({
 
     return (
       <div
-        className='mt-[60px] px-4'
+        className='px-4'
         style={{
-          minHeight: 'calc(100vh - 60px)',
+          minHeight: 'calc(100vh - calc(var(--na-space-px) * 60))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -312,48 +336,48 @@ const DeploymentAccessGuard = ({
       >
         <div
           style={{
-            maxWidth: '600px',
+            maxWidth: 'calc(var(--na-space-px) * 600)',
             width: '100%',
             textAlign: 'center',
-            padding: '0 20px',
+            padding: '0 calc(var(--na-space-px) * 20)',
           }}
         >
           <Card
             style={{
-              padding: '60px 40px',
-              borderRadius: '16px',
-              border: '1px solid var(--semi-color-border)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-              background:
-                'linear-gradient(135deg, var(--semi-color-bg-0) 0%, var(--semi-color-fill-0) 100%)',
+              padding:
+                'calc(var(--na-space-px) * 60) calc(var(--na-space-px) * 40)',
+              borderRadius: 'var(--na-radius-panel)',
+              border: 'var(--na-space-px) solid var(--semi-color-border)',
+              boxShadow: 'var(--na-shadow-card)',
+              background: 'var(--semi-color-bg-2)',
             }}
           >
-            <div style={{ marginBottom: '32px' }}>
+            <div style={{ marginBottom: 'calc(var(--na-space-px) * 32)' }}>
               <div
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  background:
-                    'linear-gradient(135deg, rgba(var(--semi-red-4), 0.15) 0%, rgba(var(--semi-red-5), 0.1) 100%)',
-                  border: '3px solid rgba(var(--semi-red-4), 0.3)',
-                  marginBottom: '24px',
+                  width: 'calc(var(--na-space-px) * 120)',
+                  height: 'calc(var(--na-space-px) * 120)',
+                  borderRadius: 'var(--na-radius-full)',
+                  background: 'var(--semi-color-danger-light-default)',
+                  border:
+                    'calc(var(--na-space-px) * 3) solid var(--semi-color-danger-light-active)',
+                  marginBottom: 'calc(var(--na-space-px) * 24)',
                 }}
               >
                 <WifiOff size={56} color='var(--semi-color-danger)' />
               </div>
             </div>
 
-            <div style={{ marginBottom: '24px' }}>
+            <div style={{ marginBottom: 'calc(var(--na-space-px) * 24)' }}>
               <Title
                 heading={2}
                 style={{
                   color: 'var(--semi-color-text-0)',
-                  margin: '0 0 12px 0',
-                  fontSize: '28px',
+                  margin: '0 0 calc(var(--na-space-px) * 12) 0',
+                  fontSize: 'calc(var(--na-space-px) * 28)',
                   fontWeight: '700',
                 }}
               >
@@ -361,7 +385,7 @@ const DeploymentAccessGuard = ({
               </Title>
               <Text
                 style={{
-                  fontSize: '18px',
+                  fontSize: 'calc(var(--na-space-px) * 18)',
                   lineHeight: '1.6',
                   color: 'var(--semi-color-text-1)',
                   display: 'block',
@@ -373,10 +397,10 @@ const DeploymentAccessGuard = ({
                 <Text
                   type='tertiary'
                   style={{
-                    fontSize: '14px',
+                    fontSize: 'calc(var(--na-space-px) * 14)',
                     lineHeight: '1.5',
                     display: 'block',
-                    marginTop: '8px',
+                    marginTop: 'calc(var(--na-space-px) * 8)',
                   }}
                 >
                   {detail}
@@ -385,7 +409,11 @@ const DeploymentAccessGuard = ({
             </div>
 
             <div
-              style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}
+              style={{
+                display: 'flex',
+                gap: 'calc(var(--na-space-px) * 12)',
+                justifyContent: 'center',
+              }}
             >
               <Button
                 type='primary'
@@ -410,3 +438,4 @@ const DeploymentAccessGuard = ({
 };
 
 export default DeploymentAccessGuard;
+

@@ -49,7 +49,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
                   <p className='mt-2 text-sm opacity-80'>
                     <strong>{t('数据存储位置：')}</strong>
                     <br />
-                    <code className='bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded'>
+                    <code className='bg-semi-color-fill-0 px-2 py-1 rounded-semi-border-radius-small'>
                       {window.electron.dataDir}
                     </code>
                   </p>

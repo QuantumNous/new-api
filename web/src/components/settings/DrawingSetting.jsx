@@ -73,7 +73,7 @@ const DrawingSetting = () => {
     <>
       <Spin spinning={loading} size='large'>
         {/* 绘图设置 */}
-        <Card style={{ marginTop: '10px' }}>
+        <Card style={{ marginTop: 'calc(var(--na-space-px) * 10)' }}>
           <SettingsDrawing options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>

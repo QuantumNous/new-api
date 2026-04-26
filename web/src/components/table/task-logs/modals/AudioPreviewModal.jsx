@@ -50,10 +50,10 @@ const AudioClipCard = ({ clip }) => {
     <div
       style={{
         display: 'flex',
-        gap: '16px',
-        padding: '16px',
-        borderRadius: '8px',
-        border: '1px solid var(--semi-color-border)',
+        gap: 'calc(var(--na-space-px) * 16)',
+        padding: 'calc(var(--na-space-px) * 16)',
+        borderRadius: 'calc(var(--na-space-px) * 8)',
+        border: 'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
         background: 'var(--semi-color-bg-1)',
       }}
     >
@@ -64,7 +64,7 @@ const AudioClipCard = ({ clip }) => {
           style={{
             width: 80,
             height: 80,
-            borderRadius: '8px',
+            borderRadius: 'calc(var(--na-space-px) * 8)',
             objectFit: 'cover',
             flexShrink: 0,
           }}
@@ -78,11 +78,15 @@ const AudioClipCard = ({ clip }) => {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            marginBottom: '4px',
+            gap: 'calc(var(--na-space-px) * 8)',
+            marginBottom: 'calc(var(--na-space-px) * 4)',
           }}
         >
-          <Text strong ellipsis={{ showTooltip: true }} style={{ fontSize: 15 }}>
+          <Text
+            strong
+            ellipsis={{ showTooltip: true }}
+            style={{ fontSize: 15 }}
+          >
             {title}
           </Text>
           {duration > 0 && (
@@ -93,7 +97,7 @@ const AudioClipCard = ({ clip }) => {
         </div>
 
         {tags && (
-          <div style={{ marginBottom: '8px' }}>
+          <div style={{ marginBottom: 'calc(var(--na-space-px) * 8)' }}>
             <Text
               type='tertiary'
               size='small'
@@ -109,7 +113,7 @@ const AudioClipCard = ({ clip }) => {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: 'calc(var(--na-space-px) * 8)',
               flexWrap: 'wrap',
             }}
           >
@@ -161,14 +165,20 @@ const AudioPreviewModal = ({ isModalOpen, setIsModalOpen, audioClips }) => {
       bodyStyle={{
         maxHeight: '70vh',
         overflow: 'auto',
-        padding: '16px',
+        padding: 'calc(var(--na-space-px) * 16)',
       }}
       width={560}
     >
       {clips.length === 0 ? (
         <Text type='tertiary'>{t('无')}</Text>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'calc(var(--na-space-px) * 12)',
+          }}
+        >
           {clips.map((clip, idx) => (
             <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
           ))}

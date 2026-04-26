@@ -189,7 +189,10 @@ const ModelTestModal = ({
                   type='danger'
                   size='small'
                   className='break-all'
-                  style={{ maxWidth: '400px', fontSize: '12px' }}
+                  style={{
+                    maxWidth: 'calc(var(--na-space-px) * 400)',
+                    fontSize: 'calc(var(--na-space-px) * 12)',
+                  }}
                 >
                   {testResult.message}
                 </Typography.Text>
@@ -199,7 +202,9 @@ const ModelTestModal = ({
                     theme='light'
                     type='warning'
                     icon={<Settings size={12} />}
-                    onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                    onClick={() =>
+                      window.open('/console/setting?tab=ratio', '_blank')
+                    }
                     style={{ width: 'fit-content' }}
                   >
                     {t('前往设置')}

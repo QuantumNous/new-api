@@ -229,7 +229,7 @@ const EditRedemptionModal = (props) => {
           >
             {({ values }) => (
               <div className='p-2'>
-                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+                <Card className='!rounded-semi-border-radius-large shadow-sm border-0 mb-6'>
                   {/* Header: Basic Info */}
                   <div className='flex items-center mb-2'>
                     <Avatar
@@ -243,7 +243,7 @@ const EditRedemptionModal = (props) => {
                       <Text className='text-lg font-medium'>
                         {t('基本信息')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='text-xs text-semi-color-text-1'>
                         {t('设置兑换码的基本信息')}
                       </div>
                     </div>
@@ -277,7 +277,7 @@ const EditRedemptionModal = (props) => {
                   </Row>
                 </Card>
 
-                <Card className='!rounded-2xl shadow-sm border-0'>
+                <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
                   {/* Header: Quota Settings */}
                   <div className='flex items-center mb-2'>
                     <Avatar
@@ -291,7 +291,7 @@ const EditRedemptionModal = (props) => {
                       <Text className='text-lg font-medium'>
                         {t('额度设置')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='text-xs text-semi-color-text-1'>
                         {t('设置兑换码的额度和数量')}
                       </div>
                     </div>
@@ -327,7 +327,10 @@ const EditRedemptionModal = (props) => {
                           ? `▾ ${t('收起原生额度输入')}`
                           : `▸ ${t('使用原生额度输入')}`}
                       </div>
-                      <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                      <div
+                        style={{ display: showQuotaInput ? 'block' : 'none' }}
+                        className='mt-2'
+                      >
                         <Form.InputNumber
                           field='quota'
                           label={t('额度')}

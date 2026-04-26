@@ -36,7 +36,10 @@ const ContentModal = ({
         onOk={() => setIsModalOpen(false)}
         onCancel={() => setIsModalOpen(false)}
         closable={null}
-        bodyStyle={{ height: '400px', overflow: 'auto' }}
+        bodyStyle={{
+          height: 'calc(var(--na-space-px) * 400)',
+          overflow: 'auto',
+        }}
         width={800}
       >
         <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>

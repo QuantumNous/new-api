@@ -38,7 +38,7 @@ const FaqPanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
+      className='na-dashboard-panel lg:col-span-1'
       title={
         <div className={FLEX_CENTER_GAP2}>
           <HelpCircle size={16} />
@@ -47,7 +47,7 @@ const FaqPanel = ({
       }
       bodyStyle={{ padding: 0 }}
     >
-      <ScrollableContainer maxHeight='24rem'>
+      <ScrollableContainer maxHeight='var(--na-space-96)'>
         {faqData.length > 0 ? (
           <Collapse
             accordion
@@ -69,7 +69,7 @@ const FaqPanel = ({
             ))}
           </Collapse>
         ) : (
-          <div className='flex justify-center items-center py-8'>
+          <div className='na-dashboard-empty'>
             <Empty
               image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
               darkModeImage={

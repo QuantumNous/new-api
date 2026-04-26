@@ -192,7 +192,7 @@ const ChannelKeyDisplay = ({
                   </div>
                 </div>
 
-                <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-3 max-h-40 overflow-auto'>
+                <div className='bg-semi-color-fill-0 rounded-semi-border-radius-medium p-3 max-h-40 overflow-auto'>
                   <Typography.Text
                     code
                     className='text-xs font-mono break-all whitespace-pre-wrap text-gray-800 dark:text-gray-200'

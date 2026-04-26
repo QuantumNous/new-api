@@ -805,7 +805,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   };
 
   const priceUnavailableContent = (
-    <div style={{ marginTop: 12 }}>
+    <div className='na-modal-field-spacer'>
       {loadingPrice ? (
         <Space spacing={8} align='center'>
           <Spin size='small' />
@@ -843,21 +843,17 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       cancelText={t('取消')}
       width={800}
       confirmLoading={submitting}
-      style={{ top: 20 }}
+      style={{ top: 'var(--na-space-5)' }}
     >
       <Form
         key={formKey}
         initValues={formDefaults}
         getFormApi={setFormApi}
         onSubmit={handleSubmit}
-        style={{ maxHeight: '70vh', overflowY: 'auto' }}
+        className='na-modal-scroll-form'
         labelPosition='top'
       >
-        <Space
-          wrap
-          spacing={8}
-          style={{ justifyContent: 'flex-end', width: '100%', marginBottom: 8 }}
-        >
+        <Space wrap spacing={8} className='na-modal-action-row'>
           <Button
             size='small'
             theme='borderless'
@@ -885,7 +881,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         </Space>
 
         <div ref={basicSectionRef}>
-          <Card className='mb-4'>
+          <Card className='na-channel-card na-modal-section'>
             <Title heading={6}>{t('部署配置')}</Title>
 
             <Form.Input
@@ -895,9 +891,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               rules={[{ required: true, message: t('请输入容器名称') }]}
             />
 
-            <div className='mt-2'>
+            <div className='na-modal-field-spacer'>
               <Text strong>{t('镜像选择')}</Text>
-              <div style={{ marginTop: 8 }}>
+              <div className='na-modal-field-spacer'>
                 <RadioGroup
                   type='button'
                   value={imageMode}
@@ -933,7 +929,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   readOnly
                   value={autoOllamaKey}
                   size='small'
-                  style={{ width: 220 }}
+                  style={{ width: '13.75rem' }}
                 />
                 <Button
                   icon={<IconCopy />}
@@ -974,7 +970,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       formApi.setValue('gpus_per_container', nextMaxGpus);
                     }
                   }}
-                  style={{ width: '100%' }}
+                  className='w-full'
                   dropdownStyle={{ maxHeight: 360, overflowY: 'auto' }}
                   renderSelectedItem={(optionNode) =>
                     optionNode
@@ -1025,7 +1021,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   max={getHardwareMaxGpus(selectedHardwareId)}
                   step={1}
                   disabled
-                  style={{ width: '100%' }}
+                  className='w-full'
                 />
               </Col>
             </Row>
@@ -1056,7 +1052,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               disabled={!selectedHardwareId || loadingReplicas}
               rules={[{ required: true, message: t('请选择至少一个部署位置') }]}
               onChange={(value) => setSelectedLocationIds(value)}
-              style={{ width: '100%' }}
+              className='w-full'
               dropdownStyle={{ maxHeight: 360, overflowY: 'auto' }}
               renderSelectedItem={(optionNode) => ({
                 isRenderInTag: true,
@@ -1124,7 +1120,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   max={maxAvailableReplicas || 100}
                   rules={[{ required: true, message: t('请输入副本数量') }]}
                   onChange={(value) => setReplicaCount(value)}
-                  style={{ width: '100%' }}
+                  className='w-full'
                 />
                 {maxAvailableReplicas > 0 && (
                   <Text size='small' type='tertiary'>
@@ -1141,7 +1137,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   max={8760} // 1 year
                   rules={[{ required: true, message: t('请输入运行时长') }]}
                   onChange={(value) => setDurationHours(value)}
-                  style={{ width: '100%' }}
+                  className='w-full'
                 />
               </Col>
               <Col xs={24} md={8}>
@@ -1158,7 +1154,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   placeholder={DEFAULT_TRAFFIC_PORT}
                   min={1}
                   max={65535}
-                  style={{ width: '100%' }}
+                  className='w-full'
                   disabled={imageMode === 'builtin'}
                 />
               </Col>
@@ -1167,7 +1163,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             <div ref={advancedSectionRef}>
               <Collapse className='mt-4'>
                 <Collapse.Panel header={t('高级配置')} itemKey='advanced'>
-                  <Card>
+                  <Card className='na-table-modal-card-compact'>
                     <Title heading={6}>{t('镜像仓库配置')}</Title>
                     <Row gutter={16}>
                       <Col span={12}>
@@ -1190,15 +1186,15 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
                   <Divider />
 
-                  <Card>
+                  <Card className='na-table-modal-card-compact'>
                     <Title heading={6}>{t('容器启动配置')}</Title>
 
-                    <div style={{ marginBottom: 16 }}>
+                    <div className='na-modal-section'>
                       <Text strong>{t('启动命令 (Entrypoint)')}</Text>
                       {entrypoint.map((cmd, index) => (
                         <div
                           key={index}
-                          style={{ display: 'flex', marginTop: 8 }}
+                          className='na-modal-flex-row na-modal-field-spacer'
                         >
                           <Input
                             value={cmd}
@@ -1206,7 +1202,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                             onChange={(value) =>
                               handleArrayFieldChange(index, value, 'entrypoint')
                             }
-                            style={{ flex: 1, marginRight: 8 }}
+                            className='na-modal-flex-grow'
                           />
                           <Button
                             icon={<IconMinus />}
@@ -1220,18 +1216,18 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       <Button
                         icon={<IconPlus />}
                         onClick={() => handleAddArrayField('entrypoint')}
-                        style={{ marginTop: 8 }}
+                        className='na-modal-field-spacer'
                       >
                         {t('添加启动命令')}
                       </Button>
                     </div>
 
-                    <div style={{ marginBottom: 16 }}>
+                    <div className='na-modal-section'>
                       <Text strong>{t('启动参数 (Args)')}</Text>
                       {args.map((arg, index) => (
                         <div
                           key={index}
-                          style={{ display: 'flex', marginTop: 8 }}
+                          className='na-modal-flex-row na-modal-field-spacer'
                         >
                           <Input
                             value={arg}
@@ -1239,7 +1235,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                             onChange={(value) =>
                               handleArrayFieldChange(index, value, 'args')
                             }
-                            style={{ flex: 1, marginRight: 8 }}
+                            className='na-modal-flex-grow'
                           />
                           <Button
                             icon={<IconMinus />}
@@ -1253,7 +1249,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       <Button
                         icon={<IconPlus />}
                         onClick={() => handleAddArrayField('args')}
-                        style={{ marginTop: 8 }}
+                        className='na-modal-field-spacer'
                       >
                         {t('添加启动参数')}
                       </Button>
@@ -1262,13 +1258,17 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
                   <Divider />
 
-                  <Card>
+                  <Card className='na-table-modal-card-compact'>
                     <Title heading={6}>{t('环境变量')}</Title>
 
-                    <div style={{ marginBottom: 16 }}>
+                    <div className='na-modal-section'>
                       <Text strong>{t('普通环境变量')}</Text>
                       {envVariables.map((env, index) => (
-                        <Row key={index} gutter={8} style={{ marginTop: 8 }}>
+                        <Row
+                          key={index}
+                          gutter={8}
+                          className='na-modal-field-spacer'
+                        >
                           <Col span={10}>
                             <Input
                               placeholder={t('变量名')}
@@ -1311,7 +1311,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       <Button
                         icon={<IconPlus />}
                         onClick={() => handleAddEnvVariable('env')}
-                        style={{ marginTop: 8 }}
+                        className='na-modal-field-spacer'
                       >
                         {t('添加环境变量')}
                       </Button>
@@ -1324,7 +1324,11 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                           imageMode === 'builtin' &&
                           env.key === 'OLLAMA_API_KEY';
                         return (
-                          <Row key={index} gutter={8} style={{ marginTop: 8 }}>
+                          <Row
+                            key={index}
+                            gutter={8}
+                            className='na-modal-field-spacer'
+                          >
                             <Col span={10}>
                               <Input
                                 placeholder={t('变量名')}
@@ -1374,7 +1378,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                       <Button
                         icon={<IconPlus />}
                         onClick={() => handleAddEnvVariable('secret')}
-                        style={{ marginTop: 8 }}
+                        className='na-modal-field-spacer'
                       >
                         {t('添加密钥环境变量')}
                       </Button>
@@ -1387,9 +1391,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         </div>
 
         <div ref={priceSectionRef}>
-          <Card className='mb-4'>
+          <Card className='na-channel-card na-modal-section'>
             <div className='flex flex-wrap items-center justify-between gap-3'>
-              <Title heading={6} style={{ margin: 0 }}>
+              <Title heading={6} className='m-0'>
                 {t('价格预估')}
               </Title>
               <Space align='center' spacing={12} className='flex flex-wrap'>
@@ -1413,35 +1417,17 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             {priceEstimation ? (
               <div className='mt-4 flex w-full flex-col gap-4'>
                 <div className='grid w-full gap-4 md:grid-cols-2 lg:grid-cols-3'>
-                  <div
-                    className='flex flex-col gap-1 rounded-md px-4 py-3'
-                    style={{
-                      border: '1px solid var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-fill-0)',
-                    }}
-                  >
+                  <div className='na-deployment-summary-card'>
                     <Text size='small' type='tertiary'>
                       {t('预估总费用')}
                     </Text>
-                    <div
-                      style={{
-                        fontSize: 24,
-                        fontWeight: 600,
-                        color: 'var(--semi-color-text-0)',
-                      }}
-                    >
+                    <div className='text-2xl font-semibold text-semi-color-text-0'>
                       {typeof priceEstimation.estimated_cost === 'number'
                         ? `${priceEstimation.estimated_cost.toFixed(4)} ${currencyLabel}`
                         : '--'}
                     </div>
                   </div>
-                  <div
-                    className='flex flex-col gap-1 rounded-md px-4 py-3'
-                    style={{
-                      border: '1px solid var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-fill-0)',
-                    }}
-                  >
+                  <div className='na-deployment-summary-card'>
                     <Text size='small' type='tertiary'>
                       {t('小时费率')}
                     </Text>
@@ -1452,13 +1438,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                         : '--'}
                     </Text>
                   </div>
-                  <div
-                    className='flex flex-col gap-1 rounded-md px-4 py-3'
-                    style={{
-                      border: '1px solid var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-fill-0)',
-                    }}
-                  >
+                  <div className='na-deployment-summary-card'>
                     <Text size='small' type='tertiary'>
                       {t('计算成本')}
                     </Text>
@@ -1473,14 +1453,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
                 <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
                   {priceSummaryItems.map((item) => (
-                    <div
-                      key={item.key}
-                      className='flex items-center justify-between gap-3 rounded-md px-3 py-2'
-                      style={{
-                        border: '1px solid var(--semi-color-border)',
-                        backgroundColor: 'var(--semi-color-fill-0)',
-                      }}
-                    >
+                    <div key={item.key} className='na-deployment-summary-card'>
                       <Text size='small' type='tertiary'>
                         {item.label}
                       </Text>
@@ -1494,7 +1467,11 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             )}
 
             {priceEstimation && loadingPrice && (
-              <Space align='center' spacing={8} style={{ marginTop: 12 }}>
+              <Space
+                align='center'
+                spacing={8}
+                className='na-modal-field-spacer'
+              >
                 <Spin size='small' />
                 <Text size='small' type='tertiary'>
                   {t('价格重新计算中...')}

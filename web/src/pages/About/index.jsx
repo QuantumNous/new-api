@@ -56,7 +56,7 @@ const About = () => {
   }, []);
 
   const emptyStyle = {
-    padding: '24px',
+    padding: 'calc(var(--na-space-px) * 24)',
   };
 
   const customDescription = (
@@ -133,7 +133,7 @@ const About = () => {
   );
 
   return (
-    <div className='mt-[60px] px-2'>
+    <div className='px-2'>
       {aboutLoaded && about === '' ? (
         <div className='flex justify-center items-center h-screen p-8'>
           <Empty
@@ -171,3 +171,4 @@ const About = () => {
 };
 
 export default About;
+

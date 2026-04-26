@@ -132,7 +132,7 @@ const ModelsActions = ({
           position='bottom'
           trigger='hover'
           content={
-            <div className='p-2 max-w-[360px]'>
+            <div className='p-2 max-w-[calc(var(--na-space-px) * 360)]'>
               <div className='text-[var(--semi-color-text-2)] text-sm'>
                 {t(
                   '模型社区需要大家的共同维护，如发现数据有误或想贡献新的模型数据，请访问：',
@@ -142,7 +142,7 @@ const ModelsActions = ({
                 href='https://github.com/basellm/llm-metadata'
                 target='_blank'
                 rel='noreferrer'
-                className='text-blue-600 underline'
+                className='text-semi-color-primary underline'
               >
                 https://github.com/basellm/llm-metadata
               </a>

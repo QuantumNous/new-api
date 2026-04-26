@@ -459,18 +459,31 @@ const Playground = () => {
 
   return (
     <PlaygroundProvider value={playgroundContextValue}>
-      <div className='h-full'>
-        <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
+      <div className='na-playground-shell'>
+        <section className='na-playground-toolbar'>
+          <div>
+            <p className='na-playground-eyebrow'>{t('模型试验台')}</p>
+            <h1 className='na-playground-title'>{t('操练场')}</h1>
+            <p className='na-playground-copy'>
+              {t('调试模型、参数、请求体和响应证据，确认后再投入生产调用。')}
+            </p>
+          </div>
+          <div className='na-playground-status-row'>
+            <span>{inputs.model || t('未选择模型')}</span>
+            <span>{inputs.group || t('默认分组')}</span>
+            {customRequestMode && <span>{t('自定义请求体')}</span>}
+            {showDebugPanel && <span>{t('显示调试')}</span>}
+          </div>
+        </section>
+
+        <Layout className='na-playground-layout'>
           {(showSettings || !isMobile) && (
             <Layout.Sider
-              className={`
-              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
-              ${
+              className={`na-playground-sider ${
                 isMobile
-                  ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
-              }
-            `}
+                  ? 'na-playground-sider-mobile'
+                  : 'na-playground-sider-desktop'
+              }`}
               width={isMobile ? '100%' : 320}
             >
               <OptimizedSettingsPanel
@@ -496,9 +509,15 @@ const Playground = () => {
             </Layout.Sider>
           )}
 
-          <Layout.Content className='relative flex-1 overflow-hidden'>
-            <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
-              <div className='flex-1 flex flex-col'>
+          <Layout.Content className='na-playground-content'>
+            <div
+              className={`na-playground-workbench ${
+                showDebugPanel && !isMobile
+                  ? 'na-playground-workbench-debug'
+                  : ''
+              }`}
+            >
+              <section className='na-playground-chat-column'>
                 <ChatArea
                   chatRef={chatRef}
                   message={message}
@@ -516,11 +535,11 @@ const Playground = () => {
                   renderCustomChatContent={renderCustomChatContent}
                   renderChatBoxAction={renderChatBoxAction}
                 />
-              </div>
+              </section>
 
               {/* 调试面板 - 桌面端 */}
               {showDebugPanel && !isMobile && (
-                <div className='w-96 flex-shrink-0 h-full'>
+                <aside className='na-playground-debug-column'>
                   <OptimizedDebugPanel
                     debugData={debugData}
                     activeDebugTab={activeDebugTab}
@@ -528,13 +547,13 @@ const Playground = () => {
                     styleState={styleState}
                     customRequestMode={customRequestMode}
                   />
-                </div>
+                </aside>
               )}
             </div>
 
             {/* 调试面板 - 移动端覆盖层 */}
             {showDebugPanel && isMobile && (
-              <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
+              <div className='na-playground-mobile-overlay'>
                 <OptimizedDebugPanel
                   debugData={debugData}
                   activeDebugTab={activeDebugTab}

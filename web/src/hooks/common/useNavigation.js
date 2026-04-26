@@ -21,6 +21,28 @@ import { useMemo } from 'react';
 
 export const useNavigation = (t, docsLink, headerNavModules) => {
   const mainNavLinks = useMemo(() => {
+    const normalizedDocsLink = (docsLink || '').trim();
+    const defaultDocsLink =
+      !normalizedDocsLink ||
+      normalizedDocsLink
+        .replace(/\/$/, '')
+        .startsWith('https://docs.newapi.pro');
+    const docsNavLink =
+      defaultDocsLink || normalizedDocsLink.startsWith('/')
+        ? {
+            text: t('文档'),
+            itemKey: 'docs',
+            to: normalizedDocsLink.startsWith('/')
+              ? normalizedDocsLink
+              : '/docs',
+          }
+        : {
+            text: t('文档'),
+            itemKey: 'docs',
+            isExternal: true,
+            externalLink: normalizedDocsLink,
+          };
+
     // 默认配置，如果没有传入配置则显示所有模块
     const defaultModules = {
       home: true,
@@ -49,16 +71,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         itemKey: 'pricing',
         to: '/pricing',
       },
-      ...(docsLink
-        ? [
-            {
-              text: t('文档'),
-              itemKey: 'docs',
-              isExternal: true,
-              externalLink: docsLink,
-            },
-          ]
-        : []),
+      docsNavLink,
       {
         text: t('关于'),
         itemKey: 'about',
@@ -69,7 +82,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
     // 根据配置过滤导航链接
     return allLinks.filter((link) => {
       if (link.itemKey === 'docs') {
-        return docsLink && modules.docs;
+        return modules.docs;
       }
       if (link.itemKey === 'pricing') {
         // 支持新的pricing配置格式

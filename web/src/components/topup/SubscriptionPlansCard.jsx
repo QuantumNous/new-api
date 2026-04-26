@@ -257,7 +257,10 @@ const SubscriptionPlansCard = ({
       {loading ? (
         <div className='space-y-4'>
           {/* 我的订阅骨架屏 */}
-          <Card className='!rounded-xl w-full' bodyStyle={{ padding: '12px' }}>
+          <Card
+            className='!rounded-xl w-full'
+            bodyStyle={{ padding: 'calc(var(--na-space-px) * 12)' }}
+          >
             <div className='flex items-center justify-between mb-3'>
               <Skeleton.Title active style={{ width: 100, height: 20 }} />
               <Skeleton.Button active style={{ width: 24, height: 24 }} />
@@ -302,7 +305,10 @@ const SubscriptionPlansCard = ({
       ) : (
         <Space vertical style={{ width: '100%' }} spacing={8}>
           {/* 当前订阅状态 */}
-          <Card className='!rounded-xl w-full' bodyStyle={{ padding: '12px' }}>
+          <Card
+            className='!rounded-xl w-full'
+            bodyStyle={{ padding: 'calc(var(--na-space-px) * 12)' }}
+          >
             <div className='flex items-center justify-between mb-2 gap-3'>
               <div className='flex items-center gap-2 flex-1 min-w-0'>
                 <Text strong>{t('我的订阅')}</Text>
@@ -528,8 +534,8 @@ const SubscriptionPlansCard = ({
                 return (
                   <Card
                     key={plan?.id}
-                    className={`!rounded-xl transition-all hover:shadow-lg w-full h-full ${
-                      isPopular ? 'ring-2 ring-purple-500' : ''
+                    className={`na-billing-plan-card ${
+                      isPopular ? 'na-billing-plan-popular' : ''
                     }`}
                     bodyStyle={{ padding: 0 }}
                   >
@@ -567,10 +573,10 @@ const SubscriptionPlansCard = ({
                       {/* 价格区域 */}
                       <div className='py-2'>
                         <div className='flex items-baseline justify-start'>
-                          <span className='text-xl font-bold text-purple-600'>
+                          <span className='text-xl na-billing-price'>
                             {symbol}
                           </span>
-                          <span className='text-3xl font-bold text-purple-600'>
+                          <span className='text-3xl na-billing-price'>
                             {displayPrice}
                           </span>
                         </div>
@@ -580,7 +586,7 @@ const SubscriptionPlansCard = ({
                       <div className='flex flex-col items-start gap-1 pb-2'>
                         {planBenefits.map((item) => {
                           const content = (
-                            <div className='flex items-center gap-2 text-xs text-gray-500'>
+                            <div className='flex items-center gap-2 na-billing-muted'>
                               <Badge dot type='tertiary' />
                               <span>{item.label}</span>
                             </div>
@@ -643,9 +649,7 @@ const SubscriptionPlansCard = ({
               })}
             </div>
           ) : (
-            <div className='text-center text-gray-400 text-sm py-4'>
-              {t('暂无可购买套餐')}
-            </div>
+            <div className='na-billing-empty'>{t('暂无可购买套餐')}</div>
           )}
         </Space>
       )}
@@ -655,7 +659,7 @@ const SubscriptionPlansCard = ({
   return (
     <>
       {withCard ? (
-        <Card className='!rounded-2xl shadow-sm border-0'>{cardContent}</Card>
+        <Card className='na-billing-card'>{cardContent}</Card>
       ) : (
         <div className='space-y-3'>{cardContent}</div>
       )}

@@ -198,7 +198,7 @@ const EditDeploymentModal = ({
               </Row>
 
               {isEdit && (
-                <div className='mt-4 p-3 bg-gray-50 rounded'>
+                <div className='mt-4 p-3 bg-semi-color-fill-0 rounded'>
                   <Text type='secondary'>{t('部署ID')}: </Text>
                   <Text code>{editingDeployment.id}</Text>
                   <br />
@@ -217,7 +217,7 @@ const EditDeploymentModal = ({
         </Spin>
       </div>
 
-      <div className='p-4 border-t border-gray-200 bg-gray-50 flex justify-end'>
+      <div className='p-4 border-t border-semi-color-border bg-semi-color-fill-0 flex justify-end'>
         <Space>
           <Button theme='outline' onClick={handleClose} disabled={loading}>
             <X size={16} className='mr-1' />

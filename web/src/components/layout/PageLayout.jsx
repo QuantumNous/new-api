@@ -30,8 +30,7 @@ import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useTranslation } from 'react-i18next';
 import {
   API,
-  getLogo,
-  getSystemName,
+  applyPageBranding,
   showError,
   setStatusData,
 } from '../../helpers';
@@ -63,6 +62,7 @@ const PageLayout = () => {
   ];
 
   const shouldHideFooter = cardProPages.includes(location.pathname);
+  const isDocsRoute = location.pathname === '/docs';
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -93,6 +93,7 @@ const PageLayout = () => {
       if (success) {
         statusDispatch({ type: 'set', payload: data });
         setStatusData(data);
+        applyPageBranding();
       } else {
         showError('Unable to connect to server');
       }
@@ -104,17 +105,7 @@ const PageLayout = () => {
   useEffect(() => {
     loadUser();
     loadStatus().catch(console.error);
-    let systemName = getSystemName();
-    if (systemName) {
-      document.title = systemName;
-    }
-    let logo = getLogo();
-    if (logo) {
-      let linkElement = document.querySelector("link[rel~='icon']");
-      if (linkElement) {
-        linkElement.href = logo;
-      }
-    }
+    applyPageBranding();
   }, []);
 
   useEffect(() => {
@@ -155,13 +146,13 @@ const PageLayout = () => {
     >
       <Header
         style={{
-          padding: 0,
+          padding: 'var(--na-space-0)',
           height: 'auto',
           lineHeight: 'normal',
           position: 'fixed',
           width: '100%',
-          top: 0,
-          zIndex: 100,
+          top: 'var(--na-space-0)',
+          zIndex: 'var(--na-z-header)',
         }}
       >
         <HeaderBar
@@ -174,6 +165,7 @@ const PageLayout = () => {
           overflow: isMobile ? 'visible' : 'auto',
           display: 'flex',
           flexDirection: 'column',
+          paddingTop: isConsoleRoute ? 'var(--na-header-height)' : 0,
         }}
       >
         {showSider && (
@@ -181,11 +173,11 @@ const PageLayout = () => {
             className='app-sider'
             style={{
               position: 'fixed',
-              left: 0,
-              top: '64px',
-              zIndex: 99,
+              left: 'var(--na-space-0)',
+              top: 'var(--na-header-height)',
+              zIndex: 'var(--na-z-sidebar)',
               border: 'none',
-              paddingRight: '0',
+              paddingRight: 'var(--na-space-0)',
               width: 'var(--sidebar-current-width)',
             }}
           >
@@ -211,9 +203,13 @@ const PageLayout = () => {
           <Content
             style={{
               flex: '1 0 auto',
-              overflowY: isMobile ? 'visible' : 'hidden',
+              overflowY: isMobile || isDocsRoute ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
-              padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
+              padding: shouldInnerPadding
+                ? isMobile
+                  ? 'var(--na-space-1)'
+                  : 'var(--na-space-6)'
+                : 'var(--na-space-0)',
               position: 'relative',
             }}
           >

@@ -27,14 +27,17 @@ export const CARD_PROPS = {
 };
 
 export const FORM_FIELD_PROPS = {
-  className: 'w-full mb-2 !rounded-lg',
+  className: 'na-form-field',
   size: 'large',
 };
 
-export const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
+export const ICON_BUTTON_CLASS = 'na-icon-button';
 export const FLEX_CENTER_GAP2 = 'flex items-center gap-2';
 
-export const ILLUSTRATION_SIZE = { width: 96, height: 96 };
+export const ILLUSTRATION_SIZE = {
+  width: 'var(--na-illustration-size)',
+  height: 'var(--na-illustration-size)',
+};
 
 // ========== 时间相关常量 ==========
 export const TIME_OPTIONS = [
@@ -72,12 +75,12 @@ export const DEFAULT_CHART_SPECS = {
       state: {
         hover: {
           outerRadius: 0.85,
-          stroke: '#000',
+          stroke: 'var(--na-text-primary)',
           lineWidth: 1,
         },
         selected: {
           outerRadius: 0.85,
-          stroke: '#000',
+          stroke: 'var(--na-text-primary)',
           lineWidth: 1,
         },
       },
@@ -101,7 +104,7 @@ export const DEFAULT_CHART_SPECS = {
     bar: {
       state: {
         hover: {
-          stroke: '#000',
+          stroke: 'var(--na-text-primary)',
           lineWidth: 1,
         },
       },
@@ -128,10 +131,10 @@ export const ANNOUNCEMENT_LEGEND_DATA = [
 
 // ========== Uptime 状态映射 ==========
 export const UPTIME_STATUS_MAP = {
-  1: { color: '#10b981', label: '正常', text: '可用率' }, // UP
-  0: { color: '#ef4444', label: '异常', text: '有异常' }, // DOWN
-  2: { color: '#f59e0b', label: '高延迟', text: '高延迟' }, // PENDING
-  3: { color: '#3b82f6', label: '维护中', text: '维护中' }, // MAINTENANCE
+  1: { color: 'var(--na-color-success)', label: '正常', text: '可用率' }, // UP
+  0: { color: 'var(--na-color-error)', label: '异常', text: '有异常' }, // DOWN
+  2: { color: 'var(--na-color-warning)', label: '高延迟', text: '高延迟' }, // PENDING
+  3: { color: 'var(--na-color-info)', label: '维护中', text: '维护中' }, // MAINTENANCE
 };
 
 // ========== 本地存储键名 ==========

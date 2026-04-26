@@ -39,6 +39,13 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import {
+  Activity,
+  Gift,
+  ReceiptText,
+  ShieldCheck,
+  WalletCards,
+} from 'lucide-react';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -120,7 +127,7 @@ const TopUp = () => {
       ...method,
       type: `waffo:${index}`,
       min_topup: waffoMinTopUp,
-      color: method.color || 'rgba(var(--semi-primary-5), 1)',
+      color: method.color || 'var(--na-accent-primary)',
     })),
   ];
 
@@ -614,13 +621,13 @@ const TopUp = () => {
 
               if (!method.color) {
                 if (method.type === 'alipay') {
-                  method.color = 'rgba(var(--semi-blue-5), 1)';
+                  method.color = 'var(--brand-alipay)';
                 } else if (method.type === 'wxpay') {
-                  method.color = 'rgba(var(--semi-green-5), 1)';
+                  method.color = 'var(--brand-wechat)';
                 } else if (method.type === 'stripe') {
-                  method.color = 'rgba(var(--semi-purple-5), 1)';
+                  method.color = 'var(--brand-stripe)';
                 } else {
-                  method.color = 'rgba(var(--semi-primary-5), 1)';
+                  method.color = 'var(--na-accent-primary)';
                 }
               }
               return method;
@@ -647,7 +654,7 @@ const TopUp = () => {
                 ? data.waffo_min_topup
                 : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
-                : 1;
+                  : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
@@ -873,8 +880,31 @@ const TopUp = () => {
     }));
   };
 
+  const billingSummaryItems = [
+    {
+      icon: WalletCards,
+      label: t('当前余额'),
+      value: renderQuota(userState?.user?.quota),
+    },
+    {
+      icon: ReceiptText,
+      label: t('历史消耗'),
+      value: renderQuota(userState?.user?.used_quota),
+    },
+    {
+      icon: Activity,
+      label: t('请求次数'),
+      value: userState?.user?.request_count || 0,
+    },
+    {
+      icon: Gift,
+      label: t('邀请收益'),
+      value: renderQuota(userState?.user?.aff_quota || 0),
+    },
+  ];
+
   return (
-    <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
+    <div className='na-billing-page'>
       {/* 划转模态框 */}
       <TransferModal
         t={t}
@@ -940,61 +970,94 @@ const TopUp = () => {
         )}
       </Modal>
 
+      <section className='na-billing-hero'>
+        <div>
+          <p className='na-billing-eyebrow'>{t('账户资产')}</p>
+          <h1 className='na-billing-title'>{t('钱包管理')}</h1>
+          <p className='na-billing-copy'>
+            {t('集中查看余额、消耗、请求次数、充值方式和邀请奖励。')}
+          </p>
+        </div>
+        <div className='na-billing-trust-pill'>
+          <ShieldCheck size={16} />
+          <span>{t('账单与额度统一管理')}</span>
+        </div>
+      </section>
+
+      <section className='na-billing-summary-strip'>
+        {billingSummaryItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article className='na-billing-summary-item' key={item.label}>
+              <Icon className='na-billing-summary-icon' aria-hidden />
+              <div>
+                <p>{item.label}</p>
+                <strong>{item.value}</strong>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
       {/* 主布局区域 */}
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-        <RechargeCard
-          t={t}
-          enableOnlineTopUp={enableOnlineTopUp}
-          enableStripeTopUp={enableStripeTopUp}
-          enableCreemTopUp={enableCreemTopUp}
-          creemProducts={creemProducts}
-          creemPreTopUp={creemPreTopUp}
-          enableWaffoTopUp={enableWaffoTopUp}
-          enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
-          presetAmounts={presetAmounts}
-          selectedPreset={selectedPreset}
-          selectPresetAmount={selectPresetAmount}
-          formatLargeNumber={formatLargeNumber}
-          priceRatio={priceRatio}
-          topUpCount={topUpCount}
-          minTopUp={minTopUp}
-          renderQuotaWithAmount={renderQuotaWithAmount}
-          getAmount={getAmount}
-          setTopUpCount={setTopUpCount}
-          setSelectedPreset={setSelectedPreset}
-          renderAmount={renderAmount}
-          amountLoading={amountLoading}
-          payMethods={confirmPayMethods}
-          preTopUp={preTopUp}
-          paymentLoading={paymentLoading}
-          payWay={payWay}
-          redemptionCode={redemptionCode}
-          setRedemptionCode={setRedemptionCode}
-          topUp={topUp}
-          isSubmitting={isSubmitting}
-          topUpLink={topUpLink}
-          openTopUpLink={openTopUpLink}
-          userState={userState}
-          renderQuota={renderQuota}
-          statusLoading={statusLoading}
-          topupInfo={topupInfo}
-          onOpenHistory={handleOpenHistory}
-          subscriptionLoading={subscriptionLoading}
-          subscriptionPlans={subscriptionPlans}
-          billingPreference={billingPreference}
-          onChangeBillingPreference={updateBillingPreference}
-          activeSubscriptions={activeSubscriptions}
-          allSubscriptions={allSubscriptions}
-          reloadSubscriptionSelf={getSubscriptionSelf}
-        />
-        <InvitationCard
-          t={t}
-          userState={userState}
-          renderQuota={renderQuota}
-          setOpenTransfer={setOpenTransfer}
-          affLink={affLink}
-          handleAffLinkClick={handleAffLinkClick}
-        />
+      <div className='na-billing-workbench'>
+        <section className='na-billing-primary-column'>
+          <RechargeCard
+            t={t}
+            enableOnlineTopUp={enableOnlineTopUp}
+            enableStripeTopUp={enableStripeTopUp}
+            enableCreemTopUp={enableCreemTopUp}
+            creemProducts={creemProducts}
+            creemPreTopUp={creemPreTopUp}
+            enableWaffoTopUp={enableWaffoTopUp}
+            enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
+            presetAmounts={presetAmounts}
+            selectedPreset={selectedPreset}
+            selectPresetAmount={selectPresetAmount}
+            formatLargeNumber={formatLargeNumber}
+            priceRatio={priceRatio}
+            topUpCount={topUpCount}
+            minTopUp={minTopUp}
+            renderQuotaWithAmount={renderQuotaWithAmount}
+            getAmount={getAmount}
+            setTopUpCount={setTopUpCount}
+            setSelectedPreset={setSelectedPreset}
+            renderAmount={renderAmount}
+            amountLoading={amountLoading}
+            payMethods={confirmPayMethods}
+            preTopUp={preTopUp}
+            paymentLoading={paymentLoading}
+            payWay={payWay}
+            redemptionCode={redemptionCode}
+            setRedemptionCode={setRedemptionCode}
+            topUp={topUp}
+            isSubmitting={isSubmitting}
+            topUpLink={topUpLink}
+            openTopUpLink={openTopUpLink}
+            userState={userState}
+            renderQuota={renderQuota}
+            statusLoading={statusLoading}
+            topupInfo={topupInfo}
+            onOpenHistory={handleOpenHistory}
+            subscriptionLoading={subscriptionLoading}
+            subscriptionPlans={subscriptionPlans}
+            billingPreference={billingPreference}
+            onChangeBillingPreference={updateBillingPreference}
+            activeSubscriptions={activeSubscriptions}
+            allSubscriptions={allSubscriptions}
+            reloadSubscriptionSelf={getSubscriptionSelf}
+          />
+        </section>
+        <aside className='na-billing-side-column'>
+          <InvitationCard
+            t={t}
+            userState={userState}
+            renderQuota={renderQuota}
+            setOpenTransfer={setOpenTransfer}
+            affLink={affLink}
+            handleAffLinkClick={handleAffLinkClick}
+          />
+        </aside>
       </div>
     </div>
   );

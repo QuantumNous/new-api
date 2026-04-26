@@ -49,37 +49,37 @@
 
 .user-message blockquote {
   color: white !important;
-  border-left-color: rgba(255, 255, 255, 0.5) !important;
-  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-left-color: rgba(250, 249, 245, 0.5) !important;
+  background-color: rgba(250, 249, 245, 0.1) !important;
 }
 
 .user-message code:not(pre code) {
-  color: #000 !important;
-  background-color: rgba(255, 255, 255, 0.9) !important;
+  color: var(--na-color-near-black) !important;
+  background-color: rgba(250, 249, 245, 0.9) !important;
 }
 
 .user-message a {
-  color: #87ceeb !important;
+  color: var(--na-accent-primary-hover) !important;
   /* 浅蓝色链接 */
 }
 
 .user-message a:hover {
-  color: #b0e0e6 !important;
+  color: var(--na-color-info) !important;
   /* hover时更浅的蓝色 */
 }
 
 /* 表格在用户消息中的样式 */
 .user-message table {
-  border-color: rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(250, 249, 245, 0.3) !important;
 }
 
 .user-message th {
-  background-color: rgba(255, 255, 255, 0.2) !important;
-  border-color: rgba(255, 255, 255, 0.3) !important;
+  background-color: rgba(250, 249, 245, 0.2) !important;
+  border-color: rgba(250, 249, 245, 0.3) !important;
 }
 
 .user-message td {
-  border-color: rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(250, 249, 245, 0.3) !important;
 }
 
 /* 加载动画 */
@@ -193,7 +193,7 @@
 }
 
 .mermaid-container:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--na-shadow-card);
   transform: translateY(-1px);
 }
 
@@ -206,7 +206,7 @@ pre {
 
 pre:hover {
   border-color: var(--semi-color-primary) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--na-shadow-card);
 }
 
 pre:hover .copy-code-button {
@@ -243,14 +243,14 @@ pre:hover .copy-code-button {
 }
 
 /* 表格响应式 */
-@media (max-width: 768px) {
+@media (max-width: calc(var(--na-space-px) * 768)) {
   .markdown-body table {
-    font-size: 12px;
+    font-size: var(--na-text-label);
   }
 
   .markdown-body th,
   .markdown-body td {
-    padding: 6px 8px;
+    padding: var(--na-space-1-5) var(--na-space-2);
   }
 }
 
@@ -277,9 +277,9 @@ pre:hover .copy-code-button {
 .markdown-body blockquote::before {
   content: '"';
   position: absolute;
-  left: -8px;
-  top: -8px;
-  font-size: 24px;
+  left: calc(var(--na-space-2) * -1);
+  top: calc(var(--na-space-2) * -1);
+  font-size: var(--na-text-h4);
   color: var(--semi-color-primary);
   opacity: 0.3;
 }
@@ -297,33 +297,28 @@ pre:hover .copy-code-button {
 /* 分隔线样式 */
 .markdown-body hr {
   border: none;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    var(--semi-color-border),
-    transparent
-  );
-  margin: 24px 0;
+  height: var(--na-space-px);
+  background: var(--semi-color-border);
+  margin: var(--na-space-6) 0;
 }
 
 /* 图片样式 */
 .markdown-body img {
   max-width: 100%;
   height: auto;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin: 12px 0;
+  border-radius: var(--na-radius-input);
+  box-shadow: var(--na-shadow-card);
+  margin: var(--na-space-3) 0;
 }
 
 /* 内联代码样式 */
 .markdown-body code:not(pre code) {
   background-color: var(--semi-color-fill-1);
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: var(--na-space-0-5) var(--na-space-1-5);
+  border-radius: var(--na-radius-sharp);
   font-size: 0.9em;
   color: var(--semi-color-primary);
-  border: 1px solid var(--semi-color-border);
+  border: var(--na-space-px) solid var(--semi-color-border);
 }
 
 /* 标题锚点样式 */
@@ -338,44 +333,44 @@ pre:hover .copy-code-button {
 
 /* 任务列表样式 */
 .markdown-body input[type='checkbox'] {
-  margin-right: 8px;
+  margin-right: var(--na-space-2);
   transform: scale(1.1);
 }
 
 .markdown-body li.task-list-item {
   list-style: none;
-  margin-left: -20px;
+  margin-left: calc(var(--na-space-5) * -1);
 }
 
 /* 键盘按键样式 */
 .markdown-body kbd {
   background-color: var(--semi-color-fill-0);
-  border: 1px solid var(--semi-color-border);
-  border-radius: 3px;
-  box-shadow: 0 1px 0 var(--semi-color-border);
+  border: var(--na-space-px) solid var(--semi-color-border);
+  border-radius: var(--na-radius-sharp);
+  box-shadow: var(--na-shadow-ring-subtle);
   color: var(--semi-color-text-0);
   display: inline-block;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.85em;
   font-weight: 700;
   line-height: 1;
-  padding: 2px 4px;
+  padding: var(--na-space-0-5) var(--na-space-1);
   white-space: nowrap;
 }
 
 /* 详情折叠样式 */
 .markdown-body details {
-  border: 1px solid var(--semi-color-border);
-  border-radius: 6px;
-  padding: 12px;
-  margin: 12px 0;
+  border: var(--na-space-px) solid var(--semi-color-border);
+  border-radius: var(--na-radius-subtle);
+  padding: var(--na-space-3);
+  margin: var(--na-space-3) 0;
 }
 
 .markdown-body summary {
   cursor: pointer;
   font-weight: bold;
   color: var(--semi-color-primary);
-  margin-bottom: 8px;
+  margin-bottom: var(--na-space-2);
 }
 
 .markdown-body summary:hover {
@@ -396,45 +391,45 @@ pre:hover .copy-code-button {
 /* 警告块样式 */
 .markdown-body .warning {
   background-color: var(--semi-color-warning-light-default);
-  border-left: 4px solid var(--semi-color-warning);
-  padding: 12px 16px;
-  margin: 12px 0;
-  border-radius: 0 6px 6px 0;
+  border-left: var(--na-space-1) solid var(--semi-color-warning);
+  padding: var(--na-space-3) var(--na-space-4);
+  margin: var(--na-space-3) 0;
+  border-radius: 0 var(--na-radius-subtle) var(--na-radius-subtle) 0;
 }
 
 .markdown-body .info {
   background-color: var(--semi-color-info-light-default);
-  border-left: 4px solid var(--semi-color-info);
-  padding: 12px 16px;
-  margin: 12px 0;
-  border-radius: 0 6px 6px 0;
+  border-left: var(--na-space-1) solid var(--semi-color-info);
+  padding: var(--na-space-3) var(--na-space-4);
+  margin: var(--na-space-3) 0;
+  border-radius: 0 var(--na-radius-subtle) var(--na-radius-subtle) 0;
 }
 
 .markdown-body .success {
   background-color: var(--semi-color-success-light-default);
-  border-left: 4px solid var(--semi-color-success);
-  padding: 12px 16px;
-  margin: 12px 0;
-  border-radius: 0 6px 6px 0;
+  border-left: var(--na-space-1) solid var(--semi-color-success);
+  padding: var(--na-space-3) var(--na-space-4);
+  margin: var(--na-space-3) 0;
+  border-radius: 0 var(--na-radius-subtle) var(--na-radius-subtle) 0;
 }
 
 .markdown-body .danger {
   background-color: var(--semi-color-danger-light-default);
-  border-left: 4px solid var(--semi-color-danger);
-  padding: 12px 16px;
-  margin: 12px 0;
-  border-radius: 0 6px 6px 0;
+  border-left: var(--na-space-1) solid var(--semi-color-danger);
+  padding: var(--na-space-3) var(--na-space-4);
+  margin: var(--na-space-3) 0;
+  border-radius: 0 var(--na-radius-subtle) var(--na-radius-subtle) 0;
 }
 
 @keyframes fade-in {
   0% {
     opacity: 0;
-    transform: translateY(6px) scale(0.98);
-    filter: blur(3px);
+    transform: translateY(var(--na-space-1-5)) scale(0.98);
+    filter: blur(var(--na-space-1));
   }
   60% {
     opacity: 0.85;
-    filter: blur(0.5px);
+    filter: blur(var(--na-space-0-5));
   }
   100% {
     opacity: 1;

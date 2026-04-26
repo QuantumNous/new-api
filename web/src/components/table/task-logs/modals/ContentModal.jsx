@@ -61,37 +61,57 @@ const ContentModal = ({
   const renderVideoContent = () => {
     if (videoError) {
       return (
-        <div style={{ textAlign: 'center', padding: '40px' }}>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: 'calc(var(--na-space-px) * 40)',
+          }}
+        >
           <Text
             type='tertiary'
-            style={{ display: 'block', marginBottom: '16px' }}
+            style={{
+              display: 'block',
+              marginBottom: 'calc(var(--na-space-px) * 16)',
+            }}
           >
             {t('视频无法在当前浏览器中播放，这可能是由于：')}
           </Text>
           <Text
             type='tertiary'
-            style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
+            style={{
+              display: 'block',
+              marginBottom: 'calc(var(--na-space-px) * 8)',
+              fontSize: 'calc(var(--na-space-px) * 12)',
+            }}
           >
             {t('• 视频服务商的跨域限制')}
           </Text>
           <Text
             type='tertiary'
-            style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
+            style={{
+              display: 'block',
+              marginBottom: 'calc(var(--na-space-px) * 8)',
+              fontSize: 'calc(var(--na-space-px) * 12)',
+            }}
           >
             {t('• 需要特定的请求头或认证')}
           </Text>
           <Text
             type='tertiary'
-            style={{ display: 'block', marginBottom: '16px', fontSize: '12px' }}
+            style={{
+              display: 'block',
+              marginBottom: 'calc(var(--na-space-px) * 16)',
+              fontSize: 'calc(var(--na-space-px) * 12)',
+            }}
           >
             {t('• 防盗链保护机制')}
           </Text>
 
-          <div style={{ marginTop: '20px' }}>
+          <div style={{ marginTop: 'calc(var(--na-space-px) * 20)' }}>
             <Button
               icon={<IconExternalOpen />}
               onClick={handleOpenInNewTab}
-              style={{ marginRight: '8px' }}
+              style={{ marginRight: 'calc(var(--na-space-px) * 8)' }}
             >
               {t('在新标签页中打开')}
             </Button>
@@ -102,15 +122,18 @@ const ContentModal = ({
 
           <div
             style={{
-              marginTop: '16px',
-              padding: '8px',
+              marginTop: 'calc(var(--na-space-px) * 16)',
+              padding: 'calc(var(--na-space-px) * 8)',
               backgroundColor: '#f8f9fa',
-              borderRadius: '4px',
+              borderRadius: 'calc(var(--na-space-px) * 4)',
             }}
           >
             <Text
               type='tertiary'
-              style={{ fontSize: '10px', wordBreak: 'break-all' }}
+              style={{
+                fontSize: 'calc(var(--na-space-px) * 10)',
+                wordBreak: 'break-all',
+              }}
             >
               {modalContent}
             </Text>
@@ -159,10 +182,10 @@ const ContentModal = ({
       onCancel={() => setIsModalOpen(false)}
       closable={null}
       bodyStyle={{
-        height: isVideo ? '70vh' : '400px',
+        height: isVideo ? '70vh' : 'calc(var(--na-space-px) * 400)',
         maxHeight: '80vh',
         overflow: 'auto',
-        padding: isVideo && videoError ? '0' : '24px',
+        padding: isVideo && videoError ? '0' : 'calc(var(--na-space-px) * 24)',
       }}
       width={isVideo ? '90vw' : 800}
       style={isVideo ? { maxWidth: 960 } : undefined}

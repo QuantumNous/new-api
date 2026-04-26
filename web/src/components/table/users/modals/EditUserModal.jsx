@@ -170,7 +170,11 @@ const EditUserModal = (props) => {
   const adjustQuota = async () => {
     const quotaVal = parseInt(adjustQuotaLocal) || 0;
     if (quotaVal <= 0 && adjustMode !== 'override') return;
-    if (adjustMode === 'override' && (adjustQuotaLocal === '' || adjustQuotaLocal == null)) return;
+    if (
+      adjustMode === 'override' &&
+      (adjustQuotaLocal === '' || adjustQuotaLocal == null)
+    )
+      return;
     setAdjustLoading(true);
     try {
       const res = await API.post('/api/user/manage', {
@@ -274,7 +278,7 @@ const EditUserModal = (props) => {
             {({ values }) => (
               <div className='p-2 space-y-3'>
                 {/* 基本信息 */}
-                <Card className='!rounded-2xl shadow-sm border-0'>
+                <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
                   <div className='flex items-center mb-2'>
                     <Avatar
                       size='small'
@@ -287,7 +291,7 @@ const EditUserModal = (props) => {
                       <Text className='text-lg font-medium'>
                         {t('基本信息')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='text-xs text-semi-color-text-1'>
                         {t('用户的基本账户信息')}
                       </div>
                     </div>
@@ -336,7 +340,7 @@ const EditUserModal = (props) => {
 
                 {/* 权限设置 */}
                 {userId && (
-                  <Card className='!rounded-2xl shadow-sm border-0'>
+                  <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
                     <div className='flex items-center mb-2'>
                       <Avatar
                         size='small'
@@ -349,7 +353,7 @@ const EditUserModal = (props) => {
                         <Text className='text-lg font-medium'>
                           {t('权限设置')}
                         </Text>
-                        <div className='text-xs text-gray-600'>
+                        <div className='text-xs text-semi-color-text-1'>
                           {t('用户分组和额度管理')}
                         </div>
                       </div>
@@ -401,7 +405,10 @@ const EditUserModal = (props) => {
                             ? `▾ ${t('收起原生额度输入')}`
                             : `▸ ${t('使用原生额度输入')}`}
                         </div>
-                        <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                        <div
+                          style={{ display: showQuotaInput ? 'block' : 'none' }}
+                          className='mt-2'
+                        >
                           <Form.InputNumber
                             field='quota'
                             label={t('额度')}
@@ -417,7 +424,7 @@ const EditUserModal = (props) => {
 
                 {/* 绑定信息入口 */}
                 {userId && (
-                  <Card className='!rounded-2xl shadow-sm border-0'>
+                  <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
                     <div className='flex items-center justify-between gap-3'>
                       <div className='flex items-center min-w-0'>
                         <Avatar
@@ -431,7 +438,7 @@ const EditUserModal = (props) => {
                           <Text className='text-lg font-medium'>
                             {t('绑定信息')}
                           </Text>
-                          <div className='text-xs text-gray-600'>
+                          <div className='text-xs text-semi-color-text-1'>
                             {t('管理用户已绑定的第三方账户，支持筛选与解绑')}
                           </div>
                         </div>
@@ -539,7 +546,10 @@ const EditUserModal = (props) => {
             ? `▾ ${t('收起原生额度输入')}`
             : `▸ ${t('使用原生额度输入')}`}
         </div>
-        <div style={{ display: showAdjustQuotaRaw ? 'block' : 'none' }} className='mt-2'>
+        <div
+          style={{ display: showAdjustQuotaRaw ? 'block' : 'none' }}
+          className='mt-2'
+        >
           <div className='mb-1'>
             <Text size='small'>{t('额度')}</Text>
           </div>

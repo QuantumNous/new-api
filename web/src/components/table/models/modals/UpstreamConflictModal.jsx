@@ -200,7 +200,7 @@ const UpstreamConflictModal = ({
                 trigger='hover'
                 position='top'
                 content={
-                  <div className='p-2 max-w-[520px]'>
+                  <div className='p-2 max-w-[calc(var(--na-space-px) * 520)]'>
                     <div className='mb-2'>
                       <Text type='tertiary' size='small'>
                         {t('本地')}

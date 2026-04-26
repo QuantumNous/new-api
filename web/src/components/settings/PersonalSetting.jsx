@@ -34,6 +34,7 @@ import {
 import { UserContext } from '../../context/User';
 import { Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
+import { Bell, KeyRound, ShieldCheck, UserRound } from 'lucide-react';
 
 // 导入子组件
 import UserInfoHeader from './personal/components/UserInfoHeader';
@@ -541,61 +542,111 @@ const PersonalSetting = () => {
     }
   };
 
+  const personalSummaryItems = [
+    {
+      icon: UserRound,
+      label: t('用户分组'),
+      value: userState?.user?.group || t('默认'),
+    },
+    {
+      icon: ShieldCheck,
+      label: t('邮箱绑定'),
+      value: userState?.user?.email ? t('已绑定') : t('未绑定'),
+    },
+    {
+      icon: KeyRound,
+      label: t('Passkey 登录'),
+      value: passkeyStatus?.enabled ? t('已启用') : t('未启用'),
+    },
+    {
+      icon: Bell,
+      label: t('通知方式'),
+      value: notificationSettings.warningType || t('未设置'),
+    },
+  ];
+
   return (
-    <div className='mt-[60px]'>
-      <div className='flex justify-center'>
-        <div className='w-full max-w-7xl mx-auto px-2'>
-          {/* 顶部用户信息区域 */}
-          <UserInfoHeader t={t} userState={userState} />
-
-          {/* 签到日历 - 仅在启用时显示 */}
-          {status?.checkin_enabled && (
-            <div className='mt-4 md:mt-6'>
-              <CheckinCalendar
-                t={t}
-                status={status}
-                turnstileEnabled={turnstileEnabled}
-                turnstileSiteKey={turnstileSiteKey}
-              />
-            </div>
-          )}
-
-          {/* 账户管理和其他设置 */}
-          <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
-            {/* 左侧：账户管理设置 */}
-            <div className='flex flex-col gap-4 md:gap-6'>
-              <AccountManagement
-                t={t}
-                userState={userState}
-                status={status}
-                systemToken={systemToken}
-                setShowEmailBindModal={setShowEmailBindModal}
-                setShowWeChatBindModal={setShowWeChatBindModal}
-                generateAccessToken={generateAccessToken}
-                handleSystemTokenClick={handleSystemTokenClick}
-                setShowChangePasswordModal={setShowChangePasswordModal}
-                setShowAccountDeleteModal={setShowAccountDeleteModal}
-                passkeyStatus={passkeyStatus}
-                passkeySupported={passkeySupported}
-                passkeyRegisterLoading={passkeyRegisterLoading}
-                passkeyDeleteLoading={passkeyDeleteLoading}
-                onPasskeyRegister={handleRegisterPasskey}
-                onPasskeyDelete={handleRemovePasskey}
-              />
-
-              {/* 偏好设置（语言等） */}
-              <PreferencesSettings t={t} />
-            </div>
-
-            {/* 右侧：其他设置 */}
-            <NotificationSettings
-              t={t}
-              notificationSettings={notificationSettings}
-              handleNotificationSettingChange={handleNotificationSettingChange}
-              saveNotificationSettings={saveNotificationSettings}
-            />
-          </div>
+    <div className='na-personal-page'>
+      <section className='na-personal-hero'>
+        <div>
+          <p className='na-personal-eyebrow'>{t('个人中心')}</p>
+          <h1 className='na-personal-title'>{t('身份与安全工作台')}</h1>
+          <p className='na-personal-copy'>
+            {t('集中管理账户绑定、访问令牌、登录安全、通知偏好和界面语言。')}
+          </p>
         </div>
+        <div className='na-personal-trust-pill'>
+          <ShieldCheck size={16} />
+          <span>{t('账户安全由您掌控')}</span>
+        </div>
+      </section>
+
+      <section className='na-personal-summary-strip'>
+        {personalSummaryItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article className='na-personal-summary-item' key={item.label}>
+              <Icon className='na-personal-summary-icon' aria-hidden />
+              <div>
+                <p>{item.label}</p>
+                <strong>{item.value}</strong>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      {/* 顶部用户信息区域 */}
+      <UserInfoHeader t={t} userState={userState} />
+
+      {/* 签到日历 - 仅在启用时显示 */}
+      {status?.checkin_enabled && (
+        <section className='na-personal-checkin'>
+          <CheckinCalendar
+            t={t}
+            status={status}
+            turnstileEnabled={turnstileEnabled}
+            turnstileSiteKey={turnstileSiteKey}
+          />
+        </section>
+      )}
+
+      {/* 账户管理和其他设置 */}
+      <div className='na-personal-workbench'>
+        {/* 左侧：账户管理设置 */}
+        <section className='na-personal-main-column'>
+          <AccountManagement
+            t={t}
+            userState={userState}
+            status={status}
+            systemToken={systemToken}
+            setShowEmailBindModal={setShowEmailBindModal}
+            setShowWeChatBindModal={setShowWeChatBindModal}
+            generateAccessToken={generateAccessToken}
+            handleSystemTokenClick={handleSystemTokenClick}
+            setShowChangePasswordModal={setShowChangePasswordModal}
+            setShowAccountDeleteModal={setShowAccountDeleteModal}
+            passkeyStatus={passkeyStatus}
+            passkeySupported={passkeySupported}
+            passkeyRegisterLoading={passkeyRegisterLoading}
+            passkeyDeleteLoading={passkeyDeleteLoading}
+            onPasskeyRegister={handleRegisterPasskey}
+            onPasskeyDelete={handleRemovePasskey}
+          />
+
+          {/* 偏好设置（语言等） */}
+          <PreferencesSettings t={t} />
+        </section>
+
+        {/* 右侧：其他设置 */}
+        <aside className='na-personal-side-column'>
+          <NotificationSettings
+            t={t}
+            notificationSettings={notificationSettings}
+            handleNotificationSettingChange={handleNotificationSettingChange}
+            saveNotificationSettings={saveNotificationSettings}
+          />
+        </aside>
       </div>
 
       {/* 模态框组件 */}

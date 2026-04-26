@@ -712,7 +712,7 @@ const OllamaModelModal = ({
                     ? t('请尝试其他搜索关键词')
                     : t('您可以在上方拉取需要的模型')
                 }
-                style={{ padding: '40px 0' }}
+                style={{ padding: 'calc(var(--na-space-px) * 40) 0' }}
               />
             ) : (
               <List

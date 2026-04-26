@@ -709,8 +709,8 @@ const SystemSetting = () => {
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '10px',
-                marginTop: '10px',
+                gap: 'calc(var(--na-space-px) * 10)',
+                marginTop: 'calc(var(--na-space-px) * 10)',
               }}
             >
               <Card>

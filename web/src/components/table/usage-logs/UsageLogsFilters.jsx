@@ -131,7 +131,7 @@ const LogsFilters = ({
             <Form.Select
               field='logType'
               placeholder={t('日志类型')}
-              className='w-full sm:w-auto min-w-[120px]'
+              className='w-full sm:w-auto min-w-[calc(var(--na-space-px) * 120)]'
               showClear
               pure
               onChange={() => {

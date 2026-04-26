@@ -79,8 +79,8 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
 
   if (isModal) {
     return (
-      <div className='space-y-4'>
-        <Paragraph className='text-gray-600 dark:text-gray-300'>
+      <div className='na-auth-form'>
+        <Paragraph className='na-auth-copy'>
           请输入认证器应用显示的验证码完成登录
         </Paragraph>
 
@@ -93,7 +93,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
             onChange={setVerificationCode}
             onKeyPress={handleKeyPress}
             size='large'
-            style={{ marginBottom: 16 }}
+            className='na-auth-options-spaced'
             autoFocus
           />
 
@@ -103,7 +103,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
             loading={loading}
             block
             size='large'
-            style={{ marginBottom: 16 }}
+            className='na-auth-primary-button'
           >
             验证并登录
           </Button>
@@ -111,7 +111,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
 
         <Divider />
 
-        <div style={{ textAlign: 'center' }}>
+        <div className='na-auth-link-row'>
           <Button
             theme='borderless'
             type='tertiary'
@@ -119,7 +119,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
               setUseBackupCode(!useBackupCode);
               setVerificationCode('');
             }}
-            style={{ marginRight: 16, color: '#1890ff', padding: 0 }}
+            className='na-auth-link-inline'
           >
             {useBackupCode ? '使用认证器验证码' : '使用备用码'}
           </Button>
@@ -129,14 +129,14 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
               theme='borderless'
               type='tertiary'
               onClick={onBack}
-              style={{ color: '#1890ff', padding: 0 }}
+              className='na-auth-link-inline'
             >
               返回登录
             </Button>
           )}
         </div>
 
-        <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
+        <div className='na-auth-tip'>
           <Text size='small' type='secondary'>
             <strong>提示：</strong>
             <br />
@@ -151,23 +151,18 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '60vh',
-      }}
-    >
-      <Card style={{ width: 400, padding: 24 }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Title heading={3}>两步验证</Title>
+    <div className='na-auth-page'>
+      <Card className='na-auth-card na-auth-panel'>
+        <div className='na-auth-card-title'>
+          <Title heading={3} className='na-auth-title'>
+            两步验证
+          </Title>
           <Paragraph type='secondary'>
             请输入认证器应用显示的验证码完成登录
           </Paragraph>
         </div>
 
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit} className='na-auth-card-body'>
           <Form.Input
             field='code'
             label={useBackupCode ? '备用码' : '验证码'}
@@ -176,7 +171,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
             onChange={setVerificationCode}
             onKeyPress={handleKeyPress}
             size='large'
-            style={{ marginBottom: 16 }}
+            className='na-auth-options-spaced'
             autoFocus
           />
 
@@ -186,7 +181,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
             loading={loading}
             block
             size='large'
-            style={{ marginBottom: 16 }}
+            className='na-auth-primary-button'
           >
             验证并登录
           </Button>
@@ -194,7 +189,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
 
         <Divider />
 
-        <div style={{ textAlign: 'center' }}>
+        <div className='na-auth-link-row'>
           <Button
             theme='borderless'
             type='tertiary'
@@ -202,7 +197,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
               setUseBackupCode(!useBackupCode);
               setVerificationCode('');
             }}
-            style={{ marginRight: 16, color: '#1890ff', padding: 0 }}
+            className='na-auth-link-inline'
           >
             {useBackupCode ? '使用认证器验证码' : '使用备用码'}
           </Button>
@@ -212,21 +207,14 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
               theme='borderless'
               type='tertiary'
               onClick={onBack}
-              style={{ color: '#1890ff', padding: 0 }}
+              className='na-auth-link-inline'
             >
               返回登录
             </Button>
           )}
         </div>
 
-        <div
-          style={{
-            marginTop: 24,
-            padding: 16,
-            background: '#f6f8fa',
-            borderRadius: 6,
-          }}
-        >
+        <div className='na-auth-tip'>
           <Text size='small' type='secondary'>
             <strong>提示：</strong>
             <br />

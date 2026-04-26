@@ -32,34 +32,49 @@ const StatsCards = ({
 }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const shouldRenderSparkline = (trendData) => {
+    if (!Array.isArray(trendData) || trendData.length < 2) {
+      return false;
+    }
+    const finiteValues = trendData
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value));
+    if (finiteValues.length < 2) {
+      return false;
+    }
+    return new Set(finiteValues).size > 1;
+  };
+
   return (
-    <div className='mb-4'>
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+    <div className='na-dashboard-grid'>
+      <div className='na-dashboard-grid-inner'>
         {groupedStatsData.map((group, idx) => (
           <Card
             key={idx}
             {...CARD_PROPS}
-            className={`${group.color} border-0 !rounded-2xl w-full`}
+            className={`na-dashboard-card ${group.color}`}
             title={group.title}
           >
-            <div className='space-y-4'>
+            <div className='na-dashboard-card-body'>
               {group.items.map((item, itemIdx) => (
                 <div
                   key={itemIdx}
-                  className='flex items-center justify-between cursor-pointer'
+                  className='na-dashboard-stat-row'
                   onClick={item.onClick}
                 >
-                  <div className='flex items-center'>
+                  <div className='na-dashboard-list-row'>
                     <Avatar
-                      className='mr-3'
+                      className='na-dashboard-stat-avatar'
                       size='small'
                       color={item.avatarColor}
                     >
                       {item.icon}
                     </Avatar>
                     <div>
-                      <div className='text-xs text-gray-500'>{item.title}</div>
-                      <div className='text-lg font-semibold'>
+                      <div className='na-dashboard-stat-title'>
+                        {item.title}
+                      </div>
+                      <div className='na-dashboard-stat-value'>
                         <Skeleton
                           loading={loading}
                           active
@@ -68,9 +83,9 @@ const StatsCards = ({
                               active
                               rows={1}
                               style={{
-                                width: '65px',
-                                height: '24px',
-                                marginTop: '4px',
+                                width: 'var(--na-dashboard-spark-width)',
+                                height: 'var(--na-dashboard-spark-height)',
+                                marginTop: 'var(--na-space-1)',
                               }}
                             />
                           }
@@ -85,6 +100,7 @@ const StatsCards = ({
                       color='white'
                       shape='circle'
                       size='large'
+                      className='na-dashboard-topup-tag'
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate('/console/topup');
@@ -93,9 +109,8 @@ const StatsCards = ({
                       {t('充值')}
                     </Tag>
                   ) : (
-                    (loading ||
-                      (item.trendData && item.trendData.length > 0)) && (
-                      <div className='w-24 h-10'>
+                    shouldRenderSparkline(item.trendData) && (
+                      <div className='na-dashboard-spark'>
                         <VChart
                           spec={getTrendSpec(item.trendData, item.trendColor)}
                           option={CHART_CONFIG}

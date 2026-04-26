@@ -289,27 +289,32 @@ export default function SettingsSidebarModulesAdmin(props) {
         )}
       >
         {sectionConfigs.map((section) => (
-          <div key={section.key} style={{ marginBottom: '32px' }}>
+          <div
+            key={section.key}
+            style={{ marginBottom: 'calc(var(--na-space-px) * 32)' }}
+          >
             {/* 区域标题和总开关 */}
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '16px',
-                padding: '12px 16px',
+                marginBottom: 'calc(var(--na-space-px) * 16)',
+                padding:
+                  'calc(var(--na-space-px) * 12) calc(var(--na-space-px) * 16)',
                 backgroundColor: 'var(--semi-color-fill-0)',
-                borderRadius: '8px',
-                border: '1px solid var(--semi-color-border)',
+                borderRadius: 'calc(var(--na-space-px) * 8)',
+                border:
+                  'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
               }}
             >
               <div>
                 <div
                   style={{
                     fontWeight: '600',
-                    fontSize: '16px',
+                    fontSize: 'calc(var(--na-space-px) * 16)',
                     color: 'var(--semi-color-text-0)',
-                    marginBottom: '4px',
+                    marginBottom: 'calc(var(--na-space-px) * 4)',
                   }}
                 >
                   {section.title}
@@ -318,7 +323,7 @@ export default function SettingsSidebarModulesAdmin(props) {
                   type='secondary'
                   size='small'
                   style={{
-                    fontSize: '12px',
+                    fontSize: 'calc(var(--na-space-px) * 12)',
                     color: 'var(--semi-color-text-2)',
                     lineHeight: '1.4',
                   }}
@@ -338,7 +343,7 @@ export default function SettingsSidebarModulesAdmin(props) {
               {section.modules.map((module) => (
                 <Col key={module.key} xs={24} sm={12} md={8} lg={6} xl={6}>
                   <Card
-                    bodyStyle={{ padding: '16px' }}
+                    bodyStyle={{ padding: 'calc(var(--na-space-px) * 16)' }}
                     hoverable
                     style={{
                       opacity: sidebarModulesAdmin[section.key]?.enabled
@@ -359,9 +364,9 @@ export default function SettingsSidebarModulesAdmin(props) {
                         <div
                           style={{
                             fontWeight: '600',
-                            fontSize: '14px',
+                            fontSize: 'calc(var(--na-space-px) * 14)',
                             color: 'var(--semi-color-text-0)',
-                            marginBottom: '4px',
+                            marginBottom: 'calc(var(--na-space-px) * 4)',
                           }}
                         >
                           {module.title}
@@ -370,7 +375,7 @@ export default function SettingsSidebarModulesAdmin(props) {
                           type='secondary'
                           size='small'
                           style={{
-                            fontSize: '12px',
+                            fontSize: 'calc(var(--na-space-px) * 12)',
                             color: 'var(--semi-color-text-2)',
                             lineHeight: '1.4',
                             display: 'block',
@@ -379,7 +384,9 @@ export default function SettingsSidebarModulesAdmin(props) {
                           {module.description}
                         </Text>
                       </div>
-                      <div style={{ marginLeft: '16px' }}>
+                      <div
+                        style={{ marginLeft: 'calc(var(--na-space-px) * 16)' }}
+                      >
                         <Switch
                           checked={
                             sidebarModulesAdmin[section.key]?.[module.key]
@@ -400,11 +407,12 @@ export default function SettingsSidebarModulesAdmin(props) {
         <div
           style={{
             display: 'flex',
-            gap: '12px',
+            gap: 'calc(var(--na-space-px) * 12)',
             justifyContent: 'flex-start',
             alignItems: 'center',
-            paddingTop: '8px',
-            borderTop: '1px solid var(--semi-color-border)',
+            paddingTop: 'calc(var(--na-space-px) * 8)',
+            borderTop:
+              'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
           }}
         >
           <Button
@@ -412,7 +420,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             type='tertiary'
             onClick={resetSidebarModules}
             style={{
-              borderRadius: '6px',
+              borderRadius: 'calc(var(--na-space-px) * 6)',
               fontWeight: '500',
             }}
           >
@@ -424,9 +432,9 @@ export default function SettingsSidebarModulesAdmin(props) {
             onClick={onSubmit}
             loading={loading}
             style={{
-              borderRadius: '6px',
+              borderRadius: 'calc(var(--na-space-px) * 6)',
               fontWeight: '500',
-              minWidth: '100px',
+              minWidth: 'calc(var(--na-space-px) * 100)',
             }}
           >
             {t('保存设置')}

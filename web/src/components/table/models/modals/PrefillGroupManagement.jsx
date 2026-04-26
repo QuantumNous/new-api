@@ -243,14 +243,14 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
       >
         <Spin spinning={loading}>
           <div className='p-2'>
-            <Card className='!rounded-2xl shadow-sm border-0'>
+            <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
               <div className='flex items-center mb-2'>
                 <Avatar size='small' color='blue' className='mr-2 shadow-md'>
                   <IconLayers size={16} />
                 </Avatar>
                 <div>
                   <Text className='text-lg font-medium'>{t('组列表')}</Text>
-                  <div className='text-xs text-gray-600'>
+                  <div className='text-xs text-semi-color-text-1'>
                     {t('管理模型、标签、端点等预填组')}
                   </div>
                 </div>

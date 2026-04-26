@@ -37,28 +37,11 @@ const CONFIG = {
   UNKNOWN_VENDOR: 'unknown',
 };
 
-const THEME_COLORS = {
-  allVendors: {
-    primary: '37 99 235',
-    background: 'rgba(59, 130, 246, 0.08)',
-  },
-  specific: {
-    primary: '16 185 129',
-    background: 'rgba(16, 185, 129, 0.1)',
-  },
-};
-
 const COMPONENT_STYLES = {
   tag: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    color: '#1f2937',
-    border: '1px solid rgba(255,255,255,0.8)',
     fontWeight: '500',
   },
-  avatarContainer:
-    'w-16 h-16 rounded-2xl bg-white/90 shadow-md backdrop-blur-sm flex items-center justify-center',
-  titleText: { color: 'white' },
-  descriptionText: { color: 'rgba(255,255,255,0.9)' },
+  avatarContainer: 'na-pricing-vendor-avatar',
 };
 
 const CONTENT_TEXTS = {
@@ -94,8 +77,8 @@ const createDefaultAvatar = () => (
 
 const getAvatarBackgroundColor = (isAllVendors) =>
   isAllVendors
-    ? THEME_COLORS.allVendors.background
-    : THEME_COLORS.specific.background;
+    ? 'var(--na-accent-primary-light-default)'
+    : 'var(--semi-color-success-light-default)';
 
 const getAvatarText = (vendorName) =>
   vendorName === CONFIG.UNKNOWN_VENDOR
@@ -259,17 +242,6 @@ const PricingVendorIntro = memo(
       [vendorInfo, t],
     );
 
-    const createCoverStyle = useCallback(
-      (primaryColor) => ({
-        '--palette-primary-darkerChannel': primaryColor,
-        backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-      }),
-      [],
-    );
-
     const renderSearchActions = useCallback(
       () => (
         <SearchActions
@@ -318,35 +290,27 @@ const PricingVendorIntro = memo(
     );
 
     const renderHeaderCard = useCallback(
-      ({ title, count, description, rightContent, primaryDarkerChannel }) => (
+      ({ title, count, description, rightContent }) => (
         <Card
-          className='!rounded-2xl shadow-sm border-0'
+          className='na-pricing-intro-card'
           cover={
-            <div
-              className='relative h-full'
-              style={createCoverStyle(primaryDarkerChannel)}
-            >
-              <div className='relative z-10 h-full flex items-center justify-between p-4'>
-                <div className='flex-1 min-w-0 mr-4'>
-                  <div className='flex flex-row flex-wrap items-center gap-2 sm:gap-3 mb-2'>
-                    <h2
-                      className='text-lg sm:text-xl font-bold truncate'
-                      style={COMPONENT_STYLES.titleText}
-                    >
-                      {title}
-                    </h2>
+            <div className='na-pricing-intro-cover'>
+              <div className='na-pricing-intro-content'>
+                <div className='na-pricing-intro-copy'>
+                  <p className='na-pricing-eyebrow'>{t('模型目录')}</p>
+                  <div className='na-pricing-title-row'>
+                    <h2 className='na-pricing-title'>{title}</h2>
                     <Tag
                       style={COMPONENT_STYLES.tag}
                       shape='circle'
                       size='small'
-                      className='self-center'
+                      className='na-pricing-count-tag'
                     >
                       {t('共 {{count}} 个模型', { count })}
                     </Tag>
                   </div>
                   <Paragraph
-                    className='text-xs sm:text-sm leading-relaxed !mb-0 cursor-pointer'
-                    style={COMPONENT_STYLES.descriptionText}
+                    className='na-pricing-description'
                     ellipsis={{ rows: 2 }}
                     onClick={() => handleOpenDescModal(description)}
                   >
@@ -354,7 +318,7 @@ const PricingVendorIntro = memo(
                   </Paragraph>
                 </div>
 
-                <div className='flex-shrink-0'>{rightContent}</div>
+                <div className='na-pricing-intro-avatar'>{rightContent}</div>
               </div>
             </div>
           }
@@ -362,7 +326,7 @@ const PricingVendorIntro = memo(
           {renderSearchActions()}
         </Card>
       ),
-      [renderSearchActions, createCoverStyle, handleOpenDescModal, t],
+      [renderSearchActions, handleOpenDescModal, t],
     );
 
     const renderAllVendorsAvatar = useCallback(() => {
@@ -379,7 +343,6 @@ const PricingVendorIntro = memo(
         count: currentModelCount,
         description: getVendorDescription('all'),
         rightContent: renderAllVendorsAvatar(),
-        primaryDarkerChannel: THEME_COLORS.allVendors.primary,
       });
       return (
         <>
@@ -402,7 +365,6 @@ const PricingVendorIntro = memo(
       description:
         currentVendor.description || getVendorDescription(currentVendor.name),
       rightContent: renderVendorAvatar(currentVendor, t, false),
-      primaryDarkerChannel: THEME_COLORS.specific.primary,
     });
 
     return (

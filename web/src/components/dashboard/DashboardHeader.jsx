@@ -29,32 +29,38 @@ const DashboardHeader = ({
   loading,
   t,
 }) => {
-  const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
-
   return (
-    <div className='flex items-center justify-between mb-4'>
-      <h2
-        className='text-2xl font-semibold text-gray-800 transition-opacity duration-1000 ease-in-out'
-        style={{ opacity: greetingVisible ? 1 : 0 }}
-      >
-        {getGreeting}
-      </h2>
-      <div className='flex gap-3'>
+    <section className='na-dashboard-hero'>
+      <div>
+        <p className='na-dashboard-eyebrow'>{t('运营概览')}</p>
+        <h1
+          className='na-dashboard-hero-title'
+          style={{ opacity: greetingVisible ? 1 : 0 }}
+        >
+          {getGreeting}
+        </h1>
+        <p className='na-dashboard-hero-copy'>
+          {t('从余额、请求、消耗、性能和上游状态观察整套 AI 中转站。')}
+        </p>
+      </div>
+      <div className='na-header-actions'>
         <Button
           type='tertiary'
           icon={<Search size={16} />}
           onClick={showSearchModal}
-          className={`bg-green-500 hover:bg-green-600 ${ICON_BUTTON_CLASS}`}
+          className='na-icon-button'
+          aria-label={t('筛选数据')}
         />
         <Button
           type='tertiary'
           icon={<RefreshCw size={16} />}
           onClick={refresh}
           loading={loading}
-          className={`bg-blue-500 hover:bg-blue-600 ${ICON_BUTTON_CLASS}`}
+          className='na-icon-button'
+          aria-label={t('刷新数据')}
         />
       </div>
-    </div>
+    </section>
   );
 };
 

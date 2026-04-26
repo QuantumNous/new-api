@@ -72,12 +72,16 @@ const MessageContent = ({
             className='rounded-lg p-3 space-y-2'
             style={{
               background: 'var(--semi-color-bg-0)',
-              border: '1px solid var(--semi-color-border)',
+              border:
+                'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
             }}
           >
             <div className='flex items-center gap-2'>
               <AlertTriangle size={16} className='text-orange-500 shrink-0' />
-              <Typography.Text strong className='!text-[var(--semi-color-text-0)]'>
+              <Typography.Text
+                strong
+                className='!text-[var(--semi-color-text-0)]'
+              >
                 {t('模型价格未配置')}
               </Typography.Text>
             </div>
@@ -93,7 +97,9 @@ const MessageContent = ({
                 theme='light'
                 type='warning'
                 icon={<Settings size={14} />}
-                onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                onClick={() =>
+                  window.open('/console/setting?tab=ratio', '_blank')
+                }
               >
                 {t('前往设置')}
               </Button>
@@ -212,12 +218,10 @@ const MessageContent = ({
       finalDisplayableFinalContent.trim() === '')
   ) {
     return (
-      <div
-        className={`${className} flex items-center gap-2 sm:gap-4 bg-gradient-to-r from-purple-50 to-indigo-50`}
-      >
-        <div className='w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg'>
+      <div className={`${className} na-message-loading-shell`}>
+        <div className='na-message-role-icon'>
           <Loader2
-            className='animate-spin text-white'
+            className='animate-spin text-na-inverse'
             size={styleState.isMobile ? 16 : 20}
           />
         </div>
@@ -229,16 +233,13 @@ const MessageContent = ({
     <div className={className}>
       {message.role === 'system' && (
         <div className='mb-2 sm:mb-4'>
-          <div
-            className='flex items-center gap-2 p-2 sm:p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg'
-            style={{ border: '1px solid var(--semi-color-border)' }}
-          >
-            <div className='w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-sm'>
-              <Typography.Text className='text-white text-xs font-bold'>
+          <div className='na-system-message-shell'>
+            <div className='na-message-role-icon'>
+              <Typography.Text className='text-na-inverse text-xs font-bold'>
                 S
               </Typography.Text>
             </div>
-            <Typography.Text className='text-amber-700 text-xs sm:text-sm font-medium'>
+            <Typography.Text className='text-na-warning text-xs sm:text-sm font-medium'>
               {t('系统消息')}
             </Typography.Text>
           </div>
@@ -264,7 +265,9 @@ const MessageContent = ({
             autosize={{ minRows: 3, maxRows: 12 }}
             style={{
               resize: 'vertical',
-              fontSize: styleState.isMobile ? '14px' : '15px',
+              fontSize: styleState.isMobile
+                ? 'calc(var(--na-space-px) * 14)'
+                : 'calc(var(--na-space-px) * 15)',
               lineHeight: '1.6',
             }}
             className='!border-blue-200 focus:!border-blue-400 !bg-blue-50/50'
@@ -313,7 +316,9 @@ const MessageContent = ({
                           src={imgItem.image_url.url}
                           alt={`用户上传的图片 ${index + 1}`}
                           className='rounded-lg max-w-full h-auto shadow-sm border'
-                          style={{ maxHeight: '300px' }}
+                          style={{
+                            maxHeight: 'calc(var(--na-space-px) * 300)',
+                          }}
                           onError={(e) => {
                             e.target.style.display = 'none';
                             e.target.nextSibling.style.display = 'block';

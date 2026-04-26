@@ -45,6 +45,12 @@ const MessageActions = ({
     message.content &&
     typeof onMessageEdit === 'function' &&
     !isEditing;
+  const actionSizeClass = styleState.isMobile
+    ? 'na-message-action-button-mobile'
+    : 'na-message-action-button-desktop';
+  const disabledClass = shouldDisableActions
+    ? 'na-message-action-button-disabled'
+    : '';
 
   return (
     <div className='flex items-center gap-0.5'>
@@ -60,7 +66,7 @@ const MessageActions = ({
             icon={<RefreshCw size={styleState.isMobile ? 12 : 14} />}
             onClick={() => !shouldDisableActions && onMessageReset(message)}
             disabled={shouldDisableActions}
-            className={`!rounded-full ${shouldDisableActions ? '!text-gray-300 !cursor-not-allowed' : '!text-gray-400 hover:!text-blue-600 hover:!bg-blue-50'} ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
+            className={`na-message-action-button ${actionSizeClass} ${disabledClass}`}
             aria-label={t('重试')}
           />
         </Tooltip>
@@ -74,7 +80,7 @@ const MessageActions = ({
             size='small'
             icon={<Copy size={styleState.isMobile ? 12 : 14} />}
             onClick={() => onMessageCopy(message)}
-            className={`!rounded-full !text-gray-400 hover:!text-green-600 hover:!bg-green-50 ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
+            className={`na-message-action-button ${actionSizeClass}`}
             aria-label={t('复制')}
           />
         </Tooltip>
@@ -92,7 +98,7 @@ const MessageActions = ({
             icon={<Edit size={styleState.isMobile ? 12 : 14} />}
             onClick={() => !shouldDisableActions && onMessageEdit(message)}
             disabled={shouldDisableActions}
-            className={`!rounded-full ${shouldDisableActions ? '!text-gray-300 !cursor-not-allowed' : '!text-gray-400 hover:!text-yellow-600 hover:!bg-yellow-50'} ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
+            className={`na-message-action-button ${actionSizeClass} ${disabledClass}`}
             aria-label={t('编辑')}
           />
         </Tooltip>
@@ -118,7 +124,7 @@ const MessageActions = ({
               !shouldDisableActions && onRoleToggle && onRoleToggle(message)
             }
             disabled={shouldDisableActions}
-            className={`!rounded-full ${shouldDisableActions ? '!text-gray-300 !cursor-not-allowed' : message.role === 'system' ? '!text-purple-500 hover:!text-purple-700 hover:!bg-purple-50' : '!text-gray-400 hover:!text-purple-600 hover:!bg-purple-50'} ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
+            className={`na-message-action-button ${actionSizeClass} ${disabledClass}`}
             aria-label={
               message.role === 'assistant'
                 ? t('切换为System角色')
@@ -140,7 +146,7 @@ const MessageActions = ({
             icon={<Trash2 size={styleState.isMobile ? 12 : 14} />}
             onClick={() => !shouldDisableActions && onMessageDelete(message)}
             disabled={shouldDisableActions}
-            className={`!rounded-full ${shouldDisableActions ? '!text-gray-300 !cursor-not-allowed' : '!text-gray-400 hover:!text-red-600 hover:!bg-red-50'} ${styleState.isMobile ? '!w-6 !h-6' : '!w-7 !h-7'} !p-0 transition-all`}
+            className={`na-message-action-button na-message-action-button-danger ${actionSizeClass} ${disabledClass}`}
             aria-label={t('删除')}
           />
         </Tooltip>

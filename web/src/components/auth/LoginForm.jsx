@@ -502,104 +502,115 @@ const LoginForm = () => {
 
   const renderOAuthOptions = () => {
     return (
-      <div className='flex flex-col items-center'>
-        <div className='w-full max-w-md'>
-          <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3} className='!text-gray-800'>
+      <div className='na-auth-stack'>
+        <div className='na-auth-panel'>
+          <div className='na-brand-lockup'>
+            <img src={logo} alt='Logo' className='na-brand-logo' />
+            <Title heading={3} className='na-brand-title'>
               {systemName}
             </Title>
           </div>
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
-            <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
+          <Card className='na-auth-card'>
+            <div className='na-auth-card-title'>
+              <Title heading={3} className='na-auth-title'>
                 {t('登 录')}
               </Title>
             </div>
-            <div className='px-2 py-8'>
-              <div className='space-y-3'>
+            <div className='na-auth-card-body'>
+              <div className='na-auth-options'>
                 {status.wechat_login && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='na-oauth-button'
                     type='tertiary'
                     icon={
-                      <Icon svg={<WeChatIcon />} style={{ color: '#07C160' }} />
+                      <Icon
+                        svg={<WeChatIcon />}
+                        style={{ color: 'var(--brand-wechat)' }}
+                      />
                     }
                     onClick={onWeChatLoginClicked}
                     loading={wechatLoading}
                   >
-                    <span className='ml-3'>{t('使用 微信 继续')}</span>
+                    <span className='na-oauth-label'>
+                      {t('使用 微信 继续')}
+                    </span>
                   </Button>
                 )}
 
                 {status.github_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='na-oauth-button'
                     type='tertiary'
                     icon={<IconGithubLogo size='large' />}
                     onClick={handleGitHubClick}
                     loading={githubLoading}
                     disabled={githubButtonDisabled}
                   >
-                    <span className='ml-3'>{githubButtonText}</span>
+                    <span className='na-oauth-label'>{githubButtonText}</span>
                   </Button>
                 )}
 
                 {status.discord_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='na-oauth-button'
                     type='tertiary'
                     icon={
                       <SiDiscord
                         style={{
-                          color: '#5865F2',
-                          width: '20px',
-                          height: '20px',
+                          color: 'var(--brand-discord)',
+                          width: 'var(--na-icon-size-md)',
+                          height: 'var(--na-icon-size-md)',
                         }}
                       />
                     }
                     onClick={handleDiscordClick}
                     loading={discordLoading}
                   >
-                    <span className='ml-3'>{t('使用 Discord 继续')}</span>
+                    <span className='na-oauth-label'>
+                      {t('使用 Discord 继续')}
+                    </span>
                   </Button>
                 )}
 
                 {status.oidc_enabled && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='na-oauth-button'
                     type='tertiary'
-                    icon={<OIDCIcon style={{ color: '#1877F2' }} />}
+                    icon={<OIDCIcon style={{ color: 'var(--brand-oidc)' }} />}
                     onClick={handleOIDCClick}
                     loading={oidcLoading}
                   >
-                    <span className='ml-3'>{t('使用 OIDC 继续')}</span>
+                    <span className='na-oauth-label'>
+                      {t('使用 OIDC 继续')}
+                    </span>
                   </Button>
                 )}
 
                 {status.linuxdo_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='na-oauth-button'
                     type='tertiary'
                     icon={
                       <LinuxDoIcon
                         style={{
-                          color: '#E95420',
-                          width: '20px',
-                          height: '20px',
+                          color: 'var(--brand-linuxdo)',
+                          width: 'var(--na-icon-size-md)',
+                          height: 'var(--na-icon-size-md)',
                         }}
                       />
                     }
                     onClick={handleLinuxDOClick}
                     loading={linuxdoLoading}
                   >
-                    <span className='ml-3'>{t('使用 LinuxDO 继续')}</span>
+                    <span className='na-oauth-label'>
+                      {t('使用 LinuxDO 继续')}
+                    </span>
                   </Button>
                 )}
 
@@ -608,20 +619,20 @@ const LoginForm = () => {
                     <Button
                       key={provider.slug}
                       theme='outline'
-                      className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                      className='na-oauth-button'
                       type='tertiary'
                       icon={getOAuthProviderIcon(provider.icon || '', 20)}
                       onClick={() => handleCustomOAuthClick(provider)}
                       loading={customOAuthLoading[provider.slug]}
                     >
-                      <span className='ml-3'>
+                      <span className='na-oauth-label'>
                         {t('使用 {{name}} 继续', { name: provider.name })}
                       </span>
                     </Button>
                   ))}
 
                 {status.telegram_oauth && (
-                  <div className='flex justify-center my-2'>
+                  <div className='na-auth-center'>
                     <TelegramLoginButton
                       dataOnauth={onTelegramLoginClicked}
                       botName={status.telegram_bot_name}
@@ -632,39 +643,43 @@ const LoginForm = () => {
                 {status.passkey_login && passkeySupported && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className='na-oauth-button'
                     type='tertiary'
                     icon={<IconKey size='large' />}
                     onClick={handlePasskeyLogin}
                     loading={passkeyLoading}
                   >
-                    <span className='ml-3'>{t('使用 Passkey 登录')}</span>
+                    <span className='na-oauth-label'>
+                      {t('使用 Passkey 登录')}
+                    </span>
                   </Button>
                 )}
 
-                <Divider margin='12px' align='center'>
+                <Divider margin='var(--na-space-3)' align='center'>
                   {t('或')}
                 </Divider>
 
                 <Button
                   theme='solid'
                   type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                  className='na-auth-primary-button'
                   icon={<IconMail size='large' />}
                   onClick={handleEmailLoginClick}
                   loading={emailLoginLoading}
                 >
-                  <span className='ml-3'>{t('使用 邮箱或用户名 登录')}</span>
+                  <span className='na-oauth-label'>
+                    {t('使用 邮箱或用户名 登录')}
+                  </span>
                 </Button>
               </div>
 
               {(hasUserAgreement || hasPrivacyPolicy) && (
-                <div className='mt-6'>
+                <div className='na-auth-terms'>
                   <Checkbox
                     checked={agreedToTerms}
                     onChange={(e) => setAgreedToTerms(e.target.checked)}
                   >
-                    <Text size='small' className='text-gray-600'>
+                    <Text size='small' className='na-auth-copy'>
                       {t('我已阅读并同意')}
                       {hasUserAgreement && (
                         <>
@@ -672,7 +687,7 @@ const LoginForm = () => {
                             href='/user-agreement'
                             target='_blank'
                             rel='noopener noreferrer'
-                            className='text-blue-600 hover:text-blue-800 mx-1'
+                            className='na-auth-link-inline'
                           >
                             {t('用户协议')}
                           </a>
@@ -685,7 +700,7 @@ const LoginForm = () => {
                             href='/privacy-policy'
                             target='_blank'
                             rel='noopener noreferrer'
-                            className='text-blue-600 hover:text-blue-800 mx-1'
+                            className='na-auth-link-inline'
                           >
                             {t('隐私政策')}
                           </a>
@@ -697,15 +712,9 @@ const LoginForm = () => {
               )}
 
               {!status.self_use_mode_enabled && (
-                <div className='mt-6 text-center text-sm'>
+                <div className='na-auth-link-row'>
                   <Text>
-                    {t('没有账户？')}{' '}
-                    <Link
-                      to='/register'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
-                    >
-                      {t('注册')}
-                    </Link>
+                    {t('没有账户？')} <Link to='/register'>{t('注册')}</Link>
                   </Text>
                 </div>
               )}
@@ -718,33 +727,37 @@ const LoginForm = () => {
 
   const renderEmailLoginForm = () => {
     return (
-      <div className='flex flex-col items-center'>
-        <div className='w-full max-w-md'>
-          <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3}>{systemName}</Title>
+      <div className='na-auth-stack'>
+        <div className='na-auth-panel'>
+          <div className='na-brand-lockup'>
+            <img src={logo} alt='Logo' className='na-brand-logo' />
+            <Title heading={3} className='na-brand-title'>
+              {systemName}
+            </Title>
           </div>
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
-            <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
+          <Card className='na-auth-card'>
+            <div className='na-auth-card-title'>
+              <Title heading={3} className='na-auth-title'>
                 {t('登 录')}
               </Title>
             </div>
-            <div className='px-2 py-8'>
+            <div className='na-auth-card-body'>
               {status.passkey_login && passkeySupported && (
                 <Button
                   theme='outline'
                   type='tertiary'
-                  className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
+                  className='na-oauth-button'
                   icon={<IconKey size='large' />}
                   onClick={handlePasskeyLogin}
                   loading={passkeyLoading}
                 >
-                  <span className='ml-3'>{t('使用 Passkey 登录')}</span>
+                  <span className='na-oauth-label'>
+                    {t('使用 Passkey 登录')}
+                  </span>
                 </Button>
               )}
-              <Form className='space-y-3'>
+              <Form className='na-auth-form'>
                 <Form.Input
                   field='username'
                   label={t('用户名或邮箱')}
@@ -765,12 +778,12 @@ const LoginForm = () => {
                 />
 
                 {(hasUserAgreement || hasPrivacyPolicy) && (
-                  <div className='pt-4'>
+                  <div className='na-auth-terms'>
                     <Checkbox
                       checked={agreedToTerms}
                       onChange={(e) => setAgreedToTerms(e.target.checked)}
                     >
-                      <Text size='small' className='text-gray-600'>
+                      <Text size='small' className='na-auth-copy'>
                         {t('我已阅读并同意')}
                         {hasUserAgreement && (
                           <>
@@ -778,7 +791,7 @@ const LoginForm = () => {
                               href='/user-agreement'
                               target='_blank'
                               rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
+                              className='na-auth-link-inline'
                             >
                               {t('用户协议')}
                             </a>
@@ -791,7 +804,7 @@ const LoginForm = () => {
                               href='/privacy-policy'
                               target='_blank'
                               rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
+                              className='na-auth-link-inline'
                             >
                               {t('隐私政策')}
                             </a>
@@ -802,10 +815,10 @@ const LoginForm = () => {
                   </div>
                 )}
 
-                <div className='space-y-2 pt-2'>
+                <div className='na-auth-actions'>
                   <Button
                     theme='solid'
-                    className='w-full !rounded-full'
+                    className='na-auth-primary-button'
                     type='primary'
                     htmlType='submit'
                     onClick={handleSubmit}
@@ -820,7 +833,7 @@ const LoginForm = () => {
                   <Button
                     theme='borderless'
                     type='tertiary'
-                    className='w-full !rounded-full'
+                    className='na-auth-secondary-button'
                     onClick={handleResetPasswordClick}
                     loading={resetPasswordLoading}
                   >
@@ -831,15 +844,15 @@ const LoginForm = () => {
 
               {hasOAuthLoginOptions && (
                 <>
-                  <Divider margin='12px' align='center'>
+                  <Divider margin='var(--na-space-3)' align='center'>
                     {t('或')}
                   </Divider>
 
-                  <div className='mt-4 text-center'>
+                  <div className='na-auth-center'>
                     <Button
                       theme='outline'
                       type='tertiary'
-                      className='w-full !rounded-full'
+                      className='na-auth-secondary-button'
                       onClick={handleOtherLoginOptionsClick}
                       loading={otherLoginOptionsLoading}
                     >
@@ -850,15 +863,9 @@ const LoginForm = () => {
               )}
 
               {!status.self_use_mode_enabled && (
-                <div className='mt-6 text-center text-sm'>
+                <div className='na-auth-link-row'>
                   <Text>
-                    {t('没有账户？')}{' '}
-                    <Link
-                      to='/register'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
-                    >
-                      {t('注册')}
-                    </Link>
+                    {t('没有账户？')} <Link to='/register'>{t('注册')}</Link>
                   </Text>
                 </div>
               )}
@@ -884,11 +891,11 @@ const LoginForm = () => {
           loading: wechatCodeSubmitLoading,
         }}
       >
-        <div className='flex flex-col items-center'>
-          <img src={status.wechat_qrcode} alt='微信二维码' className='mb-4' />
+        <div className='na-auth-modal-media'>
+          <img src={status.wechat_qrcode} alt='微信二维码' />
         </div>
 
-        <div className='text-center mb-4'>
+        <div className='na-auth-modal-copy'>
           <p>
             {t('微信扫码关注公众号，输入「验证码」获取验证码（三分钟内有效）')}
           </p>
@@ -914,13 +921,9 @@ const LoginForm = () => {
     return (
       <Modal
         title={
-          <div className='flex items-center'>
-            <div className='w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mr-3'>
-              <svg
-                className='w-4 h-4 text-green-600 dark:text-green-400'
-                fill='currentColor'
-                viewBox='0 0 20 20'
-              >
+          <div className='na-auth-twofa-title'>
+            <div className='na-auth-twofa-icon'>
+              <svg fill='currentColor' viewBox='0 0 20 20'>
                 <path
                   fillRule='evenodd'
                   d='M6 8a2 2 0 11-4 0 2 2 0 014 0zM8 7a1 1 0 100 2h8a1 1 0 100-2H8zM6 14a2 2 0 11-4 0 2 2 0 014 0zM8 13a1 1 0 100 2h8a1 1 0 100-2H8z'
@@ -947,26 +950,16 @@ const LoginForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
+    <div className='na-auth-page'>
+      <div className='na-auth-shell'>
+        {showEmailLogin || !hasOAuthLoginOptions
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
         {render2FAModal()}
 
         {turnstileEnabled && (
-          <div className='flex justify-center mt-6'>
+          <div className='na-auth-turnstile'>
             <Turnstile
               sitekey={turnstileSiteKey}
               onVerify={(token) => {

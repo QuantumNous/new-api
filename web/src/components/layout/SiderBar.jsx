@@ -304,7 +304,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   }, [collapsed]);
 
   // 选中高亮颜色（统一）
-  const SELECTED_COLOR = 'var(--semi-color-primary)';
+  const SELECTED_COLOR = '#D97757';
 
   // 渲染自定义菜单项
   const renderNavItem = (item) => {
@@ -327,7 +327,10 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           </span>
         }
         icon={
-          <div className='sidebar-icon-container flex-shrink-0'>
+          <div
+            className='sidebar-icon-container flex-shrink-0'
+            style={{ color: SELECTED_COLOR }}
+          >
             {getLucideIcon(item.itemKey, isSelected)}
           </div>
         }
@@ -355,7 +358,10 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             </span>
           }
           icon={
-            <div className='sidebar-icon-container flex-shrink-0'>
+            <div
+              className='sidebar-icon-container flex-shrink-0'
+              style={{ color: SELECTED_COLOR }}
+            >
               {getLucideIcon(item.itemKey, isSelected)}
             </div>
           }
@@ -517,8 +523,15 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             icononly={collapsed}
             style={
               collapsed
-                ? { width: 36, height: 24, padding: 0 }
-                : { padding: '4px 12px', width: '100%' }
+                ? {
+                    width: 'var(--na-space-9)',
+                    height: 'var(--na-space-6)',
+                    padding: 'var(--na-space-0)',
+                  }
+                : {
+                    padding: 'var(--na-space-1) var(--na-space-3)',
+                    width: '100%',
+                  }
             }
           >
             {!collapsed ? t('收起侧边栏') : null}

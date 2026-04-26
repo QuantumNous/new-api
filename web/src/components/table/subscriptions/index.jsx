@@ -78,7 +78,7 @@ const SubscriptionsPage = () => {
               description={t('Stripe/Creem 需在第三方平台创建商品并填入 ID')}
               closeIcon={null}
               // Mobile: banner below; Desktop: banner right
-              className='!rounded-lg order-2 md:order-1'
+              className='!rounded-semi-border-radius-medium order-2 md:order-1'
               style={{ maxWidth: '100%' }}
             />
           </div>

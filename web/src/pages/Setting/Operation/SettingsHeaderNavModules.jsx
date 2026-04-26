@@ -196,18 +196,22 @@ export default function SettingsHeaderNavModules(props) {
         text={t('顶栏管理')}
         extraText={t('控制顶栏模块显示状态，全局生效')}
       >
-        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+        <Row
+          gutter={[16, 16]}
+          style={{ marginBottom: 'calc(var(--na-space-px) * 24)' }}
+        >
           {moduleConfigs.map((module) => (
             <Col key={module.key} xs={24} sm={12} md={6} lg={6} xl={6}>
               <Card
                 style={{
-                  borderRadius: '8px',
-                  border: '1px solid var(--semi-color-border)',
+                  borderRadius: 'calc(var(--na-space-px) * 8)',
+                  border:
+                    'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                   transition: 'all 0.2s ease',
                   background: 'var(--semi-color-bg-1)',
-                  minHeight: '80px',
+                  minHeight: 'calc(var(--na-space-px) * 80)',
                 }}
-                bodyStyle={{ padding: '16px' }}
+                bodyStyle={{ padding: 'calc(var(--na-space-px) * 16)' }}
                 hoverable
               >
                 <div
@@ -222,9 +226,9 @@ export default function SettingsHeaderNavModules(props) {
                     <div
                       style={{
                         fontWeight: '600',
-                        fontSize: '14px',
+                        fontSize: 'calc(var(--na-space-px) * 14)',
                         color: 'var(--semi-color-text-0)',
-                        marginBottom: '4px',
+                        marginBottom: 'calc(var(--na-space-px) * 4)',
                       }}
                     >
                       {module.title}
@@ -233,7 +237,7 @@ export default function SettingsHeaderNavModules(props) {
                       type='secondary'
                       size='small'
                       style={{
-                        fontSize: '12px',
+                        fontSize: 'calc(var(--na-space-px) * 12)',
                         color: 'var(--semi-color-text-2)',
                         lineHeight: '1.4',
                         display: 'block',
@@ -242,7 +246,7 @@ export default function SettingsHeaderNavModules(props) {
                       {module.description}
                     </Text>
                   </div>
-                  <div style={{ marginLeft: '16px' }}>
+                  <div style={{ marginLeft: 'calc(var(--na-space-px) * 16)' }}>
                     <Switch
                       checked={
                         module.key === 'pricing'
@@ -262,9 +266,10 @@ export default function SettingsHeaderNavModules(props) {
                     : headerNavModules[module.key]) && (
                     <div
                       style={{
-                        borderTop: '1px solid var(--semi-color-border)',
-                        marginTop: '12px',
-                        paddingTop: '12px',
+                        borderTop:
+                          'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
+                        marginTop: 'calc(var(--na-space-px) * 12)',
+                        paddingTop: 'calc(var(--na-space-px) * 12)',
                       }}
                     >
                       <div
@@ -278,9 +283,9 @@ export default function SettingsHeaderNavModules(props) {
                           <div
                             style={{
                               fontWeight: '500',
-                              fontSize: '12px',
+                              fontSize: 'calc(var(--na-space-px) * 12)',
                               color: 'var(--semi-color-text-1)',
-                              marginBottom: '2px',
+                              marginBottom: 'calc(var(--na-space-px) * 2)',
                             }}
                           >
                             {t('需要登录访问')}
@@ -289,7 +294,7 @@ export default function SettingsHeaderNavModules(props) {
                             type='secondary'
                             size='small'
                             style={{
-                              fontSize: '11px',
+                              fontSize: 'calc(var(--na-space-px) * 11)',
                               color: 'var(--semi-color-text-2)',
                               lineHeight: '1.4',
                               display: 'block',
@@ -298,7 +303,11 @@ export default function SettingsHeaderNavModules(props) {
                             {t('开启后未登录用户无法访问模型广场')}
                           </Text>
                         </div>
-                        <div style={{ marginLeft: '16px' }}>
+                        <div
+                          style={{
+                            marginLeft: 'calc(var(--na-space-px) * 16)',
+                          }}
+                        >
                           <Switch
                             checked={
                               headerNavModules.pricing?.requireAuth || false
@@ -318,11 +327,12 @@ export default function SettingsHeaderNavModules(props) {
         <div
           style={{
             display: 'flex',
-            gap: '12px',
+            gap: 'calc(var(--na-space-px) * 12)',
             justifyContent: 'flex-start',
             alignItems: 'center',
-            paddingTop: '8px',
-            borderTop: '1px solid var(--semi-color-border)',
+            paddingTop: 'calc(var(--na-space-px) * 8)',
+            borderTop:
+              'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
           }}
         >
           <Button
@@ -330,7 +340,7 @@ export default function SettingsHeaderNavModules(props) {
             type='tertiary'
             onClick={resetHeaderNavModules}
             style={{
-              borderRadius: '6px',
+              borderRadius: 'calc(var(--na-space-px) * 6)',
               fontWeight: '500',
             }}
           >
@@ -342,9 +352,9 @@ export default function SettingsHeaderNavModules(props) {
             onClick={onSubmit}
             loading={loading}
             style={{
-              borderRadius: '6px',
+              borderRadius: 'calc(var(--na-space-px) * 6)',
               fontWeight: '500',
-              minWidth: '100px',
+              minWidth: 'calc(var(--na-space-px) * 100)',
             }}
           >
             {t('保存设置')}

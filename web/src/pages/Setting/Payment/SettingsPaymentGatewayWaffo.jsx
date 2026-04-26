@@ -624,7 +624,8 @@ export default function SettingsPaymentGatewayWaffo(props) {
                     width: 32,
                     height: 32,
                     objectFit: 'contain',
-                    border: '1px solid var(--semi-color-border)',
+                    border:
+                      'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                     borderRadius: 4,
                   }}
                 />
@@ -656,7 +657,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
             </Space>
             <div>
               <Text type='tertiary' size='small'>
-                {t('上传 PNG/JPG/SVG 图片，建议尺寸 ≤ 128×128px')}
+                {t(
+                  '上传 PNG/JPG/SVG 图片，建议尺寸 ≤ 128×calc(var(--na-space-px) * 128)',
+                )}
               </Text>
             </div>
           </div>

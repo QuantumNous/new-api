@@ -22,18 +22,16 @@ import { Card, Skeleton } from '@douyinfe/semi-ui';
 
 const THEME_COLORS = {
   allVendors: {
-    primary: '37 99 235',
-    background: 'rgba(59, 130, 246, 0.1)',
-    border: 'rgba(59, 130, 246, 0.2)',
+    background: 'var(--na-accent-primary-light-default)',
+    border: 'var(--na-accent-primary-light-hover)',
   },
   specific: {
-    primary: '16 185 129',
-    background: 'rgba(16, 185, 129, 0.1)',
-    border: 'rgba(16, 185, 129, 0.2)',
+    background: 'var(--semi-color-success-light-default)',
+    border: 'var(--semi-color-success-light-hover)',
   },
   neutral: {
-    background: 'rgba(156, 163, 175, 0.1)',
-    border: 'rgba(156, 163, 175, 0.2)',
+    background: 'var(--semi-color-fill-0)',
+    border: 'var(--semi-color-fill-2)',
   },
 };
 
@@ -47,28 +45,18 @@ const SIZES = {
 };
 
 const SKELETON_STYLES = {
-  cover: (primaryColor) => ({
-    '--palette-primary-darkerChannel': primaryColor,
-    backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat',
-  }),
   title: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 8,
-    backdropFilter: 'blur(4px)',
+    backgroundColor: 'var(--semi-color-fill-1)',
+    borderRadius: 'var(--na-radius-control)',
   },
   tag: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 9999,
-    backdropFilter: 'blur(4px)',
-    border: '1px solid rgba(255,255,255,0.3)',
+    backgroundColor: 'var(--semi-color-fill-1)',
+    borderRadius: 'var(--na-radius-pill)',
+    border: 'var(--na-space-px) solid var(--semi-color-border)',
   },
   description: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
-    backdropFilter: 'blur(4px)',
+    backgroundColor: 'var(--semi-color-fill-0)',
+    borderRadius: 'var(--na-radius-control)',
   },
   avatar: (isAllVendors) => {
     const colors = isAllVendors
@@ -76,19 +64,19 @@ const SKELETON_STYLES = {
       : THEME_COLORS.specific;
     return {
       backgroundColor: colors.background,
-      borderRadius: 12,
-      border: `1px solid ${colors.border}`,
+      borderRadius: 'var(--na-radius-input)',
+      border: `var(--na-space-px) solid ${colors.border}`,
     };
   },
   searchInput: {
     backgroundColor: THEME_COLORS.neutral.background,
-    borderRadius: 8,
-    border: `1px solid ${THEME_COLORS.neutral.border}`,
+    borderRadius: 'var(--na-radius-input)',
+    border: `var(--na-space-px) solid ${THEME_COLORS.neutral.border}`,
   },
   button: {
     backgroundColor: THEME_COLORS.neutral.background,
-    borderRadius: 8,
-    border: `1px solid ${THEME_COLORS.neutral.border}`,
+    borderRadius: 'var(--na-radius-input)',
+    border: `var(--na-space-px) solid ${THEME_COLORS.neutral.border}`,
   },
 };
 
@@ -100,18 +88,11 @@ const PricingVendorIntroSkeleton = memo(
   ({ isAllVendors = false, isMobile = false }) => {
     const placeholder = (
       <Card
-        className='!rounded-2xl shadow-sm border-0'
+        className='na-pricing-intro-card'
         cover={
-          <div
-            className='relative h-full'
-            style={SKELETON_STYLES.cover(
-              isAllVendors
-                ? THEME_COLORS.allVendors.primary
-                : THEME_COLORS.specific.primary,
-            )}
-          >
-            <div className='relative z-10 h-full flex items-center justify-between p-4'>
-              <div className='flex-1 min-w-0 mr-4'>
+          <div className='na-pricing-intro-cover'>
+            <div className='na-pricing-intro-content'>
+              <div className='na-pricing-intro-copy'>
                 <div className='flex flex-row flex-wrap items-center gap-2 sm:gap-3 mb-2'>
                   {createSkeletonRect(
                     {
@@ -144,7 +125,7 @@ const PricingVendorIntroSkeleton = memo(
                   {createSkeletonRect(
                     {
                       ...SKELETON_STYLES.description,
-                      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                      backgroundColor: 'var(--semi-color-fill-1)',
                       width: '75%',
                       height: SIZES.description.height,
                     },
@@ -153,7 +134,7 @@ const PricingVendorIntroSkeleton = memo(
                 </div>
               </div>
 
-              <div className='flex-shrink-0 w-16 h-16 rounded-2xl bg-white/90 shadow-md backdrop-blur-sm flex items-center justify-center'>
+              <div className='na-pricing-vendor-avatar'>
                 {createSkeletonRect(
                   {
                     ...SKELETON_STYLES.avatar(isAllVendors),

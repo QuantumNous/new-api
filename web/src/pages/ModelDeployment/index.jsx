@@ -41,7 +41,7 @@ const ModelDeploymentPage = () => {
       connectionError={connectionError}
       onRetry={() => testConnection()}
     >
-      <div className='mt-[60px] px-2'>
+      <div className='px-2'>
         <DeploymentsTable />
       </div>
     </DeploymentAccessGuard>
@@ -49,3 +49,4 @@ const ModelDeploymentPage = () => {
 };
 
 export default ModelDeploymentPage;
+

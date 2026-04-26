@@ -328,7 +328,7 @@ const EditTokenModal = (props) => {
           <Space>
             <Button
               theme='solid'
-              className='!rounded-lg'
+              className='!rounded-semi-border-radius-medium'
               onClick={() => formApiRef.current?.submitForm()}
               icon={<IconSave />}
               loading={loading}
@@ -337,7 +337,7 @@ const EditTokenModal = (props) => {
             </Button>
             <Button
               theme='light'
-              className='!rounded-lg'
+              className='!rounded-semi-border-radius-medium'
               type='primary'
               onClick={handleCancel}
               icon={<IconClose />}
@@ -360,14 +360,14 @@ const EditTokenModal = (props) => {
           {({ values }) => (
             <div className='p-2'>
               {/* 基本信息 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
                 <div className='flex items-center mb-2'>
                   <Avatar size='small' color='blue' className='mr-2 shadow-md'>
                     <IconKey size={16} />
                   </Avatar>
                   <div>
                     <Text className='text-lg font-medium'>{t('基本信息')}</Text>
-                    <div className='text-xs text-gray-600'>
+                    <div className='text-xs text-semi-color-text-1'>
                       {t('设置令牌的基本信息')}
                     </div>
                   </div>
@@ -507,14 +507,14 @@ const EditTokenModal = (props) => {
               </Card>
 
               {/* 额度设置 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
                 <div className='flex items-center mb-2'>
                   <Avatar size='small' color='green' className='mr-2 shadow-md'>
                     <IconCreditCard size={16} />
                   </Avatar>
                   <div>
                     <Text className='text-lg font-medium'>{t('额度设置')}</Text>
-                    <div className='text-xs text-gray-600'>
+                    <div className='text-xs text-semi-color-text-1'>
                       {t('设置令牌可用额度和数量')}
                     </div>
                   </div>
@@ -552,7 +552,10 @@ const EditTokenModal = (props) => {
                         ? `▾ ${t('收起原生额度输入')}`
                         : `▸ ${t('使用原生额度输入')}`}
                     </div>
-                    <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                    <div
+                      style={{ display: showQuotaInput ? 'block' : 'none' }}
+                      className='mt-2'
+                    >
                       <Form.InputNumber
                         field='remain_quota'
                         label={t('额度')}
@@ -592,7 +595,7 @@ const EditTokenModal = (props) => {
               </Card>
 
               {/* 访问限制 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
                 <div className='flex items-center mb-2'>
                   <Avatar
                     size='small'
@@ -603,7 +606,7 @@ const EditTokenModal = (props) => {
                   </Avatar>
                   <div>
                     <Text className='text-lg font-medium'>{t('访问限制')}</Text>
-                    <div className='text-xs text-gray-600'>
+                    <div className='text-xs text-semi-color-text-1'>
                       {t('设置令牌的访问限制')}
                     </div>
                   </div>

@@ -140,7 +140,7 @@ const EditPrefillGroupModal = ({
           <Space>
             <Button
               theme='solid'
-              className='!rounded-lg'
+              className='!rounded-semi-border-radius-medium'
               onClick={() => formRef.current?.submitForm()}
               icon={<IconSave />}
               loading={loading}
@@ -149,7 +149,7 @@ const EditPrefillGroupModal = ({
             </Button>
             <Button
               theme='light'
-              className='!rounded-lg'
+              className='!rounded-semi-border-radius-medium'
               type='primary'
               onClick={onClose}
               icon={<IconClose />}
@@ -188,14 +188,14 @@ const EditPrefillGroupModal = ({
         >
           <div className='p-2'>
             {/* 基本信息 */}
-            <Card className='!rounded-2xl shadow-sm border-0'>
+            <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
               <div className='flex items-center mb-2'>
                 <Avatar size='small' color='green' className='mr-2 shadow-md'>
                   <IconLayers size={16} />
                 </Avatar>
                 <div>
                   <Text className='text-lg font-medium'>{t('基本信息')}</Text>
-                  <div className='text-xs text-gray-600'>
+                  <div className='text-xs text-semi-color-text-1'>
                     {t('设置预填组的基本信息')}
                   </div>
                 </div>

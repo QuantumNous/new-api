@@ -353,7 +353,7 @@ const NotificationSettings = ({
 
   return (
     <Card
-      className='!rounded-2xl shadow-sm border-0'
+      className='na-personal-card'
       footer={
         <div className='flex justify-end gap-3'>
           {activeTabKey === 'sidebar' ? (
@@ -456,7 +456,10 @@ const NotificationSettings = ({
                   extraText={t(
                     '当钱包或订阅剩余额度低于此数值时，系统将通过选择的方式发送通知',
                   )}
-                  style={{ width: '100%', maxWidth: '300px' }}
+                  style={{
+                    width: '100%',
+                    maxWidth: 'calc(var(--na-space-px) * 300)',
+                  }}
                   rules={[
                     { required: true, message: t('请输入预警阈值') },
                     {
@@ -478,7 +481,10 @@ const NotificationSettings = ({
                     checkedText={t('开')}
                     uncheckedText={t('关')}
                     onChange={(value) =>
-                      handleFormChange('upstreamModelUpdateNotifyEnabled', value)
+                      handleFormChange(
+                        'upstreamModelUpdateNotifyEnabled',
+                        value,
+                      )
                     }
                     extraText={t(
                       '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',
@@ -545,7 +551,12 @@ const NotificationSettings = ({
 
                     <Form.Slot label={t('Webhook请求结构说明')}>
                       <div>
-                        <div style={{ height: '200px', marginBottom: '12px' }}>
+                        <div
+                          style={{
+                            height: 'calc(var(--na-space-px) * 200)',
+                            marginBottom: 'calc(var(--na-space-px) * 12)',
+                          }}
+                        >
                           <CodeViewer
                             content={{
                               type: 'quota_exceed',
@@ -709,7 +720,10 @@ const NotificationSettings = ({
                       }
                       prefix={<IconBell />}
                       extraText={t('消息优先级，范围0-10，默认为5')}
-                      style={{ width: '100%', maxWidth: '300px' }}
+                      style={{
+                        width: '100%',
+                        maxWidth: 'calc(var(--na-space-px) * 300)',
+                      }}
                     />
 
                     <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
@@ -814,7 +828,7 @@ const NotificationSettings = ({
                       type='secondary'
                       size='small'
                       style={{
-                        fontSize: '12px',
+                        fontSize: 'calc(var(--na-space-px) * 12)',
                         lineHeight: '1.5',
                         color: 'var(--semi-color-text-2)',
                       }}
@@ -837,7 +851,8 @@ const NotificationSettings = ({
                           className='flex justify-between items-center mb-4 p-4 rounded-lg'
                           style={{
                             backgroundColor: 'var(--semi-color-fill-0)',
-                            border: '1px solid var(--semi-color-border-light)',
+                            border:
+                              'calc(var(--na-space-px) * 1) solid var(--semi-color-border-light)',
                             borderColor: 'var(--semi-color-fill-1)',
                           }}
                         >
@@ -849,7 +864,7 @@ const NotificationSettings = ({
                               type='secondary'
                               size='small'
                               style={{
-                                fontSize: '12px',
+                                fontSize: 'calc(var(--na-space-px) * 12)',
                                 lineHeight: '1.5',
                                 color: 'var(--semi-color-text-2)',
                               }}
@@ -888,7 +903,9 @@ const NotificationSettings = ({
                                       ? ''
                                       : 'opacity-50'
                                   }`}
-                                  bodyStyle={{ padding: '16px' }}
+                                  bodyStyle={{
+                                    padding: 'calc(var(--na-space-px) * 16)',
+                                  }}
                                   hoverable
                                 >
                                   <div className='flex justify-between items-center h-full'>
@@ -901,10 +918,12 @@ const NotificationSettings = ({
                                         size='small'
                                         className='block'
                                         style={{
-                                          fontSize: '12px',
+                                          fontSize:
+                                            'calc(var(--na-space-px) * 12)',
                                           lineHeight: '1.5',
                                           color: 'var(--semi-color-text-2)',
-                                          marginTop: '4px',
+                                          marginTop:
+                                            'calc(var(--na-space-px) * 4)',
                                         }}
                                       >
                                         {module.description}

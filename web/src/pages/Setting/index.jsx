@@ -60,7 +60,13 @@ const Setting = () => {
   if (isRoot()) {
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <Settings size={18} />
           {t('运营设置')}
         </span>
@@ -70,7 +76,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <LayoutDashboard size={18} />
           {t('仪表盘设置')}
         </span>
@@ -80,7 +92,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <MessageSquare size={18} />
           {t('聊天设置')}
         </span>
@@ -90,7 +108,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <Palette size={18} />
           {t('绘图设置')}
         </span>
@@ -100,7 +124,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <CreditCard size={18} />
           {t('支付设置')}
         </span>
@@ -110,7 +140,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <Calculator size={18} />
           {t('分组与模型定价设置')}
         </span>
@@ -120,7 +156,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <Gauge size={18} />
           {t('速率限制设置')}
         </span>
@@ -130,7 +172,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <Shapes size={18} />
           {t('模型相关设置')}
         </span>
@@ -140,7 +188,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <Server size={18} />
           {t('模型部署设置')}
         </span>
@@ -150,7 +204,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <Activity size={18} />
           {t('性能设置')}
         </span>
@@ -160,7 +220,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <Cog size={18} />
           {t('系统设置')}
         </span>
@@ -170,7 +236,13 @@ const Setting = () => {
     });
     panes.push({
       tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'calc(var(--na-space-px) * 5)',
+          }}
+        >
           <MoreHorizontal size={18} />
           {t('其他设置')}
         </span>
@@ -193,10 +265,11 @@ const Setting = () => {
     }
   }, [location.search]);
   return (
-    <div className='mt-[60px] px-2'>
-      <Layout>
+    <div className='na-settings-page-shell'>
+      <Layout className='na-settings-layout'>
         <Layout.Content>
           <Tabs
+            className='na-settings-tabs'
             type='card'
             collapsible
             activeKey={tabActiveKey}

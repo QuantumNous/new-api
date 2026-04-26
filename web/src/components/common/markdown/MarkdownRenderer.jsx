@@ -75,16 +75,11 @@ export function Mermaid(props) {
 
   return (
     <div
-      className={clsx('mermaid-container')}
-      style={{
-        cursor: 'pointer',
-        overflow: 'auto',
-        padding: '12px',
-        border: '1px solid var(--semi-color-border)',
-        borderRadius: '8px',
-        backgroundColor: 'var(--semi-color-bg-1)',
-        margin: '12px 0',
-      }}
+      className={clsx(
+        'mermaid-container',
+        'na-markdown-panel',
+        'na-markdown-mermaid',
+      )}
       ref={ref}
       onClick={() => viewSvgInNewWindow()}
     >
@@ -124,13 +119,9 @@ function SandboxedHtmlPreview({ code }) {
       sandbox='allow-same-origin'
       srcDoc={code}
       title='HTML Preview'
+      className='na-markdown-preview-frame'
       style={{
-        width: '100%',
         height: `${iframeHeight}px`,
-        border: 'none',
-        overflow: 'auto',
-        backgroundColor: '#fff',
-        borderRadius: '4px',
       }}
     />
   );
@@ -188,33 +179,8 @@ export function PreCode(props) {
 
   return (
     <>
-      <pre
-        ref={ref}
-        style={{
-          position: 'relative',
-          backgroundColor: 'var(--semi-color-fill-0)',
-          border: '1px solid var(--semi-color-border)',
-          borderRadius: '6px',
-          padding: '12px',
-          margin: '12px 0',
-          overflow: 'auto',
-          fontSize: '14px',
-          lineHeight: '1.4',
-        }}
-      >
-        <div
-          className='copy-code-button'
-          style={{
-            position: 'absolute',
-            top: '8px',
-            right: '8px',
-            display: 'flex',
-            gap: '4px',
-            zIndex: 10,
-            opacity: 0,
-            transition: 'opacity 0.2s ease',
-          }}
-        >
+      <pre ref={ref} className='na-markdown-pre'>
+        <div className='copy-code-button na-markdown-copy-tools'>
           <Tooltip content={t('复制代码')}>
             <Button
               size='small'
@@ -235,14 +201,7 @@ export function PreCode(props) {
                   });
                 }
               }}
-              style={{
-                padding: '4px',
-                backgroundColor: 'var(--semi-color-bg-2)',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                border: '1px solid var(--semi-color-border)',
-                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
-              }}
+              className='na-markdown-copy-button'
             />
           </Tooltip>
         </div>
@@ -252,24 +211,8 @@ export function PreCode(props) {
         <Mermaid code={mermaidCode} key={mermaidCode} />
       )}
       {htmlCode.length > 0 && (
-        <div
-          style={{
-            border: '1px solid var(--semi-color-border)',
-            borderRadius: '8px',
-            padding: '16px',
-            margin: '12px 0',
-            backgroundColor: 'var(--semi-color-bg-1)',
-          }}
-        >
-          <div
-            style={{
-              marginBottom: '8px',
-              fontSize: '12px',
-              color: 'var(--semi-color-text-2)',
-            }}
-          >
-            HTML预览:
-          </div>
+        <div className='na-markdown-html-preview'>
+          <div className='na-markdown-html-label'>HTML预览:</div>
           <SandboxedHtmlPreview code={htmlCode} />
         </div>
       )}
@@ -298,16 +241,7 @@ function CustomCode(props) {
   const renderShowMoreButton = () => {
     if (showToggle && collapsed) {
       return (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '8px',
-            right: '8px',
-            left: '8px',
-            display: 'flex',
-            justifyContent: 'center',
-          }}
-        >
+        <div className='na-markdown-more'>
           <Button size='small' onClick={toggleCollapsed} theme='solid'>
             {t('显示更多')}
           </Button>
@@ -318,19 +252,12 @@ function CustomCode(props) {
   };
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className='na-markdown-code-wrap'>
       <code
-        className={clsx(props?.className)}
+        className={clsx(props?.className, 'na-markdown-code')}
         ref={ref}
         style={{
-          maxHeight: collapsed ? '400px' : 'none',
-          overflowY: 'hidden',
-          display: 'block',
-          padding: '8px 12px',
-          backgroundColor: 'var(--semi-color-fill-0)',
-          borderRadius: '4px',
-          fontSize: '13px',
-          lineHeight: '1.4',
+          maxHeight: collapsed ? '25rem' : 'none',
         }}
       >
         {props.children}
@@ -392,6 +319,7 @@ function _MarkdownContent(props) {
 
   // 判断是否为用户消息
   const isUserMessage = className && className.includes('user-message');
+  const userMessageClass = isUserMessage ? 'na-markdown-user' : '';
 
   const rehypePluginsBase = useMemo(() => {
     const base = [
@@ -421,17 +349,14 @@ function _MarkdownContent(props) {
           <p
             {...pProps}
             dir='auto'
-            style={{
-              lineHeight: '1.6',
-              color: isUserMessage ? 'white' : 'inherit',
-            }}
+            className={clsx('na-markdown-paragraph', userMessageClass)}
           />
         ),
         a: (aProps) => {
           const href = aProps.href || '';
           if (/\.(aac|mp3|opus|wav)$/.test(href)) {
             return (
-              <figure style={{ margin: '12px 0' }}>
+              <figure style={{ margin: 'var(--na-space-3) 0' }}>
                 <audio controls src={href} style={{ width: '100%' }}></audio>
               </figure>
             );
@@ -440,7 +365,11 @@ function _MarkdownContent(props) {
             return (
               <video
                 controls
-                style={{ width: '100%', maxWidth: '100%', margin: '12px 0' }}
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  margin: 'var(--na-space-3) 0',
+                }}
               >
                 <source src={href} />
               </video>
@@ -452,177 +381,116 @@ function _MarkdownContent(props) {
             <a
               {...aProps}
               target={target}
-              style={{
-                color: isUserMessage ? '#87CEEB' : 'var(--semi-color-primary)',
-                textDecoration: 'none',
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.textDecoration = 'underline';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.textDecoration = 'none';
-              }}
+              className={clsx('na-markdown-link', userMessageClass)}
             />
           );
         },
         h1: (props) => (
           <h1
             {...props}
-            style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              margin: '20px 0 12px 0',
-              color: isUserMessage ? 'white' : 'var(--semi-color-text-0)',
-            }}
+            className={clsx(
+              'na-markdown-heading',
+              'na-markdown-h1',
+              userMessageClass,
+            )}
           />
         ),
         h2: (props) => (
           <h2
             {...props}
-            style={{
-              fontSize: '20px',
-              fontWeight: 'bold',
-              margin: '18px 0 10px 0',
-              color: isUserMessage ? 'white' : 'var(--semi-color-text-0)',
-            }}
+            className={clsx(
+              'na-markdown-heading',
+              'na-markdown-h2',
+              userMessageClass,
+            )}
           />
         ),
         h3: (props) => (
           <h3
             {...props}
-            style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              margin: '16px 0 8px 0',
-              color: isUserMessage ? 'white' : 'var(--semi-color-text-0)',
-            }}
+            className={clsx(
+              'na-markdown-heading',
+              'na-markdown-h3',
+              userMessageClass,
+            )}
           />
         ),
         h4: (props) => (
           <h4
             {...props}
-            style={{
-              fontSize: '16px',
-              fontWeight: 'bold',
-              margin: '14px 0 6px 0',
-              color: isUserMessage ? 'white' : 'var(--semi-color-text-0)',
-            }}
+            className={clsx(
+              'na-markdown-heading',
+              'na-markdown-h4',
+              userMessageClass,
+            )}
           />
         ),
         h5: (props) => (
           <h5
             {...props}
-            style={{
-              fontSize: '14px',
-              fontWeight: 'bold',
-              margin: '12px 0 4px 0',
-              color: isUserMessage ? 'white' : 'var(--semi-color-text-0)',
-            }}
+            className={clsx(
+              'na-markdown-heading',
+              'na-markdown-h5',
+              userMessageClass,
+            )}
           />
         ),
         h6: (props) => (
           <h6
             {...props}
-            style={{
-              fontSize: '13px',
-              fontWeight: 'bold',
-              margin: '10px 0 4px 0',
-              color: isUserMessage ? 'white' : 'var(--semi-color-text-0)',
-            }}
+            className={clsx(
+              'na-markdown-heading',
+              'na-markdown-h6',
+              userMessageClass,
+            )}
           />
         ),
         blockquote: (props) => (
           <blockquote
             {...props}
-            style={{
-              borderLeft: isUserMessage
-                ? '4px solid rgba(255, 255, 255, 0.5)'
-                : '4px solid var(--semi-color-primary)',
-              paddingLeft: '16px',
-              margin: '12px 0',
-              backgroundColor: isUserMessage
-                ? 'rgba(255, 255, 255, 0.1)'
-                : 'var(--semi-color-fill-0)',
-              padding: '8px 16px',
-              borderRadius: '0 4px 4px 0',
-              fontStyle: 'italic',
-              color: isUserMessage ? 'white' : 'inherit',
-            }}
+            className={clsx('na-markdown-blockquote', userMessageClass)}
           />
         ),
         ul: (props) => (
           <ul
             {...props}
-            style={{
-              margin: '8px 0',
-              paddingLeft: '20px',
-              color: isUserMessage ? 'white' : 'inherit',
-            }}
+            className={clsx('na-markdown-list', userMessageClass)}
           />
         ),
         ol: (props) => (
           <ol
             {...props}
-            style={{
-              margin: '8px 0',
-              paddingLeft: '20px',
-              color: isUserMessage ? 'white' : 'inherit',
-            }}
+            className={clsx('na-markdown-list', userMessageClass)}
           />
         ),
         li: (props) => (
           <li
             {...props}
-            style={{
-              margin: '4px 0',
-              lineHeight: '1.6',
-              color: isUserMessage ? 'white' : 'inherit',
-            }}
+            className={clsx('na-markdown-list-item', userMessageClass)}
           />
         ),
         table: (props) => (
-          <div style={{ overflow: 'auto', margin: '12px 0' }}>
+          <div className='na-markdown-table-wrap'>
             <table
               {...props}
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                border: isUserMessage
-                  ? '1px solid rgba(255, 255, 255, 0.3)'
-                  : '1px solid var(--semi-color-border)',
-                borderRadius: '6px',
-                overflow: 'hidden',
-              }}
+              className={clsx('na-markdown-table', userMessageClass)}
             />
           </div>
         ),
         th: (props) => (
           <th
             {...props}
-            style={{
-              padding: '8px 12px',
-              backgroundColor: isUserMessage
-                ? 'rgba(255, 255, 255, 0.2)'
-                : 'var(--semi-color-fill-1)',
-              border: isUserMessage
-                ? '1px solid rgba(255, 255, 255, 0.3)'
-                : '1px solid var(--semi-color-border)',
-              fontWeight: 'bold',
-              textAlign: 'left',
-              color: isUserMessage ? 'white' : 'inherit',
-            }}
+            className={clsx(
+              'na-markdown-table-cell',
+              'na-markdown-table-head',
+              userMessageClass,
+            )}
           />
         ),
         td: (props) => (
           <td
             {...props}
-            style={{
-              padding: '8px 12px',
-              border: isUserMessage
-                ? '1px solid rgba(255, 255, 255, 0.3)'
-                : '1px solid var(--semi-color-border)',
-              color: isUserMessage ? 'white' : 'inherit',
-            }}
+            className={clsx('na-markdown-table-cell', userMessageClass)}
           />
         ),
       }}
@@ -661,25 +529,8 @@ export function MarkdownRenderer(props) {
       {...otherProps}
     >
       {loading ? (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '16px',
-            color: 'var(--semi-color-text-2)',
-          }}
-        >
-          <div
-            style={{
-              width: '16px',
-              height: '16px',
-              border: '2px solid var(--semi-color-border)',
-              borderTop: '2px solid var(--semi-color-primary)',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-            }}
-          />
+        <div className='na-markdown-loading'>
+          <div className='na-markdown-spinner' />
           正在渲染...
         </div>
       ) : (

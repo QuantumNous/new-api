@@ -42,6 +42,7 @@ import CCSwitchModal from './modals/CCSwitchModal';
 import { useTokensData } from '../../../hooks/tokens/useTokensData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { Copy, Eye, KeyRound, Rows3, ShieldCheck } from 'lucide-react';
 
 function TokensPage() {
   // Define the function first, then pass it into the hook to avoid TDZ errors
@@ -66,6 +67,33 @@ function TokensPage() {
   const [prefillKey, setPrefillKey] = useState('');
   const [ccSwitchVisible, setCCSwitchVisible] = useState(false);
   const [ccSwitchKey, setCCSwitchKey] = useState('');
+  const visibleTokenCount = tokensData.tokens?.length || 0;
+  const selectedTokenCount = tokensData.selectedKeys?.length || 0;
+  const revealedTokenCount = Object.values(tokensData.showKeys || {}).filter(
+    Boolean,
+  ).length;
+  const tokenSummaryItems = [
+    {
+      icon: KeyRound,
+      label: tokensData.t('令牌总数'),
+      value: tokensData.tokenCount,
+    },
+    {
+      icon: Rows3,
+      label: tokensData.t('当前视图'),
+      value: visibleTokenCount,
+    },
+    {
+      icon: Copy,
+      label: tokensData.t('已选择'),
+      value: selectedTokenCount,
+    },
+    {
+      icon: Eye,
+      label: tokensData.t('已显示密钥'),
+      value: revealedTokenCount,
+    },
+  ];
 
   // Keep latest data for handlers inside notifications
   useEffect(() => {
@@ -376,7 +404,7 @@ function TokensPage() {
   } = tokensData;
 
   return (
-    <>
+    <div className='na-token-console'>
       <EditTokenModal
         refresh={refresh}
         editingToken={editingToken}
@@ -391,52 +419,83 @@ function TokensPage() {
         modelOptions={modelOptions}
       />
 
-      <CardPro
-        type='type1'
-        descriptionArea={
-          <TokensDescription
-            compactMode={compactMode}
-            setCompactMode={setCompactMode}
-            t={t}
-          />
-        }
-        actionsArea={
-          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
-            <TokensActions
-              selectedKeys={selectedKeys}
-              setEditingToken={setEditingToken}
-              setShowEdit={setShowEdit}
-              batchCopyTokens={batchCopyTokens}
-              batchDeleteTokens={batchDeleteTokens}
+      <section className='na-token-console-hero'>
+        <div>
+          <p className='na-token-console-eyebrow'>{t('凭证控制台')}</p>
+          <h1 className='na-token-console-title'>{t('令牌管理')}</h1>
+          <p className='na-token-console-copy'>
+            {t('统一管理 API 令牌、额度限制、模型权限和外部客户端接入凭证。')}
+          </p>
+        </div>
+        <div className='na-token-console-risk'>
+          <ShieldCheck size={16} />
+          <span>{t('密钥默认隐藏，按需查看')}</span>
+        </div>
+      </section>
+
+      <section className='na-token-summary-strip'>
+        {tokenSummaryItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article className='na-token-summary-item' key={item.label}>
+              <Icon className='na-token-summary-icon' aria-hidden />
+              <div>
+                <p>{item.label}</p>
+                <strong>{item.value}</strong>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className='na-token-table-workbench'>
+        <CardPro
+          type='type1'
+          descriptionArea={
+            <TokensDescription
+              compactMode={compactMode}
+              setCompactMode={setCompactMode}
               t={t}
             />
-
-            <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
-              <TokensFilters
-                formInitValues={formInitValues}
-                setFormApi={setFormApi}
-                searchTokens={searchTokens}
-                loading={loading}
-                searching={searching}
+          }
+          actionsArea={
+            <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
+              <TokensActions
+                selectedKeys={selectedKeys}
+                setEditingToken={setEditingToken}
+                setShowEdit={setShowEdit}
+                batchCopyTokens={batchCopyTokens}
+                batchDeleteTokens={batchDeleteTokens}
                 t={t}
               />
+
+              <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
+                <TokensFilters
+                  formInitValues={formInitValues}
+                  setFormApi={setFormApi}
+                  searchTokens={searchTokens}
+                  loading={loading}
+                  searching={searching}
+                  t={t}
+                />
+              </div>
             </div>
-          </div>
-        }
-        paginationArea={createCardProPagination({
-          currentPage: tokensData.activePage,
-          pageSize: tokensData.pageSize,
-          total: tokensData.tokenCount,
-          onPageChange: tokensData.handlePageChange,
-          onPageSizeChange: tokensData.handlePageSizeChange,
-          isMobile: isMobile,
-          t: tokensData.t,
-        })}
-        t={tokensData.t}
-      >
-        <TokensTable {...tokensData} />
-      </CardPro>
-    </>
+          }
+          paginationArea={createCardProPagination({
+            currentPage: tokensData.activePage,
+            pageSize: tokensData.pageSize,
+            total: tokensData.tokenCount,
+            onPageChange: tokensData.handlePageChange,
+            onPageSizeChange: tokensData.handlePageSizeChange,
+            isMobile: isMobile,
+            t: tokensData.t,
+          })}
+          t={tokensData.t}
+        >
+          <TokensTable {...tokensData} />
+        </CardPro>
+      </section>
+    </div>
   );
 }
 

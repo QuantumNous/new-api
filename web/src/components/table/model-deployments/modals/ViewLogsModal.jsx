@@ -384,7 +384,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
   const renderLogEntry = (line, index) => (
     <div
       key={`${index}-${line.slice(0, 20)}`}
-      className='py-1 px-3 hover:bg-gray-50 font-mono text-sm border-b border-gray-100 whitespace-pre-wrap break-words'
+      className='py-1 px-3 hover:bg-semi-color-fill-0 font-mono text-sm border-b border-semi-color-border whitespace-pre-wrap break-words'
     >
       {line}
     </div>
@@ -394,7 +394,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
     <Modal
       title={
         <div className='flex items-center gap-2'>
-          <FaTerminal className='text-blue-500' />
+          <FaTerminal className='text-semi-color-primary' />
           <span>{t('容器日志')}</span>
           <Text type='secondary' size='small'>
             - {deployment?.container_name || deployment?.id}
@@ -409,7 +409,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
       className='logs-modal'
       style={{ top: 20 }}
     >
-      <div className='flex flex-col h-full max-h-[600px]'>
+      <div className='flex flex-col h-full max-h-[calc(var(--na-space-px) * 600)]'>
         {/* Controls */}
         <Card className='mb-4 border-0 shadow-sm'>
           <div className='flex items-center justify-between flex-wrap gap-3'>
@@ -436,7 +436,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                       <span className='font-mono text-xs'>
                         {ctr.container_id}
                       </span>
-                      <span className='text-xs text-gray-500'>
+                      <span className='text-xs text-semi-color-text-2'>
                         {ctr.brand_name || 'IO.NET'}
                         {ctr.hardware ? ` · ${ctr.hardware}` : ''}
                       </span>
@@ -522,7 +522,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
           </div>
 
           {/* Status Info */}
-          <Divider margin='12px' />
+          <Divider margin='calc(var(--na-space-px) * 12)' />
           <div className='flex items-center justify-between'>
             <Space size='large'>
               <Text size='small' type='secondary'>
@@ -550,7 +550,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
 
           {selectedContainerId !== ALL_CONTAINERS && (
             <>
-              <Divider margin='12px' />
+              <Divider margin='calc(var(--na-space-px) * 12)' />
               <div className='flex flex-col gap-3'>
                 <div className='flex items-center justify-between flex-wrap gap-2'>
                   <Space>
@@ -597,7 +597,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                 ) : containerDetails ? (
                   <div className='grid gap-4 md:grid-cols-2 text-sm'>
                     <div className='flex items-center gap-2'>
-                      <FaInfoCircle className='text-blue-500' />
+                      <FaInfoCircle className='text-semi-color-primary' />
                       <Text type='secondary'>{t('硬件')}</Text>
                       <Text>
                         {containerDetails?.brand_name ||
@@ -610,7 +610,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                       </Text>
                     </div>
                     <div className='flex items-center gap-2'>
-                      <FaServer className='text-purple-500' />
+                      <FaServer className='text-semi-color-primary' />
                       <Text type='secondary'>{t('GPU/容器')}</Text>
                       <Text>
                         {containerDetails?.gpus_per_container ??
@@ -648,7 +648,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
 
                 {containerDetails?.events &&
                   containerDetails.events.length > 0 && (
-                    <div className='bg-gray-50 rounded-lg p-3'>
+                    <div className='bg-semi-color-fill-0 rounded-semi-border-radius-medium p-3'>
                       <Text size='small' type='secondary'>
                         {t('最近事件')}
                       </Text>
@@ -660,12 +660,12 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                               key={`${event.time}-${index}`}
                               className='flex gap-3 text-xs font-mono'
                             >
-                              <span className='text-gray-500'>
+                              <span className='text-semi-color-text-2'>
                                 {event.time
                                   ? timestamp2string(event.time)
                                   : '--'}
                               </span>
-                              <span className='text-gray-700 break-all flex-1'>
+                              <span className='text-semi-color-text-1 break-all flex-1'>
                                 {event.message}
                               </span>
                             </div>
@@ -679,11 +679,11 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
         </Card>
 
         {/* Log Content */}
-        <div className='flex-1 flex flex-col border rounded-lg bg-gray-50 overflow-hidden'>
+        <div className='flex-1 flex flex-col border rounded-semi-border-radius-medium bg-semi-color-fill-0 overflow-hidden'>
           <div
             ref={logContainerRef}
             className='flex-1 overflow-y-auto bg-white'
-            style={{ maxHeight: '400px' }}
+            style={{ maxHeight: 'calc(var(--na-space-px) * 400)' }}
           >
             {loading && logLines.length === 0 ? (
               <div className='flex items-center justify-center p-8'>
@@ -695,7 +695,10 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                 description={
                   searchTerm ? t('没有匹配的日志条目') : t('暂无日志')
                 }
-                style={{ padding: '60px 20px' }}
+                style={{
+                  padding:
+                    'calc(var(--na-space-px) * 60) calc(var(--na-space-px) * 20)',
+                }}
               />
             ) : (
               <div>
@@ -706,7 +709,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
 
           {/* Footer status */}
           {logLines.length > 0 && (
-            <div className='flex items-center justify-between px-3 py-2 bg-gray-50 border-t text-xs text-gray-500'>
+            <div className='flex items-center justify-between px-3 py-2 bg-semi-color-fill-0 border-t text-xs text-semi-color-text-2'>
               <span>{following ? t('正在跟随最新日志') : t('日志已加载')}</span>
               <span>
                 {t('最后更新')}:{' '}

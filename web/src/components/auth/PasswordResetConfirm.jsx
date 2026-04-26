@@ -104,38 +104,29 @@ const PasswordResetConfirm = () => {
   }
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        <div className='flex flex-col items-center'>
-          <div className='w-full max-w-md'>
-            <div className='flex items-center justify-center mb-6 gap-2'>
-              <img src={logo} alt='Logo' className='h-10 rounded-full' />
-              <Title heading={3} className='!text-gray-800'>
+    <div className='na-auth-page'>
+      <div className='na-auth-shell'>
+        <div className='na-auth-stack'>
+          <div className='na-auth-panel'>
+            <div className='na-brand-lockup'>
+              <img src={logo} alt='Logo' className='na-brand-logo' />
+              <Title heading={3} className='na-brand-title'>
                 {systemName}
               </Title>
             </div>
 
-            <Card className='border-0 !rounded-2xl overflow-hidden'>
-              <div className='flex justify-center pt-6 pb-2'>
-                <Title heading={3} className='text-gray-800 dark:text-gray-200'>
+            <Card className='na-auth-card'>
+              <div className='na-auth-card-title'>
+                <Title heading={3} className='na-auth-title'>
                   {t('密码重置确认')}
                 </Title>
               </div>
-              <div className='px-2 py-8'>
+              <div className='na-auth-card-body'>
                 {!isValidResetLink && (
                   <Banner
                     type='danger'
                     description={t('无效的重置链接，请重新发起密码重置请求')}
-                    className='mb-4 !rounded-lg'
+                    className='na-auth-options-spaced'
                     closeIcon={null}
                   />
                 )}
@@ -145,7 +136,7 @@ const PasswordResetConfirm = () => {
                     email: email || '',
                     newPassword: newPassword || '',
                   }}
-                  className='space-y-4'
+                  className='na-auth-form'
                 >
                   <Form.Input
                     field='email'
@@ -181,10 +172,10 @@ const PasswordResetConfirm = () => {
                     />
                   )}
 
-                  <div className='space-y-2 pt-2'>
+                  <div className='na-auth-actions'>
                     <Button
                       theme='solid'
-                      className='w-full !rounded-full'
+                      className='na-auth-primary-button'
                       type='primary'
                       htmlType='submit'
                       onClick={handleSubmit}
@@ -198,14 +189,9 @@ const PasswordResetConfirm = () => {
                   </div>
                 </Form>
 
-                <div className='mt-6 text-center text-sm'>
+                <div className='na-auth-link-row'>
                   <Text>
-                    <Link
-                      to='/login'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
-                    >
-                      {t('返回登录')}
-                    </Link>
+                    <Link to='/login'>{t('返回登录')}</Link>
                   </Text>
                 </div>
               </div>

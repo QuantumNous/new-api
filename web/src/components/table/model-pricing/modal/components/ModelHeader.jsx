@@ -25,7 +25,7 @@ const { Paragraph } = Typography;
 
 const CARD_STYLES = {
   container:
-    'w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md',
+    'w-12 h-12 rounded-semi-border-radius-large flex items-center justify-center relative shadow-md',
   icon: 'w-8 h-8 flex items-center justify-center',
 };
 

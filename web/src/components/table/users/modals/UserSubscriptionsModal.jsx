@@ -265,7 +265,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           return (
             <div className='min-w-0'>
               <div className='font-medium truncate'>{title}</div>
-              <div className='text-xs text-gray-500'>
+              <div className='text-xs text-semi-color-text-2'>
                 {t('来源')}: {sub?.source || '-'}
               </div>
             </div>
@@ -285,7 +285,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         render: (_, record) => {
           const sub = record?.subscription;
           return (
-            <div className='text-xs text-gray-600'>
+            <div className='text-xs text-semi-color-text-1'>
               <div>
                 {t('开始')}: {formatTs(sub?.start_time)}
               </div>

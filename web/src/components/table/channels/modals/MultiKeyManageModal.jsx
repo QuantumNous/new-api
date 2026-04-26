@@ -366,7 +366,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
     //   title: t('密钥预览'),
     //   dataIndex: 'key_preview',
     //   render: (text) => (
-    //     <Text code style={{ fontSize: '12px' }}>
+    //     <Text code style={{ fontSize: 'calc(var(--na-space-px) * 12)' }}>
     //       {text}
     //     </Text>
     //   ),
@@ -385,7 +385,13 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         }
         return (
           <Tooltip content={reason}>
-            <Text style={{ maxWidth: '200px', display: 'block' }} ellipsis>
+            <Text
+              style={{
+                maxWidth: 'calc(var(--na-space-px) * 200)',
+                display: 'block',
+              }}
+              ellipsis
+            >
               {reason}
             </Text>
           </Tooltip>
@@ -401,7 +407,9 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         }
         return (
           <Tooltip content={timestamp2string(time)}>
-            <Text style={{ fontSize: '12px' }}>{timestamp2string(time)}</Text>
+            <Text style={{ fontSize: 'calc(var(--na-space-px) * 12)' }}>
+              {timestamp2string(time)}
+            </Text>
           </Tooltip>
         );
       },
@@ -482,10 +490,11 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       <div className='flex flex-col mb-5'>
         {/* Stats & Mode */}
         <div
-          className='rounded-xl p-4 mb-3'
+          className='rounded-semi-border-radius-large p-4 mb-3'
           style={{
             background: 'var(--semi-color-bg-1)',
-            border: '1px solid var(--semi-color-border)',
+            border:
+              'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
           }}
         >
           <Row gutter={16} align='middle'>
@@ -493,7 +502,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               <div
                 style={{
                   background: 'var(--semi-color-bg-0)',
-                  border: '1px solid var(--semi-color-border)',
+                  border:
+                    'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                   borderRadius: 12,
                   padding: 12,
                 }}
@@ -527,7 +537,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               <div
                 style={{
                   background: 'var(--semi-color-bg-0)',
-                  border: '1px solid var(--semi-color-border)',
+                  border:
+                    'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                   borderRadius: 12,
                   padding: 12,
                 }}
@@ -561,7 +572,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
               <div
                 style={{
                   background: 'var(--semi-color-bg-0)',
-                  border: '1px solid var(--semi-color-border)',
+                  border:
+                    'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                   borderRadius: 12,
                   padding: 12,
                 }}
@@ -597,7 +609,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         {/* Table */}
         <div className='flex-1 flex flex-col min-h-0'>
           <Spin spinning={loading}>
-            <Card className='!rounded-xl'>
+            <Card className='!rounded-semi-border-radius-large'>
               <Table
                 title={() => (
                   <Row gutter={12} style={{ width: '100%' }}>

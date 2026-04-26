@@ -54,7 +54,7 @@ const TransferModal = ({
           <Input
             value={renderQuota(userState?.user?.aff_quota)}
             disabled
-            className='!rounded-lg'
+            className='na-billing-card-soft'
           />
         </div>
         <div>
@@ -66,7 +66,7 @@ const TransferModal = ({
             max={userState?.user?.aff_quota || 0}
             value={transferAmount}
             onChange={(value) => setTransferAmount(value)}
-            className='w-full !rounded-lg'
+            className='w-full na-billing-card-soft'
           />
         </div>
       </div>

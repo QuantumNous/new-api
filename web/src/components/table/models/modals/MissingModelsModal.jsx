@@ -130,7 +130,7 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
       onCancel={onClose}
       footer={null}
       size={isMobile ? 'full-width' : 'medium'}
-      className='!rounded-lg'
+      className='!rounded-semi-border-radius-medium'
     >
       <Spin spinning={loading}>
         {missingModels.length === 0 && !loading ? (

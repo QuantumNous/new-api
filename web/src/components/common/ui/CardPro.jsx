@@ -76,7 +76,7 @@ const CardPro = ({
     if (!hasContent) return null;
 
     return (
-      <div className='flex flex-col w-full'>
+      <div className='na-cardpro-header'>
         {/* 统计信息区域 - 用于type2 */}
         {type === 'type2' && statsArea && <>{statsArea}</>}
 
@@ -88,7 +88,7 @@ const CardPro = ({
         {/* 第一个分隔线 - 在描述信息或统计信息后面 */}
         {((type === 'type1' || type === 'type3') && descriptionArea) ||
         (type === 'type2' && statsArea) ? (
-          <Divider margin='12px' />
+          <Divider margin='var(--na-space-3)' />
         ) : null}
 
         {/* 类型切换/标签区域 - 主要用于type3 */}
@@ -97,7 +97,7 @@ const CardPro = ({
         {/* 移动端操作切换按钮 */}
         {isMobile && hasMobileHideableContent && (
           <>
-            <div className='w-full mb-2'>
+            <div className='na-cardpro-mobile-toggle'>
               <Button
                 onClick={toggleMobileActions}
                 icon={showMobileActions ? <IconEyeClosed /> : <IconEyeOpened />}
@@ -114,7 +114,7 @@ const CardPro = ({
 
         {/* 操作按钮和搜索表单的容器 */}
         <div
-          className={`flex flex-col gap-2 ${isMobile && !showMobileActions ? 'hidden' : ''}`}
+          className={`na-cardpro-actions ${isMobile && !showMobileActions ? 'hidden' : ''}`}
         >
           {/* 操作按钮区域 - 用于type1和type3 */}
           {(type === 'type1' || type === 'type3') &&
@@ -123,18 +123,18 @@ const CardPro = ({
               actionsArea.map((area, idx) => (
                 <React.Fragment key={idx}>
                   {idx !== 0 && <Divider />}
-                  <div className='w-full'>{area}</div>
+                  <div className='na-cardpro-section'>{area}</div>
                 </React.Fragment>
               ))
             ) : (
-              <div className='w-full'>{actionsArea}</div>
+              <div className='na-cardpro-section'>{actionsArea}</div>
             ))}
 
           {/* 当同时存在操作区和搜索区时，插入分隔线 */}
           {actionsArea && searchArea && <Divider />}
 
           {/* 搜索表单区域 - 所有类型都可能有 */}
-          {searchArea && <div className='w-full'>{searchArea}</div>}
+          {searchArea && <div className='na-cardpro-section'>{searchArea}</div>}
         </div>
       </div>
     );
@@ -148,8 +148,7 @@ const CardPro = ({
 
     return (
       <div
-        className={`flex w-full pt-4 border-t ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
-        style={{ borderColor: 'var(--semi-color-border)' }}
+        className={`na-cardpro-footer ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
       >
         {paginationArea}
       </div>
@@ -160,7 +159,7 @@ const CardPro = ({
 
   return (
     <Card
-      className={`table-scroll-card !rounded-2xl ${className}`}
+      className={`table-scroll-card na-cardpro ${className}`}
       title={headerContent}
       footer={footerContent}
       shadows={shadows}

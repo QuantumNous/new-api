@@ -138,7 +138,7 @@ const renderTokenKey = (
   const displayedKey = keyValue ? `sk-${keyValue}` : '';
 
   return (
-    <div className='w-[200px]'>
+    <div className='w-[calc(var(--na-space-px) * 200)]'>
       <Input
         readOnly
         value={displayedKey}
@@ -340,7 +340,11 @@ const renderQuotaUsage = (text, record, t) => {
             stroke={getProgressColor(percent)}
             aria-label='quota usage'
             format={() => `${percent.toFixed(0)}%`}
-            style={{ width: '100%', marginTop: '1px', marginBottom: 0 }}
+            style={{
+              width: '100%',
+              marginTop: 'calc(var(--na-space-px) * 1)',
+              marginBottom: 0,
+            }}
           />
         </div>
       </Tag>

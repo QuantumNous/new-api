@@ -83,7 +83,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       render: (text) => (
         <div
           style={{
-            maxWidth: '300px',
+            maxWidth: 'calc(var(--na-space-px) * 300)',
             wordBreak: 'break-all',
             fontFamily: 'monospace',
             color: 'var(--semi-color-primary)',
@@ -340,7 +340,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
         </div>
       </div>
 
-      <Divider margin='12px' />
+      <Divider margin='calc(var(--na-space-px) * 12)' />
 
       <div className='flex flex-col md:flex-row justify-between items-center gap-4 w-full'>
         <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>

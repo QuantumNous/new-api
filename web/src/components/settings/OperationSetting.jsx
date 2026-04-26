@@ -19,6 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
+import {
+  BookOpen,
+  LayoutPanelLeft,
+  RadioTower,
+  ScrollText,
+  ShieldCheck,
+} from 'lucide-react';
 import SettingsGeneral from '../../pages/Setting/Operation/SettingsGeneral';
 import SettingsHeaderNavModules from '../../pages/Setting/Operation/SettingsHeaderNavModules';
 import SettingsSidebarModulesAdmin from '../../pages/Setting/Operation/SettingsSidebarModulesAdmin';
@@ -28,8 +35,10 @@ import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import { API, showError, toBoolean } from '../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const OperationSetting = () => {
+  const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     /* 额度相关 */
     QuotaForNewUser: 0,
@@ -85,6 +94,8 @@ const OperationSetting = () => {
 
   let [loading, setLoading] = useState(false);
 
+  const enabledLabel = (value) => (value ? t('开启') : t('关闭'));
+
   const getOptions = async () => {
     const res = await API.get('/api/option/');
     const { success, message, data } = res.data;
@@ -119,43 +130,99 @@ const OperationSetting = () => {
     onRefresh();
   }, []);
 
+  const operationSummaryItems = [
+    {
+      icon: BookOpen,
+      label: t('文档入口'),
+      value: inputs['general_setting.docs_link'] ? t('已配置') : t('未配置'),
+    },
+    {
+      icon: LayoutPanelLeft,
+      label: t('默认侧栏'),
+      value: inputs.DefaultCollapseSidebar ? t('默认折叠') : t('默认展开'),
+    },
+    {
+      icon: ScrollText,
+      label: t('消费日志'),
+      value: enabledLabel(inputs.LogConsumeEnabled),
+    },
+    {
+      icon: RadioTower,
+      label: t('自动巡检'),
+      value: enabledLabel(inputs['monitor_setting.auto_test_channel_enabled']),
+    },
+  ];
+
   return (
-    <>
+    <div className='na-operation-console'>
+      <section className='na-operation-console-hero'>
+        <div>
+          <p className='na-operation-console-eyebrow'>{t('系统运营')}</p>
+          <h1 className='na-operation-console-title'>{t('运营设置')}</h1>
+          <p className='na-operation-console-copy'>
+            {t(
+              '管理文档入口、导航模块、日志策略、监控巡检、额度和签到等系统运营参数。',
+            )}
+          </p>
+        </div>
+        <div className='na-operation-console-risk'>
+          <ShieldCheck size={16} />
+          <span>{t('配置变更影响全站')}</span>
+        </div>
+      </section>
+
+      <section className='na-operation-summary-strip'>
+        {operationSummaryItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article className='na-operation-summary-item' key={item.label}>
+              <Icon className='na-operation-summary-icon' aria-hidden />
+              <div>
+                <p>{item.label}</p>
+                <strong>{item.value}</strong>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
       <Spin spinning={loading} size='large'>
-        {/* 通用设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsGeneral options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 顶栏模块管理 */}
-        <div style={{ marginTop: '10px' }}>
-          <SettingsHeaderNavModules options={inputs} refresh={onRefresh} />
+        <div className='na-operation-section-stack'>
+          {/* 通用设置 */}
+          <Card className='na-operation-section-card'>
+            <SettingsGeneral options={inputs} refresh={onRefresh} />
+          </Card>
+          {/* 顶栏模块管理 */}
+          <section className='na-operation-section-card'>
+            <SettingsHeaderNavModules options={inputs} refresh={onRefresh} />
+          </section>
+          {/* 左侧边栏模块管理（管理员） */}
+          <section className='na-operation-section-card'>
+            <SettingsSidebarModulesAdmin options={inputs} refresh={onRefresh} />
+          </section>
+          {/* 屏蔽词过滤设置 */}
+          <Card className='na-operation-section-card'>
+            <SettingsSensitiveWords options={inputs} refresh={onRefresh} />
+          </Card>
+          {/* 日志设置 */}
+          <Card className='na-operation-section-card'>
+            <SettingsLog options={inputs} refresh={onRefresh} />
+          </Card>
+          {/* 监控设置 */}
+          <Card className='na-operation-section-card'>
+            <SettingsMonitoring options={inputs} refresh={onRefresh} />
+          </Card>
+          {/* 额度设置 */}
+          <Card className='na-operation-section-card'>
+            <SettingsCreditLimit options={inputs} refresh={onRefresh} />
+          </Card>
+          {/* 签到设置 */}
+          <Card className='na-operation-section-card'>
+            <SettingsCheckin options={inputs} refresh={onRefresh} />
+          </Card>
         </div>
-        {/* 左侧边栏模块管理（管理员） */}
-        <div style={{ marginTop: '10px' }}>
-          <SettingsSidebarModulesAdmin options={inputs} refresh={onRefresh} />
-        </div>
-        {/* 屏蔽词过滤设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsSensitiveWords options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 日志设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsLog options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 监控设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsMonitoring options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 额度设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsCreditLimit options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 签到设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsCheckin options={inputs} refresh={onRefresh} />
-        </Card>
       </Spin>
-    </>
+    </div>
   );
 };
 

@@ -130,10 +130,10 @@ const SecureVerificationModal = ({
       width={460}
       centered
       style={{
-        maxWidth: 'calc(100vw - 32px)',
+        maxWidth: 'calc(100vw - calc(var(--na-space-px) * 32))',
       }}
       bodyStyle={{
-        padding: '20px 24px',
+        padding: 'calc(var(--na-space-px) * 20) calc(var(--na-space-px) * 24)',
       }}
     >
       <div style={{ width: '100%' }}>
@@ -142,8 +142,8 @@ const SecureVerificationModal = ({
           <Typography.Paragraph
             type='tertiary'
             style={{
-              margin: '0 0 20px 0',
-              fontSize: '14px',
+              margin: '0 0 calc(var(--na-space-px) * 20) 0',
+              fontSize: 'calc(var(--na-space-px) * 14)',
               lineHeight: '1.6',
             }}
           >
@@ -161,8 +161,8 @@ const SecureVerificationModal = ({
         >
           {has2FA && (
             <TabPane tab={t('两步验证')} itemKey='2fa'>
-              <div style={{ paddingTop: '20px' }}>
-                <div style={{ marginBottom: '12px' }}>
+              <div style={{ paddingTop: 'calc(var(--na-space-px) * 20)' }}>
+                <div style={{ marginBottom: 'calc(var(--na-space-px) * 12)' }}>
                   <Input
                     placeholder={t('请输入6位验证码或8位备用码')}
                     value={code}
@@ -199,8 +199,8 @@ const SecureVerificationModal = ({
                   size='small'
                   style={{
                     display: 'block',
-                    marginBottom: '20px',
-                    fontSize: '13px',
+                    marginBottom: 'calc(var(--na-space-px) * 20)',
+                    fontSize: 'calc(var(--na-space-px) * 13)',
                     lineHeight: '1.5',
                   }}
                 >
@@ -211,7 +211,7 @@ const SecureVerificationModal = ({
                   style={{
                     display: 'flex',
                     justifyContent: 'flex-end',
-                    gap: '8px',
+                    gap: 'calc(var(--na-space-px) * 8)',
                     flexWrap: 'wrap',
                   }}
                 >
@@ -234,19 +234,20 @@ const SecureVerificationModal = ({
 
           {hasPasskey && passkeySupported && (
             <TabPane tab={t('Passkey')} itemKey='passkey'>
-              <div style={{ paddingTop: '20px' }}>
+              <div style={{ paddingTop: 'calc(var(--na-space-px) * 20)' }}>
                 <div
                   style={{
                     textAlign: 'center',
-                    padding: '24px 16px',
-                    marginBottom: '20px',
+                    padding:
+                      'calc(var(--na-space-px) * 24) calc(var(--na-space-px) * 16)',
+                    marginBottom: 'calc(var(--na-space-px) * 20)',
                   }}
                 >
                   <div
                     style={{
                       width: 56,
                       height: 56,
-                      margin: '0 auto 16px',
+                      margin: '0 auto calc(var(--na-space-px) * 16)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -272,7 +273,10 @@ const SecureVerificationModal = ({
                   </div>
                   <Typography.Title
                     heading={5}
-                    style={{ margin: '0 0 8px', fontSize: '16px' }}
+                    style={{
+                      margin: '0 0 calc(var(--na-space-px) * 8)',
+                      fontSize: 'calc(var(--na-space-px) * 16)',
+                    }}
                   >
                     {t('使用 Passkey 验证')}
                   </Typography.Title>
@@ -281,7 +285,7 @@ const SecureVerificationModal = ({
                     style={{
                       display: 'block',
                       margin: 0,
-                      fontSize: '13px',
+                      fontSize: 'calc(var(--na-space-px) * 13)',
                       lineHeight: '1.5',
                     }}
                   >
@@ -293,7 +297,7 @@ const SecureVerificationModal = ({
                   style={{
                     display: 'flex',
                     justifyContent: 'flex-end',
-                    gap: '8px',
+                    gap: 'calc(var(--na-space-px) * 8)',
                     flexWrap: 'wrap',
                   }}
                 >

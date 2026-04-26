@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Layout } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import TaskLogsTable from './TaskLogsTable';
 import TaskLogsActions from './TaskLogsActions';
@@ -29,13 +28,48 @@ import AudioPreviewModal from './modals/AudioPreviewModal';
 import { useTaskLogsData } from '../../../hooks/task-logs/useTaskLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import {
+  Activity,
+  Clock3,
+  Columns3,
+  FileSearch,
+  ShieldCheck,
+} from 'lucide-react';
 
 const TaskLogsPage = () => {
   const taskLogsData = useTaskLogsData();
   const isMobile = useIsMobile();
+  const visibleTaskCount = taskLogsData.logs?.length || 0;
+  const visibleColumnCount = Object.values(
+    taskLogsData.visibleColumns || {},
+  ).filter(Boolean).length;
+  const taskSummaryItems = [
+    {
+      icon: FileSearch,
+      label: taskLogsData.t('任务总数'),
+      value: taskLogsData.logCount,
+    },
+    {
+      icon: Activity,
+      label: taskLogsData.t('当前视图'),
+      value: visibleTaskCount,
+    },
+    {
+      icon: Columns3,
+      label: taskLogsData.t('显示列'),
+      value: visibleColumnCount,
+    },
+    {
+      icon: Clock3,
+      label: taskLogsData.t('日志角色'),
+      value: taskLogsData.isAdminUser
+        ? taskLogsData.t('管理员视图')
+        : taskLogsData.t('个人视图'),
+    },
+  ];
 
   return (
-    <>
+    <div className='na-task-console'>
       {/* Modals */}
       <ColumnSelectorModal {...taskLogsData} />
       <ContentModal {...taskLogsData} isVideo={false} />
@@ -52,7 +86,42 @@ const TaskLogsPage = () => {
         audioClips={taskLogsData.audioClips}
       />
 
-      <Layout>
+      <section className='na-task-console-hero'>
+        <div>
+          <p className='na-task-console-eyebrow'>
+            {taskLogsData.t('异步任务证据台')}
+          </p>
+          <h1 className='na-task-console-title'>
+            {taskLogsData.t('任务日志')}
+          </h1>
+          <p className='na-task-console-copy'>
+            {taskLogsData.t(
+              '追踪绘图、音频、视频等异步任务的提交时间、完成状态、结果地址和失败原因。',
+            )}
+          </p>
+        </div>
+        <div className='na-task-console-risk'>
+          <ShieldCheck size={16} />
+          <span>{taskLogsData.t('任务证据可回看')}</span>
+        </div>
+      </section>
+
+      <section className='na-task-summary-strip'>
+        {taskSummaryItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article className='na-task-summary-item' key={item.label}>
+              <Icon className='na-task-summary-icon' aria-hidden />
+              <div>
+                <p>{item.label}</p>
+                <strong>{item.value}</strong>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className='na-task-table-workbench'>
         <CardPro
           type='type2'
           statsArea={<TaskLogsActions {...taskLogsData} />}
@@ -70,8 +139,8 @@ const TaskLogsPage = () => {
         >
           <TaskLogsTable {...taskLogsData} />
         </CardPro>
-      </Layout>
-    </>
+      </section>
+    </div>
   );
 };
 

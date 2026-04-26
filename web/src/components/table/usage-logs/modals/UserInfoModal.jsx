@@ -28,16 +28,16 @@ const UserInfoModal = ({
   t,
 }) => {
   const infoItemStyle = {
-    marginBottom: '16px',
+    marginBottom: 'calc(var(--na-space-px) * 16)',
   };
 
   const labelStyle = {
     display: 'flex',
     alignItems: 'center',
-    marginBottom: '2px',
-    fontSize: '12px',
+    marginBottom: 'calc(var(--na-space-px) * 2)',
+    fontSize: 'calc(var(--na-space-px) * 12)',
     color: 'var(--semi-color-text-2)',
-    gap: '6px',
+    gap: 'calc(var(--na-space-px) * 6)',
   };
 
   const renderLabel = (text, type = 'tertiary') => (
@@ -48,7 +48,7 @@ const UserInfoModal = ({
   );
 
   const valueStyle = {
-    fontSize: '14px',
+    fontSize: 'calc(var(--na-space-px) * 14)',
     fontWeight: '600',
     color: 'var(--semi-color-text-0)',
   };
@@ -56,8 +56,8 @@ const UserInfoModal = ({
   const rowStyle = {
     display: 'flex',
     justifyContent: 'space-between',
-    marginBottom: '16px',
-    gap: '20px',
+    marginBottom: 'calc(var(--na-space-px) * 16)',
+    gap: 'calc(var(--na-space-px) * 20)',
   };
 
   const colStyle = {

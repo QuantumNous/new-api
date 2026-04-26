@@ -102,7 +102,7 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
       ? t('Webhook 公钥（测试环境）')
       : t('Webhook 公钥（生产环境）');
 
-      if (values.WaffoPancakeEnabled && !values.WaffoPancakeMerchantID.trim()) {
+    if (values.WaffoPancakeEnabled && !values.WaffoPancakeMerchantID.trim()) {
       showError(t('请输入商户 ID'));
       return;
     }

@@ -73,8 +73,10 @@ const ColumnSelectorModal = ({
         </Checkbox>
       </div>
       <div
-        className='flex flex-wrap max-h-96 overflow-y-auto rounded-lg p-4'
-        style={{ border: '1px solid var(--semi-color-border)' }}
+        className='flex flex-wrap max-h-96 overflow-y-auto rounded-semi-border-radius-medium p-4'
+        style={{
+          border: 'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
+        }}
       >
         {allColumns.map((column) => {
           // Skip admin-only columns for non-admin users

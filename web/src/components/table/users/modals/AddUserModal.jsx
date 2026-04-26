@@ -124,14 +124,14 @@ const AddUserModal = (props) => {
             }}
           >
             <div className='p-2'>
-              <Card className='!rounded-2xl shadow-sm border-0'>
+              <Card className='!rounded-semi-border-radius-large shadow-sm border-0'>
                 <div className='flex items-center mb-2'>
                   <Avatar size='small' color='blue' className='mr-2 shadow-md'>
                     <IconUserAdd size={16} />
                   </Avatar>
                   <div>
                     <Text className='text-lg font-medium'>{t('用户信息')}</Text>
-                    <div className='text-xs text-gray-600'>
+                    <div className='text-xs text-semi-color-text-1'>
                       {t('创建新用户账户')}
                     </div>
                   </div>

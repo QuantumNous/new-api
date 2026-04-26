@@ -1,0 +1,50 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="64"
+  height="64"
+  viewBox="0 0 64 64"
+  role="img"
+  aria-label="MO API"
+>
+  <rect
+    x="5"
+    y="5"
+    width="54"
+    height="54"
+    rx="14"
+    fill="#faf9f5"
+    stroke="#e8e6dc"
+    stroke-width="2"
+  />
+  <path
+    d="M15.5 43.5V20.5L27 35.2L38.5 20.5V43.5"
+    fill="none"
+    stroke="#141413"
+    stroke-width="5.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle
+    cx="46.4"
+    cy="32"
+    r="9.4"
+    fill="#faf9f5"
+    stroke="#c96442"
+    stroke-width="5.2"
+  />
+  <path
+    d="M44.8 16.5C51.4 16.8 56.7 21.6 58 28"
+    fill="none"
+    stroke="#5f6f52"
+    stroke-width="3.2"
+    stroke-linecap="round"
+  />
+  <circle cx="52.8" cy="17.9" r="3.4" fill="#d97757" />
+  <path
+    d="M20 49.5H44"
+    fill="none"
+    stroke="#dedcd1"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+</svg>

@@ -49,7 +49,7 @@ const UptimePanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
+      className='na-dashboard-panel lg:col-span-1'
       title={
         <div className='flex items-center justify-between w-full gap-2'>
           <div className='flex items-center gap-2'>
@@ -63,7 +63,7 @@ const UptimePanel = ({
             size='small'
             theme='borderless'
             type='tertiary'
-            className='text-gray-500 hover:text-blue-500 hover:bg-blue-50 !rounded-full'
+            className='na-icon-button'
           />
         </div>
       }
@@ -74,7 +74,7 @@ const UptimePanel = ({
         <Spin spinning={uptimeLoading}>
           {uptimeData.length > 0 ? (
             uptimeData.length === 1 ? (
-              <ScrollableContainer maxHeight='24rem'>
+              <ScrollableContainer maxHeight='var(--na-space-96)'>
                 {renderMonitorList(uptimeData[0].monitors)}
               </ScrollableContainer>
             ) : (
@@ -107,7 +107,7 @@ const UptimePanel = ({
                     itemKey={group.categoryName}
                     key={groupIdx}
                   >
-                    <ScrollableContainer maxHeight='21.5rem'>
+                    <ScrollableContainer maxHeight='var(--na-space-86)'>
                       {renderMonitorList(group.monitors)}
                     </ScrollableContainer>
                   </TabPane>
@@ -115,7 +115,7 @@ const UptimePanel = ({
               </Tabs>
             )
           ) : (
-            <div className='flex justify-center items-center py-8'>
+            <div className='na-dashboard-empty'>
               <Empty
                 image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
                 darkModeImage={
@@ -131,15 +131,17 @@ const UptimePanel = ({
 
       {/* 图例 */}
       {uptimeData.length > 0 && (
-        <div className='p-3 bg-gray-50 rounded-b-2xl'>
-          <div className='flex flex-wrap gap-3 text-xs justify-center'>
+        <div className='na-dashboard-footer-legend'>
+          <div className='na-dashboard-legend'>
             {uptimeLegendData.map((legend, index) => (
-              <div key={index} className='flex items-center gap-1'>
+              <div key={index} className='na-dashboard-legend-item'>
                 <div
-                  className='w-2 h-2 rounded-full'
+                  className='na-dashboard-status-dot'
                   style={{ backgroundColor: legend.color }}
                 />
-                <span className='text-gray-600'>{legend.label}</span>
+                <span className='na-dashboard-legend-label'>
+                  {legend.label}
+                </span>
               </div>
             ))}
           </div>

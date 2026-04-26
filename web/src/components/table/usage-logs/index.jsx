@@ -29,13 +29,46 @@ import ParamOverrideModal from './modals/ParamOverrideModal';
 import { useLogsData } from '../../../hooks/usage-logs/useUsageLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import {
+  Activity,
+  CircleAlert,
+  FileSearch,
+  Gauge,
+  ShieldCheck,
+} from 'lucide-react';
+import { renderQuota } from '../../../helpers';
 
 const LogsPage = () => {
   const logsData = useLogsData();
   const isMobile = useIsMobile();
+  const visibleLogCount = logsData.logs?.length || 0;
+  const logSummaryItems = [
+    {
+      icon: FileSearch,
+      label: logsData.t('日志总数'),
+      value: logsData.logCount,
+    },
+    {
+      icon: Activity,
+      label: logsData.t('当前视图'),
+      value: visibleLogCount,
+    },
+    {
+      icon: Gauge,
+      label: logsData.t('消耗额度'),
+      value: logsData.showStat ? renderQuota(logsData.stat?.quota || 0) : '-',
+    },
+    {
+      icon: CircleAlert,
+      label: logsData.t('日志角色'),
+      value: logsData.isAdminUser
+        ? logsData.t('管理员视图')
+        : logsData.t('个人视图'),
+    },
+  ];
 
   return (
-    <>
+    <div className='na-log-console'>
       {/* Modals */}
       <ColumnSelectorModal {...logsData} />
       <UserInfoModal {...logsData} />
@@ -43,24 +76,57 @@ const LogsPage = () => {
       <ParamOverrideModal {...logsData} />
 
       {/* Main Content */}
-      <CardPro
-        type='type2'
-        statsArea={<LogsActions {...logsData} />}
-        searchArea={<LogsFilters {...logsData} />}
-        paginationArea={createCardProPagination({
-          currentPage: logsData.activePage,
-          pageSize: logsData.pageSize,
-          total: logsData.logCount,
-          onPageChange: logsData.handlePageChange,
-          onPageSizeChange: logsData.handlePageSizeChange,
-          isMobile: isMobile,
-          t: logsData.t,
+      <section className='na-log-console-hero'>
+        <div>
+          <p className='na-log-console-eyebrow'>{logsData.t('请求证据台')}</p>
+          <h1 className='na-log-console-title'>{logsData.t('使用日志')}</h1>
+          <p className='na-log-console-copy'>
+            {logsData.t(
+              '按时间、令牌、模型、分组和 Request ID 追踪调用证据、计费过程与错误上下文。',
+            )}
+          </p>
+        </div>
+        <div className='na-log-console-risk'>
+          <ShieldCheck size={16} />
+          <span>{logsData.t('审计证据可追踪')}</span>
+        </div>
+      </section>
+
+      <section className='na-log-summary-strip'>
+        {logSummaryItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article className='na-log-summary-item' key={item.label}>
+              <Icon className='na-log-summary-icon' aria-hidden />
+              <div>
+                <p>{item.label}</p>
+                <strong>{item.value}</strong>
+              </div>
+            </article>
+          );
         })}
-        t={logsData.t}
-      >
-        <LogsTable {...logsData} />
-      </CardPro>
-    </>
+      </section>
+
+      <section className='na-log-table-workbench'>
+        <CardPro
+          type='type2'
+          statsArea={<LogsActions {...logsData} />}
+          searchArea={<LogsFilters {...logsData} />}
+          paginationArea={createCardProPagination({
+            currentPage: logsData.activePage,
+            pageSize: logsData.pageSize,
+            total: logsData.logCount,
+            onPageChange: logsData.handlePageChange,
+            onPageSizeChange: logsData.handlePageSizeChange,
+            isMobile: isMobile,
+            t: logsData.t,
+          })}
+          t={logsData.t}
+        >
+          <LogsTable {...logsData} />
+        </CardPro>
+      </section>
+    </div>
   );
 };
 

@@ -285,7 +285,13 @@ const SetupWizard = () => {
                 <Steps.Step
                   key={item.title}
                   title={
-                    <span className={currentStep === index ? 'shine-text' : ''}>
+                    <span
+                      className={
+                        currentStep === index
+                          ? 'text-semi-color-primary font-semibold'
+                          : ''
+                      }
+                    >
                       {item.title}
                     </span>
                   }
@@ -295,7 +301,7 @@ const SetupWizard = () => {
             </Steps>
           </div>
 
-          <Divider margin='12px' />
+          <Divider margin='calc(var(--na-space-px) * 12)' />
 
           {/* 表单容器 */}
           <Form

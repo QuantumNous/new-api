@@ -54,7 +54,7 @@ const STATUS_TAG_CONFIG = {
   deploying: {
     color: 'blue',
     labelKey: '部署中',
-    icon: <FaSpinner size={12} className='text-blue-600' />,
+    icon: <FaSpinner size={12} className='text-semi-color-primary' />,
   },
   pending: {
     color: 'orange',
@@ -64,7 +64,7 @@ const STATUS_TAG_CONFIG = {
   stopped: {
     color: 'grey',
     labelKey: '已停止',
-    icon: <FaStop size={12} className='text-gray-500' />,
+    icon: <FaStop size={12} className='text-semi-color-text-2' />,
   },
   error: {
     color: 'red',
@@ -89,7 +89,7 @@ const STATUS_TAG_CONFIG = {
   'deployment requested': {
     color: 'blue',
     labelKey: '部署请求中',
-    icon: <FaSpinner size={12} className='text-blue-600' />,
+    icon: <FaSpinner size={12} className='text-semi-color-primary' />,
   },
   'termination requested': {
     color: 'orange',
@@ -101,7 +101,7 @@ const STATUS_TAG_CONFIG = {
 const DEFAULT_STATUS_CONFIG = {
   color: 'grey',
   labelKey: null,
-  icon: <FaInfoCircle size={12} className='text-gray-500' />,
+  icon: <FaInfoCircle size={12} className='text-semi-color-text-2' />,
 };
 
 const parsePercentValue = (value) => {
@@ -155,24 +155,24 @@ const getRemainingTheme = (percentRemaining) => {
 
   if (percentRemaining <= 10) {
     return {
-      iconColor: '#ff5a5f',
+      iconColor: 'var(--semi-color-danger)',
       tagColor: 'red',
-      textColor: '#ff5a5f',
+      textColor: 'var(--semi-color-danger)',
     };
   }
 
   if (percentRemaining <= 30) {
     return {
-      iconColor: '#ffb400',
+      iconColor: 'var(--semi-color-warning)',
       tagColor: 'orange',
-      textColor: '#ffb400',
+      textColor: 'var(--semi-color-warning)',
     };
   }
 
   return {
-    iconColor: '#2ecc71',
+    iconColor: 'var(--semi-color-success)',
     tagColor: 'green',
-    textColor: '#2ecc71',
+    textColor: 'var(--semi-color-success)',
   };
 };
 
@@ -215,7 +215,7 @@ const ContainerNameCell = ({ text, record, t }) => {
       <Typography.Text
         type='secondary'
         size='small'
-        className='text-xs cursor-pointer hover:text-blue-600 transition-colors select-all'
+        className='text-xs cursor-pointer hover:text-semi-color-primary transition-colors select-all'
         onClick={handleCopyId}
         title={t('点击复制ID')}
       >
@@ -235,7 +235,7 @@ const renderResourceConfig = (resource, t) => {
     <div className='flex flex-col gap-1'>
       {cpu && (
         <div className='flex items-center gap-1 text-xs'>
-          <FaMicrochip className='text-blue-500' />
+          <FaMicrochip className='text-semi-color-primary' />
           <span>CPU: {cpu}</span>
         </div>
       )}
@@ -247,7 +247,7 @@ const renderResourceConfig = (resource, t) => {
       )}
       {gpu && (
         <div className='flex items-center gap-1 text-xs'>
-          <FaServer className='text-purple-500' />
+          <FaServer className='text-semi-color-primary' />
           <span>GPU: {gpu}</span>
         </div>
       )}
@@ -315,21 +315,21 @@ export const getDeploymentsColumns = ({
       render: (provider) =>
         provider ? (
           <div
-            className='flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide'
+            className='flex items-center gap-1.5 rounded-semi-border-radius-full border px-2 py-0.5 text-[calc(var(--na-space-px) * 10)] font-medium uppercase tracking-wide'
             style={{
-              borderColor: 'rgba(59, 130, 246, 0.4)',
-              backgroundColor: 'rgba(59, 130, 246, 0.08)',
-              color: '#2563eb',
+              borderColor: 'var(--semi-color-primary-light-hover)',
+              backgroundColor: 'var(--semi-color-primary-light-default)',
+              color: 'var(--semi-color-primary)',
             }}
           >
-            <FaGlobe className='text-[11px]' />
+            <FaGlobe className='text-[calc(var(--na-space-px) * 11)]' />
             <span>{provider}</span>
           </div>
         ) : (
           <Typography.Text
             type='tertiary'
             size='small'
-            className='text-xs text-gray-500'
+            className='text-xs text-semi-color-text-2'
           >
             {t('暂无')}
           </Typography.Text>
@@ -397,20 +397,23 @@ export const getDeploymentsColumns = ({
               <div className='flex items-center gap-3 text-[var(--semi-color-text-2)]'>
                 {humanReadable && (
                   <span className='flex items-center gap-1'>
-                    <FaClock className='text-[11px]' />
+                    <FaClock className='text-[calc(var(--na-space-px) * 11)]' />
                     {t('约')} {humanReadable}
                   </span>
                 )}
                 {percentUsed !== null && (
                   <span className='flex items-center gap-1'>
-                    <FaCheckCircle className='text-[11px]' />
+                    <FaCheckCircle className='text-[calc(var(--na-space-px) * 11)]' />
                     {t('已用')} {percentUsed}%
                   </span>
                 )}
               </div>
             )}
             {showProgress && showRemainingMeta && (
-              <div className='text-[10px]' style={{ color: theme.textColor }}>
+              <div
+                className='text-[calc(var(--na-space-px) * 10)]'
+                style={{ color: theme.textColor }}
+              >
                 {t('剩余')} {record.compute_minutes_remaining} {t('分钟')}
               </div>
             )}
@@ -426,13 +429,13 @@ export const getDeploymentsColumns = ({
       ellipsis: true,
       render: (text, record) => (
         <div className='flex items-center gap-2'>
-          <div className='flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded-md'>
+          <div className='flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded-semi-border-radius-medium'>
             <FaServer className='text-green-600 text-xs' />
             <span className='text-xs font-medium text-green-700'>
               {record.hardware_name}
             </span>
           </div>
-          <span className='text-xs text-gray-500 font-medium'>
+          <span className='text-xs text-semi-color-text-2 font-medium'>
             x{record.hardware_quantity}
           </span>
         </div>
@@ -444,7 +447,9 @@ export const getDeploymentsColumns = ({
       key: COLUMN_KEYS.created_at,
       width: 150,
       render: (text) => (
-        <span className='text-sm text-gray-600'>{timestamp2string(text)}</span>
+        <span className='text-sm text-semi-color-text-1'>
+          {timestamp2string(text)}
+        </span>
       ),
     },
     {

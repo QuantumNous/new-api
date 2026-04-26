@@ -50,10 +50,11 @@ const LogsActions = ({
             color='blue'
             style={{
               fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              boxShadow:
+                '0 calc(var(--na-space-px) * 2) calc(var(--na-space-px) * 8) rgba(0, 0, 0, 0.1)',
               padding: 13,
             }}
-            className='!rounded-lg'
+            className='!rounded-semi-border-radius-medium'
           >
             {t('消耗额度')}: {renderQuota(stat.quota)}
           </Tag>
@@ -61,10 +62,11 @@ const LogsActions = ({
             color='pink'
             style={{
               fontWeight: 500,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              boxShadow:
+                '0 calc(var(--na-space-px) * 2) calc(var(--na-space-px) * 8) rgba(0, 0, 0, 0.1)',
               padding: 13,
             }}
-            className='!rounded-lg'
+            className='!rounded-semi-border-radius-medium'
           >
             RPM: {stat.rpm}
           </Tag>
@@ -72,11 +74,12 @@ const LogsActions = ({
             color='white'
             style={{
               border: 'none',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              boxShadow:
+                '0 calc(var(--na-space-px) * 2) calc(var(--na-space-px) * 8) rgba(0, 0, 0, 0.1)',
               fontWeight: 500,
               padding: 13,
             }}
-            className='!rounded-lg'
+            className='!rounded-semi-border-radius-medium'
           >
             TPM: {stat.tpm}
           </Tag>

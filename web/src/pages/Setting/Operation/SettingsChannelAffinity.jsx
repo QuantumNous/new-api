@@ -358,7 +358,8 @@ export default function SettingsChannelAffinity(props) {
               padding: 10,
               borderRadius: 8,
               background: 'var(--semi-color-fill-0)',
-              border: '1px solid var(--semi-color-border)',
+              border:
+                'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
             }}
@@ -1219,7 +1220,8 @@ export default function SettingsChannelAffinity(props) {
                       borderRadius: 10,
                       padding: 10,
                       background: 'var(--semi-color-fill-0)',
-                      border: '1px solid var(--semi-color-border)',
+                      border:
+                        'calc(var(--na-space-px) * 1) solid var(--semi-color-border)',
                     }}
                   >
                     <div

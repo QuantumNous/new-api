@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Avatar, Typography, Tag, Space } from '@douyinfe/semi-ui';
+import { Card, Avatar, Typography, Tag, Space } from '@douyinfe/semi-ui';
 import { IconInfoCircle } from '@douyinfe/semi-icons';
 import { stringToColor } from '../../../../../helpers';
 
@@ -58,19 +58,19 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
   };
 
   return (
-    <div>
+    <Card className='!rounded-semi-border-radius-large shadow-sm border-0 mb-6'>
       <div className='flex items-center mb-4'>
         <Avatar size='small' color='blue' className='mr-2 shadow-md'>
           <IconInfoCircle size={16} />
         </Avatar>
         <div>
           <Text className='text-lg font-medium'>{t('基本信息')}</Text>
-          <div className='text-xs text-gray-600'>
+          <div className='text-xs text-semi-color-text-1'>
             {t('模型的详细描述和基本特性')}
           </div>
         </div>
       </div>
-      <div className='text-gray-600'>
+      <div className='text-semi-color-text-1'>
         <p className='mb-4'>{getModelDescription()}</p>
         {getModelTags().length > 0 && (
           <Space wrap>
@@ -82,7 +82,7 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
           </Space>
         )}
       </div>
-    </div>
+    </Card>
   );
 };
 

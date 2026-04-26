@@ -37,7 +37,7 @@ const AnnouncementsPanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-2'
+      className='na-dashboard-panel lg:col-span-2'
       title={
         <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 w-full'>
           <div className='flex items-center gap-2'>
@@ -48,27 +48,29 @@ const AnnouncementsPanel = ({
             </Tag>
           </div>
           {/* 图例 */}
-          <div className='flex flex-wrap gap-3 text-xs'>
+          <div className='na-dashboard-legend'>
             {announcementLegendData.map((legend, index) => (
-              <div key={index} className='flex items-center gap-1'>
+              <div key={index} className='na-dashboard-legend-item'>
                 <div
-                  className='w-2 h-2 rounded-full'
+                  className='na-dashboard-status-dot'
                   style={{
                     backgroundColor:
                       legend.color === 'grey'
-                        ? '#8b9aa7'
+                        ? 'var(--na-text-tertiary)'
                         : legend.color === 'blue'
-                          ? '#3b82f6'
+                          ? 'var(--na-color-info)'
                           : legend.color === 'green'
-                            ? '#10b981'
+                            ? 'var(--na-color-success)'
                             : legend.color === 'orange'
-                              ? '#f59e0b'
+                              ? 'var(--na-color-warning)'
                               : legend.color === 'red'
-                                ? '#ef4444'
-                                : '#8b9aa7',
+                                ? 'var(--na-color-error)'
+                                : 'var(--na-text-tertiary)',
                   }}
                 />
-                <span className='text-gray-600'>{legend.label}</span>
+                <span className='na-dashboard-legend-label'>
+                  {legend.label}
+                </span>
               </div>
             ))}
           </div>
@@ -76,7 +78,7 @@ const AnnouncementsPanel = ({
       }
       bodyStyle={{ padding: 0 }}
     >
-      <ScrollableContainer maxHeight='24rem'>
+      <ScrollableContainer maxHeight='var(--na-space-96)'>
         {announcementData.length > 0 ? (
           <Timeline mode='left'>
             {announcementData.map((item, idx) => {
@@ -89,7 +91,7 @@ const AnnouncementsPanel = ({
                   extra={
                     item.extra ? (
                       <div
-                        className='text-xs text-gray-500'
+                        className='na-dashboard-meta'
                         dangerouslySetInnerHTML={{ __html: htmlExtra }}
                       />
                     ) : null
@@ -107,7 +109,7 @@ const AnnouncementsPanel = ({
             })}
           </Timeline>
         ) : (
-          <div className='flex justify-center items-center py-8'>
+          <div className='na-dashboard-empty'>
             <Empty
               image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
               darkModeImage={

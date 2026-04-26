@@ -413,7 +413,7 @@ export const getMjLogsColumns = ({
                 percent={text ? parseInt(text.replace('%', '')) : 0}
                 showInfo={true}
                 aria-label='drawing progress'
-                style={{ minWidth: '160px' }}
+                style={{ minWidth: 'calc(var(--na-space-px) * 160)' }}
               />
             }
           </div>
