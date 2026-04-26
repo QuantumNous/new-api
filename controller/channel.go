@@ -438,6 +438,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
 	}
+	if err := channel.NormalizeSupportedEndpoints(); err != nil {
+		return err
+	}
 
 	// 如果是添加操作，检查 channel 和 key 是否为空
 	if isAdd {

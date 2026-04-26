@@ -211,6 +211,42 @@ func (channel *Channel) GetGroups() []string {
 	return groups
 }
 
+func (channel *Channel) GetSupportedEndpointTypes() []constant.EndpointType {
+	if channel == nil {
+		return []constant.EndpointType{}
+	}
+	return channel.GetSetting().GetSupportedEndpointTypes()
+}
+
+func (channel *Channel) SupportsEndpointType(endpointType constant.EndpointType) bool {
+	if channel == nil {
+		return true
+	}
+	return channel.GetSetting().SupportsEndpointType(endpointType)
+}
+
+func (channel *Channel) NormalizeSupportedEndpoints() error {
+	if channel == nil {
+		return nil
+	}
+	setting := channel.GetSetting()
+	trimmed := strings.TrimSpace(setting.SupportedEndpoints)
+	if trimmed == "" {
+		return nil
+	}
+	endpointTypes := setting.GetSupportedEndpointTypes()
+	if endpoint, ok := lo.Find(endpointTypes, func(endpoint constant.EndpointType) bool {
+		return !constant.IsValidEndpointType(endpoint)
+	}); ok {
+		return fmt.Errorf("unsupported endpoint type: %s", endpoint)
+	}
+	setting.SupportedEndpoints = strings.Join(lo.Map(endpointTypes, func(endpoint constant.EndpointType, _ int) string {
+		return string(endpoint)
+	}), ",")
+	channel.SetSetting(setting)
+	return nil
+}
+
 func (channel *Channel) GetOtherInfo() map[string]interface{} {
 	otherInfo := make(map[string]interface{})
 	if channel.OtherInfo != "" {

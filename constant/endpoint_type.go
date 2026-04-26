@@ -17,3 +17,30 @@ const (
 	//EndpointTypeKling          EndpointType = "kling"
 	//EndpointTypeJimeng         EndpointType = "jimeng"
 )
+
+var AllEndpointTypes = []EndpointType{
+	EndpointTypeOpenAI,
+	EndpointTypeOpenAIResponse,
+	EndpointTypeOpenAIResponseCompact,
+	EndpointTypeAnthropic,
+	EndpointTypeGemini,
+	EndpointTypeJinaRerank,
+}
+
+func NormalizeEndpointType(endpointType string) EndpointType {
+	switch endpointType {
+	case string(EndpointTypeImageGeneration), string(EndpointTypeEmbeddings), string(EndpointTypeOpenAIVideo):
+		return EndpointTypeOpenAI
+	default:
+		return EndpointType(endpointType)
+	}
+}
+
+func IsValidEndpointType(endpointType EndpointType) bool {
+	for _, validEndpointType := range AllEndpointTypes {
+		if validEndpointType == endpointType {
+			return true
+		}
+	}
+	return false
+}

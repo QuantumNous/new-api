@@ -2,11 +2,13 @@ package service
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +17,7 @@ type RetryParam struct {
 	Ctx          *gin.Context
 	TokenGroup   string
 	ModelName    string
+	EndpointType constant.EndpointType
 	Retry        *int
 	resetNextTry bool
 }
@@ -24,6 +27,33 @@ func (p *RetryParam) GetRetry() int {
 		return 0
 	}
 	return *p.Retry
+}
+
+func EndpointTypeFromRelayMode(relayMode int) constant.EndpointType {
+	switch relayMode {
+	case relayconstant.RelayModeResponses:
+		return constant.EndpointTypeOpenAIResponse
+	case relayconstant.RelayModeResponsesCompact:
+		return constant.EndpointTypeOpenAIResponseCompact
+	case relayconstant.RelayModeRerank:
+		return constant.EndpointTypeJinaRerank
+	case relayconstant.RelayModeGemini:
+		return constant.EndpointTypeGemini
+	case relayconstant.RelayModeChatCompletions, relayconstant.RelayModeCompletions, relayconstant.RelayModeModerations,
+		relayconstant.RelayModeEmbeddings, relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits,
+		relayconstant.RelayModeAudioSpeech, relayconstant.RelayModeAudioTranscription, relayconstant.RelayModeAudioTranslation,
+		relayconstant.RelayModeRealtime:
+		return constant.EndpointTypeOpenAI
+	default:
+		return ""
+	}
+}
+
+func EndpointTypeFromPath(path string) constant.EndpointType {
+	if strings.HasPrefix(path, "/v1/messages") {
+		return constant.EndpointTypeAnthropic
+	}
+	return EndpointTypeFromRelayMode(relayconstant.Path2RelayMode(path))
 }
 
 func (p *RetryParam) SetRetry(retry int) {
@@ -115,7 +145,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.EndpointType)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,7 +183,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.EndpointType)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

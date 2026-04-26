@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -103,7 +104,7 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannel(group string, model string, retry int, endpointType constant.EndpointType) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
@@ -120,6 +121,19 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 		return nil, err
 	}
 	channel := Channel{}
+	if endpointType != "" && len(abilities) > 0 {
+		filteredAbilities := make([]Ability, 0, len(abilities))
+		for _, ability := range abilities {
+			ch := Channel{}
+			if err := DB.First(&ch, "id = ?", ability.ChannelId).Error; err != nil {
+				return nil, err
+			}
+			if ch.SupportsEndpointType(endpointType) {
+				filteredAbilities = append(filteredAbilities, ability)
+			}
+		}
+		abilities = filteredAbilities
+	}
 	if len(abilities) > 0 {
 		// Randomly choose one
 		weightSum := uint(0)
