@@ -41,15 +41,19 @@ const UptimePanel = ({
           <Gauge size={16} className='shrink-0' />
           <Widget.Title>{t('服务可用性')}</Widget.Title>
         </div>
+        {/* Force sub-`sm` dimensions: HeroUI Button only ships sm/md/lg, so
+            the trailing refresh action gets `!h-6 !w-6` overrides + a 12px
+            icon to read as a quiet inline affordance instead of a full-size
+            button against the compact 48px header. */}
         <Button
           isIconOnly
           isPending={uptimeLoading}
           size='sm'
           variant='ghost'
           onPress={loadUptimeData}
-          className='rounded-full text-muted hover:text-primary'
+          className='!h-6 !w-6 !min-w-0 rounded-full text-muted hover:text-primary [&_svg]:!size-3'
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={12} />
         </Button>
       </Widget.Header>
       <Widget.Content className='p-0'>
