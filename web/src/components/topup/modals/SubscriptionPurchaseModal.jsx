@@ -84,8 +84,8 @@ const SubscriptionPurchaseModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='lg' placement='center' scroll='inside'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               <div className='flex items-center'>
                 <Crown className='mr-2' size={18} />
                 {t('购买订阅套餐')}
@@ -94,14 +94,14 @@ const SubscriptionPurchaseModal = ({
             <ModalBody className='p-5'>
               {plan ? (
                 <div className='space-y-4 pb-4'>
-                  <Card className='rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-none dark:border-white/10 dark:bg-slate-900/70'>
+                  <Card className='rounded-2xl border border-border bg-surface-secondary/60 p-4 shadow-none'>
                     <div className='space-y-3'>
                       <InfoRow label={`${t('套餐名称')}：`} value={plan.title} />
                       <InfoRow
                         label={`${t('有效期')}：`}
                         value={
                           <span className='flex items-center'>
-                            <CalendarClock size={14} className='mr-1 text-slate-500' />
+                            <CalendarClock size={14} className='mr-1 text-muted' />
                             {formatSubscriptionDuration(plan, t)}
                           </span>
                         }
@@ -116,7 +116,7 @@ const SubscriptionPurchaseModal = ({
                         label={`${t('总额度')}：`}
                         value={
                           <span className='flex items-center'>
-                            <Package size={14} className='mr-1 text-slate-500' />
+                            <Package size={14} className='mr-1 text-muted' />
                             {totalAmount > 0 ? (
                               <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
                                 <span>{renderQuota(totalAmount)}</span>
@@ -133,7 +133,7 @@ const SubscriptionPurchaseModal = ({
                           value={plan.upgrade_group}
                         />
                       ) : null}
-                      <div className='h-px bg-slate-200 dark:bg-white/10' />
+                      <div className='h-px bg-border' />
                       <InfoRow
                         label={`${t('应付金额')}：`}
                         value={
@@ -154,7 +154,7 @@ const SubscriptionPurchaseModal = ({
 
                   {hasAnyPayment ? (
                     <div className='space-y-3'>
-                      <div className='text-sm text-slate-500 dark:text-slate-400'>
+                      <div className='text-sm text-muted'>
                         {t('选择支付方式')}：
                       </div>
 
@@ -195,7 +195,7 @@ const SubscriptionPurchaseModal = ({
                               setSelectedEpayMethod(event.target.value)
                             }
                             disabled={purchaseLimitReached}
-                            className='h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900'
+                            className='h-10 min-w-0 flex-1 rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary disabled:opacity-50'
                           >
                             <option value=''>{t('选择支付方式')}</option>
                             {epayMethods.map((method) => (
@@ -232,10 +232,10 @@ const SubscriptionPurchaseModal = ({
 
 const InfoRow = ({ label, value }) => (
   <div className='flex items-center justify-between gap-4'>
-    <span className='shrink-0 text-sm font-semibold text-slate-700 dark:text-slate-200'>
+    <span className='shrink-0 text-sm font-semibold text-foreground'>
       {label}
     </span>
-    <span className='min-w-0 truncate text-right text-sm text-slate-900 dark:text-slate-100'>
+    <span className='min-w-0 truncate text-right text-sm text-foreground'>
       {value}
     </span>
   </div>

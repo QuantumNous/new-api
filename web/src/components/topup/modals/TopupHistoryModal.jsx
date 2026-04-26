@@ -280,14 +280,14 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       <Modal state={modalState}>
         <ModalBackdrop variant='blur'>
           <ModalContainer size={isMobile ? 'full' : '5xl'} scroll='inside'>
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
                 {t('充值账单')}
               </ModalHeader>
               <ModalBody className='p-4 md:p-6'>
                 <div className='mb-4'>
                   <Input
-                    startContent={<Search size={16} className='text-slate-400' />}
+                    startContent={<Search size={16} className='text-muted' />}
                     placeholder={t('订单号')}
                     value={keyword}
                     onValueChange={handleKeywordChange}
@@ -297,12 +297,12 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
                 </div>
 
                 {loading ? (
-                  <div className='flex flex-col items-center justify-center gap-3 py-12 text-sm text-slate-500 dark:text-slate-400'>
+                  <div className='flex flex-col items-center justify-center gap-3 py-12 text-sm text-muted'>
                     <Spinner />
                     {t('加载中...')}
                   </div>
                 ) : topups.length === 0 ? (
-                  <div className='rounded-2xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:text-slate-400'>
+                  <div className='rounded-2xl border border-dashed border-border py-12 text-center text-sm text-muted'>
                     {t('暂无充值记录')}
                   </div>
                 ) : isMobile ? (
@@ -310,7 +310,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
                     {topups.map((record) => (
                       <div
                         key={record.id}
-                        className='rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-slate-900/60'
+                        className='rounded-2xl border border-border bg-surface-secondary/60 p-4'
                       >
                         <div className='mb-3 flex items-start justify-between gap-3'>
                           {columns[0].render(record.trade_no, record)}
@@ -319,10 +319,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
                         <div className='grid grid-cols-2 gap-3 text-sm'>
                           {columns.slice(1).map((column) => (
                             <div key={column.key}>
-                              <div className='mb-1 text-xs text-slate-500 dark:text-slate-400'>
+                              <div className='mb-1 text-xs text-muted'>
                                 {column.title}
                               </div>
-                              <div className='text-slate-800 dark:text-slate-100'>
+                              <div className='text-foreground'>
                                 {renderCell(record, column) || '-'}
                               </div>
                             </div>
@@ -332,9 +332,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
                     ))}
                   </div>
                 ) : (
-                  <div className='overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/10'>
-                    <table className='min-w-full divide-y divide-slate-200 text-sm dark:divide-white/10'>
-                      <thead className='bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/70 dark:text-slate-400'>
+                  <div className='overflow-x-auto rounded-2xl border border-border'>
+                    <table className='min-w-full divide-y divide-border text-sm'>
+                      <thead className='bg-surface-secondary text-xs uppercase tracking-wide text-muted'>
                         <tr>
                           {columns.map((column) => (
                             <th key={column.key} className='px-4 py-3 text-left font-semibold'>
@@ -343,14 +343,14 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
                           ))}
                         </tr>
                       </thead>
-                      <tbody className='divide-y divide-slate-100 dark:divide-white/10'>
+                      <tbody className='divide-y divide-border'>
                         {topups.map((record) => (
                           <tr
                             key={record.id}
-                            className='bg-white transition hover:bg-slate-50 dark:bg-slate-950/60 dark:hover:bg-slate-900'
+                            className='bg-background transition hover:bg-surface-secondary/60'
                           >
                             {columns.map((column) => (
-                              <td key={column.key} className='px-4 py-3 text-slate-700 dark:text-slate-200'>
+                              <td key={column.key} className='px-4 py-3 text-foreground'>
                                 {renderCell(record, column) || '-'}
                               </td>
                             ))}
@@ -368,7 +368,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
                     onChange={(event) =>
                       handlePageSizeChange(Number(event.target.value || 10))
                     }
-                    className='h-9 w-32 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900'
+                    className='h-9 w-32 rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
                   >
                     {pageSizeOptions.map((option) => (
                       <option key={option.value} value={option.value}>

@@ -146,12 +146,12 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 如果没有内容，显示空状态
   if (!content || content.trim() === '') {
     return (
-      <div className='flex min-h-screen items-center justify-center bg-slate-50 p-6 dark:bg-slate-950'>
+      <div className='flex min-h-screen items-center justify-center bg-surface-secondary p-6'>
         <div className='glass-panel flex max-w-md flex-col items-center gap-4 rounded-[2rem] p-8 text-center'>
           <div className='flex h-24 w-24 items-center justify-center rounded-[2rem] bg-primary/10 text-primary'>
             <Construction size={44} />
           </div>
-          <h2 className='text-lg font-semibold text-slate-950 dark:text-white'>
+          <h2 className='text-lg font-semibold text-foreground'>
             {t('管理员未设置' + title + '内容')}
           </h2>
         </div>
@@ -162,13 +162,13 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 如果是 URL，显示链接卡片
   if (isUrl(content)) {
     return (
-      <div className='flex justify-center items-center min-h-screen bg-slate-50 p-4 dark:bg-slate-950'>
+      <div className='flex justify-center items-center min-h-screen bg-surface-secondary p-4'>
         <div className='glass-panel max-w-md w-full rounded-[2rem] p-8'>
           <div className='text-center'>
-            <h2 className='mb-4 text-xl font-semibold text-slate-950 dark:text-white'>
+            <h2 className='mb-4 text-xl font-semibold text-foreground'>
               {title}
             </h2>
-            <p className='text-gray-600 mb-4'>
+            <p className='text-muted mb-4'>
               {t('管理员设置了外部链接，点击下方按钮访问')}
             </p>
             <a
@@ -190,10 +190,10 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 如果是 HTML 内容，直接渲染
   if (isHtmlContent(content)) {
     return (
-    <div className='min-h-screen bg-slate-50 dark:bg-slate-950'>
+    <div className='min-h-screen bg-surface-secondary'>
       <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
-          <div className='rounded-2xl bg-white p-8 shadow-sm dark:bg-white/[0.03]'>
-            <h1 className='mb-8 text-center text-3xl font-bold text-slate-950 dark:text-white'>
+          <div className='rounded-2xl bg-background p-8 shadow-sm'>
+            <h1 className='mb-8 text-center text-3xl font-bold text-foreground'>
               {title}
             </h1>
             <div
@@ -208,10 +208,10 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
 
   // 其他内容统一使用 Markdown 渲染器
   return (
-    <div className='min-h-screen bg-slate-50 dark:bg-slate-950'>
+    <div className='min-h-screen bg-surface-secondary'>
       <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
-        <div className='rounded-2xl bg-white p-8 shadow-sm dark:bg-white/[0.03]'>
-          <h1 className='mb-8 text-center text-3xl font-bold text-slate-950 dark:text-white'>
+        <div className='rounded-2xl bg-background p-8 shadow-sm'>
+          <h1 className='mb-8 text-center text-3xl font-bold text-foreground'>
             {title}
           </h1>
           <div className='prose prose-lg max-w-none'>

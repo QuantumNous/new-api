@@ -242,7 +242,7 @@ export function PreCode(props) {
                   });
                 }
               }}
-              className='h-8 w-8 rounded-lg bg-white/90 shadow-sm dark:bg-slate-900/90'
+              className='h-8 w-8 rounded-lg bg-background/90 shadow-sm'
             >
               <Copy size={15} />
             </Button>

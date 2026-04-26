@@ -113,8 +113,8 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
           scroll='inside'
           placement='center'
         >
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               <div className='flex items-center gap-2'>
                 <TriangleAlert className='text-warning' size={20} />
                 <span>{title}</span>
@@ -130,7 +130,7 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
             className='flex flex-col gap-2 rounded-2xl border border-warning/30 bg-warning/5 p-3 md:p-4'
           >
             {detailTitle ? <strong className='text-sm'>{detailTitle}</strong> : null}
-            <div className='break-all rounded-xl border border-warning/20 bg-white/80 p-2 font-mono text-xs dark:bg-slate-900/80'>
+            <div className='break-all rounded-xl border border-warning/20 bg-background/80 p-2 font-mono text-xs'>
               {detailText}
             </div>
           </div>
@@ -138,7 +138,7 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
 
         {checklist.length > 0 ? (
           <div
-            className='flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/80 md:p-4'
+            className='flex flex-col gap-3 rounded-2xl border border-border bg-surface-secondary/80 p-3 md:p-4'
           >
             {checklist.map((item, index) => (
               <Checkbox
@@ -157,7 +157,7 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
             className='flex flex-col gap-2 rounded-2xl border border-danger/30 bg-danger/5 p-3 md:p-4'
           >
             {inputPrompt ? <strong className='text-sm'>{inputPrompt}</strong> : null}
-            <div className='break-all rounded-xl border border-danger/20 bg-white/80 p-2 font-mono text-xs dark:bg-slate-900/80'>
+            <div className='break-all rounded-xl border border-danger/20 bg-background/80 p-2 font-mono text-xs'>
               {requiredText}
             </div>
             <Input
@@ -179,7 +179,7 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
         ) : null}
               </div>
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='outline' onPress={onCancel}>
                 {cancelText}
               </Button>

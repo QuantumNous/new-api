@@ -92,7 +92,7 @@ const ColumnSelectorDialog = ({
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='flat' onPress={onReset}>
                 {resetText}
               </Button>

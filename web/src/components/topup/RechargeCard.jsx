@@ -518,13 +518,13 @@ const RechargeCard = ({
                       <Card
                         key={index}
                         onClick={() => creemPreTopUp(product)}
-                        className='cursor-pointer !rounded-2xl transition-all hover:shadow-md border-gray-200 hover:border-gray-300'
+                        className='cursor-pointer !rounded-2xl transition-all hover:shadow-md border-border hover:border-foreground/40'
                         bodyStyle={{ textAlign: 'center', padding: '16px' }}
                       >
-                        <div className='font-medium text-lg mb-2'>
+                        <div className='font-medium text-lg mb-2 text-foreground'>
                           {product.name}
                         </div>
-                        <div className='text-sm text-gray-600 mb-2'>
+                        <div className='text-sm text-muted mb-2'>
                           {t('充值额度')}: {product.quota}
                         </div>
                         <div className='text-lg font-semibold text-blue-600'>

@@ -97,17 +97,17 @@ const SecureVerificationModal = ({
       <Modal state={modalState}>
         <ModalBackdrop variant='blur'>
           <ModalContainer size='md' placement='center'>
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
               <ModalHeader>{title || t('安全验证')}</ModalHeader>
               <ModalBody>
                 <div className='py-6 text-center'>
                   <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-warning/10 text-warning'>
                     <TriangleAlert size={32} />
                   </div>
-                  <h3 className='mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100'>
+                  <h3 className='mb-2 text-lg font-semibold text-foreground'>
                     {t('需要安全验证')}
                   </h3>
-                  <p className='text-sm leading-6 text-slate-500 dark:text-slate-400'>
+                  <p className='text-sm leading-6 text-muted'>
                     {t('您需要先启用两步验证或 Passkey 才能查看敏感信息。')}
                     <br />
                     {t('请前往个人设置 → 安全设置进行配置。')}
@@ -128,13 +128,13 @@ const SecureVerificationModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='md' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
             <ModalHeader>{title || t('安全验证')}</ModalHeader>
             <ModalBody className='px-5 py-5'>
       <div className='w-full'>
         {/* 描述信息 */}
         {description && (
-          <p className='mb-5 text-sm leading-6 text-slate-500 dark:text-slate-400'>
+          <p className='mb-5 text-sm leading-6 text-muted'>
             {description}
           </p>
         )}
@@ -163,7 +163,7 @@ const SecureVerificationModal = ({
                   />
                 </div>
 
-                <p className='mb-5 text-sm leading-6 text-slate-500 dark:text-slate-400'>
+                <p className='mb-5 text-sm leading-6 text-muted'>
                   {t('从认证器应用中获取验证码，或使用备用码')}
                 </p>
 
@@ -190,10 +190,10 @@ const SecureVerificationModal = ({
                   <div className='mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent'>
                     <ShieldCheck size={28} />
                   </div>
-                  <h3 className='mb-2 text-base font-semibold text-slate-900 dark:text-slate-100'>
+                  <h3 className='mb-2 text-base font-semibold text-foreground'>
                     {t('使用 Passkey 验证')}
                   </h3>
-                  <p className='text-sm leading-6 text-slate-500 dark:text-slate-400'>
+                  <p className='text-sm leading-6 text-muted'>
                     {t('点击验证按钮，使用您的生物特征或安全密钥')}
                   </p>
                 </div>

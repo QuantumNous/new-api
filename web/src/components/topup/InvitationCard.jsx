@@ -40,7 +40,7 @@ const InvitationCard = ({
           </Avatar.Fallback>
         </Avatar>
         <div>
-          <div className='text-lg font-medium text-slate-900 dark:text-slate-100'>
+          <div className='text-lg font-medium text-foreground'>
             {t('邀请奖励')}
           </div>
           <div className='text-xs'>{t('邀请好友获得额外奖励')}</div>
@@ -171,7 +171,7 @@ const InvitationCard = ({
         {/* 奖励说明 */}
         <Card className='w-full rounded-xl' shadow='none'>
           <Card.Header>
-            <Card.Title className='text-sm text-slate-500 dark:text-slate-400'>
+            <Card.Title className='text-sm text-muted'>
               {t('奖励说明')}
             </Card.Title>
           </Card.Header>
@@ -179,21 +179,21 @@ const InvitationCard = ({
           <div className='space-y-3'>
             <div className='flex items-start gap-2'>
               <span className='mt-2 size-2 rounded-full bg-emerald-500' />
-              <span className='text-sm text-slate-500 dark:text-slate-400'>
+              <span className='text-sm text-muted'>
                 {t('邀请好友注册，好友充值后您可获得相应奖励')}
               </span>
             </div>
 
             <div className='flex items-start gap-2'>
               <span className='mt-2 size-2 rounded-full bg-emerald-500' />
-              <span className='text-sm text-slate-500 dark:text-slate-400'>
+              <span className='text-sm text-muted'>
                 {t('通过划转功能将奖励额度转入到您的账户余额中')}
               </span>
             </div>
 
             <div className='flex items-start gap-2'>
               <span className='mt-2 size-2 rounded-full bg-emerald-500' />
-              <span className='text-sm text-slate-500 dark:text-slate-400'>
+              <span className='text-sm text-muted'>
                 {t('邀请的好友越多，获得的奖励越多')}
               </span>
             </div>
