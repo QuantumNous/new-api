@@ -269,6 +269,24 @@ const EditChannelModal = (props) => {
       return [];
     }
   }, [inputs.model_mapping]);
+  const redirectModelKeyList = useMemo(() => {
+    const mapping = inputs.model_mapping;
+    if (typeof mapping !== 'string') return [];
+    const trimmed = mapping.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return [];
+      }
+      const keys = Object.keys(parsed)
+        .map((key) => key.trim())
+        .filter((key) => key);
+      return Array.from(new Set(keys));
+    } catch (error) {
+      return [];
+    }
+  }, [inputs.model_mapping]);
   const upstreamDetectedModels = useMemo(
     () =>
       Array.from(
@@ -3842,6 +3860,7 @@ const EditChannelModal = (props) => {
         models={fetchedModels}
         selected={inputs.models}
         redirectModels={redirectModelList}
+        redirectSourceModels={redirectModelKeyList}
         onConfirm={(selectedModels) => {
           handleInputChange('models', selectedModels);
           showSuccess(t('模型列表已更新'));
