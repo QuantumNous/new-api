@@ -14,6 +14,7 @@ import (
 )
 
 func SetRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
+	router.GET("/metrics", middleware.MetricsHandler())
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
