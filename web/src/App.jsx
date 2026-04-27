@@ -49,6 +49,8 @@ import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
+import SkillMarket from './pages/SkillMarket';
+import SkillMarketEditor from './pages/SkillMarket/Editor';
 
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -245,6 +247,22 @@ function App() {
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <DynamicOAuth2Callback />
             </Suspense>
+          }
+        />
+        <Route
+          path='/console/skill-market'
+          element={
+            <AdminRoute>
+              <SkillMarket />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/skill-market/edit/:skillId'
+          element={
+            <AdminRoute>
+              <SkillMarketEditor />
+            </AdminRoute>
           }
         />
         <Route

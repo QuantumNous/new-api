@@ -137,6 +137,53 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		// ==================== MyClaw Client API ====================
+		// 客户端专用接口（手机验证码登录 + 自动 Token 管理），独立于网页登录流程
+		// 安全：CriticalRateLimit + SmsRateLimit 限流；登录响应不含 cookie，仅返回 API Key
+		clientRoute := apiRouter.Group("/client")
+		{
+			clientRoute.POST("/login_sms",
+				middleware.CriticalRateLimit(),
+				middleware.SmsRateLimit(),
+				middleware.TurnstileCheck(),
+				controller.ClientSmsLogin)
+
+			// 基于 API Key 鉴权的客户端自查接口
+			clientRoute.GET("/self",
+				middleware.TokenAuth(),
+				controller.ClientGetSelf)
+
+			// 订阅套餐列表（公开，无需登录）
+			// Subscription plans list (public)
+			clientRoute.GET("/subscription/plans", controller.GetSubscriptionPlans)
+
+			// Public skills list/detail for myclaw skills market
+			clientRoute.GET("/skills", controller.ClientListPublicSkills)
+			clientRoute.GET("/skills/:id", controller.ClientGetPublicSkill)
+			clientRoute.POST("/skills/download/:id", controller.ClientRecordSkillDownload)
+
+			// 客户端发起订阅支付（API Key 鉴权 + 限流）
+			// Client subscription pay (API Key auth + rate limited)
+			clientRoute.POST("/subscription/epay/pay",
+				middleware.TokenAuth(),
+				middleware.CriticalRateLimit(),
+				controller.SubscriptionRequestEpay)
+
+			// SkillHub 下载代理（公开技能下载入口，无需客户端直接访问外网）
+			clientRoute.GET("/skills/skillhub/download",
+				middleware.DownloadRateLimit(),
+				controller.ClientProxySkillHubDownload)
+		}
+
+		clientAdminRoute := apiRouter.Group("/client/admin")
+		clientAdminRoute.Use(middleware.AdminAuth())
+		{
+			clientAdminRoute.GET("/skills", controller.AdminListClientSkills)
+			clientAdminRoute.GET("/skills/:id", controller.AdminGetClientSkill)
+			clientAdminRoute.POST("/skills", controller.AdminCreateClientSkill)
+			clientAdminRoute.PUT("/skills/:id", controller.AdminUpdateClientSkill)
+			clientAdminRoute.PATCH("/skills/:id/status", controller.AdminUpdateClientSkillStatus)
+		}
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())
