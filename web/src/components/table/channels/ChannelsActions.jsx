@@ -56,7 +56,7 @@ function ClickDropdown({ label, items }) {
   return (
     <span ref={ref} className='relative inline-flex w-full md:w-auto'>
       <Button
-        variant='flat'
+        variant='tertiary'
         size='sm'
         className='w-full md:w-auto'
         endContent={<ChevronDown size={14} />}
@@ -217,7 +217,7 @@ const ChannelsActions = ({
 
           <Button
             size='sm'
-            variant='flat'
+            variant='tertiary'
             isDisabled={!enableBatchDelete}
             className='w-full md:w-auto'
             onPress={() => setShowBatchSetTag(true)}

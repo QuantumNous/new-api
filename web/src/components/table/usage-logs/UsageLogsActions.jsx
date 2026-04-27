@@ -44,13 +44,13 @@ const LogsActions = ({
         </div>
       ) : (
         <div className='flex flex-wrap gap-2'>
-          <Chip color='primary' variant='flat' className='rounded-lg px-3 py-4 font-medium shadow-sm'>
+          <Chip color='primary' variant='tertiary' className='rounded-lg px-3 py-4 font-medium shadow-sm'>
             {t('消耗额度')}: {renderQuota(stat.quota)}
           </Chip>
-          <Chip color='secondary' variant='flat' className='rounded-lg px-3 py-4 font-medium shadow-sm'>
+          <Chip color='secondary' variant='tertiary' className='rounded-lg px-3 py-4 font-medium shadow-sm'>
             RPM: {stat.rpm}
           </Chip>
-          <Chip variant='flat' className='rounded-lg px-3 py-4 font-medium shadow-sm'>
+          <Chip variant='tertiary' className='rounded-lg px-3 py-4 font-medium shadow-sm'>
             TPM: {stat.tpm}
           </Chip>
         </div>

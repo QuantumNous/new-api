@@ -148,7 +148,7 @@ const ModelsActions = ({
         </Button>
 
         <Button
-          variant='flat'
+          variant='tertiary'
           size='sm'
           className='flex-1 md:flex-initial'
           onPress={() => setShowMissingModal(true)}
@@ -176,7 +176,7 @@ const ModelsActions = ({
           }
         >
           <Button
-            variant='flat'
+            variant='tertiary'
             size='sm'
             className='flex-1 md:flex-initial'
             isPending={syncing || previewing}
@@ -190,7 +190,7 @@ const ModelsActions = ({
         </HoverPopover>
 
         <Button
-          variant='flat'
+          variant='tertiary'
           size='sm'
           className='flex-1 md:flex-initial'
           onPress={() => setShowGroupManagement(true)}

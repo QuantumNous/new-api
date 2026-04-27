@@ -67,7 +67,7 @@ const CopyTokensModal = ({
               {t('请选择你的复制方式')}
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='flat' onPress={handleCopyWithName}>
+              <Button variant='tertiary' onPress={handleCopyWithName}>
                 {t('名称+密钥')}
               </Button>
               <Button color='primary' onPress={handleCopyKeyOnly}>

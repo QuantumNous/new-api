@@ -235,7 +235,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
               </label>
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={handleCancel}>
+              <Button variant='tertiary' onPress={handleCancel}>
                 {t('取消')}
               </Button>
               <Button color='primary' onPress={submit} isPending={loading}>

@@ -144,7 +144,7 @@ const AdminStep = ({
             </h3>
             <div className='mt-4 space-y-3'>
               <Chip
-                variant='flat'
+                variant='tertiary'
                 color={formData.username ? 'success' : 'default'}
                 className='w-fit'
               >
@@ -152,7 +152,7 @@ const AdminStep = ({
                 {t('用户名')}
               </Chip>
               <Chip
-                variant='flat'
+                variant='tertiary'
                 color={passwordReady ? 'success' : 'warning'}
                 className='w-fit'
               >
@@ -160,7 +160,7 @@ const AdminStep = ({
                 {t('至少8位密码')}
               </Chip>
               <Chip
-                variant='flat'
+                variant='tertiary'
                 color={passwordMatched ? 'success' : 'default'}
                 className='w-fit'
               >

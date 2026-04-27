@@ -392,7 +392,7 @@ const UserBindingManagementModal = ({
                                 </div>
                                 <Button
                                   color='danger'
-                                  variant='light'
+                                  variant='tertiary'
                                   size='sm'
                                   startContent={<Trash2 size={14} />}
                                   isDisabled={!isBound}

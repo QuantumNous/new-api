@@ -193,7 +193,7 @@ function TokenKeyCell({
         />
         <Button
           isIconOnly
-          variant='light'
+          variant='tertiary'
           size='sm'
           aria-label='toggle token visibility'
           isPending={loading}
@@ -218,7 +218,7 @@ function TokenKeyCell({
           trigger={
             <Button
               isIconOnly
-              variant='light'
+              variant='tertiary'
               size='sm'
               aria-label='copy token key'
               isPending={loading}
@@ -437,8 +437,7 @@ function OperationsCell({
 
       {record.status === 1 ? (
         <Button
-          color='danger'
-          variant='flat'
+          variant='danger-soft'
           size='sm'
           onPress={async () => {
             await manageToken(record.id, 'disable', record);
@@ -449,7 +448,7 @@ function OperationsCell({
         </Button>
       ) : (
         <Button
-          variant='flat'
+          variant='tertiary'
           size='sm'
           onPress={async () => {
             await manageToken(record.id, 'enable', record);
@@ -461,7 +460,7 @@ function OperationsCell({
       )}
 
       <Button
-        variant='light'
+        variant='tertiary'
         size='sm'
         onPress={() => {
           setEditingToken(record);
@@ -472,8 +471,7 @@ function OperationsCell({
       </Button>
 
       <Button
-        color='danger'
-        variant='flat'
+        variant='danger-soft'
         size='sm'
         onPress={() => setConfirmDelete(true)}
       >

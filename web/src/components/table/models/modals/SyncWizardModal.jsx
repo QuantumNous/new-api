@@ -201,11 +201,11 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
             </ModalBody>
             <ModalFooter className='border-t border-border'>
               {step === 1 && (
-                <Button variant='light' onPress={() => setStep(0)}>
+                <Button variant='tertiary' onPress={() => setStep(0)}>
                   {t('上一步')}
                 </Button>
               )}
-              <Button variant='light' onPress={onClose}>
+              <Button variant='tertiary' onPress={onClose}>
                 {t('取消')}
               </Button>
               {step === 0 && (

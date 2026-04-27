@@ -513,7 +513,7 @@ function Modal({
               </ModalFooter>
             ) : (
               <ModalFooter className='border-t border-border'>
-                <Button variant='light' onPress={onCancel}>
+                <Button variant='tertiary' onPress={onCancel}>
                   {cancelText}
                 </Button>
                 <Button color='primary' onPress={onOk}>

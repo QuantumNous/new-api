@@ -80,7 +80,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
                   {isElectron ? t('本地数据存储') : isWarning ? t('数据库警告') : t('数据库信息')}
                 </h3>
                 <Chip
-                  variant='flat'
+                  variant='tertiary'
                   color={isWarning ? 'warning' : 'success'}
                   className='w-fit'
                 >

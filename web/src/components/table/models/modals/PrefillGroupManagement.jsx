@@ -182,13 +182,12 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
       width: 140,
       render: (_, record) => (
         <div className='flex items-center gap-2'>
-          <Button size='sm' variant='flat' onPress={() => handleEdit(record)}>
+          <Button size='sm' variant='tertiary' onPress={() => handleEdit(record)}>
             {t('编辑')}
           </Button>
           <Button
             size='sm'
-            color='danger'
-            variant='flat'
+            variant='danger-soft'
             onPress={() => setPendingDelete(record)}
           >
             {t('删除')}
@@ -227,7 +226,7 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
           </div>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={onClose}

@@ -75,7 +75,7 @@ const BatchTagModal = ({
               </div>
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={() => setShowBatchSetTag(false)}>
+              <Button variant='tertiary' onPress={() => setShowBatchSetTag(false)}>
                 {t('取消')}
               </Button>
               <Button color='primary' onPress={batchSetChannelTag}>

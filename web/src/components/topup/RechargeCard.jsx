@@ -233,7 +233,7 @@ const RechargeCard = ({
     const buttonEl = (
       <Button
         key={payMethod.type}
-        variant='bordered'
+        variant='secondary'
         startContent={startIcon}
         onPress={() => preTopUp(payMethod.type)}
         isDisabled={disabled}

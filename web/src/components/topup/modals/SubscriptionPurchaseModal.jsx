@@ -162,11 +162,11 @@ const SubscriptionPurchaseModal = ({
                         <div className='flex gap-2'>
                           {hasStripe && (
                             <Button
-                              variant='flat'
+                              variant='tertiary'
                               className='flex-1'
                               startContent={<SiStripe size={14} color='#635BFF' />}
                               onPress={onPayStripe}
-                              isLoading={paying}
+                              isPending={paying}
                               isDisabled={purchaseLimitReached}
                             >
                               Stripe
@@ -174,11 +174,11 @@ const SubscriptionPurchaseModal = ({
                           )}
                           {hasCreem && (
                             <Button
-                              variant='flat'
+                              variant='tertiary'
                               className='flex-1'
                               startContent={<CreditCard size={16} />}
                               onPress={onPayCreem}
-                              isLoading={paying}
+                              isPending={paying}
                               isDisabled={purchaseLimitReached}
                             >
                               Creem
@@ -207,7 +207,7 @@ const SubscriptionPurchaseModal = ({
                           <Button
                             color='primary'
                             onPress={onPayEpay}
-                            isLoading={paying}
+                            isPending={paying}
                             isDisabled={!selectedEpayMethod || purchaseLimitReached}
                           >
                             {t('支付')}

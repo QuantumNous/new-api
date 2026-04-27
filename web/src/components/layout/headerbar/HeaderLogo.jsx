@@ -63,9 +63,8 @@ const HeaderLogo = ({
             <Chip
               color={isSelfUseMode ? 'secondary' : 'primary'}
               size='sm'
-              variant='flat'
-              radius='full'
-              className='h-6 whitespace-nowrap px-1 text-xs shadow-sm'
+              variant='tertiary'
+              className='h-6 whitespace-nowrap rounded-full px-1 text-xs shadow-sm'
             >
               {isSelfUseMode ? t('自用模式') : t('演示站点')}
             </Chip>

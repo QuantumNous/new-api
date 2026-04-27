@@ -311,7 +311,7 @@ export function Tag({ children, color = 'default', className, ...props }) {
   };
 
   return (
-    <Chip color={colorMap[color] || 'default'} variant='flat' className={className} {...props}>
+    <Chip color={colorMap[color] || 'default'} variant='tertiary' className={className} {...props}>
       {children}
     </Chip>
   );

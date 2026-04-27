@@ -37,11 +37,10 @@ const MobileMenuButton = ({ isConsoleRoute, isMobile, t }) => {
     <Button
       isIconOnly
       size='sm'
-      radius='full'
-      variant='light'
+      variant='tertiary'
       aria-label={isMobileOpen ? t('关闭侧边栏') : t('打开侧边栏')}
       onPress={() => setMobileOpen(!isMobileOpen)}
-      className='text-foreground hover:bg-surface-secondary'
+      className='rounded-full text-foreground hover:bg-surface-secondary'
     >
       {isMobileOpen ? (
         <X size={19} strokeWidth={2.4} />

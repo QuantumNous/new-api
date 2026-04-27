@@ -64,8 +64,7 @@ class ErrorBoundary extends React.Component {
           </div>
           <Button
             color='primary'
-            radius='full'
-            className='mt-4'
+            className='mt-4 rounded-full'
             startContent={<RefreshCcw size={16} />}
             onPress={() => window.location.reload()}
           >

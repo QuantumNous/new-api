@@ -343,7 +343,7 @@ export default function SettingsPaymentGatewayCreem(props) {
                     <td className='px-3 py-2 text-right'>
                       <div className='inline-flex items-center gap-1'>
                         <Button
-                          variant='light'
+                          variant='tertiary'
                           size='sm'
                           onPress={() => openProductModal(product)}
                         >
@@ -351,7 +351,7 @@ export default function SettingsPaymentGatewayCreem(props) {
                         </Button>
                         <Button
                           isIconOnly
-                          variant='light'
+                          variant='tertiary'
                           color='danger'
                           size='sm'
                           aria-label={t('删除')}
@@ -502,7 +502,7 @@ export default function SettingsPaymentGatewayCreem(props) {
                 </div>
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button variant='light' onPress={closeProductModal}>
+                <Button variant='tertiary' onPress={closeProductModal}>
                   {t('取消')}
                 </Button>
                 <Button color='primary' onPress={saveProduct}>

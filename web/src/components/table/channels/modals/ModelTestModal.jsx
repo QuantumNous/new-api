@@ -263,7 +263,7 @@ const ModelTestModal = ({
             {testResult.errorCode === 'model_price_error' && (
               <Button
                 size='sm'
-                variant='flat'
+                variant='tertiary'
                 color='warning'
                 startContent={<Settings size={12} />}
                 onPress={() =>
@@ -285,7 +285,7 @@ const ModelTestModal = ({
     return (
       <Button
         size='sm'
-        variant='flat'
+        variant='tertiary'
         isPending={isTesting}
         onPress={() =>
           testChannel(
@@ -398,7 +398,7 @@ const ModelTestModal = ({
                       <Button onPress={handleCopySelected}>
                         {t('复制已选')}
                       </Button>
-                      <Button variant='light' onPress={handleSelectSuccess}>
+                      <Button variant='tertiary' onPress={handleSelectSuccess}>
                         {t('选择成功')}
                       </Button>
                     </div>
@@ -481,7 +481,7 @@ const ModelTestModal = ({
                       <div className='flex items-center gap-1'>
                         <Button
                           size='sm'
-                          variant='light'
+                          variant='tertiary'
                           isDisabled={safePage <= 1}
                           onPress={() =>
                             setModelTablePage(Math.max(1, safePage - 1))
@@ -494,7 +494,7 @@ const ModelTestModal = ({
                         </span>
                         <Button
                           size='sm'
-                          variant='light'
+                          variant='tertiary'
                           isDisabled={safePage >= totalPages}
                           onPress={() =>
                             setModelTablePage(
@@ -517,7 +517,7 @@ const ModelTestModal = ({
                     {t('停止测试')}
                   </Button>
                 ) : (
-                  <Button variant='light' onPress={handleCloseModal}>
+                  <Button variant='tertiary' onPress={handleCloseModal}>
                     {t('取消')}
                   </Button>
                 )}

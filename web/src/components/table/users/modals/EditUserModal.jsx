@@ -334,7 +334,7 @@ const EditUserModal = (props) => {
           </div>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={handleCancel}
@@ -481,7 +481,7 @@ const EditUserModal = (props) => {
                       <div className='space-y-2 sm:col-span-7'>
                         <FieldLabel>{t('调整额度')}</FieldLabel>
                         <Button
-                          variant='flat'
+                          variant='tertiary'
                           startContent={<Edit3 size={14} />}
                           onPress={() => setAdjustModalOpen(true)}
                         >
@@ -539,8 +539,7 @@ const EditUserModal = (props) => {
                       </div>
                     </div>
                     <Button
-                      variant='bordered'
-                      color='primary'
+                      variant='secondary'
                       onPress={() => setBindingModalVisible(true)}
                     >
                       {t('管理绑定')}
@@ -554,7 +553,7 @@ const EditUserModal = (props) => {
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
           <Button
-            variant='light'
+            variant='tertiary'
             startContent={<X size={14} />}
             onPress={handleCancel}
           >
@@ -695,7 +694,7 @@ const EditUserModal = (props) => {
               </ModalBody>
               <ModalFooter className='border-t border-border'>
                 <Button
-                  variant='light'
+                  variant='tertiary'
                   onPress={() => {
                     setAdjustModalOpen(false);
                     setAdjustQuotaLocal('');

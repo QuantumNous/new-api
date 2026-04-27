@@ -36,7 +36,7 @@ const FaqPanel = ({ faqData, CARD_PROPS, FLEX_CENTER_GAP2, t }) => {
       <Widget.Content className='p-0'>
         <ScrollableContainer maxHeight='24rem'>
           {faqData.length > 0 ? (
-            <Accordion selectionMode='multiple' variant='light'>
+            <Accordion selectionMode='multiple' variant='tertiary'>
               {faqData.map((item, index) => (
                 <AccordionItem
                   key={index.toString()}

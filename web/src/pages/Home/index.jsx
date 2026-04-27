@@ -188,7 +188,7 @@ const Home = () => {
                         isIconOnly
                         color='primary'
                         size='sm'
-                        radius='full'
+                        className='rounded-full'
                         onPress={handleCopyBaseURL}
                         aria-label={t('复制')}
                       >
@@ -209,9 +209,8 @@ const Home = () => {
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
                       size={isMobile ? 'md' : 'lg'}
-                      radius='full'
-                      variant='flat'
-                      className='px-6 py-2 font-semibold'
+                      variant='tertiary'
+                      className='rounded-full px-6 py-2 font-semibold'
                       startContent={<Github size={18} />}
                       onPress={() =>
                         window.open(
@@ -226,9 +225,8 @@ const Home = () => {
                     docsLink && (
                       <Button
                         size={isMobile ? 'md' : 'lg'}
-                        radius='full'
-                        variant='flat'
-                        className='px-6 py-2 font-semibold'
+                        variant='tertiary'
+                        className='rounded-full px-6 py-2 font-semibold'
                         startContent={<FileText size={18} />}
                         onPress={() => window.open(docsLink, '_blank')}
                       >

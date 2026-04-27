@@ -637,7 +637,7 @@ const OllamaModelModal = ({
                         </div>
                         <Button
                           size='sm'
-                          variant='flat'
+                          variant='tertiary'
                           isDisabled={models.length === 0}
                           onPress={handleSelectAll}
                         >
@@ -645,7 +645,7 @@ const OllamaModelModal = ({
                         </Button>
                         <Button
                           size='sm'
-                          variant='flat'
+                          variant='tertiary'
                           isDisabled={selectedModelIds.length === 0}
                           onPress={handleClearSelection}
                         >
@@ -662,8 +662,7 @@ const OllamaModelModal = ({
                         </Button>
                         <Button
                           size='sm'
-                          variant='flat'
-                          color='primary'
+                          variant='tertiary'
                           startContent={<RefreshCw size={14} />}
                           isPending={loading}
                           onPress={fetchModels}
@@ -732,7 +731,7 @@ const OllamaModelModal = ({
                                 <Button
                                   isIconOnly
                                   size='sm'
-                                  variant='light'
+                                  variant='tertiary'
                                   color='danger'
                                   aria-label={t('删除')}
                                   onPress={() => setDeleteTarget(model.id)}

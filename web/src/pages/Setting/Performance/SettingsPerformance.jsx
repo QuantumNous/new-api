@@ -613,7 +613,7 @@ export default function SettingsPerformance(props) {
           <SectionHeader title={t('性能监控')} />
 
           <div className='flex flex-wrap items-center gap-2'>
-            <Button variant='flat' onPress={fetchStats}>
+            <Button variant='tertiary' onPress={fetchStats}>
               {t('刷新统计')}
             </Button>
             <Button
@@ -622,10 +622,10 @@ export default function SettingsPerformance(props) {
             >
               {t('清理不活跃缓存')}
             </Button>
-            <Button variant='flat' onPress={resetStats}>
+            <Button variant='tertiary' onPress={resetStats}>
               {t('重置统计')}
             </Button>
-            <Button variant='flat' onPress={forceGC}>
+            <Button variant='tertiary' onPress={forceGC}>
               {t('执行 GC')}
             </Button>
           </div>

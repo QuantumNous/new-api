@@ -66,7 +66,7 @@ const ConfirmDialog = ({
               {children}
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={onCancel}>
+              <Button variant='tertiary' onPress={onCancel}>
                 {cancelText}
               </Button>
               <Button color={danger ? 'danger' : 'warning'} onPress={onConfirm}>

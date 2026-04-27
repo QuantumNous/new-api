@@ -334,7 +334,7 @@ const AddEditSubscriptionModal = ({
           </div>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={handleClose}
@@ -693,7 +693,7 @@ const AddEditSubscriptionModal = ({
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
           <Button
-            variant='light'
+            variant='tertiary'
             startContent={<X size={14} />}
             onPress={handleClose}
           >

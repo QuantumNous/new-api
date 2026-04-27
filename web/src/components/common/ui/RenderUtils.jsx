@@ -36,7 +36,7 @@ export function renderLimitedItems({ items, renderItem, maxDisplay = 3 }) {
             </div>
           }
         >
-          <Chip size='sm' variant='flat'>
+          <Chip size='sm' variant='tertiary'>
             +{remainingItems.length}
           </Chip>
         </Tooltip>

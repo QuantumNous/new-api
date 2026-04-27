@@ -144,7 +144,7 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
                   {t('打开授权页面')}
                 </Button>
                 <Button
-                  variant='bordered'
+                  variant='secondary'
                   isDisabled={!authorizeUrl || loading}
                   onPress={() => copy(authorizeUrl)}
                 >
@@ -168,7 +168,7 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
               </div>
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={onCancel} isDisabled={loading}>
+              <Button variant='tertiary' onPress={onCancel} isDisabled={loading}>
                 {t('取消')}
               </Button>
               <Button

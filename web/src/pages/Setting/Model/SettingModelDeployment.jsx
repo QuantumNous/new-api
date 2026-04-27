@@ -197,7 +197,7 @@ export default function SettingModelDeployment(props) {
 
               <div className='flex flex-wrap gap-3'>
                 <Button
-                  variant='bordered'
+                  variant='secondary'
                   size='sm'
                   startContent={<Zap size={14} />}
                   onPress={testApiKey}

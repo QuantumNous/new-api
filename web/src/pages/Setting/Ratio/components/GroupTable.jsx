@@ -215,7 +215,7 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
         render: (_, record) => (
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             color='danger'
             size='sm'
             onPress={() => removeRow(record._id)}
@@ -245,7 +245,7 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
       />
       <div className='mt-3 flex justify-center'>
         <Button
-          variant='bordered'
+          variant='secondary'
           startContent={<Plus size={14} />}
           onPress={addRow}
           size='sm'

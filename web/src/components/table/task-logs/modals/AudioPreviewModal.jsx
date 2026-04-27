@@ -72,7 +72,7 @@ const AudioClipCard = ({ clip }) => {
             {title}
           </span>
           {duration > 0 && (
-            <Chip size='sm' variant='flat'>
+            <Chip size='sm' variant='tertiary'>
               {formatDuration(duration)}
             </Chip>
           )}
@@ -93,7 +93,7 @@ const AudioClipCard = ({ clip }) => {
               size='sm'
               startContent={<ExternalLink size={16} />}
               onPress={() => window.open(audioUrl, '_blank')}
-              variant='flat'
+              variant='tertiary'
             >
               {t('在新标签页中打开')}
             </Button>
@@ -101,7 +101,7 @@ const AudioClipCard = ({ clip }) => {
               size='sm'
               startContent={<Copy size={16} />}
               onPress={() => navigator.clipboard.writeText(audioUrl)}
-              variant='flat'
+              variant='tertiary'
             >
               {t('复制链接')}
             </Button>

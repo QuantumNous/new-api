@@ -450,7 +450,7 @@ const OtherSetting = () => {
               </ModalBody>
               <ModalFooter className='border-t border-border'>
                 <Button
-                  variant='light'
+                  variant='tertiary'
                   onPress={() => setShowUpdateModal(false)}
                 >
                   {t('取消')}

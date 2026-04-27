@@ -525,7 +525,7 @@ export const getDeploymentsColumns = ({
             <div className='flex w-full items-center justify-start gap-1 pr-2'>
               <Button
                 size='sm'
-                variant='light'
+                variant='tertiary'
                 onPress={() => onViewDetails?.(record)}
                 startContent={<FaInfoCircle className='text-xs' />}
               >
@@ -629,7 +629,7 @@ export const getDeploymentsColumns = ({
                   <Button
                     isIconOnly
                     size='sm'
-                    variant='light'
+                    variant='tertiary'
                     aria-label={t('更多操作')}
                     className='px-1'
                   >

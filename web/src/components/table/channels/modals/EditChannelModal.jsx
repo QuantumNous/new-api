@@ -689,7 +689,7 @@ function Modal({
               </ModalFooter>
             ) : (
               <ModalFooter className='border-t border-border'>
-                <Button variant='light' onPress={onCancel}>
+                <Button variant='tertiary' onPress={onCancel}>
                   {cancelText}
                 </Button>
                 <Button color='primary' onPress={onOk}>
@@ -804,7 +804,7 @@ function SideSheet({
             <div className='min-w-0 flex-1'>{title}</div>
             <Button
               isIconOnly
-              variant='light'
+              variant='tertiary'
               size='sm'
               aria-label='close'
               onPress={onCancel}

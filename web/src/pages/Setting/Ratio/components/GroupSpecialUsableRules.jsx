@@ -148,7 +148,7 @@ function UsableGroupSection({
         >
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('添加')}
             onPress={() => onAdd(groupName)}
@@ -157,7 +157,7 @@ function UsableGroupSection({
           </Button>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             color='danger'
             size='sm'
             aria-label={t('删除该分组')}
@@ -215,7 +215,7 @@ function UsableGroupSection({
                 )}
                 <Button
                   isIconOnly
-                  variant='light'
+                  variant='tertiary'
                   color='danger'
                   size='sm'
                   aria-label={t('删除该规则')}
@@ -352,7 +352,7 @@ export default function GroupSpecialUsableRules({
         ))}
       </datalist>
       <Button
-        variant='bordered'
+        variant='secondary'
         startContent={<Plus size={14} />}
         onPress={addNewGroup}
         size='sm'

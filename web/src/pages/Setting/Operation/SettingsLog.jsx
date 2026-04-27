@@ -191,8 +191,7 @@ export default function SettingsLog(props) {
               className='h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary'
             />
             <Button
-              color='danger'
-              variant='flat'
+              variant='danger-soft'
               size='sm'
               onPress={promptCleanHistory}
               isPending={loadingCleanHistoryLog}

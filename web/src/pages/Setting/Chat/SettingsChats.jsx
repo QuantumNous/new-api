@@ -441,7 +441,7 @@ export default function SettingsChats(props) {
                 items={dropdownItems}
                 trigger={
                   <Button
-                    variant='flat'
+                    variant='tertiary'
                     startContent={<Zap size={14} />}
                     endContent={<ChevronDown size={14} />}
                   >
@@ -450,8 +450,7 @@ export default function SettingsChats(props) {
                 }
               />
               <Button
-                color='primary'
-                variant='solid'
+                variant='primary'
                 startContent={<Save size={14} />}
                 onPress={onSubmit}
               >
@@ -515,8 +514,7 @@ export default function SettingsChats(props) {
                           <div className='flex flex-wrap gap-2'>
                             <Button
                               size='sm'
-                              variant='flat'
-                              color='primary'
+                              variant='tertiary'
                               startContent={<Edit3 size={14} />}
                               onPress={() => handleEditConfig(record)}
                             >
@@ -524,8 +522,7 @@ export default function SettingsChats(props) {
                             </Button>
                             <Button
                               size='sm'
-                              variant='flat'
-                              color='danger'
+                              variant='danger-soft'
                               startContent={<Trash2 size={14} />}
                               onPress={() => handleDeleteConfig(record.id)}
                             >
@@ -555,7 +552,7 @@ export default function SettingsChats(props) {
                 <div className='flex items-center gap-2'>
                   <Button
                     size='sm'
-                    variant='light'
+                    variant='tertiary'
                     isDisabled={page <= 1}
                     onPress={() => setPage((p) => Math.max(1, p - 1))}
                   >
@@ -566,7 +563,7 @@ export default function SettingsChats(props) {
                   </span>
                   <Button
                     size='sm'
-                    variant='light'
+                    variant='tertiary'
                     isDisabled={page >= pageCount}
                     onPress={() =>
                       setPage((p) => Math.min(pageCount, p + 1))
@@ -679,7 +676,7 @@ export default function SettingsChats(props) {
                 </InfoBanner>
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button variant='light' onPress={handleModalCancel}>
+                <Button variant='tertiary' onPress={handleModalCancel}>
                   {t('取消')}
                 </Button>
                 <Button color='primary' onPress={handleModalOk}>

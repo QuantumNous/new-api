@@ -259,7 +259,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                               <Button
                                 isIconOnly
                                 size='sm'
-                                variant='light'
+                                variant='tertiary'
                                 onPress={handleCopyId}
                                 aria-label={t('复制')}
                                 className='opacity-70 hover:opacity-100'
@@ -490,7 +490,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                                   <Tooltip content={ctr.public_url}>
                                     <Button
                                       size='sm'
-                                      variant='flat'
+                                      variant='tertiary'
                                       startContent={<FaLink />}
                                       onPress={() =>
                                         window.open(
@@ -650,7 +650,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
             </ModalBody>
             <ModalFooter className='flex justify-between border-t border-border'>
               <Button
-                variant='light'
+                variant='tertiary'
                 startContent={<RefreshCw size={14} />}
                 onPress={handleRefresh}
                 isPending={loading || containersLoading}

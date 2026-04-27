@@ -967,7 +967,7 @@ const NotificationSettings = ({
       <Card.Footer className='flex justify-end gap-3 border-t border-border px-5 py-3'>
         {activeTabKey === 'sidebar' ? (
           <>
-            <Button variant='light' onPress={resetSidebarModules}>
+            <Button variant='tertiary' onPress={resetSidebarModules}>
               {t('重置为默认')}
             </Button>
             <Button

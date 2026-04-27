@@ -199,7 +199,7 @@ export default function SettingsHeaderNavModules(props) {
         </div>
 
         <div className='flex items-center gap-3 border-t border-[color:var(--app-border)] pt-4'>
-          <Button variant='flat' size='md' onPress={resetHeaderNavModules}>
+          <Button variant='tertiary' size='md' onPress={resetHeaderNavModules}>
             {t('重置为默认')}
           </Button>
           <Button

@@ -136,14 +136,14 @@ const LogsFilters = ({
           <div className='flex gap-2 w-full sm:w-auto justify-end'>
             <Button
               type='submit'
-              variant='flat'
+              variant='tertiary'
               loading={loading}
               size='sm'
             >
               {t('查询')}
             </Button>
             <Button
-              variant='flat'
+              variant='tertiary'
               onClick={() => {
                 if (formApi) {
                   formApi.reset();
@@ -158,7 +158,7 @@ const LogsFilters = ({
               {t('重置')}
             </Button>
             <Button
-              variant='flat'
+              variant='tertiary'
               onClick={() => setShowColumnSelector(true)}
               size='sm'
             >

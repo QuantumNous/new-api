@@ -99,7 +99,7 @@ const CardPro = ({
               <Button
                 onPress={toggleMobileActions}
                 startContent={showMobileActions ? <EyeOff size={16} /> : <Eye size={16} />}
-                variant='bordered'
+                variant='secondary'
                 size='sm'
                 className='w-full'
               >

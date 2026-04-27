@@ -275,7 +275,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         })}
 
         <div className='flex items-center gap-3 border-t border-[color:var(--app-border)] pt-4'>
-          <Button variant='flat' size='md' onPress={resetSidebarModules}>
+          <Button variant='tertiary' size='md' onPress={resetSidebarModules}>
             {t('重置为默认')}
           </Button>
           <Button

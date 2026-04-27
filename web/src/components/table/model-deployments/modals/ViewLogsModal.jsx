@@ -520,7 +520,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                         <Button
                           isIconOnly
                           size='sm'
-                          variant='light'
+                          variant='tertiary'
                           onPress={refreshLogs}
                           isPending={loading}
                           aria-label={t('刷新日志')}
@@ -533,7 +533,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                         <Button
                           isIconOnly
                           size='sm'
-                          variant='light'
+                          variant='tertiary'
                           onPress={copyAllLogs}
                           isDisabled={logLines.length === 0}
                           aria-label={t('复制日志')}
@@ -546,7 +546,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                         <Button
                           isIconOnly
                           size='sm'
-                          variant='light'
+                          variant='tertiary'
                           onPress={downloadLogs}
                           isDisabled={logLines.length === 0}
                           aria-label={t('下载日志')}
@@ -606,7 +606,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                                 <Button
                                   isIconOnly
                                   size='sm'
-                                  variant='light'
+                                  variant='tertiary'
                                   onPress={() =>
                                     window.open(
                                       containerDetails.public_url,
@@ -623,7 +623,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                               <Button
                                 isIconOnly
                                 size='sm'
-                                variant='light'
+                                variant='tertiary'
                                 onPress={refreshContainerDetails}
                                 isPending={containerDetailsLoading}
                                 aria-label={t('刷新容器信息')}

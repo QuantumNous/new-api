@@ -525,7 +525,7 @@ export default function GroupRatioSettings(props) {
           </h4>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={() => setShowGuide(false)}
@@ -898,7 +898,7 @@ export default function GroupRatioSettings(props) {
           })}
         </div>
         <Button
-          variant='light'
+          variant='tertiary'
           size='sm'
           startContent={<HelpCircle size={14} />}
           onPress={() => setShowGuide(true)}

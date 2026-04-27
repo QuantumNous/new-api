@@ -86,14 +86,14 @@ const MjLogsFilters = ({
           <div className='flex gap-2'>
             <Button
               type='submit'
-              variant='flat'
+              variant='tertiary'
               loading={loading}
               size='sm'
             >
               {t('查询')}
             </Button>
             <Button
-              variant='flat'
+              variant='tertiary'
               onClick={() => {
                 if (formApi) {
                   formApi.reset();
@@ -107,7 +107,7 @@ const MjLogsFilters = ({
               {t('重置')}
             </Button>
             <Button
-              variant='flat'
+              variant='tertiary'
               onClick={() => setShowColumnSelector(true)}
               size='sm'
             >

@@ -55,7 +55,7 @@ function Pager({ current, pageSize, total, onChange, t }) {
       </span>
       <Button
         size='sm'
-        variant='light'
+        variant='tertiary'
         isDisabled={current <= 1}
         onPress={() => onChange(current - 1)}
       >
@@ -66,7 +66,7 @@ function Pager({ current, pageSize, total, onChange, t }) {
       </span>
       <Button
         size='sm'
-        variant='light'
+        variant='tertiary'
         isDisabled={current >= totalPages}
         onPress={() => onChange(current + 1)}
       >

@@ -388,7 +388,7 @@ function ChannelOperateCell({
       <span className='inline-flex overflow-hidden rounded-lg border border-border'>
         <Button
           size='sm'
-          variant='light'
+          variant='tertiary'
           className='rounded-none'
           onPress={() => testChannel(record, '')}
         >
@@ -397,7 +397,7 @@ function ChannelOperateCell({
         <Button
           isIconOnly
           size='sm'
-          variant='light'
+          variant='tertiary'
           className='rounded-none border-l border-border'
           onPress={() => {
             setCurrentTestChannel(record);
@@ -412,8 +412,7 @@ function ChannelOperateCell({
       {record.status === 1 ? (
         <Button
           size='sm'
-          color='danger'
-          variant='flat'
+          variant='danger-soft'
           onPress={() => manageChannel(record.id, 'disable', record)}
         >
           {t('禁用')}
@@ -421,7 +420,7 @@ function ChannelOperateCell({
       ) : (
         <Button
           size='sm'
-          variant='flat'
+          variant='tertiary'
           onPress={() => manageChannel(record.id, 'enable', record)}
         >
           {t('启用')}
@@ -432,7 +431,7 @@ function ChannelOperateCell({
         <span className='inline-flex overflow-hidden rounded-lg border border-border'>
           <Button
             size='sm'
-            variant='light'
+            variant='tertiary'
             className='rounded-none'
             onPress={() => {
               setEditingChannel(record);
@@ -455,7 +454,7 @@ function ChannelOperateCell({
               <Button
                 isIconOnly
                 size='sm'
-                variant='light'
+                variant='tertiary'
                 className='rounded-none border-l border-border'
                 aria-label={t('多密钥操作')}
               >
@@ -467,7 +466,7 @@ function ChannelOperateCell({
       ) : (
         <Button
           size='sm'
-          variant='light'
+          variant='tertiary'
           onPress={() => {
             setEditingChannel(record);
             setShowEdit(true);
@@ -483,7 +482,7 @@ function ChannelOperateCell({
           <Button
             isIconOnly
             size='sm'
-            variant='light'
+            variant='tertiary'
             aria-label={t('更多操作')}
           >
             <MoreVertical size={14} />
@@ -523,21 +522,21 @@ function TagOperateCell({
     <div className='flex flex-wrap items-center gap-1.5'>
       <Button
         size='sm'
-        variant='light'
+        variant='tertiary'
         onPress={() => manageTag(record.key, 'enable')}
       >
         {t('启用全部')}
       </Button>
       <Button
         size='sm'
-        variant='light'
+        variant='tertiary'
         onPress={() => manageTag(record.key, 'disable')}
       >
         {t('禁用全部')}
       </Button>
       <Button
         size='sm'
-        variant='light'
+        variant='tertiary'
         onPress={() => {
           setShowEditTag(true);
           setEditingTag(record.key);
@@ -659,8 +658,7 @@ export const getChannelsColumns = ({
                   <div className='text-sm'>{record.remark}</div>
                   <Button
                     size='sm'
-                    variant='bordered'
-                    color='primary'
+                    variant='secondary'
                     onPress={(e) => {
                       e?.stopPropagation?.();
                       navigator.clipboard
