@@ -17,11 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef, useEffect } from 'react';
-import { Typography, TextArea, Button } from '@douyinfe/semi-ui';
+import React, { useRef, useEffect, useState } from 'react';
+import { Typography, TextArea, Button, Modal } from '@douyinfe/semi-ui';
 import MarkdownRenderer from '../common/markdown/MarkdownRenderer';
 import ThinkingContent from './ThinkingContent';
-import { Loader2, Check, X, Settings, AlertTriangle } from 'lucide-react';
+import {
+  Loader2,
+  Check,
+  X,
+  Settings,
+  AlertTriangle,
+  ZoomIn,
+  Download,
+  Plus,
+  Minus,
+  RotateCcw,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { isAdmin } from '../../helpers/utils';
 
@@ -39,9 +50,23 @@ const MessageContent = ({
   const { t } = useTranslation();
   const previousContentLengthRef = useRef(0);
   const lastContentRef = useRef('');
+  const previewContainerRef = useRef(null);
+  const previewPanStateRef = useRef({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
+  const [previewImageUrl, setPreviewImageUrl] = useState('');
+  const [previewScale, setPreviewScale] = useState(1);
+  const [isPreviewPanning, setIsPreviewPanning] = useState(false);
 
   const isThinkingStatus =
     message.status === 'loading' || message.status === 'incomplete';
+  const hasImageContent =
+    Array.isArray(message.content) &&
+    message.content.some((item) => item.type === 'image_url');
 
   useEffect(() => {
     if (!isThinkingStatus) {
@@ -49,6 +74,85 @@ const MessageContent = ({
       lastContentRef.current = '';
     }
   }, [isThinkingStatus]);
+
+  useEffect(() => {
+    if (previewImageUrl) {
+      setPreviewScale(1);
+      setIsPreviewPanning(false);
+      if (previewContainerRef.current) {
+        previewContainerRef.current.scrollTo({ left: 0, top: 0 });
+      }
+    }
+  }, [previewImageUrl]);
+
+  const clampScale = (scale) => Math.min(6, Math.max(0.5, scale));
+
+  const handlePreviewZoom = (delta) => {
+    setPreviewScale((prev) => clampScale(Number((prev + delta).toFixed(2))));
+  };
+
+  const handlePreviewWheel = (event) => {
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? 0.2 : -0.2;
+    setPreviewScale((prev) => clampScale(Number((prev + delta).toFixed(2))));
+  };
+
+  const handlePreviewDownload = () => {
+    if (!previewImageUrl) return;
+
+    const link = document.createElement('a');
+    link.href = previewImageUrl;
+    link.download = `playground-image-${Date.now()}.png`;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const stopPreviewPanning = () => {
+    setIsPreviewPanning(false);
+    previewPanStateRef.current.pointerId = null;
+  };
+
+  const handlePreviewPointerDown = (event) => {
+    if (previewScale <= 1 || !previewContainerRef.current) return;
+
+    previewPanStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: previewContainerRef.current.scrollLeft,
+      scrollTop: previewContainerRef.current.scrollTop,
+    };
+    setIsPreviewPanning(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handlePreviewPointerMove = (event) => {
+    if (
+      !isPreviewPanning ||
+      previewPanStateRef.current.pointerId !== event.pointerId ||
+      !previewContainerRef.current
+    ) {
+      return;
+    }
+
+    const deltaX = event.clientX - previewPanStateRef.current.startX;
+    const deltaY = event.clientY - previewPanStateRef.current.startY;
+
+    previewContainerRef.current.scrollLeft =
+      previewPanStateRef.current.scrollLeft - deltaX;
+    previewContainerRef.current.scrollTop =
+      previewPanStateRef.current.scrollTop - deltaY;
+  };
+
+  const handlePreviewPointerUp = (event) => {
+    if (previewPanStateRef.current.pointerId !== event.pointerId) return;
+
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    stopPreviewPanning();
+  };
 
   if (message.status === 'error') {
     let errorText;
@@ -207,6 +311,7 @@ const MessageContent = ({
   if (
     message.role === 'assistant' &&
     isThinkingStatus &&
+    !hasImageContent &&
     !finalExtractedThinkingContent &&
     (!finalDisplayableFinalContent ||
       finalDisplayableFinalContent.trim() === '')
@@ -306,25 +411,49 @@ const MessageContent = ({
             return (
               <div>
                 {imageContents.length > 0 && (
-                  <div className='mb-3 space-y-2'>
+                  <div className='mb-3 flex flex-wrap gap-3'>
                     {imageContents.map((imgItem, index) => (
-                      <div key={index} className='max-w-sm'>
-                        <img
-                          src={imgItem.image_url.url}
-                          alt={`用户上传的图片 ${index + 1}`}
-                          className='rounded-lg max-w-full h-auto shadow-sm border'
-                          style={{ maxHeight: '300px' }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                          }}
-                        />
-                        <div
-                          className='text-red-500 text-sm p-2 bg-red-50 rounded-lg border border-red-200'
-                          style={{ display: 'none' }}
+                      <div
+                        key={index}
+                        className='group'
+                        style={{
+                          width: styleState.isMobile ? '132px' : '168px',
+                        }}
+                      >
+                        <button
+                          type='button'
+                          className='relative block w-full overflow-hidden rounded-xl border border-[var(--semi-color-border)] bg-[var(--semi-color-fill-0)] shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5'
+                          onClick={() => setPreviewImageUrl(imgItem.image_url.url)}
                         >
-                          图片加载失败: {imgItem.image_url.url}
-                        </div>
+                          <img
+                            src={imgItem.image_url.url}
+                            alt={`${t('图片预览')} ${index + 1}`}
+                            className='block w-full object-cover'
+                            style={{
+                              height: styleState.isMobile ? '132px' : '168px',
+                            }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                          <div
+                            className='hidden items-center justify-center text-red-500 text-xs p-3 bg-red-50'
+                            style={{
+                              height: styleState.isMobile ? '132px' : '168px',
+                            }}
+                          >
+                            {t('图片加载失败')}
+                          </div>
+                          <div className='pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 via-black/20 to-transparent px-3 py-2 text-white opacity-100 sm:opacity-0 sm:transition-opacity sm:duration-200 sm:group-hover:opacity-100'>
+                            <Typography.Text
+                              className='!text-white !text-xs'
+                            >
+                              {t('点击查看大图')}
+                            </Typography.Text>
+                            <ZoomIn size={14} />
+                          </div>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -405,6 +534,121 @@ const MessageContent = ({
           return null;
         })()
       )}
+
+      <Modal
+        title={t('图片预览')}
+        visible={!!previewImageUrl}
+        footer={null}
+        onCancel={() => {
+          setPreviewImageUrl('');
+          setPreviewScale(1);
+          stopPreviewPanning();
+        }}
+        width={styleState.isMobile ? '94vw' : 960}
+        centered
+        bodyStyle={{
+          padding: styleState.isMobile ? 12 : 20,
+        }}
+      >
+        <div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
+          <div className='flex items-center gap-2'>
+            <Button
+              icon={<Minus size={14} />}
+              theme='light'
+              type='tertiary'
+              size='small'
+              onClick={() => handlePreviewZoom(-0.2)}
+              disabled={previewScale <= 0.5}
+            >
+              {t('缩小')}
+            </Button>
+            <Button
+              icon={<Plus size={14} />}
+              theme='light'
+              type='tertiary'
+              size='small'
+              onClick={() => handlePreviewZoom(0.2)}
+              disabled={previewScale >= 6}
+            >
+              {t('放大')}
+            </Button>
+            <Button
+              icon={<RotateCcw size={14} />}
+              theme='light'
+              type='tertiary'
+              size='small'
+              onClick={() => setPreviewScale(1)}
+            >
+              {t('重置')}
+            </Button>
+            <Typography.Text className='text-xs sm:text-sm text-[var(--semi-color-text-1)]'>
+              {t('缩放')}: {Math.round(previewScale * 100)}%
+            </Typography.Text>
+          </div>
+          <Button
+            icon={<Download size={14} />}
+            theme='solid'
+            type='primary'
+            size='small'
+            onClick={handlePreviewDownload}
+          >
+            {t('下载图片')}
+          </Button>
+        </div>
+
+        <div
+          ref={previewContainerRef}
+          className='overflow-auto rounded-xl'
+          style={{
+            background: 'var(--semi-color-fill-0)',
+            minHeight: styleState.isMobile ? '240px' : '320px',
+            maxHeight: styleState.isMobile ? '72vh' : '80vh',
+            cursor:
+              previewScale > 1 ? (isPreviewPanning ? 'grabbing' : 'grab') : 'default',
+            userSelect: isPreviewPanning ? 'none' : 'auto',
+            touchAction: previewScale > 1 ? 'none' : 'auto',
+          }}
+          onWheel={handlePreviewWheel}
+          onPointerDown={handlePreviewPointerDown}
+          onPointerMove={handlePreviewPointerMove}
+          onPointerUp={handlePreviewPointerUp}
+          onPointerCancel={stopPreviewPanning}
+          onPointerLeave={handlePreviewPointerUp}
+        >
+          {previewImageUrl && (
+            <div
+              className='flex min-h-full min-w-full items-center justify-center p-3'
+              style={{
+                minWidth: previewScale > 1 ? `${previewScale * 100}%` : '100%',
+              }}
+            >
+              <img
+                src={previewImageUrl}
+                alt={t('图片预览')}
+                className='block rounded-lg shadow-sm'
+                draggable={false}
+                style={{
+                  width: previewScale <= 1 ? '100%' : `${previewScale * 100}%`,
+                  maxWidth: 'none',
+                  maxHeight:
+                    previewScale <= 1
+                      ? styleState.isMobile
+                        ? '70vh'
+                        : '78vh'
+                      : 'none',
+                  objectFit: 'contain',
+                  transition: 'width 0.12s ease-out',
+                }}
+              />
+            </div>
+          )}
+        </div>
+        <Typography.Text className='mt-3 block text-xs text-[var(--semi-color-text-2)]'>
+          {previewScale > 1
+            ? t('可使用滚轮继续缩放，并按住拖拽平移查看细节')
+            : t('可使用滚轮继续缩放查看细节')}
+        </Typography.Text>
+      </Modal>
     </div>
   );
 };

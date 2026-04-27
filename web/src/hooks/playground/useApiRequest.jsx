@@ -30,6 +30,11 @@ import {
   handleApiError,
   processThinkTags,
   processIncompleteThinkTags,
+  getTextContent,
+  extractImageUrlsFromContent,
+  extractImageUrls,
+  buildMixedMessageContent,
+  mergeMessageContent,
 } from '../../helpers';
 
 export const useApiRequest = (
@@ -57,9 +62,25 @@ export const useApiRequest = (
     [],
   );
 
+  const getResponseTextContent = useCallback((content) => {
+    if (Array.isArray(content)) {
+      return content
+        .filter(
+          (item) =>
+            item?.type === 'text' &&
+            typeof item?.text === 'string' &&
+            item.text.trim() !== '',
+        )
+        .map((item) => item.text)
+        .join('');
+    }
+
+    return typeof content === 'string' ? content : '';
+  }, []);
+
   // 流式消息更新
   const streamMessageUpdate = useCallback(
-    (textChunk, type) => {
+    (payload, type) => {
       setMessage((prevMessage) => {
         const lastMessage = prevMessage[prevMessage.length - 1];
         if (!lastMessage) return prevMessage;
@@ -78,24 +99,26 @@ export const useApiRequest = (
             newMessage = {
               ...newMessage,
               reasoningContent:
-                (lastMessage.reasoningContent || '') + textChunk,
+                (lastMessage.reasoningContent || '') + (payload || ''),
               status: MESSAGE_STATUS.INCOMPLETE,
               isThinkingComplete: false,
             };
           } else if (type === 'content') {
-            const shouldCollapseReasoning =
-              !lastMessage.content && lastMessage.reasoningContent;
-            const newContent = (lastMessage.content || '') + textChunk;
+            const newContent = mergeMessageContent(lastMessage.content, {
+              text: payload || '',
+              textMode: 'append',
+            });
+            const newTextContent = getTextContent({ content: newContent });
 
             let shouldCollapseFromThinkTag = false;
             let thinkingCompleteFromTags = lastMessage.isThinkingComplete;
 
             if (
               lastMessage.isReasoningExpanded &&
-              newContent.includes('</think>')
+              newTextContent.includes('</think>')
             ) {
-              const thinkMatches = newContent.match(/<think>/g);
-              const thinkCloseMatches = newContent.match(/<\/think>/g);
+              const thinkMatches = newTextContent.match(/<think>/g);
+              const thinkCloseMatches = newTextContent.match(/<\/think>/g);
               if (
                 thinkMatches &&
                 thinkCloseMatches &&
@@ -123,6 +146,15 @@ export const useApiRequest = (
               status: MESSAGE_STATUS.INCOMPLETE,
               ...autoCollapseState,
             };
+          } else if (type === 'image') {
+            newMessage = {
+              ...newMessage,
+              content: mergeMessageContent(lastMessage.content, {
+                imageUrls: payload,
+                textMode: 'append',
+              }),
+              status: MESSAGE_STATUS.INCOMPLETE,
+            };
           }
 
           return [...prevMessage.slice(0, -1), newMessage];
@@ -131,7 +163,7 @@ export const useApiRequest = (
         return prevMessage;
       });
     },
-    [setMessage, applyAutoCollapseLogic],
+    [setMessage, applyAutoCollapseLogic, mergeMessageContent, getTextContent],
   );
 
   // 完成消息
@@ -241,13 +273,22 @@ export const useApiRequest = (
 
         if (data.choices?.[0]) {
           const choice = data.choices[0];
-          let content = choice.message?.content || '';
+          const rawContent = choice.message?.content;
+          const responseImageUrls = [
+            ...extractImageUrlsFromContent(rawContent),
+            ...extractImageUrls(choice.message?.images),
+          ];
+          let content = getResponseTextContent(rawContent);
           let reasoningContent =
             choice.message?.reasoning_content ||
             choice.message?.reasoning ||
             '';
 
           const processed = processThinkTags(content, reasoningContent);
+          const finalContent = buildMixedMessageContent(
+            processed.content,
+            responseImageUrls,
+          );
 
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
@@ -260,7 +301,7 @@ export const useApiRequest = (
 
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
-                content: processed.content,
+                content: finalContent,
                 reasoningContent: processed.reasoningContent,
                 status: MESSAGE_STATUS.COMPLETE,
                 ...autoCollapseState,
@@ -297,7 +338,17 @@ export const useApiRequest = (
         });
       }
     },
-    [setDebugData, setActiveDebugTab, setMessage, t, applyAutoCollapseLogic],
+    [
+      setDebugData,
+      setActiveDebugTab,
+      setMessage,
+      t,
+      applyAutoCollapseLogic,
+      buildMixedMessageContent,
+      extractImageUrls,
+      extractImageUrlsFromContent,
+      getResponseTextContent,
+    ],
   );
 
   // SSE请求
@@ -369,6 +420,12 @@ export const useApiRequest = (
             if (delta.content) {
               streamMessageUpdate(delta.content, 'content');
             }
+            if (delta.images) {
+              const imageUrls = extractImageUrls(delta.images);
+              if (imageUrls.length > 0) {
+                streamMessageUpdate(imageUrls, 'image');
+              }
+            }
           }
         } catch (error) {
           console.error('Failed to parse SSE message:', error);
@@ -424,7 +481,10 @@ export const useApiRequest = (
             if (lastMessage && lastMessage.status !== MESSAGE_STATUS.COMPLETE && lastMessage.status !== MESSAGE_STATUS.ERROR) {
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
-                content: (lastMessage.content || '') + errorMessage,
+                content: mergeMessageContent(lastMessage.content, {
+                  text: errorMessage,
+                  textMode: 'append',
+                }),
                 errorCode: errorCode,
                 status: MESSAGE_STATUS.ERROR,
               };
@@ -486,7 +546,6 @@ export const useApiRequest = (
       streamMessageUpdate,
       completeMessage,
       t,
-      applyAutoCollapseLogic,
     ],
   );
 
@@ -507,8 +566,12 @@ export const useApiRequest = (
         lastMessage.status === MESSAGE_STATUS.LOADING ||
         lastMessage.status === MESSAGE_STATUS.INCOMPLETE
       ) {
+        const currentTextContent = getTextContent({
+          content: lastMessage.content,
+        });
+        const currentImageUrls = extractImageUrlsFromContent(lastMessage.content);
         const processed = processIncompleteThinkTags(
-          lastMessage.content || '',
+          currentTextContent,
           lastMessage.reasoningContent || '',
         );
 
@@ -520,7 +583,10 @@ export const useApiRequest = (
             ...lastMessage,
             status: MESSAGE_STATUS.COMPLETE,
             reasoningContent: processed.reasoningContent || null,
-            content: processed.content,
+            content: buildMixedMessageContent(
+              processed.content,
+              currentImageUrls,
+            ),
             ...autoCollapseState,
           },
         ];
@@ -532,7 +598,14 @@ export const useApiRequest = (
       }
       return prevMessage;
     });
-  }, [setMessage, applyAutoCollapseLogic, saveMessages]);
+  }, [
+    setMessage,
+    applyAutoCollapseLogic,
+    saveMessages,
+    getTextContent,
+    extractImageUrlsFromContent,
+    buildMixedMessageContent,
+  ]);
 
   // 发送请求
   const sendRequest = useCallback(

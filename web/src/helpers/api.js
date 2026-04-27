@@ -212,11 +212,10 @@ export const processModelsData = (data, currentModel) => {
 // 处理分组数据
 export const processGroupsData = (data, userGroup) => {
   let groupOptions = Object.entries(data).map(([group, info]) => ({
-    label:
-      info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
+    label: group,
     value: group,
+    desc: info.desc,
     ratio: info.ratio,
-    fullLabel: info.desc,
   }));
 
   if (groupOptions.length === 0) {
