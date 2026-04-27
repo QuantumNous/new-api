@@ -59,7 +59,13 @@ function StatusChip({ tone = 'grey', children }) {
 // Replaces Semi `<Collapse>` / `<Collapse.Panel>` with a `<details>`
 // element so accordion state is native (no extra hook + accessible by
 // default).
-function CollapseSection({ icon, title, suffix, defaultOpen = false, children }) {
+function CollapseSection({
+  icon,
+  title,
+  suffix,
+  defaultOpen = false,
+  children,
+}) {
   return (
     <details
       open={defaultOpen}
@@ -96,13 +102,7 @@ function FieldHint({ children }) {
   return <div className='mt-1.5 text-xs text-muted'>{children}</div>;
 }
 
-const UpdateConfigModal = ({
-  visible,
-  onCancel,
-  deployment,
-  onSuccess,
-  t,
-}) => {
+const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     image_url: '',
@@ -439,15 +439,18 @@ const UpdateConfigModal = ({
                         <Button
                           size='sm'
                           variant='tertiary'
-                          startContent={<FaPlus />}
                           onPress={addEnvVar}
                         >
+                          <FaPlus />
                           {t('添加')}
                         </Button>
                       </div>
 
                       {envVars.map((envVar, index) => (
-                        <div key={index} className='mb-2 flex items-center gap-2'>
+                        <div
+                          key={index}
+                          className='mb-2 flex items-center gap-2'
+                        >
                           <Input
                             placeholder={t('变量名')}
                             value={envVar.key}
@@ -502,15 +505,18 @@ const UpdateConfigModal = ({
                           size='sm'
                           variant='tertiary'
                           color='danger'
-                          startContent={<FaPlus />}
                           onPress={addSecretEnvVar}
                         >
+                          <FaPlus />
                           {t('添加')}
                         </Button>
                       </div>
 
                       {secretEnvVars.map((envVar, index) => (
-                        <div key={index} className='mb-2 flex items-center gap-2'>
+                        <div
+                          key={index}
+                          className='mb-2 flex items-center gap-2'
+                        >
                           <Input
                             placeholder={t('变量名')}
                             value={envVar.key}

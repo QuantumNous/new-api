@@ -27,14 +27,7 @@ import {
   Tooltip,
   useOverlayState,
 } from '@heroui/react';
-import {
-  ChevronDown,
-  Copy,
-  HelpCircle,
-  Minus,
-  Plus,
-  X,
-} from 'lucide-react';
+import { ChevronDown, Copy, HelpCircle, Minus, Plus, X } from 'lucide-react';
 import { API, copy, showError, showSuccess } from '../../../../helpers';
 
 // ----------------------------- helpers -----------------------------
@@ -71,7 +64,8 @@ function StatusChip({ tone = 'grey', size = 'sm', children }) {
     blue: 'bg-primary/15 text-primary',
     grey: 'bg-surface-secondary text-muted',
   };
-  const sizeCls = size === 'xs' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs';
+  const sizeCls =
+    size === 'xs' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs';
   return (
     <span
       className={`inline-flex items-center rounded-full font-semibold ${sizeCls} ${
@@ -148,9 +142,7 @@ function RichSingleSelect({
       {open && !disabled ? (
         <div className='absolute left-0 right-0 z-30 mt-1 max-h-[360px] overflow-auto rounded-xl border border-border bg-background shadow-lg'>
           {options.length === 0 ? (
-            <div className='px-3 py-2 text-xs text-muted'>
-              {placeholder}
-            </div>
+            <div className='px-3 py-2 text-xs text-muted'>{placeholder}</div>
           ) : (
             <ul className='py-1'>
               {options.map((option) => {
@@ -248,7 +240,7 @@ function RichMultiSelect({
             const opt = options.find((o) => o.value === v);
             const label = renderSelectedLabel
               ? renderSelectedLabel(opt, v)
-              : opt?.label ?? String(v);
+              : (opt?.label ?? String(v));
             return (
               <span
                 key={String(v)}
@@ -283,9 +275,7 @@ function RichMultiSelect({
       {open && !disabled ? (
         <div className='absolute left-0 right-0 z-30 mt-1 max-h-[360px] overflow-auto rounded-xl border border-border bg-background shadow-lg'>
           {options.length === 0 ? (
-            <div className='px-3 py-2 text-xs text-muted'>
-              {placeholder}
-            </div>
+            <div className='px-3 py-2 text-xs text-muted'>{placeholder}</div>
           ) : (
             <ul className='py-1'>
               {options.map((option) => {
@@ -295,9 +285,7 @@ function RichMultiSelect({
                     <button
                       type='button'
                       disabled={option.disabled}
-                      onClick={() =>
-                        toggle(option.value, option.disabled)
-                      }
+                      onClick={() => toggle(option.value, option.disabled)}
                       className={`flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
                         selected
                           ? 'bg-primary/10 text-primary'
@@ -1101,10 +1089,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
           <span>
             {t('最大GPU数量')}: {hardware.max_gpus}
           </span>
-          <StatusChip
-            tone={availableCount > 0 ? 'green' : 'red'}
-            size='xs'
-          >
+          <StatusChip tone={availableCount > 0 ? 'green' : 'red'} size='xs'>
             {t('可用数量')}: {availableCount}
           </StatusChip>
         </div>
@@ -1162,11 +1147,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   return (
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
-        <ModalContainer
-          size='4xl'
-          placement='center'
-          className='max-w-[95vw]'
-        >
+        <ModalContainer size='4xl' placement='center' className='max-w-[95vw]'>
           <ModalDialog className='bg-background/95 backdrop-blur'>
             <ModalHeader className='border-b border-border'>
               <span>{t('新建容器部署')}</span>
@@ -1211,9 +1192,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                         type='text'
                         value={values.resource_private_name || ''}
                         onChange={(event) =>
-                          setField('resource_private_name')(
-                            event.target.value,
-                          )
+                          setField('resource_private_name')(event.target.value)
                         }
                         placeholder={t('请输入容器名称')}
                         className={inputClass}
@@ -1255,7 +1234,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                         onChange={(event) => {
                           const v = event.target.value;
                           setField('image_url')(v);
-                          if (imageMode === 'custom') customImageRef.current = v;
+                          if (imageMode === 'custom')
+                            customImageRef.current = v;
                         }}
                         placeholder={t('例如：nginx:latest')}
                         disabled={imageMode === 'builtin'}
@@ -1278,14 +1258,15 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                         <Button
                           size='sm'
                           variant='tertiary'
-                          startContent={<Copy size={14} />}
                           onPress={async () => {
                             if (!autoOllamaKey) return;
                             const copied = await copy(autoOllamaKey);
-                            if (copied) showSuccess(t('已复制自动生成的 API Key'));
+                            if (copied)
+                              showSuccess(t('已复制自动生成的 API Key'));
                             else showError(t('复制失败，请手动选择文本复制'));
                           }}
                         >
+                          <Copy size={14} />
                           {t('复制')}
                         </Button>
                       </div>
@@ -1361,9 +1342,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                         renderSelectedLabel={(option, v) =>
                           loadingReplicas
                             ? t('部署位置加载中...')
-                            : option?.label ||
-                              locationLabelMap[v] ||
-                              String(v)
+                            : option?.label || locationLabelMap[v] || String(v)
                         }
                       />
                       <FieldError>{errors.location_ids}</FieldError>
@@ -1411,9 +1390,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                         <FieldLabel>
                           <span className='inline-flex items-center gap-1'>
                             {t('流量端口')}
-                            <Tooltip
-                              content={t('容器对外服务的端口号，可选')}
-                            >
+                            <Tooltip content={t('容器对外服务的端口号，可选')}>
                               <HelpCircle size={14} className='text-muted' />
                             </Tooltip>
                           </span>
@@ -1457,9 +1434,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                               </h6>
                               <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
                                 <div className='space-y-2'>
-                                  <FieldLabel>
-                                    {t('镜像仓库用户名')}
-                                  </FieldLabel>
+                                  <FieldLabel>{t('镜像仓库用户名')}</FieldLabel>
                                   <input
                                     type='text'
                                     value={values.registry_username || ''}
@@ -1541,11 +1516,11 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                 <Button
                                   size='sm'
                                   variant='tertiary'
-                                  startContent={<Plus size={14} />}
                                   onPress={() =>
                                     handleAddArrayField('entrypoint')
                                   }
                                 >
+                                  <Plus size={14} />
                                   {t('添加启动命令')}
                                 </Button>
                               </div>
@@ -1589,9 +1564,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                 <Button
                                   size='sm'
                                   variant='tertiary'
-                                  startContent={<Plus size={14} />}
                                   onPress={() => handleAddArrayField('args')}
                                 >
+                                  <Plus size={14} />
                                   {t('添加启动参数')}
                                 </Button>
                               </div>
@@ -1652,10 +1627,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                         isDisabled={envVariables.length === 1}
                                         aria-label={t('删除')}
                                         onPress={() =>
-                                          handleRemoveEnvVariable(
-                                            index,
-                                            'env',
-                                          )
+                                          handleRemoveEnvVariable(index, 'env')
                                         }
                                       >
                                         <Minus size={14} />
@@ -1666,11 +1638,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                 <Button
                                   size='sm'
                                   variant='tertiary'
-                                  startContent={<Plus size={14} />}
-                                  onPress={() =>
-                                    handleAddEnvVariable('env')
-                                  }
+                                  onPress={() => handleAddEnvVariable('env')}
                                 >
+                                  <Plus size={14} />
                                   {t('添加环境变量')}
                                 </Button>
                               </div>
@@ -1744,11 +1714,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                 <Button
                                   size='sm'
                                   variant='tertiary'
-                                  startContent={<Plus size={14} />}
-                                  onPress={() =>
-                                    handleAddEnvVariable('secret')
-                                  }
+                                  onPress={() => handleAddEnvVariable('secret')}
                                 >
+                                  <Plus size={14} />
                                   {t('添加密钥环境变量')}
                                 </Button>
                               </div>
@@ -1807,7 +1775,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                               {t('预估总费用')}
                             </span>
                             <div className='text-2xl font-semibold text-foreground'>
-                              {typeof priceEstimation.estimated_cost === 'number'
+                              {typeof priceEstimation.estimated_cost ===
+                              'number'
                                 ? `${priceEstimation.estimated_cost.toFixed(4)} ${currencyLabel}`
                                 : '--'}
                             </div>
@@ -1817,8 +1786,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                               {t('小时费率')}
                             </span>
                             <span className='text-sm font-semibold text-foreground'>
-                              {typeof priceEstimation.price_breakdown?.hourly_rate ===
-                              'number'
+                              {typeof priceEstimation.price_breakdown
+                                ?.hourly_rate === 'number'
                                 ? `${priceEstimation.price_breakdown.hourly_rate.toFixed(4)} ${currencyLabel}/h`
                                 : '--'}
                             </span>
@@ -1828,8 +1797,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                               {t('计算成本')}
                             </span>
                             <span className='text-sm font-semibold text-foreground'>
-                              {typeof priceEstimation.price_breakdown?.compute_cost ===
-                              'number'
+                              {typeof priceEstimation.price_breakdown
+                                ?.compute_cost === 'number'
                                 ? `${priceEstimation.price_breakdown.compute_cost.toFixed(4)} ${currencyLabel}`
                                 : '--'}
                             </span>

@@ -63,13 +63,7 @@ function renderStatusTag(sub, t) {
   return <StatusChip>{t('已过期')}</StatusChip>;
 }
 
-const UserSubscriptionsModal = ({
-  visible,
-  onCancel,
-  user,
-  t,
-  onSuccess,
-}) => {
+const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -421,10 +415,10 @@ const UserSubscriptionsModal = ({
               </select>
               <Button
                 color='primary'
-                startContent={<PlusCircle size={14} />}
                 isPending={creating}
                 onPress={createSubscription}
               >
+                <PlusCircle size={14} />
                 {t('新增订阅')}
               </Button>
             </div>

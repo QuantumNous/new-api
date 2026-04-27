@@ -45,9 +45,7 @@ const DeploymentAccessGuard = ({
         <Card className='min-h-[400px] rounded-2xl border border-border bg-background/80 shadow-sm'>
           <div className='flex flex-col items-center justify-center gap-3 py-20 text-center'>
             <Spinner size='lg' />
-            <span className='text-sm text-muted'>
-              {t('加载设置中...')}
-            </span>
+            <span className='text-sm text-muted'>{t('加载设置中...')}</span>
           </div>
         </Card>
       </div>
@@ -101,11 +99,8 @@ const DeploymentAccessGuard = ({
             </div>
 
             <div className='mb-5'>
-              <Button
-                variant='outline'
-                startContent={<Settings size={18} />}
-                onPress={handleGoToSettings}
-              >
+              <Button variant='outline' onPress={handleGoToSettings}>
+                <Settings size={18} />
                 {t('前往设置页面')}
               </Button>
             </div>
@@ -156,22 +151,15 @@ const DeploymentAccessGuard = ({
               <h2 className='mb-3 text-3xl font-bold tracking-tight text-foreground'>
                 {title}
               </h2>
-              <p className='text-lg leading-8 text-muted'>
-                {description}
-              </p>
+              <p className='text-lg leading-8 text-muted'>{description}</p>
               {detail ? (
-                <p className='mt-2 text-sm leading-6 text-muted'>
-                  {detail}
-                </p>
+                <p className='mt-2 text-sm leading-6 text-muted'>{detail}</p>
               ) : null}
             </div>
 
             <div className='flex justify-center gap-3'>
-              <Button
-                variant='primary'
-                startContent={<Settings size={18} />}
-                onPress={handleGoToSettings}
-              >
+              <Button variant='primary' onPress={handleGoToSettings}>
+                <Settings size={18} />
                 {t('前往设置')}
               </Button>
               {onRetry ? (

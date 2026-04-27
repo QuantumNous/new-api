@@ -28,14 +28,7 @@ import {
   Spinner,
   useOverlayState,
 } from '@heroui/react';
-import {
-  Download,
-  Plus,
-  RefreshCw,
-  Search,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { Download, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import {
   API,
   authHeader,
@@ -523,9 +516,7 @@ const OllamaModelModal = ({
               <span>
                 {(completedBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
               </span>
-              <span>
-                {(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
-              </span>
+              <span>{(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB</span>
             </div>
           </>
         ) : (
@@ -589,10 +580,10 @@ const OllamaModelModal = ({
                           color='primary'
                           isPending={pullLoading}
                           isDisabled={!pullModelName.trim()}
-                          startContent={<Download size={14} />}
                           onPress={pullModel}
                           className='w-full'
                         >
+                          <Download size={14} />
                           {pullLoading ? t('拉取中...') : t('拉取模型')}
                         </Button>
                       </div>
@@ -626,10 +617,8 @@ const OllamaModelModal = ({
                             placeholder={t('搜索模型...')}
                             value={searchValue}
                             onValueChange={setSearchValue}
-                            startContent={
-                              <Search size={14} className='text-muted' />
-                            }
                           >
+                            <Search size={14} className='text-muted' />
                             <Input.Control>
                               <Input.Element />
                             </Input.Control>
@@ -654,19 +643,19 @@ const OllamaModelModal = ({
                         <Button
                           size='sm'
                           color='primary'
-                          startContent={<Plus size={14} />}
                           isDisabled={selectedModelIds.length === 0}
                           onPress={handleApplyAllModels}
                         >
+                          <Plus size={14} />
                           {t('加入渠道')}
                         </Button>
                         <Button
                           size='sm'
                           variant='tertiary'
-                          startContent={<RefreshCw size={14} />}
                           isPending={loading}
                           onPress={fetchModels}
                         >
+                          <RefreshCw size={14} />
                           {t('刷新')}
                         </Button>
                       </div>
@@ -748,11 +737,8 @@ const OllamaModelModal = ({
                 </Card>
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button
-                  color='primary'
-                  startContent={<X size={14} />}
-                  onPress={onCancel}
-                >
+                <Button color='primary' onPress={onCancel}>
+                  <X size={14} />
                   {t('关闭')}
                 </Button>
               </ModalFooter>

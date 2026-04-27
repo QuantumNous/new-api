@@ -19,11 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Skeleton,
-  Pagination,
-  Button,
-} from '@heroui/react';
+import { Skeleton, Pagination, Button } from '@heroui/react';
 import { ChevronDown, ChevronUp, Inbox } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
@@ -189,7 +185,10 @@ const CardTable = ({
   if (showSkeleton) {
     const renderSkeletonCard = (key) => {
       return (
-        <div key={key} className='rounded-2xl border border-border bg-background p-4 shadow-sm'>
+        <div
+          key={key}
+          className='rounded-2xl border border-border bg-background p-4 shadow-sm'
+        >
           {visibleColumns.map((col, idx) => {
             if (!col.title) {
               return (
@@ -234,9 +233,11 @@ const CardTable = ({
       (!tableProps.rowExpandable || tableProps.rowExpandable(record));
 
     return (
-      <div key={rowKeyVal} className='rounded-2xl border border-border bg-background p-4 shadow-sm'>
+      <div
+        key={rowKeyVal}
+        className='rounded-2xl border border-border bg-background p-4 shadow-sm'
+      >
         {visibleColumns.map((col, colIdx) => {
-
           const title = col.title;
           const cellContent = renderCell(col, record, index);
 
@@ -271,11 +272,15 @@ const CardTable = ({
               variant='tertiary'
               size='sm'
               className='w-full flex justify-center mt-2'
-              startContent={showDetails ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               onPress={() => {
                 setShowDetails(!showDetails);
               }}
             >
+              {showDetails ? (
+                <ChevronUp size={16} />
+              ) : (
+                <ChevronDown size={16} />
+              )}
               {showDetails ? t('收起') : t('详情')}
             </Button>
             {showDetails && (
@@ -291,11 +296,7 @@ const CardTable = ({
 
   if (isEmpty) {
     if (tableProps.empty) return tableProps.empty;
-    return (
-      <div className='flex justify-center p-4'>
-        {renderEmpty()}
-      </div>
-    );
+    return <div className='flex justify-center p-4'>{renderEmpty()}</div>;
   }
 
   return (
@@ -308,9 +309,7 @@ const CardTable = ({
         />
       ))}
       {!hidePagination && tableProps.pagination && dataSource.length > 0 && (
-        <div className='mt-2 flex justify-center'>
-          {renderPagination()}
-        </div>
+        <div className='mt-2 flex justify-center'>{renderPagination()}</div>
       )}
     </div>
   );

@@ -26,12 +26,7 @@ import {
   ModalHeader,
   useOverlayState,
 } from '@heroui/react';
-import {
-  AlertTriangle,
-  Copy,
-  RefreshCw,
-  Shield,
-} from 'lucide-react';
+import { AlertTriangle, Copy, RefreshCw, Shield } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { API, showError, showSuccess, showWarning } from '../../../../helpers';
 
@@ -335,9 +330,9 @@ const TwoFASetting = ({ t }) => {
         <Button
           color='primary'
           className='w-full !bg-foreground/85 hover:!bg-foreground'
-          startContent={<Copy size={14} />}
           onPress={onCopy}
         >
+          <Copy size={14} />
           {t('复制所有代码')}
         </Button>
       </Card.Content>
@@ -364,9 +359,7 @@ const TwoFASetting = ({ t }) => {
                     <StatusChip tone='red'>{t('未启用')}</StatusChip>
                   )}
                   {status.locked && (
-                    <StatusChip tone='orange'>
-                      {t('账户已锁定')}
-                    </StatusChip>
+                    <StatusChip tone='orange'>{t('账户已锁定')}</StatusChip>
                   )}
                 </div>
                 <div className='text-sm text-muted'>
@@ -388,27 +381,27 @@ const TwoFASetting = ({ t }) => {
                 <Button
                   color='primary'
                   isPending={loading}
-                  startContent={<Shield size={14} />}
                   onPress={handleSetup2FA}
                   className='!bg-foreground/85 hover:!bg-foreground'
                 >
+                  <Shield size={14} />
                   {t('启用验证')}
                 </Button>
               ) : (
                 <>
                   <Button
                     color='danger'
-                    startContent={<AlertTriangle size={14} />}
                     onPress={() => setDisableModalVisible(true)}
                     className='!bg-foreground/70 hover:!bg-foreground/85'
                   >
+                    <AlertTriangle size={14} />
                     {t('禁用两步验证')}
                   </Button>
                   <Button
                     variant='tertiary'
-                    startContent={<RefreshCw size={14} />}
                     onPress={() => setBackupModalVisible(true)}
                   >
+                    <RefreshCw size={14} />
                     {t('重新生成备用码')}
                   </Button>
                 </>
@@ -495,8 +488,7 @@ const TwoFASetting = ({ t }) => {
                           codes={setupData.backup_codes}
                           title={t('备用恢复代码')}
                           onCopy={() => {
-                            const codesText =
-                              setupData.backup_codes.join('\n');
+                            const codesText = setupData.backup_codes.join('\n');
                             copyTextToClipboard(
                               codesText,
                               t('备用码已复制到剪贴板'),
@@ -510,9 +502,7 @@ const TwoFASetting = ({ t }) => {
                           value={verificationCode}
                           onValueChange={setVerificationCode}
                           maxLength={6}
-                          placeholder={t(
-                            '输入认证器应用显示的6位数字验证码',
-                          )}
+                          placeholder={t('输入认证器应用显示的6位数字验证码')}
                           size='lg'
                         >
                           <Input.Control>
@@ -566,11 +556,7 @@ const TwoFASetting = ({ t }) => {
       {/* Disable 2FA modal */}
       <Modal state={disableModalState}>
         <ModalBackdrop variant='blur'>
-          <ModalContainer
-            size='xl'
-            placement='center'
-            className='max-w-[90vw]'
-          >
+          <ModalContainer size='xl' placement='center' className='max-w-[90vw]'>
             <ModalDialog className='bg-background/95 backdrop-blur'>
               <ModalHeader className='border-b border-border'>
                 <div className='flex items-center gap-2'>
@@ -605,9 +591,7 @@ const TwoFASetting = ({ t }) => {
                       </li>
                       <li className='flex items-start gap-2'>
                         <Dot tone='danger' />
-                        <span>
-                          {t('永久删除所有备用码（包括未使用的）')}
-                        </span>
+                        <span>{t('永久删除所有备用码（包括未使用的）')}</span>
                       </li>
                     </ul>
                   </div>
@@ -669,11 +653,7 @@ const TwoFASetting = ({ t }) => {
       {/* Regenerate backup codes modal */}
       <Modal state={backupModalState}>
         <ModalBackdrop variant='blur'>
-          <ModalContainer
-            size='lg'
-            placement='center'
-            className='max-w-[90vw]'
-          >
+          <ModalContainer size='lg' placement='center' className='max-w-[90vw]'>
             <ModalDialog className='bg-background/95 backdrop-blur'>
               <ModalHeader className='border-b border-border'>
                 <div className='flex items-center gap-2'>

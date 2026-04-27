@@ -215,9 +215,7 @@ const ModelTestModal = ({
       return;
     }
     if (checked) {
-      setSelectedModelKeys(
-        Array.from(new Set([...selectedModelKeys, key])),
-      );
+      setSelectedModelKeys(Array.from(new Set([...selectedModelKeys, key])));
     } else {
       setSelectedModelKeys(selectedModelKeys.filter((item) => item !== key));
     }
@@ -265,12 +263,12 @@ const ModelTestModal = ({
               <Button
                 size='sm'
                 variant='tertiary'
-                startContent={<Settings size={12} />}
                 onPress={() =>
                   window.open('/console/setting?tab=ratio', '_blank')
                 }
                 className={`w-fit ${warningGhostButtonClass}`}
               >
+                <Settings size={12} />
                 {t('前往设置')}
               </Button>
             )}
@@ -318,8 +316,7 @@ const ModelTestModal = ({
                       {currentTestChannel.name} {t('渠道的模型测试')}
                     </span>
                     <span className='text-xs text-muted'>
-                      {t('共')}{' '}
-                      {currentTestChannel.models.split(',').length}{' '}
+                      {t('共')} {currentTestChannel.models.split(',').length}{' '}
                       {t('个模型')}
                     </span>
                   </div>
@@ -344,7 +341,10 @@ const ModelTestModal = ({
                         className='h-9 w-full min-w-0 rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
                       >
                         {endpointTypeOptions.map((option) => (
-                          <option key={String(option.value)} value={option.value}>
+                          <option
+                            key={String(option.value)}
+                            value={option.value}
+                          >
                             {option.label}
                           </option>
                         ))}
@@ -381,7 +381,10 @@ const ModelTestModal = ({
                   {/* Search + actions */}
                   <div className='flex w-full flex-col gap-2 sm:flex-row sm:items-center'>
                     <div className='relative flex-1'>
-                      <Search className='pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted' size={14} />
+                      <Search
+                        className='pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted'
+                        size={14}
+                      />
                       <Input
                         aria-label={t('搜索模型')}
                         placeholder={t('搜索模型...')}

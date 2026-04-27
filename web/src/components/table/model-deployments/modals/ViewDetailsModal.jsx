@@ -91,9 +91,7 @@ function DescList({ items }) {
     <dl className='grid grid-cols-1 gap-y-2 sm:grid-cols-[140px_minmax(0,1fr)] sm:gap-x-4'>
       {items.map((item, idx) => (
         <React.Fragment key={`${item.key}-${idx}`}>
-          <dt className='text-xs font-medium text-muted sm:pt-1'>
-            {item.key}
-          </dt>
+          <dt className='text-xs font-medium text-muted sm:pt-1'>{item.key}</dt>
           <dd className='text-sm text-foreground'>{item.value}</dd>
         </React.Fragment>
       ))}
@@ -330,8 +328,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                                   {details.total_gpus}
                                 </span>
                                 <span>
-                                  {t('总计')} {details.total_gpus}{' '}
-                                  {t('个GPU')}
+                                  {t('总计')} {details.total_gpus} {t('个GPU')}
                                 </span>
                               </div>
                             ),
@@ -341,7 +338,8 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                             value: (
                               <div className='space-y-1'>
                                 <div>
-                                  {t('每容器GPU数')}: {details.gpus_per_container}
+                                  {t('每容器GPU数')}:{' '}
+                                  {details.gpus_per_container}
                                 </div>
                                 <div>
                                   {t('容器总数')}: {details.total_containers}
@@ -397,14 +395,17 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                             },
                             {
                               key: t('流量端口'),
-                              value: details.container_config.traffic_port || 'N/A',
+                              value:
+                                details.container_config.traffic_port || 'N/A',
                             },
                             {
                               key: t('启动命令'),
                               value: (
                                 <span className='font-mono text-sm'>
                                   {details.container_config.entrypoint
-                                    ? details.container_config.entrypoint.join(' ')
+                                    ? details.container_config.entrypoint.join(
+                                        ' ',
+                                      )
                                     : 'N/A'}
                                 </span>
                               ),
@@ -491,7 +492,6 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                                     <Button
                                       size='sm'
                                       variant='tertiary'
-                                      startContent={<FaLink />}
                                       onPress={() =>
                                         window.open(
                                           ctr.public_url,
@@ -500,6 +500,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                                         )
                                       }
                                     >
+                                      <FaLink />
                                       {t('访问容器')}
                                     </Button>
                                   </Tooltip>
@@ -546,11 +547,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                     >
                       <div className='flex flex-wrap gap-2'>
                         {details.locations.map((location) => (
-                          <StatusTag
-                            key={location.id}
-                            tone='orange'
-                            size='lg'
-                          >
+                          <StatusTag key={location.id} tone='orange' size='lg'>
                             <span className='mr-1'>🌍</span>
                             <span>
                               {location.name} ({location.iso2})
@@ -581,9 +578,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
 
                       <div className='grid grid-cols-1 gap-4 text-sm sm:grid-cols-2'>
                         <div className='flex justify-between'>
-                          <span className='text-muted'>
-                            {t('计费开始')}:
-                          </span>
+                          <span className='text-muted'>{t('计费开始')}:</span>
                           <span className='tabular-nums'>
                             {details.started_at
                               ? timestamp2string(details.started_at)
@@ -591,9 +586,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                           </span>
                         </div>
                         <div className='flex justify-between'>
-                          <span className='text-muted'>
-                            {t('预计结束')}:
-                          </span>
+                          <span className='text-muted'>{t('预计结束')}:</span>
                           <span className='tabular-nums'>
                             {details.finished_at
                               ? timestamp2string(details.finished_at)
@@ -651,10 +644,10 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
             <ModalFooter className='flex justify-between border-t border-border'>
               <Button
                 variant='tertiary'
-                startContent={<RefreshCw size={14} />}
                 onPress={handleRefresh}
                 isPending={loading || containersLoading}
               >
+                <RefreshCw size={14} />
                 {t('刷新')}
               </Button>
               <Button onPress={onCancel}>{t('关闭')}</Button>

@@ -96,17 +96,24 @@ const SubscriptionPurchaseModal = ({
                 <div className='space-y-4 pb-4'>
                   <Card className='rounded-2xl border border-border bg-surface-secondary/60 p-4 shadow-none'>
                     <div className='space-y-3'>
-                      <InfoRow label={`${t('套餐名称')}：`} value={plan.title} />
+                      <InfoRow
+                        label={`${t('套餐名称')}：`}
+                        value={plan.title}
+                      />
                       <InfoRow
                         label={`${t('有效期')}：`}
                         value={
                           <span className='flex items-center'>
-                            <CalendarClock size={14} className='mr-1 text-muted' />
+                            <CalendarClock
+                              size={14}
+                              className='mr-1 text-muted'
+                            />
                             {formatSubscriptionDuration(plan, t)}
                           </span>
                         }
                       />
-                      {formatSubscriptionResetPeriod(plan, t) !== t('不重置') && (
+                      {formatSubscriptionResetPeriod(plan, t) !==
+                        t('不重置') && (
                         <InfoRow
                           label={`${t('重置周期')}：`}
                           value={formatSubscriptionResetPeriod(plan, t)}
@@ -118,7 +125,9 @@ const SubscriptionPurchaseModal = ({
                           <span className='flex items-center'>
                             <Package size={14} className='mr-1 text-muted' />
                             {totalAmount > 0 ? (
-                              <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
+                              <Tooltip
+                                content={`${t('原生额度')}：${totalAmount}`}
+                              >
                                 <span>{renderQuota(totalAmount)}</span>
                               </Tooltip>
                             ) : (
@@ -164,11 +173,11 @@ const SubscriptionPurchaseModal = ({
                             <Button
                               variant='tertiary'
                               className='flex-1'
-                              startContent={<SiStripe size={14} color='#635BFF' />}
                               onPress={onPayStripe}
                               isPending={paying}
                               isDisabled={purchaseLimitReached}
                             >
+                              <SiStripe size={14} color='#635BFF' />
                               Stripe
                             </Button>
                           )}
@@ -176,11 +185,11 @@ const SubscriptionPurchaseModal = ({
                             <Button
                               variant='tertiary'
                               className='flex-1'
-                              startContent={<CreditCard size={16} />}
                               onPress={onPayCreem}
                               isPending={paying}
                               isDisabled={purchaseLimitReached}
                             >
+                              <CreditCard size={16} />
                               Creem
                             </Button>
                           )}
@@ -208,7 +217,9 @@ const SubscriptionPurchaseModal = ({
                             color='primary'
                             onPress={onPayEpay}
                             isPending={paying}
-                            isDisabled={!selectedEpayMethod || purchaseLimitReached}
+                            isDisabled={
+                              !selectedEpayMethod || purchaseLimitReached
+                            }
                           >
                             {t('支付')}
                           </Button>

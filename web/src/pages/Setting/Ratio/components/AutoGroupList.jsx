@@ -90,12 +90,8 @@ export default function AutoGroupList({ value, groupNames = [], onChange }) {
           {t('暂无自动分组，点击下方按钮添加')}
         </div>
         <div className='mt-2 flex justify-center'>
-          <Button
-            variant='secondary'
-            startContent={<Plus size={14} />}
-            onPress={addItem}
-            size='sm'
-          >
+          <Button variant='secondary' onPress={addItem} size='sm'>
+            <Plus size={14} />
             {t('添加分组')}
           </Button>
         </div>
@@ -161,12 +157,8 @@ export default function AutoGroupList({ value, groupNames = [], onChange }) {
         ))}
       </div>
       <div className='mt-3 flex justify-center'>
-        <Button
-          variant='secondary'
-          startContent={<Plus size={14} />}
-          onPress={addItem}
-          size='sm'
-        >
+        <Button variant='secondary' onPress={addItem} size='sm'>
+          <Plus size={14} />
           {t('添加分组')}
         </Button>
       </div>

@@ -152,7 +152,9 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
                 : items || {};
             const keys = Object.keys(obj);
             if (keys.length === 0) {
-              return <span className='text-sm text-muted'>{t('暂无项目')}</span>;
+              return (
+                <span className='text-sm text-muted'>{t('暂无项目')}</span>
+              );
             }
             return renderLimitedItems({
               items: keys,
@@ -171,7 +173,9 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
             maxDisplay: 3,
           });
         } catch {
-          return <span className='text-sm text-muted'>{t('数据格式错误')}</span>;
+          return (
+            <span className='text-sm text-muted'>{t('数据格式错误')}</span>
+          );
         }
       },
     },
@@ -182,7 +186,11 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
       width: 140,
       render: (_, record) => (
         <div className='flex items-center gap-2'>
-          <Button size='sm' variant='tertiary' onPress={() => handleEdit(record)}>
+          <Button
+            size='sm'
+            variant='tertiary'
+            onPress={() => handleEdit(record)}
+          >
             {t('编辑')}
           </Button>
           <Button
@@ -253,12 +261,8 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
               </div>
 
               <div className='flex justify-end'>
-                <Button
-                  color='primary'
-                  size='sm'
-                  startContent={<Plus size={14} />}
-                  onPress={() => handleEdit()}
-                >
+                <Button color='primary' size='sm' onPress={() => handleEdit()}>
+                  <Plus size={14} />
                   {t('新建组')}
                 </Button>
               </div>

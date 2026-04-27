@@ -131,90 +131,101 @@ const SecureVerificationModal = ({
           <ModalDialog className='bg-background/95 backdrop-blur'>
             <ModalHeader>{title || t('安全验证')}</ModalHeader>
             <ModalBody className='px-5 py-5'>
-      <div className='w-full'>
-        {/* 描述信息 */}
-        {description && (
-          <p className='mb-5 text-sm leading-6 text-muted'>
-            {description}
-          </p>
-        )}
-
-        {/* 验证方式选择 */}
-        <Tabs
-          selectedKey={method}
-          onSelectionChange={(key) => onMethodSwitch(String(key))}
-          size='default'
-          variant='underlined'
-        >
-          {has2FA && (
-            <Tab key='2fa' title={t('两步验证')}>
-              <div className='pt-5'>
-                <div className='mb-3'>
-                  <Input
-                    placeholder={t('请输入6位验证码或8位备用码')}
-                    value={code}
-                    onChange={(event) => onCodeChange(event.target.value)}
-                    size='large'
-                    maxLength={8}
-                    onKeyDown={handleKeyDown}
-                    autoFocus={method === '2fa'}
-                    isDisabled={loading}
-                    startContent={<KeyRound size={16} />}
-                  />
-                </div>
-
-                <p className='mb-5 text-sm leading-6 text-muted'>
-                  {t('从认证器应用中获取验证码，或使用备用码')}
-                </p>
-
-                <div className='flex flex-wrap justify-end gap-2'>
-                  <Button variant='outline' onPress={onCancel} isDisabled={loading}>
-                    {t('取消')}
-                  </Button>
-                  <Button
-                    isPending={loading}
-                    isDisabled={!code.trim() || loading}
-                    onPress={() => onVerify(method, code)}
-                  >
-                    {t('验证')}
-                  </Button>
-                </div>
-              </div>
-            </Tab>
-          )}
-
-          {hasPasskey && passkeySupported && (
-            <Tab key='passkey' title={t('Passkey')}>
-              <div className='pt-5'>
-                <div className='mb-5 px-4 py-6 text-center'>
-                  <div className='mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent'>
-                    <ShieldCheck size={28} />
-                  </div>
-                  <h3 className='mb-2 text-base font-semibold text-foreground'>
-                    {t('使用 Passkey 验证')}
-                  </h3>
-                  <p className='text-sm leading-6 text-muted'>
-                    {t('点击验证按钮，使用您的生物特征或安全密钥')}
+              <div className='w-full'>
+                {/* 描述信息 */}
+                {description && (
+                  <p className='mb-5 text-sm leading-6 text-muted'>
+                    {description}
                   </p>
-                </div>
+                )}
 
-                <div className='flex flex-wrap justify-end gap-2'>
-                  <Button variant='outline' onPress={onCancel} isDisabled={loading}>
-                    {t('取消')}
-                  </Button>
-                  <Button
-                    isPending={loading}
-                    isDisabled={loading}
-                    onPress={() => onVerify(method)}
-                  >
-                    {t('验证 Passkey')}
-                  </Button>
-                </div>
+                {/* 验证方式选择 */}
+                <Tabs
+                  selectedKey={method}
+                  onSelectionChange={(key) => onMethodSwitch(String(key))}
+                  size='default'
+                  variant='underlined'
+                >
+                  {has2FA && (
+                    <Tab key='2fa' title={t('两步验证')}>
+                      <div className='pt-5'>
+                        <div className='mb-3'>
+                          <Input
+                            placeholder={t('请输入6位验证码或8位备用码')}
+                            value={code}
+                            onChange={(event) =>
+                              onCodeChange(event.target.value)
+                            }
+                            size='large'
+                            maxLength={8}
+                            onKeyDown={handleKeyDown}
+                            autoFocus={method === '2fa'}
+                            isDisabled={loading}
+                          >
+                            <KeyRound size={16} />
+                          </Input>
+                        </div>
+
+                        <p className='mb-5 text-sm leading-6 text-muted'>
+                          {t('从认证器应用中获取验证码，或使用备用码')}
+                        </p>
+
+                        <div className='flex flex-wrap justify-end gap-2'>
+                          <Button
+                            variant='outline'
+                            onPress={onCancel}
+                            isDisabled={loading}
+                          >
+                            {t('取消')}
+                          </Button>
+                          <Button
+                            isPending={loading}
+                            isDisabled={!code.trim() || loading}
+                            onPress={() => onVerify(method, code)}
+                          >
+                            {t('验证')}
+                          </Button>
+                        </div>
+                      </div>
+                    </Tab>
+                  )}
+
+                  {hasPasskey && passkeySupported && (
+                    <Tab key='passkey' title={t('Passkey')}>
+                      <div className='pt-5'>
+                        <div className='mb-5 px-4 py-6 text-center'>
+                          <div className='mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent'>
+                            <ShieldCheck size={28} />
+                          </div>
+                          <h3 className='mb-2 text-base font-semibold text-foreground'>
+                            {t('使用 Passkey 验证')}
+                          </h3>
+                          <p className='text-sm leading-6 text-muted'>
+                            {t('点击验证按钮，使用您的生物特征或安全密钥')}
+                          </p>
+                        </div>
+
+                        <div className='flex flex-wrap justify-end gap-2'>
+                          <Button
+                            variant='outline'
+                            onPress={onCancel}
+                            isDisabled={loading}
+                          >
+                            {t('取消')}
+                          </Button>
+                          <Button
+                            isPending={loading}
+                            isDisabled={loading}
+                            onPress={() => onVerify(method)}
+                          >
+                            {t('验证 Passkey')}
+                          </Button>
+                        </div>
+                      </div>
+                    </Tab>
+                  )}
+                </Tabs>
               </div>
-            </Tab>
-          )}
-        </Tabs>
-      </div>
             </ModalBody>
           </ModalDialog>
         </ModalContainer>

@@ -93,11 +93,7 @@ function TagInput({ value = [], onChange, placeholder, ariaLabel }) {
           if (event.key === 'Enter' || event.key === ',') {
             event.preventDefault();
             commit(draft);
-          } else if (
-            event.key === 'Backspace' &&
-            !draft &&
-            items.length > 0
-          ) {
+          } else if (event.key === 'Backspace' && !draft && items.length > 0) {
             remove(items.length - 1);
           }
         }}
@@ -367,19 +363,12 @@ const EditPrefillGroupModal = ({
         </div>
 
         <footer className='flex justify-end gap-2 border-t border-[color:var(--app-border)] bg-[color:var(--app-background)] px-5 py-3'>
-          <Button
-            variant='tertiary'
-            onPress={onClose}
-            startContent={<X size={14} />}
-          >
+          <Button variant='tertiary' onPress={onClose}>
+            <X size={14} />
             {t('取消')}
           </Button>
-          <Button
-            color='primary'
-            onPress={handleSubmit}
-            isPending={loading}
-            startContent={<Save size={14} />}
-          >
+          <Button color='primary' onPress={handleSubmit} isPending={loading}>
+            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>

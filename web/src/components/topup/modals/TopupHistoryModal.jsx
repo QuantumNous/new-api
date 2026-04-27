@@ -32,7 +32,13 @@ import {
   useOverlayState,
 } from '@heroui/react';
 import { Coins, Search } from 'lucide-react';
-import { API, copy, showError, showSuccess, timestamp2string } from '../../../helpers';
+import {
+  API,
+  copy,
+  showError,
+  showSuccess,
+  timestamp2string,
+} from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import ConfirmDialog from '../../common/ui/ConfirmDialog';
@@ -145,7 +151,11 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       primary: 'primary',
     };
     return (
-      <Chip color={colorMap[config.type] || 'default'} size='sm' variant='tertiary'>
+      <Chip
+        color={colorMap[config.type] || 'default'}
+        size='sm'
+        variant='tertiary'
+      >
         {t(config.key)}
       </Chip>
     );
@@ -218,7 +228,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         dataIndex: 'money',
         key: 'money',
         render: (money) => (
-          <span className='font-semibold text-danger'>¥{Number(money || 0).toFixed(2)}</span>
+          <span className='font-semibold text-danger'>
+            ¥{Number(money || 0).toFixed(2)}
+          </span>
         ),
       },
       {
@@ -239,13 +251,13 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           if (record.status === 'pending') {
             actions.push(
               <Button
-                key="complete"
+                key='complete'
                 size='sm'
                 variant='tertiary'
                 onPress={() => confirmAdminComplete(record.trade_no)}
               >
                 {t('补单')}
-              </Button>
+              </Button>,
             );
           }
           return actions.length > 0 ? <>{actions}</> : null;
@@ -286,13 +298,14 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
               <ModalBody className='p-4 md:p-6'>
                 <div className='mb-4'>
                   <Input
-                    startContent={<Search size={16} className='text-muted' />}
                     placeholder={t('订单号')}
                     value={keyword}
                     onValueChange={handleKeywordChange}
                     isClearable
                     size='sm'
-                  />
+                  >
+                    <Search size={16} className='text-muted' />
+                  </Input>
                 </div>
 
                 {loading ? (
@@ -336,7 +349,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
                       <thead className='bg-surface-secondary text-xs uppercase tracking-wide text-muted'>
                         <tr>
                           {columns.map((column) => (
-                            <th key={column.key} className='px-4 py-3 text-left font-semibold'>
+                            <th
+                              key={column.key}
+                              className='px-4 py-3 text-left font-semibold'
+                            >
                               {column.title}
                             </th>
                           ))}
@@ -349,7 +365,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
                             className='bg-background transition hover:bg-surface-secondary/60'
                           >
                             {columns.map((column) => (
-                              <td key={column.key} className='px-4 py-3 text-foreground'>
+                              <td
+                                key={column.key}
+                                className='px-4 py-3 text-foreground'
+                              >
                                 {renderCell(record, column) || '-'}
                               </td>
                             ))}

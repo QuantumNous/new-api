@@ -260,7 +260,9 @@ const renderResourceConfig = (resource, t) => {
       {memory && (
         <div className='flex items-center gap-1 text-xs'>
           <FaMemory className='text-success' />
-          <span>{t('内存')}: {memory}</span>
+          <span>
+            {t('内存')}: {memory}
+          </span>
         </div>
       )}
       {gpu && (
@@ -527,8 +529,8 @@ export const getDeploymentsColumns = ({
                 size='sm'
                 variant='tertiary'
                 onPress={() => onViewDetails?.(record)}
-                startContent={<FaInfoCircle className='text-xs' />}
               >
+                <FaInfoCircle className='text-xs' />
                 {t('查看详情')}
               </Button>
             </div>
@@ -614,11 +616,11 @@ export const getDeploymentsColumns = ({
               size='sm'
               variant={primaryAction.variant || 'solid'}
               color={primaryAction.color}
-              startContent={primaryAction.icon}
               onPress={primaryAction.onPress}
               isDisabled={primaryAction.isDisabled}
               className='px-2 text-xs'
             >
+              {primaryAction.icon}
               {primaryAction.text}
             </Button>
 

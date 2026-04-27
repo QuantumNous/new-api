@@ -57,13 +57,7 @@ import ChannelSelectorModal from '../../../components/settings/ChannelSelectorMo
 const inputClass =
   'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
 
-function StatusChip({
-  tone = 'grey',
-  bg,
-  color,
-  prefixIcon,
-  children,
-}) {
+function StatusChip({ tone = 'grey', bg, color, prefixIcon, children }) {
   if (bg) {
     return (
       <span
@@ -433,10 +427,7 @@ export default function UpstreamRatioSync(props) {
             const newDifferences = { ...prevDifferences };
             Object.entries(resolutions).forEach(([model, ratios]) => {
               Object.keys(ratios).forEach((ratioType) => {
-                if (
-                  newDifferences[model] &&
-                  newDifferences[model][ratioType]
-                ) {
+                if (newDifferences[model] && newDifferences[model][ratioType]) {
                   delete newDifferences[model][ratioType];
                   if (Object.keys(newDifferences[model]).length === 0) {
                     delete newDifferences[model];
@@ -566,9 +557,7 @@ export default function UpstreamRatioSync(props) {
     return dataSource.filter((item) => {
       const matchesKeyword =
         !searchKeyword.trim() ||
-        item.model
-          .toLowerCase()
-          .includes(searchKeyword.toLowerCase().trim());
+        item.model.toLowerCase().includes(searchKeyword.toLowerCase().trim());
       const matchesRatioType =
         !ratioTypeFilter || item.ratioType === ratioTypeFilter;
       return matchesKeyword && matchesRatioType;
@@ -604,10 +593,8 @@ export default function UpstreamRatioSync(props) {
       map[upName] = {
         selectableCount,
         selectedCount,
-        allSelected:
-          selectableCount > 0 && selectedCount === selectableCount,
-        partiallySelected:
-          selectedCount > 0 && selectedCount < selectableCount,
+        allSelected: selectableCount > 0 && selectedCount === selectableCount,
+        partiallySelected: selectedCount > 0 && selectedCount < selectableCount,
         hasSelectableItems: selectableCount > 0,
       };
     });
@@ -624,10 +611,7 @@ export default function UpstreamRatioSync(props) {
   );
   const startIndex =
     filteredDataSource.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const endIndex = Math.min(
-    currentPage * pageSize,
-    filteredDataSource.length,
-  );
+  const endIndex = Math.min(currentPage * pageSize, filteredDataSource.length);
 
   const handleBulkSelect = (upName, checked) => {
     if (checked) {
@@ -726,22 +710,22 @@ export default function UpstreamRatioSync(props) {
           <div className='flex w-full flex-col gap-2 md:w-auto md:flex-row'>
             <Button
               variant='tertiary'
-              startContent={<RefreshCcw size={14} />}
               onPress={() => {
                 setModalVisible(true);
                 if (allChannels.length === 0) fetchAllChannels();
               }}
               className='w-full md:w-auto'
             >
+              <RefreshCcw size={14} />
               {t('选择同步渠道')}
             </Button>
             <Button
               variant='tertiary'
-              startContent={<CheckSquare size={14} />}
               isDisabled={!hasSelections}
               onPress={applySync}
               className='w-full md:w-auto'
             >
+              <CheckSquare size={14} />
               {t('应用同步')}
             </Button>
 
@@ -754,18 +738,14 @@ export default function UpstreamRatioSync(props) {
                 <input
                   type='text'
                   value={searchKeyword}
-                  onChange={(event) =>
-                    setSearchKeyword(event.target.value)
-                  }
+                  onChange={(event) => setSearchKeyword(event.target.value)}
                   placeholder={t('搜索模型名称')}
                   className={`${inputClass} pl-8`}
                 />
               </div>
               <select
                 value={ratioTypeFilter}
-                onChange={(event) =>
-                  setRatioTypeFilter(event.target.value)
-                }
+                onChange={(event) => setRatioTypeFilter(event.target.value)}
                 className={`${inputClass} w-full sm:w-48`}
               >
                 {RATIO_TYPE_OPTIONS.map((option) => (
@@ -877,29 +857,33 @@ export default function UpstreamRatioSync(props) {
                               {t('可信')}
                             </StatusChip>
                           </Tooltip>
-                        ) : (() => {
-                          const untrustedSources = Object.entries(
-                            record.confidence || {},
-                          )
-                            .filter(([_, isConfident]) => isConfident === false)
-                            .map(([name]) => name)
-                            .join(', ');
-                          return (
-                            <Tooltip
-                              content={
-                                t('以下上游数据可能不可信：') +
-                                untrustedSources
-                              }
-                            >
-                              <StatusChip
-                                tone='yellow'
-                                prefixIcon={<AlertTriangle size={12} />}
+                        ) : (
+                          (() => {
+                            const untrustedSources = Object.entries(
+                              record.confidence || {},
+                            )
+                              .filter(
+                                ([_, isConfident]) => isConfident === false,
+                              )
+                              .map(([name]) => name)
+                              .join(', ');
+                            return (
+                              <Tooltip
+                                content={
+                                  t('以下上游数据可能不可信：') +
+                                  untrustedSources
+                                }
                               >
-                                {t('谨慎')}
-                              </StatusChip>
-                            </Tooltip>
-                          );
-                        })()}
+                                <StatusChip
+                                  tone='yellow'
+                                  prefixIcon={<AlertTriangle size={12} />}
+                                >
+                                  {t('谨慎')}
+                                </StatusChip>
+                              </Tooltip>
+                            );
+                          })()
+                        )}
                       </td>
                       <td className='px-3 py-2 align-top'>
                         <StatusChip
@@ -921,15 +905,10 @@ export default function UpstreamRatioSync(props) {
                         const isConfident =
                           record.confidence?.[upName] !== false;
 
-                        if (
-                          upstreamVal === null ||
-                          upstreamVal === undefined
-                        ) {
+                        if (upstreamVal === null || upstreamVal === undefined) {
                           return (
                             <td key={upName} className='px-3 py-2 align-top'>
-                              <StatusChip tone='grey'>
-                                {t('未设置')}
-                              </StatusChip>
+                              <StatusChip tone='grey'>{t('未设置')}</StatusChip>
                             </td>
                           );
                         }
@@ -966,9 +945,7 @@ export default function UpstreamRatioSync(props) {
                               </CompactCheckbox>
                               {!isConfident && (
                                 <Tooltip
-                                  content={t(
-                                    '该数据可能不可信，请谨慎使用',
-                                  )}
+                                  content={t('该数据可能不可信，请谨慎使用')}
                                 >
                                   <AlertTriangle
                                     size={14}
@@ -1015,9 +992,7 @@ export default function UpstreamRatioSync(props) {
                   size='sm'
                   variant='tertiary'
                   isDisabled={currentPage <= 1}
-                  onPress={() =>
-                    setCurrentPage(Math.max(1, currentPage - 1))
-                  }
+                  onPress={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 >
                   {t('上一页')}
                 </Button>
@@ -1061,9 +1036,7 @@ export default function UpstreamRatioSync(props) {
           setConfirmVisible(false);
           const curRatios = {
             ModelRatio: JSON.parse(props.options.ModelRatio || '{}'),
-            CompletionRatio: JSON.parse(
-              props.options.CompletionRatio || '{}',
-            ),
+            CompletionRatio: JSON.parse(props.options.CompletionRatio || '{}'),
             CacheRatio: JSON.parse(props.options.CacheRatio || '{}'),
             ModelPrice: JSON.parse(props.options.ModelPrice || '{}'),
           };

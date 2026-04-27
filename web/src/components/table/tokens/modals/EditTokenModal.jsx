@@ -14,13 +14,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState, useContext } from 'react';
 import { Button, Card, Spinner, Switch } from '@heroui/react';
-import {
-  CreditCard,
-  KeyRound,
-  Link as LinkIcon,
-  Save,
-  X,
-} from 'lucide-react';
+import { CreditCard, KeyRound, Link as LinkIcon, Save, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -513,9 +507,7 @@ const EditTokenModal = (props) => {
                   <input
                     type='text'
                     value={values.name}
-                    onChange={(event) =>
-                      setField('name')(event.target.value)
-                    }
+                    onChange={(event) => setField('name')(event.target.value)}
                     placeholder={t('请输入名称')}
                     className={inputClass}
                   />
@@ -853,19 +845,12 @@ const EditTokenModal = (props) => {
         </div>
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
-          <Button
-            variant='tertiary'
-            startContent={<X size={14} />}
-            onPress={props.handleClose}
-          >
+          <Button variant='tertiary' onPress={props.handleClose}>
+            <X size={14} />
             {t('取消')}
           </Button>
-          <Button
-            color='primary'
-            isPending={loading}
-            startContent={<Save size={14} />}
-            onPress={submit}
-          >
+          <Button color='primary' isPending={loading} onPress={submit}>
+            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>

@@ -183,9 +183,7 @@ export default function SettingModelDeployment(props) {
                   onChange={(e) =>
                     setField('model_deployment.ionet.api_key')(e.target.value)
                   }
-                  placeholder={t(
-                    '请输入 io.net API Key（敏感信息不显示）',
-                  )}
+                  placeholder={t('请输入 io.net API Key（敏感信息不显示）')}
                   disabled={!enabled}
                   aria-label={t('API Key')}
                   className={inputClass}
@@ -199,11 +197,11 @@ export default function SettingModelDeployment(props) {
                 <Button
                   variant='secondary'
                   size='sm'
-                  startContent={<Zap size={14} />}
                   onPress={testApiKey}
                   isPending={testing}
                   isDisabled={!enabled}
                 >
+                  <Zap size={14} />
                   {testing ? t('连接测试中...') : t('测试连接')}
                 </Button>
               </div>
@@ -223,13 +221,13 @@ export default function SettingModelDeployment(props) {
               <Button
                 color='primary'
                 size='sm'
-                endContent={<ArrowUpRight size={14} />}
                 onPress={() =>
                   window.open('https://ai.io.net/ai/api-keys', '_blank')
                 }
                 className='w-full'
               >
                 {t('前往 io.net API Keys')}
+                <ArrowUpRight size={14} />
               </Button>
             </div>
           </div>

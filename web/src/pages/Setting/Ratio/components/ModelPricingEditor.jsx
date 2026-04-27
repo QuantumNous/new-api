@@ -88,9 +88,7 @@ function InfoBanner({ tone = 'warning', title, description }) {
         }
       />
       <div className='flex-1'>
-        {title ? (
-          <div className='mb-0.5 font-semibold'>{title}</div>
-        ) : null}
+        {title ? <div className='mb-0.5 font-semibold'>{title}</div> : null}
         {description ? <div className='text-xs'>{description}</div> : null}
       </div>
     </div>
@@ -212,15 +210,9 @@ export default function ModelPricingEditor({
     }
   };
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredModels.length / PAGE_SIZE),
-  );
+  const totalPages = Math.max(1, Math.ceil(filteredModels.length / PAGE_SIZE));
   const startIndex = (currentPage - 1) * PAGE_SIZE + 1;
-  const endIndex = Math.min(
-    currentPage * PAGE_SIZE,
-    filteredModels.length,
-  );
+  const endIndex = Math.min(currentPage * PAGE_SIZE, filteredModels.length);
 
   const allOnPageSelected =
     pagedData.length > 0 &&
@@ -276,27 +268,25 @@ export default function ModelPricingEditor({
           {allowAddModel ? (
             <Button
               variant='tertiary'
-              startContent={<Plus size={14} />}
               onPress={() => setAddVisible(true)}
               className={isMobile ? 'w-full' : ''}
             >
+              <Plus size={14} />
               {t('添加模型')}
             </Button>
           ) : null}
           <Button
             color='primary'
             isPending={loading}
-            startContent={<Save size={14} />}
             onPress={handleSubmit}
             className={isMobile ? 'w-full' : ''}
           >
+            <Save size={14} />
             {t('应用更改')}
           </Button>
           <Button
             variant='tertiary'
-            isDisabled={
-              !selectedModel || selectedModelNames.length === 0
-            }
+            isDisabled={!selectedModel || selectedModelNames.length === 0}
             onPress={() => setBatchVisible(true)}
             className={isMobile ? 'w-full' : ''}
           >
@@ -306,10 +296,7 @@ export default function ModelPricingEditor({
               : ''}
           </Button>
 
-          <div
-            className='relative'
-            style={{ width: isMobile ? '100%' : 220 }}
-          >
+          <div className='relative' style={{ width: isMobile ? '100%' : 220 }}>
             <Search
               size={14}
               className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted'
@@ -327,9 +314,7 @@ export default function ModelPricingEditor({
               <input
                 type='checkbox'
                 checked={!!conflictOnly}
-                onChange={(event) =>
-                  setConflictOnly(event.target.checked)
-                }
+                onChange={(event) => setConflictOnly(event.target.checked)}
                 className='h-4 w-4 accent-primary'
               />
               <span>{t('仅显示矛盾倍率')}</span>
@@ -396,8 +381,7 @@ export default function ModelPricingEditor({
                           const isChecked = selectedModelNames.includes(
                             record.name,
                           );
-                          const isFocused =
-                            record.name === selectedModelName;
+                          const isFocused = record.name === selectedModelName;
                           const rowBg = isChecked
                             ? 'bg-success/10'
                             : isFocused
@@ -412,9 +396,7 @@ export default function ModelPricingEditor({
                             <tr
                               key={record.name}
                               className={`cursor-pointer transition-colors ${rowBg} ${rowAccent}`}
-                              onClick={() =>
-                                setSelectedModelName(record.name)
-                              }
+                              onClick={() => setSelectedModelName(record.name)}
                             >
                               <td
                                 className='px-3 py-3 align-middle'
@@ -424,10 +406,7 @@ export default function ModelPricingEditor({
                                   type='checkbox'
                                   checked={isChecked}
                                   onChange={(event) =>
-                                    toggleRow(
-                                      record.name,
-                                      event.target.checked,
-                                    )
+                                    toggleRow(record.name, event.target.checked)
                                   }
                                   aria-label={record.name}
                                   className='h-4 w-4 accent-primary'
@@ -530,9 +509,7 @@ export default function ModelPricingEditor({
                         variant='tertiary'
                         isDisabled={currentPage >= totalPages}
                         onPress={() =>
-                          setCurrentPage(
-                            Math.min(totalPages, currentPage + 1),
-                          )
+                          setCurrentPage(Math.min(totalPages, currentPage + 1))
                         }
                       >
                         {t('下一页')}
@@ -550,9 +527,7 @@ export default function ModelPricingEditor({
               <Card.Content className='p-5'>
                 <div className='mb-4 flex items-center justify-between gap-2'>
                   <div className='text-base font-semibold text-foreground'>
-                    {selectedModel
-                      ? selectedModel.name
-                      : t('模型计费编辑器')}
+                    {selectedModel ? selectedModel.name : t('模型计费编辑器')}
                   </div>
                   {selectedModel ? (
                     <StatusChip tone='blue'>
@@ -680,10 +655,7 @@ export default function ModelPricingEditor({
                             value={selectedModel.completionPrice}
                             placeholder={t('输入 $/1M tokens')}
                             onChange={(value) =>
-                              handleNumericFieldChange(
-                                'completionPrice',
-                                value,
-                              )
+                              handleNumericFieldChange('completionPrice', value)
                             }
                             headerAction={
                               <Switch
@@ -692,9 +664,7 @@ export default function ModelPricingEditor({
                                   selectedModel,
                                   'completionPrice',
                                 )}
-                                isDisabled={
-                                  selectedModel.completionRatioLocked
-                                }
+                                isDisabled={selectedModel.completionRatioLocked}
                                 onValueChange={(checked) =>
                                   handleOptionalFieldToggle(
                                     'completionPrice',
@@ -885,10 +855,7 @@ export default function ModelPricingEditor({
                             value={selectedModel.audioInputPrice}
                             placeholder={t('输入 $/1M tokens')}
                             onChange={(value) =>
-                              handleNumericFieldChange(
-                                'audioInputPrice',
-                                value,
-                              )
+                              handleNumericFieldChange('audioInputPrice', value)
                             }
                             headerAction={
                               <Switch
@@ -968,9 +935,7 @@ export default function ModelPricingEditor({
                                 'audioOutputPrice',
                               )
                             }
-                            disabled={
-                              !hasValue(selectedModel.audioInputPrice)
-                            }
+                            disabled={!hasValue(selectedModel.audioInputPrice)}
                             extraText={
                               !isOptionalFieldEnabled(
                                 selectedModel,

@@ -15,13 +15,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState, useMemo } from 'react';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import { Button, Card, Spinner, Switch } from '@heroui/react';
-import {
-  AlertTriangle,
-  ExternalLink,
-  FileText,
-  Save,
-  X,
-} from 'lucide-react';
+import { AlertTriangle, ExternalLink, FileText, Save, X } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -631,9 +625,7 @@ const EditModelModal = (props) => {
                       {t('参与官方同步')}
                     </div>
                     <div className='text-xs text-muted'>
-                      {t(
-                        '关闭后，此模型将不会被"同步官方"自动覆盖或创建',
-                      )}
+                      {t('关闭后，此模型将不会被"同步官方"自动覆盖或创建')}
                     </div>
                   </div>
                   <Switch
@@ -669,19 +661,12 @@ const EditModelModal = (props) => {
         </div>
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
-          <Button
-            variant='tertiary'
-            startContent={<X size={14} />}
-            onPress={props.handleClose}
-          >
+          <Button variant='tertiary' onPress={props.handleClose}>
+            <X size={14} />
             {t('取消')}
           </Button>
-          <Button
-            color='primary'
-            isPending={loading}
-            startContent={<Save size={14} />}
-            onPress={submit}
-          >
+          <Button color='primary' isPending={loading} onPress={submit}>
+            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>

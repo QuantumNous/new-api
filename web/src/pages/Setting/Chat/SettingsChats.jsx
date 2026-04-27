@@ -176,8 +176,7 @@ export default function SettingsChats(props) {
       return;
     }
     const updateArray = compareObjects(inputs, inputsRow);
-    if (!updateArray.length)
-      return showWarning(t('你似乎并没有修改什么'));
+    if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     const requestQueue = updateArray.map((item) => {
       let value = '';
       if (typeof inputs[item.key] === 'boolean') {
@@ -297,9 +296,7 @@ export default function SettingsChats(props) {
       syncConfigsToJson(newConfigs);
     } else {
       const maxId =
-        chatConfigs.length > 0
-          ? Math.max(...chatConfigs.map((c) => c.id))
-          : -1;
+        chatConfigs.length > 0 ? Math.max(...chatConfigs.map((c) => c.id)) : -1;
       const newConfig = { id: maxId + 1, ...values };
       const newConfigs = [...chatConfigs, newConfig];
       setChatConfigs(newConfigs);
@@ -335,10 +332,7 @@ export default function SettingsChats(props) {
 
   const pageStart = (page - 1) * PAGE_SIZE;
   const pageItems = filteredConfigs.slice(pageStart, pageStart + PAGE_SIZE);
-  const pageCount = Math.max(
-    1,
-    Math.ceil(filteredConfigs.length / PAGE_SIZE),
-  );
+  const pageCount = Math.max(1, Math.ceil(filteredConfigs.length / PAGE_SIZE));
 
   const highlightKeywords = (text) => {
     if (!text) return text;
@@ -429,31 +423,23 @@ export default function SettingsChats(props) {
         {editMode === 'visual' ? (
           <div className='space-y-3'>
             <div className='flex flex-wrap items-center gap-2'>
-              <Button
-                color='primary'
-                startContent={<Plus size={14} />}
-                onPress={handleAddConfig}
-              >
+              <Button color='primary' onPress={handleAddConfig}>
+                <Plus size={14} />
                 {t('添加聊天配置')}
               </Button>
               <ClickMenu
                 placement='bottomLeft'
                 items={dropdownItems}
                 trigger={
-                  <Button
-                    variant='tertiary'
-                    startContent={<Zap size={14} />}
-                    endContent={<ChevronDown size={14} />}
-                  >
+                  <Button variant='tertiary'>
+                    <Zap size={14} />
                     {t('填入模板')}
+                    <ChevronDown size={14} />
                   </Button>
                 }
               />
-              <Button
-                variant='primary'
-                startContent={<Save size={14} />}
-                onPress={onSubmit}
-              >
+              <Button variant='primary' onPress={onSubmit}>
+                <Save size={14} />
                 {t('保存聊天设置')}
               </Button>
               <div className='relative ml-auto w-[250px]'>
@@ -515,17 +501,17 @@ export default function SettingsChats(props) {
                             <Button
                               size='sm'
                               variant='tertiary'
-                              startContent={<Edit3 size={14} />}
                               onPress={() => handleEditConfig(record)}
                             >
+                              <Edit3 size={14} />
                               {t('编辑')}
                             </Button>
                             <Button
                               size='sm'
                               variant='danger-soft'
-                              startContent={<Trash2 size={14} />}
                               onPress={() => handleDeleteConfig(record.id)}
                             >
+                              <Trash2 size={14} />
                               {t('删除')}
                             </Button>
                           </div>
@@ -565,9 +551,7 @@ export default function SettingsChats(props) {
                     size='sm'
                     variant='tertiary'
                     isDisabled={page >= pageCount}
-                    onPress={() =>
-                      setPage((p) => Math.min(pageCount, p + 1))
-                    }
+                    onPress={() => setPage((p) => Math.min(pageCount, p + 1))}
                   >
                     {t('下一页')}
                   </Button>
@@ -603,11 +587,8 @@ export default function SettingsChats(props) {
 
       {editMode === 'json' && (
         <div>
-          <Button
-            color='primary'
-            startContent={<Save size={14} />}
-            onPress={onSubmit}
-          >
+          <Button color='primary' onPress={onSubmit}>
+            <Save size={14} />
             {t('保存聊天设置')}
           </Button>
         </div>
@@ -618,9 +599,7 @@ export default function SettingsChats(props) {
           <ModalContainer size='lg' placement='center'>
             <ModalDialog className='bg-background/95 backdrop-blur'>
               <ModalHeader className='border-b border-border'>
-                <span>
-                  {isEdit ? t('编辑聊天配置') : t('添加聊天配置')}
-                </span>
+                <span>{isEdit ? t('编辑聊天配置') : t('添加聊天配置')}</span>
               </ModalHeader>
               <ModalBody className='space-y-4 px-6 py-5'>
                 <div className='space-y-2'>

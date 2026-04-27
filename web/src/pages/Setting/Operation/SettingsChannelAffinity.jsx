@@ -239,7 +239,8 @@ const tryParseRulesJsonArray = (jsonString) => {
 const parseOptionalObjectJson = (jsonString, label) => {
   const raw = (jsonString || '').trim();
   if (!raw) return { ok: true, value: null };
-  if (!verifyJSON(raw)) return { ok: false, message: `${label} JSON 格式不正确` };
+  if (!verifyJSON(raw))
+    return { ok: false, message: `${label} JSON 格式不正确` };
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -583,7 +584,9 @@ export default function SettingsChannelAffinity(props) {
       return showError(t(keySourcesValidation.message));
     }
 
-    const userAgentInclude = normalizeStringList(values.user_agent_include_text);
+    const userAgentInclude = normalizeStringList(
+      values.user_agent_include_text,
+    );
     const paramTemplateValidation = parseOptionalObjectJson(
       paramTemplateDraft,
       '参数覆盖模板',
@@ -743,12 +746,8 @@ export default function SettingsChannelAffinity(props) {
         <thead className='bg-surface-secondary text-xs uppercase tracking-wide text-muted'>
           <tr>
             <th className='px-3 py-2 text-left font-medium'>{t('名称')}</th>
-            <th className='px-3 py-2 text-left font-medium'>
-              {t('模型正则')}
-            </th>
-            <th className='px-3 py-2 text-left font-medium'>
-              {t('路径正则')}
-            </th>
+            <th className='px-3 py-2 text-left font-medium'>{t('模型正则')}</th>
+            <th className='px-3 py-2 text-left font-medium'>{t('路径正则')}</th>
             <th className='px-3 py-2 text-left font-medium'>{t('Key 来源')}</th>
             <th className='px-3 py-2 text-left font-medium'>
               {t('TTL（秒）')}
@@ -798,10 +797,7 @@ export default function SettingsChannelAffinity(props) {
                     {(record.model_regex || []).length === 0
                       ? '-'
                       : (record.model_regex || []).slice(0, 3).map((v, idx) => (
-                          <StatusChip
-                            key={`${v}-${idx}`}
-                            className='mr-1'
-                          >
+                          <StatusChip key={`${v}-${idx}`} className='mr-1'>
                             {v}
                           </StatusChip>
                         ))}
@@ -810,10 +806,7 @@ export default function SettingsChannelAffinity(props) {
                     {(record.path_regex || []).length === 0
                       ? '-'
                       : (record.path_regex || []).slice(0, 2).map((v, idx) => (
-                          <StatusChip
-                            key={`${v}-${idx}`}
-                            className='mr-1'
-                          >
+                          <StatusChip key={`${v}-${idx}`} className='mr-1'>
                             {v}
                           </StatusChip>
                         ))}
@@ -821,18 +814,20 @@ export default function SettingsChannelAffinity(props) {
                   <td className='px-3 py-2 align-top'>
                     {(record.key_sources || []).length === 0
                       ? '-'
-                      : (record.key_sources || []).slice(0, 3).map((src, idx) => {
-                          const s = normalizeKeySource(src);
-                          const detail = s.type === 'gjson' ? s.path : s.key;
-                          return (
-                            <StatusChip
-                              key={`${s.type}-${idx}`}
-                              className='mr-1'
-                            >
-                              {s.type}:{detail}
-                            </StatusChip>
-                          );
-                        })}
+                      : (record.key_sources || [])
+                          .slice(0, 3)
+                          .map((src, idx) => {
+                            const s = normalizeKeySource(src);
+                            const detail = s.type === 'gjson' ? s.path : s.key;
+                            return (
+                              <StatusChip
+                                key={`${s.type}-${idx}`}
+                                className='mr-1'
+                              >
+                                {s.type}:{detail}
+                              </StatusChip>
+                            );
+                          })}
                   </td>
                   <td className='px-3 py-2 align-top text-foreground'>
                     {Number(record.ttl_seconds || 0) || '-'}
@@ -849,9 +844,9 @@ export default function SettingsChannelAffinity(props) {
                       <Button
                         size='sm'
                         variant='tertiary'
-                        startContent={<Search size={14} />}
                         onPress={() => openParamTemplatePreview(record)}
                       >
+                        <Search size={14} />
                         {t('预览模板')}
                       </Button>
                     ) : (
@@ -1042,17 +1037,13 @@ export default function SettingsChannelAffinity(props) {
               value={inputs[KEY_MAX_ENTRIES] ?? 0}
               onChange={(event) => {
                 const raw = event.target.value;
-                setInputsField(KEY_MAX_ENTRIES)(
-                  raw === '' ? 0 : Number(raw),
-                );
+                setInputsField(KEY_MAX_ENTRIES)(raw === '' ? 0 : Number(raw));
               }}
               placeholder='例如 100000…'
               className={inputClass}
             />
             <FieldHint>
-              {t(
-                '内存缓存最大条目数。0 表示使用后端默认容量：100000。',
-              )}
+              {t('内存缓存最大条目数。0 表示使用后端默认容量：100000。')}
             </FieldHint>
           </div>
           <div className='space-y-2'>
@@ -1063,9 +1054,7 @@ export default function SettingsChannelAffinity(props) {
               value={inputs[KEY_DEFAULT_TTL] ?? 0}
               onChange={(event) => {
                 const raw = event.target.value;
-                setInputsField(KEY_DEFAULT_TTL)(
-                  raw === '' ? 0 : Number(raw),
-                );
+                setInputsField(KEY_DEFAULT_TTL)(raw === '' ? 0 : Number(raw));
               }}
               placeholder='例如 3600…'
               className={inputClass}
@@ -1121,11 +1110,8 @@ export default function SettingsChannelAffinity(props) {
           <Button variant='tertiary' onPress={handleAppendTemplates}>
             {t('填充 Codex CLI / Claude CLI 模版')}
           </Button>
-          <Button
-            variant='tertiary'
-            startContent={<Plus size={14} />}
-            onPress={openAddModal}
-          >
+          <Button variant='tertiary' onPress={openAddModal}>
+            <Plus size={14} />
             {t('新增规则')}
           </Button>
           <Button color='primary' onPress={onSubmit}>
@@ -1133,10 +1119,10 @@ export default function SettingsChannelAffinity(props) {
           </Button>
           <Button
             variant='tertiary'
-            startContent={<RefreshCw size={14} />}
             isPending={cacheLoading}
             onPress={refreshCacheStats}
           >
+            <RefreshCw size={14} />
             {t('刷新缓存统计')}
           </Button>
           <Button color='danger' onPress={() => setConfirmClearAll(true)}>
@@ -1231,9 +1217,7 @@ export default function SettingsChannelAffinity(props) {
                       className={textareaClass}
                     />
                     <FieldHint>
-                      {t(
-                        '可选。对请求路径进行匹配；不填表示匹配所有路径。',
-                      )}
+                      {t('可选。对请求路径进行匹配；不填表示匹配所有路径。')}
                     </FieldHint>
                   </div>
                 </div>
@@ -1312,9 +1296,7 @@ export default function SettingsChannelAffinity(props) {
                         </FieldHint>
                       </div>
                       <div className='space-y-2'>
-                        <FieldLabel>
-                          {t('TTL（秒，0 表示默认）')}
-                        </FieldLabel>
+                        <FieldLabel>{t('TTL（秒，0 表示默认）')}</FieldLabel>
                         <input
                           type='number'
                           min={0}
@@ -1354,11 +1336,11 @@ export default function SettingsChannelAffinity(props) {
                             <Button
                               size='sm'
                               color='primary'
-                              startContent={<Code2 size={14} />}
                               onPress={() =>
                                 setParamTemplateEditorVisible(true)
                               }
                             >
+                              <Code2 size={14} />
                               {t('可视化编辑')}
                             </Button>
                             <Button
@@ -1418,12 +1400,8 @@ export default function SettingsChannelAffinity(props) {
                   <span className='text-sm font-medium text-foreground'>
                     {t('Key 来源')}
                   </span>
-                  <Button
-                    size='sm'
-                    variant='tertiary'
-                    startContent={<Plus size={14} />}
-                    onPress={addKeySource}
-                  >
+                  <Button size='sm' variant='tertiary' onPress={addKeySource}>
+                    <Plus size={14} />
                     {t('新增 Key 来源')}
                   </Button>
                 </div>
@@ -1501,10 +1479,9 @@ export default function SettingsChannelAffinity(props) {
         onConfirm={async () => {
           setConfirmClearAll(false);
           try {
-            const res = await API.delete(
-              '/api/option/channel_affinity_cache',
-              { params: { all: true } },
-            );
+            const res = await API.delete('/api/option/channel_affinity_cache', {
+              params: { all: true },
+            });
             const { success, message } = res.data;
             if (!success) return showError(t(message));
             showSuccess(t('已清空'));
@@ -1535,10 +1512,9 @@ export default function SettingsChannelAffinity(props) {
             return;
           }
           try {
-            const res = await API.delete(
-              '/api/option/channel_affinity_cache',
-              { params: { rule_name: target.name } },
-            );
+            const res = await API.delete('/api/option/channel_affinity_cache', {
+              params: { rule_name: target.name },
+            });
             const { success, message } = res.data;
             if (!success) return showError(t(message));
             showSuccess(t('已清空'));
@@ -1548,9 +1524,7 @@ export default function SettingsChannelAffinity(props) {
           }
         }}
       >
-        {confirmClearRule?.name
-          ? `${t('规则')}: ${confirmClearRule.name}`
-          : ''}
+        {confirmClearRule?.name ? `${t('规则')}: ${confirmClearRule.name}` : ''}
       </ConfirmDialog>
 
       <ConfirmDialog

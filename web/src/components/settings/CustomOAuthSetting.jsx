@@ -248,8 +248,10 @@ const ACCESS_POLICY_TEMPLATES = {
 };
 
 const ACCESS_DENIED_TEMPLATES = {
-  level_hint: '需要等级 {{required}}，你当前等级 {{current}}（字段：{{field}}）',
-  org_hint: '仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}',
+  level_hint:
+    '需要等级 {{required}}，你当前等级 {{current}}（字段：{{field}}）',
+  org_hint:
+    '仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}',
 };
 
 // ----------------------------- main -----------------------------
@@ -405,7 +407,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         if (selectedPreset && !baseUrl) {
           showError(t('请先填写 Issuer URL，以自动生成完整的端点 URL'));
         } else {
-          showError(t('端点 URL 必须是完整地址（以 http:// 或 https:// 开头）'));
+          showError(
+            t('端点 URL 必须是完整地址（以 http:// 或 https:// 开头）'),
+          );
         }
         return;
       }
@@ -484,8 +488,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         ? data.scopes_supported
         : [];
       if (scopesSupported.length > 0 && !formValues.scopes) {
-        const preferredScopes = ['openid', 'profile', 'email'].filter(
-          (scope) => scopesSupported.includes(scope),
+        const preferredScopes = ['openid', 'profile', 'email'].filter((scope) =>
+          scopesSupported.includes(scope),
         );
         discoveredValues.scopes =
           preferredScopes.length > 0
@@ -562,8 +566,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       newValues.authorization_endpoint =
         cleanUrl + presetConfig.authorization_endpoint;
       newValues.token_endpoint = cleanUrl + presetConfig.token_endpoint;
-      newValues.user_info_endpoint =
-        cleanUrl + presetConfig.user_info_endpoint;
+      newValues.user_info_endpoint = cleanUrl + presetConfig.user_info_endpoint;
     }
     mergeFormValues(newValues);
   };
@@ -574,8 +577,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       const presetConfig = OAUTH_PRESETS[selectedPreset];
       const cleanUrl = normalizeBaseUrl(url);
       mergeFormValues({
-        authorization_endpoint:
-          cleanUrl + presetConfig.authorization_endpoint,
+        authorization_endpoint: cleanUrl + presetConfig.authorization_endpoint,
         token_endpoint: cleanUrl + presetConfig.token_endpoint,
         user_info_endpoint: cleanUrl + presetConfig.user_info_endpoint,
       });
@@ -619,11 +621,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         </InfoBanner>
 
         <div>
-          <Button
-            color='primary'
-            startContent={<Plus size={14} />}
-            onPress={handleAdd}
-          >
+          <Button color='primary' onPress={handleAdd}>
+            <Plus size={14} />
             {t('添加 OAuth 提供商')}
           </Button>
         </div>
@@ -641,13 +640,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <th className='w-[80px] px-3 py-2 text-left font-medium'>
                   {t('图标')}
                 </th>
-                <th className='px-3 py-2 text-left font-medium'>
-                  {t('名称')}
-                </th>
+                <th className='px-3 py-2 text-left font-medium'>{t('名称')}</th>
                 <th className='px-3 py-2 text-left font-medium'>Slug</th>
-                <th className='px-3 py-2 text-left font-medium'>
-                  {t('状态')}
-                </th>
+                <th className='px-3 py-2 text-left font-medium'>{t('状态')}</th>
                 <th className='px-3 py-2 text-left font-medium'>
                   {t('Client ID')}
                 </th>
@@ -698,17 +693,17 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                         <Button
                           size='sm'
                           variant='tertiary'
-                          startContent={<Edit3 size={14} />}
                           onPress={() => handleEdit(record)}
                         >
+                          <Edit3 size={14} />
                           {t('编辑')}
                         </Button>
                         <Button
                           size='sm'
                           variant='danger-soft'
-                          startContent={<Trash2 size={14} />}
                           onPress={() => setDeleteTarget(record)}
                         >
+                          <Trash2 size={14} />
                           {t('删除')}
                         </Button>
                       </div>
@@ -742,9 +737,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   {t('Configuration')}
                 </div>
                 <div className='text-xs text-muted'>
-                  {t(
-                    '先填写配置，再自动填充 OAuth 端点，能显著减少手工输入',
-                  )}
+                  {t('先填写配置，再自动填充 OAuth 端点，能显著减少手工输入')}
                 </div>
 
                 {discoveryInfo && (
@@ -784,7 +777,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       onSelectionChange={(key) => {
                         // Map synthetic 'custom' id back to '' so the
                         // existing handler logic is preserved.
-                        handlePresetChange(key === 'custom' ? '' : String(key ?? ''));
+                        handlePresetChange(
+                          key === 'custom' ? '' : String(key ?? ''),
+                        );
                       }}
                     >
                       <CellSelect.Trigger>
@@ -800,24 +795,24 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                             {t('自定义')}
                             <ListBox.ItemIndicator />
                           </ListBox.Item>
-                          {Object.entries(OAUTH_PRESETS).map(([key, config]) => (
-                            <ListBox.Item
-                              key={key}
-                              id={key}
-                              textValue={config.name}
-                            >
-                              {config.name}
-                              <ListBox.ItemIndicator />
-                            </ListBox.Item>
-                          ))}
+                          {Object.entries(OAUTH_PRESETS).map(
+                            ([key, config]) => (
+                              <ListBox.Item
+                                key={key}
+                                id={key}
+                                textValue={config.name}
+                              >
+                                {config.name}
+                                <ListBox.ItemIndicator />
+                              </ListBox.Item>
+                            ),
+                          )}
                         </ListBox>
                       </CellSelect.Popover>
                     </CellSelect>
                   </div>
                   <div className='space-y-2 md:col-span-5'>
-                    <FieldLabel>
-                      {t('发行者 URL（Issuer URL）')}
-                    </FieldLabel>
+                    <FieldLabel>{t('发行者 URL（Issuer URL）')}</FieldLabel>
                     <input
                       type='text'
                       value={baseUrl}
@@ -836,11 +831,11 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   <div className='flex items-end md:col-span-3'>
                     <Button
                       variant='tertiary'
-                      startContent={<RefreshCw size={14} />}
                       isPending={discoveryLoading}
                       onPress={handleFetchFromDiscovery}
                       className='w-full'
                     >
+                      <RefreshCw size={14} />
                       {t('获取 Discovery 配置')}
                     </Button>
                   </div>
@@ -875,9 +870,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     <input
                       type='text'
                       value={formValues.name || ''}
-                      onChange={(event) =>
-                        setField('name')(event.target.value)
-                      }
+                      onChange={(event) => setField('name')(event.target.value)}
                       placeholder={t('例如：GitHub Enterprise')}
                       className={inputClass}
                     />
@@ -887,9 +880,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     <input
                       type='text'
                       value={formValues.slug || ''}
-                      onChange={(event) =>
-                        setField('slug')(event.target.value)
-                      }
+                      onChange={(event) => setField('slug')(event.target.value)}
                       placeholder={t('例如：github-enterprise')}
                       className={inputClass}
                     />
@@ -906,9 +897,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     <input
                       type='text'
                       value={formValues.icon || ''}
-                      onChange={(event) =>
-                        setField('icon')(event.target.value)
-                      }
+                      onChange={(event) => setField('icon')(event.target.value)}
                       placeholder={t(
                         '例如：github / si:google / https://example.com/logo.png / 🐱',
                       )}
@@ -1004,9 +993,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     />
                   </div>
                   <div className='space-y-2'>
-                    <FieldLabel required>
-                      {t('User Info Endpoint')}
-                    </FieldLabel>
+                    <FieldLabel required>{t('User Info Endpoint')}</FieldLabel>
                     <input
                       type='text'
                       value={formValues.user_info_endpoint || ''}
@@ -1135,9 +1122,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                           }}
                         >
                           <CellSelect.Trigger>
-                            <CellSelect.Label>
-                              {t('认证方式')}
-                            </CellSelect.Label>
+                            <CellSelect.Label>{t('认证方式')}</CellSelect.Label>
                             <CellSelect.Value />
                             <CellSelect.Indicator>
                               <ChevronsUpDown size={14} />
@@ -1224,9 +1209,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                         type='text'
                         value={formValues.access_denied_message || ''}
                         onChange={(event) =>
-                          setField('access_denied_message')(
-                            event.target.value,
-                          )
+                          setField('access_denied_message')(event.target.value)
                         }
                         placeholder={t(
                           '例如：需要等级 {{required}}，你当前等级 {{current}}',
@@ -1260,9 +1243,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               </ModalBody>
               <ModalFooter className='flex flex-wrap items-center justify-end gap-3 border-t border-border'>
                 <div className='flex items-center gap-2'>
-                  <span className='text-sm text-muted'>
-                    {t('启用供应商')}
-                  </span>
+                  <span className='text-sm text-muted'>{t('启用供应商')}</span>
                   <Switch
                     isSelected={!!formValues.enabled}
                     onValueChange={(checked) =>

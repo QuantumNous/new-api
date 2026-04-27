@@ -211,7 +211,6 @@ const Home = () => {
                       size={isMobile ? 'md' : 'lg'}
                       variant='tertiary'
                       className='rounded-full px-6 py-2 font-semibold'
-                      startContent={<Github size={18} />}
                       onPress={() =>
                         window.open(
                           'https://github.com/QuantumNous/new-api',
@@ -219,6 +218,7 @@ const Home = () => {
                         )
                       }
                     >
+                      <Github size={18} />
                       {statusState.status.version}
                     </Button>
                   ) : (
@@ -227,9 +227,9 @@ const Home = () => {
                         size={isMobile ? 'md' : 'lg'}
                         variant='tertiary'
                         className='rounded-full px-6 py-2 font-semibold'
-                        startContent={<FileText size={18} />}
                         onPress={() => window.open(docsLink, '_blank')}
                       >
+                        <FileText size={18} />
                         {t('文档')}
                       </Button>
                     )
