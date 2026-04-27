@@ -19,8 +19,62 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState, useMemo, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from '@heroui/react';
 import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
 import { StatusContext } from '../../context/Status';
+
+// Shared link visual:
+// - Inherits the muted/foreground tokens used in HeaderBar
+// - No underline at rest *or* hover, no bold weight (per spec)
+// - Hover only flips the color to primary, like nav items in HeaderBar
+const linkClass =
+  'text-muted no-underline hover:no-underline data-[hovered=true]:no-underline hover:text-primary data-[hovered=true]:text-primary';
+
+// Single column inside the demo-site link grid. Pulled out so each
+// column has identical visual rhythm and the parent can drive the
+// whole grid from a data array.
+const FooterLinkSection = ({ title, links }) => (
+  <div className='text-left'>
+    <p className='mb-3 text-sm text-foreground'>{title}</p>
+    <ul className='flex flex-col gap-2.5'>
+      {links.map((link) => (
+        <li key={link.label}>
+          <Link
+            href={link.href}
+            isExternal
+            showAnchorIcon={false}
+            size='sm'
+            className={linkClass}
+          >
+            {link.label}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
+// Bottom row shared between every render mode:
+// "© Year SystemName · Designed & Developed by New API".
+const FooterMeta = ({ systemName, currentYear, t }) => (
+  <div className='flex w-full flex-col items-center justify-between gap-2 md:flex-row'>
+    <span className='text-sm text-muted'>
+      © {currentYear} {systemName}. {t('版权所有')}
+    </span>
+    <div className='text-sm text-muted'>
+      <span>{t('设计与开发由')} </span>
+      <Link
+        href='https://github.com/QuantumNous/new-api'
+        isExternal
+        showAnchorIcon={false}
+        size='sm'
+        className={linkClass}
+      >
+        New API
+      </Link>
+    </div>
+  </div>
+);
 
 const FooterBar = () => {
   const { t } = useTranslation();
@@ -29,189 +83,10 @@ const FooterBar = () => {
   const logo = getLogo();
   const [statusState] = useContext(StatusContext);
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
-
-  const loadFooter = () => {
-    setFooter(getFooterHTML());
-  };
-
   const currentYear = new Date().getFullYear();
 
-  const customFooter = useMemo(
-    () => (
-      <footer className='relative h-auto py-16 px-6 md:px-24 w-full flex flex-col items-center justify-between overflow-hidden'>
-        <div className='absolute hidden md:block top-[204px] left-[-100px] w-[151px] h-[151px] rounded-full bg-[#FFD166]'></div>
-        <div className='absolute md:hidden bottom-[20px] left-[-50px] w-[80px] h-[80px] rounded-full bg-[#FFD166] opacity-60'></div>
-
-        {isDemoSiteMode && (
-          <div className='flex flex-col md:flex-row justify-between w-full max-w-[1110px] mb-10 gap-8'>
-            <div className='flex-shrink-0'>
-              <img
-                src={logo}
-                alt={systemName}
-                className='w-16 h-16 rounded-full bg-foreground p-1.5 object-contain'
-              />
-            </div>
-
-            <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 w-full'>
-              <div className='text-left'>
-                <p className='mb-5 font-semibold text-foreground'>
-                  {t('关于我们')}
-                </p>
-                <div className='flex flex-col gap-4'>
-                  <a
-                    href='https://docs.newapi.pro/wiki/project-introduction/'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    {t('关于项目')}
-                  </a>
-                  <a
-                    href='https://docs.newapi.pro/support/community-interaction/'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    {t('联系我们')}
-                  </a>
-                  <a
-                    href='https://docs.newapi.pro/wiki/features-introduction/'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    {t('功能特性')}
-                  </a>
-                </div>
-              </div>
-
-              <div className='text-left'>
-                <p className='mb-5 font-semibold text-foreground'>
-                  {t('文档')}
-                </p>
-                <div className='flex flex-col gap-4'>
-                  <a
-                    href='https://docs.newapi.pro/getting-started/'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    {t('快速开始')}
-                  </a>
-                  <a
-                    href='https://docs.newapi.pro/installation/'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    {t('安装指南')}
-                  </a>
-                  <a
-                    href='https://docs.newapi.pro/api/'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    {t('API 文档')}
-                  </a>
-                </div>
-              </div>
-
-              <div className='text-left'>
-                <p className='mb-5 font-semibold text-foreground'>
-                  {t('相关项目')}
-                </p>
-                <div className='flex flex-col gap-4'>
-                  <a
-                    href='https://github.com/songquanpeng/one-api'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    One API
-                  </a>
-                  <a
-                    href='https://github.com/novicezk/midjourney-proxy'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    Midjourney-Proxy
-                  </a>
-                  <a
-                    href='https://github.com/Calcium-Ion/neko-api-key-tool'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    neko-api-key-tool
-                  </a>
-                </div>
-              </div>
-
-              <div className='text-left'>
-                <p className='mb-5 font-semibold text-foreground'>
-                  {t('友情链接')}
-                </p>
-                <div className='flex flex-col gap-4'>
-                  <a
-                    href='https://github.com/Calcium-Ion/new-api-horizon'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    new-api-horizon
-                  </a>
-                  <a
-                    href='https://github.com/coaidev/coai'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    CoAI
-                  </a>
-                  <a
-                    href='https://www.gpt-load.com/'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='text-muted hover:text-primary'
-                  >
-                    GPT-Load
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-6'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-sm text-muted'>
-              © {currentYear} {systemName}. {t('版权所有')}
-            </span>
-          </div>
-
-          <div className='text-sm'>
-            <span className='text-muted'>
-              {t('设计与开发由')}{' '}
-            </span>
-            <a
-              href='https://github.com/QuantumNous/new-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='font-medium text-primary'
-            >
-              New API
-            </a>
-          </div>
-        </div>
-      </footer>
-    ),
-    [logo, systemName, t, currentYear, isDemoSiteMode],
-  );
-
   useEffect(() => {
-    loadFooter();
+    setFooter(getFooterHTML());
   }, []);
 
   useEffect(() => {
@@ -223,33 +98,142 @@ const FooterBar = () => {
     setFooter(getFooterHTML());
   }, [statusState?.status?.footer_html]);
 
-  return (
-    <div className='w-full'>
-      {footer ? (
-        <footer className='relative h-auto py-4 px-6 md:px-24 w-full flex items-center justify-center overflow-hidden'>
-          <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-4'>
-            <div
-              className='custom-footer na-cb6feafeb3990c78 text-sm text-muted'
-              dangerouslySetInnerHTML={{ __html: footer }}
-            ></div>
-            <div className='text-sm flex-shrink-0'>
-              <span className='text-muted'>
-                {t('设计与开发由')}{' '}
-              </span>
-              <a
-                href='https://github.com/QuantumNous/new-api'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='font-medium text-primary'
-              >
-                New API
-              </a>
-            </div>
+  // Centralised link config keeps the JSX flat and lets us edit copy /
+  // URLs in one place. i18n keys are preserved verbatim so existing
+  // translations under web/src/i18n/locales/* keep working.
+  const sections = useMemo(
+    () => [
+      {
+        title: t('关于我们'),
+        links: [
+          {
+            label: t('关于项目'),
+            href: 'https://docs.newapi.pro/wiki/project-introduction/',
+          },
+          {
+            label: t('联系我们'),
+            href: 'https://docs.newapi.pro/support/community-interaction/',
+          },
+          {
+            label: t('功能特性'),
+            href: 'https://docs.newapi.pro/wiki/features-introduction/',
+          },
+        ],
+      },
+      {
+        title: t('文档'),
+        links: [
+          { label: t('快速开始'), href: 'https://docs.newapi.pro/getting-started/' },
+          { label: t('安装指南'), href: 'https://docs.newapi.pro/installation/' },
+          { label: t('API 文档'), href: 'https://docs.newapi.pro/api/' },
+        ],
+      },
+      {
+        title: t('相关项目'),
+        links: [
+          { label: 'One API', href: 'https://github.com/songquanpeng/one-api' },
+          {
+            label: 'Midjourney-Proxy',
+            href: 'https://github.com/novicezk/midjourney-proxy',
+          },
+          {
+            label: 'neko-api-key-tool',
+            href: 'https://github.com/Calcium-Ion/neko-api-key-tool',
+          },
+        ],
+      },
+      {
+        title: t('友情链接'),
+        links: [
+          {
+            label: 'new-api-horizon',
+            href: 'https://github.com/Calcium-Ion/new-api-horizon',
+          },
+          { label: 'CoAI', href: 'https://github.com/coaidev/coai' },
+          { label: 'GPT-Load', href: 'https://www.gpt-load.com/' },
+        ],
+      },
+    ],
+    [t],
+  );
+
+  // Outer chrome mirrors HeaderBar's <Navbar maxWidth='full'>: same
+  // background, same 1px hairline border (top instead of bottom),
+  // same foreground/muted text tokens. The inner row uses the SAME
+  // `px-2 md:px-4` horizontal padding as `Navbar.Header`, with NO
+  // `max-w-*` constraint — that way the footer's left/right edges
+  // line up pixel-perfectly with the header's edges across the
+  // viewport (mobile and desktop).
+  const shell =
+    'w-full border-t border-border bg-background text-foreground';
+  const innerPadX = 'px-2 md:px-4';
+
+  // Custom HTML footer (configured by the admin in System settings).
+  // Rendered in a single compact row, like HeaderBar — no decorative
+  // background, no extra vertical padding.
+  if (footer) {
+    return (
+      <div className={shell}>
+        <div
+          className={`flex w-full flex-col items-center justify-between gap-2 py-3 md:flex-row ${innerPadX}`}
+        >
+          <div
+            className='custom-footer na-cb6feafeb3990c78 text-sm text-muted'
+            dangerouslySetInnerHTML={{ __html: footer }}
+          ></div>
+          <div className='shrink-0 text-sm text-muted'>
+            <span>{t('设计与开发由')} </span>
+            <Link
+              href='https://github.com/QuantumNous/new-api'
+              isExternal
+              showAnchorIcon={false}
+              size='sm'
+              className={linkClass}
+            >
+              New API
+            </Link>
           </div>
-        </footer>
-      ) : (
-        customFooter
-      )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={shell}>
+      <div className={`flex w-full flex-col gap-6 py-6 ${innerPadX}`}>
+        {isDemoSiteMode && (
+          <>
+            <div className='flex flex-col gap-8 md:flex-row md:gap-10'>
+              <div className='shrink-0'>
+                <img
+                  src={logo}
+                  alt={systemName}
+                  className='h-10 w-10 rounded-md object-contain'
+                />
+              </div>
+              <div className='grid w-full grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-4'>
+                {sections.map((section) => (
+                  <FooterLinkSection
+                    key={section.title}
+                    title={section.title}
+                    links={section.links}
+                  />
+                ))}
+              </div>
+            </div>
+            {/* Same hairline as the chrome above — keeps the meta row
+                visually distinct from the link grid without introducing
+                a second visual treatment. */}
+            <div className='h-px w-full bg-border' />
+          </>
+        )}
+
+        <FooterMeta
+          systemName={systemName}
+          currentYear={currentYear}
+          t={t}
+        />
+      </div>
     </div>
   );
 };
