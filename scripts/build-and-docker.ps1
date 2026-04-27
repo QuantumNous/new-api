@@ -7,7 +7,7 @@
 param(
     [string]$dockerHubUsername = "beyondandforever",
     [string]$imageName = "gq-api",
-    [string]$version = "",
+    [string]$version = "v0.13.1",
     [switch]$skipPush = $false
 )
 
