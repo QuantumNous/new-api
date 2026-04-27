@@ -641,10 +641,11 @@ export default function ModelPricingEditor({
                       />
                     ) : selectedModel.billingMode === 'tiered_expr' ? (
                       <TieredPricingEditor
-                        value={selectedModel.billingExpr}
+                        model={selectedModel}
                         requestRuleExpr={selectedModel.requestRuleExpr}
-                        onChange={handleBillingExprChange}
-                        onRequestRuleChange={handleRequestRuleExprChange}
+                        onExprChange={handleBillingExprChange}
+                        onRequestRuleExprChange={handleRequestRuleExprChange}
+                        t={t}
                       />
                     ) : (
                       <>
