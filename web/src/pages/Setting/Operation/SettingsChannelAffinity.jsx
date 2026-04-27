@@ -52,6 +52,7 @@ import {
 } from '../../../constants/channel-affinity-template.constants';
 import ParamOverrideEditorModal from '../../../components/table/channels/modals/ParamOverrideEditorModal';
 import ConfirmDialog from '../../../components/common/ui/ConfirmDialog';
+import { warningGhostButtonClass } from '../../../components/common/ui/buttonTones';
 
 // ----------------------------- helpers -----------------------------
 
@@ -879,7 +880,7 @@ export default function SettingsChannelAffinity(props) {
                         isIconOnly
                         size='sm'
                         variant='tertiary'
-                        color='warning'
+                        className={warningGhostButtonClass}
                         isDisabled={!record.include_rule_name}
                         aria-label={t('清空该规则缓存')}
                         onPress={() => setConfirmClearRule(record)}

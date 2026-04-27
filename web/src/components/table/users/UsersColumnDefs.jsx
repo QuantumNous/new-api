@@ -21,6 +21,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Tooltip } from '@heroui/react';
 import { Copy, MoreHorizontal } from 'lucide-react';
 import { renderGroup, renderNumber, renderQuota, copy, showSuccess } from '../../../helpers';
+import { warningGhostButtonClass } from '../../common/ui/buttonTones';
 
 const TONE_CLASSES = {
   blue:
@@ -370,9 +371,9 @@ const renderOperations = (
         {t('编辑')}
       </Button>
       <Button
-        color='warning'
         variant='tertiary'
         size='sm'
+        className={warningGhostButtonClass}
         onPress={() => showPromoteModal(record)}
       >
         {t('提升')}

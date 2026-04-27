@@ -35,6 +35,7 @@ import {
   timestamp2string,
 } from '../../../../helpers';
 import ConfirmDialog from '../../../common/ui/ConfirmDialog';
+import { warningButtonClass } from '../../../common/ui/buttonTones';
 
 // ----------------------------- helpers -----------------------------
 
@@ -509,7 +510,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                         )}
                         <Button
                           size='sm'
-                          color='warning'
+                          variant='primary'
+                          className={warningButtonClass}
                           isPending={operationLoading.delete_disabled}
                           onPress={() => setConfirmDeleteDisabled(true)}
                         >

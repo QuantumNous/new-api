@@ -29,6 +29,7 @@ import {
   showWarning,
 } from '../../../helpers';
 import CardPro from '../../common/ui/CardPro';
+import { warningGhostButtonClass } from '../../common/ui/buttonTones';
 import TokensTable from './TokensTable';
 import TokensActions from './TokensActions';
 import TokensFilters from './TokensFilters';
@@ -463,7 +464,7 @@ function FluentNoticePanel({
             <Button
               size='sm'
               variant='tertiary'
-              color='warning'
+              className={warningGhostButtonClass}
               onPress={onSuppress}
             >
               {t('不再提醒')}

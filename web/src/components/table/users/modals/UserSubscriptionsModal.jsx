@@ -25,6 +25,7 @@ import { convertUSDToCurrency } from '../../../../helpers/render';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
+import { warningGhostButtonClass } from '@/components/common/ui/buttonTones';
 
 const PAGE_SIZE = 10;
 
@@ -317,8 +318,8 @@ const UserSubscriptionsModal = ({
             <div className='flex flex-wrap items-center gap-1.5'>
               <Button
                 size='sm'
-                color='warning'
                 variant='tertiary'
+                className={warningGhostButtonClass}
                 isDisabled={!isActive || isCancelled}
                 onPress={() =>
                   setPendingConfirm({

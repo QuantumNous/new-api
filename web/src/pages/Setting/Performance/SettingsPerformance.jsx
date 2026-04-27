@@ -23,6 +23,7 @@ import {
   showWarning,
 } from '../../../helpers';
 import ConfirmDialog from '../../../components/common/ui/ConfirmDialog';
+import { warningButtonClass } from '../../../components/common/ui/buttonTones';
 
 // ----------------------------- helpers -----------------------------
 
@@ -617,7 +618,8 @@ export default function SettingsPerformance(props) {
               {t('刷新统计')}
             </Button>
             <Button
-              color='warning'
+              variant='primary'
+              className={warningButtonClass}
               onPress={() => setConfirmClearCache(true)}
             >
               {t('清理不活跃缓存')}

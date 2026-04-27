@@ -28,6 +28,7 @@ import {
 } from '@heroui/react';
 import { Info, Search, Settings } from 'lucide-react';
 import { copy, showError, showInfo, showSuccess } from '../../../../helpers';
+import { warningGhostButtonClass } from '../../../common/ui/buttonTones';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
 
 const TAG_TONE = {
@@ -264,12 +265,11 @@ const ModelTestModal = ({
               <Button
                 size='sm'
                 variant='tertiary'
-                color='warning'
                 startContent={<Settings size={12} />}
                 onPress={() =>
                   window.open('/console/setting?tab=ratio', '_blank')
                 }
-                className='w-fit'
+                className={`w-fit ${warningGhostButtonClass}`}
               >
                 {t('前往设置')}
               </Button>

@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import Turnstile from 'react-turnstile';
 import { API, showError, showSuccess, renderQuota } from '../../../../helpers';
+import { successButtonClass } from '../../../common/ui/buttonTones';
 
 const WEEKDAY_KEYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -369,7 +370,8 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
             </div>
           </div>
           <Button
-            color='success'
+            variant='primary'
+            className={successButtonClass}
             startContent={<Gift size={14} />}
             onPress={() => doCheckin()}
             isPending={checkinLoading || !initialLoaded}
