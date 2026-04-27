@@ -6,11 +6,6 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
@@ -18,12 +13,45 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button } from '@heroui/react';
-import { Modal, Progress, Typography, Spin, Tag, Descriptions, Collapse } from '@/components/common/ui/HeroCompat';
+import {
+  Button,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  Spinner,
+  useOverlayState,
+} from '@heroui/react';
+import { ChevronDown, RefreshCw, X } from 'lucide-react';
 import { API, showError } from '../../../../helpers';
-import { MOBILE_BREAKPOINT } from '../../../../hooks/common/useIsMobile';
 
-const { Text } = Typography;
+const TAG_TONE = {
+  green: 'bg-success/15 text-success',
+  red: 'bg-danger/15 text-danger',
+  amber: 'bg-warning/15 text-warning',
+  blue: 'bg-primary/15 text-primary',
+  cyan: 'bg-[color-mix(in_oklab,var(--app-primary)_18%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_72%,var(--app-foreground))]',
+  violet:
+    'bg-[color-mix(in_oklab,var(--app-primary)_12%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_82%,var(--app-foreground))]',
+  grey: 'bg-surface-secondary text-muted',
+};
+
+function StatusChip({ tone = 'grey', size = 'md', strong = false, children }) {
+  const sizeCls = size === 'lg' ? 'px-2.5 py-1 text-xs' : 'px-2 py-0.5 text-xs';
+  const weight = strong ? 'font-semibold' : 'font-medium';
+  return (
+    <span
+      className={`inline-flex items-center rounded-full ${sizeCls} ${weight} ${
+        TAG_TONE[tone] || TAG_TONE.grey
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
 
 const clampPercent = (value) => {
   const v = Number(value);
@@ -31,12 +59,34 @@ const clampPercent = (value) => {
   return Math.max(0, Math.min(100, v));
 };
 
-const pickStrokeColor = (percent) => {
+// Returns the semantic Tailwind class name for the progress bar fill
+// based on the current usage percentage.
+const pickProgressTone = (percent) => {
   const p = clampPercent(percent);
-  if (p >= 95) return '#ef4444';
-  if (p >= 80) return '#f59e0b';
-  return '#3b82f6';
+  if (p >= 95) return 'bg-danger';
+  if (p >= 80) return 'bg-warning';
+  return 'bg-primary';
 };
+
+function ProgressBar({ percent, showInfo = true }) {
+  const safe = clampPercent(percent);
+  const tone = pickProgressTone(safe);
+  return (
+    <div className='flex items-center gap-2'>
+      <div className='h-2 flex-1 overflow-hidden rounded-full bg-surface-secondary'>
+        <div
+          className={`h-full rounded-full transition-[width] duration-200 ${tone}`}
+          style={{ width: `${safe}%` }}
+        />
+      </div>
+      {showInfo ? (
+        <span className='shrink-0 text-xs font-medium text-foreground'>
+          {Math.round(safe)}%
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 const normalizePlanType = (value) => {
   if (value == null) return '';
@@ -130,40 +180,6 @@ const getDisplayText = (value) => {
   return String(value).trim();
 };
 
-const isMobileViewport = () =>
-  typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT;
-
-const getCodexUsageModalLayout = () => {
-  if (isMobileViewport()) {
-    return {
-      width: 'calc(100vw - 16px)',
-      style: {
-        top: 8,
-        maxWidth: 'calc(100vw - 16px)',
-        margin: '0 auto',
-      },
-      bodyStyle: {
-        maxHeight: 'calc(100vh - 148px)',
-        overflowY: 'auto',
-        padding: '16px 16px 12px',
-      },
-    };
-  }
-
-  return {
-    width: 900,
-    style: {
-      top: 24,
-      maxWidth: 'min(900px, 92vw)',
-    },
-    bodyStyle: {
-      maxHeight: 'calc(100vh - 172px)',
-      overflowY: 'auto',
-      padding: '20px 24px 16px',
-    },
-  };
-};
-
 const formatAccountTypeLabel = (value, t) => {
   const tt = typeof t === 'function' ? t : (v) => v;
   const normalized = normalizePlanType(value);
@@ -183,7 +199,7 @@ const formatAccountTypeLabel = (value, t) => {
   }
 };
 
-const getAccountTypeTagColor = (value) => {
+const getAccountTypeTagTone = (value) => {
   const normalized = normalizePlanType(value);
   switch (normalized) {
     case 'enterprise':
@@ -204,43 +220,42 @@ const getAccountTypeTagColor = (value) => {
 const resolveUsageStatusTag = (t, rateLimit) => {
   const tt = typeof t === 'function' ? t : (v) => v;
   if (!rateLimit || Object.keys(rateLimit).length === 0) {
-    return <Tag color='grey'>{tt('待确认')}</Tag>;
+    return <StatusChip tone='grey'>{tt('待确认')}</StatusChip>;
   }
   if (rateLimit?.allowed && !rateLimit?.limit_reached) {
-    return <Tag color='green'>{tt('可用')}</Tag>;
+    return <StatusChip tone='green'>{tt('可用')}</StatusChip>;
   }
-  return <Tag color='red'>{tt('受限')}</Tag>;
+  return <StatusChip tone='red'>{tt('受限')}</StatusChip>;
 };
 
-const AccountInfoValue = ({ t, value, onCopy, monospace = false }) => {
+function AccountInfoRow({ t, label, value, onCopy, monospace = false }) {
   const tt = typeof t === 'function' ? t : (v) => v;
   const text = getDisplayText(value);
   const hasValue = text !== '';
 
   return (
-    <div className='flex min-w-0 items-start justify-between gap-2'>
+    <div className='grid grid-cols-[120px_1fr_auto] items-start gap-2 px-3 py-2'>
+      <div className='text-xs font-medium text-muted'>{label}</div>
       <div
-        className={`min-w-0 flex-1 break-all text-xs leading-5 text-semi-color-text-1 ${
+        className={`min-w-0 break-all text-xs leading-5 text-foreground ${
           monospace ? 'font-mono' : ''
         }`}
       >
         {hasValue ? text : '-'}
       </div>
       <Button
-        size='small'
-        type='tertiary'
-        theme='borderless'
-        className='shrink-0 px-1 text-xs'
-        disabled={!hasValue}
-        onClick={() => onCopy?.(text)}
+        size='sm'
+        variant='light'
+        isDisabled={!hasValue}
+        onPress={() => onCopy?.(text)}
       >
         {tt('复制')}
       </Button>
     </div>
   );
-};
+}
 
-const RateLimitWindowCard = ({ t, title, windowData }) => {
+function RateLimitWindowCard({ t, title, windowData }) {
   const tt = typeof t === 'function' ? t : (v) => v;
   const hasWindowData =
     !!windowData &&
@@ -252,28 +267,24 @@ const RateLimitWindowCard = ({ t, title, windowData }) => {
   const limitWindowSeconds = windowData?.limit_window_seconds;
 
   return (
-    <div className='rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-3'>
-      <div className='flex flex-wrap items-start justify-between gap-x-3 gap-y-1'>
-        <div className='font-medium'>{title}</div>
-        <Text type='tertiary' size='small'>
+    <div className='rounded-xl border border-border bg-background p-3'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='text-sm font-semibold text-foreground'>{title}</div>
+        <div className='text-xs text-muted'>
           {tt('重置时间：')}
           {formatUnixSeconds(resetAt)}
-        </Text>
+        </div>
       </div>
 
       {hasWindowData ? (
-        <div className='mt-2'>
-          <Progress
-            percent={percent}
-            stroke={pickStrokeColor(percent)}
-            showInfo={true}
-          />
+        <div className='mt-3'>
+          <ProgressBar percent={percent} />
         </div>
       ) : (
-        <div className='mt-3 text-sm text-semi-color-text-2'>-</div>
+        <div className='mt-3 text-sm text-muted'>-</div>
       )}
 
-      <div className='mt-1 flex flex-wrap items-center gap-2 text-xs text-semi-color-text-2'>
+      <div className='mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted'>
         <div>
           {tt('已使用：')}
           {hasWindowData ? `${percent}%` : '-'}
@@ -289,92 +300,18 @@ const RateLimitWindowCard = ({ t, title, windowData }) => {
       </div>
     </div>
   );
-};
+}
 
-const RateLimitWindowGrid = ({ t, fiveHourWindow, weeklyWindow }) => {
-  const tt = typeof t === 'function' ? t : (v) => v;
-
-  return (
-    <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-      <RateLimitWindowCard
-        t={tt}
-        title={tt('5小时窗口')}
-        windowData={fiveHourWindow}
-      />
-      <RateLimitWindowCard
-        t={tt}
-        title={tt('每周窗口')}
-        windowData={weeklyWindow}
-      />
-    </div>
-  );
-};
-
-const RateLimitGroupSection = ({
-  t,
-  title,
-  description,
-  rateLimitSource,
-  statusTag,
-  meteredFeature,
-}) => {
-  const tt = typeof t === 'function' ? t : (v) => v;
-  const { fiveHourWindow, weeklyWindow } =
-    resolveRateLimitWindows(rateLimitSource);
-  const featureText = getDisplayText(meteredFeature);
-
-  return (
-    <section className='space-y-3'>
-      <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div className='min-w-0 space-y-2'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <div className='text-sm font-semibold text-semi-color-text-0'>
-              {title}
-            </div>
-            {statusTag}
-          </div>
-          {(description || featureText) && (
-            <div className='flex flex-wrap items-center gap-2 text-xs text-semi-color-text-2'>
-              {description ? <span>{description}</span> : null}
-              {featureText ? (
-                <div className='inline-flex max-w-full items-center gap-2 rounded-full bg-semi-color-fill-0 px-2 py-1'>
-                  <span className='text-[11px] text-semi-color-text-2'>
-                    metered_feature
-                  </span>
-                  <span className='min-w-0 break-all font-mono text-xs text-semi-color-text-0'>
-                    {featureText}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <RateLimitWindowGrid
-        t={tt}
-        fiveHourWindow={fiveHourWindow}
-        weeklyWindow={weeklyWindow}
-      />
-    </section>
-  );
-};
-
-const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
+function CodexUsageView({ t, record, payload, onCopy, onRefresh }) {
   const tt = typeof t === 'function' ? t : (v) => v;
   const [showRawJson, setShowRawJson] = useState(false);
   const data = payload?.data ?? null;
   const rateLimit = data?.rate_limit ?? {};
-  const additionalRateLimits = Array.isArray(data?.additional_rate_limits)
-    ? data.additional_rate_limits.filter(
-        (item) =>
-          item && typeof item === 'object' && Object.keys(item).length > 0,
-      )
-    : [];
+  const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(data);
   const upstreamStatus = payload?.upstream_status;
   const accountType = data?.plan_type ?? rateLimit?.plan_type;
   const accountTypeLabel = formatAccountTypeLabel(accountType, tt);
-  const accountTypeTagColor = getAccountTypeTagColor(accountType);
+  const accountTypeTagTone = getAccountTypeTagTone(accountType);
   const statusTag = resolveUsageStatusTag(tt, rateLimit);
   const userId = data?.user_id;
   const email = data?.email;
@@ -390,69 +327,64 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
   return (
     <div className='flex flex-col gap-4'>
       {errorMessage && (
-        <div className='rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
+        <div className='rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger'>
           {errorMessage}
         </div>
       )}
 
-      <div className='rounded-xl border border-semi-color-border bg-semi-color-bg-0 p-3'>
+      <div className='rounded-xl border border-border bg-background p-3'>
         <div className='flex flex-wrap items-start justify-between gap-2'>
           <div className='min-w-0'>
-            <div className='text-xs font-medium text-semi-color-text-2'>
+            <div className='text-xs font-semibold text-muted'>
               {tt('Codex 帐号')}
             </div>
             <div className='mt-2 flex flex-wrap items-center gap-2'>
-              <Tag
-                color={accountTypeTagColor}
-                type='light'
-                shape='circle'
-                size='large'
-                className='font-semibold'
-              >
+              <StatusChip tone={accountTypeTagTone} size='lg' strong>
                 {accountTypeLabel}
-              </Tag>
+              </StatusChip>
               {statusTag}
-              <Tag color='grey' type='light' shape='circle'>
+              <StatusChip tone='grey'>
                 {tt('上游状态码：')}
                 {upstreamStatus ?? '-'}
-              </Tag>
+              </StatusChip>
             </div>
           </div>
           <Button
-            size='small'
-            type='tertiary'
-            theme='outline'
-            onClick={onRefresh}
+            size='sm'
+            variant='bordered'
+            startContent={<RefreshCw size={14} />}
+            onPress={onRefresh}
           >
             {tt('刷新')}
           </Button>
         </div>
 
-        <div className='mt-2 rounded-lg bg-semi-color-fill-0 px-3 py-2'>
-          <Descriptions>
-            <Descriptions.Item itemKey='User ID'>
-              <AccountInfoValue
-                t={tt}
-                value={userId}
-                onCopy={onCopy}
-                monospace={true}
-              />
-            </Descriptions.Item>
-            <Descriptions.Item itemKey={tt('邮箱')}>
-              <AccountInfoValue t={tt} value={email} onCopy={onCopy} />
-            </Descriptions.Item>
-            <Descriptions.Item itemKey='Account ID'>
-              <AccountInfoValue
-                t={tt}
-                value={accountId}
-                onCopy={onCopy}
-                monospace={true}
-              />
-            </Descriptions.Item>
-          </Descriptions>
+        <div className='mt-3 overflow-hidden rounded-lg bg-surface-secondary'>
+          <AccountInfoRow
+            t={tt}
+            label='User ID'
+            value={userId}
+            onCopy={onCopy}
+            monospace
+          />
+          <div className='border-t border-border' />
+          <AccountInfoRow
+            t={tt}
+            label={tt('邮箱')}
+            value={email}
+            onCopy={onCopy}
+          />
+          <div className='border-t border-border' />
+          <AccountInfoRow
+            t={tt}
+            label='Account ID'
+            value={accountId}
+            onCopy={onCopy}
+            monospace
+          />
         </div>
 
-        <div className='mt-2 text-xs text-semi-color-text-2'>
+        <div className='mt-2 text-xs text-muted'>
           {tt('渠道：')}
           {record?.name || '-'} ({tt('编号：')}
           {record?.id || '-'})
@@ -460,97 +392,63 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
       </div>
 
       <div>
-        <div className='mb-2'>
-          <div className='text-sm font-semibold text-semi-color-text-0'>
-            {tt('额度窗口')}
-          </div>
-          <Text type='tertiary' size='small'>
-            {tt(
-              '用于观察当前帐号在 Codex 上游的基础限额与附加计费能力使用情况',
-            )}
-          </Text>
+        <div className='text-sm font-semibold text-foreground'>
+          {tt('额度窗口')}
+        </div>
+        <div className='text-xs text-muted'>
+          {tt('用于观察当前帐号在 Codex 上游的限额使用情况')}
         </div>
       </div>
 
-      <div className='space-y-5'>
-        <RateLimitGroupSection
+      <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
+        <RateLimitWindowCard
           t={tt}
-          title={tt('基础额度')}
-          description={tt('当前帐号的基础额度窗口')}
-          rateLimitSource={data}
-          statusTag={statusTag}
+          title={tt('5小时窗口')}
+          windowData={fiveHourWindow}
         />
-
-        {additionalRateLimits.length > 0 ? (
-          <div className='space-y-4 border-t border-semi-color-border pt-4'>
-            <div>
-              <div className='text-sm font-semibold text-semi-color-text-0'>
-                {tt('附加额度')}
-              </div>
-              <Text type='tertiary' size='small'>
-                {tt('按模型或能力拆分的附加计费能力窗口')}
-              </Text>
-            </div>
-
-            <div className='space-y-4'>
-              {additionalRateLimits.map((item, index) => {
-                const limitName =
-                  getDisplayText(item?.limit_name) ||
-                  getDisplayText(item?.metered_feature) ||
-                  `${tt('附加额度')} ${index + 1}`;
-
-                return (
-                  <div
-                    key={`${limitName}-${getDisplayText(item?.metered_feature)}-${index}`}
-                    className={
-                      index > 0 ? 'border-t border-semi-color-border pt-4' : ''
-                    }
-                  >
-                    <RateLimitGroupSection
-                      t={tt}
-                      title={limitName}
-                      description={tt('附加计费能力')}
-                      rateLimitSource={item}
-                      statusTag={resolveUsageStatusTag(tt, item?.rate_limit)}
-                      meteredFeature={item?.metered_feature}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
+        <RateLimitWindowCard
+          t={tt}
+          title={tt('每周窗口')}
+          windowData={weeklyWindow}
+        />
       </div>
 
-      <Collapse
-        activeKey={showRawJson ? ['raw-json'] : []}
-        onChange={(activeKey) => {
-          const keys = Array.isArray(activeKey) ? activeKey : [activeKey];
-          setShowRawJson(keys.includes('raw-json'));
-        }}
+      {/* Raw JSON collapse: native <details> mirrors the existing
+          CollapseSection pattern used elsewhere in the migrated modals. */}
+      <details
+        className='group rounded-xl border border-border bg-background'
+        open={showRawJson}
+        onToggle={(event) => setShowRawJson(event.currentTarget.open)}
       >
-        <Collapse.Panel header={tt('原始 JSON')} itemKey='raw-json'>
+        <summary className='flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm font-medium text-foreground'>
+          <span>{tt('原始 JSON')}</span>
+          <ChevronDown
+            size={16}
+            className='text-muted transition-transform group-open:rotate-180'
+          />
+        </summary>
+        <div className='border-t border-border px-3 py-3'>
           <div className='mb-2 flex justify-end'>
             <Button
-              size='small'
-              type='primary'
-              theme='outline'
-              onClick={() => onCopy?.(rawText)}
-              disabled={!rawText}
+              size='sm'
+              variant='bordered'
+              color='primary'
+              isDisabled={!rawText}
+              onPress={() => onCopy?.(rawText)}
             >
               {tt('复制')}
             </Button>
           </div>
-          <pre className='max-h-[50vh] overflow-y-auto rounded-lg bg-semi-color-fill-0 p-3 text-xs text-semi-color-text-0'>
+          <pre className='max-h-[50vh] overflow-y-auto rounded-lg bg-surface-secondary p-3 text-xs text-foreground'>
             {rawText}
           </pre>
-        </Collapse.Panel>
-      </Collapse>
+        </div>
+      </details>
     </div>
   );
-};
+}
 
-const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
+function CodexUsageLoader({ t, record, initialPayload, onCopy }) {
   const tt = typeof t === 'function' ? t : (v) => v;
   const [loading, setLoading] = useState(!initialPayload);
   const [payload, setPayload] = useState(initialPayload ?? null);
@@ -601,8 +499,9 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
 
   if (loading) {
     return (
-      <div className='flex items-center justify-center py-10'>
-        <Spin spinning={true} size='large' tip={tt('加载中...')} />
+      <div className='flex flex-col items-center justify-center gap-3 py-10'>
+        <Spinner color='primary' />
+        <div className='text-xs text-muted'>{tt('加载中...')}</div>
       </div>
     );
   }
@@ -610,13 +509,14 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
   if (!payload) {
     return (
       <div className='flex flex-col gap-3'>
-        <Text type='danger'>{tt('获取用量失败')}</Text>
+        <div className='text-sm text-danger'>{tt('获取用量失败')}</div>
         <div className='flex justify-end'>
           <Button
-            size='small'
-            type='primary'
-            theme='outline'
-            onClick={fetchUsage}
+            size='sm'
+            variant='bordered'
+            color='primary'
+            startContent={<RefreshCw size={14} />}
+            onPress={fetchUsage}
           >
             {tt('刷新')}
           </Button>
@@ -634,32 +534,60 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
       onRefresh={fetchUsage}
     />
   );
-};
+}
 
-export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
+const CodexUsageModal = ({
+  visible,
+  onClose,
+  t,
+  record,
+  initialPayload,
+  onCopy,
+}) => {
   const tt = typeof t === 'function' ? t : (v) => v;
-  const layout = getCodexUsageModalLayout();
-
-  Modal.info({
-    title: tt('Codex 帐号与用量'),
-    centered: false,
-    width: layout.width,
-    style: layout.style,
-    bodyStyle: layout.bodyStyle,
-    content: (
-      <CodexUsageLoader
-        t={tt}
-        record={record}
-        initialPayload={payload}
-        onCopy={onCopy}
-      />
-    ),
-    footer: (
-      <div className='flex justify-end gap-2'>
-        <Button type='primary' theme='solid' onClick={() => Modal.destroyAll()}>
-          {tt('关闭')}
-        </Button>
-      </div>
-    ),
+  const modalState = useOverlayState({
+    isOpen: visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onClose?.();
+    },
   });
+
+  return (
+    <Modal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer
+          size='3xl'
+          placement='center'
+          className='max-w-[95vw]'
+        >
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
+              <span>{tt('Codex 帐号与用量')}</span>
+            </ModalHeader>
+            <ModalBody className='px-6 py-5'>
+              {visible ? (
+                <CodexUsageLoader
+                  t={tt}
+                  record={record}
+                  initialPayload={initialPayload}
+                  onCopy={onCopy}
+                />
+              ) : null}
+            </ModalBody>
+            <ModalFooter className='border-t border-border'>
+              <Button
+                color='primary'
+                startContent={<X size={14} />}
+                onPress={onClose}
+              >
+                {tt('关闭')}
+              </Button>
+            </ModalFooter>
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
+    </Modal>
+  );
 };
+
+export default CodexUsageModal;

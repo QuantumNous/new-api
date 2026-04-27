@@ -928,11 +928,11 @@ const TopUp = () => {
       <Modal state={creemModalState}>
         <ModalBackdrop isDismissable={false} variant='blur'>
           <ModalContainer size='sm' placement='center'>
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
                 {t('确定要充值 $')}
               </ModalHeader>
-              <ModalBody className='space-y-2 px-6 py-5 text-sm text-slate-600 dark:text-slate-300'>
+              <ModalBody className='space-y-2 px-6 py-5 text-sm text-muted'>
                 {selectedCreemProduct && (
                   <>
                     <p>
@@ -950,7 +950,7 @@ const TopUp = () => {
                   </>
                 )}
               </ModalBody>
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 <Button variant='ghost' onPress={handleCreemCancel}>
                   {t('取消')}
                 </Button>

@@ -71,8 +71,8 @@ const ColumnSelectorModal = ({
       onSelectAll={handleSelectAll}
       onReset={initDefaultColumns}
     >
-      <div className='rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-900/60'>
-        <div className='mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200'>
+      <div className='rounded-2xl border border-border bg-surface-secondary/60 p-3'>
+        <div className='mb-2 text-sm font-semibold text-foreground'>
           {t('计费显示模式')}
         </div>
         <div className='flex flex-wrap gap-2'>
@@ -93,7 +93,7 @@ const ColumnSelectorModal = ({
               className={`rounded-full border px-3 py-1.5 text-sm transition ${
                 billingDisplayMode === option.value
                   ? 'border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-500 dark:bg-sky-500/10 dark:text-sky-200'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'
+                  : 'border-border bg-background text-muted hover:border-primary'
               }`}
             >
               {option.label}

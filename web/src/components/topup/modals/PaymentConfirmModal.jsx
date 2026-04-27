@@ -94,15 +94,15 @@ const PaymentConfirmModal = ({
     <Modal state={modalState}>
       <ModalBackdrop isDismissable={false} variant='blur'>
         <ModalContainer size='sm' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               <div className='flex items-center gap-2'>
                 <CreditCard size={18} />
                 {t('充值确认')}
               </div>
             </ModalHeader>
             <ModalBody className='px-6 py-5'>
-              <Card className='rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-none dark:border-white/10 dark:bg-slate-900/70'>
+              <Card className='rounded-2xl border border-border bg-surface-secondary/60 p-4 shadow-none'>
                 <div className='space-y-3'>
                   <InfoRow
                     label={`${t('充值数量')}：`}
@@ -132,7 +132,7 @@ const PaymentConfirmModal = ({
                       <InfoRow
                         label={`${t('原价')}：`}
                         value={
-                          <span className='text-slate-500 line-through dark:text-slate-400'>
+                          <span className='text-muted line-through'>
                             {`${originalAmount.toFixed(2)} ${t('元')}`}
                           </span>
                         }
@@ -159,7 +159,7 @@ const PaymentConfirmModal = ({
                 </div>
               </Card>
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='ghost' onPress={handleCancel}>
                 {t('取消')}
               </Button>
@@ -181,10 +181,10 @@ const PaymentConfirmModal = ({
 function InfoRow({ label, value }) {
   return (
     <div className='flex items-center justify-between gap-4 text-sm'>
-      <span className='font-medium text-slate-700 dark:text-slate-200'>
+      <span className='font-medium text-foreground'>
         {label}
       </span>
-      <span className='text-right text-slate-900 dark:text-slate-100'>
+      <span className='text-right text-foreground'>
         {value}
       </span>
     </div>

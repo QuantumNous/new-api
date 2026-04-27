@@ -67,7 +67,7 @@ const ClickMenu = ({
       {open ? (
         <div
           role='menu'
-          className={`absolute z-30 min-w-[10rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-white shadow-lg dark:bg-slate-900 ${place} ${menuClassName}`}
+          className={`absolute z-30 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-background shadow-lg ${place} ${menuClassName}`}
         >
           {items.map((item, idx) => {
             if (item.divider) {

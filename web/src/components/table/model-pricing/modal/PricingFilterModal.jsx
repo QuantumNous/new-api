@@ -60,8 +60,8 @@ const PricingFilterModal = ({ visible, onClose, sidebarProps, t }) => {
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='full' placement='center'>
-          <ModalDialog className='flex h-full max-h-[100vh] flex-col bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='flex h-full max-h-[100vh] flex-col bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('筛选')}
             </ModalHeader>
             <ModalBody
@@ -73,7 +73,7 @@ const PricingFilterModal = ({ visible, onClose, sidebarProps, t }) => {
             >
               <FilterModalContent sidebarProps={sidebarProps} t={t} />
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <FilterModalFooter
                 onReset={handleResetFilters}
                 onConfirm={onClose}

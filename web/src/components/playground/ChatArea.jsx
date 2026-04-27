@@ -79,7 +79,7 @@ const ChatArea = ({
       type='button'
       aria-label={t('清空上下文')}
       onClick={onClearMessages}
-      className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition hover:bg-red-500 hover:text-white'
+      className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-secondary text-muted transition hover:bg-danger hover:text-white'
     >
       <Trash2 size={14} />
     </button>
@@ -162,11 +162,11 @@ const ChatArea = ({
                 className={`rounded-2xl border p-4 shadow-sm ${
                   isUser
                     ? 'ml-auto max-w-[92%] border-blue-100 bg-blue-50/80 dark:border-blue-900/40 dark:bg-blue-950/30'
-                    : 'mr-auto max-w-[92%] border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/70'
+                    : 'mr-auto max-w-[92%] border-border bg-background/80'
                 }`}
               >
                 <div className='mb-2 flex items-center justify-between gap-3'>
-                  <div className='flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500'>
+                  <div className='flex items-center gap-2 text-xs uppercase tracking-wide text-muted'>
                     {role.avatar ? (
                       <img
                         src={role.avatar}

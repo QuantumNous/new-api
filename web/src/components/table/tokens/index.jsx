@@ -18,13 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Select } from '@heroui/react';
-import { Notification, Space, Toast, Typography } from '@/components/common/ui/HeroCompat';
+import { Button } from '@heroui/react';
+import { X } from 'lucide-react';
 import {
   API,
-  showError,
   getModelCategories,
-  selectFilter,
+  showError,
+  showInfo,
+  showSuccess,
+  showWarning,
 } from '../../../helpers';
 import CardPro from '../../common/ui/CardPro';
 import TokensTable from './TokensTable';
@@ -113,77 +115,34 @@ function TokensPage() {
     }
   };
 
+  const SUPPRESS_KEY = 'fluent_notify_suppressed';
+
   function openFluentNotification(key) {
     const { t } = latestRef.current;
-    const SUPPRESS_KEY = 'fluent_notify_suppressed';
     if (modelOptions.length === 0) {
-      // fire-and-forget; a later effect will refresh the notice content
+      // fire-and-forget; the panel will re-render once options resolve
       loadModels();
     }
     if (!key && localStorage.getItem(SUPPRESS_KEY) === '1') return;
     const container = document.getElementById('fluent-new-api-container');
     if (!container) {
-      Toast.warning(t('未检测到 FluentRead（流畅阅读），请确认扩展已启用'));
+      showWarning(t('未检测到 FluentRead（流畅阅读），请确认扩展已启用'));
       return;
     }
     setPrefillKey(key || '');
     setFluentNoticeOpen(true);
-    Notification.info({
-      id: 'fluent-detected',
-      title: t('检测到 FluentRead（流畅阅读）'),
-      content: (
-        <div>
-          <div style={{ marginBottom: 8 }}>
-            {key
-              ? t('请选择模型。')
-              : t('选择模型后可一键填充当前选中令牌（或本页第一个令牌）。')}
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            <Select
-              placeholder={t('请选择模型')}
-              optionList={modelOptions}
-              onChange={setSelectedModel}
-              filter={selectFilter}
-              style={{ width: 320 }}
-              showClear
-              searchable
-              emptyContent={t('暂无数据')}
-            />
-          </div>
-          <Space>
-            <Button
-              theme='solid'
-              type='primary'
-              onClick={handlePrefillToFluent}
-            >
-              {t('一键填充到 FluentRead')}
-            </Button>
-            {!key && (
-              <Button
-                type='warning'
-                onClick={() => {
-                  localStorage.setItem(SUPPRESS_KEY, '1');
-                  Notification.close('fluent-detected');
-                  Toast.info(t('已关闭后续提醒'));
-                }}
-              >
-                {t('不再提醒')}
-              </Button>
-            )}
-            <Button
-              type='tertiary'
-              onClick={() => Notification.close('fluent-detected')}
-            >
-              {t('关闭')}
-            </Button>
-          </Space>
-        </div>
-      ),
-      duration: 0,
-    });
   }
   // assign after definition so hook callback can call it safely
   openFluentNotificationRef.current = openFluentNotification;
+
+  const closeFluentNotification = () => setFluentNoticeOpen(false);
+
+  const suppressFluentNotification = () => {
+    const { t } = latestRef.current;
+    localStorage.setItem(SUPPRESS_KEY, '1');
+    closeFluentNotification();
+    showInfo(t('已关闭后续提醒'));
+  };
 
   function openCCSwitchModal(key) {
     if (modelOptions.length === 0) {
@@ -206,12 +165,12 @@ function TokensPage() {
     } = latestRef.current;
     const container = document.getElementById('fluent-new-api-container');
     if (!container) {
-      Toast.error(t('未检测到 Fluent 容器'));
+      showError(t('未检测到 Fluent 容器'));
       return;
     }
 
     if (!chosenModel) {
-      Toast.warning(t('请选择模型'));
+      showWarning(t('请选择模型'));
       return;
     }
 
@@ -236,7 +195,7 @@ function TokensPage() {
             ? tokens[0]
             : null;
       if (!token) {
-        Toast.warning(t('没有可用令牌用于填充'));
+        showWarning(t('没有可用令牌用于填充'));
         return;
       }
       try {
@@ -256,18 +215,17 @@ function TokensPage() {
     container.dispatchEvent(
       new CustomEvent('fluent:prefill', { detail: payload }),
     );
-    Toast.success(t('已发送到 Fluent'));
-    Notification.close('fluent-detected');
+    showSuccess(t('已发送到 Fluent'));
+    setFluentNoticeOpen(false);
   };
 
-  // Show notification when Fluent container is available
+  // Show notice panel when Fluent container is available
   useEffect(() => {
     const onAppeared = () => {
       openFluentNotification();
     };
     const onRemoved = () => {
       setFluentNoticeOpen(false);
-      Notification.close('fluent-detected');
     };
 
     window.addEventListener('fluent-container:appeared', onAppeared);
@@ -277,14 +235,6 @@ function TokensPage() {
       window.removeEventListener('fluent-container:removed', onRemoved);
     };
   }, []);
-
-  // When modelOptions or language changes while the notice is open, refresh the content
-  useEffect(() => {
-    if (fluentNoticeOpen) {
-      openFluentNotification();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modelOptions, selectedModel, tokensData.t, fluentNoticeOpen]);
 
   useEffect(() => {
     const selector = '#fluent-new-api-container';
@@ -371,6 +321,18 @@ function TokensPage() {
 
   return (
     <>
+      <FluentNoticePanel
+        open={fluentNoticeOpen}
+        prefillKey={prefillKey}
+        modelOptions={modelOptions}
+        selectedModel={selectedModel}
+        onSelectModel={setSelectedModel}
+        onConfirm={handlePrefillToFluent}
+        onSuppress={suppressFluentNotification}
+        onClose={closeFluentNotification}
+        t={t}
+      />
+
       <EditTokenModal
         refresh={refresh}
         editingToken={editingToken}
@@ -395,7 +357,7 @@ function TokensPage() {
           />
         }
         actionsArea={
-          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
+          <div className='flex flex-col xl:flex-row xl:justify-between xl:items-center gap-2 w-full'>
             <TokensActions
               selectedKeys={selectedKeys}
               setEditingToken={setEditingToken}
@@ -405,7 +367,7 @@ function TokensPage() {
               t={t}
             />
 
-            <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
+            <div className='w-full xl:w-auto order-1 xl:order-2'>
               <TokensFilters
                 formInitValues={formInitValues}
                 setFormApi={setFormApi}
@@ -431,6 +393,91 @@ function TokensPage() {
         <TokensTable {...tokensData} />
       </CardPro>
     </>
+  );
+}
+
+// Top-right anchored notice that replaces the legacy Semi `Notification.info`
+// surface. Mirrors the layout the previous Notification rendered: title bar,
+// short intro, model picker (native select for parity with CCSwitchModal),
+// then the action row.
+function FluentNoticePanel({
+  open,
+  prefillKey,
+  modelOptions,
+  selectedModel,
+  onSelectModel,
+  onConfirm,
+  onSuppress,
+  onClose,
+  t,
+}) {
+  if (!open) return null;
+
+  const intro = prefillKey
+    ? t('请选择模型。')
+    : t('选择模型后可一键填充当前选中令牌（或本页第一个令牌）。');
+
+  return (
+    <div
+      role='region'
+      aria-label={t('检测到 FluentRead（流畅阅读）')}
+      className='pointer-events-none fixed right-4 top-20 z-40 flex w-full max-w-sm justify-end px-2'
+    >
+      <div className='pointer-events-auto w-full overflow-hidden rounded-2xl border border-border bg-background/95 shadow-xl backdrop-blur'>
+        <div className='flex items-start justify-between gap-3 border-b border-[color:var(--app-border)] px-4 py-3'>
+          <div className='text-sm font-semibold text-foreground'>
+            {t('检测到 FluentRead（流畅阅读）')}
+          </div>
+          <button
+            type='button'
+            aria-label={t('关闭')}
+            onClick={onClose}
+            className='-mr-1 -mt-1 rounded-md p-1 text-muted transition hover:bg-surface-secondary hover:text-foreground'
+          >
+            <X className='h-4 w-4' />
+          </button>
+        </div>
+
+        <div className='flex flex-col gap-3 px-4 py-3'>
+          <p className='text-xs text-muted'>{intro}</p>
+
+          <select
+            value={selectedModel || ''}
+            onChange={(event) => onSelectModel(event.target.value)}
+            className='h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
+          >
+            <option value=''>{t('请选择模型')}</option>
+            {(modelOptions || []).map((option) => (
+              <option key={option.value} value={option.value}>
+                {typeof option.label === 'string' ? option.label : option.value}
+              </option>
+            ))}
+          </select>
+          {(modelOptions || []).length === 0 ? (
+            <div className='-mt-2 text-xs text-muted'>{t('暂无数据')}</div>
+          ) : null}
+        </div>
+
+        <div className='flex flex-wrap items-center justify-end gap-2 border-t border-[color:var(--app-border)] bg-surface-secondary/40 px-4 py-3'>
+          {!prefillKey && (
+            <Button
+              size='sm'
+              variant='flat'
+              color='warning'
+              onPress={onSuppress}
+            >
+              {t('不再提醒')}
+            </Button>
+          )}
+          <Button size='sm' variant='light' onPress={onClose}>
+            {t('关闭')}
+          </Button>
+          <Button size='sm' color='primary' onPress={onConfirm}>
+            {t('一键填充到 FluentRead')}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

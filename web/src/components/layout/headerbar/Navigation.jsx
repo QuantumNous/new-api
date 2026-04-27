@@ -18,71 +18,80 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Navbar } from '@heroui-pro/react';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
+// Resolve the actual destination href for a nav link, applying auth-required
+// redirects (`console`, gated `pricing`) without mutating the link config.
+const resolveTarget = (link, userState, pricingRequireAuth) => {
+  if (link.isExternal) {
+    return link.externalLink;
+  }
+  if (link.itemKey === 'console' && !userState?.user) {
+    return '/login';
+  }
+  if (link.itemKey === 'pricing' && pricingRequireAuth && !userState?.user) {
+    return '/login';
+  }
+  return link.to;
+};
+
+// Match nav-link "is current" against the current pathname. Treat `/` as an
+// exact match so the home link doesn't stay highlighted on every route.
+const isLinkCurrent = (link, pathname) => {
+  if (link.isExternal) {
+    return false;
+  }
+  const target = link.to;
+  if (!target) return false;
+  if (target === '/') {
+    return pathname === '/';
+  }
+  return pathname === target || pathname.startsWith(`${target}/`);
+};
+
+// Desktop-only navigation rendered inside `Navbar.Content`. Hidden on mobile;
+// the mobile equivalent lives in `MobileNavMenu` (Navbar.Menu).
 const Navigation = ({
   mainNavLinks,
-  isMobile,
   isLoading,
   userState,
   pricingRequireAuth,
+  pathname,
 }) => {
-  const renderNavLinks = () => {
-    const baseClasses =
-      'flex-shrink-0 flex items-center gap-1 font-medium rounded-md transition-colors duration-150';
-    const hoverClasses = 'hover:text-primary';
-    const spacingClasses = isMobile ? 'p-1' : 'p-2';
-
-    const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
-
-    return mainNavLinks.map((link) => {
-      const linkContent = <span>{link.text}</span>;
-
-      if (link.isExternal) {
-        return (
-          <a
-            key={link.itemKey}
-            href={link.externalLink}
-            target='_blank'
-            rel='noopener noreferrer'
-            className={commonLinkClasses}
-          >
-            {linkContent}
-          </a>
-        );
-      }
-
-      let targetPath = link.to;
-      if (link.itemKey === 'console' && !userState.user) {
-        targetPath = '/login';
-      }
-      if (link.itemKey === 'pricing' && pricingRequireAuth && !userState.user) {
-        targetPath = '/login';
-      }
-
-      return (
-        <Link key={link.itemKey} to={targetPath} className={commonLinkClasses}>
-          {linkContent}
-        </Link>
-      );
-    });
-  };
-
   return (
-    <nav className='mx-2 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap text-foreground scrollbar-hide md:mx-4 lg:gap-2'>
+    <Navbar.Content className='hidden md:flex'>
       <SkeletonWrapper
         loading={isLoading}
         type='navigation'
         count={4}
         width={60}
         height={16}
-        isMobile={isMobile}
       >
-        {renderNavLinks()}
+        {mainNavLinks.map((link) => {
+          const target = resolveTarget(link, userState, pricingRequireAuth);
+          const current = isLinkCurrent(link, pathname);
+          return (
+            // Navbar.Item ships with its own `text-muted` baseline that
+            // transitions to `text-foreground` on hover / `data-current`.
+            // The text-only color shift is subtle, so layer a surface tint
+            // on top via Tailwind utilities — both `hover:` and HeroUI's
+            // `data-[hovered=true]` selector cover mouse + a11y-driven
+            // hover (touch retains the no-bg muted baseline).
+            <Navbar.Item
+              key={link.itemKey}
+              href={target}
+              isCurrent={current}
+              className='transition-colors hover:bg-surface-secondary data-[hovered=true]:bg-surface-secondary data-[current=true]:bg-surface-secondary'
+            >
+              {link.text}
+            </Navbar.Item>
+          );
+        })}
       </SkeletonWrapper>
-    </nav>
+    </Navbar.Content>
   );
 };
 
+export { resolveTarget, isLinkCurrent };
 export default Navigation;

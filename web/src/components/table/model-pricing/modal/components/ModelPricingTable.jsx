@@ -32,7 +32,7 @@ function GroupChip({ children, tone = 'default' }) {
           ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
           : tone === 'blue'
             ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-            : 'border border-[color:var(--app-border)] bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200';
+            : 'border border-[color:var(--app-border)] bg-background text-foreground';
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass}`}
@@ -96,7 +96,7 @@ const ModelPricingTable = ({
     };
   });
 
-  // 动态计费时始终显示分组倍率列，否则根据 showRatio 设置
+  // 动态计费时始终显示分组倍率列，否则按 showRatio 设置
   const isDynamicBilling = modelData?.billing_mode === 'tiered_expr';
   const showRatioCol = showRatio || isDynamicBilling;
 

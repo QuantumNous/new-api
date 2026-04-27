@@ -264,7 +264,7 @@ const EditRedemptionModal = (props) => {
         aria-modal='true'
         aria-hidden={!props.visiable}
         style={{ width: isMobile ? '100%' : 600 }}
-        className={`fixed bottom-0 top-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-950 ${
+        className={`fixed bottom-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
           placement === 'right' ? 'right-0' : 'left-0'
         } ${
           props.visiable

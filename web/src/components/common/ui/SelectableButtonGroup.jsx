@@ -118,7 +118,7 @@ const SelectableButtonGroup = ({
       >
         {Array.from({ length: skeletonCount }).map((_, index) => (
           <div
-            className='flex h-8 items-center gap-2 rounded-xl border border-slate-200 px-3 dark:border-slate-800'
+            className='flex h-8 items-center gap-2 rounded-xl border border-border px-3'
             key={index}
           >
             {withCheckbox ? <Skeleton className='h-3.5 w-3.5 rounded' /> : null}
@@ -162,7 +162,7 @@ const SelectableButtonGroup = ({
                       className={`ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-medium ${
                         isActive
                           ? 'bg-accent text-accent-foreground'
-                          : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
+                          : 'bg-surface-secondary text-muted'
                       }`}
                     >
                       {item.tagCount}
@@ -189,7 +189,7 @@ const SelectableButtonGroup = ({
                     className={`ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-medium ${
                       isActive
                         ? 'bg-accent text-accent-foreground'
-                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
+                        : 'bg-surface-secondary text-muted'
                     }`}
                   >
                     {item.tagCount}
@@ -209,14 +209,14 @@ const SelectableButtonGroup = ({
       ref={containerRef}
     >
       {title && (
-        <div className='mb-3 flex items-center gap-3 text-sm font-semibold text-slate-700 dark:text-slate-200'>
-          <span className='h-px flex-1 bg-slate-200 dark:bg-slate-800' />
+        <div className='mb-3 flex items-center gap-3 text-sm font-semibold text-foreground'>
+          <span className='h-px flex-1 bg-border' />
           {showSkeleton ? (
             <Skeleton className='h-3.5 w-20 rounded-full' />
           ) : (
             <span className='shrink-0'>{title}</span>
           )}
-          <span className='h-px flex-1 bg-slate-200 dark:bg-slate-800' />
+          <span className='h-px flex-1 bg-border' />
         </div>
       )}
       {needCollapse && !showSkeleton ? (
@@ -234,7 +234,7 @@ const SelectableButtonGroup = ({
             <button
               type='button'
               onClick={toggle}
-              className='absolute -bottom-3 left-0 right-0 mx-auto flex w-fit cursor-pointer items-center justify-center gap-1 rounded-full bg-white/90 px-2 text-xs text-slate-500 shadow-sm ring-1 ring-slate-200 backdrop-blur hover:text-slate-900 dark:bg-slate-950/90 dark:text-slate-400 dark:ring-slate-800 dark:hover:text-slate-100'
+              className='absolute -bottom-3 left-0 right-0 mx-auto flex w-fit cursor-pointer items-center justify-center gap-1 rounded-full bg-background/90 px-2 text-xs text-muted shadow-sm ring-1 ring-border backdrop-blur hover:text-foreground'
             >
               <ChevronDown size={14} />
               <span>{t('展开更多')}</span>
@@ -244,7 +244,7 @@ const SelectableButtonGroup = ({
             <button
               type='button'
               onClick={toggle}
-              className='mx-auto mt-2 flex cursor-pointer items-center justify-center gap-1 rounded-full px-2 text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+              className='mx-auto mt-2 flex cursor-pointer items-center justify-center gap-1 rounded-full px-2 text-xs text-muted hover:text-foreground'
             >
               <ChevronUp size={14} />
               <span>{t('收起')}</span>

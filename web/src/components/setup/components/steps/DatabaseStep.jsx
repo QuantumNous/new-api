@@ -76,7 +76,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
             </div>
             <div className='min-w-0'>
               <div className='mb-2 flex flex-wrap items-center gap-2'>
-                <h3 className='text-lg font-semibold text-slate-950 dark:text-white'>
+                <h3 className='text-lg font-semibold text-foreground'>
                   {isElectron ? t('本地数据存储') : isWarning ? t('数据库警告') : t('数据库信息')}
                 </h3>
                 <Chip
@@ -90,23 +90,23 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
 
               {databaseType === 'sqlite' ? (
                 isElectron ? (
-                  <div className='space-y-3 text-sm leading-6 text-slate-700 dark:text-slate-300'>
+                  <div className='space-y-3 text-sm leading-6 text-foreground'>
                     <p>
                       {t(
                         '您的数据将安全地存储在本地计算机上。所有配置、用户信息和使用记录都会自动保存，关闭应用后不会丢失。',
                       )}
                     </p>
                     {window.electron?.dataDir && (
-                      <div className='rounded-2xl bg-white/70 p-3 dark:bg-slate-950/50'>
-                        <div className='mb-1 text-xs font-medium text-slate-500 dark:text-slate-400'>
+                      <div className='rounded-2xl bg-background/70 p-3'>
+                        <div className='mb-1 text-xs font-medium text-muted'>
                           {t('数据存储位置：')}
                         </div>
-                        <code className='break-all text-xs text-slate-700 dark:text-slate-200'>
+                        <code className='break-all text-xs text-foreground'>
                           {window.electron.dataDir}
                         </code>
                       </div>
                     )}
-                    <p className='text-slate-600 dark:text-slate-400'>
+                    <p className='text-muted'>
                       {t('提示：如需备份数据，只需复制上述目录即可')}
                     </p>
                   </div>
@@ -125,7 +125,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
                   </div>
                 )
               ) : (
-                <p className='text-sm leading-6 text-slate-700 dark:text-slate-300'>
+                <p className='text-sm leading-6 text-foreground'>
                   {databaseType === 'mysql'
                     ? t(
                       '您正在使用 MySQL 数据库。MySQL 是一个可靠的关系型数据库管理系统，适合生产环境使用。',
@@ -139,14 +139,14 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
           </div>
         </Card>
 
-        <Card className='rounded-3xl border border-slate-200 bg-white/70 p-5 dark:border-slate-800 dark:bg-slate-900/60'>
-          <div className='mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'>
+        <Card className='rounded-3xl border border-border bg-background/70 p-5'>
+          <div className='mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-secondary text-muted'>
             <Database size={22} />
           </div>
-          <div className='text-sm font-semibold text-slate-950 dark:text-white'>
+          <div className='text-sm font-semibold text-foreground'>
             {t('连接状态')}
           </div>
-          <div className='mt-2 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400'>
+          <div className='mt-2 flex items-center gap-2 text-sm text-muted'>
             <Info size={16} />
             <span>{t('已读取当前数据库配置')}</span>
           </div>

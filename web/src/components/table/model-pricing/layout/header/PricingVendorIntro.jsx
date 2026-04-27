@@ -89,7 +89,7 @@ const getVendorDisplayName = (vendorName, t) => {
 
 const createDefaultAvatar = () => (
   <div className={COMPONENT_STYLES.avatarContainer}>
-    <span className='text-base font-semibold text-slate-700'>
+    <span className='text-base font-semibold text-foreground'>
       AI
     </span>
   </div>
@@ -112,7 +112,7 @@ const createAvatarContent = (vendor, isAllVendors) => {
 
   return (
     <div
-      className='flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-slate-700'
+      className='flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-foreground'
       style={{ backgroundColor: getAvatarBackgroundColor(isAllVendors) }}
     >
       {getAvatarText(vendor.name)}
@@ -185,14 +185,14 @@ const PricingVendorIntro = memo(
         <Modal state={descModalState}>
           <ModalBackdrop variant='blur'>
             <ModalContainer size={isMobile ? 'full' : 'lg'} placement='center'>
-              <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-                <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <ModalDialog className='bg-background/95 backdrop-blur'>
+                <ModalHeader className='border-b border-border'>
                   {t('供应商介绍')}
                 </ModalHeader>
                 <ModalBody className='max-h-[70vh] overflow-y-auto text-sm'>
                   {descModalContent}
                 </ModalBody>
-                <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+                <ModalFooter className='border-t border-border'>
                   <Button variant='primary' onPress={handleCloseDescModal}>
                     {t('确定')}
                   </Button>

@@ -71,7 +71,7 @@ const NewYearButton = ({ isNewYear }) => {
         aria-haspopup='menu'
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className='inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-700 transition-colors hover:bg-slate-900/5 dark:text-slate-200 dark:hover:bg-white/10'
+        className='inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-surface-secondary'
       >
         <span className='text-xl'>🎉</span>
       </button>
@@ -80,13 +80,13 @@ const NewYearButton = ({ isNewYear }) => {
         <div
           role='menu'
           aria-label='New Year'
-          className='absolute right-0 top-full z-50 mt-2 min-w-44 rounded-2xl border border-slate-200/80 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/95'
+          className='absolute right-0 top-full z-50 mt-2 min-w-44 rounded-2xl border border-border bg-background/95 p-1 shadow-xl backdrop-blur'
         >
           <button
             type='button'
             role='menuitem'
             onClick={handleNewYearClick}
-            className='flex w-full items-center rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-900/[0.04] dark:hover:bg-white/10'
+            className='flex w-full items-center rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-surface-secondary'
           >
             Happy New Year!!! 🎉
           </button>

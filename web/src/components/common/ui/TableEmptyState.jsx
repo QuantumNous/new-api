@@ -19,23 +19,22 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { SearchX } from 'lucide-react';
+import { EmptyState } from '@heroui-pro/react';
 
-const TableEmptyState = ({ title, description }) => {
+const TableEmptyState = ({ title, description, icon, size = 'sm' }) => {
   return (
-    <div className='flex min-h-48 items-center justify-center px-4 py-8'>
-      <div className='flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-8 text-center dark:border-slate-800 dark:bg-slate-900/60'>
-        <div className='flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
-          <SearchX size={24} />
-        </div>
-        {title ? (
-          <h3 className='text-sm font-semibold text-slate-900 dark:text-slate-100'>
-            {title}
-          </h3>
-        ) : null}
-        <p className='text-sm text-slate-500 dark:text-slate-400'>
-          {description}
-        </p>
-      </div>
+    <div className='flex min-h-48 w-full items-center justify-center px-4 py-8'>
+      <EmptyState size={size}>
+        <EmptyState.Header>
+          <EmptyState.Media variant='icon'>
+            {icon ?? <SearchX />}
+          </EmptyState.Media>
+          {title ? <EmptyState.Title>{title}</EmptyState.Title> : null}
+          {description ? (
+            <EmptyState.Description>{description}</EmptyState.Description>
+          ) : null}
+        </EmptyState.Header>
+      </EmptyState>
     </div>
   );
 };

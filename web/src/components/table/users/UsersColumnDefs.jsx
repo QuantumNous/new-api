@@ -33,10 +33,9 @@ const TONE_CLASSES = {
     'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
   green:
     'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
-  grey:
-    'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  grey: 'bg-surface-secondary text-muted',
   white:
-    'border border-[color:var(--app-border)] bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200',
+    'border border-border bg-background text-foreground',
 };
 
 function Chip({ tone = 'white', children, className = '' }) {
@@ -65,7 +64,7 @@ function CopyableLine({ value, children }) {
         type='button'
         onClick={handleCopy}
         aria-label='copy'
-        className='inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted opacity-0 transition group-hover:opacity-100 hover:bg-[color:var(--app-background)] hover:text-foreground'
+        className='inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted opacity-0 transition group-hover:opacity-100 hover:bg-surface-secondary hover:text-foreground'
       >
         <Copy size={11} />
       </button>
@@ -103,7 +102,7 @@ function HoverPanel({ children, content, position = 'top' }) {
       {open ? (
         <div
           role='tooltip'
-          className={`absolute left-1/2 -translate-x-1/2 z-30 min-w-[10rem] rounded-lg border border-[color:var(--app-border)] bg-white p-2 text-xs shadow-lg dark:bg-slate-900 ${
+          className={`absolute left-1/2 -translate-x-1/2 z-30 min-w-[10rem] rounded-lg border border-border bg-background p-2 text-xs shadow-lg ${
             position === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
           }`}
         >
@@ -117,7 +116,7 @@ function HoverPanel({ children, content, position = 'top' }) {
 function ProgressBar({ percent }) {
   const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
   return (
-    <div className='h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800'>
+    <div className='h-1 w-full overflow-hidden rounded-full bg-surface-secondary'>
       <div
         className='h-full rounded-full bg-emerald-500 transition-all'
         style={{ width: `${clamped}%` }}
@@ -147,14 +146,14 @@ function ClickMenu({ items, trigger }) {
       {open ? (
         <div
           role='menu'
-          className='absolute right-0 top-full z-30 mt-1 min-w-[10rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-white shadow-lg dark:bg-slate-900'
+          className='absolute right-0 top-full z-30 mt-1 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-background shadow-lg'
         >
           {items.map((item, idx) => {
             if (item.divider) {
               return (
                 <div
                   key={`divider-${idx}`}
-                  className='my-1 h-px bg-[color:var(--app-border)]'
+                  className='my-1 h-px bg-border'
                 />
               );
             }
@@ -166,7 +165,7 @@ function ClickMenu({ items, trigger }) {
                 className={`flex w-full items-center px-3 py-2 text-left text-sm transition ${
                   item.danger
                     ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40'
-                    : 'text-foreground hover:bg-[color:var(--app-background)]'
+                    : 'text-foreground hover:bg-surface-secondary'
                 }`}
                 onClick={() => {
                   setOpen(false);
@@ -208,7 +207,7 @@ const renderUsername = (text, record) => {
     <div className='flex items-center gap-1.5'>
       <span>{text}</span>
       <Tooltip content={remark} placement='top'>
-        <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+        <span className='inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-xs text-foreground'>
           <span
             className='h-2 w-2 shrink-0 rounded-full'
             style={{ backgroundColor: '#10b981' }}
@@ -274,8 +273,8 @@ const renderQuotaUsage = (text, record, t) => {
 
   return (
     <HoverPanel content={popoverContent} position='top'>
-      <span className='inline-flex flex-col items-stretch gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-1 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
-        <span className='leading-none'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
+      <span className='inline-flex flex-col items-stretch gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs text-foreground'>
+        <span className='leading-none tabular-nums'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
         <ProgressBar percent={percent} />
       </span>
     </HoverPanel>

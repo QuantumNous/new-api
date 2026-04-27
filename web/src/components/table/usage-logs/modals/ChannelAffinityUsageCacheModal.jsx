@@ -208,12 +208,12 @@ const ChannelAffinityUsageCacheModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='2xl' placement='center' scroll='inside'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('渠道亲和性：上游缓存命中')}
             </ModalHeader>
             <ModalBody className='p-6'>
-              <p className='mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400'>
+              <p className='mb-4 text-xs leading-relaxed text-muted'>
                 {t(
                   '命中判定：usage 中存在 cached tokens（例如 cached_tokens/prompt_cache_hit_tokens）即视为命中。',
                 )}{' '}
@@ -228,7 +228,7 @@ const ChannelAffinityUsageCacheModal = ({
                   : ''}
               </p>
               {loading ? (
-                <div className='flex flex-col items-center justify-center gap-3 py-10 text-sm text-slate-500 dark:text-slate-400'>
+                <div className='flex flex-col items-center justify-center gap-3 py-10 text-sm text-muted'>
                   <Spinner />
                   {t('加载中...')}
                 </div>
@@ -237,19 +237,19 @@ const ChannelAffinityUsageCacheModal = ({
                   {rows.map((row) => (
                     <div
                       key={row.key}
-                      className='rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-900/60'
+                      className='rounded-2xl border border-border bg-surface-secondary/60 p-3'
                     >
-                      <div className='mb-1 text-xs text-slate-500 dark:text-slate-400'>
+                      <div className='mb-1 text-xs text-muted'>
                         {row.key}
                       </div>
-                      <div className='break-all text-sm font-semibold text-slate-800 dark:text-slate-100'>
+                      <div className='break-all text-sm font-semibold text-foreground'>
                         {row.value}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className='py-8 text-center text-sm text-slate-500 dark:text-slate-400'>
+                <div className='py-8 text-center text-sm text-muted'>
                   {t('暂无可展示数据')}
                 </div>
               )}

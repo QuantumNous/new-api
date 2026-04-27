@@ -18,22 +18,23 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Badge } from '@heroui/react';
+import { Card, Chip } from '@heroui/react';
 import {
   isRoot,
   isAdmin,
   renderQuota,
   stringToColor,
 } from '../../../../helpers';
-import { Coins, BarChart2, Users } from 'lucide-react';
+import { Coins, BarChart2, Users, Wallet } from 'lucide-react';
 
 const UserInfoHeader = ({ t, userState }) => {
+  // Map our color seed to a tailwind class for the avatar background.
   const avatarColorClasses = {
     amber: 'bg-amber-500',
     blue: 'bg-blue-500',
     cyan: 'bg-cyan-500',
     green: 'bg-green-500',
-    grey: 'bg-gray-500',
+    grey: 'bg-muted',
     indigo: 'bg-indigo-500',
     'light-blue': 'bg-sky-500',
     lime: 'bg-lime-500',
@@ -46,16 +47,9 @@ const UserInfoHeader = ({ t, userState }) => {
     yellow: 'bg-yellow-500',
   };
 
-  const getUsername = () => {
-    if (userState.user) {
-      return userState.user.username;
-    } else {
-      return 'null';
-    }
-  };
+  const username = userState?.user?.username || 'null';
 
   const getAvatarText = () => {
-    const username = getUsername();
     if (username && username.length > 0) {
       return username.slice(0, 2).toUpperCase();
     }
@@ -68,22 +62,23 @@ const UserInfoHeader = ({ t, userState }) => {
       ? t('管理员')
       : t('普通用户');
   const avatarColorClass =
-    avatarColorClasses[stringToColor(getUsername())] || 'bg-slate-500';
+    avatarColorClasses[stringToColor(username)] || 'bg-muted';
 
-  const StatLabel = ({ children }) => (
-    <span className='text-sm text-muted'>{children}</span>
-  );
-
-  const StatValue = ({ children }) => (
-    <span className='text-sm font-semibold text-muted'>{children}</span>
-  );
-
-  const Divider = ({ className = '' }) => (
-    <div className={`bg-border ${className}`} />
+  const StatItem = ({ icon, label, value }) => (
+    <div className='flex flex-col min-w-0 xl:flex-row xl:items-center xl:gap-2'>
+      <span className='flex items-center gap-1.5 text-xs text-muted xl:text-sm'>
+        <span className='text-muted'>{icon}</span>
+        <span className='truncate'>{label}</span>
+      </span>
+      <span className='text-sm font-semibold text-foreground truncate'>
+        {value}
+      </span>
+    </div>
   );
 
   return (
-    <Card className='overflow-hidden rounded-2xl'>
+    <Card className='overflow-hidden rounded-2xl' shadow='none'>
+      {/* Cover header with avatar, username, role and id */}
       <div
         className='relative h-32'
         style={{
@@ -94,99 +89,81 @@ const UserInfoHeader = ({ t, userState }) => {
           backgroundRepeat: 'no-repeat',
         }}
       >
-        {/* User info content */}
-        <div className='relative z-10 flex h-full flex-col justify-end p-6'>
-          <div className='flex items-center'>
-            <div className='flex min-w-0 flex-1 items-stretch gap-3 sm:gap-4'>
-              <div
-                className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white shadow-lg ${avatarColorClass}`}
-              >
-                {getAvatarText()}
+        <div className='relative z-10 flex h-full items-end p-4 sm:p-6'>
+          <div className='flex min-w-0 flex-1 items-center gap-3 sm:gap-4'>
+            <div
+              className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white shadow-lg ${avatarColorClass}`}
+            >
+              {getAvatarText()}
+            </div>
+            <div className='flex min-w-0 flex-1 flex-col gap-1.5'>
+              <div className='truncate text-2xl sm:text-3xl font-bold text-white'>
+                {username}
               </div>
-              <div className='flex min-w-0 flex-1 flex-col justify-between'>
-                <div className='truncate text-3xl font-bold text-white'>
-                  {getUsername()}
-                </div>
-                <div className='flex flex-wrap items-center gap-2'>
-                  <span className='rounded-full bg-white/20 px-3 py-1 text-sm font-medium text-white backdrop-blur'>
-                    {roleLabel}
-                  </span>
-                  <span className='rounded-full bg-white/20 px-3 py-1 text-sm font-medium text-white backdrop-blur'>
-                    ID: {userState?.user?.id}
-                  </span>
-                </div>
+              <div className='flex flex-wrap items-center gap-1.5'>
+                <Chip
+                  size='sm'
+                  variant='flat'
+                  className='!bg-white/20 !text-white backdrop-blur-sm'
+                >
+                  {roleLabel}
+                </Chip>
+                <Chip
+                  size='sm'
+                  variant='flat'
+                  className='!bg-white/20 !text-white backdrop-blur-sm'
+                >
+                  ID: {userState?.user?.id}
+                </Chip>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <Card.Content className='p-6'>
-      {/* Current balance and desktop stats */}
-      <div className='flex items-start justify-between gap-6'>
-        {/* Current balance */}
-        <Badge count={t('当前余额')} position='rightTop' type='danger'>
-          <div className='text-2xl sm:text-3xl md:text-4xl font-bold tracking-wide'>
-            {renderQuota(userState?.user?.quota)}
-          </div>
-        </Badge>
-
-        {/* Desktop stats */}
-        <div className='hidden lg:block flex-shrink-0'>
-          <div className='rounded-xl border border-border bg-background px-4 py-3'>
-            <div className='flex items-center gap-4'>
-              <div className='flex items-center gap-2'>
-                <Coins size={16} />
-                <StatLabel>{t('历史消耗')}</StatLabel>
-                <StatValue>{renderQuota(userState?.user?.used_quota)}</StatValue>
-              </div>
-              <Divider className='h-6 w-px' />
-              <div className='flex items-center gap-2'>
-                <BarChart2 size={16} />
-                <StatLabel>{t('请求次数')}</StatLabel>
-                <StatValue>{userState.user?.request_count || 0}</StatValue>
-              </div>
-              <Divider className='h-6 w-px' />
-              <div className='flex items-center gap-2'>
-                <Users size={16} />
-                <StatLabel>{t('用户分组')}</StatLabel>
-                <StatValue>{userState?.user?.group || t('默认')}</StatValue>
-              </div>
+      <Card.Content className='p-4 sm:p-6'>
+        {/* Balance + stats row (stacks on small screens) */}
+        <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
+          {/* Current balance */}
+          <div className='flex items-center gap-3'>
+            <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary'>
+              <Wallet size={18} />
+            </span>
+            <div className='flex flex-col'>
+              <span className='text-xs text-muted'>{t('当前余额')}</span>
+              <span className='text-2xl sm:text-3xl font-bold tracking-tight text-foreground'>
+                {renderQuota(userState?.user?.quota)}
+              </span>
             </div>
+          </div>
+
+          {/* Stats grid – three columns on tablet, inline pill on xl */}
+          <div className='grid grid-cols-3 gap-3 rounded-xl border border-border bg-surface-secondary/40 px-3 py-2.5 xl:flex xl:items-center xl:gap-4 xl:px-4'>
+            <StatItem
+              icon={<Coins size={16} />}
+              label={t('历史消耗')}
+              value={renderQuota(userState?.user?.used_quota)}
+            />
+            <span
+              className='hidden xl:block h-5 w-px bg-border'
+              aria-hidden
+            />
+            <StatItem
+              icon={<BarChart2 size={16} />}
+              label={t('请求次数')}
+              value={userState?.user?.request_count || 0}
+            />
+            <span
+              className='hidden xl:block h-5 w-px bg-border'
+              aria-hidden
+            />
+            <StatItem
+              icon={<Users size={16} />}
+              label={t('用户分组')}
+              value={userState?.user?.group || t('默认')}
+            />
           </div>
         </div>
-      </div>
-
-      {/* Mobile and tablet stats */}
-      <div className='lg:hidden mt-2'>
-        <div className='rounded-xl border border-border bg-background px-4 py-3'>
-          <div className='space-y-3'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <Coins size={16} />
-                <StatLabel>{t('历史消耗')}</StatLabel>
-              </div>
-              <StatValue>{renderQuota(userState?.user?.used_quota)}</StatValue>
-            </div>
-            <Divider className='h-px w-full' />
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <BarChart2 size={16} />
-                <StatLabel>{t('请求次数')}</StatLabel>
-              </div>
-              <StatValue>{userState.user?.request_count || 0}</StatValue>
-            </div>
-            <Divider className='h-px w-full' />
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <Users size={16} />
-                <StatLabel>{t('用户分组')}</StatLabel>
-              </div>
-              <StatValue>{userState?.user?.group || t('默认')}</StatValue>
-            </div>
-          </div>
-        </div>
-      </div>
       </Card.Content>
     </Card>
   );

@@ -97,7 +97,7 @@ const SearchActions = memo(
             {/* 充值价格显示开关 */}
             {supportsCurrencyDisplay && (
               <div className='flex items-center gap-2'>
-                <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
+                <span className='text-sm text-muted'>{t('充值价格显示')}</span>
                 <Switch
                   isSelected={showWithRecharge}
                   onChange={setShowWithRecharge}
@@ -125,7 +125,7 @@ const SearchActions = memo(
 
             {/* 显示倍率开关 */}
             <div className='flex items-center gap-2'>
-              <span className='text-sm text-gray-600'>{t('倍率')}</span>
+              <span className='text-sm text-muted'>{t('倍率')}</span>
               <Switch
                 isSelected={showRatio}
                 onChange={setShowRatio}

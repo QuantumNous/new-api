@@ -29,7 +29,7 @@ function CountChip({ active, count }) {
       className={`inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
         active
           ? 'bg-red-500 text-white'
-          : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+          : 'bg-surface-secondary text-muted'
       }`}
     >
       {count}
@@ -69,7 +69,7 @@ function VendorActions({ vendor, onEdit, onDelete, t }) {
       {open ? (
         <div
           role='menu'
-          className='absolute right-0 top-full z-30 mt-1 min-w-[8rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-white shadow-lg dark:bg-slate-900'
+          className='absolute right-0 top-full z-30 mt-1 min-w-[8rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-background shadow-lg'
           onClick={(event) => event.stopPropagation()}
         >
           <button
@@ -182,8 +182,8 @@ const ModelsTabs = ({
                 aria-selected={active}
                 className={`group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
                   active
-                    ? 'border-transparent bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900'
-                    : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
+                    ? 'border-transparent bg-foreground text-background shadow-sm'
+                    : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-surface-secondary'
                 }`}
               >
                 <button

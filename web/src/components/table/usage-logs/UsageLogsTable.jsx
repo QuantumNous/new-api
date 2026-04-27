@@ -83,13 +83,13 @@ const LogsTable = (logsData) => {
   const expandRowRender = (record, index) => {
     const items = expandData[record.key] || [];
     return (
-      <div className='grid gap-2 rounded-2xl bg-slate-50 p-4 text-sm dark:bg-slate-900/70 md:grid-cols-2'>
+      <div className='grid gap-2 rounded-2xl bg-surface-secondary/70 p-4 text-sm md:grid-cols-2'>
         {items.map((item, itemIndex) => (
           <div key={`${record.key}-${itemIndex}`} className='min-w-0'>
-            <div className='text-xs text-slate-500 dark:text-slate-400'>
+            <div className='text-xs text-muted'>
               {item.key || item.label}
             </div>
-            <div className='mt-1 break-all text-slate-800 dark:text-slate-100'>
+            <div className='mt-1 break-all text-foreground'>
               {item.value ?? item.children ?? '-'}
             </div>
           </div>

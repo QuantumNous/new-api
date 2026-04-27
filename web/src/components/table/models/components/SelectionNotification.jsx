@@ -42,7 +42,7 @@ const SelectionNotification = ({
       aria-label={t('批量操作')}
       className='pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4'
     >
-      <div className='pointer-events-auto flex w-full max-w-2xl flex-wrap items-center gap-3 rounded-2xl border border-[color:var(--app-border)] bg-white/95 px-4 py-3 shadow-lg backdrop-blur dark:bg-slate-950/95'>
+      <div className='pointer-events-auto flex w-full max-w-2xl flex-wrap items-center gap-3 rounded-2xl border border-[color:var(--app-border)] bg-background/95 px-4 py-3 shadow-lg backdrop-blur'>
         <div className='flex flex-1 flex-col'>
           <div className='text-sm font-semibold text-foreground'>
             {t('批量操作')}

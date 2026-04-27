@@ -67,7 +67,7 @@ function ClickDropdown({ label, items }) {
       {open ? (
         <div
           role='menu'
-          className='absolute left-0 top-full z-30 mt-1 min-w-[14rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-white shadow-lg dark:bg-slate-900'
+          className='absolute left-0 top-full z-30 mt-1 min-w-[14rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-background shadow-lg'
         >
           {items.map((item, idx) => (
             <button

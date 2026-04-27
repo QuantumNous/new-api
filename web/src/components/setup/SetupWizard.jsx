@@ -259,7 +259,7 @@ const SetupWizard = () => {
 
       <div className='relative mx-auto flex min-h-[calc(100vh-11rem)] w-full max-w-4xl items-center'>
         <div className='min-w-0 w-full'>
-          <Card className='rounded-[2rem] border border-white/60 bg-white/88 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/82 sm:p-8'>
+          <Card className='rounded-[2rem] border border-border bg-background/88 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-xl sm:p-8'>
             <div className='steps-content'>
               {React.cloneElement(getStepContent(currentStep), {
                 ...stepNavigationProps,

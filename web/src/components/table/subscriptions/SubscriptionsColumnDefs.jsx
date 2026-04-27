@@ -24,12 +24,10 @@ import { convertUSDToCurrency } from '../../../helpers/render';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 
 const TONE_CLASSES = {
-  white:
-    'border border-[color:var(--app-border)] bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200',
+  white: 'border border-border bg-background text-foreground',
   violet:
     'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
-  cyan:
-    'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300',
+  cyan: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300',
   green:
     'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
 };
@@ -52,7 +50,7 @@ function Dot({ tone = 'green' }) {
       ? 'bg-emerald-500'
       : tone === 'red'
         ? 'bg-red-500'
-        : 'bg-slate-400';
+        : 'bg-muted';
   return <span className={`h-1.5 w-1.5 rounded-full ${color}`} />;
 }
 
@@ -107,7 +105,7 @@ function HoverPanel({ children, content, position = 'right' }) {
       {open ? (
         <div
           role='tooltip'
-          className={`absolute ${placeClasses} z-30 rounded-lg border border-[color:var(--app-border)] bg-white p-3 text-xs shadow-lg dark:bg-slate-900`}
+          className={`absolute ${placeClasses} z-30 rounded-lg border border-border bg-background p-3 text-xs shadow-lg`}
         >
           {content}
         </div>
@@ -156,7 +154,7 @@ const renderPlanTitle = (text, record, t) => {
       {subtitle && (
         <div className='mt-1 text-xs text-muted'>{subtitle}</div>
       )}
-      <div className='my-3 h-px bg-[color:var(--app-border)]' />
+      <div className='my-3 h-px bg-border' />
       <div className='grid grid-cols-2 gap-2 text-xs'>
         <Muted>{t('价格')}</Muted>
         <Strong className='text-emerald-600 dark:text-emerald-300'>

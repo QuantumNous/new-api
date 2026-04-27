@@ -133,17 +133,17 @@ const ParamOverrideModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='2xl' placement='center' scroll='inside'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('参数覆盖详情')}
             </ModalHeader>
             <ModalBody className='p-6'>
               <div className='mb-4 flex items-start justify-between gap-3'>
                 <div className='min-w-0'>
-                  <div className='mb-1 font-semibold text-slate-800 dark:text-slate-100'>
+                  <div className='mb-1 font-semibold text-foreground'>
                     {t('{{count}} 项操作', { count: lines.length })}
                   </div>
-                  <div className='flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400'>
+                  <div className='flex flex-wrap gap-2 text-xs text-muted'>
                     {paramOverrideTarget?.modelName ? (
                       <span>{paramOverrideTarget.modelName}</span>
                     ) : null}
@@ -171,10 +171,10 @@ const ParamOverrideModal = ({
                 </Button>
               </div>
 
-              <div className='mb-4 h-px bg-slate-200 dark:bg-white/10' />
+              <div className='mb-4 h-px bg-border' />
 
               {lines.length === 0 ? (
-                <div className='py-8 text-center text-sm text-slate-500 dark:text-slate-400'>
+                <div className='py-8 text-center text-sm text-muted'>
                   {t('暂无参数覆盖记录')}
                 </div>
               ) : (
@@ -187,12 +187,12 @@ const ParamOverrideModal = ({
                     return (
                       <div
                         key={`${item.action}-${index}`}
-                        className='flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-slate-900/60'
+                        className='flex items-start gap-3 rounded-2xl border border-border bg-surface-secondary/60 p-3'
                       >
                         <Chip color='primary' size='sm' variant='flat'>
                           {getActionLabel(item.action, t)}
                         </Chip>
-                        <pre className='min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-slate-800 dark:text-slate-100'>
+                        <pre className='min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground'>
                           {item.content}
                         </pre>
                       </div>

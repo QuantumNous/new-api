@@ -52,8 +52,8 @@ const WeChatBindModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='sm' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               <div className='flex items-center gap-2'>
                 <SiWechat className='text-green-500' size={20} />
                 {t('绑定微信账户')}
@@ -65,7 +65,7 @@ const WeChatBindModal = ({
                 alt={t('微信二维码')}
                 className='mx-auto max-h-52 rounded-lg'
               />
-              <div className='text-gray-600 dark:text-gray-300'>
+              <div className='text-foreground'>
                 <p>
                   {t('微信扫码关注公众号，输入「验证码」获取验证码（三分钟内有效）')}
                 </p>
@@ -93,7 +93,7 @@ const WeChatBindModal = ({
                 variant='primary'
                 size='lg'
                 onPress={bindWeChat}
-                className='w-full rounded-lg bg-slate-600 hover:bg-slate-700'
+                className='w-full rounded-lg bg-foreground hover:bg-foreground/90'
               >
                 <SiWechat size={16} />
                 {t('绑定')}

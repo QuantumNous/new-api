@@ -48,7 +48,7 @@ function ColorChip({ color, children }) {
 
 function WhiteChip({ children, prefix }) {
   return (
-    <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+    <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-background px-2 py-0.5 text-xs font-medium text-foreground'>
       {prefix}
       {children}
     </span>

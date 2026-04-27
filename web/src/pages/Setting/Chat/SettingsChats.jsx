@@ -6,28 +6,36 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Button, Input } from '@heroui/react';
-import { Banner, Dropdown, Form, Space, Spin, RadioGroup, Radio, Table, Modal, Divider } from '@/components/common/ui/HeroCompat';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  IconPlus,
-  IconEdit,
-  IconDelete,
-  IconSearch,
-  IconSaveStroked,
-  IconBolt,
-} from '@/components/common/ui/HeroIconsCompat';
+  Button,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  Spinner,
+  useOverlayState,
+} from '@heroui/react';
+import {
+  ChevronDown,
+  Edit3,
+  Info,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  Zap,
+} from 'lucide-react';
 import {
   compareObjects,
   API,
@@ -36,34 +44,111 @@ import {
   showWarning,
   verifyJSON,
 } from '../../../helpers';
-import { useTranslation } from 'react-i18next';
+import ClickMenu from '../../../components/common/ui/ClickMenu';
+
+const inputClass =
+  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+
+const textareaClass =
+  'w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none transition focus:border-primary';
+
+function FieldLabel({ children, required }) {
+  return (
+    <label className='block text-sm font-medium text-foreground'>
+      {children}
+      {required ? <span className='ml-0.5 text-danger'>*</span> : null}
+    </label>
+  );
+}
+
+function FieldError({ children }) {
+  if (!children) return null;
+  return <div className='mt-1 text-xs text-danger'>{children}</div>;
+}
+
+function InfoBanner({ children }) {
+  return (
+    <div className='flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground'>
+      <Info size={14} className='mt-0.5 shrink-0 text-primary' />
+      <span>{children}</span>
+    </div>
+  );
+}
+
+const BUILTIN_TEMPLATES = [
+  {
+    name: 'Cherry Studio',
+    url: 'cherrystudio://providers/api-keys?v=1&data={cherryConfig}',
+  },
+  { name: 'AionUI', url: 'aionui://provider/add?v=1&data={aionuiConfig}' },
+  { name: '流畅阅读', url: 'fluentread' },
+  { name: 'CC Switch', url: 'ccswitch' },
+  {
+    name: 'Lobe Chat',
+    url: 'https://chat-preview.lobehub.com/?settings={"keyVaults":{"openai":{"apiKey":"{key}","baseURL":"{address}/v1"}}}',
+  },
+  {
+    name: 'AI as Workspace',
+    url: 'https://aiaw.app/set-provider?provider={"type":"openai","settings":{"apiKey":"{key}","baseURL":"{address}/v1","compatibility":"strict"}}',
+  },
+  { name: 'AMA 问天', url: 'ama://set-api-key?server={address}&key={key}' },
+  { name: 'OpenCat', url: 'opencat://team/join?domain={address}&token={key}' },
+];
+
+const PAGE_SIZE = 10;
+
+const jsonToConfigs = (jsonString) => {
+  try {
+    const configs = JSON.parse(jsonString);
+    return Array.isArray(configs)
+      ? configs.map((config, index) => ({
+          id: index,
+          name: Object.keys(config)[0] || '',
+          url: Object.values(config)[0] || '',
+        }))
+      : [];
+  } catch (error) {
+    console.error('JSON parse error:', error);
+    return [];
+  }
+};
+
+const configsToJson = (configs) => {
+  const jsonArray = configs.map((config) => ({
+    [config.name]: config.url,
+  }));
+  return JSON.stringify(jsonArray, null, 2);
+};
 
 export default function SettingsChats(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    Chats: '[]',
-  });
-  const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputs, setInputs] = useState({ Chats: '[]' });
+  const [inputsRow, setInputsRow] = useState({ Chats: '[]' });
   const [editMode, setEditMode] = useState('visual');
   const [chatConfigs, setChatConfigs] = useState([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingConfig, setEditingConfig] = useState(null);
-  const [isEdit, setIsEdit] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const modalFormRef = useRef();
+  const [page, setPage] = useState(1);
+  const [jsonError, setJsonError] = useState('');
 
-  const BUILTIN_TEMPLATES = [
-    { name: 'Cherry Studio', url: 'cherrystudio://providers/api-keys?v=1&data={cherryConfig}' },
-    { name: 'AionUI', url: 'aionui://provider/add?v=1&data={aionuiConfig}' },
-    { name: '流畅阅读', url: 'fluentread' },
-    { name: 'CC Switch', url: 'ccswitch' },
-    { name: 'Lobe Chat', url: 'https://chat-preview.lobehub.com/?settings={"keyVaults":{"openai":{"apiKey":"{key}","baseURL":"{address}/v1"}}}' },
-    { name: 'AI as Workspace', url: 'https://aiaw.app/set-provider?provider={"type":"openai","settings":{"apiKey":"{key}","baseURL":"{address}/v1","compatibility":"strict"}}' },
-    { name: 'AMA 问天', url: 'ama://set-api-key?server={address}&key={key}' },
-    { name: 'OpenCat', url: 'opencat://team/join?domain={address}&token={key}' },
-  ];
+  // Edit modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
+  const [editingConfig, setEditingConfig] = useState(null);
+  const [modalForm, setModalForm] = useState({ name: '', url: '' });
+  const [modalErrors, setModalErrors] = useState({});
+
+  const modalState = useOverlayState({
+    isOpen: modalVisible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) handleModalCancel();
+    },
+  });
+
+  const syncConfigsToJson = (configs) => {
+    const jsonString = configsToJson(configs);
+    setInputs((prev) => ({ ...prev, Chats: jsonString }));
+  };
 
   const addTemplates = (templates) => {
     const existingNames = new Set(chatConfigs.map((c) => c.name));
@@ -72,9 +157,8 @@ export default function SettingsChats(props) {
       showWarning(t('所选模板已存在'));
       return;
     }
-    let maxId = chatConfigs.length > 0
-      ? Math.max(...chatConfigs.map((c) => c.id))
-      : -1;
+    let maxId =
+      chatConfigs.length > 0 ? Math.max(...chatConfigs.map((c) => c.id)) : -1;
     const newItems = toAdd.map((tpl) => ({
       id: ++maxId,
       name: tpl.name,
@@ -86,91 +170,41 @@ export default function SettingsChats(props) {
     showSuccess(t('已添加 {{count}} 个模板', { count: toAdd.length }));
   };
 
-  const jsonToConfigs = (jsonString) => {
-    try {
-      const configs = JSON.parse(jsonString);
-      return Array.isArray(configs)
-        ? configs.map((config, index) => ({
-            id: index,
-            name: Object.keys(config)[0] || '',
-            url: Object.values(config)[0] || '',
-          }))
-        : [];
-    } catch (error) {
-      console.error('JSON parse error:', error);
-      return [];
-    }
-  };
-
-  const configsToJson = (configs) => {
-    const jsonArray = configs.map((config) => ({
-      [config.name]: config.url,
-    }));
-    return JSON.stringify(jsonArray, null, 2);
-  };
-
-  const syncJsonToConfigs = () => {
-    const configs = jsonToConfigs(inputs.Chats);
-    setChatConfigs(configs);
-  };
-
-  const syncConfigsToJson = (configs) => {
-    const jsonString = configsToJson(configs);
-    setInputs((prev) => ({
-      ...prev,
-      Chats: jsonString,
-    }));
-    if (refForm.current && editMode === 'json') {
-      refForm.current?.setValues?.({ Chats: jsonString });
-    }
-  };
-
   async function onSubmit() {
-    try {
-      if (editMode === 'json' && refForm.current) {
-        try {
-          await refForm.current.validate();
-        } catch (error) {
-          console.error('Validation failed:', error);
-          showError(t('请检查输入'));
-          return;
-        }
-      }
-
-      const updateArray = compareObjects(inputs, inputsRow);
-      if (!updateArray.length)
-        return showWarning(t('你似乎并没有修改什么'));
-      const requestQueue = updateArray.map((item) => {
-        let value = '';
-        if (typeof inputs[item.key] === 'boolean') {
-          value = String(inputs[item.key]);
-        } else {
-          value = inputs[item.key];
-        }
-        return API.put('/api/option/', {
-          key: item.key,
-          value,
-        });
-      });
-      setLoading(true);
-      try {
-        const res = await Promise.all(requestQueue);
-        if (res.includes(undefined)) {
-          if (requestQueue.length > 1) {
-            showError(t('部分保存失败，请重试'));
-          }
-          return;
-        }
-        showSuccess(t('保存成功'));
-        props.refresh();
-      } catch {
-        showError(t('保存失败，请重试'));
-      } finally {
-        setLoading(false);
-      }
-    } catch (error) {
+    if (editMode === 'json' && jsonError) {
       showError(t('请检查输入'));
-      console.error(error);
+      return;
+    }
+    const updateArray = compareObjects(inputs, inputsRow);
+    if (!updateArray.length)
+      return showWarning(t('你似乎并没有修改什么'));
+    const requestQueue = updateArray.map((item) => {
+      let value = '';
+      if (typeof inputs[item.key] === 'boolean') {
+        value = String(inputs[item.key]);
+      } else {
+        value = inputs[item.key];
+      }
+      return API.put('/api/option/', {
+        key: item.key,
+        value,
+      });
+    });
+    setLoading(true);
+    try {
+      const res = await Promise.all(requestQueue);
+      if (res.includes(undefined)) {
+        if (requestQueue.length > 1) {
+          showError(t('部分保存失败，请重试'));
+        }
+        return;
+      }
+      showSuccess(t('保存成功'));
+      props.refresh();
+    } catch {
+      showError(t('保存失败，请重试'));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -179,8 +213,12 @@ export default function SettingsChats(props) {
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
         if (key === 'Chats') {
-          const obj = JSON.parse(props.options[key]);
-          currentInputs[key] = JSON.stringify(obj, null, 2);
+          try {
+            const obj = JSON.parse(props.options[key]);
+            currentInputs[key] = JSON.stringify(obj, null, 2);
+          } catch (error) {
+            currentInputs[key] = props.options[key];
+          }
         } else {
           currentInputs[key] = props.options[key];
         }
@@ -188,47 +226,36 @@ export default function SettingsChats(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
-    if (refForm.current) {
-      refForm.current?.setValues?.(currentInputs);
-    }
 
-    // 同步到可视化配置
     const configs = jsonToConfigs(currentInputs.Chats || '[]');
     setChatConfigs(configs);
+    setJsonError('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.options]);
 
+  // Re-sync visual configs whenever the JSON changes (e.g. after a
+  // template fill or an edit modal save).
   useEffect(() => {
     if (editMode === 'visual') {
-      syncJsonToConfigs();
+      const configs = jsonToConfigs(inputs.Chats || '[]');
+      setChatConfigs(configs);
     }
   }, [inputs.Chats, editMode]);
-
-  useEffect(() => {
-    if (refForm.current && editMode === 'json') {
-      refForm.current?.setValues?.(inputs);
-    }
-  }, [editMode, inputs]);
 
   const handleAddConfig = () => {
     setEditingConfig({ name: '', url: '' });
     setIsEdit(false);
+    setModalForm({ name: '', url: '' });
+    setModalErrors({});
     setModalVisible(true);
-    setTimeout(() => {
-      if (modalFormRef.current) {
-        modalFormRef.current?.setValues?.({ name: '', url: '' });
-      }
-    }, 100);
   };
 
   const handleEditConfig = (config) => {
     setEditingConfig({ ...config });
     setIsEdit(true);
+    setModalForm({ name: config.name || '', url: config.url || '' });
+    setModalErrors({});
     setModalVisible(true);
-    setTimeout(() => {
-      if (modalFormRef.current) {
-        modalFormRef.current?.setValues?.(config);
-      }
-    }, 100);
   };
 
   const handleDeleteConfig = (id) => {
@@ -238,64 +265,79 @@ export default function SettingsChats(props) {
     showSuccess(t('删除成功'));
   };
 
-  const handleModalOk = () => {
-    if (modalFormRef.current) {
-      modalFormRef.current
-        .validate()
-        .then((values) => {
-          // 检查名称是否重复
-          const isDuplicate = chatConfigs.some(
-            (config) =>
-              config.name === values.name &&
-              (!isEdit || config.id !== editingConfig.id),
-          );
-
-          if (isDuplicate) {
-            showError(t('聊天应用名称已存在，请使用其他名称'));
-            return;
-          }
-
-          if (isEdit) {
-            const newConfigs = chatConfigs.map((config) =>
-              config.id === editingConfig.id
-                ? { ...editingConfig, name: values.name, url: values.url }
-                : config,
-            );
-            setChatConfigs(newConfigs);
-            syncConfigsToJson(newConfigs);
-          } else {
-            const maxId =
-              chatConfigs.length > 0
-                ? Math.max(...chatConfigs.map((c) => c.id))
-                : -1;
-            const newConfig = {
-              id: maxId + 1,
-              name: values.name,
-              url: values.url,
-            };
-            const newConfigs = [...chatConfigs, newConfig];
-            setChatConfigs(newConfigs);
-            syncConfigsToJson(newConfigs);
-          }
-          setModalVisible(false);
-          setEditingConfig(null);
-          showSuccess(isEdit ? t('编辑成功') : t('添加成功'));
-        })
-        .catch((error) => {
-          console.error('Modal form validation error:', error);
-        });
-    }
+  const validateModalForm = () => {
+    const next = {};
+    if (!modalForm.name?.trim()) next.name = t('请输入聊天应用名称');
+    if (!modalForm.url?.trim()) next.url = t('请输入URL链接');
+    setModalErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  const handleModalCancel = () => {
+  const handleModalOk = () => {
+    if (!validateModalForm()) return;
+    const values = { name: modalForm.name.trim(), url: modalForm.url.trim() };
+
+    const isDuplicate = chatConfigs.some(
+      (config) =>
+        config.name === values.name &&
+        (!isEdit || config.id !== editingConfig.id),
+    );
+    if (isDuplicate) {
+      showError(t('聊天应用名称已存在，请使用其他名称'));
+      return;
+    }
+
+    if (isEdit) {
+      const newConfigs = chatConfigs.map((config) =>
+        config.id === editingConfig.id
+          ? { ...editingConfig, ...values }
+          : config,
+      );
+      setChatConfigs(newConfigs);
+      syncConfigsToJson(newConfigs);
+    } else {
+      const maxId =
+        chatConfigs.length > 0
+          ? Math.max(...chatConfigs.map((c) => c.id))
+          : -1;
+      const newConfig = { id: maxId + 1, ...values };
+      const newConfigs = [...chatConfigs, newConfig];
+      setChatConfigs(newConfigs);
+      syncConfigsToJson(newConfigs);
+    }
+
     setModalVisible(false);
     setEditingConfig(null);
+    showSuccess(isEdit ? t('编辑成功') : t('添加成功'));
   };
 
-  const filteredConfigs = chatConfigs.filter(
-    (config) =>
-      !searchText ||
-      config.name.toLowerCase().includes(searchText.toLowerCase()),
+  function handleModalCancel() {
+    setModalVisible(false);
+    setEditingConfig(null);
+  }
+
+  const filteredConfigs = useMemo(() => {
+    return chatConfigs.filter(
+      (config) =>
+        !searchText ||
+        config.name.toLowerCase().includes(searchText.toLowerCase()),
+    );
+  }, [chatConfigs, searchText]);
+
+  // Reset to first page whenever the filter changes the page-1 set.
+  useEffect(() => {
+    const pageCount = Math.max(
+      1,
+      Math.ceil(filteredConfigs.length / PAGE_SIZE),
+    );
+    if (page > pageCount) setPage(pageCount);
+  }, [filteredConfigs.length, page]);
+
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageItems = filteredConfigs.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filteredConfigs.length / PAGE_SIZE),
   );
 
   const highlightKeywords = (text) => {
@@ -305,13 +347,13 @@ export default function SettingsChats(props) {
     return parts.map((part, index) => {
       if (part === '{address}') {
         return (
-          <span key={index} style={{ color: '#0077cc', fontWeight: 600 }}>
+          <span key={index} className='font-semibold text-primary'>
             {part}
           </span>
         );
       } else if (part === '{key}') {
         return (
-          <span key={index} style={{ color: '#ff6b35', fontWeight: 600 }}>
+          <span key={index} className='font-semibold text-warning'>
             {part}
           </span>
         );
@@ -320,231 +362,334 @@ export default function SettingsChats(props) {
     });
   };
 
-  const columns = [
-    {
-      title: t('聊天应用名称'),
-      dataIndex: 'name',
-      key: 'name',
-      render: (text) => text || t('未命名'),
-    },
-    {
-      title: t('URL链接'),
-      dataIndex: 'url',
-      key: 'url',
-      render: (text) => (
-        <div style={{ maxWidth: 300, wordBreak: 'break-all' }}>
-          {highlightKeywords(text)}
-        </div>
-      ),
-    },
-    {
-      title: t('操作'),
-      key: 'action',
-      render: (_, record) => (
-        <Space>
-          <Button
-            type='primary'
-            icon={<IconEdit />}
-            size='small'
-            onClick={() => handleEditConfig(record)}
-          >
-            {t('编辑')}
-          </Button>
-          <Button
-            type='danger'
-            icon={<IconDelete />}
-            size='small'
-            onClick={() => handleDeleteConfig(record.id)}
-          >
-            {t('删除')}
-          </Button>
-        </Space>
-      ),
-    },
-  ];
+  const dropdownItems = useMemo(
+    () => [
+      ...BUILTIN_TEMPLATES.map((tpl) => ({
+        label: tpl.name,
+        onClick: () => addTemplates([tpl]),
+      })),
+      { divider: true },
+      {
+        label: t('全部填入'),
+        onClick: () => addTemplates(BUILTIN_TEMPLATES),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chatConfigs],
+  );
 
   return (
-    <Spin spinning={loading}>
-      <Space vertical style={{ width: '100%' }}>
-        <Form.Section text={t('聊天设置')}>
-          <Banner
-            type='info'
-            description={t(
-              '链接中的{key}将自动替换为sk-xxxx，{address}将自动替换为系统设置的服务器地址，末尾不带/和/v1',
-            )}
-          />
+    <div className='relative space-y-4'>
+      {loading && (
+        <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px]'>
+          <Spinner color='primary' />
+        </div>
+      )}
 
-          <Divider />
+      <div className='space-y-3'>
+        <div className='text-base font-semibold text-foreground'>
+          {t('聊天设置')}
+        </div>
+        <InfoBanner>
+          {t(
+            '链接中的{key}将自动替换为sk-xxxx，{address}将自动替换为系统设置的服务器地址，末尾不带/和/v1',
+          )}
+        </InfoBanner>
 
-          <div style={{ marginBottom: 16 }}>
-            <span style={{ marginRight: 16, fontWeight: 600 }}>
-              {t('编辑模式')}:
-            </span>
-            <RadioGroup
-              type='button'
-              value={editMode}
-              onChange={(e) => {
-                const newMode = e.target.value;
-                setEditMode(newMode);
+        <div className='border-t border-border' />
 
-                // 确保模式切换时数据正确同步
-                setTimeout(() => {
-                  if (newMode === 'json' && refForm.current) {
-                    refForm.current?.setValues?.(inputs);
-                  }
-                }, 100);
-              }}
-            >
-              <Radio value='visual'>{t('可视化编辑')}</Radio>
-              <Radio value='json'>{t('JSON编辑')}</Radio>
-            </RadioGroup>
+        <div className='flex items-center gap-3'>
+          <span className='text-sm font-semibold text-foreground'>
+            {t('编辑模式')}:
+          </span>
+          <div className='inline-flex overflow-hidden rounded-xl border border-border'>
+            {[
+              { value: 'visual', label: t('可视化编辑') },
+              { value: 'json', label: t('JSON编辑') },
+            ].map((mode) => {
+              const active = mode.value === editMode;
+              return (
+                <button
+                  key={mode.value}
+                  type='button'
+                  onClick={() => setEditMode(mode.value)}
+                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                    active
+                      ? 'bg-foreground text-background'
+                      : 'bg-background text-muted hover:bg-surface-secondary'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              );
+            })}
           </div>
+        </div>
 
-          {editMode === 'visual' ? (
-            <div>
-              <Space style={{ marginBottom: 16 }}>
-                <Button
-                  type='primary'
-                  icon={<IconPlus />}
-                  onClick={handleAddConfig}
-                >
-                  {t('添加聊天配置')}
-                </Button>
-                <Dropdown
-                  trigger='click'
-                  position='bottomLeft'
-                  menu={[
-                    ...BUILTIN_TEMPLATES.map((tpl, idx) => ({
-                      node: 'item',
-                      key: String(idx),
-                      name: tpl.name,
-                      onClick: () => addTemplates([tpl]),
-                    })),
-                    { node: 'divider', key: 'divider' },
-                    {
-                      node: 'item',
-                      key: 'all',
-                      name: t('全部填入'),
-                      onClick: () => addTemplates(BUILTIN_TEMPLATES),
-                    },
-                  ]}
-                >
-                  <Button icon={<IconBolt />}>
+        {editMode === 'visual' ? (
+          <div className='space-y-3'>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Button
+                color='primary'
+                startContent={<Plus size={14} />}
+                onPress={handleAddConfig}
+              >
+                {t('添加聊天配置')}
+              </Button>
+              <ClickMenu
+                placement='bottomLeft'
+                items={dropdownItems}
+                trigger={
+                  <Button
+                    variant='flat'
+                    startContent={<Zap size={14} />}
+                    endContent={<ChevronDown size={14} />}
+                  >
                     {t('填入模板')}
                   </Button>
-                </Dropdown>
-                <Button
-                  type='primary'
-                  theme='solid'
-                  icon={<IconSaveStroked />}
-                  onClick={onSubmit}
-                >
-                  {t('保存聊天设置')}
-                </Button>
-                <Input
-                  prefix={<IconSearch />}
-                  placeholder={t('搜索聊天应用名称')}
-                  value={searchText}
-                  onChange={(value) => setSearchText(value)}
-                  style={{ width: 250 }}
-                  showClear
-                />
-              </Space>
-
-              <Table
-                columns={columns}
-                dataSource={filteredConfigs}
-                rowKey='id'
-                pagination={{
-                  pageSize: 10,
-                  showSizeChanger: false,
-                  showQuickJumper: true,
-                  showTotal: (total, range) =>
-                    t('共 {{total}} 项，当前显示 {{start}}-{{end}} 项', {
-                      total,
-                      start: range[0],
-                      end: range[1],
-                    }),
-                }}
-              />
-            </div>
-          ) : (
-            <Form
-              values={inputs}
-              getFormApi={(formAPI) => (refForm.current = formAPI)}
-            >
-              <Form.TextArea
-                label={t('聊天配置')}
-                extraText={''}
-                placeholder={t('为一个 JSON 文本')}
-                field={'Chats'}
-                autosize={{ minRows: 6, maxRows: 12 }}
-                trigger='blur'
-                stopValidateWithError
-                rules={[
-                  {
-                    validator: (rule, value) => {
-                      return verifyJSON(value);
-                    },
-                    message: t('不是合法的 JSON 字符串'),
-                  },
-                ]}
-                onChange={(value) =>
-                  setInputs({
-                    ...inputs,
-                    Chats: value,
-                  })
                 }
               />
-            </Form>
-          )}
-        </Form.Section>
+              <Button
+                color='primary'
+                variant='solid'
+                startContent={<Save size={14} />}
+                onPress={onSubmit}
+              >
+                {t('保存聊天设置')}
+              </Button>
+              <div className='relative ml-auto w-[250px]'>
+                <Search
+                  size={14}
+                  className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted'
+                />
+                <input
+                  type='text'
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  placeholder={t('搜索聊天应用名称')}
+                  className={`${inputClass} pl-8`}
+                />
+              </div>
+            </div>
 
-        {editMode === 'json' && (
-          <Space>
-            <Button
-              type='primary'
-              icon={<IconSaveStroked />}
-              onClick={onSubmit}
-            >
-              {t('保存聊天设置')}
-            </Button>
-          </Space>
-        )}
-      </Space>
+            <div className='overflow-x-auto rounded-xl border border-border'>
+              <table className='w-full text-sm'>
+                <thead className='bg-surface-secondary text-xs uppercase tracking-wide text-muted'>
+                  <tr>
+                    <th className='px-4 py-2 text-left font-medium'>
+                      {t('聊天应用名称')}
+                    </th>
+                    <th className='px-4 py-2 text-left font-medium'>
+                      {t('URL链接')}
+                    </th>
+                    <th className='w-[180px] px-4 py-2 text-left font-medium'>
+                      {t('操作')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className='divide-y divide-border'>
+                  {pageItems.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className='px-4 py-10 text-center text-sm text-muted'
+                      >
+                        {t('暂无数据')}
+                      </td>
+                    </tr>
+                  ) : (
+                    pageItems.map((record) => (
+                      <tr
+                        key={record.id}
+                        className='bg-background hover:bg-surface-secondary/60'
+                      >
+                        <td className='px-4 py-3 align-top text-foreground'>
+                          {record.name || t('未命名')}
+                        </td>
+                        <td className='px-4 py-3 align-top text-foreground'>
+                          <div className='max-w-[420px] break-all'>
+                            {highlightKeywords(record.url)}
+                          </div>
+                        </td>
+                        <td className='px-4 py-3 align-top'>
+                          <div className='flex flex-wrap gap-2'>
+                            <Button
+                              size='sm'
+                              variant='flat'
+                              color='primary'
+                              startContent={<Edit3 size={14} />}
+                              onPress={() => handleEditConfig(record)}
+                            >
+                              {t('编辑')}
+                            </Button>
+                            <Button
+                              size='sm'
+                              variant='flat'
+                              color='danger'
+                              startContent={<Trash2 size={14} />}
+                              onPress={() => handleDeleteConfig(record.id)}
+                            >
+                              {t('删除')}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-      <Modal
-        title={isEdit ? t('编辑聊天配置') : t('添加聊天配置')}
-        visible={modalVisible}
-        onOk={handleModalOk}
-        onCancel={handleModalCancel}
-        width={600}
-      >
-        <Form getFormApi={(api) => (modalFormRef.current = api)}>
-          <Form.Input
-            field='name'
-            label={t('聊天应用名称')}
-            placeholder={t('请输入聊天应用名称')}
-            rules={[
-              { required: true, message: t('请输入聊天应用名称') },
-              { min: 1, message: t('名称不能为空') },
-            ]}
-          />
-          <Form.Input
-            field='url'
-            label={t('URL链接')}
-            placeholder={t('请输入完整的URL链接')}
-            rules={[{ required: true, message: t('请输入URL链接') }]}
-          />
-          <Banner
-            type='info'
-            description={t(
-              '提示：链接中的{key}将被替换为API密钥，{address}将被替换为服务器地址',
+            {filteredConfigs.length > PAGE_SIZE && (
+              <div className='flex items-center justify-between text-xs text-muted'>
+                <span>
+                  {t('共 {{total}} 项，当前显示 {{start}}-{{end}} 项', {
+                    total: filteredConfigs.length,
+                    start: pageStart + 1,
+                    end: Math.min(
+                      filteredConfigs.length,
+                      pageStart + pageItems.length,
+                    ),
+                  })}
+                </span>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    size='sm'
+                    variant='light'
+                    isDisabled={page <= 1}
+                    onPress={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    {t('上一页')}
+                  </Button>
+                  <span>
+                    {page} / {pageCount}
+                  </span>
+                  <Button
+                    size='sm'
+                    variant='light'
+                    isDisabled={page >= pageCount}
+                    onPress={() =>
+                      setPage((p) => Math.min(pageCount, p + 1))
+                    }
+                  >
+                    {t('下一页')}
+                  </Button>
+                </div>
+              </div>
             )}
-            style={{ marginTop: 16 }}
-          />
-        </Form>
+          </div>
+        ) : (
+          <div className='space-y-2'>
+            <FieldLabel>{t('聊天配置')}</FieldLabel>
+            <textarea
+              rows={10}
+              value={inputs.Chats || ''}
+              onChange={(event) => {
+                const value = event.target.value;
+                setInputs((prev) => ({ ...prev, Chats: value }));
+              }}
+              onBlur={(event) => {
+                const value = event.target.value;
+                if (value && !verifyJSON(value)) {
+                  setJsonError(t('不是合法的 JSON 字符串'));
+                } else {
+                  setJsonError('');
+                }
+              }}
+              placeholder={t('为一个 JSON 文本')}
+              className={textareaClass}
+            />
+            <FieldError>{jsonError}</FieldError>
+          </div>
+        )}
+      </div>
+
+      {editMode === 'json' && (
+        <div>
+          <Button
+            color='primary'
+            startContent={<Save size={14} />}
+            onPress={onSubmit}
+          >
+            {t('保存聊天设置')}
+          </Button>
+        </div>
+      )}
+
+      <Modal state={modalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer size='lg' placement='center'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
+                <span>
+                  {isEdit ? t('编辑聊天配置') : t('添加聊天配置')}
+                </span>
+              </ModalHeader>
+              <ModalBody className='space-y-4 px-6 py-5'>
+                <div className='space-y-2'>
+                  <FieldLabel required>{t('聊天应用名称')}</FieldLabel>
+                  <input
+                    type='text'
+                    value={modalForm.name}
+                    onChange={(event) => {
+                      setModalForm((prev) => ({
+                        ...prev,
+                        name: event.target.value,
+                      }));
+                      if (modalErrors.name) {
+                        setModalErrors((prev) => ({
+                          ...prev,
+                          name: undefined,
+                        }));
+                      }
+                    }}
+                    placeholder={t('请输入聊天应用名称')}
+                    className={inputClass}
+                  />
+                  <FieldError>{modalErrors.name}</FieldError>
+                </div>
+
+                <div className='space-y-2'>
+                  <FieldLabel required>{t('URL链接')}</FieldLabel>
+                  <input
+                    type='text'
+                    value={modalForm.url}
+                    onChange={(event) => {
+                      setModalForm((prev) => ({
+                        ...prev,
+                        url: event.target.value,
+                      }));
+                      if (modalErrors.url) {
+                        setModalErrors((prev) => ({
+                          ...prev,
+                          url: undefined,
+                        }));
+                      }
+                    }}
+                    placeholder={t('请输入完整的URL链接')}
+                    className={inputClass}
+                  />
+                  <FieldError>{modalErrors.url}</FieldError>
+                </div>
+
+                <InfoBanner>
+                  {t(
+                    '提示：链接中的{key}将被替换为API密钥，{address}将被替换为服务器地址',
+                  )}
+                </InfoBanner>
+              </ModalBody>
+              <ModalFooter className='border-t border-border'>
+                <Button variant='light' onPress={handleModalCancel}>
+                  {t('取消')}
+                </Button>
+                <Button color='primary' onPress={handleModalOk}>
+                  {t('确定')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
       </Modal>
-    </Spin>
+    </div>
   );
 }

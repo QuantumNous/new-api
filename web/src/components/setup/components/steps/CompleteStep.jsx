@@ -73,10 +73,10 @@ const CompleteStep = ({
               <CheckCircle2 size={14} />
               {t('准备就绪')}
             </Chip>
-            <h3 className='text-2xl font-semibold tracking-tight text-slate-950 dark:text-white'>
+            <h3 className='text-2xl font-semibold tracking-tight text-foreground'>
               {t('准备完成初始化')}
             </h3>
-            <p className='mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300'>
+            <p className='mt-2 text-sm leading-6 text-foreground'>
               {t('请确认以下设置信息，点击"初始化系统"开始配置')}
             </p>
           </div>
@@ -90,13 +90,13 @@ const CompleteStep = ({
           return (
           <Card
             key={item.label}
-            className='rounded-3xl border border-slate-200 bg-white/80 p-4 dark:border-slate-800 dark:bg-slate-900/70'
+            className='rounded-3xl border border-border bg-background/80 p-4'
           >
-            <div className='mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'>
+            <div className='mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-surface-secondary text-muted'>
               <Icon size={20} />
             </div>
-            <div className='text-xs text-slate-500 dark:text-slate-400'>{item.label}</div>
-            <div className='mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100'>
+            <div className='text-xs text-muted'>{item.label}</div>
+            <div className='mt-1 text-sm font-semibold text-foreground'>
               {item.value}
             </div>
           </Card>

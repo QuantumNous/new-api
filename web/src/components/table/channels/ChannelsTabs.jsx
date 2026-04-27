@@ -27,7 +27,7 @@ function CountChip({ active, count }) {
       className={`inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
         active
           ? 'bg-red-500 text-white'
-          : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+          : 'bg-surface-secondary text-muted'
       }`}
     >
       {count}
@@ -89,8 +89,8 @@ const ChannelsTabs = ({
             type='button'
             className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
               active
-                ? 'border-transparent bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900'
-                : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
+                ? 'border-transparent bg-foreground text-background shadow-sm'
+                : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-surface-secondary'
             }`}
             onClick={() => handleTabChange(tab.key)}
           >

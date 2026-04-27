@@ -52,14 +52,14 @@ const SearchModal = ({
   });
 
   const fieldClass =
-    'flex flex-col gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200';
+    'flex flex-col gap-1.5 text-sm font-medium text-foreground';
 
   return (
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size={isMobile ? 'full' : 'sm'} placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('搜索条件')}
             </ModalHeader>
             <ModalBody className='space-y-4 px-6 py-5'>
@@ -90,7 +90,7 @@ const SearchModal = ({
               <label className={fieldClass}>
                 {t('时间粒度')}
                 <select
-                  className='h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-sky-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100'
+                  className='h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary'
                   value={dataExportDefaultTime}
                   onChange={(event) =>
                     handleInputChange(
@@ -121,7 +121,7 @@ const SearchModal = ({
                 </label>
               )}
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='ghost' onPress={handleCloseModal}>
                 {t('取消')}
               </Button>

@@ -121,12 +121,12 @@ const ChannelKeyDisplay = ({
       {/* 密钥内容 */}
       <div className='space-y-3'>
         <div className='flex items-center justify-between'>
-          <span className='font-semibold text-slate-900 dark:text-slate-100'>
+          <span className='font-semibold text-foreground'>
             {isMultipleKeys ? t('渠道密钥列表') : t('渠道密钥')}
           </span>
           {isMultipleKeys && (
             <div className='flex items-center gap-2'>
-              <span className='text-xs text-slate-500 dark:text-slate-400'>
+              <span className='text-xs text-muted'>
                 {t('共 {{count}} 个密钥', { count: parsedKeys.length })}
               </span>
               <Button
@@ -145,11 +145,11 @@ const ChannelKeyDisplay = ({
           {parsedKeys.map((keyItem) => (
             <div
               key={keyItem.id}
-              className='rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.03]'
+              className='rounded-xl border border-border bg-background/80 p-4'
             >
               <div className='space-y-2'>
                 <div className='flex items-center justify-between'>
-                  <span className='text-sm font-semibold text-slate-700 dark:text-slate-300'>
+                  <span className='text-sm font-semibold text-foreground'>
                     {keyItem.label}
                   </span>
                   <div className='flex items-center gap-2'>
@@ -170,14 +170,14 @@ const ChannelKeyDisplay = ({
                   </div>
                 </div>
 
-                <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-3 max-h-40 overflow-auto'>
-                  <code className='whitespace-pre-wrap break-all font-mono text-xs text-slate-800 dark:text-slate-200'>
+                <div className='bg-surface-secondary rounded-lg p-3 max-h-40 overflow-auto'>
+                  <code className='whitespace-pre-wrap break-all font-mono text-xs text-foreground'>
                     {keyItem.content}
                   </code>
                 </div>
 
                 {keyItem.type === 'json' && (
-                  <span className='block text-xs text-slate-500 dark:text-slate-400'>
+                  <span className='block text-xs text-muted'>
                     {t('JSON格式密钥，请确保格式正确')}
                   </span>
                 )}

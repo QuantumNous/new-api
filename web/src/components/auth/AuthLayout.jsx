@@ -56,9 +56,9 @@ export function AuthBrand({ logo, systemName }) {
       <img
         src={logo}
         alt={systemName}
-        className='h-11 w-11 rounded-2xl border border-white/70 bg-white/90 p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-950'
+        className='h-11 w-11 rounded-2xl border border-border bg-background p-1.5 shadow-sm'
       />
-      <div className='text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-50'>
+      <div className='text-xl font-semibold tracking-tight text-foreground'>
         {systemName}
       </div>
     </div>
@@ -67,13 +67,13 @@ export function AuthBrand({ logo, systemName }) {
 
 export function AuthPanel({ title, subtitle, children, className = '' }) {
   return (
-    <Card className={`w-full rounded-[28px] border border-white/60 bg-white/88 px-5 py-6 shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/82 ${className}`}>
+    <Card className={`w-full rounded-[28px] border border-border bg-background/88 px-5 py-6 shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-xl ${className}`}>
       <div className='mb-6 text-center'>
-        <h1 className='text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50'>
+        <h1 className='text-2xl font-semibold tracking-tight text-foreground'>
           {title}
         </h1>
         {subtitle ? (
-          <p className='mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400'>
+          <p className='mt-2 text-sm leading-6 text-muted'>
             {subtitle}
           </p>
         ) : null}
@@ -86,11 +86,11 @@ export function AuthPanel({ title, subtitle, children, className = '' }) {
 export function AuthDivider({ children }) {
   return (
     <div className='my-5 flex items-center gap-4'>
-      <Separator className='flex-1 bg-slate-200 dark:bg-slate-800' />
-      <span className='text-xs font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500'>
+      <Separator className='flex-1 bg-border' />
+      <span className='text-xs font-medium uppercase tracking-[0.22em] text-muted'>
         {children}
       </span>
-      <Separator className='flex-1 bg-slate-200 dark:bg-slate-800' />
+      <Separator className='flex-1 bg-border' />
     </div>
   );
 }
@@ -111,7 +111,7 @@ export function AuthAgreement({
         onValueChange={onChange}
         classNames={{
           base: 'items-start',
-          label: 'text-sm leading-6 text-slate-500 dark:text-slate-400',
+          label: 'text-sm leading-6 text-muted',
         }}
       >
         <>
@@ -121,7 +121,7 @@ export function AuthAgreement({
               href='/user-agreement'
               target='_blank'
               rel='noopener noreferrer'
-              className='mx-1 font-medium text-sky-600 transition hover:text-sky-500'
+              className='mx-1 font-medium text-primary transition hover:text-primary/80'
             >
               {t('用户协议')}
             </a>
@@ -132,7 +132,7 @@ export function AuthAgreement({
               href='/privacy-policy'
               target='_blank'
               rel='noopener noreferrer'
-              className='mx-1 font-medium text-sky-600 transition hover:text-sky-500'
+              className='mx-1 font-medium text-primary transition hover:text-primary/80'
             >
               {t('隐私政策')}
             </a>
@@ -145,9 +145,9 @@ export function AuthAgreement({
 
 export function AuthLinkRow({ prefix, linkText, to }) {
   return (
-    <div className='mt-6 text-center text-sm text-slate-500 dark:text-slate-400'>
+    <div className='mt-6 text-center text-sm text-muted'>
       {prefix}{' '}
-      <a href={to} className='font-medium text-sky-600 transition hover:text-sky-500'>
+      <a href={to} className='font-medium text-primary transition hover:text-primary/80'>
         {linkText}
       </a>
     </div>
@@ -180,7 +180,7 @@ export function AuthOutlineButton({
     <Button
       variant='outline'
       size='lg'
-      className={`h-12 w-full rounded-full border-slate-200 bg-white/80 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 ${className}`}
+      className={`h-12 w-full rounded-full border-border bg-background/80 font-medium text-foreground hover:bg-surface-secondary ${className}`}
       {...props}
     >
       {children}
@@ -197,7 +197,7 @@ export function AuthGhostButton({
     <Button
       variant='ghost'
       size='lg'
-      className={`h-12 w-full rounded-full font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 ${className}`}
+      className={`h-12 w-full rounded-full font-medium text-muted hover:text-foreground ${className}`}
       {...props}
     >
       {children}
@@ -235,17 +235,17 @@ export function AuthTextField({
   };
 
   return (
-    <label className={`block text-sm font-medium text-slate-700 dark:text-slate-200 ${className}`}>
+    <label className={`block text-sm font-medium text-foreground ${className}`}>
       <span className='mb-1.5 block'>{label}</span>
       <div className='relative flex items-center'>
         {icon ? (
-          <span className='pointer-events-none absolute left-3 z-10 text-slate-400 dark:text-slate-500'>
+          <span className='pointer-events-none absolute left-3 z-10 text-muted'>
             {icon}
           </span>
         ) : null}
         <Input
           fullWidth
-          className={`h-12 rounded-2xl border border-slate-200 bg-white/85 text-slate-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-100 ${icon ? 'pl-10' : ''} ${action ? 'pr-32' : ''} ${inputClassName}`}
+          className={`h-12 rounded-2xl border border-border bg-background/85 text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 ${icon ? 'pl-10' : ''} ${action ? 'pr-32' : ''} ${inputClassName}`}
           name={name}
           onChange={handleValueChange}
           onValueChange={handleValueChange}
@@ -285,15 +285,15 @@ export function AuthModal({
     <Modal state={modalState}>
       <ModalBackdrop isDismissable={isDismissable} variant='blur'>
         <ModalContainer size={size} placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
             {title ? (
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+              <ModalHeader className='border-b border-border'>
                 {title}
               </ModalHeader>
             ) : null}
             <ModalBody className='px-6 py-5'>{children}</ModalBody>
             {footer !== null ? (
-              <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+              <ModalFooter className='border-t border-border'>
                 {footer || (
                   <>
                     <Button variant='ghost' onPress={onClose}>

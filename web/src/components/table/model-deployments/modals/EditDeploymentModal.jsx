@@ -118,8 +118,8 @@ const EditDeploymentModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='md' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               <div className='flex items-center gap-2'>
                 <Server size={18} />
                 <span>{title}</span>
@@ -159,7 +159,7 @@ const EditDeploymentModal = ({
                     <div className='space-y-1 rounded-lg bg-[color:var(--app-background)] p-3 text-sm'>
                       <div className='flex flex-wrap items-center gap-1'>
                         <span className='text-muted'>{t('部署ID')}:</span>
-                        <code className='rounded bg-white px-1.5 py-0.5 text-xs text-foreground dark:bg-slate-900'>
+                        <code className='rounded bg-background px-1.5 py-0.5 text-xs text-foreground'>
                           {editingDeployment.id}
                         </code>
                       </div>
@@ -169,7 +169,7 @@ const EditDeploymentModal = ({
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
                             editingDeployment.status === 'running'
                               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                              : 'bg-surface-secondary text-foreground'
                           }`}
                         >
                           {editingDeployment.status}
@@ -180,7 +180,7 @@ const EditDeploymentModal = ({
                 </Card.Content>
               </Card>
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button
                 variant='light'
                 onPress={handleClose}

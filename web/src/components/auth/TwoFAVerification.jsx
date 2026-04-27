@@ -78,7 +78,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
   if (isModal) {
     return (
       <div className='space-y-4'>
-        <p className='text-sm leading-6 text-slate-500 dark:text-slate-400'>
+        <p className='text-sm leading-6 text-muted'>
           请输入认证器应用显示的验证码完成登录
         </p>
 
@@ -124,7 +124,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
           )}
         </div>
 
-        <div className='rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm leading-6 text-slate-500 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-400'>
+        <div className='rounded-2xl border border-border bg-surface-secondary/80 p-4 text-sm leading-6 text-muted'>
             <strong>提示：</strong>
             <br />
             • 验证码每30秒更新一次
@@ -185,7 +185,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
           )}
         </div>
 
-        <div className='mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm leading-6 text-slate-500 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-400'>
+        <div className='mt-6 rounded-2xl border border-border bg-surface-secondary/80 p-4 text-sm leading-6 text-muted'>
             <strong>提示：</strong>
             <br />
             • 验证码每30秒更新一次

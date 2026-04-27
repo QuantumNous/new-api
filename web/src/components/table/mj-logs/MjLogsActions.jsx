@@ -20,7 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Skeleton } from '@heroui/react';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
-import { Eye } from 'lucide-react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const MjLogsActions = ({
@@ -36,21 +35,15 @@ const MjLogsActions = ({
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
       {showSkeleton ? (
-        <div className='mb-2 flex items-center md:mb-0'>
-          <Eye size={16} className='mr-2 text-slate-400' />
-          <Skeleton className='h-5 w-[300px] rounded-md' />
-        </div>
+        <Skeleton className='h-5 w-[300px] rounded-md' />
       ) : (
-        <div className='flex items-center mb-2 md:mb-0'>
-          <Eye size={16} className='mr-2' />
-          <span className='text-sm font-medium'>
-            {isAdminUser && showBanner
-              ? t(
-                  '当前未开启Midjourney回调，部分项目可能无法获得绘图结果，可在运营设置中开启。',
-                )
-              : t('Midjourney 任务记录')}
-          </span>
-        </div>
+        <span className='text-sm font-medium text-foreground'>
+          {isAdminUser && showBanner
+            ? t(
+                '当前未开启Midjourney回调，部分项目可能无法获得绘图结果，可在运营设置中开启。',
+              )
+            : t('Midjourney 任务记录')}
+        </span>
       )}
 
       <CompactModeToggle

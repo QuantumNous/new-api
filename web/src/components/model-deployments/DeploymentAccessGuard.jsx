@@ -42,10 +42,10 @@ const DeploymentAccessGuard = ({
   if (loading) {
     return (
       <div className='mt-[60px] px-2'>
-        <Card className='min-h-[400px] rounded-2xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-800 dark:bg-slate-950/80'>
+        <Card className='min-h-[400px] rounded-2xl border border-border bg-background/80 shadow-sm'>
           <div className='flex flex-col items-center justify-center gap-3 py-20 text-center'>
             <Spinner size='lg' />
-            <span className='text-sm text-slate-500 dark:text-slate-400'>
+            <span className='text-sm text-muted'>
               {t('加载设置中...')}
             </span>
           </div>
@@ -58,42 +58,42 @@ const DeploymentAccessGuard = ({
     return (
       <div className='mt-[60px] flex min-h-[calc(100vh-60px)] items-center justify-center px-4'>
         <div className='w-full max-w-2xl px-5 text-center'>
-          <Card className='rounded-[28px] border border-amber-200/70 bg-gradient-to-br from-white to-amber-50/70 p-10 shadow-[0_24px_80px_rgba(15,23,42,0.12)] dark:border-amber-900/40 dark:from-slate-950 dark:to-amber-950/20'>
+          <Card className='rounded-[28px] border border-warning/30 bg-warning/5 p-10 shadow-[0_24px_80px_rgba(15,23,42,0.12)]'>
             <div className='mb-8'>
-              <div className='mb-6 inline-flex h-28 w-28 items-center justify-center rounded-full border-4 border-amber-200 bg-amber-100/80 text-amber-600 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300'>
+              <div className='mb-6 inline-flex h-28 w-28 items-center justify-center rounded-full border-4 border-warning/30 bg-warning/10 text-warning'>
                 <AlertCircle size={56} />
               </div>
             </div>
 
             <div className='mb-6'>
-              <h2 className='mb-3 text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-50'>
+              <h2 className='mb-3 text-3xl font-bold tracking-tight text-foreground'>
                 {t('模型部署服务未启用')}
               </h2>
-              <p className='text-lg leading-8 text-slate-600 dark:text-slate-300'>
+              <p className='text-lg leading-8 text-muted'>
                 {t('访问模型部署功能需要先启用 io.net 部署服务')}
               </p>
             </div>
 
-            <div className='my-8 rounded-2xl border border-slate-200 bg-white/75 p-6 text-left shadow-sm dark:border-slate-800 dark:bg-slate-900/60'>
+            <div className='my-8 rounded-2xl border border-border bg-background/75 p-6 text-left shadow-sm'>
               <div className='mb-4 flex items-center justify-center gap-3 text-center'>
-                <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-300'>
+                <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary'>
                   <Server size={20} />
                 </div>
-                <span className='font-semibold text-slate-900 dark:text-slate-100'>
+                <span className='font-semibold text-foreground'>
                   {t('需要配置的项目')}
                 </span>
               </div>
 
               <div className='mx-auto flex max-w-sm flex-col gap-3'>
                 <div className='flex items-center gap-3'>
-                  <span className='h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500' />
-                  <span className='text-sm text-slate-600 dark:text-slate-300'>
+                  <span className='h-1.5 w-1.5 shrink-0 rounded-full bg-primary' />
+                  <span className='text-sm text-muted'>
                     {t('启用 io.net 部署开关')}
                   </span>
                 </div>
                 <div className='flex items-center gap-3'>
-                  <span className='h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500' />
-                  <span className='text-sm text-slate-600 dark:text-slate-300'>
+                  <span className='h-1.5 w-1.5 shrink-0 rounded-full bg-primary' />
+                  <span className='text-sm text-muted'>
                     {t('配置有效的 io.net API Key')}
                   </span>
                 </div>
@@ -110,7 +110,7 @@ const DeploymentAccessGuard = ({
               </Button>
             </div>
 
-            <p className='text-sm leading-6 text-slate-500 dark:text-slate-400'>
+            <p className='text-sm leading-6 text-muted'>
               {t('配置完成后刷新页面即可使用模型部署功能')}
             </p>
           </Card>
@@ -122,10 +122,10 @@ const DeploymentAccessGuard = ({
   if (connectionLoading || (connectionOk === null && !connectionError)) {
     return (
       <div className='mt-[60px] px-2'>
-        <Card className='min-h-[400px] rounded-2xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-800 dark:bg-slate-950/80'>
+        <Card className='min-h-[400px] rounded-2xl border border-border bg-background/80 shadow-sm'>
           <div className='flex flex-col items-center justify-center gap-3 py-20 text-center'>
             <Spinner size='lg' />
-            <span className='text-sm text-slate-500 dark:text-slate-400'>
+            <span className='text-sm text-muted'>
               {t('正在检查 io.net 连接...')}
             </span>
           </div>
@@ -145,22 +145,22 @@ const DeploymentAccessGuard = ({
     return (
       <div className='mt-[60px] flex min-h-[calc(100vh-60px)] items-center justify-center px-4'>
         <div className='w-full max-w-2xl px-5 text-center'>
-          <Card className='rounded-[28px] border border-rose-200/70 bg-gradient-to-br from-white to-rose-50/70 p-10 shadow-[0_24px_80px_rgba(15,23,42,0.12)] dark:border-rose-900/40 dark:from-slate-950 dark:to-rose-950/20'>
+          <Card className='rounded-[28px] border border-danger/30 bg-danger/5 p-10 shadow-[0_24px_80px_rgba(15,23,42,0.12)]'>
             <div className='mb-8'>
-              <div className='mb-6 inline-flex h-28 w-28 items-center justify-center rounded-full border-4 border-rose-200 bg-rose-100/80 text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/50 dark:text-rose-300'>
+              <div className='mb-6 inline-flex h-28 w-28 items-center justify-center rounded-full border-4 border-danger/30 bg-danger/10 text-danger'>
                 <WifiOff size={56} />
               </div>
             </div>
 
             <div className='mb-6'>
-              <h2 className='mb-3 text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-50'>
+              <h2 className='mb-3 text-3xl font-bold tracking-tight text-foreground'>
                 {title}
               </h2>
-              <p className='text-lg leading-8 text-slate-600 dark:text-slate-300'>
+              <p className='text-lg leading-8 text-muted'>
                 {description}
               </p>
               {detail ? (
-                <p className='mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400'>
+                <p className='mt-2 text-sm leading-6 text-muted'>
                   {detail}
                 </p>
               ) : null}

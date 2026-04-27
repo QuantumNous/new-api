@@ -102,8 +102,8 @@ const CardTable = ({
   const renderEmpty = () => {
     if (tableProps.empty) return tableProps.empty;
     return (
-      <div className='flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white/60 p-8 text-center text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400'>
-        <div className='flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900/[0.04] dark:bg-white/10'>
+      <div className='flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-background/60 p-8 text-center text-muted'>
+        <div className='flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-secondary'>
           <Inbox size={24} />
         </div>
         <span className='text-sm'>{t('暂无数据')}</span>
@@ -114,12 +114,12 @@ const CardTable = ({
   if (!isMobile) {
     if (showSkeleton) {
       return (
-        <div className='overflow-hidden rounded-2xl border border-slate-200 bg-white/80 dark:border-white/10 dark:bg-white/[0.03]'>
-          <div className='grid gap-px bg-slate-200/80 dark:bg-white/10'>
+        <div className='overflow-hidden rounded-2xl border border-border bg-background/80'>
+          <div className='grid gap-px bg-border'>
             {[0, 1, 2, 3].map((row) => (
               <div
                 key={row}
-                className='grid bg-white p-3 dark:bg-slate-950'
+                className='grid bg-background p-3'
                 style={{
                   gridTemplateColumns: `repeat(${Math.max(visibleColumns.length, 1)}, minmax(0, 1fr))`,
                 }}
@@ -127,7 +127,7 @@ const CardTable = ({
                 {visibleColumns.map((col, idx) => (
                   <Skeleton
                     key={col.key || col.dataIndex || idx}
-                    className='h-4 w-3/4 rounded-lg bg-slate-200 dark:bg-white/10'
+                    className='h-4 w-3/4 rounded-lg bg-surface-secondary'
                   />
                 ))}
               </div>
@@ -143,9 +143,9 @@ const CardTable = ({
 
     return (
       <div className={tableProps.className}>
-        <div className='overflow-x-auto rounded-2xl border border-slate-200 bg-white/80 dark:border-white/10 dark:bg-white/[0.03]'>
+        <div className='overflow-x-auto rounded-2xl border border-border bg-background/80'>
           <table className='min-w-full border-collapse text-sm'>
-            <thead className='bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-white/[0.04] dark:text-slate-400'>
+            <thead className='bg-surface-secondary text-left text-xs font-semibold uppercase tracking-wide text-muted'>
               <tr>
                 {visibleColumns.map((col, idx) => (
                   <th
@@ -158,19 +158,19 @@ const CardTable = ({
                 ))}
               </tr>
             </thead>
-            <tbody className='divide-y divide-slate-200/80 dark:divide-white/10'>
+            <tbody className='divide-y divide-border'>
               {dataSource.map((record, index) => {
                 const rowProps = tableProps.onRow?.(record, index) || {};
                 return (
                   <tr
                     key={getRowKey(record, index)}
-                    className='transition-colors hover:bg-slate-50/80 dark:hover:bg-white/[0.04]'
+                    className='transition-colors hover:bg-surface-secondary/60'
                     {...rowProps}
                   >
                     {visibleColumns.map((col, colIdx) => (
                       <td
                         key={col.key || col.dataIndex || colIdx}
-                        className='px-4 py-3 align-middle text-slate-700 dark:text-slate-200'
+                        className='px-4 py-3 align-middle text-foreground'
                       >
                         {renderCell(col, record, index) ?? '-'}
                       </td>
@@ -189,12 +189,12 @@ const CardTable = ({
   if (showSkeleton) {
     const renderSkeletonCard = (key) => {
       return (
-        <div key={key} className='rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]'>
+        <div key={key} className='rounded-2xl border border-border bg-background p-4 shadow-sm'>
           {visibleColumns.map((col, idx) => {
             if (!col.title) {
               return (
                 <div key={idx} className='mt-2 flex justify-end'>
-                  <Skeleton className='h-6 w-24 rounded-lg bg-slate-200 dark:bg-white/10' />
+                  <Skeleton className='h-6 w-24 rounded-lg bg-surface-secondary' />
                 </div>
               );
             }
@@ -202,11 +202,11 @@ const CardTable = ({
             return (
               <div
                 key={idx}
-                className='flex justify-between items-center border-b border-dashed border-slate-200 py-2 last:border-b-0 dark:border-white/10'
+                className='flex justify-between items-center border-b border-dashed border-border py-2 last:border-b-0'
               >
-                <Skeleton className='h-4 w-20 rounded-lg bg-slate-200 dark:bg-white/10' />
+                <Skeleton className='h-4 w-20 rounded-lg bg-surface-secondary' />
                 <Skeleton
-                  className='h-4 rounded-lg bg-slate-200 dark:bg-white/10'
+                  className='h-4 rounded-lg bg-surface-secondary'
                   style={{ width: `${50 + (idx % 3) * 10}%`, maxWidth: 180 }}
                 />
               </div>
@@ -234,7 +234,7 @@ const CardTable = ({
       (!tableProps.rowExpandable || tableProps.rowExpandable(record));
 
     return (
-      <div key={rowKeyVal} className='rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]'>
+      <div key={rowKeyVal} className='rounded-2xl border border-border bg-background p-4 shadow-sm'>
         {visibleColumns.map((col, colIdx) => {
 
           const title = col.title;
@@ -251,9 +251,9 @@ const CardTable = ({
           return (
             <div
               key={col.key || colIdx}
-              className='flex justify-between items-start border-b border-dashed border-slate-200 py-2 last:border-b-0 dark:border-white/10'
+              className='flex justify-between items-start border-b border-dashed border-border py-2 last:border-b-0'
             >
-              <span className='mr-2 select-none whitespace-nowrap font-medium text-slate-500 dark:text-slate-400'>
+              <span className='mr-2 select-none whitespace-nowrap font-medium text-muted'>
                 {title}
               </span>
               <div className='flex-1 break-all flex justify-end items-center gap-1'>

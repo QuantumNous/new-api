@@ -29,8 +29,8 @@ const NotFound = () => {
         <div className='flex h-24 w-24 items-center justify-center rounded-[2rem] bg-warning/10 text-warning'>
           <SearchX size={44} />
         </div>
-        <h1 className='text-2xl font-bold text-slate-950 dark:text-white'>404</h1>
-        <p className='text-sm text-slate-600 dark:text-slate-300'>
+        <h1 className='text-2xl font-bold text-foreground'>404</h1>
+        <p className='text-sm text-muted'>
           {t('页面未找到，请检查您的浏览器地址是否正确')}
         </p>
       </div>

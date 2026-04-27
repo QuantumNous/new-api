@@ -26,7 +26,7 @@ const NotificationButton = ({ unreadCount, onNoticeOpen, t }) => {
       type='button'
       aria-label={t('系统公告')}
       onClick={onNoticeOpen}
-      className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/[0.04] text-slate-700 transition-colors hover:bg-slate-900/[0.07] dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15'
+      className='inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface-secondary text-foreground transition-colors hover:bg-surface-secondary/70'
     >
       <Bell size={18} />
     </button>

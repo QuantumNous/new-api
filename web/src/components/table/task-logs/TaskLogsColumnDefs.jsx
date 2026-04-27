@@ -87,7 +87,7 @@ function ColorTag({ color, prefixIcon, children, onClick }) {
     return (
       <span
         onClick={onClick}
-        className={`inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200 ${
+        className={`inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-background px-2 py-0.5 text-xs font-medium text-foreground ${
           onClick ? 'cursor-pointer' : ''
         }`}
       >
@@ -117,7 +117,7 @@ function ProgressBar({ percent, errored }) {
   const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
   return (
     <div className='inline-flex min-w-[160px] items-center gap-2'>
-      <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800'>
+      <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-surface-secondary'>
         <div
           className={`h-full rounded-full transition-all ${
             errored

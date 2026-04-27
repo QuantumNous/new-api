@@ -18,22 +18,34 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Accordion, AccordionItem } from '@heroui/react';
-import { EmptyState, Widget } from '@heroui-pro/react';
+import {
+  Accordion,
+  AccordionItem,
+  Card,
+} from '@heroui/react';
 import { HelpCircle } from 'lucide-react';
 import { marked } from 'marked';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
-const FaqPanel = ({ faqData, CARD_PROPS, FLEX_CENTER_GAP2, t }) => {
+const FaqPanel = ({
+  faqData,
+  CARD_PROPS,
+  FLEX_CENTER_GAP2,
+  ILLUSTRATION_SIZE,
+  t,
+}) => {
   return (
-    <Widget className={`lg:col-span-1 ${CARD_PROPS?.className || ''}`}>
-      <Widget.Header className='h-12'>
-        <div className={`${FLEX_CENTER_GAP2} whitespace-nowrap`}>
-          <HelpCircle size={16} className='shrink-0' />
-          <Widget.Title>{t('常见问答')}</Widget.Title>
+    <Card
+      className={`shadow-sm !rounded-2xl lg:col-span-1 ${CARD_PROPS?.className || ''}`}
+      shadow='none'
+    >
+      <div className='border-b border-border px-4 py-3'>
+        <div className={FLEX_CENTER_GAP2}>
+          <HelpCircle size={16} />
+          {t('常见问答')}
         </div>
-      </Widget.Header>
-      <Widget.Content className='p-0'>
+      </div>
+      <div className='p-0'>
         <ScrollableContainer maxHeight='24rem'>
           {faqData.length > 0 ? (
             <Accordion selectionMode='multiple' variant='light'>
@@ -53,21 +65,24 @@ const FaqPanel = ({ faqData, CARD_PROPS, FLEX_CENTER_GAP2, t }) => {
               ))}
             </Accordion>
           ) : (
-            <EmptyState size='sm'>
-              <EmptyState.Header>
-                <EmptyState.Media variant='icon'>
-                  <HelpCircle />
-                </EmptyState.Media>
-                <EmptyState.Title>{t('暂无常见问答')}</EmptyState.Title>
-                <EmptyState.Description>
-                  {t('请联系管理员在系统设置中配置常见问答')}
-                </EmptyState.Description>
-              </EmptyState.Header>
-            </EmptyState>
+            <div className='flex flex-col items-center justify-center px-6 py-10 text-center'>
+              <div
+                className='mb-4 rounded-3xl bg-surface-secondary p-6 text-muted'
+                style={ILLUSTRATION_SIZE}
+              >
+                <HelpCircle size={42} />
+              </div>
+              <div className='text-sm font-semibold text-foreground'>
+                {t('暂无常见问答')}
+              </div>
+              <div className='mt-1 text-xs text-muted'>
+                {t('请联系管理员在系统设置中配置常见问答')}
+              </div>
+            </div>
           )}
         </ScrollableContainer>
-      </Widget.Content>
-    </Widget>
+      </div>
+    </Card>
   );
 };
 

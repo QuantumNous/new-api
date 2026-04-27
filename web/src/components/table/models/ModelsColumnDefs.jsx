@@ -78,7 +78,7 @@ function StringTag({ children, color, tone }) {
   }
   if (color === 'white') {
     return (
-      <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+      <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-background px-2 py-0.5 text-xs font-medium text-foreground'>
         {children}
       </span>
     );
@@ -137,7 +137,7 @@ const renderVendorTag = (vendorId, vendorMap, t) => {
   if (!vendorId || !vendorMap[vendorId]) return '-';
   const v = vendorMap[vendorId];
   return (
-    <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+    <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-background px-2 py-0.5 text-xs font-medium text-foreground'>
       {getLobeHubIcon(v.icon || 'Layers', 14)}
       {v.name}
     </span>

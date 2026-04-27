@@ -153,7 +153,7 @@ const Home = () => {
       {homePageContentLoaded && homePageContent === '' ? (
         <div className='w-full overflow-x-hidden'>
           {/* Banner 部分 */}
-          <div className='relative min-h-[500px] w-full overflow-x-hidden border-b border-slate-200/80 md:min-h-[600px] lg:min-h-[700px] dark:border-white/10'>
+          <div className='relative min-h-[500px] w-full overflow-x-hidden border-b border-border md:min-h-[600px] lg:min-h-[700px]'>
             {/* 背景模糊晕染球 */}
             <div className='blur-ball blur-ball-indigo' />
             <div className='blur-ball blur-ball-teal' />
@@ -162,7 +162,7 @@ const Home = () => {
               <div className='flex flex-col items-center justify-center text-center max-w-4xl mx-auto'>
                 <div className='flex flex-col items-center justify-center mb-6 md:mb-8'>
                   <h1
-                    className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-slate-950 leading-tight dark:text-white ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
+                    className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-foreground leading-tight ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
                   >
                     <>
                       {t('统一的')}
@@ -170,18 +170,18 @@ const Home = () => {
                       <span className='shine-text'>{t('大模型接口网关')}</span>
                     </>
                   </h1>
-                  <p className='mt-4 max-w-xl text-base text-slate-600 md:mt-6 md:text-lg lg:text-xl dark:text-slate-300'>
+                  <p className='mt-4 max-w-xl text-base text-muted md:mt-6 md:text-lg lg:text-xl'>
                     {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
                   </p>
                   {/* BASE URL 与端点选择 */}
                   <div className='flex flex-col md:flex-row items-center justify-center gap-4 w-full mt-4 md:mt-6 max-w-md'>
-                    <div className='flex min-h-12 flex-1 items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-4 py-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10'>
+                    <div className='flex min-h-12 flex-1 items-center gap-2 rounded-full border border-border bg-background/80 px-4 py-1 shadow-sm backdrop-blur'>
                       <input
                         readOnly
                         value={serverAddress}
-                        className='min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none dark:text-slate-100'
+                        className='min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none'
                       />
-                      <span className='hidden rounded-full bg-slate-900/[0.04] px-2 py-1 text-xs font-medium text-slate-500 sm:inline-flex dark:bg-white/10 dark:text-slate-300'>
+                      <span className='hidden rounded-full bg-surface-secondary px-2 py-1 text-xs font-medium text-muted sm:inline-flex'>
                         {endpointItems[endpointIndex]?.value}
                       </span>
                       <Button
@@ -241,7 +241,7 @@ const Home = () => {
                 {/* 框架兼容性图标 */}
                 <div className='mt-12 md:mt-16 lg:mt-20 w-full'>
                   <div className='flex items-center mb-6 md:mb-8 justify-center'>
-                    <span className='text-lg font-light text-slate-500 md:text-xl lg:text-2xl dark:text-slate-400'>
+                    <span className='text-lg font-light text-muted md:text-xl lg:text-2xl'>
                       {t('支持众多的大模型供应商')}
                     </span>
                   </div>

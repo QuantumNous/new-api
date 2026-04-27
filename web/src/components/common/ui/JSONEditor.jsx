@@ -38,19 +38,19 @@ const generateUniqueId = (() => {
 })();
 
 const inputClass =
-  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900';
+  'w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-primary';
 
 function FieldSlot({ label, extraText, children }) {
   return (
     <div className='space-y-2'>
       {label ? (
-        <div className='text-sm font-medium text-slate-700 dark:text-slate-200'>
+        <div className='text-sm font-medium text-foreground'>
           {label}
         </div>
       ) : null}
       {children}
       {extraText ? (
-        <div className='text-xs leading-5 text-slate-500 dark:text-slate-400'>
+        <div className='text-xs leading-5 text-muted'>
           {extraText}
         </div>
       ) : null}
@@ -395,7 +395,7 @@ const JSONEditor = ({
               <Switch.Thumb />
             </Switch.Control>
           </Switch>
-          <span className='text-sm text-slate-500 dark:text-slate-400'>
+          <span className='text-sm text-muted'>
             {value ? t('true') : t('false')}
           </span>
         </div>
@@ -469,7 +469,7 @@ const JSONEditor = ({
         {renderDuplicateWarning()}
 
         {keyValuePairs.length === 0 && (
-          <div className='rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400'>
+          <div className='rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted'>
             {t('暂无数据，点击下方按钮添加键值对')}
           </div>
         )}
@@ -636,8 +636,8 @@ const JSONEditor = ({
 
   return (
     <FieldSlot label={label}>
-      <Card className='rounded-2xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-800 dark:bg-slate-950/80'>
-        <div className='flex flex-col gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 md:flex-row md:items-center md:justify-between'>
+      <Card className='rounded-2xl border border-border bg-background/80 shadow-sm'>
+        <div className='flex flex-col gap-3 border-b border-border px-4 py-3 md:flex-row md:items-center md:justify-between'>
           <Tabs
             selectedKey={editMode}
             onSelectionChange={(key) => {
@@ -704,10 +704,10 @@ const JSONEditor = ({
 
           {/* 额外文本显示在卡片底部 */}
           {extraText && (
-            <div className='my-3 flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400'>
-              <span className='h-px flex-1 bg-slate-200 dark:bg-slate-800' />
+            <div className='my-3 flex items-center gap-3 text-xs text-muted'>
+              <span className='h-px flex-1 bg-border' />
               <span>{extraText}</span>
-              <span className='h-px flex-1 bg-slate-200 dark:bg-slate-800' />
+              <span className='h-px flex-1 bg-border' />
             </div>
           )}
           {extraFooter && <div className='mt-1'>{extraFooter}</div>}

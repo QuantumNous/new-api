@@ -182,7 +182,7 @@ const UserBindingManagementModal = ({
       name: t('邮箱'),
       enabled: true,
       value: getBuiltInBindingValue('email'),
-      icon: <Mail size={20} className='text-slate-600 dark:text-slate-300' />,
+      icon: <Mail size={20} className='text-foreground' />,
     },
     {
       key: 'github',
@@ -190,7 +190,7 @@ const UserBindingManagementModal = ({
       name: 'GitHub',
       enabled: Boolean(statusInfo.github_oauth),
       value: getBuiltInBindingValue('github_id'),
-      icon: <Github size={20} className='text-slate-600 dark:text-slate-300' />,
+      icon: <Github size={20} className='text-foreground' />,
     },
     {
       key: 'discord',
@@ -199,7 +199,7 @@ const UserBindingManagementModal = ({
       enabled: Boolean(statusInfo.discord_oauth),
       value: getBuiltInBindingValue('discord_id'),
       icon: (
-        <SiDiscord size={20} className='text-slate-600 dark:text-slate-300' />
+        <SiDiscord size={20} className='text-foreground' />
       ),
     },
     {
@@ -209,7 +209,7 @@ const UserBindingManagementModal = ({
       enabled: Boolean(statusInfo.oidc_enabled),
       value: getBuiltInBindingValue('oidc_id'),
       icon: (
-        <LinkIcon size={20} className='text-slate-600 dark:text-slate-300' />
+        <LinkIcon size={20} className='text-foreground' />
       ),
     },
     {
@@ -219,7 +219,7 @@ const UserBindingManagementModal = ({
       enabled: Boolean(statusInfo.wechat_login),
       value: getBuiltInBindingValue('wechat_id'),
       icon: (
-        <SiWechat size={20} className='text-slate-600 dark:text-slate-300' />
+        <SiWechat size={20} className='text-foreground' />
       ),
     },
     {
@@ -229,7 +229,7 @@ const UserBindingManagementModal = ({
       enabled: Boolean(statusInfo.telegram_oauth),
       value: getBuiltInBindingValue('telegram_id'),
       icon: (
-        <SiTelegram size={20} className='text-slate-600 dark:text-slate-300' />
+        <SiTelegram size={20} className='text-foreground' />
       ),
     },
     {
@@ -239,7 +239,7 @@ const UserBindingManagementModal = ({
       enabled: Boolean(statusInfo.linuxdo_oauth),
       value: getBuiltInBindingValue('linux_do_id'),
       icon: (
-        <SiLinux size={20} className='text-slate-600 dark:text-slate-300' />
+        <SiLinux size={20} className='text-foreground' />
       ),
     },
   ];
@@ -310,8 +310,8 @@ const UserBindingManagementModal = ({
             size={isMobile ? 'full' : 'xl'}
             placement='center'
           >
-            <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-              <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
                 <div className='flex items-center gap-2'>
                   <LinkIcon size={18} />
                   {t('账户绑定管理')}
@@ -373,13 +373,13 @@ const UserBindingManagementModal = ({
                             >
                               <Card.Content className='flex min-h-[92px] items-center justify-between gap-3 p-4'>
                                 <div className='flex flex-1 items-center min-w-0'>
-                                  <div className='mr-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800'>
+                                  <div className='mr-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-secondary'>
                                     {item.icon}
                                   </div>
                                   <div className='min-w-0 flex-1'>
                                     <div className='flex items-center gap-2 text-sm font-medium text-foreground'>
                                       <span>{item.name}</span>
-                                      <span className='inline-flex items-center rounded-full border border-[color:var(--app-border)] bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+                                      <span className='inline-flex items-center rounded-full border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-foreground'>
                                         {item.type === 'builtin'
                                           ? t('内置')
                                           : t('自定义')}

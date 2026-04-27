@@ -65,7 +65,7 @@ const ParameterControl = ({
       {icon}
       <span className='text-sm font-semibold text-foreground'>{title}</span>
       {value !== undefined ? <ValuePill>{value}</ValuePill> : null}
-      {hint ? <span className='text-xs text-gray-400'>{hint}</span> : null}
+      {hint ? <span className='text-xs text-muted'>{hint}</span> : null}
     </div>
   );
 
@@ -90,7 +90,7 @@ const ParameterControl = ({
       >
         <div className='flex items-center justify-between mb-2'>
           <ParameterLabel
-            icon={<Thermometer size={16} className='text-gray-500' />}
+            icon={<Thermometer size={16} className='text-muted' />}
             title='Temperature'
             value={inputs.temperature}
           />
@@ -99,7 +99,7 @@ const ParameterControl = ({
             onPress={() => onParameterToggle('temperature')}
           />
         </div>
-        <span className='mb-2 block text-xs text-gray-500'>
+        <span className='mb-2 block text-xs text-muted'>
           {t('控制输出的随机性和创造性')}
         </span>
         <RangeControl
@@ -118,7 +118,7 @@ const ParameterControl = ({
       >
         <div className='flex items-center justify-between mb-2'>
           <ParameterLabel
-            icon={<Target size={16} className='text-gray-500' />}
+            icon={<Target size={16} className='text-muted' />}
             title='Top P'
             value={inputs.top_p}
           />
@@ -127,7 +127,7 @@ const ParameterControl = ({
             onPress={() => onParameterToggle('top_p')}
           />
         </div>
-        <span className='mb-2 block text-xs text-gray-500'>
+        <span className='mb-2 block text-xs text-muted'>
           {t('核采样，控制词汇选择的多样性')}
         </span>
         <RangeControl
@@ -146,7 +146,7 @@ const ParameterControl = ({
       >
         <div className='flex items-center justify-between mb-2'>
           <ParameterLabel
-            icon={<Repeat size={16} className='text-gray-500' />}
+            icon={<Repeat size={16} className='text-muted' />}
             title='Frequency Penalty'
             value={inputs.frequency_penalty}
           />
@@ -155,7 +155,7 @@ const ParameterControl = ({
             onPress={() => onParameterToggle('frequency_penalty')}
           />
         </div>
-        <span className='mb-2 block text-xs text-gray-500'>
+        <span className='mb-2 block text-xs text-muted'>
           {t('频率惩罚，减少重复词汇的出现')}
         </span>
         <RangeControl
@@ -174,7 +174,7 @@ const ParameterControl = ({
       >
         <div className='flex items-center justify-between mb-2'>
           <ParameterLabel
-            icon={<Ban size={16} className='text-gray-500' />}
+            icon={<Ban size={16} className='text-muted' />}
             title='Presence Penalty'
             value={inputs.presence_penalty}
           />
@@ -183,7 +183,7 @@ const ParameterControl = ({
             onPress={() => onParameterToggle('presence_penalty')}
           />
         </div>
-        <span className='mb-2 block text-xs text-gray-500'>
+        <span className='mb-2 block text-xs text-muted'>
           {t('存在惩罚，鼓励讨论新话题')}
         </span>
         <RangeControl
@@ -202,7 +202,7 @@ const ParameterControl = ({
       >
         <div className='flex items-center justify-between mb-2'>
           <ParameterLabel
-            icon={<Hash size={16} className='text-gray-500' />}
+            icon={<Hash size={16} className='text-muted' />}
             title='Max Tokens'
           />
           <ToggleButton
@@ -234,7 +234,7 @@ const ParameterControl = ({
       >
         <div className='flex items-center justify-between mb-2'>
           <ParameterLabel
-            icon={<Shuffle size={16} className='text-gray-500' />}
+            icon={<Shuffle size={16} className='text-muted' />}
             title='Seed'
             hint={`(${t('可选，用于复现结果')})`}
           />

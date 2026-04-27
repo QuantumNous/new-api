@@ -124,7 +124,7 @@ const ConfigManager = ({
             isIconOnly
             variant='ghost'
             size='sm'
-            className='rounded-lg text-gray-600 hover:text-blue-600'
+            className='rounded-lg text-muted hover:text-primary'
             onPress={handleExport}
             aria-label={t('导出配置')}
           >
@@ -134,7 +134,7 @@ const ConfigManager = ({
             isIconOnly
             variant='ghost'
             size='sm'
-            className='rounded-lg text-gray-600 hover:text-blue-600'
+            className='rounded-lg text-muted hover:text-primary'
             onPress={handleImportClick}
             aria-label={t('导入配置')}
           >
@@ -168,7 +168,7 @@ const ConfigManager = ({
     <div className='space-y-3'>
       {/* Config status and reset action */}
       <div className='flex items-center justify-between'>
-        <span className='text-xs text-gray-500'>
+        <span className='text-xs text-muted'>
           {getConfigStatus()}
         </span>
         <Button

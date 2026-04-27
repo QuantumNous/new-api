@@ -17,7 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -28,8 +36,35 @@ import {
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { CHANNEL_OPTIONS, MODEL_FETCHABLE_CHANNEL_TYPES } from '../../../../constants';
-import { Button, Card, Input, Tooltip } from '@heroui/react';
-import { SideSheet, Space, Spin, Typography, Checkbox, Banner, Modal, ImagePreview, Tag, Avatar, Form, Row, Col, Highlight, Collapse, Dropdown } from '@/components/common/ui/HeroCompat';
+import {
+  Button,
+  Card,
+  Input as HeroInput,
+  Modal as HeroModal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  Switch as HeroSwitch,
+  Tooltip,
+  useOverlayState,
+} from '@heroui/react';
+import {
+  Bolt,
+  Check,
+  ChevronDown,
+  Code2,
+  Copy as CopyIcon,
+  Globe,
+  Save,
+  Search,
+  Server,
+  Settings,
+  Trash2,
+  X as CloseIcon,
+} from 'lucide-react';
 import {
   getChannelModels,
   copy,
@@ -46,6 +81,7 @@ import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
 import StatusCodeRiskGuardModal from './StatusCodeRiskGuardModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
+import ConfirmDialog from '../../../common/ui/ConfirmDialog';
 import { useSecureVerification } from '../../../../hooks/common/useSecureVerification';
 import { parseChannelConnectionString } from '../../../../helpers/token';
 import { createApiCalls } from '../../../../services/secureVerification';
@@ -53,20 +89,1480 @@ import {
   collectInvalidStatusCodeEntries,
   collectNewDisallowedStatusCodeRedirects,
 } from './statusCodeRiskGuard';
-import {
-  IconSave,
-  IconClose,
-  IconServer,
-  IconSetting,
-  IconCode,
-  IconCopy,
-  IconGlobe,
-  IconBolt,
-  IconSearch,
-  IconChevronDown,
-} from '@/components/common/ui/HeroIconsCompat';
 
-const { Text, Title } = Typography;
+// ----------------------------- legacy shims -----------------------------
+//
+// EditChannelModal is ~3900 lines. To keep the migration safe, the existing
+// Semi-style render tree is preserved verbatim. The shims below adapt that
+// API surface (Form context, Modal, SideSheet, Row/Col, Space, Tag, etc.)
+// to HeroUI v3 + Tailwind primitives.
+//
+// All shims live in this file (not exported) so callers see the same
+// `<Form.Input field='x' />` ergonomics, while the underlying DOM is
+// HeroUI v3 + native inputs styled with semantic tokens.
+
+const TAG_TONE_MAP = {
+  blue: 'bg-primary/15 text-primary',
+  cyan: 'bg-[color-mix(in_oklab,var(--app-primary)_18%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_72%,var(--app-foreground))]',
+  green: 'bg-success/15 text-success',
+  red: 'bg-danger/15 text-danger',
+  orange: 'bg-warning/15 text-warning',
+  yellow: 'bg-warning/15 text-warning',
+  purple:
+    'bg-[color-mix(in_oklab,var(--app-primary)_8%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_82%,var(--app-foreground))]',
+  white: 'bg-background border border-border text-foreground',
+  grey: 'bg-surface-secondary text-muted',
+  default: 'bg-surface-secondary text-muted',
+};
+
+function Tag({ color = 'grey', size, shape, type, prefixIcon, style, className = '', children }) {
+  // `shape='circle'` and `type='light'` are decorative-only in Semi; ignore them.
+  const tone = TAG_TONE_MAP[color] || TAG_TONE_MAP.grey;
+  const sizeCls =
+    size === 'small'
+      ? 'px-1.5 py-0.5 text-[11px]'
+      : size === 'large'
+        ? 'px-2.5 py-1 text-xs'
+        : 'px-2 py-0.5 text-xs';
+  return (
+    <span
+      style={style}
+      className={`inline-flex items-center gap-1 rounded-full font-semibold ${sizeCls} ${tone} ${className}`}
+    >
+      {prefixIcon}
+      {children}
+    </span>
+  );
+}
+
+const TEXT_TYPE_CLASS = {
+  primary: 'text-foreground',
+  secondary: 'text-foreground',
+  tertiary: 'text-muted',
+  quaternary: 'text-muted/70',
+  danger: 'text-danger',
+  warning: 'text-warning',
+};
+
+function Text({
+  type,
+  size,
+  strong,
+  underline,
+  link,
+  icon,
+  copyable,
+  className = '',
+  style,
+  children,
+  onClick,
+  ...rest
+}) {
+  const typeCls = TEXT_TYPE_CLASS[type] || 'text-foreground';
+  const sizeCls = size === 'small' ? 'text-xs' : '';
+  const weightCls = strong ? 'font-semibold' : '';
+  const underlineCls = underline ? 'underline' : '';
+  if (link?.href) {
+    return (
+      <a
+        href={link.href}
+        target={link.target || '_self'}
+        rel='noopener noreferrer'
+        className={`inline-flex items-center gap-1 text-primary hover:underline ${sizeCls} ${weightCls} ${className}`}
+        style={style}
+        {...rest}
+      >
+        {icon}
+        {children}
+      </a>
+    );
+  }
+  return (
+    <span
+      style={style}
+      onClick={onClick}
+      className={`${typeCls} ${sizeCls} ${weightCls} ${underlineCls} ${className}`}
+      {...rest}
+    >
+      {icon}
+      {children}
+    </span>
+  );
+}
+
+function Title({ heading = 6, className = '', style, children, ...rest }) {
+  const Tag = `h${Math.min(Math.max(Number(heading) || 6, 1), 6)}`;
+  const sizeCls =
+    heading <= 3
+      ? 'text-xl font-semibold'
+      : heading === 4
+        ? 'text-lg font-semibold'
+        : heading === 5
+          ? 'text-base font-semibold'
+          : 'text-sm font-semibold';
+  return (
+    <Tag
+      style={style}
+      className={`m-0 text-foreground ${sizeCls} ${className}`}
+      {...rest}
+    >
+      {children}
+    </Tag>
+  );
+}
+
+const Typography = { Text, Title };
+
+// Space: flex container.
+function Space({
+  vertical,
+  wrap,
+  spacing,
+  align,
+  style,
+  className = '',
+  children,
+}) {
+  const flexDir = vertical ? 'flex-col items-start' : 'flex-row';
+  const wrapCls = wrap ? 'flex-wrap' : '';
+  const alignCls =
+    align === 'center'
+      ? 'items-center'
+      : align === 'flex-end'
+        ? 'items-end'
+        : align === 'baseline'
+          ? 'items-baseline'
+          : vertical
+            ? ''
+            : 'items-center';
+  const gap =
+    typeof spacing === 'number'
+      ? { gap: `${spacing}px` }
+      : { gap: '8px' };
+  return (
+    <div
+      style={{ ...gap, ...(style || {}) }}
+      className={`flex ${flexDir} ${wrapCls} ${alignCls} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Row / Col: 24-column flex-wrap grid.
+function Row({ gutter, align, justify, style, className = '', children }) {
+  const gap =
+    typeof gutter === 'number'
+      ? gutter
+      : typeof gutter === 'object' && gutter !== null
+        ? gutter.md || gutter.sm || gutter.xs || 16
+        : 0;
+  const flexAlign =
+    align === 'middle'
+      ? 'items-center'
+      : align === 'top'
+        ? 'items-start'
+        : align === 'bottom'
+          ? 'items-end'
+          : '';
+  const flexJustify =
+    justify === 'space-between'
+      ? 'justify-between'
+      : justify === 'end'
+        ? 'justify-end'
+        : justify === 'center'
+          ? 'justify-center'
+          : '';
+  return (
+    <div
+      style={{ rowGap: `${gap}px`, columnGap: `${gap}px`, ...(style || {}) }}
+      className={`flex flex-wrap ${flexAlign} ${flexJustify} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Col({ xs, sm, md, lg, xl, span, style, className = '', children }) {
+  const effective = md ?? sm ?? xs ?? span ?? lg ?? xl ?? 24;
+  const width = `${(Math.min(Math.max(Number(effective) || 24, 1), 24) / 24) * 100}%`;
+  return (
+    <div
+      style={{ flexBasis: width, maxWidth: width, ...(style || {}) }}
+      className={`min-w-0 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Avatar: round bg with optional color tint and image src.
+function Avatar({
+  size,
+  color,
+  src,
+  alt,
+  shape,
+  style,
+  className = '',
+  children,
+}) {
+  const sizeCls =
+    size === 'small' ? 'h-8 w-8' : size === 'large' ? 'h-12 w-12' : 'h-10 w-10';
+  const shapeCls = shape === 'square' ? 'rounded-md' : 'rounded-full';
+  const TONE = {
+    blue: 'bg-primary/10 text-primary',
+    green: 'bg-success/10 text-success',
+    purple:
+      'bg-[color-mix(in_oklab,var(--app-primary)_8%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_82%,var(--app-foreground))]',
+    orange: 'bg-warning/10 text-warning',
+    teal: 'bg-success/10 text-success',
+    red: 'bg-danger/10 text-danger',
+  };
+  const tone = TONE[color] || 'bg-surface-secondary text-muted';
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={alt || ''}
+        style={style}
+        className={`${sizeCls} ${shapeCls} object-cover ${className}`}
+      />
+    );
+  }
+  return (
+    <div
+      style={style}
+      className={`flex shrink-0 items-center justify-center ${sizeCls} ${shapeCls} ${tone} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Banner: tinted info/warning/error block.
+function Banner({
+  type = 'info',
+  description,
+  title,
+  icon,
+  style,
+  className = '',
+  // eslint-disable-next-line no-unused-vars
+  closeIcon,
+  // eslint-disable-next-line no-unused-vars
+  fullMode,
+  // eslint-disable-next-line no-unused-vars
+  bordered,
+}) {
+  const tone =
+    type === 'warning'
+      ? 'border-warning/30 bg-warning/5'
+      : type === 'danger' || type === 'error'
+        ? 'border-danger/30 bg-danger/5'
+        : type === 'success'
+          ? 'border-success/30 bg-success/5'
+          : 'border-primary/20 bg-primary/5';
+  return (
+    <div
+      style={style}
+      className={`flex items-start gap-2 rounded-xl border ${tone} px-3 py-2 text-sm text-foreground ${className}`}
+    >
+      {icon ? <span className='mt-0.5 shrink-0'>{icon}</span> : null}
+      <div className='flex-1 break-words'>
+        {title ? <div className='mb-0.5 font-semibold'>{title}</div> : null}
+        {description}
+      </div>
+    </div>
+  );
+}
+
+// Spin: simple wrapper around HeroUI's Spinner that respects Semi's
+// `spinning` flag + child overlay layout.
+function Spin({ spinning, size, tip, children, style, className = '' }) {
+  if (children == null) {
+    return (
+      <div
+        style={style}
+        className={`inline-flex items-center gap-2 ${className}`}
+      >
+        <span className='inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary' />
+        {tip ? <span className='text-xs text-muted'>{tip}</span> : null}
+      </div>
+    );
+  }
+  return (
+    <div
+      style={style}
+      className={`relative ${className}`}
+    >
+      {children}
+      {spinning ? (
+        <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px]'>
+          <span className='inline-block h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary' />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Checkbox shim with Semi's `checked/onChange(event)` API.
+function Checkbox({
+  checked,
+  onChange,
+  disabled,
+  className = '',
+  style,
+  children,
+}) {
+  return (
+    <label
+      style={style}
+      className={`inline-flex cursor-pointer items-center gap-2 text-sm text-foreground ${className}`}
+    >
+      <input
+        type='checkbox'
+        checked={!!checked}
+        onChange={(event) =>
+          onChange?.({ target: { checked: event.target.checked } })
+        }
+        disabled={disabled}
+        className='h-4 w-4 accent-primary'
+      />
+      {children ? <span>{children}</span> : null}
+    </label>
+  );
+}
+
+// Highlight: simple wrapper that renders the source text and bolds the
+// matched keyword(s). Fallback to plain text if `searchWords` is empty.
+function Highlight({
+  sourceString,
+  searchWords,
+  className = '',
+  style,
+}) {
+  const text = sourceString ?? '';
+  const words = (searchWords || []).filter(Boolean);
+  if (words.length === 0)
+    return (
+      <span style={style} className={className}>
+        {text}
+      </span>
+    );
+  const pattern = new RegExp(
+    `(${words
+      .map((w) => String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|')})`,
+    'gi',
+  );
+  const parts = text.split(pattern);
+  return (
+    <span style={style} className={className}>
+      {parts.map((part, idx) => {
+        if (
+          words.some(
+            (w) => String(w).toLowerCase() === String(part).toLowerCase(),
+          )
+        ) {
+          return (
+            <mark
+              key={idx}
+              className='bg-warning/20 text-foreground'
+            >
+              {part}
+            </mark>
+          );
+        }
+        return <React.Fragment key={idx}>{part}</React.Fragment>;
+      })}
+    </span>
+  );
+}
+
+// ImagePreview: minimal wrapper used only as a passthrough container when
+// preview is requested. The original API is rich; here we just render the
+// children element. Passes `src` through if used directly as <ImagePreview src=>.
+function ImagePreview({ src, alt, children, style, className = '' }) {
+  if (children) return children;
+  if (!src) return null;
+  return <img src={src} alt={alt || ''} style={style} className={className} />;
+}
+
+// Dropdown: click-triggered menu. Mirrors Semi's `<Dropdown trigger
+// position menu><triggerNode /></Dropdown>` API.
+function Dropdown({
+  trigger = 'click',
+  position,
+  menu = [],
+  className = '',
+  style,
+  children,
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  const place =
+    position === 'bottomRight'
+      ? 'right-0 top-full mt-1'
+      : position === 'bottomLeft'
+        ? 'left-0 top-full mt-1'
+        : position === 'topRight'
+          ? 'right-0 bottom-full mb-1'
+          : position === 'topLeft'
+            ? 'left-0 bottom-full mb-1'
+            : 'left-0 top-full mt-1';
+
+  return (
+    <span
+      ref={ref}
+      style={style}
+      className={`relative inline-flex ${className}`}
+    >
+      <span
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((v) => !v);
+        }}
+      >
+        {children}
+      </span>
+      {open ? (
+        <div
+          role='menu'
+          className={`absolute z-50 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-background shadow-lg ${place}`}
+        >
+          {menu.map((item, idx) => {
+            if (item.node === 'divider') {
+              return (
+                <div
+                  key={`divider-${idx}`}
+                  className='my-1 h-px bg-[color:var(--app-border)]'
+                />
+              );
+            }
+            return (
+              <button
+                key={item.key ?? `item-${idx}`}
+                type='button'
+                role='menuitem'
+                disabled={item.disabled}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setOpen(false);
+                  item.onClick?.();
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  item.danger
+                    ? 'text-danger hover:bg-danger/5'
+                    : 'text-foreground hover:bg-surface-secondary'
+                }`}
+              >
+                {item.icon}
+                <span className='min-w-0 flex-1'>{item.name}</span>
+                {item.suffix}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </span>
+  );
+}
+
+// Collapse / Collapse.Panel: controlled accordion (mirrors Semi).
+function Collapse({ activeKey, onChange, className = '', children }) {
+  const panels = React.Children.toArray(children).filter(Boolean);
+  const activeKeys = Array.isArray(activeKey)
+    ? activeKey
+    : activeKey != null
+      ? [activeKey]
+      : [];
+  const togglePanel = (key) => {
+    if (!key) return;
+    const isOpen = activeKeys.includes(key);
+    const next = isOpen
+      ? activeKeys.filter((k) => k !== key)
+      : [...activeKeys, key];
+    onChange?.(next);
+  };
+  return (
+    <div className={`flex flex-col gap-1.5 ${className}`}>
+      {panels.map((panel) => {
+        const { itemKey, header, children: panelChildren } = panel.props;
+        const open = activeKeys.includes(itemKey);
+        return (
+          <div
+            key={itemKey}
+            className='overflow-hidden rounded-xl border border-border bg-background'
+          >
+            <button
+              type='button'
+              onClick={() => togglePanel(itemKey)}
+              className='flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-surface-secondary'
+            >
+              <span className='min-w-0 flex-1'>{header}</span>
+              <ChevronDown
+                size={16}
+                className={`shrink-0 text-muted transition-transform ${
+                  open ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {open ? (
+              <div className='border-t border-border px-3 py-3'>
+                {panelChildren}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+Collapse.Panel = function CollapsePanel() {
+  return null;
+};
+
+// Modal shim w/ imperative `Modal.confirm({title,content,onOk,onCancel})`
+// API. The imperative bridge mounts a `<ConfirmDialog>` via a simple
+// document-level singleton container, returning a handle with `.destroy()`.
+function Modal({
+  title,
+  visible,
+  width,
+  bodyStyle,
+  style,
+  onCancel,
+  onOk,
+  okText,
+  cancelText,
+  footer,
+  closable,
+  centered,
+  children,
+}) {
+  // eslint-disable-next-line no-unused-vars
+  const _centered = centered;
+  // eslint-disable-next-line no-unused-vars
+  const _closable = closable;
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
+  const dialogStyle =
+    typeof width === 'number'
+      ? { ...(style || {}), maxWidth: width }
+      : style;
+  return (
+    <HeroModal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer
+          size='4xl'
+          placement='center'
+          className='max-w-[95vw]'
+          style={dialogStyle}
+        >
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            {title ? (
+              <ModalHeader className='border-b border-border'>
+                <span>{title}</span>
+              </ModalHeader>
+            ) : null}
+            <ModalBody style={bodyStyle} className='px-6 py-5'>
+              {children}
+            </ModalBody>
+            {footer === null ? null : footer ? (
+              <ModalFooter className='border-t border-border'>
+                {footer}
+              </ModalFooter>
+            ) : (
+              <ModalFooter className='border-t border-border'>
+                <Button variant='light' onPress={onCancel}>
+                  {cancelText}
+                </Button>
+                <Button color='primary' onPress={onOk}>
+                  {okText}
+                </Button>
+              </ModalFooter>
+            )}
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
+    </HeroModal>
+  );
+}
+
+// Imperative `Modal.confirm(...)` bridge. The first call creates a singleton
+// React root that owns a small `<ImperativeConfirm>` component; subsequent
+// calls open/close that singleton. Mirrors the subset of options used in
+// this file (`title`, `content`, `onOk`, `onCancel`, `okType`).
+let imperativeConfirmHandle = null;
+
+function ImperativeConfirm({ controller }) {
+  const [config, setConfig] = useState(null);
+  useEffect(() => {
+    controller.set = (next) => setConfig(next);
+  }, [controller]);
+  if (!config) return null;
+  return (
+    <ConfirmDialog
+      visible
+      title={config.title}
+      cancelText={config.cancelText || '取消'}
+      confirmText={config.okText || '确认'}
+      danger={config.okType === 'danger'}
+      onCancel={async () => {
+        await config.onCancel?.();
+        setConfig(null);
+      }}
+      onConfirm={async () => {
+        await config.onOk?.();
+        setConfig(null);
+      }}
+    >
+      {config.content}
+    </ConfirmDialog>
+  );
+}
+
+function ImperativeConfirmHost() {
+  const controller = useRef({ set: () => {} }).current;
+  if (imperativeConfirmHandle == null) {
+    imperativeConfirmHandle = {
+      open: (config) => controller.set(config),
+      close: () => controller.set(null),
+    };
+  }
+  return <ImperativeConfirm controller={controller} />;
+}
+
+Modal.confirm = (config) => {
+  // Defer to the singleton; if it hasn't mounted yet, queue via microtask.
+  Promise.resolve().then(() => {
+    if (imperativeConfirmHandle?.open) {
+      imperativeConfirmHandle.open(config);
+    }
+  });
+  return {
+    destroy: () => imperativeConfirmHandle?.close?.(),
+  };
+};
+
+// SideSheet: right/left slide panel.
+function SideSheet({
+  title,
+  visible,
+  placement = 'right',
+  width = 600,
+  bodyStyle,
+  footer,
+  onCancel,
+  closeIcon,
+  className = '',
+  children,
+}) {
+  // eslint-disable-next-line no-unused-vars
+  const _closeIcon = closeIcon;
+  const slideClose =
+    placement === 'left' ? '-translate-x-full' : 'translate-x-full';
+  const positionCls =
+    placement === 'left'
+      ? 'fixed bottom-0 left-0 top-0'
+      : 'fixed bottom-0 right-0 top-0';
+  return (
+    <>
+      <div
+        aria-hidden={!visible}
+        onClick={onCancel}
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
+          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+      <aside
+        role='dialog'
+        aria-modal='true'
+        aria-hidden={!visible}
+        style={{ width }}
+        className={`${positionCls} z-50 flex w-full max-w-full flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
+          visible ? 'translate-x-0' : slideClose
+        } ${className}`}
+      >
+        {title ? (
+          <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
+            <div className='min-w-0 flex-1'>{title}</div>
+            <Button
+              isIconOnly
+              variant='light'
+              size='sm'
+              aria-label='close'
+              onPress={onCancel}
+            >
+              <CloseIcon size={16} />
+            </Button>
+          </header>
+        ) : null}
+        <div
+          style={bodyStyle}
+          className='relative flex-1 overflow-y-auto'
+        >
+          {children}
+        </div>
+        {footer ? (
+          <footer className='border-t border-border bg-background px-5 py-3'>
+            {footer}
+          </footer>
+        ) : null}
+      </aside>
+    </>
+  );
+}
+
+// ----------------------------- Form context shim -----------------------------
+//
+// Semi's `<Form initValues>` provides a context that auto-binds `<Form.X
+// field='name'>`. We replicate the subset used here.
+
+const FormCtx = createContext(null);
+
+function Form({
+  initValues,
+  onSubmit,
+  onValueChange,
+  getFormApi,
+  className = '',
+  style,
+  children,
+}) {
+  const [values, setValues] = useState(() => ({ ...(initValues || {}) }));
+
+  // Track previous initValues identity so we can re-seed when caller swaps
+  // them out (e.g. when a form is re-keyed via `key={isEdit?'edit':'new'}`).
+  const initRef = useRef(initValues);
+  useEffect(() => {
+    if (initRef.current !== initValues) {
+      initRef.current = initValues;
+      setValues({ ...(initValues || {}) });
+    }
+  }, [initValues]);
+
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+
+  const setValue = useCallback(
+    (name, value) => {
+      setValues((prev) => {
+        const next = { ...prev, [name]: value };
+        valuesRef.current = next;
+        onValueChange?.(next);
+        return next;
+      });
+    },
+    [onValueChange],
+  );
+
+  const setValuesApi = useCallback(
+    (next) => {
+      const merged =
+        typeof next === 'function' ? next(valuesRef.current) : next;
+      setValues((prev) => {
+        const newVals = { ...prev, ...merged };
+        valuesRef.current = newVals;
+        onValueChange?.(newVals);
+        return newVals;
+      });
+    },
+    [onValueChange],
+  );
+
+  const getValue = useCallback((name) => valuesRef.current?.[name], []);
+  const getValues = useCallback(() => valuesRef.current, []);
+  const submitForm = useCallback(() => {
+    onSubmit?.(valuesRef.current);
+  }, [onSubmit]);
+  const validate = useCallback(
+    () => Promise.resolve(valuesRef.current),
+    [],
+  );
+  const reset = useCallback(() => {
+    setValues({ ...(initRef.current || {}) });
+  }, []);
+
+  const apiRef = useRef({
+    setValue,
+    setValues: setValuesApi,
+    getValue,
+    getValues,
+    submitForm,
+    validate,
+    reset,
+  });
+  apiRef.current.setValue = setValue;
+  apiRef.current.setValues = setValuesApi;
+  apiRef.current.getValue = getValue;
+  apiRef.current.getValues = getValues;
+  apiRef.current.submitForm = submitForm;
+  apiRef.current.validate = validate;
+  apiRef.current.reset = reset;
+
+  useEffect(() => {
+    if (typeof getFormApi === 'function') {
+      getFormApi(apiRef.current);
+    }
+  }, [getFormApi]);
+
+  const ctx = useMemo(
+    () => ({
+      values,
+      setValue,
+      setValues: setValuesApi,
+      getValue,
+      getValues,
+    }),
+    [values, setValue, setValuesApi, getValue, getValues],
+  );
+
+  // Render-prop or plain children pass-through. Semi's Form supports both.
+  const content =
+    typeof children === 'function'
+      ? children({ values, formApi: apiRef.current })
+      : children;
+
+  return (
+    <FormCtx.Provider value={ctx}>
+      <div style={style} className={className}>
+        {content}
+      </div>
+    </FormCtx.Provider>
+  );
+}
+
+const fieldFromCtx = (field) => {
+  const ctx = useContext(FormCtx);
+  if (!ctx) return [undefined, () => {}];
+  return [ctx.values?.[field], (value) => ctx.setValue(field, value)];
+};
+
+// --- Field-level shims --- //
+
+const fieldInputClass =
+  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+const fieldTextareaClass =
+  'w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+
+function fieldLabelNode(label) {
+  if (!label) return null;
+  return (
+    <label className='mb-1 block text-sm font-medium text-foreground'>
+      {label}
+    </label>
+  );
+}
+
+function fieldExtraNode(extraText) {
+  if (!extraText) return null;
+  if (typeof extraText === 'string') {
+    return <div className='mt-1 text-xs text-muted'>{extraText}</div>;
+  }
+  return <div className='mt-1 text-xs text-muted'>{extraText}</div>;
+}
+
+Form.Input = function FormInput({
+  field,
+  label,
+  placeholder,
+  type = 'text',
+  disabled,
+  readOnly,
+  prefix,
+  suffix,
+  showClear,
+  noLabel,
+  extraText,
+  rules,
+  onChange,
+  onEnterPress,
+  style,
+  className = '',
+  // eslint-disable-next-line no-unused-vars
+  trigger,
+}) {
+  // eslint-disable-next-line no-unused-vars
+  const _rules = rules;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [value, setVal] = fieldFromCtx(field);
+  const padLeft = prefix ? 'pl-9' : '';
+  const padRight = suffix || (showClear && (value ?? '') !== '') ? 'pr-9' : '';
+  return (
+    <div style={style} className={`mb-3 ${className}`}>
+      {!noLabel ? fieldLabelNode(label) : null}
+      <div className='relative'>
+        {prefix ? (
+          <span className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted'>
+            {prefix}
+          </span>
+        ) : null}
+        <input
+          type={type}
+          value={value ?? ''}
+          onChange={(event) => {
+            const next = event.target.value;
+            setVal(next);
+            onChange?.(next);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') onEnterPress?.();
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          readOnly={readOnly}
+          className={`${fieldInputClass} ${padLeft} ${padRight}`}
+        />
+        {suffix ? (
+          <span className='absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center'>
+            {suffix}
+          </span>
+        ) : showClear && (value ?? '') !== '' && !disabled && !readOnly ? (
+          <button
+            type='button'
+            onClick={() => {
+              setVal('');
+              onChange?.('');
+            }}
+            aria-label='clear'
+            className='absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-surface-secondary p-1 text-muted hover:text-foreground'
+          >
+            <CloseIcon size={12} />
+          </button>
+        ) : null}
+      </div>
+      {fieldExtraNode(extraText)}
+    </div>
+  );
+};
+
+Form.InputNumber = function FormInputNumber({
+  field,
+  label,
+  placeholder,
+  min,
+  max,
+  step,
+  precision,
+  disabled,
+  noLabel,
+  extraText,
+  onChange,
+  style,
+  className = '',
+}) {
+  // eslint-disable-next-line no-unused-vars
+  const _precision = precision;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [value, setVal] = fieldFromCtx(field);
+  return (
+    <div style={style} className={`mb-3 ${className}`}>
+      {!noLabel ? fieldLabelNode(label) : null}
+      <input
+        type='number'
+        value={value ?? ''}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={(event) => {
+          const raw = event.target.value;
+          if (raw === '' || raw === null) {
+            setVal('');
+            onChange?.('');
+            return;
+          }
+          const num = Number(raw);
+          if (Number.isNaN(num)) return;
+          setVal(num);
+          onChange?.(num);
+        }}
+        className={fieldInputClass}
+      />
+      {fieldExtraNode(extraText)}
+    </div>
+  );
+};
+
+Form.TextArea = function FormTextArea({
+  field,
+  label,
+  placeholder,
+  autosize,
+  rows,
+  disabled,
+  readOnly,
+  noLabel,
+  extraText,
+  showClear,
+  onChange,
+  style,
+  className = '',
+  // eslint-disable-next-line no-unused-vars
+  rules,
+  // eslint-disable-next-line no-unused-vars
+  trigger,
+  // eslint-disable-next-line no-unused-vars
+  stopValidateWithError,
+}) {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [value, setVal] = fieldFromCtx(field);
+  const minRows = autosize?.minRows ?? rows ?? 4;
+  return (
+    <div style={style} className={`mb-3 ${className}`}>
+      {!noLabel ? fieldLabelNode(label) : null}
+      <div className='relative'>
+        <textarea
+          value={value ?? ''}
+          onChange={(event) => {
+            const next = event.target.value;
+            setVal(next);
+            onChange?.(next);
+          }}
+          placeholder={placeholder}
+          rows={minRows}
+          disabled={disabled}
+          readOnly={readOnly}
+          className={`${fieldTextareaClass} font-mono text-xs`}
+        />
+        {showClear && (value ?? '') !== '' && !disabled && !readOnly ? (
+          <button
+            type='button'
+            onClick={() => {
+              setVal('');
+              onChange?.('');
+            }}
+            aria-label='clear'
+            className='absolute right-2 top-2 rounded-full bg-surface-secondary p-1 text-muted hover:text-foreground'
+          >
+            <CloseIcon size={12} />
+          </button>
+        ) : null}
+      </div>
+      {fieldExtraNode(extraText)}
+    </div>
+  );
+};
+
+Form.Switch = function FormSwitch({
+  field,
+  label,
+  disabled,
+  size,
+  noLabel,
+  extraText,
+  onChange,
+  style,
+  className = '',
+  // eslint-disable-next-line no-unused-vars
+  checkedText,
+  // eslint-disable-next-line no-unused-vars
+  uncheckedText,
+}) {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [value, setVal] = fieldFromCtx(field);
+  return (
+    <div style={style} className={`mb-3 ${className}`}>
+      <div className='flex items-start justify-between gap-3'>
+        {!noLabel ? (
+          <div className='space-y-1'>
+            <div className='text-sm font-medium text-foreground'>{label}</div>
+            {extraText ? (
+              <div className='text-xs text-muted'>{extraText}</div>
+            ) : null}
+          </div>
+        ) : null}
+        <HeroSwitch
+          isSelected={!!value}
+          onValueChange={(next) => {
+            setVal(next);
+            onChange?.(next);
+          }}
+          isDisabled={disabled}
+          size={size === 'large' ? 'lg' : 'md'}
+          aria-label={typeof label === 'string' ? label : field}
+        >
+          <HeroSwitch.Control>
+            <HeroSwitch.Thumb />
+          </HeroSwitch.Control>
+        </HeroSwitch>
+      </div>
+      {noLabel && extraText ? fieldExtraNode(extraText) : null}
+    </div>
+  );
+};
+
+Form.Checkbox = function FormCheckbox({
+  field,
+  noLabel,
+  disabled,
+  extraText,
+  onChange,
+  style,
+  className = '',
+  children,
+}) {
+  // eslint-disable-next-line no-unused-vars
+  const _noLabel = noLabel;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [value, setVal] = fieldFromCtx(field);
+  return (
+    <div style={style} className={`mb-2 ${className}`}>
+      <label className='inline-flex cursor-pointer items-start gap-2 text-sm text-foreground'>
+        <input
+          type='checkbox'
+          checked={!!value}
+          disabled={disabled}
+          onChange={(event) => {
+            const next = event.target.checked;
+            setVal(next);
+            onChange?.({ target: { checked: next } });
+          }}
+          className='mt-0.5 h-4 w-4 accent-primary'
+        />
+        {children ? <span>{children}</span> : null}
+      </label>
+      {fieldExtraNode(extraText)}
+    </div>
+  );
+};
+
+Form.Select = function FormSelect({
+  field,
+  label,
+  placeholder,
+  optionList = [],
+  multiple,
+  disabled,
+  noLabel,
+  extraText,
+  onChange,
+  style,
+  className = '',
+  // Semi extras we ignore for now:
+  // eslint-disable-next-line no-unused-vars
+  filter,
+  // eslint-disable-next-line no-unused-vars
+  showClear,
+  // eslint-disable-next-line no-unused-vars
+  dropdownStyle,
+  // eslint-disable-next-line no-unused-vars
+  renderSelectedItem,
+  // eslint-disable-next-line no-unused-vars
+  rules,
+  // eslint-disable-next-line no-unused-vars
+  innerBottomSlot,
+  // eslint-disable-next-line no-unused-vars
+  onSearch,
+  // eslint-disable-next-line no-unused-vars
+  searchPosition,
+  // eslint-disable-next-line no-unused-vars
+  autoClearSearchValue,
+  // eslint-disable-next-line no-unused-vars
+  allowAdditions,
+  // eslint-disable-next-line no-unused-vars
+  additionLabel,
+  // eslint-disable-next-line no-unused-vars
+  allowCreate,
+  // eslint-disable-next-line no-unused-vars
+  loading,
+  children,
+}) {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [value, setVal] = fieldFromCtx(field);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const childOptions = useMemo(() => {
+    if (optionList.length > 0) return optionList;
+    return React.Children.toArray(children)
+      .filter((c) => c && c.props && c.props.value !== undefined)
+      .map((c) => ({
+        label: c.props.children ?? c.props.label ?? c.props.value,
+        value: c.props.value,
+        disabled: c.props.disabled,
+      }));
+  }, [optionList, children]);
+
+  if (multiple) {
+    const selected = Array.isArray(value) ? value : [];
+    const handleChange = (event) => {
+      const opts = Array.from(event.target.selectedOptions).map(
+        (o) => o.value,
+      );
+      // map back to original types where possible
+      const next = childOptions
+        .filter((opt) => opts.includes(String(opt.value)))
+        .map((opt) => opt.value);
+      setVal(next);
+      onChange?.(next);
+    };
+    return (
+      <div style={style} className={`mb-3 ${className}`}>
+        {!noLabel ? fieldLabelNode(label) : null}
+        <select
+          multiple
+          disabled={disabled}
+          value={selected.map(String)}
+          onChange={handleChange}
+          className={`${fieldInputClass} h-auto min-h-[80px]`}
+        >
+          {childOptions.map((opt) => (
+            <option
+              key={String(opt.value)}
+              value={String(opt.value)}
+              disabled={opt.disabled}
+            >
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {fieldExtraNode(extraText)}
+      </div>
+    );
+  }
+
+  return (
+    <div style={style} className={`mb-3 ${className}`}>
+      {!noLabel ? fieldLabelNode(label) : null}
+      <select
+        disabled={disabled}
+        value={value === undefined || value === null ? '' : String(value)}
+        onChange={(event) => {
+          const raw = event.target.value;
+          // map string back to original value (number/string/etc.)
+          const opt = childOptions.find((o) => String(o.value) === raw);
+          const next = opt ? opt.value : raw;
+          setVal(next);
+          onChange?.(next);
+        }}
+        className={fieldInputClass}
+      >
+        <option value=''>{placeholder ?? ''}</option>
+        {childOptions.map((opt) => (
+          <option
+            key={String(opt.value)}
+            value={String(opt.value)}
+            disabled={opt.disabled}
+          >
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      {fieldExtraNode(extraText)}
+    </div>
+  );
+};
+
+// `<Form.Select.Option value>` placeholder so the existing `<Option value=...>`
+// children compile. The actual rendering is handled by the parent
+// `<select>` based on the children iteration above.
+Form.Select.Option = function FormSelectOption() {
+  return null;
+};
+
+Form.TagInput = function FormTagInput({
+  field,
+  label,
+  placeholder,
+  noLabel,
+  extraText,
+  onChange,
+  style,
+  className = '',
+  // eslint-disable-next-line no-unused-vars
+  addOnBlur,
+  // eslint-disable-next-line no-unused-vars
+  showClear,
+}) {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [value, setVal] = fieldFromCtx(field);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [draft, setDraft] = useState('');
+  const tags = Array.isArray(value) ? value : [];
+  const commit = (raw) => {
+    const parsed = String(raw || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parsed.length === 0) return;
+    const merged = [...new Set([...tags, ...parsed])];
+    setVal(merged);
+    onChange?.(merged);
+    setDraft('');
+  };
+  const removeAt = (idx) => {
+    const next = tags.filter((_, i) => i !== idx);
+    setVal(next);
+    onChange?.(next);
+  };
+  return (
+    <div style={style} className={`mb-3 ${className}`}>
+      {!noLabel ? fieldLabelNode(label) : null}
+      <div className='flex min-h-[40px] flex-wrap items-center gap-1.5 rounded-xl border border-border bg-background px-2 py-1.5 text-sm focus-within:border-primary'>
+        {tags.map((tag, idx) => (
+          <span
+            key={`${tag}-${idx}`}
+            className='inline-flex items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs'
+          >
+            <span>{tag}</span>
+            <button
+              type='button'
+              onClick={() => removeAt(idx)}
+              aria-label='remove'
+              className='text-muted hover:text-foreground'
+            >
+              <CloseIcon size={12} />
+            </button>
+          </span>
+        ))}
+        <input
+          type='text'
+          value={draft}
+          onChange={(event) => {
+            const v = event.target.value;
+            if (v.endsWith(',')) commit(v.slice(0, -1));
+            else setDraft(v);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              commit(draft);
+            } else if (
+              event.key === 'Backspace' &&
+              draft === '' &&
+              tags.length > 0
+            ) {
+              removeAt(tags.length - 1);
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) commit(draft);
+          }}
+          placeholder={tags.length === 0 ? placeholder : ''}
+          className='min-w-[120px] flex-1 bg-transparent text-foreground outline-none placeholder:text-muted'
+        />
+      </div>
+      {fieldExtraNode(extraText)}
+    </div>
+  );
+};
+
+Form.Section = function FormSection({ text, className = '', children }) {
+  return (
+    <div className={`space-y-3 ${className}`}>
+      {text ? (
+        <div className='border-b border-border pb-2 text-base font-semibold text-foreground'>
+          {text}
+        </div>
+      ) : null}
+      {children}
+    </div>
+  );
+};
+
+Form.Slot = function FormSlot({ label, className = '', children }) {
+  return (
+    <div className={`mb-3 ${className}`}>
+      {label ? fieldLabelNode(label) : null}
+      {children}
+    </div>
+  );
+};
+
+// `Input` adapter from @heroui/react: HeroUI v3 Input has a
+// `<Input.Control><Input.Element /></Input.Control>` anatomy. Some legacy
+// callers in this file still pass plain `value`/`onChange(value)`/`prefix`/
+// `suffix`/`disabled` etc., so we wrap with a thin shim.
+function Input({
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  disabled,
+  readOnly,
+  prefix,
+  suffix,
+  showClear,
+  style,
+  className = '',
+  onEnterPress,
+  onKeyDown,
+  ...rest
+}) {
+  // eslint-disable-next-line no-unused-vars
+  const _heroOnly = HeroInput;
+  const padLeft = prefix ? 'pl-9' : '';
+  const padRight = suffix || (showClear && (value ?? '') !== '') ? 'pr-9' : '';
+  return (
+    <div className='relative' style={style}>
+      {prefix ? (
+        <span className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted'>
+          {prefix}
+        </span>
+      ) : null}
+      <input
+        type={type}
+        value={value ?? ''}
+        onChange={(event) => onChange?.(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onEnterPress?.();
+          onKeyDown?.(event);
+        }}
+        placeholder={placeholder}
+        disabled={disabled}
+        readOnly={readOnly}
+        className={`h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50 ${padLeft} ${padRight} ${className}`}
+        {...rest}
+      />
+      {suffix ? (
+        <span className='absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center'>
+          {suffix}
+        </span>
+      ) : showClear && (value ?? '') !== '' && !disabled && !readOnly ? (
+        <button
+          type='button'
+          onClick={() => onChange?.('')}
+          aria-label='clear'
+          className='absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-surface-secondary p-1 text-muted hover:text-foreground'
+        >
+          <CloseIcon size={12} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+// Lucide icon aliases for HeroIconsCompat names used in this file.
+const IconSave = (props) => <Save size={14} {...props} />;
+const IconClose = (props) => <CloseIcon size={14} {...props} />;
+const IconServer = (props) => <Server size={14} {...props} />;
+const IconSetting = (props) => <Settings size={14} {...props} />;
+const IconCode = (props) => <Code2 size={14} {...props} />;
+const IconCopy = (props) => <CopyIcon size={14} {...props} />;
+const IconGlobe = (props) => <Globe size={14} {...props} />;
+const IconBolt = (props) => <Bolt size={14} {...props} />;
+const IconSearch = (props) => <Search size={14} {...props} />;
+const IconChevronDown = (props) => <ChevronDown size={14} {...props} />;
+// eslint-disable-next-line no-unused-vars
+const IconCheck = (props) => <Check size={14} {...props} />;
+// eslint-disable-next-line no-unused-vars
+const IconDelete = (props) => <Trash2 size={14} {...props} />;
 
 const MODEL_MAPPING_EXAMPLE = {
   'gpt-3.5-turbo': 'gpt-3.5-turbo-0125',
@@ -2071,7 +3567,7 @@ const EditChannelModal = (props) => {
       selected &&
         'bg-blue-100 text-blue-700 shadow-lg ring-2 ring-blue-200 ring-opacity-50',
       disabled && 'opacity-50 cursor-not-allowed',
-      !disabled && 'hover:bg-gray-50 hover:shadow-md cursor-pointer',
+      !disabled && 'hover:bg-surface-secondary hover:shadow-md cursor-pointer',
       className,
     ]
       .filter(Boolean)
@@ -2175,8 +3671,8 @@ const EditChannelModal = (props) => {
               <div className='space-y-4'>
                 {/* Upstream Model Management Section */}
                 {MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type) && (
-                <div className='pb-3 border-b border-gray-100'>
-                  <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                <div className='pb-3 border-b border-border'>
+                  <Text className='text-sm font-medium text-muted mb-3 block'>
                     {t('上游模型管理')}
                   </Text>
 
@@ -2223,13 +3719,13 @@ const EditChannelModal = (props) => {
                     }
                     showClear
                   />
-                  <div className='text-xs text-gray-500 mb-2'>
+                  <div className='text-xs text-muted mb-2'>
                     {t('上次检测时间')}:&nbsp;
                     {formatUnixTime(
                       inputs.upstream_model_update_last_check_time,
                     )}
                   </div>
-                  <div className='text-xs text-gray-500 mb-3'>
+                  <div className='text-xs text-muted mb-3'>
                     {t('上次检测到可加入模型')}:&nbsp;
                     {upstreamDetectedModels.length === 0 ? (
                       t('暂无')
@@ -2247,7 +3743,7 @@ const EditChannelModal = (props) => {
                             {upstreamDetectedModelsPreview.join(', ')}
                           </span>
                         </Tooltip>
-                        <span className='ml-1 text-gray-400'>
+                        <span className='ml-1 text-muted'>
                           {upstreamDetectedModelsOmittedCount > 0
                             ? t('（共 {{total}} 个，省略 {{omit}} 个）', {
                                 total: upstreamDetectedModels.length,
@@ -2264,8 +3760,8 @@ const EditChannelModal = (props) => {
                 )}
 
                 {/* Request Config Section */}
-                <div className='py-3 border-b border-gray-100'>
-                  <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                <div className='py-3 border-b border-border'>
+                  <Text className='text-sm font-medium text-muted mb-3 block'>
                     {t('请求配置')}
                   </Text>
 
@@ -2403,8 +3899,8 @@ const EditChannelModal = (props) => {
                 </div>
 
                 {/* Channel Behavior Section */}
-                <div className='py-3 border-b border-gray-100'>
-                  <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                <div className='py-3 border-b border-border'>
+                  <Text className='text-sm font-medium text-muted mb-3 block'>
                     {t('渠道行为')}
                   </Text>
 
@@ -2449,7 +3945,7 @@ const EditChannelModal = (props) => {
 
                   {inputs.type === 1 && (
                     <>
-                      <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
+                      <div className='mt-4 mb-2 text-sm font-medium text-foreground'>
                         {t('字段透传控制')}
                       </div>
                       <Form.Switch field='allow_service_tier' label={t('允许 service_tier 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_service_tier', value)} extraText={t('service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用')} />
@@ -2461,7 +3957,7 @@ const EditChannelModal = (props) => {
 
                   {inputs.type === 14 && (
                     <>
-                      <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
+                      <div className='mt-4 mb-2 text-sm font-medium text-foreground'>
                         {t('字段透传控制')}
                       </div>
                       <Form.Switch field='allow_service_tier' label={t('允许 service_tier 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_service_tier', value)} extraText={t('service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用')} />
@@ -2473,7 +3969,7 @@ const EditChannelModal = (props) => {
 
                 {/* Extra Settings Section */}
                 <div className='pt-3'>
-                  <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                  <Text className='text-sm font-medium text-muted mb-3 block'>
                     {t('额外设置')}
                   </Text>
 
@@ -2543,7 +4039,7 @@ const EditChannelModal = (props) => {
                       <Text className='text-lg font-medium'>
                         {t('核心配置')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='text-xs text-muted'>
                         {t('创建渠道所需的基本信息')}
                       </div>
                     </div>
@@ -3647,7 +5143,7 @@ const EditChannelModal = (props) => {
                 ) : (
                   /* Desktop: toggle button to open side panel */
                   <div
-                    className='flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-gray-50'
+                    className='flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-surface-secondary'
                     style={{
                       backgroundColor: advancedSettingsOpen ? 'color-mix(in srgb, var(--app-primary) 12%, transparent)' : 'var(--app-surface-muted)',
                       border: '1px solid var(--app-border)',
@@ -3725,7 +5221,7 @@ const EditChannelModal = (props) => {
                           <Text className='text-lg font-medium'>
                             {t('高级设置')}
                           </Text>
-                          <div className='text-xs text-gray-600'>
+                          <div className='text-xs text-muted'>
                             {t('渠道的高级配置选项')}
                           </div>
                         </div>
@@ -3905,6 +5401,10 @@ const EditChannelModal = (props) => {
           showSuccess(t('模型列表已追加更新'));
         }}
       />
+      {/* Imperative `Modal.confirm()` host: mounts a singleton dialog the
+          legacy code path drives via `Modal.confirm({ title, content, onOk })`
+          and the captured handle's `.destroy()`. */}
+      <ImperativeConfirmHost />
     </>
   );
 };

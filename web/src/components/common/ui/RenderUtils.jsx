@@ -50,7 +50,7 @@ export const renderDescription = (text, maxWidth = 200) => {
   const value = text || '-';
   return (
     <Tooltip content={value}>
-      <span className='block truncate text-sm text-slate-700 dark:text-slate-200' style={{ maxWidth }}>
+      <span className='block truncate text-sm text-foreground' style={{ maxWidth }}>
         {value}
       </span>
     </Tooltip>

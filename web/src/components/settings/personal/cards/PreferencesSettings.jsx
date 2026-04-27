@@ -17,167 +17,178 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useContext } from "react";
-import { Card } from '@heroui/react';
-import { Languages } from "lucide-react";
-import { useTranslation } from "react-i18next";
-import { API, showSuccess, showError } from "../../../../helpers";
-import { UserContext } from "../../../../context/User";
-import { normalizeLanguage } from "../../../../i18n/language";
+import React, { useState, useEffect, useContext } from 'react';
+import { Avatar, Card, ListBox } from '@heroui/react';
+import { CellSelect } from '@heroui-pro/react';
+import { ChevronsUpDown, Languages } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { API, showSuccess, showError } from '../../../../helpers';
+import { UserContext } from '../../../../context/User';
+import { normalizeLanguage } from '../../../../i18n/language';
 
-// Language options with native names
+// Only Chinese and English are surfaced as user-pickable options; other
+// locales remain bundled so saved preferences keep working.
 const languageOptions = [
-	{ value: "zh-CN", label: "简体中文" },
-	{ value: "zh-TW", label: "繁體中文" },
-	{ value: "en", label: "English" },
-	{ value: 'fr', label: 'Français'},
-	{ value: 'ru', label: 'Русский'},
-	{ value: 'ja', label: '日本語'},
-	{ value: "vi", label: "Tiếng Việt" },
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'en', label: 'English' },
 ];
 
 const PreferencesSettings = ({ t }) => {
-	const { i18n } = useTranslation();
-	const [userState, userDispatch] = useContext(UserContext);
-	const [currentLanguage, setCurrentLanguage] = useState(
-		normalizeLanguage(i18n.language) || "zh-CN",
-	);
-	const [loading, setLoading] = useState(false);
+  const { i18n } = useTranslation();
+  const [userState, userDispatch] = useContext(UserContext);
+  const [currentLanguage, setCurrentLanguage] = useState(
+    normalizeLanguage(i18n.language) || 'zh-CN',
+  );
+  const [loading, setLoading] = useState(false);
 
-	// Load saved language preference from user settings
-	useEffect(() => {
-		if (userState?.user?.setting) {
-			try {
-				const settings = JSON.parse(userState.user.setting);
-				if (settings.language) {
-					const lang = normalizeLanguage(settings.language);
-					setCurrentLanguage(lang);
-					// Sync i18n with saved preference
-					if (i18n.language !== lang) {
-						i18n.changeLanguage(lang);
-					}
-				}
-			} catch (e) {
-				// Ignore parse errors
-			}
-		}
-	}, [userState?.user?.setting, i18n]);
+  // Load saved language preference from user settings
+  useEffect(() => {
+    if (userState?.user?.setting) {
+      try {
+        const settings = JSON.parse(userState.user.setting);
+        if (settings.language) {
+          const lang = normalizeLanguage(settings.language);
+          setCurrentLanguage(lang);
+          if (i18n.language !== lang) {
+            i18n.changeLanguage(lang);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [userState?.user?.setting, i18n]);
 
-	const handleLanguagePreferenceChange = async (lang) => {
-		if (lang === currentLanguage) return;
+  const handleLanguagePreferenceChange = async (lang) => {
+    if (lang === currentLanguage) return;
 
-		setLoading(true);
+    setLoading(true);
 
-		// Apply UI change immediately and persist locally so the preference
-		// always sticks on this device, even if backend persistence fails.
-		setCurrentLanguage(lang);
-		i18n.changeLanguage(lang);
-		localStorage.setItem("i18nextLng", lang);
+    // Apply UI change immediately and persist locally so the preference
+    // always sticks on this device, even if backend persistence fails.
+    setCurrentLanguage(lang);
+    i18n.changeLanguage(lang);
+    localStorage.setItem('i18nextLng', lang);
 
-		// Mirror into cached user.setting so layout effects don't override it.
-		let settings = {};
-		if (userState?.user?.setting) {
-			try {
-				settings = JSON.parse(userState.user.setting) || {};
-			} catch (e) {
-				settings = {};
-			}
-		}
-		settings.language = lang;
-		if (userState?.user) {
-			const nextUser = {
-				...userState.user,
-				setting: JSON.stringify(settings),
-			};
-			userDispatch({ type: "login", payload: nextUser });
-			localStorage.setItem("user", JSON.stringify(nextUser));
-		}
+    // Mirror into cached user.setting so layout effects don't override it.
+    let settings = {};
+    if (userState?.user?.setting) {
+      try {
+        settings = JSON.parse(userState.user.setting) || {};
+      } catch (e) {
+        settings = {};
+      }
+    }
+    settings.language = lang;
+    if (userState?.user) {
+      const nextUser = {
+        ...userState.user,
+        setting: JSON.stringify(settings),
+      };
+      userDispatch({ type: 'login', payload: nextUser });
+      localStorage.setItem('user', JSON.stringify(nextUser));
+    }
 
-		try {
-			const res = await API.put(
-				"/api/user/self",
-				{ language: lang },
-				{ skipErrorHandler: true },
-			);
+    try {
+      const res = await API.put(
+        '/api/user/self',
+        { language: lang },
+        { skipErrorHandler: true },
+      );
 
-			if (res.data?.success) {
-				showSuccess(t("语言偏好已保存"));
-			} else {
-				// Backend rejected but local change is preserved; surface a
-				// non-blocking warning instead of reverting the user's choice.
-				showError(res.data?.message || t("保存失败"));
-			}
-		} catch (error) {
-			// Network/5xx error: keep the local language change so the user's
-			// intent is honored. Surface a non-blocking warning.
-			showError(t("保存失败，请重试"));
-		} finally {
-			setLoading(false);
-		}
-	};
+      if (res.data?.success) {
+        showSuccess(t('语言偏好已保存'));
+      } else {
+        showError(res.data?.message || t('保存失败'));
+      }
+    } catch (error) {
+      showError(t('保存失败，请重试'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-	return (
-		<Card className="!rounded-2xl shadow-sm border-0">
-			{/* Card Header */}
-			<div className="flex items-center mb-4">
-				<div className="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-violet-600 shadow-md dark:bg-violet-900/30 dark:text-violet-300">
-					<Languages size={16} />
-				</div>
-				<div>
-					<div className="text-lg font-medium text-foreground">
-						{t("偏好设置")}
-					</div>
-					<div className="text-xs text-gray-600 dark:text-gray-400">
-						{t("界面语言和其他个人偏好")}
-					</div>
-				</div>
-			</div>
-			{/* Language Setting Card */}
-			<Card className="!rounded-xl border dark:border-gray-700">
-				<div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
-					<div className="flex items-start w-full sm:w-auto">
-						<div className="w-12 h-12 rounded-full bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center mr-4 flex-shrink-0">
-							<Languages
-								size={20}
-								className="text-violet-600 dark:text-violet-400"
-							/>
-						</div>
-						<div>
-							<h6 className="mb-1 text-base font-semibold text-foreground">
-								{t("语言偏好")}
-							</h6>
-							<p className="text-sm text-muted">
-								{t("选择您的首选界面语言，设置将自动保存并同步到所有设备")}
-							</p>
-						</div>
-					</div>
-					<select
-						value={currentLanguage}
-						onChange={(event) =>
-							handleLanguagePreferenceChange(event.target.value)
-						}
-						disabled={loading}
-						className="h-10 w-[180px] rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
-					>
-						{languageOptions.map((opt) => (
-							<option key={opt.value} value={opt.value}>
-								{opt.label}
-							</option>
-						))}
-					</select>
-				</div>
-			</Card>
+  return (
+    <Card className='!rounded-2xl' shadow='none'>
+      <Card.Content className='p-5'>
+        {/* Card header */}
+        <div className='mb-4 flex items-center gap-3'>
+          <Avatar size='sm' className='shadow-md'>
+            <Avatar.Fallback className='!bg-violet-100 !text-violet-600 dark:!bg-violet-900/30 dark:!text-violet-300'>
+              <Languages size={16} />
+            </Avatar.Fallback>
+          </Avatar>
+          <div className='flex flex-col'>
+            <span className='text-base font-semibold text-foreground'>
+              {t('偏好设置')}
+            </span>
+            <span className='text-xs text-muted'>
+              {t('界面语言和其他个人偏好')}
+            </span>
+          </div>
+        </div>
 
-			{/* Additional info */}
-			<div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-				<span className="text-muted">
-					{t(
-						"提示：语言偏好会同步到您登录的所有设备，并影响API返回的错误消息语言。",
-					)}
-				</span>
-			</div>
-		</Card>
-	);
+        {/* Language preference row */}
+        <Card className='!rounded-xl' shadow='none'>
+          <Card.Content className='flex flex-col gap-3 p-4'>
+            <div className='flex items-start gap-3'>
+              <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/30'>
+                <Languages
+                  size={20}
+                  className='text-violet-600 dark:text-violet-400'
+                />
+              </div>
+              <div className='min-w-0 flex-1'>
+                <div className='mb-1 text-sm font-semibold text-foreground'>
+                  {t('语言偏好')}
+                </div>
+                <p className='text-xs text-muted'>
+                  {t('选择您的首选界面语言，设置将自动保存并同步到所有设备')}
+                </p>
+              </div>
+            </div>
+            <CellSelect
+              aria-label={t('语言偏好')}
+              isDisabled={loading}
+              selectedKey={currentLanguage}
+              onSelectionChange={(key) => {
+                if (key) handleLanguagePreferenceChange(String(key));
+              }}
+            >
+              <CellSelect.Trigger>
+                <CellSelect.Label>{t('界面语言')}</CellSelect.Label>
+                <CellSelect.Value />
+                <CellSelect.Indicator>
+                  <ChevronsUpDown size={14} />
+                </CellSelect.Indicator>
+              </CellSelect.Trigger>
+              <CellSelect.Popover>
+                <ListBox>
+                  {languageOptions.map((opt) => (
+                    <ListBox.Item
+                      key={opt.value}
+                      id={opt.value}
+                      textValue={opt.label}
+                    >
+                      {opt.label}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </CellSelect.Popover>
+            </CellSelect>
+          </Card.Content>
+        </Card>
+
+        {/* Helper text */}
+        <div className='mt-4 text-xs text-muted'>
+          {t(
+            '提示：语言偏好会同步到您登录的所有设备，并影响API返回的错误消息语言。',
+          )}
+        </div>
+      </Card.Content>
+    </Card>
+  );
 };
 
 export default PreferencesSettings;

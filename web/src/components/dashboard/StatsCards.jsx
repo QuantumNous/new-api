@@ -18,8 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Avatar, Button, Skeleton } from '@heroui/react';
-import { Widget } from '@heroui-pro/react';
+import { Avatar, Button, Card, Skeleton } from '@heroui/react';
 import { VChart } from '@visactor/react-vchart';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -35,36 +34,34 @@ const StatsCards = ({
   const { t } = useTranslation();
   return (
     <div className='mb-4'>
-      {/* Use 2-col through `lg` so each KPI card has enough room for the
-          avatar + label + value + sparkline row, then collapse to 4-col only
-          at xl where the main area is wide enough for ~280px per card. */}
-      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4'>
+      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
         {groupedStatsData.map((group, idx) => (
-          <Widget
+          <Card
             key={idx}
-            className={`w-full ${group.color || ''} ${CARD_PROPS?.className || ''}`}
+            className={`${group.color} w-full rounded-2xl border-0 ${CARD_PROPS?.className || ''}`}
+            shadow='none'
           >
-            <Widget.Header className='h-12'>{group.title}</Widget.Header>
-            {/* Tighten the default Widget.Content p-4 to p-3 so the inner shell
-                still has room for value + sparkline/button on narrow widths. */}
-            <Widget.Content className='space-y-4 p-3'>
+            <Card.Header>
+              <Card.Title className='text-base'>{group.title}</Card.Title>
+            </Card.Header>
+            <Card.Content className='space-y-4'>
               {group.items.map((item, itemIdx) => (
                 <div
                   key={itemIdx}
-                  className='flex items-center justify-between gap-2 cursor-pointer'
+                  className='flex items-center justify-between cursor-pointer'
                   onClick={item.onClick}
                 >
-                  <div className='flex items-center min-w-0 flex-1'>
+                  <div className='flex items-center'>
                     <Avatar
-                      className='mr-2 shrink-0'
+                      className='mr-3'
                       size='sm'
                       color={item.avatarColor}
                     >
                       <Avatar.Fallback>{item.icon}</Avatar.Fallback>
                     </Avatar>
-                    <div className='min-w-0'>
+                    <div>
                       <div className='text-xs text-muted'>{item.title}</div>
-                      <div className='text-base font-semibold tabular-nums text-foreground'>
+                      <div className='text-lg font-semibold tabular-nums text-foreground'>
                         {loading ? (
                           <Skeleton className='mt-1 h-6 w-16 rounded-lg' />
                         ) : (
@@ -75,9 +72,8 @@ const StatsCards = ({
                   </div>
                   {item.title === t('当前余额') ? (
                     <Button
-                      className='shrink-0'
                       size='sm'
-                      variant='primary'
+                      variant='secondary'
                       onPress={() => navigate('/console/topup')}
                     >
                       {t('充值')}
@@ -85,7 +81,7 @@ const StatsCards = ({
                   ) : (
                     (loading ||
                       (item.trendData && item.trendData.length > 0)) && (
-                      <div className='w-24 h-10 shrink-0'>
+                      <div className='w-24 h-10'>
                         <VChart
                           spec={getTrendSpec(item.trendData, item.trendColor)}
                           option={CHART_CONFIG}
@@ -95,8 +91,8 @@ const StatsCards = ({
                   )}
                 </div>
               ))}
-            </Widget.Content>
-          </Widget>
+            </Card.Content>
+          </Card>
         ))}
       </div>
     </div>

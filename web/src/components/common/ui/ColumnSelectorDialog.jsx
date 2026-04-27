@@ -64,8 +64,8 @@ const ColumnSelectorDialog = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='2xl' scroll='inside' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {title}
             </ModalHeader>
             <ModalBody className='px-4 py-4 md:px-6'>
@@ -78,7 +78,7 @@ const ColumnSelectorDialog = ({
                 >
                   {allText}
                 </Checkbox>
-                <div className='grid max-h-96 grid-cols-1 gap-3 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-2 dark:border-white/10 dark:bg-slate-900/60'>
+                <div className='grid max-h-96 grid-cols-1 gap-3 overflow-y-auto rounded-2xl border border-border bg-surface-secondary/70 p-4 sm:grid-cols-2'>
                   {columns.map((column) => (
                     <Checkbox
                       key={column.key}
@@ -92,7 +92,7 @@ const ColumnSelectorDialog = ({
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='flat' onPress={onReset}>
                 {resetText}
               </Button>

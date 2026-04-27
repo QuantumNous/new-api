@@ -6,28 +6,36 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Input } from '@heroui/react';
-import { Modal, Typography, List, Space, Spin, Popconfirm, Tag, Empty, Row, Col, Progress, Checkbox } from '@/components/common/ui/HeroCompat';
 import {
-  IconDownload,
-  IconDelete,
-  IconRefresh,
-  IconSearch,
-  IconPlus,
-} from '@/components/common/ui/HeroIconsCompat';
+  Button,
+  Card,
+  Input,
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  Spinner,
+  useOverlayState,
+} from '@heroui/react';
+import {
+  Download,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
 import {
   API,
   authHeader,
@@ -35,10 +43,44 @@ import {
   showError,
   showSuccess,
 } from '../../../../helpers';
-
-const { Text, Title } = Typography;
+import ConfirmDialog from '../../../common/ui/ConfirmDialog';
 
 const CHANNEL_TYPE_OLLAMA = 4;
+
+const TAG_TONE = {
+  blue: 'bg-primary/15 text-primary',
+  cyan: 'bg-[color-mix(in_oklab,var(--app-primary)_18%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_72%,var(--app-foreground))]',
+};
+
+function StatusChip({ tone = 'blue', children }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+        TAG_TONE[tone] || TAG_TONE.blue
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function ProgressBar({ percent, tone = 'primary' }) {
+  const safe = Math.max(0, Math.min(100, Number(percent) || 0));
+  const fill =
+    tone === 'success'
+      ? 'bg-success'
+      : tone === 'warning'
+        ? 'bg-warning'
+        : 'bg-primary';
+  return (
+    <div className='h-2 w-full overflow-hidden rounded-full bg-surface-secondary'>
+      <div
+        className={`h-full rounded-full transition-[width] duration-200 ${fill}`}
+        style={{ width: `${safe}%` }}
+      />
+    </div>
+  );
+}
 
 const parseMaybeJSON = (value) => {
   if (!value) return null;
@@ -54,20 +96,12 @@ const parseMaybeJSON = (value) => {
 };
 
 const resolveOllamaBaseUrl = (info) => {
-  if (!info) {
-    return '';
-  }
-
+  if (!info) return '';
   const direct = typeof info.base_url === 'string' ? info.base_url.trim() : '';
-  if (direct) {
-    return direct;
-  }
-
+  if (direct) return direct;
   const alt =
     typeof info.ollama_base_url === 'string' ? info.ollama_base_url.trim() : '';
-  if (alt) {
-    return alt;
-  }
+  if (alt) return alt;
 
   const parsed = parseMaybeJSON(info.other_info);
   if (parsed && typeof parsed === 'object') {
@@ -75,38 +109,26 @@ const resolveOllamaBaseUrl = (info) => {
       (typeof parsed.base_url === 'string' && parsed.base_url.trim()) ||
       (typeof parsed.public_url === 'string' && parsed.public_url.trim()) ||
       (typeof parsed.api_url === 'string' && parsed.api_url.trim());
-    if (candidate) {
-      return candidate;
-    }
+    if (candidate) return candidate;
   }
-
   return '';
 };
 
 const normalizeModels = (items) => {
-  if (!Array.isArray(items)) {
-    return [];
-  }
+  if (!Array.isArray(items)) return [];
 
   return items
     .map((item) => {
-      if (!item) {
-        return null;
-      }
+      if (!item) return null;
 
       if (typeof item === 'string') {
-        return {
-          id: item,
-          owned_by: 'ollama',
-        };
+        return { id: item, owned_by: 'ollama' };
       }
 
       if (typeof item === 'object') {
         const candidateId =
           item.id || item.ID || item.name || item.model || item.Model;
-        if (!candidateId) {
-          return null;
-        }
+        if (!candidateId) return null;
 
         const metadata = item.metadata || item.Metadata;
         const normalized = {
@@ -138,7 +160,6 @@ const normalizeModels = (items) => {
 
         return normalized;
       }
-
       return null;
     })
     .filter(Boolean);
@@ -155,30 +176,37 @@ const OllamaModelModal = ({
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [models, setModels] = useState([]);
-  const [filteredModels, setFilteredModels] = useState([]);
   const [searchValue, setSearchValue] = useState('');
   const [pullModelName, setPullModelName] = useState('');
   const [pullLoading, setPullLoading] = useState(false);
   const [pullProgress, setPullProgress] = useState(null);
   const [eventSource, setEventSource] = useState(null);
   const [selectedModelIds, setSelectedModelIds] = useState([]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const modalState = useOverlayState({
+    isOpen: visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
+
+  const filteredModels = useMemo(() => {
+    if (!searchValue) return models;
+    const needle = searchValue.toLowerCase();
+    return models.filter((model) => model.id.toLowerCase().includes(needle));
+  }, [models, searchValue]);
 
   const handleApplyAllModels = () => {
-    if (!onApplyModels || selectedModelIds.length === 0) {
-      return;
-    }
+    if (!onApplyModels || selectedModelIds.length === 0) return;
     onApplyModels({ mode: 'append', modelIds: selectedModelIds });
   };
 
   const handleToggleModel = (modelId, checked) => {
-    if (!modelId) {
-      return;
-    }
+    if (!modelId) return;
     setSelectedModelIds((prev) => {
       if (checked) {
-        if (prev.includes(modelId)) {
-          return prev;
-        }
+        if (prev.includes(modelId)) return prev;
         return [...prev, modelId];
       }
       return prev.filter((id) => id !== modelId);
@@ -193,7 +221,6 @@ const OllamaModelModal = ({
     setSelectedModelIds([]);
   };
 
-  // 获取模型列表
   const fetchModels = async () => {
     const channelType = Number(channelInfo?.type ?? CHANNEL_TYPE_OLLAMA);
     const shouldTryLiveFetch = channelType === CHANNEL_TYPE_OLLAMA;
@@ -226,9 +253,7 @@ const OllamaModelModal = ({
           }
         } catch (error) {
           const message = error?.response?.data?.message || error.message;
-          if (message) {
-            lastError = message;
-          }
+          if (message) lastError = message;
         }
       } else if (shouldTryLiveFetch && !resolvedBaseUrl && !channelId) {
         lastError = t('请先填写 Ollama API 地址');
@@ -249,9 +274,7 @@ const OllamaModelModal = ({
           }
         } catch (error) {
           const message = error?.response?.data?.message || error.message;
-          if (message) {
-            lastError = message;
-          }
+          if (message) lastError = message;
         }
       }
 
@@ -261,11 +284,8 @@ const OllamaModelModal = ({
 
       const normalized = nextModels;
       setModels(normalized);
-      setFilteredModels(normalized);
       setSelectedModelIds((prev) => {
-        if (!normalized || normalized.length === 0) {
-          return [];
-        }
+        if (!normalized || normalized.length === 0) return [];
         if (!prev || prev.length === 0) {
           return normalized.map((item) => item.id).filter(Boolean);
         }
@@ -281,7 +301,6 @@ const OllamaModelModal = ({
     }
   };
 
-  // 拉取模型 (流式，支持进度)
   const pullModel = async () => {
     if (!pullModelName.trim()) {
       showError(t('请输入模型名称'));
@@ -296,25 +315,19 @@ const OllamaModelModal = ({
       if (hasRefreshed) return;
       hasRefreshed = true;
       await fetchModels();
-      if (onModelsUpdate) {
-        onModelsUpdate({ silent: true });
-      }
+      if (onModelsUpdate) onModelsUpdate({ silent: true });
     };
 
     try {
-      // 关闭之前的连接
       if (eventSource) {
         eventSource.close();
         setEventSource(null);
       }
 
       const controller = new AbortController();
-      const closable = {
-        close: () => controller.abort(),
-      };
+      const closable = { close: () => controller.abort() };
       setEventSource(closable);
 
-      // 使用 fetch 请求 SSE 流
       const authHeaders = authHeader();
       const userId = getUserIdFromLocalStorage();
       const fetchHeaders = {
@@ -342,12 +355,10 @@ const OllamaModelModal = ({
       const decoder = new TextDecoder();
       let buffer = '';
 
-      // 读取 SSE 流
       const processStream = async () => {
         try {
           while (true) {
             const { done, value } = await reader.read();
-
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
@@ -355,9 +366,7 @@ const OllamaModelModal = ({
             buffer = lines.pop() || '';
 
             for (const line of lines) {
-              if (!line.startsWith('data: ')) {
-                continue;
-              }
+              if (!line.startsWith('data: ')) continue;
 
               try {
                 const eventData = line.substring(6);
@@ -371,26 +380,21 @@ const OllamaModelModal = ({
                 const data = JSON.parse(eventData);
 
                 if (data.status) {
-                  // 处理进度数据
                   setPullProgress(data);
                 } else if (data.error) {
-                  // 处理错误
                   showError(data.error);
                   setPullProgress(null);
                   setPullLoading(false);
                   setEventSource(null);
                   return;
                 } else if (data.message) {
-                  // 处理成功消息
                   showSuccess(data.message);
                   setPullModelName('');
                   setPullProgress(null);
                   setPullLoading(false);
                   setEventSource(null);
                   await fetchModels();
-                  if (onModelsUpdate) {
-                    onModelsUpdate({ silent: true });
-                  }
+                  if (onModelsUpdate) onModelsUpdate({ silent: true });
                   await refreshModels();
                   return;
                 }
@@ -399,7 +403,6 @@ const OllamaModelModal = ({
               }
             }
           }
-          // 正常结束流
           setPullLoading(false);
           setPullProgress(null);
           setEventSource(null);
@@ -432,22 +435,16 @@ const OllamaModelModal = ({
     }
   };
 
-  // 删除模型
   const deleteModel = async (modelName) => {
     try {
       const res = await API.delete('/api/channel/ollama/delete', {
-        data: {
-          channel_id: channelId,
-          model_name: modelName,
-        },
+        data: { channel_id: channelId, model_name: modelName },
       });
 
       if (res.data.success) {
         showSuccess(t('模型删除成功'));
-        await fetchModels(); // 重新获取模型列表
-        if (onModelsUpdate) {
-          onModelsUpdate({ silent: true }); // 通知父组件更新
-        }
+        await fetchModels();
+        if (onModelsUpdate) onModelsUpdate({ silent: true });
       } else {
         showError(res.data.message || t('模型删除失败'));
       }
@@ -455,18 +452,6 @@ const OllamaModelModal = ({
       showError(t('模型删除失败: {{error}}', { error: error.message }));
     }
   };
-
-  // 搜索过滤
-  useEffect(() => {
-    if (!searchValue) {
-      setFilteredModels(models);
-    } else {
-      const filtered = models.filter((model) =>
-        model.id.toLowerCase().includes(searchValue.toLowerCase()),
-      );
-      setFilteredModels(filtered);
-    }
-  }, [models, searchValue]);
 
   useEffect(() => {
     if (!visible) {
@@ -477,15 +462,12 @@ const OllamaModelModal = ({
     }
   }, [visible]);
 
-  // 组件加载时获取模型列表
   useEffect(() => {
-    if (!visible) {
-      return;
-    }
-
+    if (!visible) return;
     if (channelId || Number(channelInfo?.type) === CHANNEL_TYPE_OLLAMA) {
       fetchModels();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     visible,
     channelId,
@@ -495,12 +477,9 @@ const OllamaModelModal = ({
     channelInfo?.ollama_base_url,
   ]);
 
-  // 组件卸载时清理 EventSource
   useEffect(() => {
     return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
+      if (eventSource) eventSource.close();
     };
   }, [eventSource]);
 
@@ -512,251 +491,295 @@ const OllamaModelModal = ({
       : `${(size / (1024 * 1024)).toFixed(0)} MB`;
   };
 
-  return (
-    <Modal
-      title={t('Ollama 模型管理')}
-      visible={visible}
-      onCancel={onCancel}
-      width={720}
-      style={{ maxWidth: '95vw' }}
-      footer={
-        <Button theme='solid' type='primary' onClick={onCancel}>
-          {t('关闭')}
-        </Button>
-      }
-    >
-      <Space vertical spacing='medium' style={{ width: '100%' }}>
-        <div>
-          <Text type='tertiary' size='small'>
-            {channelInfo?.name ? `${channelInfo.name} - ` : ''}
-            {t('管理 Ollama 模型的拉取和删除')}
-          </Text>
+  const renderProgress = () => {
+    if (!pullProgress) return null;
+    const completedBytes = Number(pullProgress.completed) || 0;
+    const totalBytes = Number(pullProgress.total) || 0;
+    const hasTotal = Number.isFinite(totalBytes) && totalBytes > 0;
+    const safePercent = hasTotal
+      ? Math.min(
+          100,
+          Math.max(0, Math.round((completedBytes / totalBytes) * 100)),
+        )
+      : null;
+    const percentText =
+      hasTotal && safePercent !== null
+        ? `${safePercent.toFixed(0)}%`
+        : pullProgress.status || t('处理中');
+
+    return (
+      <div className='mt-3 space-y-2'>
+        <div className='flex items-center justify-between'>
+          <span className='text-sm font-semibold text-foreground'>
+            {t('拉取进度')}
+          </span>
+          <span className='text-xs text-muted'>{percentText}</span>
         </div>
 
-        {/* 拉取新模型 */}
-        <Card>
-          <Title heading={6} className='m-0 mb-3'>
-            {t('拉取新模型')}
-          </Title>
+        {hasTotal && safePercent !== null ? (
+          <>
+            <ProgressBar percent={safePercent} />
+            <div className='flex justify-between text-xs text-muted'>
+              <span>
+                {(completedBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
+              </span>
+              <span>
+                {(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className='flex items-center gap-2 text-xs text-muted'>
+            <Spinner size='sm' />
+            <span>{t('准备中...')}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
-          <Row gutter={12} align='middle'>
-            <Col span={16}>
-              <Input
-                placeholder={t('请输入模型名称，例如: llama3.2, qwen2.5:7b')}
-                value={pullModelName}
-                onChange={(value) => setPullModelName(value)}
-                onEnterPress={pullModel}
-                disabled={pullLoading}
-                showClear
-              />
-            </Col>
-            <Col span={8}>
-              <Button
-                theme='solid'
-                type='primary'
-                onClick={pullModel}
-                loading={pullLoading}
-                disabled={!pullModelName.trim()}
-                icon={<IconDownload />}
-                block
-              >
-                {pullLoading ? t('拉取中...') : t('拉取模型')}
-              </Button>
-            </Col>
-          </Row>
+  return (
+    <>
+      <Modal state={modalState}>
+        <ModalBackdrop variant='blur'>
+          <ModalContainer
+            size='3xl'
+            placement='center'
+            className='max-w-[95vw]'
+          >
+            <ModalDialog className='bg-background/95 backdrop-blur'>
+              <ModalHeader className='border-b border-border'>
+                <span>{t('Ollama 模型管理')}</span>
+              </ModalHeader>
+              <ModalBody className='space-y-4 px-6 py-5'>
+                <div className='text-xs text-muted'>
+                  {channelInfo?.name ? `${channelInfo.name} - ` : ''}
+                  {t('管理 Ollama 模型的拉取和删除')}
+                </div>
 
-          {/* 进度条显示 */}
-          {pullProgress &&
-            (() => {
-              const completedBytes = Number(pullProgress.completed) || 0;
-              const totalBytes = Number(pullProgress.total) || 0;
-              const hasTotal = Number.isFinite(totalBytes) && totalBytes > 0;
-              const safePercent = hasTotal
-                ? Math.min(
-                    100,
-                    Math.max(
-                      0,
-                      Math.round((completedBytes / totalBytes) * 100),
-                    ),
-                  )
-                : null;
-              const percentText =
-                hasTotal && safePercent !== null
-                  ? `${safePercent.toFixed(0)}%`
-                  : pullProgress.status || t('处理中');
+                {/* 拉取新模型 */}
+                <Card className='!rounded-2xl border-0 shadow-sm'>
+                  <Card.Content className='space-y-3 p-5'>
+                    <div className='text-base font-semibold text-foreground'>
+                      {t('拉取新模型')}
+                    </div>
 
-              return (
-                <div style={{ marginTop: 12 }}>
-                  <div className='flex items-center justify-between mb-2'>
-                    <Text strong>{t('拉取进度')}</Text>
-                    <Text type='tertiary' size='small'>
-                      {percentText}
-                    </Text>
-                  </div>
-
-                  {hasTotal && safePercent !== null ? (
-                    <div>
-                      <Progress
-                        percent={safePercent}
-                        showInfo={false}
-                        stroke='#1890ff'
-                        size='small'
-                      />
-                      <div className='flex justify-between mt-1'>
-                        <Text type='tertiary' size='small'>
-                          {(completedBytes / (1024 * 1024 * 1024)).toFixed(2)}{' '}
-                          GB
-                        </Text>
-                        <Text type='tertiary' size='small'>
-                          {(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
-                        </Text>
+                    <div className='grid grid-cols-1 gap-3 sm:grid-cols-12'>
+                      <div className='sm:col-span-8'>
+                        <Input
+                          isDisabled={pullLoading}
+                          placeholder={t(
+                            '请输入模型名称，例如: llama3.2, qwen2.5:7b',
+                          )}
+                          value={pullModelName}
+                          onValueChange={setPullModelName}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' && !pullLoading) {
+                              pullModel();
+                            }
+                          }}
+                        >
+                          <Input.Control>
+                            <Input.Element />
+                          </Input.Control>
+                        </Input>
+                      </div>
+                      <div className='sm:col-span-4'>
+                        <Button
+                          color='primary'
+                          isPending={pullLoading}
+                          isDisabled={!pullModelName.trim()}
+                          startContent={<Download size={14} />}
+                          onPress={pullModel}
+                          className='w-full'
+                        >
+                          {pullLoading ? t('拉取中...') : t('拉取模型')}
+                        </Button>
                       </div>
                     </div>
-                  ) : (
-                    <div className='flex items-center gap-2 text-xs text-[var(--app-muted)]'>
-                      <Spin size='small' />
-                      <span>{t('准备中...')}</span>
+
+                    {renderProgress()}
+
+                    <div className='text-xs text-muted'>
+                      {t(
+                        '支持拉取 Ollama 官方模型库中的所有模型，拉取过程可能需要几分钟时间',
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })()}
+                  </Card.Content>
+                </Card>
 
-          <Text type='tertiary' size='small' className='mt-2 block'>
-            {t(
-              '支持拉取 Ollama 官方模型库中的所有模型，拉取过程可能需要几分钟时间',
-            )}
-          </Text>
-        </Card>
+                {/* 已有模型列表 */}
+                <Card className='!rounded-2xl border-0 shadow-sm'>
+                  <Card.Content className='space-y-3 p-5'>
+                    <div className='flex flex-wrap items-center justify-between gap-3'>
+                      <div className='flex items-center gap-2'>
+                        <div className='text-base font-semibold text-foreground'>
+                          {t('已有模型')}
+                        </div>
+                        {models.length > 0 ? (
+                          <StatusChip tone='blue'>{models.length}</StatusChip>
+                        ) : null}
+                      </div>
+                      <div className='flex flex-wrap items-center gap-2'>
+                        <div className='w-[200px]'>
+                          <Input
+                            placeholder={t('搜索模型...')}
+                            value={searchValue}
+                            onValueChange={setSearchValue}
+                            startContent={
+                              <Search size={14} className='text-muted' />
+                            }
+                          >
+                            <Input.Control>
+                              <Input.Element />
+                            </Input.Control>
+                          </Input>
+                        </div>
+                        <Button
+                          size='sm'
+                          variant='flat'
+                          isDisabled={models.length === 0}
+                          onPress={handleSelectAll}
+                        >
+                          {t('全选')}
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='flat'
+                          isDisabled={selectedModelIds.length === 0}
+                          onPress={handleClearSelection}
+                        >
+                          {t('清空')}
+                        </Button>
+                        <Button
+                          size='sm'
+                          color='primary'
+                          startContent={<Plus size={14} />}
+                          isDisabled={selectedModelIds.length === 0}
+                          onPress={handleApplyAllModels}
+                        >
+                          {t('加入渠道')}
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='flat'
+                          color='primary'
+                          startContent={<RefreshCw size={14} />}
+                          isPending={loading}
+                          onPress={fetchModels}
+                        >
+                          {t('刷新')}
+                        </Button>
+                      </div>
+                    </div>
 
-        {/* 已有模型列表 */}
-        <Card>
-          <div className='flex items-center justify-between mb-3'>
-            <div className='flex items-center gap-2'>
-              <Title heading={6} className='m-0'>
-                {t('已有模型')}
-              </Title>
-              {models.length > 0 ? (
-                <Tag color='blue'>{models.length}</Tag>
-              ) : null}
-            </div>
-            <Space wrap>
-              <Input
-                prefix={<IconSearch />}
-                placeholder={t('搜索模型...')}
-                value={searchValue}
-                onChange={(value) => setSearchValue(value)}
-                style={{ width: 200 }}
-                showClear
-              />
-              <Button
-                size='small'
-                theme='light'
-                onClick={handleSelectAll}
-                disabled={models.length === 0}
-              >
-                {t('全选')}
-              </Button>
-              <Button
-                size='small'
-                theme='light'
-                onClick={handleClearSelection}
-                disabled={selectedModelIds.length === 0}
-              >
-                {t('清空')}
-              </Button>
-              <Button
-                theme='solid'
-                type='primary'
-                icon={<IconPlus />}
-                onClick={handleApplyAllModels}
-                disabled={selectedModelIds.length === 0}
-                size='small'
-              >
-                {t('加入渠道')}
-              </Button>
-              <Button
-                theme='light'
-                type='primary'
-                onClick={fetchModels}
-                loading={loading}
-                icon={<IconRefresh />}
-                size='small'
-              >
-                {t('刷新')}
-              </Button>
-            </Space>
-          </div>
-
-          <Spin spinning={loading}>
-            {filteredModels.length === 0 ? (
-              <Empty
-                title={searchValue ? t('未找到匹配的模型') : t('暂无模型')}
-                description={
-                  searchValue
-                    ? t('请尝试其他搜索关键词')
-                    : t('您可以在上方拉取需要的模型')
-                }
-                style={{ padding: '40px 0' }}
-              />
-            ) : (
-              <List
-                dataSource={filteredModels}
-                split
-                renderItem={(model) => (
-                  <List.Item key={model.id}>
-                    <div className='flex items-center justify-between w-full'>
-                      <div className='flex items-center flex-1 min-w-0 gap-3'>
-                        <Checkbox
-                          checked={selectedModelIds.includes(model.id)}
-                          onChange={(checked) =>
-                            handleToggleModel(model.id, checked)
-                          }
-                        />
-                        <div className='flex-1 min-w-0'>
-                          <Text strong className='block truncate'>
-                            {model.id}
-                          </Text>
-                          <div className='flex items-center space-x-2 mt-1'>
-                            <Tag color='cyan' size='small'>
-                              {model.owned_by || 'ollama'}
-                            </Tag>
-                            {model.size && (
-                              <Text type='tertiary' size='small'>
-                                {formatModelSize(model.size)}
-                              </Text>
-                            )}
+                    <div className='relative min-h-[120px]'>
+                      {loading && (
+                        <div className='absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px]'>
+                          <Spinner color='primary' />
+                        </div>
+                      )}
+                      {filteredModels.length === 0 ? (
+                        <div className='flex flex-col items-center gap-2 px-4 py-10 text-center'>
+                          <div className='text-sm font-semibold text-foreground'>
+                            {searchValue
+                              ? t('未找到匹配的模型')
+                              : t('暂无模型')}
+                          </div>
+                          <div className='text-xs text-muted'>
+                            {searchValue
+                              ? t('请尝试其他搜索关键词')
+                              : t('您可以在上方拉取需要的模型')}
                           </div>
                         </div>
-                      </div>
-                      <div className='flex items-center space-x-2 ml-4'>
-                        <Popconfirm
-                          title={t('确认删除模型')}
-                          content={t(
-                            '删除后无法恢复，确定要删除模型 "{{name}}" 吗？',
-                            { name: model.id },
-                          )}
-                          onConfirm={() => deleteModel(model.id)}
-                          okText={t('确认')}
-                          cancelText={t('取消')}
-                        >
-                          <Button
-                            theme='borderless'
-                            type='danger'
-                            size='small'
-                            icon={<IconDelete />}
-                          />
-                        </Popconfirm>
-                      </div>
+                      ) : (
+                        <ul className='divide-y divide-border'>
+                          {filteredModels.map((model) => (
+                            <li
+                              key={model.id}
+                              className='flex items-center justify-between gap-3 py-3'
+                            >
+                              <div className='flex min-w-0 flex-1 items-center gap-3'>
+                                <input
+                                  type='checkbox'
+                                  className='h-4 w-4 accent-primary'
+                                  checked={selectedModelIds.includes(model.id)}
+                                  onChange={(event) =>
+                                    handleToggleModel(
+                                      model.id,
+                                      event.target.checked,
+                                    )
+                                  }
+                                  aria-label={model.id}
+                                />
+                                <div className='min-w-0 flex-1'>
+                                  <div className='truncate text-sm font-semibold text-foreground'>
+                                    {model.id}
+                                  </div>
+                                  <div className='mt-1 flex items-center gap-2'>
+                                    <StatusChip tone='cyan'>
+                                      {model.owned_by || 'ollama'}
+                                    </StatusChip>
+                                    {model.size ? (
+                                      <span className='text-xs text-muted'>
+                                        {formatModelSize(model.size)}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className='ml-4 flex items-center gap-2'>
+                                <Button
+                                  isIconOnly
+                                  size='sm'
+                                  variant='light'
+                                  color='danger'
+                                  aria-label={t('删除')}
+                                  onPress={() => setDeleteTarget(model.id)}
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                  </List.Item>
-                )}
-              />
-            )}
-          </Spin>
-        </Card>
-      </Space>
-    </Modal>
+                  </Card.Content>
+                </Card>
+              </ModalBody>
+              <ModalFooter className='border-t border-border'>
+                <Button
+                  color='primary'
+                  startContent={<X size={14} />}
+                  onPress={onCancel}
+                >
+                  {t('关闭')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      </Modal>
+
+      <ConfirmDialog
+        visible={!!deleteTarget}
+        title={t('确认删除模型')}
+        cancelText={t('取消')}
+        confirmText={t('确认')}
+        danger
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          const target = deleteTarget;
+          setDeleteTarget(null);
+          if (target) await deleteModel(target);
+        }}
+      >
+        {t('删除后无法恢复，确定要删除模型 "{{name}}" 吗？', {
+          name: deleteTarget || '',
+        })}
+      </ConfirmDialog>
+    </>
   );
 };
 

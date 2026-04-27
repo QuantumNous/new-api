@@ -78,17 +78,17 @@ const UsageModeStep = ({
                 <RadioButtonGroup.ItemIcon
                   className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
                     selected
-                      ? 'bg-sky-500 text-white'
-                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      ? 'bg-primary text-white'
+                      : 'bg-surface-secondary text-muted'
                   }`}
                 >
                   <Icon size={22} />
                 </RadioButtonGroup.ItemIcon>
                 <div>
-                  <Label className='text-base font-semibold text-slate-950 dark:text-slate-50'>
+                  <Label className='text-base font-semibold text-foreground'>
                     {t(title)}
                   </Label>
-                  <Description className='mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400'>
+                  <Description className='mt-2 text-sm leading-6 text-muted'>
                     {t(description)}
                   </Description>
                 </div>

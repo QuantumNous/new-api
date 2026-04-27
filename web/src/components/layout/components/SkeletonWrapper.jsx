@@ -22,7 +22,7 @@ import { Skeleton } from '@heroui/react';
 
 const SkeletonBlock = ({ className = '', style }) => (
   <Skeleton
-    className={`rounded-lg bg-slate-200/80 dark:bg-white/10 ${className}`}
+    className={`rounded-lg bg-surface-secondary ${className}`}
     style={style}
   />
 );
@@ -63,7 +63,7 @@ const SkeletonWrapper = ({
   const renderUserAreaSkeleton = () => {
     return (
       <div
-        className={`flex items-center rounded-full bg-slate-900/[0.04] p-1 dark:bg-white/10 ${className}`}
+        className={`flex items-center rounded-full bg-surface-secondary p-1 ${className}`}
       >
         <SkeletonBlock className='h-6 w-6 rounded-full shadow-sm' />
         <div className='ml-1.5 mr-1'>

@@ -69,7 +69,7 @@ const ModelDetailSideSheet = ({
         aria-modal='true'
         aria-hidden={!visible}
         style={{ width: isMobile ? '100%' : 600 }}
-        className={`fixed bottom-0 right-0 top-0 z-50 flex flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-950 ${
+        className={`fixed bottom-0 right-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
           visible ? 'translate-x-0' : 'translate-x-full'
         }`}
       >

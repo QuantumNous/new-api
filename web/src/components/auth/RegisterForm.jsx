@@ -492,7 +492,7 @@ const RegisterForm = () => {
                   startContent={<Mail size={20} />}
                   onPress={handleEmailRegisterClick}
                   isPending={emailRegisterLoading}
-                  className='bg-slate-950 text-white dark:bg-slate-100 dark:text-slate-950'
+                  className='bg-foreground text-background'
                 >
                   {t('使用 用户名 注册')}
                 </AuthPrimaryButton>

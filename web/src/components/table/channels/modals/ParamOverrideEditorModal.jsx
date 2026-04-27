@@ -17,18 +17,527 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Input, Select, Switch } from '@heroui/react';
-import { Col, Collapse, Modal, Row, Space, Tag, TextArea, Typography } from '@/components/common/ui/HeroCompat';
-import { IconDelete, IconMenu, IconPlus } from '@/components/common/ui/HeroIconsCompat';
+import {
+  Button,
+  Card,
+  Input as HeroInput,
+  Modal as HeroModal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContainer,
+  ModalDialog,
+  ModalFooter,
+  ModalHeader,
+  Switch as HeroSwitch,
+  useOverlayState,
+} from '@heroui/react';
+import {
+  ChevronDown,
+  GripVertical,
+  Menu as MenuIcon,
+  Plus as PlusIcon,
+  Trash2,
+  X as CloseIcon,
+} from 'lucide-react';
 import { copy, showError, showSuccess, verifyJSON } from '../../../../helpers';
 import {
   CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
   CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE,
 } from '../../../../constants/channel-affinity-template.constants';
 
-const { Text } = Typography;
+// ----------------------------- legacy shims -----------------------------
+//
+// This file is large (3500+ lines). To keep the migration minimal and safe,
+// the Semi-style API used inside the render tree is preserved. The shims
+// below adapt that API to HeroUI v3 / native primitives.
+//
+// All shims accept the same props the original Semi components used in
+// this file and render with semantic Tailwind tokens.
+
+const TAG_TONE_MAP = {
+  blue: 'bg-primary/15 text-primary',
+  cyan: 'bg-[color-mix(in_oklab,var(--app-primary)_18%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_72%,var(--app-foreground))]',
+  green: 'bg-success/15 text-success',
+  red: 'bg-danger/15 text-danger',
+  orange: 'bg-warning/15 text-warning',
+  yellow: 'bg-warning/15 text-warning',
+  grey: 'bg-surface-secondary text-muted',
+  default: 'bg-surface-secondary text-muted',
+};
+
+function Tag({ color = 'grey', size, style, className = '', children }) {
+  const tone = TAG_TONE_MAP[color] || TAG_TONE_MAP.grey;
+  const sizeCls = size === 'small' ? 'px-1.5 py-0.5 text-[11px]' : 'px-2 py-0.5 text-xs';
+  return (
+    <span
+      style={style}
+      className={`inline-flex items-center rounded-full font-semibold ${sizeCls} ${tone} ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+const TEXT_TYPE_CLASS = {
+  primary: 'text-foreground',
+  secondary: 'text-foreground',
+  tertiary: 'text-muted',
+  quaternary: 'text-muted/70',
+  danger: 'text-danger',
+  warning: 'text-warning',
+};
+
+function Text({
+  type,
+  size,
+  strong,
+  className = '',
+  style,
+  children,
+  ...rest
+}) {
+  const typeCls = TEXT_TYPE_CLASS[type] || 'text-foreground';
+  const sizeCls = size === 'small' ? 'text-xs' : '';
+  const weightCls = strong ? 'font-semibold' : '';
+  return (
+    <span
+      style={style}
+      className={`${typeCls} ${sizeCls} ${weightCls} ${className}`}
+      {...rest}
+    >
+      {children}
+    </span>
+  );
+}
+
+const Typography = { Text };
+
+// Space: flex container that mirrors Semi's `<Space vertical wrap spacing
+// align>`. Children are laid out with gap-derived from `spacing` (in px).
+function Space({
+  vertical,
+  wrap,
+  spacing,
+  align,
+  style,
+  className = '',
+  children,
+}) {
+  const flexDir = vertical ? 'flex-col items-start' : 'flex-row items-center';
+  const wrapCls = wrap ? 'flex-wrap' : '';
+  const alignCls =
+    align === 'center'
+      ? 'items-center'
+      : align === 'flex-end'
+        ? 'items-end'
+        : '';
+  const gap =
+    typeof spacing === 'number' ? { gap: `${spacing}px` } : { gap: '8px' };
+  return (
+    <div
+      style={{ ...gap, ...(style || {}) }}
+      className={`flex ${flexDir} ${wrapCls} ${alignCls} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Row / Col: simple Antd-style 24-column grid mapped to flex-wrap. `gutter`
+// is converted to px-based gap; per-breakpoint span (`xs/sm/md/lg/xl`) maps
+// to a percentage width via inline style.
+function Row({ gutter, align, justify, style, className = '', children }) {
+  const gap =
+    typeof gutter === 'number'
+      ? gutter
+      : typeof gutter === 'object' && gutter !== null
+        ? gutter.md || gutter.sm || gutter.xs || 16
+        : 16;
+  const flexAlign =
+    align === 'middle'
+      ? 'items-center'
+      : align === 'top'
+        ? 'items-start'
+        : '';
+  const flexJustify =
+    justify === 'space-between' ? 'justify-between' : '';
+  return (
+    <div
+      style={{ rowGap: `${gap}px`, columnGap: `${gap}px`, ...(style || {}) }}
+      className={`flex flex-wrap ${flexAlign} ${flexJustify} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Col({ xs, sm, md, lg, xl, span, style, className = '', children }) {
+  // Pick the largest breakpoint declared. Width is `<span>/24 * 100%` minus
+  // gap is handled via flex-wrap.
+  const effectiveSpan = md ?? sm ?? xs ?? span ?? lg ?? xl ?? 24;
+  const width = `${(Math.min(Math.max(Number(effectiveSpan) || 24, 1), 24) / 24) * 100}%`;
+  return (
+    <div
+      style={{ flexBasis: width, maxWidth: width, ...(style || {}) }}
+      className={`min-w-0 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// TextArea: native `<textarea>` with Semi-style API
+// (`value/onChange(value)/autosize/placeholder/showClear/readOnly`).
+function TextArea({
+  value,
+  onChange,
+  placeholder,
+  autosize,
+  showClear,
+  readOnly,
+  style,
+  className = '',
+  rows,
+}) {
+  const minRows = autosize?.minRows ?? rows ?? 4;
+  return (
+    <div className='relative'>
+      <textarea
+        value={value ?? ''}
+        onChange={(event) => onChange?.(event.target.value)}
+        placeholder={placeholder}
+        readOnly={readOnly}
+        rows={minRows}
+        style={style}
+        className={`w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none transition focus:border-primary disabled:opacity-50 ${className}`}
+      />
+      {showClear && !readOnly && (value ?? '') !== '' ? (
+        <button
+          type='button'
+          onClick={() => onChange?.('')}
+          aria-label='clear'
+          className='absolute right-2 top-2 rounded-full bg-surface-secondary p-1 text-muted hover:text-foreground'
+        >
+          <CloseIcon size={12} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+// Input shim: adapts HeroUI v3 Input to Semi's `value/onChange(value)`
+// + `placeholder/style/disabled/showClear/prefix/suffix/onEnterPress`.
+function Input({
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  disabled,
+  readOnly,
+  prefix,
+  suffix,
+  showClear,
+  style,
+  className = '',
+  onEnterPress,
+  onKeyDown,
+  ...rest
+}) {
+  const padLeft = prefix ? 'pl-9' : '';
+  const padRight = suffix || (showClear && (value ?? '') !== '') ? 'pr-9' : '';
+  return (
+    <div className='relative' style={style}>
+      {prefix ? (
+        <span className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted'>
+          {prefix}
+        </span>
+      ) : null}
+      <input
+        type={type}
+        value={value ?? ''}
+        onChange={(event) => onChange?.(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onEnterPress?.();
+          onKeyDown?.(event);
+        }}
+        placeholder={placeholder}
+        disabled={disabled}
+        readOnly={readOnly}
+        className={`h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50 ${padLeft} ${padRight} ${className}`}
+        {...rest}
+      />
+      {suffix ? (
+        <span className='absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center'>
+          {suffix}
+        </span>
+      ) : showClear && (value ?? '') !== '' && !disabled && !readOnly ? (
+        <button
+          type='button'
+          onClick={() => onChange?.('')}
+          aria-label='clear'
+          className='absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-surface-secondary p-1 text-muted hover:text-foreground'
+        >
+          <CloseIcon size={12} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+// Select shim: minimal dropdown supporting Semi's
+// `value/onChange(nextValue)/optionList/style/placeholder`.
+function Select({
+  value,
+  onChange,
+  optionList = [],
+  placeholder,
+  style,
+  className = '',
+  disabled,
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  const selected = optionList.find((opt) => opt.value === value);
+
+  return (
+    <div ref={ref} className={`relative inline-block ${className}`} style={style}>
+      <button
+        type='button'
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-xl border bg-background px-3 text-sm transition disabled:opacity-50 ${
+          open ? 'border-primary' : 'border-border'
+        } ${disabled ? '' : 'hover:border-primary/60'}`}
+      >
+        <span className='min-w-0 flex-1 truncate text-left'>
+          {selected ? (
+            selected.label
+          ) : (
+            <span className='text-muted'>{placeholder ?? ''}</span>
+          )}
+        </span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-muted transition-transform ${
+            open ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+      {open && !disabled ? (
+        <div className='absolute left-0 right-0 z-50 mt-1 max-h-[280px] overflow-auto rounded-xl border border-border bg-background shadow-lg'>
+          <ul className='py-1'>
+            {optionList.map((opt) => {
+              const active = opt.value === value;
+              return (
+                <li key={String(opt.value)}>
+                  <button
+                    type='button'
+                    onClick={() => {
+                      onChange?.(opt.value);
+                      setOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm transition ${
+                      active
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-foreground hover:bg-surface-secondary'
+                    }`}
+                  >
+                    <span className='truncate'>{opt.label}</span>
+                    {active ? <span className='text-xs'>{'✓'}</span> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Switch shim: adapts to Semi's `checked/onChange(value)` + ignores
+// `checkedText/uncheckedText` (HeroUI v3 doesn't show inline labels).
+function Switch({
+  checked,
+  onChange,
+  disabled,
+  size,
+  ariaLabel,
+  className = '',
+  /* eslint-disable no-unused-vars */
+  checkedText,
+  uncheckedText,
+  /* eslint-enable no-unused-vars */
+}) {
+  return (
+    <HeroSwitch
+      isSelected={!!checked}
+      onValueChange={onChange}
+      isDisabled={disabled}
+      size={size === 'large' ? 'lg' : 'md'}
+      aria-label={ariaLabel}
+      className={className}
+    >
+      <HeroSwitch.Control>
+        <HeroSwitch.Thumb />
+      </HeroSwitch.Control>
+    </HeroSwitch>
+  );
+}
+
+// Collapse / Collapse.Panel: controlled accordion. Mirrors Semi's
+// `activeKey` (array) + `onChange(activeKeys)` API + child `Collapse.Panel
+// itemKey header`.
+function Collapse({ activeKey, onChange, children }) {
+  // Normalize children into an array of <Collapse.Panel> elements
+  const panels = React.Children.toArray(children).filter(Boolean);
+  const activeKeys = Array.isArray(activeKey)
+    ? activeKey
+    : activeKey != null
+      ? [activeKey]
+      : [];
+
+  const togglePanel = (key) => {
+    if (!key) return;
+    const isOpen = activeKeys.includes(key);
+    const next = isOpen
+      ? activeKeys.filter((k) => k !== key)
+      : [...activeKeys, key];
+    onChange?.(next);
+  };
+
+  return (
+    <div className='flex flex-col gap-1.5'>
+      {panels.map((panel) => {
+        const { itemKey, header, children: panelChildren } = panel.props;
+        const open = activeKeys.includes(itemKey);
+        return (
+          <div
+            key={itemKey}
+            className='overflow-hidden rounded-xl border border-border bg-background'
+          >
+            <button
+              type='button'
+              onClick={() => togglePanel(itemKey)}
+              className='flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-surface-secondary'
+            >
+              <span className='min-w-0 flex-1'>{header}</span>
+              <ChevronDown
+                size={16}
+                className={`shrink-0 text-muted transition-transform ${
+                  open ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {open ? (
+              <div className='border-t border-border px-3 py-3'>
+                {panelChildren}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Marker subcomponent — just used for prop carrying.
+Collapse.Panel = function CollapsePanel() {
+  return null;
+};
+
+// Modal shim: adapts Semi's `<Modal title visible width bodyStyle onCancel
+// onOk okText cancelText footer>` to HeroUI v3 anatomy. When `footer === null`
+// the footer is omitted.
+function Modal({
+  title,
+  visible,
+  width,
+  bodyStyle,
+  onCancel,
+  onOk,
+  okText,
+  cancelText,
+  footer,
+  children,
+}) {
+  const modalState = useOverlayState({
+    isOpen: !!visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
+
+  // Map raw width to a HeroUI ModalContainer size, with a min cap.
+  const dialogWidth = typeof width === 'number' ? width : undefined;
+
+  return (
+    <HeroModal state={modalState}>
+      <ModalBackdrop variant='blur'>
+        <ModalContainer
+          size='4xl'
+          placement='center'
+          className='max-w-[95vw]'
+          style={dialogWidth ? { maxWidth: dialogWidth } : undefined}
+        >
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            {title ? (
+              <ModalHeader className='border-b border-border'>
+                <span>{title}</span>
+              </ModalHeader>
+            ) : null}
+            <ModalBody style={bodyStyle} className='px-6 py-5'>
+              {children}
+            </ModalBody>
+            {footer === null ? null : footer ? (
+              <ModalFooter className='border-t border-border'>
+                {footer}
+              </ModalFooter>
+            ) : (
+              <ModalFooter className='border-t border-border'>
+                <Button variant='light' onPress={onCancel}>
+                  {cancelText}
+                </Button>
+                <Button color='primary' onPress={onOk}>
+                  {okText}
+                </Button>
+              </ModalFooter>
+            )}
+          </ModalDialog>
+        </ModalContainer>
+      </ModalBackdrop>
+    </HeroModal>
+  );
+}
+
+// Lucide icon wrappers preserving the legacy `<IconX />` API.
+const IconDelete = (props) => <Trash2 size={14} {...props} />;
+const IconMenu = (props) => (
+  <GripVertical size={14} aria-hidden='true' {...props} />
+);
+// `IconMenu` was sometimes used as a generic menu glyph; alias `MenuIcon`
+// for callers that want the burger style.
+// eslint-disable-next-line no-unused-vars
+const _IconMenuFallback = MenuIcon;
+const IconPlus = (props) => <PlusIcon size={14} {...props} />;
 
 const OPERATION_MODE_OPTIONS = [
   { label: '设置字段', value: 'set' },

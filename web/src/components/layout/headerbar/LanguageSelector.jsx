@@ -23,14 +23,12 @@ import { Languages } from 'lucide-react';
 const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
+  // Only Chinese and English are surfaced in the navbar switcher; other
+  // locales remain in the underlying i18n bundle (so saved preferences keep
+  // working) but are intentionally hidden from the chooser.
   const languages = [
     ['zh-CN', '简体中文'],
-    ['zh-TW', '繁體中文'],
     ['en', 'English'],
-    ['fr', 'Français'],
-    ['ja', '日本語'],
-    ['ru', 'Русский'],
-    ['vi', 'Tiếng Việt'],
   ];
 
   useEffect(() => {
@@ -72,16 +70,21 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
         aria-haspopup='menu'
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className='inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/[0.04] text-slate-700 transition-colors hover:bg-slate-900/[0.07] dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15'
+        className='inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-surface-secondary text-foreground transition-colors hover:bg-surface-tertiary'
       >
         <Languages size={18} />
       </button>
 
       {open ? (
+        // Font-size lives on the wrapper, not the buttons: `@heroui/styles`
+        // resets `button { font-size: inherit }` outside any @layer, which
+        // beats every Tailwind utility per CSS Cascade Layers, so the
+        // buttons would otherwise inherit body's 16px. Set 14px here and
+        // let the menu items inherit it.
         <div
           role='menu'
           aria-label={t('common.changeLanguage')}
-          className='absolute right-0 top-full z-50 mt-2 min-w-40 rounded-2xl border border-slate-200/80 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-900/95'
+          className='absolute right-0 top-full z-50 mt-2 min-w-36 rounded-xl border border-border bg-background p-1 text-[14px] leading-5 shadow-lg'
         >
           {languages.map(([key, label]) => (
             <button
@@ -90,8 +93,10 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
               role='menuitemradio'
               aria-checked={currentLang === key}
               onClick={() => handleLanguageSelect(key)}
-              className={`flex w-full items-center rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-900/[0.04] dark:hover:bg-white/10 ${
-                currentLang === key ? 'bg-primary/10 text-primary' : ''
+              className={`flex w-full cursor-pointer items-center rounded-md px-3 py-1.5 text-left transition-colors hover:bg-surface-secondary ${
+                currentLang === key
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-foreground'
               }`}
             >
               {label}

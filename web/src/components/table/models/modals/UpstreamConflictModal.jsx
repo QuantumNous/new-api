@@ -231,14 +231,14 @@ const UpstreamConflictModal = ({
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
         <ModalContainer size='xl' placement='center'>
-          <ModalDialog className='bg-white/95 backdrop-blur dark:bg-slate-950/95'>
-            <ModalHeader className='border-b border-slate-200/80 dark:border-white/10'>
+          <ModalDialog className='bg-background/95 backdrop-blur'>
+            <ModalHeader className='border-b border-border'>
               {t('选择要覆盖的冲突项')}
             </ModalHeader>
             <ModalBody className='space-y-3 px-6 py-5'>
               {dataSource.length === 0 ? (
                 <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
-                  <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                  <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                     <Inbox size={28} />
                   </div>
                   <div>{t('无冲突项')}</div>
@@ -269,7 +269,7 @@ const UpstreamConflictModal = ({
 
                   {filteredDataSource.length === 0 ? (
                     <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
-                      <div className='flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'>
+                      <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
                         <Inbox size={28} />
                       </div>
                       <div>{t('未找到匹配的模型')}</div>
@@ -309,7 +309,7 @@ const UpstreamConflictModal = ({
                         <tbody className='divide-y divide-[color:var(--app-border)]'>
                           {pagedDataSource.map((record) => (
                             <tr key={record.key}>
-                              <td className='sticky left-0 z-10 bg-white px-3 py-2 font-semibold text-foreground dark:bg-slate-950'>
+                              <td className='sticky left-0 z-10 bg-background px-3 py-2 font-semibold text-foreground'>
                                 {record.model_name}
                               </td>
                               {visibleFields.map((fieldKey) => {
@@ -369,7 +369,7 @@ const UpstreamConflictModal = ({
                                           </div>
                                         }
                                       >
-                                        <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-white px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-200'>
+                                        <span className='inline-flex items-center gap-1 rounded-full border border-[color:var(--app-border)] bg-background px-2 py-0.5 text-xs text-foreground'>
                                           <MousePointerClick size={11} />
                                           {t('点击查看差异')}
                                         </span>
@@ -395,7 +395,7 @@ const UpstreamConflictModal = ({
                 </>
               )}
             </ModalBody>
-            <ModalFooter className='border-t border-slate-200/80 dark:border-white/10'>
+            <ModalFooter className='border-t border-border'>
               <Button variant='light' onPress={onClose}>
                 {t('取消')}
               </Button>
