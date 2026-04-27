@@ -32,18 +32,30 @@ type CodexRateLimitWindow = {
   limit_window_seconds?: number
 }
 
+type CodexRateLimit = {
+  plan_type?: string
+  allowed?: boolean
+  limit_reached?: boolean
+  primary_window?: CodexRateLimitWindow
+  secondary_window?: CodexRateLimitWindow
+}
+
+type CodexAdditionalRateLimit = {
+  limit_name?: string
+  metered_feature?: string
+  rate_limit?: CodexRateLimit
+  primary_window?: CodexRateLimitWindow
+  secondary_window?: CodexRateLimitWindow
+  plan_type?: string
+}
+
 type CodexUsagePayload = {
   plan_type?: string
   user_id?: string
   email?: string
   account_id?: string
-  rate_limit?: {
-    plan_type?: string
-    allowed?: boolean
-    limit_reached?: boolean
-    primary_window?: CodexRateLimitWindow
-    secondary_window?: CodexRateLimitWindow
-  }
+  rate_limit?: CodexRateLimit
+  additional_rate_limits?: CodexAdditionalRateLimit[]
 }
 
 export type CodexUsageDialogData = {
@@ -108,7 +120,12 @@ function classifyWindowByDuration(
   return seconds >= 24 * 60 * 60 ? 'weekly' : 'fiveHour'
 }
 
-function resolveRateLimitWindows(data: CodexUsagePayload | null): {
+type RateLimitSource = {
+  plan_type?: string
+  rate_limit?: CodexRateLimit
+}
+
+function resolveRateLimitWindows(data: RateLimitSource | null): {
   fiveHourWindow: CodexRateLimitWindow | null
   weeklyWindow: CodexRateLimitWindow | null
 } {
@@ -228,6 +245,43 @@ function RateLimitWindow(props: RateLimitWindowProps) {
   )
 }
 
+type RateLimitGroupSectionProps = {
+  title: string
+  description?: string
+  source: RateLimitSource | null
+  meteredFeature?: string
+}
+
+function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
+  const { t } = useTranslation()
+  const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(props.source)
+
+  return (
+    <section className='space-y-3'>
+      <div className='space-y-1'>
+        <div className='text-sm font-semibold'>{props.title}</div>
+        {(props.description || props.meteredFeature) && (
+          <div className='text-muted-foreground flex flex-wrap items-center gap-2 text-xs'>
+            {props.description && <span>{props.description}</span>}
+            {props.meteredFeature && (
+              <span className='bg-muted/60 inline-flex max-w-full items-center gap-2 rounded-full px-2 py-0.5'>
+                <span className='text-[11px]'>metered_feature</span>
+                <span className='min-w-0 font-mono text-xs break-all'>
+                  {props.meteredFeature}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+        <RateLimitWindow title={t('5-Hour Window')} window={fiveHourWindow} />
+        <RateLimitWindow title={t('Weekly Window')} window={weeklyWindow} />
+      </div>
+    </section>
+  )
+}
+
 function CopyableField(props: {
   icon: React.ReactNode
   label: string
@@ -292,9 +346,11 @@ export function CodexUsageDialog({
   }, [response?.data])
 
   const rateLimit = payload?.rate_limit
-  const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(payload)
   const accountType = payload?.plan_type ?? rateLimit?.plan_type
   const accountBadge = getAccountTypeBadge(accountType, t)
+  const additionalRateLimits = (payload?.additional_rate_limits ?? []).filter(
+    (item) => item && Object.keys(item).length > 0
+  )
 
   const statusBadge = (() => {
     if (!rateLimit || Object.keys(rateLimit).length === 0) {
@@ -414,20 +470,58 @@ export function CodexUsageDialog({
           </div>
 
           {/* Rate limit windows */}
-          <div>
-            <div className='mb-2 text-sm font-medium'>
-              {t('Rate Limit Windows')}
-            </div>
-            <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-              <RateLimitWindow
-                title={t('5-Hour Window')}
-                window={fiveHourWindow}
+          <div className='space-y-5'>
+            <div>
+              <div className='mb-1 text-sm font-medium'>
+                {t('Rate Limit Windows')}
+              </div>
+              <p className='text-muted-foreground mb-3 text-xs'>
+                {t(
+                  'Tracks current account base limits and additional metered usage on Codex upstream.'
+                )}
+              </p>
+              <RateLimitGroupSection
+                title={t('Base Limits')}
+                description={t('Base rate limit windows for this account.')}
+                source={payload}
               />
-              <RateLimitWindow
-                title={t('Weekly Window')}
-                window={weeklyWindow}
-              />
             </div>
+
+            {additionalRateLimits.length > 0 && (
+              <div className='space-y-4 border-t pt-4'>
+                <div>
+                  <div className='text-sm font-medium'>
+                    {t('Additional Limits')}
+                  </div>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Per-feature metered windows split by model or capability.'
+                    )}
+                  </p>
+                </div>
+                <div className='space-y-4'>
+                  {additionalRateLimits.map((item, index) => {
+                    const limitName =
+                      item.limit_name ||
+                      item.metered_feature ||
+                      `${t('Additional Limit')} ${index + 1}`
+                    return (
+                      <div
+                        key={`${limitName}-${item.metered_feature ?? ''}-${index}`}
+                        className={index > 0 ? 'border-t pt-4' : ''}
+                      >
+                        <RateLimitGroupSection
+                          title={limitName}
+                          description={t('Additional metered capability')}
+                          source={item}
+                          meteredFeature={item.metered_feature}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Raw JSON collapsible */}

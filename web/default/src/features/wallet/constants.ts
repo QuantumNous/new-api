@@ -17,6 +17,7 @@ export const PAYMENT_TYPES = {
   STRIPE: 'stripe',
   CREEM: 'creem',
   WAFFO: 'waffo',
+  WAFFO_PANCAKE: 'waffo_pancake',
 } as const
 
 /**
@@ -33,6 +34,7 @@ export const PAYMENT_ICON_COLORS = {
   [PAYMENT_TYPES.STRIPE]: '#635BFF',
   [PAYMENT_TYPES.CREEM]: '#6366F1',
   [PAYMENT_TYPES.WAFFO]: '#2563EB',
+  [PAYMENT_TYPES.WAFFO_PANCAKE]: '#F97316',
 } as const
 
 /**

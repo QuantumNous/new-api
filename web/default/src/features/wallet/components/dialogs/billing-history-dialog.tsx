@@ -179,6 +179,14 @@ export function BillingHistoryDialog({
                                   <Copy className='h-3 w-3' />
                                 )}
                               </Button>
+                              {isAdmin && record.user_id != null && (
+                                <StatusBadge
+                                  label={`${t('User ID')}: ${record.user_id}`}
+                                  variant='neutral'
+                                  size='sm'
+                                  copyText={String(record.user_id)}
+                                />
+                              )}
                             </div>
                             <div className='text-muted-foreground text-xs'>
                               {formatTimestamp(record.create_time)}

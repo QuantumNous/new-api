@@ -4,11 +4,16 @@ import { toast } from 'sonner'
 import {
   calculateAmount,
   calculateStripeAmount,
+  calculateWaffoPancakeAmount,
   requestPayment,
   requestStripePayment,
   isApiSuccess,
 } from '../api'
-import { isStripePayment, submitPaymentForm } from '../lib'
+import {
+  isStripePayment,
+  isWaffoPancakePayment,
+  submitPaymentForm,
+} from '../lib'
 
 // ============================================================================
 // Payment Hook
@@ -26,9 +31,12 @@ export function usePayment() {
         setCalculating(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isPancake = isWaffoPancakePayment(paymentType)
         const response = isStripe
           ? await calculateStripeAmount({ amount: topupAmount })
-          : await calculateAmount({ amount: topupAmount })
+          : isPancake
+            ? await calculateWaffoPancakeAmount({ amount: topupAmount })
+            : await calculateAmount({ amount: topupAmount })
 
         if (isApiSuccess(response) && response.data) {
           const calculatedAmount = parseFloat(response.data)

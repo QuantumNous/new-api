@@ -31,6 +31,12 @@ export type PricingModel = {
   supported_endpoint_types?: string[]
   key?: string
   group_ratio?: Record<string, number>
+  /** Billing mode (e.g. "tiered_expr") used to flag dynamic pricing */
+  billing_mode?: string
+  /** Raw expression describing dynamic / tiered billing */
+  billing_expr?: string
+  /** Pricing version returned by backend, useful for cache busting */
+  pricing_version?: string
 }
 
 export type PricingData = {

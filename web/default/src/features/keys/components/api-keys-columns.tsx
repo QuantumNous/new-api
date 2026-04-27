@@ -290,6 +290,24 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       meta: { label: t('Created'), mobileHidden: true },
     },
     {
+      accessorKey: 'accessed_time',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Last Used')} />
+      ),
+      cell: ({ row }) => {
+        const accessedTime = row.getValue('accessed_time') as number
+        if (!accessedTime) {
+          return <span className='text-muted-foreground text-xs'>-</span>
+        }
+        return (
+          <span className='text-muted-foreground font-mono text-xs tabular-nums'>
+            {formatTimestampToDate(accessedTime)}
+          </span>
+        )
+      },
+      meta: { label: t('Last Used'), mobileHidden: true },
+    },
+    {
       accessorKey: 'expired_time',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Expires')} />

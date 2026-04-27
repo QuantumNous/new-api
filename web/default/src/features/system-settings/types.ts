@@ -187,6 +187,18 @@ export type IntegrationSettings = {
   WaffoNotifyUrl: string
   WaffoReturnUrl: string
   WaffoPayMethods: string
+  WaffoPancakeEnabled: boolean
+  WaffoPancakeSandbox: boolean
+  WaffoPancakeMerchantID: string
+  WaffoPancakePrivateKey: string
+  WaffoPancakeWebhookPublicKey: string
+  WaffoPancakeWebhookTestKey: string
+  WaffoPancakeStoreID: string
+  WaffoPancakeProductID: string
+  WaffoPancakeReturnURL: string
+  WaffoPancakeCurrency: string
+  WaffoPancakeUnitPrice: number
+  WaffoPancakeMinTopUp: number
 }
 
 export type ModelSettings = {
@@ -217,6 +229,9 @@ export type ModelSettings = {
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
+  'billing_setting.billing_mode': string
+  'billing_setting.billing_expr': string
+  'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
   UserUsableGroups: string

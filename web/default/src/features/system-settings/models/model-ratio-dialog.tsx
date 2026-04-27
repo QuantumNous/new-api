@@ -30,6 +30,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { TieredPricingEditor } from './tiered-pricing-editor'
 
 const createModelDialogSchema = (t: (key: string) => string) =>
   z.object({
@@ -46,7 +47,7 @@ const createModelDialogSchema = (t: (key: string) => string) =>
 
 type ModelDialogFormValues = z.infer<ReturnType<typeof createModelDialogSchema>>
 
-type PricingMode = 'per-token' | 'per-request'
+type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
 type PricingSubMode = 'ratio' | 'price'
 
 export type ModelRatioData = {
@@ -59,6 +60,9 @@ export type ModelRatioData = {
   imageRatio?: string
   audioRatio?: string
   audioCompletionRatio?: string
+  billingMode?: 'per-token' | 'per-request' | 'tiered_expr'
+  billingExpr?: string
+  requestRuleExpr?: string
 }
 
 type ModelRatioDialogProps = {
@@ -80,6 +84,8 @@ export function ModelRatioDialog({
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [promptPrice, setPromptPrice] = useState('')
   const [completionPrice, setCompletionPrice] = useState('')
+  const [billingExpr, setBillingExpr] = useState('')
+  const [requestRuleExpr, setRequestRuleExpr] = useState('')
   const isEditMode = !!editData
 
   const form = useForm<ModelDialogFormValues>({
@@ -100,13 +106,16 @@ export function ModelRatioDialog({
   useEffect(() => {
     if (editData) {
       form.reset(editData)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setBillingExpr(editData.billingExpr || '')
+      setRequestRuleExpr(editData.requestRuleExpr || '')
 
-      if (editData.price && editData.price !== '') {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (editData.billingMode === 'tiered_expr') {
+        setPricingMode('tiered_expr')
+      } else if (editData.price && editData.price !== '') {
         setPricingMode('per-request')
       } else {
         setPricingMode('per-token')
-        // Calculate prompt/completion prices from ratios if available
         if (editData.ratio) {
           const tokenPrice = parseFloat(editData.ratio) * 2
           setPromptPrice(tokenPrice.toString())
@@ -132,6 +141,8 @@ export function ModelRatioDialog({
       setPricingSubMode('ratio')
       setPromptPrice('')
       setCompletionPrice('')
+      setBillingExpr('')
+      setRequestRuleExpr('')
       setAdvancedOpen(false)
     }
   }, [editData, form, open])
@@ -139,9 +150,13 @@ export function ModelRatioDialog({
   const handleSubmit = (values: ModelDialogFormValues) => {
     const data: ModelRatioData = {
       name: values.name,
+      billingMode: pricingMode,
     }
 
-    if (pricingMode === 'per-request') {
+    if (pricingMode === 'tiered_expr') {
+      data.billingExpr = billingExpr
+      data.requestRuleExpr = requestRuleExpr
+    } else if (pricingMode === 'per-request') {
       data.price = values.price || ''
     } else {
       data.ratio = values.ratio || ''
@@ -191,7 +206,7 @@ export function ModelRatioDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-[500px]'>
+      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-[680px]'>
         <DialogHeader>
           <DialogTitle>
             {isEditMode ? t('Edit model') : t('Add model')}
@@ -246,10 +261,24 @@ export function ModelRatioDialog({
                     {t('Per-request (fixed price)')}
                   </Label>
                 </div>
+                <div className='flex items-center space-x-2'>
+                  <RadioGroupItem value='tiered_expr' id='tiered_expr' />
+                  <Label htmlFor='tiered_expr' className='font-normal'>
+                    {t('Tiered (billing expression)')}
+                  </Label>
+                </div>
               </RadioGroup>
             </div>
 
-            {pricingMode === 'per-request' ? (
+            {pricingMode === 'tiered_expr' ? (
+              <TieredPricingEditor
+                modelName={form.getValues('name')}
+                billingExpr={billingExpr}
+                requestRuleExpr={requestRuleExpr}
+                onBillingExprChange={setBillingExpr}
+                onRequestRuleExprChange={setRequestRuleExpr}
+              />
+            ) : pricingMode === 'per-request' ? (
               <FormField
                 control={form.control}
                 name='price'

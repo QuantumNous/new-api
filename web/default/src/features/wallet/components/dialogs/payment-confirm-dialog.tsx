@@ -109,7 +109,12 @@ export function PaymentConfirmDialog({
                 {t('Payment Method')}
               </span>
               <div className='flex items-center gap-2'>
-                {getPaymentIcon(paymentMethod?.type)}
+                {getPaymentIcon(
+                  paymentMethod?.type,
+                  'h-4 w-4',
+                  paymentMethod?.icon,
+                  paymentMethod?.name
+                )}
                 <span className='font-medium'>{paymentMethod?.name}</span>
               </div>
             </div>

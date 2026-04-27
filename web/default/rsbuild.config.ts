@@ -14,9 +14,42 @@ export default defineConfig(({ envMode }) => {
     'http://localhost:3000'
 
   const isProd = envMode === 'production'
+  const devProxy = Object.fromEntries(
+    (['/api', '/mj', '/pg'] as const).map((key) => [
+      key,
+      { target: serverUrl, changeOrigin: true },
+    ]),
+  ) as Record<string, { target: string; changeOrigin: boolean }>
 
   return {
     plugins: [pluginReact()],
+    // Rsbuild 2: replaces deprecated `performance.chunkSplit` (RSPack 2 aligned)
+    splitChunks: {
+      preset: 'default',
+      cacheGroups: {
+        'vendor-react': {
+          test: /node_modules[\\/](react|react-dom)[\\/]/,
+          name: 'vendor-react',
+          chunks: 'all',
+          priority: 0,
+          enforce: true,
+        },
+        'vendor-radix': {
+          test: /node_modules[\\/]@radix-ui[\\/]/,
+          name: 'vendor-radix',
+          chunks: 'all',
+          priority: 0,
+          enforce: true,
+        },
+        'vendor-tanstack': {
+          test: /node_modules[\\/]@tanstack[\\/]/,
+          name: 'vendor-tanstack',
+          chunks: 'all',
+          priority: 0,
+          enforce: true,
+        },
+      },
+    },
     source: {
       entry: {
         index: './src/main.tsx',
@@ -32,20 +65,7 @@ export default defineConfig(({ envMode }) => {
     },
     server: {
       host: '0.0.0.0',
-      proxy: {
-        '/api': {
-          target: serverUrl,
-          changeOrigin: true,
-        },
-        '/mj': {
-          target: serverUrl,
-          changeOrigin: true,
-        },
-        '/pg': {
-          target: serverUrl,
-          changeOrigin: true,
-        },
-      },
+      proxy: devProxy,
     },
     output: {
       // Production optimizations
@@ -54,26 +74,27 @@ export default defineConfig(({ envMode }) => {
       distPath: {
         root: 'dist',
       },
+      // Rely on Rsbuild default legalComments ("linked" → per-chunk *.LICENSE.txt) in all modes.
+      // Do not set "none" in production: that strips minifier-preserved third-party notices and
+      // extracted license files, which some distributions require for open-source compliance.
     },
     performance: {
-      chunkSplit: {
-        strategy: 'split-by-experience',
-        // Custom chunk splitting similar to Vite config
-        forceSplitting: {
-          'vendor-react': /node_modules[\\/](react|react-dom)[\\/]/,
-          'vendor-radix': /node_modules[\\/]@radix-ui[\\/]/,
-          'vendor-tanstack': /node_modules[\\/]@tanstack[\\/]/,
-        },
-      },
       // Remove console in production
       removeConsole: isProd ? ['log'] : false,
+      // Speed up repeated `rsbuild build` (local + CI when node_modules/.cache is preserved).
+      // @see https://v2.rsbuild.dev/config/performance/build-cache
+      buildCache: {
+        cacheDigest: [process.env.VITE_REACT_APP_VERSION],
+      },
     },
     tools: {
       rspack: {
         plugins: [
           tanstackRouter({
             target: 'react',
-            autoCodeSplitting: true,
+            // Dev: avoid per-route async chunks (reduces white flash on navigation + faster HMR feedback).
+            // Prod: keep route-based code splitting.
+            autoCodeSplitting: isProd,
           }),
         ],
       },

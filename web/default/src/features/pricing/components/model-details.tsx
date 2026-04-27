@@ -25,6 +25,7 @@ import {
 } from '../lib/model-helpers'
 import { formatGroupPrice, formatFixedPrice } from '../lib/price'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
+import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
 
 function SectionTitle(props: { children: React.ReactNode }) {
   return (
@@ -69,6 +70,14 @@ function ModelHeader(props: { model: PricingModel }) {
             ? t('Token-based')
             : t('Per Request')}
         </span>
+        {model.billing_mode === 'tiered_expr' && model.billing_expr && (
+          <>
+            <span className='text-muted-foreground/30'>·</span>
+            <span className='rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>
+              {t('Dynamic Pricing')}
+            </span>
+          </>
+        )}
       </div>
       {description && (
         <p className='text-muted-foreground mt-2 text-sm leading-relaxed'>
@@ -557,6 +566,12 @@ export function ModelDetails() {
             >) || {}
           }
         />
+
+        {model.billing_mode === 'tiered_expr' && model.billing_expr && (
+          <div className='border-b'>
+            <DynamicPricingBreakdown billingExpr={model.billing_expr} />
+          </div>
+        )}
 
         <GroupPricingSection
           model={model}

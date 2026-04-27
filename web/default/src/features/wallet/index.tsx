@@ -20,8 +20,9 @@ import {
   useRedemption,
   useCreemPayment,
   useWaffoPayment,
+  useWaffoPancakePayment,
 } from './hooks'
-import { getDefaultPaymentType, getMinTopupAmount } from './lib'
+import { getDefaultPaymentType, getMinTopupAmount, isWaffoPancakePayment } from './lib'
 import type {
   UserWalletData,
   PaymentMethod,
@@ -76,6 +77,8 @@ export function Wallet(props: WalletProps) {
   const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
   const { processWaffoPayment } = useWaffoPayment()
+  const { processing: pancakeProcessing, processWaffoPancakePayment } =
+    useWaffoPancakePayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -159,10 +162,11 @@ export function Wallet(props: WalletProps) {
   const handlePaymentConfirm = async () => {
     if (!selectedPaymentMethod) return
 
-    const success = await processPayment(
-      topupAmount,
-      selectedPaymentMethod.type
-    )
+    const isPancake = isWaffoPancakePayment(selectedPaymentMethod.type)
+    const success = isPancake
+      ? await processWaffoPancakePayment(topupAmount)
+      : await processPayment(topupAmount, selectedPaymentMethod.type)
+
     if (success) {
       setConfirmDialogOpen(false)
       await fetchUser()
@@ -262,6 +266,7 @@ export function Wallet(props: WalletProps) {
                 waffoPayMethods={topupInfo?.waffo_pay_methods}
                 waffoMinTopup={topupInfo?.waffo_min_topup}
                 onWaffoMethodSelect={handleWaffoMethodSelect}
+                enableWaffoPancakeTopup={topupInfo?.enable_waffo_pancake_topup}
               />
             </div>
 
@@ -289,7 +294,7 @@ export function Wallet(props: WalletProps) {
         paymentAmount={paymentAmount}
         paymentMethod={selectedPaymentMethod}
         calculating={calculating}
-        processing={processing}
+        processing={processing || pancakeProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
       />

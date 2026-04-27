@@ -27,6 +27,15 @@ export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
 >
+export type WaffoPancakePaymentResponse = ApiResponse<
+  | {
+      checkout_url?: string
+      session_id?: string
+      expires_at?: number | string
+      order_id?: string
+    }
+  | string
+>
 
 /**
  * Creem product configuration
@@ -66,6 +75,8 @@ export interface PaymentMethod {
   color?: string
   /** Minimum topup amount for this payment method */
   min_topup?: number
+  /** Optional icon URL provided by backend (preferred over built-in icons) */
+  icon?: string
 }
 
 /**
@@ -112,6 +123,10 @@ export interface TopupInfo {
   waffo_pay_methods?: WaffoPayMethod[]
   /** Minimum topup amount for Waffo */
   waffo_min_topup?: number
+  /** Whether Waffo Pancake topup is enabled */
+  enable_waffo_pancake_topup?: boolean
+  /** Minimum topup amount for Waffo Pancake */
+  waffo_pancake_min_topup?: number
 }
 
 /**
@@ -150,6 +165,14 @@ export interface WaffoPaymentRequest {
   amount: number
   /** Optional server-side Waffo payment method index */
   pay_method_index?: number
+}
+
+/**
+ * Waffo Pancake payment request parameters
+ */
+export interface WaffoPancakePaymentRequest {
+  /** Topup amount */
+  amount: number
 }
 
 /**

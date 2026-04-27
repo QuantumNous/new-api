@@ -62,6 +62,18 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
   WaffoNotifyUrl: '',
   WaffoReturnUrl: '',
   WaffoPayMethods: '[]',
+  WaffoPancakeEnabled: false,
+  WaffoPancakeSandbox: false,
+  WaffoPancakeMerchantID: '',
+  WaffoPancakePrivateKey: '',
+  WaffoPancakeWebhookPublicKey: '',
+  WaffoPancakeWebhookTestKey: '',
+  WaffoPancakeStoreID: '',
+  WaffoPancakeProductID: '',
+  WaffoPancakeReturnURL: '',
+  WaffoPancakeCurrency: 'USD',
+  WaffoPancakeUnitPrice: 1,
+  WaffoPancakeMinTopUp: 1,
 }
 
 export function IntegrationSettings() {

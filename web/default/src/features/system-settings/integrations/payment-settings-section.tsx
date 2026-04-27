@@ -31,6 +31,10 @@ import {
   removeTrailingSlash,
 } from './utils'
 import {
+  WaffoPancakeSettingsSection,
+  type WaffoPancakeSettingsValues,
+} from './waffo-pancake-settings-section'
+import {
   WaffoSettingsSection,
   type WaffoSettingsValues,
 } from './waffo-settings-section'
@@ -106,11 +110,13 @@ type PaymentFormValues = z.infer<typeof paymentSchema>
 type PaymentSettingsSectionProps = {
   defaultValues: PaymentFormValues
   waffoDefaultValues: WaffoSettingsValues
+  waffoPancakeDefaultValues: WaffoPancakeSettingsValues
 }
 
 export function PaymentSettingsSection({
   defaultValues,
   waffoDefaultValues,
+  waffoPancakeDefaultValues,
 }: PaymentSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -1281,6 +1287,10 @@ export function PaymentSettingsSection({
       <Separator />
 
       <WaffoSettingsSection defaultValues={waffoDefaultValues} />
+
+      <Separator />
+
+      <WaffoPancakeSettingsSection defaultValues={waffoPancakeDefaultValues} />
       {/* eslint-enable react-hooks/refs */}
     </SettingsSection>
   )

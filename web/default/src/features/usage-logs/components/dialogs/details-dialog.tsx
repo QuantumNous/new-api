@@ -8,6 +8,9 @@ import {
   Monitor,
   Cloud,
   Globe,
+  ShieldCheck,
+  UserCog,
+  Info,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -41,7 +44,7 @@ import {
 import type { LogOtherData } from '../../types'
 
 function DetailRow(props: {
-  label: string
+  label: React.ReactNode
   value: React.ReactNode
   mono?: boolean
   muted?: boolean
@@ -346,9 +349,59 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const isViolation = isViolationFeeLog(other)
   const isRefund = props.log.type === 6
   const isConsume = props.log.type === 2
+  const isTopup = props.log.type === 1
+  const isManage = props.log.type === 3
   const isSubscription = other?.billing_source === 'subscription'
   const hasAudioTokens = other?.ws || other?.audio
   const showTiming = isTimingLogType(props.log.type)
+  const showAdminIp =
+    !!props.log.ip && (showTiming || (props.isAdmin && isTopup))
+  const adminInfo = other?.admin_info
+  const topupAuditFields =
+    isTopup && props.isAdmin && adminInfo
+      ? ([
+          adminInfo.payment_method && {
+            label: t('Order Payment Method'),
+            value: adminInfo.payment_method,
+          },
+          adminInfo.callback_payment_method && {
+            label: t('Callback Payment Method'),
+            value: adminInfo.callback_payment_method,
+          },
+          adminInfo.caller_ip && {
+            label: t('Callback Caller IP'),
+            value: adminInfo.caller_ip,
+          },
+          adminInfo.server_ip && {
+            label: t('Server IP'),
+            value: adminInfo.server_ip,
+          },
+          adminInfo.node_name && {
+            label: t('Node Name'),
+            value: adminInfo.node_name,
+          },
+          adminInfo.version && {
+            label: t('System Version'),
+            value: adminInfo.version,
+          },
+        ].filter(Boolean) as Array<{ label: string; value: string }>)
+      : []
+  const showLegacyTopupWarning = isTopup && props.isAdmin && !adminInfo
+  const showTopupAuditSection =
+    isTopup &&
+    props.isAdmin &&
+    (topupAuditFields.length > 0 || showLegacyTopupWarning)
+  const manageOperator = (() => {
+    if (!isManage || !props.isAdmin || !adminInfo) return null
+    const username = adminInfo.admin_username
+    const id = adminInfo.admin_id
+    const hasUsername = username != null && String(username).trim() !== ''
+    const hasId = id != null && String(id).trim() !== ''
+    if (!hasUsername && !hasId) return null
+    if (hasUsername && hasId) return `${username} (ID: ${id})`
+    if (hasUsername) return String(username)
+    return `ID: ${id}`
+  })()
 
   const conversionChain =
     other && Array.isArray(other.request_conversion)
@@ -435,7 +488,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 />
               )}
 
-              {props.log.ip && showTiming && (
+              {showAdminIp && (
                 <DetailRow
                   label={t('IP Address')}
                   value={
@@ -567,6 +620,53 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   <DetailRow label={t('Reason')} value={other.reason} />
                 )}
               </DetailSection>
+            )}
+
+            {/* Top-up audit info (type=1, admin only) */}
+            {showTopupAuditSection && (
+              <DetailSection
+                icon={<ShieldCheck className='size-3.5' aria-hidden='true' />}
+                label={t('Top-up Audit Info')}
+              >
+                {topupAuditFields.map((field, idx) => (
+                  <DetailRow
+                    key={idx}
+                    label={field.label}
+                    value={field.value}
+                    mono
+                  />
+                ))}
+                {showLegacyTopupWarning && (
+                  <div className='flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400'>
+                    <Info
+                      className='mt-0.5 size-3.5 shrink-0'
+                      aria-hidden='true'
+                    />
+                    <span>
+                      {t(
+                        'This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.'
+                      )}
+                    </span>
+                  </div>
+                )}
+              </DetailSection>
+            )}
+
+            {/* Manage operator (type=3, admin only) */}
+            {manageOperator && (
+              <DetailRow
+                label={
+                  <span className='flex items-center gap-1.5'>
+                    <UserCog
+                      className='text-muted-foreground size-3.5'
+                      aria-hidden='true'
+                    />
+                    {t('Operator Admin')}
+                  </span>
+                }
+                value={manageOperator}
+                mono
+              />
             )}
 
             {/* Audio/WebSocket token breakdown */}

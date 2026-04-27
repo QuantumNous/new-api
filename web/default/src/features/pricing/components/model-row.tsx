@@ -101,6 +101,14 @@ export const ModelRow = memo(function ModelRow(props: ModelRowProps) {
                   </span>
                 </>
               )}
+            {model.billing_mode === 'tiered_expr' && model.billing_expr && (
+              <>
+                <span className='text-muted-foreground/30'>·</span>
+                <span className='rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>
+                  {t('Dynamic Pricing')}
+                </span>
+              </>
+            )}
           </div>
 
           {model.description && (

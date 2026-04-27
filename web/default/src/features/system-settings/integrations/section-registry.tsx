@@ -51,6 +51,21 @@ const INTEGRATIONS_SECTIONS = [
           WaffoReturnUrl: settings.WaffoReturnUrl ?? '',
           WaffoPayMethods: settings.WaffoPayMethods ?? '[]',
         }}
+        waffoPancakeDefaultValues={{
+          WaffoPancakeEnabled: settings.WaffoPancakeEnabled ?? false,
+          WaffoPancakeSandbox: settings.WaffoPancakeSandbox ?? false,
+          WaffoPancakeMerchantID: settings.WaffoPancakeMerchantID ?? '',
+          WaffoPancakePrivateKey: settings.WaffoPancakePrivateKey ?? '',
+          WaffoPancakeWebhookPublicKey:
+            settings.WaffoPancakeWebhookPublicKey ?? '',
+          WaffoPancakeWebhookTestKey: settings.WaffoPancakeWebhookTestKey ?? '',
+          WaffoPancakeStoreID: settings.WaffoPancakeStoreID ?? '',
+          WaffoPancakeProductID: settings.WaffoPancakeProductID ?? '',
+          WaffoPancakeReturnURL: settings.WaffoPancakeReturnURL ?? '',
+          WaffoPancakeCurrency: settings.WaffoPancakeCurrency ?? 'USD',
+          WaffoPancakeUnitPrice: settings.WaffoPancakeUnitPrice ?? 1,
+          WaffoPancakeMinTopUp: settings.WaffoPancakeMinTopUp ?? 1,
+        }}
       />
     ),
   },

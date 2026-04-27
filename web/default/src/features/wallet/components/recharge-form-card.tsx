@@ -58,6 +58,7 @@ interface RechargeFormCardProps {
   waffoPayMethods?: WaffoPayMethod[]
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
+  enableWaffoPancakeTopup?: boolean
 }
 
 export function RechargeFormCard({
@@ -87,6 +88,7 @@ export function RechargeFormCard({
   waffoPayMethods,
   waffoMinTopup,
   onWaffoMethodSelect,
+  enableWaffoPancakeTopup,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -106,7 +108,8 @@ export function RechargeFormCard({
   const hasConfigurableTopup =
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
-    enableWaffoTopup
+    enableWaffoTopup ||
+    enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasStandardPaymentMethods =
     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
@@ -307,7 +310,12 @@ export function RechargeFormCard({
                             {paymentLoading === method.type ? (
                               <Loader2 className='h-4 w-4 animate-spin' />
                             ) : (
-                              getPaymentIcon(method.type)
+                              getPaymentIcon(
+                                method.type,
+                                'h-4 w-4',
+                                method.icon,
+                                method.name
+                              )
                             )}
                             {method.name}
                           </Button>

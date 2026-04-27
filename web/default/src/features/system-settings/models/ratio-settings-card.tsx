@@ -12,6 +12,7 @@ import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
+import { ToolPriceSettings } from './tool-price-settings'
 import { UpstreamRatioSync } from './upstream-ratio-sync'
 import {
   formatJsonForTextarea,
@@ -93,6 +94,24 @@ const modelSchema = z.object({
     }
   }),
   ExposeRatioEnabled: z.boolean(),
+  BillingMode: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
+  BillingExpr: z.string().superRefine((value, ctx) => {
+    const result = validateJsonString(value)
+    if (!result.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: result.message || 'Invalid JSON',
+      })
+    }
+  }),
 })
 
 const groupSchema = z.object({
@@ -164,11 +183,13 @@ type GroupFormValues = z.infer<typeof groupSchema>
 type RatioSettingsCardProps = {
   modelDefaults: ModelFormValues
   groupDefaults: GroupFormValues
+  toolPricesDefault: string
 }
 
 export function RatioSettingsCard({
   modelDefaults,
   groupDefaults,
+  toolPricesDefault,
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -203,6 +224,8 @@ export function RatioSettingsCard({
       modelDefaults.AudioCompletionRatio
     ),
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
+    BillingMode: normalizeJsonString(modelDefaults.BillingMode),
+    BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
   })
 
   const groupNormalizedDefaults = useRef({
@@ -232,6 +255,8 @@ export function RatioSettingsCard({
       AudioCompletionRatio: formatJsonForTextarea(
         modelDefaults.AudioCompletionRatio
       ),
+      BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
+      BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
     },
   })
 
@@ -264,6 +289,8 @@ export function RatioSettingsCard({
         modelDefaults.AudioCompletionRatio
       ),
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
+      BillingMode: normalizeJsonString(modelDefaults.BillingMode),
+      BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
     }
 
     modelForm.reset({
@@ -278,6 +305,8 @@ export function RatioSettingsCard({
       AudioCompletionRatio: formatJsonForTextarea(
         modelDefaults.AudioCompletionRatio
       ),
+      BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
+      BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
     })
   }, [modelDefaults, modelForm])
 
@@ -319,6 +348,13 @@ export function RatioSettingsCard({
         AudioRatio: normalizeJsonString(values.AudioRatio),
         AudioCompletionRatio: normalizeJsonString(values.AudioCompletionRatio),
         ExposeRatioEnabled: values.ExposeRatioEnabled,
+        BillingMode: normalizeJsonString(values.BillingMode),
+        BillingExpr: normalizeJsonString(values.BillingExpr),
+      }
+
+      const apiKeyMap: Record<string, string> = {
+        BillingMode: 'billing_setting.billing_mode',
+        BillingExpr: 'billing_setting.billing_expr',
       }
 
       const updates = (
@@ -328,7 +364,8 @@ export function RatioSettingsCard({
       )
 
       for (const key of updates) {
-        await updateOption.mutateAsync({ key, value: normalized[key] })
+        const apiKey = apiKeyMap[key as string] || (key as string)
+        await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
       }
     },
     [updateOption]
@@ -385,9 +422,10 @@ export function RatioSettingsCard({
       )}
     >
       <Tabs defaultValue='models' className='space-y-6'>
-        <TabsList className='grid w-full grid-cols-3'>
+        <TabsList className='grid w-full grid-cols-4'>
           <TabsTrigger value='models'>{t('Model ratios')}</TabsTrigger>
           <TabsTrigger value='groups'>{t('Group ratios')}</TabsTrigger>
+          <TabsTrigger value='tool-prices'>{t('Tool prices')}</TabsTrigger>
           <TabsTrigger value='upstream-sync'>{t('Upstream sync')}</TabsTrigger>
         </TabsList>
 
@@ -407,6 +445,10 @@ export function RatioSettingsCard({
             onSave={saveGroupRatios}
             isSaving={updateOption.isPending}
           />
+        </TabsContent>
+
+        <TabsContent value='tool-prices'>
+          <ToolPriceSettings defaultValue={toolPricesDefault} />
         </TabsContent>
 
         <TabsContent value='upstream-sync'>

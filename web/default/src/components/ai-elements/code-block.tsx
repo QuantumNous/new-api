@@ -7,12 +7,15 @@ import {
   type HTMLAttributes,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from 'react'
 import type { Element } from 'hast'
 import { CheckIcon, CopyIcon } from 'lucide-react'
-import { type BundledLanguage, codeToHtml, type ShikiTransformer } from 'shiki'
+import {
+  type BundledLanguage,
+  codeToHtml,
+  type ShikiTransformer,
+} from 'shiki/bundle/web'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -60,18 +63,14 @@ export async function highlightCode(
     ? [lineNumberTransformer]
     : []
 
-  return await Promise.all([
-    codeToHtml(code, {
-      lang: language,
-      theme: 'one-light',
-      transformers,
-    }),
-    codeToHtml(code, {
-      lang: language,
-      theme: 'one-dark-pro',
-      transformers,
-    }),
-  ])
+  return codeToHtml(code, {
+    lang: language,
+    themes: {
+      light: 'one-light',
+      dark: 'one-dark-pro',
+    },
+    transformers,
+  })
 }
 
 export const CodeBlock = ({
@@ -83,20 +82,16 @@ export const CodeBlock = ({
   ...props
 }: CodeBlockProps) => {
   const [html, setHtml] = useState<string>('')
-  const [darkHtml, setDarkHtml] = useState<string>('')
-  const mounted = useRef(false)
 
   useEffect(() => {
-    highlightCode(code, language, showLineNumbers).then(([light, dark]) => {
-      if (!mounted.current) {
-        setHtml(light)
-        setDarkHtml(dark)
-        mounted.current = true
+    let cancelled = false
+    highlightCode(code, language, showLineNumbers).then((next) => {
+      if (!cancelled) {
+        setHtml(next)
       }
     })
-
     return () => {
-      mounted.current = false
+      cancelled = true
     }
   }, [code, language, showLineNumbers])
 
@@ -111,14 +106,9 @@ export const CodeBlock = ({
       >
         <div className='relative'>
           <div
-            className='[&>pre]:bg-background! [&>pre]:text-foreground! overflow-hidden dark:hidden [&_code]:font-mono [&_code]:text-sm [&>pre]:m-0 [&>pre]:p-4 [&>pre]:text-sm'
+            className='[&>pre]:bg-background! [&>pre]:text-foreground! overflow-hidden [&_code]:font-mono [&_code]:text-sm [&>pre]:m-0 [&>pre]:p-4 [&>pre]:text-sm'
             // biome-ignore lint/security/noDangerouslySetInnerHtml: "this is needed."
             dangerouslySetInnerHTML={{ __html: html }}
-          />
-          <div
-            className='[&>pre]:bg-background! [&>pre]:text-foreground! hidden overflow-hidden dark:block [&_code]:font-mono [&_code]:text-sm [&>pre]:m-0 [&>pre]:p-4 [&>pre]:text-sm'
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: "this is needed."
-            dangerouslySetInnerHTML={{ __html: darkHtml }}
           />
           {children && (
             <div className='absolute top-2 right-2 flex items-center gap-2'>

@@ -80,6 +80,16 @@ export interface LogOtherData {
     use_channel?: number[]
     local_count_tokens?: boolean
     channel_affinity?: ChannelAffinityInfo
+    // Top-up audit fields (type=1, admin only)
+    payment_method?: string
+    callback_payment_method?: string
+    caller_ip?: string
+    server_ip?: string
+    version?: string
+    node_name?: string
+    // Manage audit fields (type=3, admin only)
+    admin_username?: string
+    admin_id?: number | string
   }
   request_path?: string
   request_conversion?: string[]
