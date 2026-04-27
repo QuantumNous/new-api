@@ -11,7 +11,7 @@ var ModelList = []string{
 	"Doubao-embedding",
 	"doubao-seed-1-6-thinking-250715",
 	"seed-1-6-thinking-250715",
-	// Image generation (Seedream) — synchronous via /volc/api/v3/images/generations
+	// Image generation (Seedream) — synchronous via /api/v3/images/generations
 	"doubao-seedream-5-0-260128",
 	"doubao-seedream-5-0-lite-260128",
 	"doubao-seedream-4-5-251128",

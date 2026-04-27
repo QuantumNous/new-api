@@ -41,7 +41,7 @@ func SetVideoRouter(router *gin.Engine) {
 		klingV1Router.GET("/videos/image2video/:task_id", controller.RelayTaskFetch)
 	}
 
-	volcV3Router := router.Group("/volc/api/v3")
+	volcV3Router := router.Group("/api/v3")
 	volcV3Router.Use(middleware.RouteTag("relay"))
 	volcV3Router.Use(middleware.VolcRequestConvert(), middleware.TokenAuth(), middleware.Distribute())
 	{

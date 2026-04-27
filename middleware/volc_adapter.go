@@ -29,7 +29,7 @@ func VolcRequestConvert() func(c *gin.Context) {
 		case c.Request.Method == http.MethodGet && strings.Contains(path, "/contents/generations/tasks/:id"):
 			convertVolcVideoFetchRequest(c)
 		case c.Request.Method == http.MethodDelete && strings.Contains(path, "/contents/generations/tasks/:id"):
-			abortWithOpenAiMessage(c, http.StatusNotImplemented, "DELETE /volc/api/v3/contents/generations/tasks/:id is not supported yet")
+			abortWithOpenAiMessage(c, http.StatusNotImplemented, "DELETE /api/v3/contents/generations/tasks/:id is not supported yet")
 		}
 
 		if !c.IsAborted() {

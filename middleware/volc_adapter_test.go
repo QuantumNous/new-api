@@ -108,8 +108,8 @@ func TestVolcConvert_ImageGeneration_T2I(t *testing.T) {
 	rec := runVolcMiddlewareCase(
 		t,
 		http.MethodPost,
-		"/volc/api/v3/images/generations",
-		"/volc/api/v3/images/generations",
+		"/api/v3/images/generations",
+		"/api/v3/images/generations",
 		inputBody,
 		func(t *testing.T, c *gin.Context) {
 			if got := c.Request.URL.Path; got != "/v1/images/generations" {
@@ -163,8 +163,8 @@ func TestVolcConvert_ImageGeneration_I2I(t *testing.T) {
 	rec := runVolcMiddlewareCase(
 		t,
 		http.MethodPost,
-		"/volc/api/v3/images/generations",
-		"/volc/api/v3/images/generations",
+		"/api/v3/images/generations",
+		"/api/v3/images/generations",
 		inputBody,
 		func(t *testing.T, c *gin.Context) {
 			if got := c.Request.URL.Path; got != "/v1/images/generations" {
@@ -217,8 +217,8 @@ func TestVolcConvert_VideoSubmit_T2V(t *testing.T) {
 	rec := runVolcMiddlewareCase(
 		t,
 		http.MethodPost,
-		"/volc/api/v3/contents/generations/tasks",
-		"/volc/api/v3/contents/generations/tasks",
+		"/api/v3/contents/generations/tasks",
+		"/api/v3/contents/generations/tasks",
 		inputBody,
 		func(t *testing.T, c *gin.Context) {
 			if got := c.Request.URL.Path; got != "/v1/video/generations" {
@@ -276,8 +276,8 @@ func TestVolcConvert_VideoSubmit_I2V(t *testing.T) {
 	rec := runVolcMiddlewareCase(
 		t,
 		http.MethodPost,
-		"/volc/api/v3/contents/generations/tasks",
-		"/volc/api/v3/contents/generations/tasks",
+		"/api/v3/contents/generations/tasks",
+		"/api/v3/contents/generations/tasks",
 		inputBody,
 		func(t *testing.T, c *gin.Context) {
 			if got := c.Request.URL.Path; got != "/v1/video/generations" {
@@ -327,8 +327,8 @@ func TestVolcConvert_VideoFetchByID(t *testing.T) {
 	rec := runVolcMiddlewareCase(
 		t,
 		http.MethodGet,
-		"/volc/api/v3/contents/generations/tasks/task_abc123",
-		"/volc/api/v3/contents/generations/tasks/:id",
+		"/api/v3/contents/generations/tasks/task_abc123",
+		"/api/v3/contents/generations/tasks/:id",
 		"",
 		func(t *testing.T, c *gin.Context) {
 			if got := c.Request.URL.Path; got != "/v1/video/generations/task_abc123" {
@@ -358,8 +358,8 @@ func TestVolcConvert_VideoList(t *testing.T) {
 	rec := runVolcMiddlewareCase(
 		t,
 		http.MethodGet,
-		"/volc/api/v3/contents/generations/tasks?page_num=1&page_size=10",
-		"/volc/api/v3/contents/generations/tasks",
+		"/api/v3/contents/generations/tasks?page_num=1&page_size=10",
+		"/api/v3/contents/generations/tasks",
 		"",
 		func(t *testing.T, c *gin.Context) {
 			if got := c.Request.URL.Path; got != "/v1/video/generations" {
@@ -386,8 +386,8 @@ func TestVolcConvert_VideoDelete_NotImplemented(t *testing.T) {
 	rec := runVolcMiddlewareCase(
 		t,
 		http.MethodDelete,
-		"/volc/api/v3/contents/generations/tasks/task_xyz",
-		"/volc/api/v3/contents/generations/tasks/:id",
+		"/api/v3/contents/generations/tasks/task_xyz",
+		"/api/v3/contents/generations/tasks/:id",
 		"",
 		func(t *testing.T, c *gin.Context) {
 			t.Fatal("handler should not be reached for DELETE")
@@ -421,27 +421,27 @@ func TestVolcConvert_RequestKeyFallback(t *testing.T) {
 		// ── model field fallback ──
 		{
 			name:       "image: model field wins over model_name",
-			endpoint:   "/volc/api/v3/images/generations",
+			endpoint:   "/api/v3/images/generations",
 			method:     http.MethodPost,
-			pattern:    "/volc/api/v3/images/generations",
+			pattern:    "/api/v3/images/generations",
 			body:       `{"model":"doubao-seedream-5-0-260128","model_name":"wrong","prompt":"hello"}`,
 			wantModel:  "doubao-seedream-5-0-260128",
 			wantPrompt: "hello",
 		},
 		{
 			name:       "image: model_name fallback when model missing",
-			endpoint:   "/volc/api/v3/images/generations",
+			endpoint:   "/api/v3/images/generations",
 			method:     http.MethodPost,
-			pattern:    "/volc/api/v3/images/generations",
+			pattern:    "/api/v3/images/generations",
 			body:       `{"model_name":"doubao-seedream-4-0-250828","prompt":"hi"}`,
 			wantModel:  "doubao-seedream-4-0-250828",
 			wantPrompt: "hi",
 		},
 		{
 			name:       "image: req_key fallback (legacy) when model and model_name missing",
-			endpoint:   "/volc/api/v3/images/generations",
+			endpoint:   "/api/v3/images/generations",
 			method:     http.MethodPost,
-			pattern:    "/volc/api/v3/images/generations",
+			pattern:    "/api/v3/images/generations",
 			body:       `{"req_key":"doubao-seedream-3-0-t2i-250415","prompt":"world"}`,
 			wantModel:  "doubao-seedream-3-0-t2i-250415",
 			wantPrompt: "world",
@@ -449,36 +449,36 @@ func TestVolcConvert_RequestKeyFallback(t *testing.T) {
 		// ── prompt/content field fallback ──
 		{
 			name:       "video: prompt field wins over content",
-			endpoint:   "/volc/api/v3/contents/generations/tasks",
+			endpoint:   "/api/v3/contents/generations/tasks",
 			method:     http.MethodPost,
-			pattern:    "/volc/api/v3/contents/generations/tasks",
+			pattern:    "/api/v3/contents/generations/tasks",
 			body:       `{"model":"doubao-seedance-2-0-260128","prompt":"use prompt","content":"ignore content"}`,
 			wantModel:  "doubao-seedance-2-0-260128",
 			wantPrompt: "use prompt",
 		},
 		{
 			name:       "video: content fallback when prompt missing",
-			endpoint:   "/volc/api/v3/contents/generations/tasks",
+			endpoint:   "/api/v3/contents/generations/tasks",
 			method:     http.MethodPost,
-			pattern:    "/volc/api/v3/contents/generations/tasks",
+			pattern:    "/api/v3/contents/generations/tasks",
 			body:       `{"model":"doubao-seedance-1-5-pro-251215","content":"sunset timelapse"}`,
 			wantModel:  "doubao-seedance-1-5-pro-251215",
 			wantPrompt: "sunset timelapse",
 		},
 		{
 			name:       "video: model_name fallback for model field",
-			endpoint:   "/volc/api/v3/contents/generations/tasks",
+			endpoint:   "/api/v3/contents/generations/tasks",
 			method:     http.MethodPost,
-			pattern:    "/volc/api/v3/contents/generations/tasks",
+			pattern:    "/api/v3/contents/generations/tasks",
 			body:       `{"model_name":"doubao-seedance-2-0-fast-260128","content":"fly over city"}`,
 			wantModel:  "doubao-seedance-2-0-fast-260128",
 			wantPrompt: "fly over city",
 		},
 		{
 			name:       "video: req_key fallback (legacy) for model field",
-			endpoint:   "/volc/api/v3/contents/generations/tasks",
+			endpoint:   "/api/v3/contents/generations/tasks",
 			method:     http.MethodPost,
-			pattern:    "/volc/api/v3/contents/generations/tasks",
+			pattern:    "/api/v3/contents/generations/tasks",
 			body:       `{"req_key":"doubao-seedance-1-0-pro-250528","content":"ocean waves"}`,
 			wantModel:  "doubao-seedance-1-0-pro-250528",
 			wantPrompt: "ocean waves",
@@ -527,28 +527,28 @@ func TestVolcConvert_InvalidBody(t *testing.T) {
 	rows := []row{
 		{
 			name:       "image: invalid JSON",
-			endpoint:   "/volc/api/v3/images/generations",
+			endpoint:   "/api/v3/images/generations",
 			body:       `{not json`,
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: "Invalid request body",
 		},
 		{
 			name:       "image: empty body",
-			endpoint:   "/volc/api/v3/images/generations",
+			endpoint:   "/api/v3/images/generations",
 			body:       ``,
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: "Invalid request body",
 		},
 		{
 			name:       "video: invalid JSON",
-			endpoint:   "/volc/api/v3/contents/generations/tasks",
+			endpoint:   "/api/v3/contents/generations/tasks",
 			body:       `{bad`,
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: "Invalid request body",
 		},
 		{
 			name:       "video: empty body",
-			endpoint:   "/volc/api/v3/contents/generations/tasks",
+			endpoint:   "/api/v3/contents/generations/tasks",
 			body:       ``,
 			wantStatus: http.StatusBadRequest,
 			wantErrMsg: "Invalid request body",

@@ -177,7 +177,7 @@ func SetRelayRouter(router *gin.Engine) {
 	//relayMjRouter.Use()
 
 	// Volc Ark compatible image route (synchronous, same relay chain as /v1)
-	volcV3ImageRouter := router.Group("/volc/api/v3")
+	volcV3ImageRouter := router.Group("/api/v3")
 	volcV3ImageRouter.Use(middleware.RouteTag("relay"))
 	volcV3ImageRouter.Use(middleware.VolcRequestConvert(), middleware.TokenAuth(), middleware.Distribute())
 	{

@@ -56,7 +56,7 @@ func TestVideoFetchListRespBuilder_FilterAndMapping(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/volc/api/v3/contents/generations/tasks?page_num=1&page_size=10&filter.status=succeeded&filter.model=doubao-seedance-1-5-pro-251215&filter.task_ids=task_b,task_x&filter.task_ids=task_c",
+		"/api/v3/contents/generations/tasks?page_num=1&page_size=10&filter.status=succeeded&filter.model=doubao-seedance-1-5-pro-251215&filter.task_ids=task_b,task_x&filter.task_ids=task_c",
 		nil,
 	)
 	c.Request = req
@@ -94,7 +94,7 @@ func TestVideoFetchListRespBuilder_InvalidStatus(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/volc/api/v3/contents/generations/tasks?filter.status=unknown_status",
+		"/api/v3/contents/generations/tasks?filter.status=unknown_status",
 		nil,
 	)
 	c.Request = req
