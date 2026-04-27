@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,6 +40,17 @@ func SetVideoRouter(router *gin.Engine) {
 		klingV1Router.POST("/videos/image2video", controller.RelayTask)
 		klingV1Router.GET("/videos/text2video/:task_id", controller.RelayTaskFetch)
 		klingV1Router.GET("/videos/image2video/:task_id", controller.RelayTaskFetch)
+	}
+
+	volcV3Router := router.Group("/volc/api/v3")
+	volcV3Router.Use(middleware.RouteTag("relay"))
+	volcV3Router.Use(middleware.VolcRequestConvert(), middleware.TokenAuth(), middleware.Distribute())
+	{
+		volcV3Router.POST("/images/generations", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIImage)
+		})
+		volcV3Router.POST("/contents/generations/tasks", controller.RelayTask)
+		volcV3Router.GET("/contents/generations/tasks/:id", controller.RelayTaskFetch)
 	}
 
 	// Jimeng official API routes - direct mapping to official API format
