@@ -108,8 +108,14 @@ export const useLogStatistics = () => {
       const contentDisposition = res.headers['content-disposition'];
       let filename = `usage_statistics_${params.username}.xlsx`;
       if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (match) filename = match[1];
+        // Prefer filename*=UTF-8''... (RFC 5987), fall back to filename="..."
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''(.+?)(?:;|$)/);
+        if (utf8Match) {
+          filename = decodeURIComponent(utf8Match[1]);
+        } else {
+          const match = contentDisposition.match(/filename="?([^";]+)"?/);
+          if (match) filename = decodeURIComponent(match[1]);
+        }
       }
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
