@@ -22,7 +22,7 @@ import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import {
-  BILLING_VARS,
+  BILLING_PRICING_VARS,
   BILLING_VAR_KEY_TO_FIELD,
   BILLING_VAR_REGEX,
 } from '../constants';
@@ -2246,7 +2246,7 @@ export function parseTiersFromExpr(exprStr) {
   if (!exprStr) return [];
   try {
     const { body } = stripExprVersion(exprStr);
-    const condGroup = `((?:(?:p|c)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`;
+    const condGroup = `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`;
     const tierRe = new RegExp(`(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`, 'g');
     const tiers = [];
     let m;
@@ -2255,7 +2255,7 @@ export function parseTiersFromExpr(exprStr) {
       const conditions = [];
       if (condStr) {
         for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/);
+          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/);
           if (cm) conditions.push({ var: cm[1], op: cm[2], value: Number(cm[3]) });
         }
       }
@@ -2293,7 +2293,7 @@ export function renderTieredModelPrice(opts) {
   const { symbol, rate } = getCurrencyConfig();
   const gr = groupRatio || 1;
 
-  const priceLines = BILLING_VARS.map((v) => [v.field, v.label]);
+  const priceLines = BILLING_PRICING_VARS.map((v) => [v.field, v.label]);
 
   const lines = [
     buildBillingText('命中档位：{{tier}}', { tier: matchedTier || tier.label }),
@@ -2334,7 +2334,7 @@ export function renderTieredModelPriceSimple(opts) {
     ];
 
     if (tier && isPriceDisplayMode(displayMode)) {
-      const priceSegments = BILLING_VARS.map((v) => [v.field, v.shortLabel]);
+      const priceSegments = BILLING_PRICING_VARS.map((v) => [v.field, v.shortLabel]);
       for (const [field, label] of priceSegments) {
         if (tier[field] > 0) {
           segments.push({

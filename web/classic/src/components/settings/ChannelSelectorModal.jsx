@@ -155,8 +155,8 @@ const ChannelSelectorModal = forwardRef(
             onChange={handleTypeChange}
             style={{ width: 120 }}
             optionList={[
-              { label: 'ratio_config', value: 'ratio_config' },
               { label: 'pricing', value: 'pricing' },
+              { label: 'ratio_config', value: 'ratio_config' },
               { label: 'OpenRouter', value: 'openrouter' },
               { label: 'custom', value: 'custom' },
             ]}

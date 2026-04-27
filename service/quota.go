@@ -160,8 +160,9 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 
 	var tieredResult *billingexpr.TieredResult
 	tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, billingexpr.TokenParams{
-		P: float64(usage.InputTokens),
-		C: float64(usage.OutputTokens),
+		P:   float64(usage.InputTokens),
+		C:   float64(usage.OutputTokens),
+		Len: float64(usage.InputTokens),
 	})
 	if tieredOk {
 		tieredResult = tieredRes

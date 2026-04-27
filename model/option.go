@@ -574,18 +574,13 @@ func handleConfigUpdate(key, value string) bool {
 	config.UpdateConfigFromMap(cfg, configMap)
 
 	// 特定配置的后处理
-<<<<<<< HEAD
-	switch configName {
-	case "performance_setting":
-		performance_setting.UpdateAndSync()
-	case "theme":
-		system_setting.UpdateAndSyncTheme()
-=======
 	if configName == "performance_setting" {
 		performance_setting.UpdateAndSync()
 	} else if configName == "tool_price_setting" {
 		operation_setting.RebuildToolPriceIndex()
->>>>>>> origin/main
+	} else if configName == "billing_setting" {
+		InvalidatePricingCache()
+		ratio_setting.InvalidateExposedDataCache()
 	}
 
 	return true // 已处理
