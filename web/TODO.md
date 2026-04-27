@@ -1,6 +1,10 @@
 # HeroUI v3 Cleanup
 
-Branch: `feature/heroui-v3-cleanup`
+Tracker across PRs:
+- PR #9 (merged) — Phase 0, 2, 3.
+- PR <pending> (this branch) — Phase 4, 6.
+
+Active branch: `feature/heroui-v3-success-warning-buttons`
 
 Goal: bring `web/` into full compliance with HeroUI v3 component rules
 (ref: https://heroui.com/react/llms.txt and per-component migration guides).
@@ -62,26 +66,24 @@ Mapping applied:
 - [x] Run codemod (102 component files, ~325 prop edits + Chip in semi.js).
 - [x] Verify zero `variant='solid|bordered|flat|light|faded|shadow'` and zero `radius=` left in `web/src/`.
 
-### Phase 4 — Manual review of `color='success' / 'warning'`
+### Phase 4 — Manual review of `color='success' / 'warning'` ✅
 
-v3 Button has no built-in success/warning variant. The codemod left
-these in place; each needs a Tailwind override (`bg-success`, etc.) or
-a swap to the closest semantic intent.
+v3 Button has no built-in success/warning variant. Centralised the four
+tone classes in `web/src/components/common/ui/buttonTones.js`
+(`successButtonClass`, `warningButtonClass`, `warningSoftButtonClass`,
+`warningGhostButtonClass`) — each overrides `--button-bg / -hover /
+-pressed / -fg` using the warning / success tokens `@heroui/styles`
+already exposes via Tailwind v4. Pair with v3 `variant='primary'` for
+solid tones, `variant='tertiary'` for ghost / icon-only.
 
-- [ ] `web/src/components/settings/personal/cards/CheckinCalendar.jsx` —
-      "补签 / Gift" success Button.
-- [ ] `web/src/components/table/channels/modals/ModelTestModal.jsx` —
-      "测试中" warning indicator.
-- [ ] `web/src/components/table/channels/modals/MultiKeyManageModal.jsx` —
-      warning badge.
-- [ ] `web/src/components/table/tokens/index.jsx` — warning label.
-- [ ] `web/src/components/table/users/UsersColumnDefs.jsx` — risk warning.
-- [ ] `web/src/components/table/users/modals/UserSubscriptionsModal.jsx` —
-      warning.
-- [ ] `web/src/pages/Setting/Operation/SettingsChannelAffinity.jsx` —
-      warning.
-- [ ] `web/src/pages/Setting/Performance/SettingsPerformance.jsx` —
-      "清理缓存" warning Button.
+- [x] `CheckinCalendar` "立即签到" → `variant='primary' + successButtonClass`.
+- [x] `SettingsPerformance` "清理不活跃缓存" → `variant='primary' + warningButtonClass`.
+- [x] `MultiKeyManageModal` "删除自动禁用密钥" → `variant='primary' + warningButtonClass`.
+- [x] `SettingsChannelAffinity` "清空规则缓存" (icon-only X) → `variant='tertiary' + warningGhostButtonClass`.
+- [x] `ModelTestModal` "前往设置" → `variant='tertiary' + warningGhostButtonClass`.
+- [x] `UserSubscriptionsModal` "作废" → `variant='tertiary' + warningGhostButtonClass`.
+- [x] `UsersColumnDefs` "提升" → `variant='tertiary' + warningGhostButtonClass`.
+- [x] `tokens/index` "不再提醒" → `variant='tertiary' + warningGhostButtonClass`.
 
 ### Phase 5 — `startContent` / `endContent` → children
 
@@ -91,12 +93,11 @@ Mostly mechanical but needs human review for ordering and gap classes.
 
 - [ ] Write codemod, run, manual sanity pass.
 
-### Phase 6 — `classNames={...}` cleanup
+### Phase 6 — `classNames={...}` cleanup ✅
 
-Single occurrence remaining (`web/src/components/auth/AuthLayout.jsx`),
-v3 uses plain `className`.
-
-- [ ] Migrate.
+- [x] `web/src/components/auth/AuthLayout.jsx` — replaced
+      `classNames={{ base, label }}` with root `className='items-start'`
+      + `<span>` wrapper for the label tone.
 
 ### Phase 7 — Final verification
 
