@@ -26,6 +26,7 @@ import ModelHeader from './components/ModelHeader';
 import ModelBasicInfo from './components/ModelBasicInfo';
 import ModelEndpoints from './components/ModelEndpoints';
 import ModelPricingTable from './components/ModelPricingTable';
+import DynamicPricingBreakdown from './components/DynamicPricingBreakdown';
 
 const ModelDetailSideSheet = ({
   visible,
@@ -113,6 +114,13 @@ const ModelDetailSideSheet = ({
                 endpointMap={endpointMap}
                 t={t}
               />
+              {modelData.billing_mode === 'tiered_expr' &&
+                modelData.billing_expr && (
+                  <DynamicPricingBreakdown
+                    billingExpr={modelData.billing_expr}
+                    t={t}
+                  />
+                )}
               <ModelPricingTable
                 modelData={modelData}
                 groupRatio={groupRatio}

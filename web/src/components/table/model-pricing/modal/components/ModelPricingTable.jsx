@@ -28,7 +28,11 @@ function GroupChip({ children, tone = 'default' }) {
       ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
       : tone === 'teal'
         ? 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300'
-        : 'border border-[color:var(--app-border)] bg-background text-foreground';
+        : tone === 'amber'
+          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+          : tone === 'blue'
+            ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+            : 'border border-[color:var(--app-border)] bg-background text-foreground';
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass}`}
@@ -81,14 +85,20 @@ const ModelPricingTable = ({
       group,
       ratio: groupRatioValue,
       billingType:
-        modelData?.quota_type === 0
-          ? t('按量计费')
-          : modelData?.quota_type === 1
-            ? t('按次计费')
-            : '-',
+        modelData?.billing_mode === 'tiered_expr'
+          ? t('动态计费')
+          : modelData?.quota_type === 0
+            ? t('按量计费')
+            : modelData?.quota_type === 1
+              ? t('按次计费')
+              : '-',
       priceItems: getModelPriceItems(priceData, t, siteDisplayType),
     };
   });
+
+  // 动态计费时始终显示分组倍率列，否则按 showRatio 设置
+  const isDynamicBilling = modelData?.billing_mode === 'tiered_expr';
+  const showRatioCol = showRatio || isDynamicBilling;
 
   return (
     <Card className='!rounded-2xl border border-[color:var(--app-border)] shadow-sm'>
@@ -137,9 +147,9 @@ const ModelPricingTable = ({
                   <th className='px-3 py-2 text-left font-semibold'>
                     {t('分组')}
                   </th>
-                  {showRatio ? (
+                  {showRatioCol ? (
                     <th className='px-3 py-2 text-left font-semibold'>
-                      {t('倍率')}
+                      {t('分组倍率')}
                     </th>
                   ) : null}
                   <th className='px-3 py-2 text-left font-semibold'>
@@ -159,7 +169,12 @@ const ModelPricingTable = ({
                       ? 'violet'
                       : row.billingType === t('按次计费')
                         ? 'teal'
-                        : 'default';
+                        : row.billingType === t('动态计费')
+                          ? 'amber'
+                          : 'default';
+                  const isDynamicSummary =
+                    row.priceItems.length === 1 &&
+                    row.priceItems[0].isDynamic;
                   return (
                     <tr key={row.key}>
                       <td className='px-3 py-2'>
@@ -168,9 +183,9 @@ const ModelPricingTable = ({
                           {t('分组')}
                         </GroupChip>
                       </td>
-                      {showRatio ? (
+                      {showRatioCol ? (
                         <td className='px-3 py-2'>
-                          <GroupChip>{row.ratio}x</GroupChip>
+                          <GroupChip tone='blue'>{row.ratio}x</GroupChip>
                         </td>
                       ) : null}
                       <td className='px-3 py-2'>
@@ -179,20 +194,26 @@ const ModelPricingTable = ({
                         </GroupChip>
                       </td>
                       <td className='px-3 py-2'>
-                        <div className='space-y-1'>
-                          {row.priceItems.map((item) => (
-                            <div key={item.key}>
-                              <div className='font-semibold text-orange-600 dark:text-orange-300'>
-                                {item.label} {item.value}
-                              </div>
-                              {item.suffix ? (
-                                <div className='text-xs text-muted'>
-                                  {item.suffix}
+                        {isDynamicSummary ? (
+                          <span className='text-xs text-muted'>
+                            {t('见上方动态计费详情')}
+                          </span>
+                        ) : (
+                          <div className='space-y-1'>
+                            {row.priceItems.map((item) => (
+                              <div key={item.key}>
+                                <div className='font-semibold text-orange-600 dark:text-orange-300'>
+                                  {item.label} {item.value}
                                 </div>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
+                                {item.suffix ? (
+                                  <div className='text-xs text-muted'>
+                                    {item.suffix}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

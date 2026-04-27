@@ -6,6 +6,11 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
@@ -37,6 +42,7 @@ import {
   useModelPricingEditorState,
 } from '../hooks/useModelPricingEditorState';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import TieredPricingEditor from './TieredPricingEditor';
 
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 
@@ -169,6 +175,8 @@ export default function ModelPricingEditor({
     handleOptionalFieldToggle,
     handleNumericFieldChange,
     handleBillingModeChange,
+    handleBillingExprChange,
+    handleRequestRuleExprChange,
     handleSubmit,
     addModel,
     deleteModel,
@@ -575,6 +583,7 @@ export default function ModelPricingEditor({
                         {[
                           { value: 'per-token', label: t('按量计费') },
                           { value: 'per-request', label: t('按次计费') },
+                          { value: 'tiered_expr', label: t('表达式/阶梯计费') },
                         ].map((option) => {
                           const active =
                             option.value === selectedModel.billingMode;
@@ -629,6 +638,13 @@ export default function ModelPricingEditor({
                           handleNumericFieldChange('fixedPrice', value)
                         }
                         extraText={t('适合 MJ / 任务类等按次收费模型。')}
+                      />
+                    ) : selectedModel.billingMode === 'tiered_expr' ? (
+                      <TieredPricingEditor
+                        value={selectedModel.billingExpr}
+                        requestRuleExpr={selectedModel.requestRuleExpr}
+                        onChange={handleBillingExprChange}
+                        onRequestRuleChange={handleRequestRuleExprChange}
                       />
                     ) : (
                       <>
