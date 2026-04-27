@@ -55,6 +55,7 @@ const (
 	ChannelTypeSora           = 55
 	ChannelTypeReplicate      = 56
 	ChannelTypeCodex          = 57
+	ChannelTypeQiniu          = 58 // 七牛 AI（OpenAI 兼容协议），默认 Base URL: https://api.qnaigc.com
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -118,6 +119,7 @@ var ChannelBaseURLs = []string{
 	"https://api.openai.com",                    //55
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
+	"https://api.qnaigc.com",                    //58 - Qiniu AI gateway
 }
 
 var ChannelTypeNames = map[int]string{
@@ -175,6 +177,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSora:           "Sora",
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "Codex",
+	ChannelTypeQiniu:          "Qiniu", // 七牛 AI 网关
 }
 
 func GetChannelTypeName(channelType int) string {

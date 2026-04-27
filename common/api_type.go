@@ -7,6 +7,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 	switch channelType {
 	case constant.ChannelTypeOpenAI:
 		apiType = constant.APITypeOpenAI
+	case constant.ChannelTypeQiniu:
+		apiType = constant.APITypeOpenAI // 七牛使用 OpenAI 兼容协议
 	case constant.ChannelTypeAnthropic:
 		apiType = constant.APITypeAnthropic
 	case constant.ChannelTypeBaidu:
