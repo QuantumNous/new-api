@@ -439,7 +439,7 @@ func videoFetchListRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	startIdx := (pageNum - 1) * pageSize
 
 	queryParams := model.SyncTaskQueryParams{
-		Platform: constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeVolcEngine)),
+		Platform: constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeVolcAdapter)),
 	}
 
 	if status := strings.TrimSpace(c.Query("filter.status")); status != "" {

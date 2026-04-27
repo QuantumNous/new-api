@@ -3,6 +3,7 @@ package relay
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -27,13 +28,22 @@ func setupVolcListTestDB(t *testing.T) {
 	}
 }
 
+// volcAdapterPlatform is the TaskPlatform string for ChannelTypeVolcAdapter tasks
+// (used by the /api/v3/contents/generations/tasks list endpoint filter).
+var volcAdapterPlatform = constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeVolcAdapter))
+
 func insertVolcTask(t *testing.T, userID int, taskID string, status model.TaskStatus, modelName string) {
+	t.Helper()
+	insertTaskWithPlatform(t, userID, taskID, status, modelName, volcAdapterPlatform)
+}
+
+func insertTaskWithPlatform(t *testing.T, userID int, taskID string, status model.TaskStatus, modelName string, platform constant.TaskPlatform) {
 	t.Helper()
 	now := time.Now().Unix()
 	task := &model.Task{
 		TaskID:     taskID,
 		UserId:     userID,
-		Platform:   constant.TaskPlatform("45"),
+		Platform:   platform,
 		Status:     status,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -114,5 +124,52 @@ func TestVideoFetchListRespBuilder_InvalidStatus(t *testing.T) {
 	}
 	if resp.Total != 0 {
 		t.Fatalf("expected total=0, got %d", resp.Total)
+	}
+}
+
+// TestVideoFetchListRespBuilder_PlatformCoexistence verifies that tasks stored
+// under legacy platform 45 (DoubaoVideo / VolcEngine) do NOT appear in the
+// /api/v3/contents/generations/tasks list endpoint, while VolcAdapter tasks do.
+// This is the regression guard for the platform-filter migration.
+func TestVideoFetchListRespBuilder_PlatformCoexistence(t *testing.T) {
+	setupVolcListTestDB(t)
+
+	// Insert a VolcAdapter task — should be visible.
+	insertTaskWithPlatform(t, 2001, "va_task_1", model.TaskStatusSuccess, "doubao-seedance-2-0-260128", volcAdapterPlatform)
+
+	// Insert a legacy platform-45 task — should NOT appear in the volc list.
+	legacyPlatform := constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeVolcEngine))
+	insertTaskWithPlatform(t, 2001, "legacy_task_1", model.TaskStatusSuccess, "doubao-seedance-2-0-260128", legacyPlatform)
+
+	// Insert a DoubaoVideo (54) platform task — should NOT appear in the volc list.
+	doubaoPlatform := constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeDoubaoVideo))
+	insertTaskWithPlatform(t, 2001, "doubao_task_1", model.TaskStatusSuccess, "doubao-seedance-2-0-260128", doubaoPlatform)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/api/v3/contents/generations/tasks", nil)
+	c.Request = req
+	c.Set("id", 2001)
+
+	respBody, taskErr := videoFetchListRespBodyBuilder(c)
+	if taskErr != nil {
+		t.Fatalf("unexpected taskErr: %+v", taskErr)
+	}
+
+	var resp volcVideoTaskListResponse
+	if err := common.Unmarshal(respBody, &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Only the VolcAdapter task should appear.
+	if resp.Total != 1 {
+		t.Fatalf("expected total=1 (only VolcAdapter tasks), got %d", resp.Total)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(resp.Items))
+	}
+	if resp.Items[0].ID != "va_task_1" {
+		t.Fatalf("expected va_task_1, got %s", resp.Items[0].ID)
 	}
 }

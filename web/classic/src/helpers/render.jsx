@@ -392,6 +392,7 @@ export function getChannelIcon(channelType) {
     case 42: // Mistral AI
       return <Mistral.Color size={iconSize} />;
     case 45: // 字节火山方舟、豆包通用
+    case 58: // VolcAdapter (Seedream + Seedance)
       return <Doubao.Color size={iconSize} />;
     case 48: // xAI
       return <XAI size={iconSize} />;
