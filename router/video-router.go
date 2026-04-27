@@ -50,7 +50,9 @@ func SetVideoRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
 		volcV3Router.POST("/contents/generations/tasks", controller.RelayTask)
+		volcV3Router.GET("/contents/generations/tasks", controller.RelayTaskFetch)
 		volcV3Router.GET("/contents/generations/tasks/:id", controller.RelayTaskFetch)
+		volcV3Router.DELETE("/contents/generations/tasks/:id", controller.RelayTaskFetch)
 	}
 
 	// Jimeng official API routes - direct mapping to official API format

@@ -24,8 +24,12 @@ func VolcRequestConvert() func(c *gin.Context) {
 			convertVolcImageRequest(c)
 		case c.Request.Method == http.MethodPost && strings.HasSuffix(path, "/contents/generations/tasks"):
 			convertVolcVideoSubmitRequest(c)
+		case c.Request.Method == http.MethodGet && strings.HasSuffix(path, "/contents/generations/tasks"):
+			convertVolcVideoListRequest(c)
 		case c.Request.Method == http.MethodGet && strings.Contains(path, "/contents/generations/tasks/:id"):
 			convertVolcVideoFetchRequest(c)
+		case c.Request.Method == http.MethodDelete && strings.Contains(path, "/contents/generations/tasks/:id"):
+			abortWithOpenAiMessage(c, http.StatusNotImplemented, "DELETE /volc/api/v3/contents/generations/tasks/:id is not supported yet")
 		}
 
 		if !c.IsAborted() {
@@ -82,6 +86,11 @@ func convertVolcVideoFetchRequest(c *gin.Context) {
 	c.Request.URL.Path = "/v1/video/generations/" + taskID
 	c.Set("task_id", taskID)
 	c.Set("relay_mode", relayconstant.RelayModeVideoFetchByID)
+}
+
+func convertVolcVideoListRequest(c *gin.Context) {
+	c.Request.URL.Path = "/v1/video/generations"
+	c.Set("relay_mode", relayconstant.RelayModeVideoFetchList)
 }
 
 func parseVolcRequestBody(c *gin.Context) (map[string]any, bool) {

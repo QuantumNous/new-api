@@ -114,3 +114,47 @@ func TestVolcRequestConvert_VideoTaskFetch(t *testing.T) {
 		t.Fatalf("unexpected status code: %d", rec.Code)
 	}
 }
+
+func TestVolcRequestConvert_VideoTaskList(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/volc/api/v3/contents/generations/tasks", VolcRequestConvert(), func(c *gin.Context) {
+		if got := c.Request.URL.Path; got != "/v1/video/generations" {
+			t.Fatalf("unexpected rewritten path: %s", got)
+		}
+		relayMode, ok := c.Get("relay_mode")
+		if !ok {
+			t.Fatalf("relay_mode should be set")
+		}
+		if relayMode != relayconstant.RelayModeVideoFetchList {
+			t.Fatalf("unexpected relay_mode: %#v", relayMode)
+		}
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/volc/api/v3/contents/generations/tasks?page_num=1&page_size=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: %d", rec.Code)
+	}
+}
+
+func TestVolcRequestConvert_VideoTaskDeleteNotSupported(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.DELETE("/volc/api/v3/contents/generations/tasks/:id", VolcRequestConvert(), func(c *gin.Context) {
+		t.Fatalf("should abort before handler")
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/volc/api/v3/contents/generations/tasks/task_123", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("unexpected status code: %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "not supported") {
+		t.Fatalf("unexpected response body: %s", rec.Body.String())
+	}
+}

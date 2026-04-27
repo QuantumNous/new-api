@@ -282,6 +282,7 @@ var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp 
 	relayconstant.RelayModeSunoFetchByID:  sunoFetchByIDRespBodyBuilder,
 	relayconstant.RelayModeSunoFetch:      sunoFetchRespBodyBuilder,
 	relayconstant.RelayModeVideoFetchByID: videoFetchByIDRespBodyBuilder,
+	relayconstant.RelayModeVideoFetchList: videoFetchListRespBodyBuilder,
 }
 
 func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
@@ -413,6 +414,168 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+type volcVideoTaskListItem struct {
+	ID        string `json:"id"`
+	Model     string `json:"model,omitempty"`
+	Status    string `json:"status"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
+type volcVideoTaskListResponse struct {
+	Items []volcVideoTaskListItem `json:"items"`
+	Total int64                   `json:"total"`
+}
+
+func videoFetchListRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
+	userID := c.GetInt("id")
+	pageNum := parseVolcPositiveInt(c.DefaultQuery("page_num", "1"), 1)
+	pageSize := parseVolcPositiveInt(c.DefaultQuery("page_size", "10"), 10)
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	startIdx := (pageNum - 1) * pageSize
+
+	queryParams := model.SyncTaskQueryParams{
+		Platform: constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeVolcEngine)),
+	}
+
+	if status := strings.TrimSpace(c.Query("filter.status")); status != "" {
+		queryParams.Status = mapArkTaskStatusToInternal(status)
+		if queryParams.Status == "" {
+			emptyResp, err := common.Marshal(volcVideoTaskListResponse{
+				Items: []volcVideoTaskListItem{},
+				Total: 0,
+			})
+			if err != nil {
+				return nil, service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+			}
+			return emptyResp, nil
+		}
+	}
+
+	tasks := model.TaskGetAllUserTask(userID, startIdx, pageSize, queryParams)
+
+	modelFilter := strings.TrimSpace(c.Query("filter.model"))
+	taskIDsFilter := parseVolcTaskIDs(c)
+	filtered := make([]*model.Task, 0, len(tasks))
+	for _, task := range tasks {
+		if len(taskIDsFilter) > 0 && !taskIDsFilter[task.TaskID] {
+			continue
+		}
+		if modelFilter != "" && task.Properties.OriginModelName != modelFilter && task.Properties.UpstreamModelName != modelFilter {
+			continue
+		}
+		filtered = append(filtered, task)
+	}
+
+	items := make([]volcVideoTaskListItem, 0, len(filtered))
+	for _, task := range filtered {
+		items = append(items, volcVideoTaskListItem{
+			ID:        task.TaskID,
+			Model:     task.Properties.OriginModelName,
+			Status:    mapInternalTaskStatusToArk(task.Status),
+			CreatedAt: task.CreatedAt,
+			UpdatedAt: task.UpdatedAt,
+		})
+	}
+
+	total := model.TaskCountAllUserTask(userID, queryParams)
+	if modelFilter != "" || len(taskIDsFilter) > 0 {
+		total = countFilteredVolcVideoTasks(userID, queryParams, modelFilter, taskIDsFilter)
+	}
+
+	resp, err := common.Marshal(volcVideoTaskListResponse{
+		Items: items,
+		Total: total,
+	})
+	if err != nil {
+		return nil, service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+	}
+	return resp, nil
+}
+
+func countFilteredVolcVideoTasks(userID int, queryParams model.SyncTaskQueryParams, modelFilter string, taskIDsFilter map[string]bool) int64 {
+	totalBase := model.TaskCountAllUserTask(userID, queryParams)
+	if totalBase <= 0 {
+		return 0
+	}
+	// DB layer has no model/task_ids columns for direct filtering; fetch then filter in-memory.
+	allTasks := model.TaskGetAllUserTask(userID, 0, int(totalBase), queryParams)
+	var filteredCount int64
+	for _, task := range allTasks {
+		if len(taskIDsFilter) > 0 && !taskIDsFilter[task.TaskID] {
+			continue
+		}
+		if modelFilter != "" && task.Properties.OriginModelName != modelFilter && task.Properties.UpstreamModelName != modelFilter {
+			continue
+		}
+		filteredCount++
+	}
+	return filteredCount
+}
+
+func parseVolcPositiveInt(raw string, defaultVal int) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value <= 0 {
+		return defaultVal
+	}
+	return value
+}
+
+func parseVolcTaskIDs(c *gin.Context) map[string]bool {
+	result := map[string]bool{}
+	values := c.QueryArray("filter.task_ids")
+	if len(values) == 0 {
+		if single := c.Query("filter.task_ids"); single != "" {
+			values = []string{single}
+		}
+	}
+	for _, value := range values {
+		for _, id := range strings.Split(value, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				result[id] = true
+			}
+		}
+	}
+	return result
+}
+
+func mapArkTaskStatusToInternal(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "queued":
+		return string(model.TaskStatusQueued)
+	case "running":
+		return string(model.TaskStatusInProgress)
+	case "succeeded":
+		return string(model.TaskStatusSuccess)
+	case "failed":
+		return string(model.TaskStatusFailure)
+	case "cancelled":
+		return string(model.TaskStatusFailure)
+	case "expired":
+		return string(model.TaskStatusFailure)
+	default:
+		return ""
+	}
+}
+
+func mapInternalTaskStatusToArk(status model.TaskStatus) string {
+	switch status {
+	case model.TaskStatusQueued, model.TaskStatusSubmitted, model.TaskStatusNotStart:
+		return "queued"
+	case model.TaskStatusInProgress:
+		return "running"
+	case model.TaskStatusSuccess:
+		return "succeeded"
+	case model.TaskStatusFailure:
+		return "failed"
+	default:
+		return "running"
+	}
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
