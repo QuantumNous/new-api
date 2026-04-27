@@ -1139,6 +1139,26 @@ export function convertUSDToCurrency(usdAmount, digits = 2) {
   return symbol + convertedAmount.toFixed(digits);
 }
 
+/**
+ * 将人民币金额转换为当前选择的货币
+ * @param {number} cnyAmount - 人民币金额
+ * @param {number} digits - 小数位数
+ * @returns {string} - 格式化后的货币字符串
+ */
+export function convertCNYToCurrency(cnyAmount, digits = 2) {
+  const { symbol, type } = getCurrencyConfig();
+  if (type === 'CNY') {
+    return symbol + Number(cnyAmount).toFixed(digits);
+  }
+  // Convert CNY → USD using usd_exchange_rate, then to display currency
+  let usdExchangeRate = 7;
+  try {
+    const s = JSON.parse(localStorage.getItem('status') || '{}');
+    usdExchangeRate = s?.usd_exchange_rate || 7;
+  } catch (e) {}
+  return convertUSDToCurrency(cnyAmount / usdExchangeRate, digits);
+}
+
 export function renderQuota(quota, digits = 2) {
   let quotaPerUnit = localStorage.getItem('quota_per_unit');
   const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';

@@ -34,7 +34,7 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { API, timestamp2string } from '../../../helpers';
+import { API, timestamp2string, convertUSDToCurrency, convertCNYToCurrency } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
@@ -55,6 +55,25 @@ const PAYMENT_METHOD_MAP = {
   alipay: '支付宝',
   wxpay: '微信',
 };
+
+// Providers that store Money in CNY; all others store Money in USD.
+const CNY_PROVIDERS = new Set(['epay']);
+const CNY_METHODS = new Set(['alipay', 'wxpay']);
+
+function renderPaymentAmount(money, record) {
+  if (money == null || isNaN(money)) {
+    return <Text type='danger'>-</Text>;
+  }
+  const provider = record?.payment_provider || '';
+  const method = record?.payment_method || '';
+  const isCNY =
+    CNY_PROVIDERS.has(provider) ||
+    (provider === '' && CNY_METHODS.has(method));
+  const display = isCNY
+    ? convertCNYToCurrency(money)
+    : convertUSDToCurrency(money);
+  return <Text type='danger'>{display}</Text>;
+}
 
 const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [loading, setLoading] = useState(false);
@@ -207,7 +226,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money) => <Text type='danger'>¥{money.toFixed(2)}</Text>,
+        render: (money, record) => renderPaymentAmount(money, record),
       },
       {
         title: t('状态'),
