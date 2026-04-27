@@ -122,8 +122,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	// calculation (both price-based and ratio-based paths).
 	// Adaptors may have already set a more accurate count from the
 	// upstream response; only set the default when they haven't.
-	if _, hasN := info.PriceData.OtherRatios["n"]; !hasN {
-		info.PriceData.AddOtherRatio("n", float64(imageN))
+	if info.PriceData.UsePrice { // only price model use N ratio
+		if _, hasN := info.PriceData.OtherRatios["n"]; !hasN {
+			info.PriceData.AddOtherRatio("n", float64(imageN))
+		}
 	}
 
 	if usage.(*dto.Usage).TotalTokens == 0 {
