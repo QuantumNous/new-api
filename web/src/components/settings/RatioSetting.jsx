@@ -25,6 +25,7 @@ import ModelPricingCombined from '../../pages/Setting/Ratio/ModelPricingCombined
 import GroupRatioSettings from '../../pages/Setting/Ratio/GroupRatioSettings';
 import ModelRatioNotSetEditor from '../../pages/Setting/Ratio/ModelRationNotSetEditor';
 import UpstreamRatioSync from '../../pages/Setting/Ratio/UpstreamRatioSync';
+import ToolPriceSettings from '../../pages/Setting/Ratio/ToolPriceSettings';
 
 import { API, showError, toBoolean } from '../../helpers';
 
@@ -106,6 +107,7 @@ const RatioSetting = () => {
             <Tabs.Tab id='group'>{t('分组相关设置')}</Tabs.Tab>
             <Tabs.Tab id='unset_models'>{t('未设置价格模型')}</Tabs.Tab>
             <Tabs.Tab id='upstream_sync'>{t('上游倍率同步')}</Tabs.Tab>
+            <Tabs.Tab id='tool_price'>{t('工具调用定价')}</Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel id='pricing' className='pt-6'>
             <ModelPricingCombined options={inputs} refresh={onRefresh} />
@@ -118,6 +120,9 @@ const RatioSetting = () => {
           </Tabs.Panel>
           <Tabs.Panel id='upstream_sync' className='pt-6'>
             <UpstreamRatioSync options={inputs} refresh={onRefresh} />
+          </Tabs.Panel>
+          <Tabs.Panel id='tool_price' className='pt-6'>
+            <ToolPriceSettings options={inputs} />
           </Tabs.Panel>
         </Tabs>
       </Card>
