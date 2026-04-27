@@ -20,12 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import RedemptionsTable from '../../components/table/redemptions';
 
-const Redemption = () => {
-  return (
-    <div className='mt-[60px] px-2'>
-      <RedemptionsTable />
-    </div>
-  );
-};
+const Redemption = () => <RedemptionsTable />;
 
 export default Redemption;

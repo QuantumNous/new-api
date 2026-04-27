@@ -537,9 +537,9 @@ const PersonalSetting = () => {
   };
 
   return (
-    <div className='mt-[60px]'>
+    <div>
       <div className='flex justify-center'>
-        <div className='w-full max-w-7xl mx-auto px-2'>
+        <div className='w-full max-w-7xl mx-auto'>
           {/* User info header */}
           <UserInfoHeader t={t} userState={userState} />
 
