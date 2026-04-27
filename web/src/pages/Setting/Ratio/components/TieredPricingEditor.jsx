@@ -17,28 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Input, TextArea } from '@heroui/react';
 import {
-  Banner,
-  Button,
-  Card,
-  Collapsible,
-  Input,
-  InputNumber,
-  Radio,
-  RadioGroup,
-  Select,
-  Tag,
-  TextArea,
-  Typography,
-} from '@/components/common/ui/HeroCompat';
-import {
-  IconCopy,
-  IconDelete,
-  IconPlus,
-} from '@/components/common/ui/HeroIconsCompat';
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Info,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { renderQuota } from '../../../../helpers/render';
 import { copy, showSuccess } from '../../../../helpers';
-import { BILLING_EXTRA_VARS, BILLING_CACHE_VAR_MAP, BILLING_CONDITION_VARS } from '../../../../constants';
+import {
+  BILLING_EXTRA_VARS,
+  BILLING_CACHE_VAR_MAP,
+  BILLING_CONDITION_VARS,
+} from '../../../../constants';
 import {
   createEmptyCondition,
   createEmptyTimeCondition,
@@ -62,9 +57,83 @@ import {
   COMMON_TIMEZONES,
 } from './requestRuleExpr';
 
-const { Text } = Typography;
+// `BILLING_CONDITION_VARS` is re-exported from constants but the visual
+// editor only reads it indirectly via the `len`/`p`/`c` allow-list below.
+// Reference it once so eslint doesn't flag the import as unused.
+void BILLING_CONDITION_VARS;
+void createEmptyTimeRuleGroup;
 
 const PRICE_SUFFIX = '$/1M tokens';
+
+const inputClass =
+  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:cursor-not-allowed disabled:opacity-50';
+const inputClassSm =
+  'h-8 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none transition focus:border-primary disabled:cursor-not-allowed disabled:opacity-50';
+
+// Mirror the InfoBanner pattern in ModelPricingEditor so the two ratio-tab
+// editors share the same v3-aligned palette without re-pulling the v2
+// Semi `<Banner>` shim.
+function InfoBanner({ tone = 'primary', children, className = '' }) {
+  const tonePalette =
+    tone === 'warning'
+      ? { bg: 'border-warning/30 bg-warning/5', icon: 'text-warning' }
+      : { bg: 'border-primary/20 bg-primary/5', icon: 'text-primary' };
+  const Icon = tone === 'warning' ? AlertTriangle : Info;
+  return (
+    <div
+      className={`mb-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-sm text-foreground ${tonePalette.bg} ${className}`}
+    >
+      <Icon size={16} className={`mt-0.5 shrink-0 ${tonePalette.icon}`} />
+      <div className='flex-1'>{children}</div>
+    </div>
+  );
+}
+
+const TONE_CLASSES = {
+  blue: 'bg-primary/15 text-primary',
+  grey: 'bg-surface-secondary text-muted',
+  orange: 'bg-warning/15 text-warning',
+};
+
+function ToneChip({ tone = 'grey', children, className = '' }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+        TONE_CLASSES[tone] || TONE_CLASSES.grey
+      } ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+// Pill segmented toggle that replaces v2 `<RadioGroup type='button'>`.
+// v3 RadioGroup has no equivalent compound; the v2 prop was a silent
+// no-op (would render plain radio buttons), so we render a row of
+// outline / primary buttons instead.
+function SegmentedToggle({ value, onChange, options, size = 'sm' }) {
+  return (
+    <div className='inline-flex overflow-hidden rounded-xl border border-border'>
+      {options.map((opt, i) => (
+        <Button
+          key={opt.value}
+          size={size}
+          variant={value === opt.value ? 'primary' : 'outline'}
+          className={`rounded-none border-0 ${
+            i > 0 ? 'border-l border-border' : ''
+          }`}
+          onPress={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Logic helpers (unchanged from the previous Semi-style implementation)
+// ---------------------------------------------------------------------------
 
 function unitCostToPrice(uc) {
   return Number(uc) || 0;
@@ -91,10 +160,6 @@ function formatTokenHint(n) {
   if (v >= 1000) return `= ${(v / 1000).toLocaleString()}K tokens`;
   return `= ${v.toLocaleString()} tokens`;
 }
-
-// ---------------------------------------------------------------------------
-// Expr generation from visual config (multi-condition)
-// ---------------------------------------------------------------------------
 
 function buildConditionStr(conditions) {
   if (!conditions || conditions.length === 0) return '';
@@ -195,10 +260,6 @@ function generateExprFromVisualConfig(config) {
   return parts.join(' : ');
 }
 
-// ---------------------------------------------------------------------------
-// Reverse-parse an Expr string back into visual config
-// ---------------------------------------------------------------------------
-
 function tryParseVisualConfig(exprStr) {
   if (!exprStr) return null;
   try {
@@ -274,65 +335,99 @@ function tryParseVisualConfig(exprStr) {
 }
 
 // ---------------------------------------------------------------------------
-// Condition editor row
+// Atomic UI primitives — replace the v2 Semi {Input, InputNumber, Select}
+// with native HTML controls styled to match the rest of /console.
 // ---------------------------------------------------------------------------
 
-function ConditionRow({ cond, onChange, onRemove, t }) {
+const NumberInput = ({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  className = '',
+  placeholder,
+  disabled,
+}) => (
+  <input
+    type='number'
+    value={value === '' || value == null ? '' : value}
+    min={min}
+    max={max}
+    step={step}
+    placeholder={placeholder}
+    disabled={disabled}
+    onChange={(event) => {
+      const v = event.target.value;
+      onChange(v === '' ? '' : Number(v));
+    }}
+    className={`${inputClassSm} ${className}`}
+  />
+);
+
+const NativeSelect = ({
+  value,
+  onChange,
+  options,
+  className = '',
+  placeholder,
+  ...rest
+}) => (
+  <select
+    value={value ?? ''}
+    onChange={(event) => onChange(event.target.value)}
+    className={`${inputClassSm} ${className}`}
+    {...rest}
+  >
+    {placeholder ? (
+      <option value='' disabled>
+        {placeholder}
+      </option>
+    ) : null}
+    {options.map((opt) => (
+      <option key={opt.value} value={opt.value}>
+        {opt.label}
+      </option>
+    ))}
+  </select>
+);
+
+// ---------------------------------------------------------------------------
+// Condition row (visual tier conditions on len / p / c)
+// ---------------------------------------------------------------------------
+
+function ConditionRow({ cond, onChange, onRemove }) {
   const hint = formatTokenHint(cond.value);
   return (
-    <div style={{
-      marginBottom: 6,
-      display: 'grid',
-      gridTemplateColumns: '1fr auto 1fr auto',
-      gap: '4px 6px',
-      alignItems: 'center',
-    }}>
-      <Select
-        size='small'
+    <div className='mb-1.5 grid grid-cols-[1fr_auto_1fr_auto] items-center gap-x-1.5 gap-y-1'>
+      <NativeSelect
         value={cond.var || 'len'}
         onChange={(val) => onChange({ ...cond, var: val })}
-      >
-        {VAR_OPTIONS.map((v) => (
-          <Select.Option key={v.value} value={v.value}>
-            {v.label}
-          </Select.Option>
-        ))}
-      </Select>
-      <Select
-        size='small'
+        options={VAR_OPTIONS}
+      />
+      <NativeSelect
         value={cond.op || '<'}
         onChange={(val) => onChange({ ...cond, op: val })}
-        style={{ width: 70 }}
-      >
-        {OPS.map((op) => (
-          <Select.Option key={op} value={op}>
-            {op}
-          </Select.Option>
-        ))}
-      </Select>
-      <InputNumber
-        size='small'
+        options={OPS.map((op) => ({ value: op, label: op }))}
+        className='w-[70px]'
+      />
+      <NumberInput
         min={0}
         value={cond.value ?? ''}
         onChange={(val) => onChange({ ...cond, value: val })}
       />
       <Button
-        icon={<IconDelete />}
-        type='danger'
-        theme='borderless'
-        size='small'
-        onClick={onRemove}
-      />
+        isIconOnly
+        size='sm'
+        variant='ghost'
+        className='text-danger hover:bg-danger/10'
+        aria-label='delete'
+        onPress={onRemove}
+      >
+        <Trash2 size={14} />
+      </Button>
       {hint ? (
-        <Text
-          size='small'
-          style={{
-            color: 'var(--semi-color-text-3)',
-            gridColumn: '3 / 4',
-          }}
-        >
-          = {hint}
-        </Text>
+        <span className='col-start-3 text-xs text-muted'>= {hint}</span>
       ) : null}
     </div>
   );
@@ -344,13 +439,20 @@ function ConditionRow({ cond, onChange, onRemove, t }) {
 
 function PriceInput({ unitCost, field, index, onUpdate, placeholder }) {
   const priceFromModel = unitCostToPrice(unitCost);
-  const [text, setText] = useState(priceFromModel === 0 ? '' : String(priceFromModel));
+  const [text, setText] = useState(
+    priceFromModel === 0 ? '' : String(priceFromModel),
+  );
 
+  // Re-sync only when the upstream model value diverges from the input — we
+  // intentionally let the user keep typing intermediate states like "7." or
+  // ".5" without snapping back. eslint is happy if we silence the missing
+  // `text` dep here because reading it would re-introduce the snap-back bug.
   useEffect(() => {
     const current = Number(text);
     if (text === '' && priceFromModel === 0) return;
     if (!Number.isNaN(current) && current === priceFromModel) return;
     setText(priceFromModel === 0 ? '' : String(priceFromModel));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceFromModel]);
 
   const handleChange = (val) => {
@@ -366,13 +468,18 @@ function PriceInput({ unitCost, field, index, onUpdate, placeholder }) {
   };
 
   return (
-    <Input
-      value={text}
-      placeholder={placeholder || '0'}
-      suffix={PRICE_SUFFIX}
-      onChange={handleChange}
-      style={{ width: '100%', marginTop: 2 }}
-    />
+    <div className='relative mt-0.5'>
+      <input
+        type='text'
+        value={text}
+        placeholder={placeholder || '0'}
+        onChange={(event) => handleChange(event.target.value)}
+        className={`${inputClass} pr-24`}
+      />
+      <span className='pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted'>
+        {PRICE_SUFFIX}
+      </span>
+    </div>
   );
 }
 
@@ -382,8 +489,8 @@ function PriceInput({ unitCost, field, index, onUpdate, placeholder }) {
 
 const CACHE_FIELDS_TIMED = [
   { field: 'cache_read_unit_cost', labelKey: '缓存读取价格' },
-  { field: 'cache_create_unit_cost', labelKey: '缓存创建价格（5分钟）' },
-  { field: 'cache_create_1h_unit_cost', labelKey: '缓存创建价格（1小时）' },
+  { field: 'cache_create_unit_cost', labelKey: '缓存创建价格(5分钟)' },
+  { field: 'cache_create_1h_unit_cost', labelKey: '缓存创建价格(1小时)' },
 ];
 
 const CACHE_FIELDS_GENERIC = [
@@ -393,14 +500,14 @@ const CACHE_FIELDS_GENERIC = [
 
 function ExtendedPriceBlock({ tier, index, onUpdate, t }) {
   const mediaFields = BILLING_EXTRA_VARS.filter((v) => v.group === 'media');
-  const hasAny = [...CACHE_FIELDS_TIMED, ...mediaFields.map((v) => v.tierField)].some(
-    (f) => Number(tier[typeof f === 'string' ? f : f.field]) > 0,
-  );
+  const hasAny = [
+    ...CACHE_FIELDS_TIMED,
+    ...mediaFields.map((v) => v.tierField),
+  ].some((f) => Number(tier[typeof f === 'string' ? f : f.field]) > 0);
   const [expanded, setExpanded] = useState(hasAny);
   const cacheMode = getTierCacheMode(tier);
 
-  const handleCacheModeChange = (e) => {
-    const mode = e.target.value;
+  const handleCacheModeChange = (mode) => {
     const patch = { cache_mode: mode };
     if (mode === CACHE_MODE_GENERIC) {
       patch.cache_create_1h_unit_cost = 0;
@@ -412,51 +519,39 @@ function ExtendedPriceBlock({ tier, index, onUpdate, t }) {
     cacheMode === CACHE_MODE_TIMED ? CACHE_FIELDS_TIMED : CACHE_FIELDS_GENERIC;
 
   return (
-    <div style={{ marginTop: 8 }}>
+    <div className='mt-2'>
       <Button
-        theme='borderless'
-        size='small'
-        onClick={() => setExpanded(!expanded)}
-        style={{ padding: '2px 0', color: 'var(--semi-color-text-2)', fontSize: 12 }}
+        size='sm'
+        variant='ghost'
+        className='-ml-1 h-auto px-1 py-0.5 text-xs text-muted'
+        onPress={() => setExpanded(!expanded)}
       >
-        {expanded ? '▾' : '▸'} {t('扩展价格')}
+        {expanded ? (
+          <ChevronDown size={12} />
+        ) : (
+          <ChevronRight size={12} />
+        )}
+        {t('扩展价格')}
       </Button>
-      <Collapsible isOpen={expanded}>
-        <div
-          style={{
-            marginTop: 4,
-            padding: '8px 0',
-          }}
-        >
-          <div className='text-xs text-gray-500 mb-2'>
+      {expanded ? (
+        <div className='mt-1 py-2'>
+          <div className='mb-2 text-xs text-muted'>
             {t('这些价格都是可选项，不填也可以。')}
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <RadioGroup
-              type='button'
-              size='small'
+          <div className='mb-2'>
+            <SegmentedToggle
               value={cacheMode}
               onChange={handleCacheModeChange}
-            >
-              <Radio value={CACHE_MODE_GENERIC}>{t('通用缓存')}</Radio>
-              <Radio value={CACHE_MODE_TIMED}>{t('分时缓存 (Claude)')}</Radio>
-            </RadioGroup>
+              options={[
+                { value: CACHE_MODE_GENERIC, label: t('通用缓存') },
+                { value: CACHE_MODE_TIMED, label: t('分时缓存 (Claude)') },
+              ]}
+            />
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 8,
-            }}
-          >
+          <div className='grid grid-cols-2 gap-2'>
             {activeFields.map((cf) => (
               <div key={cf.field}>
-                <Text
-                  size='small'
-                  style={{ color: 'var(--semi-color-text-2)' }}
-                >
-                  {t(cf.labelKey)}
-                </Text>
+                <div className='text-xs text-muted'>{t(cf.labelKey)}</div>
                 <PriceInput
                   unitCost={tier[cf.field]}
                   field={cf.field}
@@ -466,35 +561,26 @@ function ExtendedPriceBlock({ tier, index, onUpdate, t }) {
               </div>
             ))}
           </div>
-          <div className='text-xs text-gray-500 mb-2 mt-3'>
+          <div className='mt-3 mb-2 text-xs text-muted'>
             {t('图片/音频价格（可选）')}
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 8,
-            }}
-          >
-            {mediaFields.map((v) => ({ field: v.tierField, labelKey: v.label })).map((cf) => (
-              <div key={cf.field}>
-                <Text
-                  size='small'
-                  style={{ color: 'var(--semi-color-text-2)' }}
-                >
-                  {t(cf.labelKey)}
-                </Text>
-                <PriceInput
-                  unitCost={tier[cf.field]}
-                  field={cf.field}
-                  index={index}
-                  onUpdate={onUpdate}
-                />
-              </div>
-            ))}
+          <div className='grid grid-cols-2 gap-2'>
+            {mediaFields
+              .map((v) => ({ field: v.tierField, labelKey: v.label }))
+              .map((cf) => (
+                <div key={cf.field}>
+                  <div className='text-xs text-muted'>{t(cf.labelKey)}</div>
+                  <PriceInput
+                    unitCost={tier[cf.field]}
+                    field={cf.field}
+                    index={index}
+                    onUpdate={onUpdate}
+                  />
+                </div>
+              ))}
           </div>
         </div>
-      </Collapsible>
+      ) : null}
     </div>
   );
 }
@@ -503,7 +589,15 @@ function ExtendedPriceBlock({ tier, index, onUpdate, t }) {
 // Visual Tier Card (multi-condition)
 // ---------------------------------------------------------------------------
 
-function VisualTierCard({ tier, index, isLast, isOnly, onUpdate, onRemove, t }) {
+function VisualTierCard({
+  tier,
+  index,
+  isLast,
+  isOnly,
+  onUpdate,
+  onRemove,
+  t,
+}) {
   const conditions = tier.conditions || [];
 
   const varLabel = { len: t('长度'), p: t('输入'), c: t('输出') };
@@ -511,8 +605,12 @@ function VisualTierCard({ tier, index, isLast, isOnly, onUpdate, onRemove, t }) 
     if (conditions.length === 0) return t('无条件（兜底档）');
     return conditions
       .filter((c) => c.var && c.op && c.value != null)
-      .map((c) => `${varLabel[c.var] || c.var} ${c.op} ${formatTokenHint(c.value)}`)
+      .map(
+        (c) =>
+          `${varLabel[c.var] || c.var} ${c.op} ${formatTokenHint(c.value)}`,
+      )
       .join(' && ');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conditions, t]);
 
   const updateCondition = (ci, newCond) => {
@@ -539,115 +637,74 @@ function VisualTierCard({ tier, index, isLast, isOnly, onUpdate, onRemove, t }) 
   };
 
   return (
-    <div
-      style={{
-        padding: '12px 16px',
-        borderRadius: 8,
-        border: '1px solid var(--semi-color-border)',
-        background: 'var(--semi-color-bg-2)',
-        marginBottom: 8,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 10,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Tag color='blue' size='small'>
+    <div className='mb-2 rounded-lg border border-border bg-surface-secondary/40 p-4'>
+      <div className='mb-2.5 flex items-center justify-between'>
+        <div className='flex items-center gap-2'>
+          <ToneChip tone='blue'>
             {t('第 {{n}} 档', { n: index + 1 })}
-          </Tag>
-          {isLast && !isOnly ? (
-            <Tag color='grey' size='small'>
-              {t('兜底档')}
-            </Tag>
-          ) : null}
+          </ToneChip>
+          {isLast && !isOnly ? <ToneChip tone='grey'>{t('兜底档')}</ToneChip> : null}
         </div>
         {!isOnly ? (
           <Button
-            icon={<IconDelete />}
-            type='danger'
-            theme='borderless'
-            size='small'
-            onClick={() => onRemove(index)}
-          />
+            isIconOnly
+            size='sm'
+            variant='ghost'
+            className='text-danger hover:bg-danger/10'
+            aria-label={t('删除')}
+            onPress={() => onRemove(index)}
+          >
+            <Trash2 size={14} />
+          </Button>
         ) : null}
       </div>
 
       {/* Tier label */}
-      <div style={{ marginBottom: 8 }}>
-        <Text size='small' style={{ color: 'var(--semi-color-text-2)' }}>
-          {t('档位名称')}
-        </Text>
-        <Input
-          size='small'
+      <div className='mb-2'>
+        <div className='text-xs text-muted'>{t('档位名称')}</div>
+        <input
+          type='text'
           value={tier.label || ''}
           placeholder={t('第 {{n}} 档', { n: index + 1 })}
-          onChange={(val) => onUpdate(index, 'label', val)}
-          style={{ width: '100%', marginTop: 2 }}
+          onChange={(event) => onUpdate(index, 'label', event.target.value)}
+          className={`${inputClassSm} mt-0.5`}
         />
       </div>
 
       {/* Conditions */}
       {!isLast || isOnly ? (
-        <div style={{ marginBottom: 10 }}>
-          <Text
-            size='small'
-            style={{
-              color: 'var(--semi-color-text-2)',
-              display: 'block',
-              marginBottom: 4,
-            }}
-          >
-            {t('条件')}
-          </Text>
+        <div className='mb-2.5'>
+          <div className='mb-1 block text-xs text-muted'>{t('条件')}</div>
           {conditions.map((cond, ci) => (
             <ConditionRow
               key={ci}
               cond={cond}
               onChange={(nc) => updateCondition(ci, nc)}
               onRemove={() => removeCondition(ci)}
-              t={t}
             />
           ))}
           {conditions.length < 2 && (
             <Button
-              icon={<IconPlus />}
-              size='small'
-              theme='borderless'
-              onClick={addCondition}
-              style={{ marginTop: 2 }}
+              size='sm'
+              variant='ghost'
+              className='mt-0.5 px-1'
+              onPress={addCondition}
             >
+              <Plus size={12} />
               {t('添加条件')}
             </Button>
           )}
         </div>
       ) : (
-        <div
-          style={{
-            marginBottom: 10,
-            padding: '4px 8px',
-            borderRadius: 4,
-            background: 'var(--semi-color-fill-1)',
-          }}
-        >
-          <Text size='small' style={{ color: 'var(--semi-color-text-3)' }}>
-            {condSummary}
-          </Text>
+        <div className='mb-2.5 rounded bg-surface-secondary px-2 py-1'>
+          <span className='text-xs text-muted'>{condSummary}</span>
         </div>
       )}
 
       {/* Prices */}
-      <div
-        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}
-      >
+      <div className='grid grid-cols-2 gap-2'>
         <div>
-          <Text size='small' style={{ color: 'var(--semi-color-text-2)' }}>
-            {t('输入价格')}
-          </Text>
+          <div className='text-xs text-muted'>{t('输入价格')}</div>
           <PriceInput
             unitCost={tier.input_unit_cost}
             field='input_unit_cost'
@@ -656,9 +713,7 @@ function VisualTierCard({ tier, index, isLast, isOnly, onUpdate, onRemove, t }) 
           />
         </div>
         <div>
-          <Text size='small' style={{ color: 'var(--semi-color-text-2)' }}>
-            {t('输出价格')}
-          </Text>
+          <div className='text-xs text-muted'>{t('输出价格')}</div>
           <PriceInput
             unitCost={tier.output_unit_cost}
             field='output_unit_cost'
@@ -727,11 +782,11 @@ function VisualEditor({ visualConfig, onChange, t }) {
 
   return (
     <div>
-      <Banner
-        type='info'
-        description={t('每个档位可设置 0~2 个条件（对 len、p 和 c），最后一档为兜底档无需条件。len 为输入上下文总长度（含缓存），推荐用于阶梯条件。')}
-        style={{ marginBottom: 12 }}
-      />
+      <InfoBanner>
+        {t(
+          '每个档位可设置 0~2 个条件（对 len、p 和 c），最后一档为兜底档无需条件。len 为输入上下文总长度（含缓存），推荐用于阶梯条件。',
+        )}
+      </InfoBanner>
 
       {tiers.map((tier, index) => (
         <VisualTierCard
@@ -746,12 +801,12 @@ function VisualEditor({ visualConfig, onChange, t }) {
         />
       ))}
       <Button
-        icon={<IconPlus />}
-        size='small'
-        theme='light'
-        onClick={addTier}
-        style={{ marginTop: 4 }}
+        size='sm'
+        variant='secondary'
+        className='mt-1'
+        onPress={addTier}
       >
+        <Plus size={14} />
         {t('添加更多档位')}
       </Button>
     </div>
@@ -767,42 +822,124 @@ const PRESET_GROUPS = [
     group: '固定价格',
     presets: [
       { key: 'flat', label: 'Flat', expr: 'tier("base", p * 2 + c * 4)' },
-      { key: 'claude-opus', label: 'Claude Opus 4.6', expr: 'tier("base", p * 5 + c * 25 + cr * 0.5 + cc * 6.25 + cc1h * 10)' },
-      { key: 'gpt-5.4', label: 'GPT-5.4', expr: 'len <= 272000 ? tier("standard", p * 2.5 + c * 15 + cr * 0.25) : tier("long_context", p * 5 + c * 22.5 + cr * 0.5)' },
+      {
+        key: 'claude-opus',
+        label: 'Claude Opus 4.6',
+        expr: 'tier("base", p * 5 + c * 25 + cr * 0.5 + cc * 6.25 + cc1h * 10)',
+      },
+      {
+        key: 'gpt-5.4',
+        label: 'GPT-5.4',
+        expr:
+          'len <= 272000 ? tier("standard", p * 2.5 + c * 15 + cr * 0.25) : tier("long_context", p * 5 + c * 22.5 + cr * 0.5)',
+      },
     ],
   },
   {
     group: '阶梯计费',
     presets: [
-      { key: 'claude-sonnet', label: 'Claude Sonnet 4.5', expr: 'len <= 200000 ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6) : tier("long_context", p * 6 + c * 22.5 + cr * 0.6 + cc * 7.5 + cc1h * 12)' },
-      { key: 'qwen3-max', label: 'Qwen3 Max', expr: 'len <= 32000 ? tier("short", p * 1.2 + c * 6 + cr * 0.24 + cc * 1.5) : len <= 128000 ? tier("mid", p * 2.4 + c * 12 + cr * 0.48 + cc * 3) : tier("long", p * 3 + c * 15 + cr * 0.6 + cc * 3.75)' },
-      { key: 'glm-4.5-air', label: 'GLM-4.5 Air', expr: 'len < 32000 && c < 200 ? tier("short_output", p * 0.8 + c * 2 + cr * 0.16) : len < 32000 && c >= 200 ? tier("long_output", p * 0.8 + c * 6 + cr * 0.16) : tier("mid_context", p * 1.2 + c * 8 + cr * 0.24)' },
-      { key: 'doubao-seed-1.8', label: 'Doubao Seed 1.8', expr: 'len <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : len <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : len <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)' },
+      {
+        key: 'claude-sonnet',
+        label: 'Claude Sonnet 4.5',
+        expr:
+          'len <= 200000 ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6) : tier("long_context", p * 6 + c * 22.5 + cr * 0.6 + cc * 7.5 + cc1h * 12)',
+      },
+      {
+        key: 'qwen3-max',
+        label: 'Qwen3 Max',
+        expr:
+          'len <= 32000 ? tier("short", p * 1.2 + c * 6 + cr * 0.24 + cc * 1.5) : len <= 128000 ? tier("mid", p * 2.4 + c * 12 + cr * 0.48 + cc * 3) : tier("long", p * 3 + c * 15 + cr * 0.6 + cc * 3.75)',
+      },
+      {
+        key: 'glm-4.5-air',
+        label: 'GLM-4.5 Air',
+        expr:
+          'len < 32000 && c < 200 ? tier("short_output", p * 0.8 + c * 2 + cr * 0.16) : len < 32000 && c >= 200 ? tier("long_output", p * 0.8 + c * 6 + cr * 0.16) : tier("mid_context", p * 1.2 + c * 8 + cr * 0.24)',
+      },
+      {
+        key: 'doubao-seed-1.8',
+        label: 'Doubao Seed 1.8',
+        expr:
+          'len <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : len <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : len <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)',
+      },
     ],
   },
   {
     group: '多模态',
     presets: [
-      { key: 'gpt-image-1-mini', label: 'GPT Image 1 Mini', expr: 'tier("base", p * 2 + c * 8 + img * 2.5)' },
-      { key: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', expr: 'tier("base", p * 0.3 + c * 2.5 + cr * 0.03 + ai * 1.0)' },
-      { key: 'gemini-3-pro-image', label: 'Gemini 3 Pro Image', expr: 'tier("base", p * 2 + c * 12 + img_o * 120)' },
-      { key: 'qwen3-omni-flash', label: 'Qwen3 Omni Flash', expr: 'tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)' },
+      {
+        key: 'gpt-image-1-mini',
+        label: 'GPT Image 1 Mini',
+        expr: 'tier("base", p * 2 + c * 8 + img * 2.5)',
+      },
+      {
+        key: 'gemini-2.5-flash',
+        label: 'Gemini 2.5 Flash',
+        expr: 'tier("base", p * 0.3 + c * 2.5 + cr * 0.03 + ai * 1.0)',
+      },
+      {
+        key: 'gemini-3-pro-image',
+        label: 'Gemini 3 Pro Image',
+        expr: 'tier("base", p * 2 + c * 12 + img_o * 120)',
+      },
+      {
+        key: 'qwen3-omni-flash',
+        label: 'Qwen3 Omni Flash',
+        expr:
+          'tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)',
+      },
     ],
   },
   {
     group: '请求条件',
     presets: [
       {
-        key: 'claude-opus-fast', label: 'Claude Opus 4.6 Fast',
-        expr: 'tier("base", p * 5 + c * 25 + cr * 0.5 + cc * 6.25 + cc1h * 10)',
-        requestRules: [{ conditions: [{ source: SOURCE_HEADER, path: 'anthropic-beta', mode: MATCH_CONTAINS, value: 'fast-mode-2026-02-01' }], multiplier: '6' }],
+        key: 'claude-opus-fast',
+        label: 'Claude Opus 4.6 Fast',
+        expr:
+          'tier("base", p * 5 + c * 25 + cr * 0.5 + cc * 6.25 + cc1h * 10)',
+        requestRules: [
+          {
+            conditions: [
+              {
+                source: SOURCE_HEADER,
+                path: 'anthropic-beta',
+                mode: MATCH_CONTAINS,
+                value: 'fast-mode-2026-02-01',
+              },
+            ],
+            multiplier: '6',
+          },
+        ],
       },
       {
-        key: 'gpt-5.4-tiers', label: 'GPT-5.4 Priority/Flex',
-        expr: 'len <= 272000 ? tier("standard", p * 2.5 + c * 15 + cr * 0.25) : tier("long_context", p * 5 + c * 22.5 + cr * 0.5)',
+        key: 'gpt-5.4-tiers',
+        label: 'GPT-5.4 Priority/Flex',
+        expr:
+          'len <= 272000 ? tier("standard", p * 2.5 + c * 15 + cr * 0.25) : tier("long_context", p * 5 + c * 22.5 + cr * 0.5)',
         requestRules: [
-          { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'priority' }], multiplier: '2' },
-          { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
+          {
+            conditions: [
+              {
+                source: SOURCE_PARAM,
+                path: 'service_tier',
+                mode: MATCH_EQ,
+                value: 'priority',
+              },
+            ],
+            multiplier: '2',
+          },
+          {
+            conditions: [
+              {
+                source: SOURCE_PARAM,
+                path: 'service_tier',
+                mode: MATCH_EQ,
+                value: 'flex',
+              },
+            ],
+            multiplier: '0.5',
+          },
         ],
       },
     ],
@@ -811,25 +948,81 @@ const PRESET_GROUPS = [
     group: '时间促销',
     presets: [
       {
-        key: 'night-discount', label: '夜间半价',
-        expr: 'tier("base", p * 3 + c * 15)',
-        requestRules: [{ conditions: [{ source: SOURCE_TIME, timeFunc: 'hour', timezone: 'Asia/Shanghai', mode: MATCH_RANGE, rangeStart: '21', rangeEnd: '6' }], multiplier: '0.5' }],
-      },
-      {
-        key: 'weekend-discount', label: '周末8折',
+        key: 'night-discount',
+        label: '夜间半价',
         expr: 'tier("base", p * 3 + c * 15)',
         requestRules: [
-          { conditions: [{ source: SOURCE_TIME, timeFunc: 'weekday', timezone: 'Asia/Shanghai', mode: MATCH_EQ, value: '0' }], multiplier: '0.8' },
-          { conditions: [{ source: SOURCE_TIME, timeFunc: 'weekday', timezone: 'Asia/Shanghai', mode: MATCH_EQ, value: '6' }], multiplier: '0.8' },
+          {
+            conditions: [
+              {
+                source: SOURCE_TIME,
+                timeFunc: 'hour',
+                timezone: 'Asia/Shanghai',
+                mode: MATCH_RANGE,
+                rangeStart: '21',
+                rangeEnd: '6',
+              },
+            ],
+            multiplier: '0.5',
+          },
         ],
       },
       {
-        key: 'new-year-promo', label: '新年促销',
+        key: 'weekend-discount',
+        label: '周末8折',
         expr: 'tier("base", p * 3 + c * 15)',
-        requestRules: [{ conditions: [
-          { source: SOURCE_TIME, timeFunc: 'month', timezone: 'Asia/Shanghai', mode: MATCH_EQ, value: '1' },
-          { source: SOURCE_TIME, timeFunc: 'day', timezone: 'Asia/Shanghai', mode: MATCH_EQ, value: '1' },
-        ], multiplier: '0.5' }],
+        requestRules: [
+          {
+            conditions: [
+              {
+                source: SOURCE_TIME,
+                timeFunc: 'weekday',
+                timezone: 'Asia/Shanghai',
+                mode: MATCH_EQ,
+                value: '0',
+              },
+            ],
+            multiplier: '0.8',
+          },
+          {
+            conditions: [
+              {
+                source: SOURCE_TIME,
+                timeFunc: 'weekday',
+                timezone: 'Asia/Shanghai',
+                mode: MATCH_EQ,
+                value: '6',
+              },
+            ],
+            multiplier: '0.8',
+          },
+        ],
+      },
+      {
+        key: 'new-year-promo',
+        label: '新年促销',
+        expr: 'tier("base", p * 3 + c * 15)',
+        requestRules: [
+          {
+            conditions: [
+              {
+                source: SOURCE_TIME,
+                timeFunc: 'month',
+                timezone: 'Asia/Shanghai',
+                mode: MATCH_EQ,
+                value: '1',
+              },
+              {
+                source: SOURCE_TIME,
+                timeFunc: 'day',
+                timezone: 'Asia/Shanghai',
+                mode: MATCH_EQ,
+                value: '1',
+              },
+            ],
+            multiplier: '0.5',
+          },
+        ],
       },
     ],
   },
@@ -839,34 +1032,42 @@ const PRESET_DEFAULT_VISIBLE = 2;
 
 function PresetSection({ applyPreset, t }) {
   const [expanded, setExpanded] = useState(false);
-  const visibleGroups = expanded ? PRESET_GROUPS : PRESET_GROUPS.slice(0, PRESET_DEFAULT_VISIBLE);
+  const visibleGroups = expanded
+    ? PRESET_GROUPS
+    : PRESET_GROUPS.slice(0, PRESET_DEFAULT_VISIBLE);
   const hasMore = PRESET_GROUPS.length > PRESET_DEFAULT_VISIBLE;
 
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <Text size='small' style={{ color: 'var(--semi-color-text-2)' }}>
-          {t('预设模板')}
-        </Text>
+    <div className='mb-3'>
+      <div className='mb-1.5 flex items-center gap-2'>
+        <span className='text-xs text-muted'>{t('预设模板')}</span>
         {hasMore && (
           <Button
-            theme='borderless'
-            size='small'
-            onClick={() => setExpanded(!expanded)}
-            style={{ padding: '0 4px', fontSize: 12, color: 'var(--semi-color-primary)' }}
+            size='sm'
+            variant='ghost'
+            className='h-auto px-1 py-0 text-xs text-primary'
+            onPress={() => setExpanded(!expanded)}
           >
             {expanded ? t('收起') : t('更多模板...')}
           </Button>
         )}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div className='flex flex-col gap-1'>
         {visibleGroups.map((g) => (
-          <div key={g.group} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <Tag size='small' color='grey' style={{ minWidth: 60, textAlign: 'center' }}>
+          <div
+            key={g.group}
+            className='flex flex-wrap items-center gap-1.5'
+          >
+            <ToneChip tone='grey' className='min-w-[60px] justify-center'>
               {t(g.group)}
-            </Tag>
+            </ToneChip>
             {g.presets.map((p) => (
-              <Button key={p.key} size='small' theme='light' onClick={() => applyPreset(p)}>
+              <Button
+                key={p.key}
+                size='sm'
+                variant='secondary'
+                onPress={() => applyPreset(p)}
+              >
                 {p.label}
               </Button>
             ))}
@@ -880,34 +1081,25 @@ function PresetSection({ applyPreset, t }) {
 function RawExprEditor({ exprString, onChange, t }) {
   return (
     <div>
-      <Banner
-        type='info'
-        description={
-          <div>
-            <div>
-              {t('变量')}: <code>p</code> ({t('输入 Token')}), <code>c</code> (
-              {t('输出 Token')}), <code>len</code> ({t('输入长度')}),{' '}
-              <code>cr</code> ({t('缓存读取')}),{' '}
-              <code>cc</code> ({t('缓存创建')}),{' '}
-              <code>cc1h</code> ({t('缓存创建-1小时')})
-            </div>
-            <div>
-              {t('函数')}: <code>tier(name, value)</code>,{' '}
-              <code>max(a, b)</code>, <code>min(a, b)</code>,{' '}
-              <code>ceil(x)</code>, <code>floor(x)</code>,{' '}
-              <code>abs(x)</code>, <code>header(name)</code>,{' '}
-              <code>param(path)</code>, <code>has(source, text)</code>
-            </div>
-          </div>
-        }
-        style={{ marginBottom: 12 }}
-      />
-
+      <InfoBanner>
+        <div>
+          {t('变量')}: <code>p</code> ({t('输入 Token')}), <code>c</code> (
+          {t('输出 Token')}), <code>len</code> ({t('输入长度')}),{' '}
+          <code>cr</code> ({t('缓存读取')}), <code>cc</code> ({t('缓存创建')}),{' '}
+          <code>cc1h</code> ({t('缓存创建-1小时')})
+        </div>
+        <div>
+          {t('函数')}: <code>tier(name, value)</code>, <code>max(a, b)</code>,{' '}
+          <code>min(a, b)</code>, <code>ceil(x)</code>, <code>floor(x)</code>,{' '}
+          <code>abs(x)</code>, <code>header(name)</code>,{' '}
+          <code>param(path)</code>, <code>has(source, text)</code>
+        </div>
+      </InfoBanner>
       <TextArea
         value={exprString}
-        onChange={onChange}
-        autosize={{ minRows: 3, maxRows: 12 }}
-        style={{ fontFamily: 'monospace', fontSize: 13 }}
+        onChange={(event) => onChange(event.target.value)}
+        rows={6}
+        className='font-mono text-xs'
         placeholder={t('输入计费表达式...')}
       />
     </div>
@@ -932,31 +1124,24 @@ function CacheTokenEstimatorInputs({
 }) {
   const usesExtra = useMemo(() => {
     if (!effectiveExpr) return false;
-    const varNames = EXTRA_ESTIMATOR_FIELDS.map((f) => f.var.replace('_', '_')).join('|');
+    const varNames = EXTRA_ESTIMATOR_FIELDS.map((f) => f.var).join('|');
     return new RegExp(`\\b(${varNames})\\b`).test(effectiveExpr);
   }, [effectiveExpr]);
 
   if (!usesExtra) return null;
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: 12,
-        marginBottom: 12,
-      }}
-    >
+    <div className='mb-3 grid grid-cols-2 gap-3'>
       {EXTRA_ESTIMATOR_FIELDS.map((cf) => (
         <div key={cf.var}>
-          <Text size='small' className='mb-1' style={{ display: 'block' }}>
-            {t(cf.labelKey)}
-          </Text>
-          <InputNumber
+          <div className='mb-1 block text-xs text-muted'>{t(cf.labelKey)}</div>
+          <NumberInput
             value={extraTokenValues[cf.stateKey]}
             min={0}
-            onChange={(val) => extraTokenSetters[cf.stateKey](val ?? 0)}
-            style={{ width: '100%' }}
+            onChange={(val) =>
+              extraTokenSetters[cf.stateKey](Number(val) || 0)
+            }
+            className={inputClass}
           />
         </div>
       ))}
@@ -978,11 +1163,23 @@ function evalExprLocally(exprStr, p, c, extraTokenValues) {
     const cacheReadTokens = extraTokenValues.cacheReadTokens || 0;
     const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0;
     const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0;
-    const len = p + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens;
-    const env = { p, c, len, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
+    const len =
+      p + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens;
+    const env = {
+      p,
+      c,
+      len,
+      tier: tierFn,
+      max: Math.max,
+      min: Math.min,
+      abs: Math.abs,
+      ceil: Math.ceil,
+      floor: Math.floor,
+    };
     for (const field of EXTRA_ESTIMATOR_FIELDS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0;
     }
+    // eslint-disable-next-line no-new-func
     const fn = new Function(
       ...Object.keys(env),
       `"use strict"; return (${exprStr});`,
@@ -1021,32 +1218,50 @@ const TIME_FUNC_PLACEHOLDERS = {
   day: '1-31',
 };
 
+const TIMEZONE_DATALIST_ID = 'tiered-pricing-tz-list';
+
 function RuleConditionRow({ cond, onChange, onRemove, t }) {
   const normalized = normalizeCondition(cond);
   const isTime = normalized.source === SOURCE_TIME;
   const matchOptions = getRequestRuleMatchOptions(normalized.source, t);
 
   const sourceSelect = (
-    <Select
-      size='small'
+    <NativeSelect
       value={normalized.source}
       onChange={(value) => {
         if (value === SOURCE_TIME) {
-          onChange(normalizeCondition({ source: SOURCE_TIME, timeFunc: 'hour', timezone: 'Asia/Shanghai', mode: MATCH_GTE }));
+          onChange(
+            normalizeCondition({
+              source: SOURCE_TIME,
+              timeFunc: 'hour',
+              timezone: 'Asia/Shanghai',
+              mode: MATCH_GTE,
+            }),
+          );
         } else {
           onChange(normalizeCondition({ source: value, path: '', mode: MATCH_EQ }));
         }
       }}
-      style={{ width: 110 }}
-    >
-      <Select.Option value={SOURCE_PARAM}>{t('请求参数')}</Select.Option>
-      <Select.Option value={SOURCE_HEADER}>{t('请求头')}</Select.Option>
-      <Select.Option value={SOURCE_TIME}>{t('时间条件')}</Select.Option>
-    </Select>
+      options={[
+        { value: SOURCE_PARAM, label: t('请求参数') },
+        { value: SOURCE_HEADER, label: t('请求头') },
+        { value: SOURCE_TIME, label: t('时间条件') },
+      ]}
+      className='w-[110px]'
+    />
   );
 
   const removeBtn = (
-    <Button icon={<IconDelete />} type='danger' theme='borderless' size='small' onClick={onRemove} />
+    <Button
+      isIconOnly
+      size='sm'
+      variant='ghost'
+      className='text-danger hover:bg-danger/10'
+      aria-label='delete'
+      onPress={onRemove}
+    >
+      <Trash2 size={14} />
+    </Button>
   );
 
   if (isTime) {
@@ -1054,105 +1269,135 @@ function RuleConditionRow({ cond, onChange, onRemove, t }) {
     const ph = TIME_FUNC_PLACEHOLDERS[normalized.timeFunc] || '';
     const hint = TIME_FUNC_HINTS[normalized.timeFunc] || '';
     return (
-      <div style={{
-        marginBottom: 8,
-        padding: '8px 10px',
-        borderRadius: 6,
-        background: 'var(--semi-color-fill-0)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
-      }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <div className='mb-2 flex flex-col gap-1.5 rounded-md bg-surface-secondary px-2.5 py-2'>
+        <div className='flex items-center gap-1.5'>
           {sourceSelect}
-          <Select
-            size='small'
+          <NativeSelect
             value={normalized.timeFunc}
             onChange={(value) => onChange({ ...normalized, timeFunc: value })}
-            style={{ flex: 1 }}
-          >
-            {TIME_FUNCS.map((fn) => (
-              <Select.Option key={fn} value={fn}>{t(TIME_FUNC_LABELS[fn] || fn)}</Select.Option>
-            ))}
-          </Select>
+            options={TIME_FUNCS.map((fn) => ({
+              value: fn,
+              label: t(TIME_FUNC_LABELS[fn] || fn),
+            }))}
+            className='flex-1'
+          />
           {removeBtn}
         </div>
-        <Select
-          size='small'
-          value={normalized.timezone}
-          onChange={(value) => onChange({ ...normalized, timezone: value })}
-          filter
-          allowCreate
+        {/*
+          v2 used Semi <Select filter allowCreate /> for the timezone — v3
+          has no equivalent compound, so we use an HTML5 <input list> +
+          <datalist> for the same suggest-but-allow-free-input UX.
+        */}
+        <input
+          type='text'
+          list={TIMEZONE_DATALIST_ID}
+          value={normalized.timezone || ''}
+          onChange={(event) =>
+            onChange({ ...normalized, timezone: event.target.value })
+          }
           placeholder={t('时区')}
-        >
-          {COMMON_TIMEZONES.map((tz) => (
-            <Select.Option key={tz.value} value={tz.value}>{tz.label}</Select.Option>
-          ))}
-        </Select>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <Select
-            size='small'
+          className={inputClassSm}
+        />
+        <div className='flex items-center gap-1.5'>
+          <NativeSelect
             value={normalized.mode}
-            onChange={(value) => onChange(normalizeCondition({ ...normalized, mode: value }))}
-            style={{ flex: 1 }}
-          >
-            {matchOptions.map((item) => (
-              <Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
-            ))}
-          </Select>
+            onChange={(value) =>
+              onChange(normalizeCondition({ ...normalized, mode: value }))
+            }
+            options={matchOptions.map((item) => ({
+              value: item.value,
+              label: item.label,
+            }))}
+            className='flex-1'
+          />
           {isRange ? (
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center', flex: 1 }}>
-              <Input size='small' value={normalized.rangeStart} placeholder={ph} style={{ flex: 1 }} onChange={(value) => onChange({ ...normalized, rangeStart: value })} />
+            <div className='flex flex-1 items-center gap-1'>
+              <input
+                type='text'
+                value={normalized.rangeStart || ''}
+                placeholder={ph}
+                onChange={(event) =>
+                  onChange({ ...normalized, rangeStart: event.target.value })
+                }
+                className={`${inputClassSm} flex-1`}
+              />
               <span>~</span>
-              <Input size='small' value={normalized.rangeEnd} placeholder={ph} style={{ flex: 1 }} onChange={(value) => onChange({ ...normalized, rangeEnd: value })} />
+              <input
+                type='text'
+                value={normalized.rangeEnd || ''}
+                placeholder={ph}
+                onChange={(event) =>
+                  onChange({ ...normalized, rangeEnd: event.target.value })
+                }
+                className={`${inputClassSm} flex-1`}
+              />
             </div>
           ) : (
-            <Input size='small' value={normalized.value} placeholder={ph} style={{ flex: 1 }} onChange={(value) => onChange({ ...normalized, value })} />
+            <input
+              type='text'
+              value={normalized.value || ''}
+              placeholder={ph}
+              onChange={(event) =>
+                onChange({ ...normalized, value: event.target.value })
+              }
+              className={`${inputClassSm} flex-1`}
+            />
           )}
         </div>
-        {hint && (
-          <Text size='small' style={{ color: 'var(--semi-color-text-3)' }}>
-            {t(hint)}
-          </Text>
-        )}
+        {hint && <span className='text-xs text-muted'>{t(hint)}</span>}
       </div>
     );
   }
 
   const showValue = normalized.mode !== MATCH_EXISTS;
   return (
-    <div style={{
-      marginBottom: 8,
-      padding: '8px 10px',
-      borderRadius: 6,
-      background: 'var(--semi-color-fill-0)',
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr auto',
-      gap: '6px 8px',
-    }}>
+    <div className='mb-2 grid grid-cols-[1fr_1fr_auto] gap-x-2 gap-y-1.5 rounded-md bg-surface-secondary px-2.5 py-2'>
       {sourceSelect}
-      <Input
-        size='small'
-        value={normalized.path}
-        placeholder={normalized.source === SOURCE_HEADER ? t('例如 anthropic-beta') : t('例如 service_tier')}
-        onChange={(value) => onChange({ ...normalized, path: value })}
+      <input
+        type='text'
+        value={normalized.path || ''}
+        placeholder={
+          normalized.source === SOURCE_HEADER
+            ? t('例如 anthropic-beta')
+            : t('例如 service_tier')
+        }
+        onChange={(event) =>
+          onChange({ ...normalized, path: event.target.value })
+        }
+        className={inputClassSm}
       />
       {removeBtn}
-      <Select
-        size='small'
+      <NativeSelect
         value={normalized.mode}
-        onChange={(value) => onChange(normalizeCondition({ ...normalized, mode: value, value: value === MATCH_EXISTS ? '' : normalized.value }))}
-      >
-        {matchOptions.map((item) => (
-          <Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
-        ))}
-      </Select>
-      <Input
-        size='small'
-        value={normalized.value}
-        placeholder={normalized.mode === MATCH_CONTAINS ? t('匹配内容') : normalized.mode === MATCH_EXISTS ? '' : t('匹配值')}
+        onChange={(value) =>
+          onChange(
+            normalizeCondition({
+              ...normalized,
+              mode: value,
+              value: value === MATCH_EXISTS ? '' : normalized.value,
+            }),
+          )
+        }
+        options={matchOptions.map((item) => ({
+          value: item.value,
+          label: item.label,
+        }))}
+      />
+      <input
+        type='text'
+        value={normalized.value || ''}
+        placeholder={
+          normalized.mode === MATCH_CONTAINS
+            ? t('匹配内容')
+            : normalized.mode === MATCH_EXISTS
+              ? ''
+              : t('匹配值')
+        }
         disabled={!showValue}
-        onChange={(value) => onChange({ ...normalized, value })}
+        onChange={(event) =>
+          onChange({ ...normalized, value: event.target.value })
+        }
+        className={inputClassSm}
       />
       <div />
     </div>
@@ -1168,33 +1413,36 @@ function RuleGroupCard({ group, index, onChange, onRemove, t }) {
   };
   const removeCondition = (ci) => {
     const next = conditions.filter((_, i) => i !== ci);
-    onChange({ ...group, conditions: next.length > 0 ? next : [createEmptyCondition()] });
+    onChange({
+      ...group,
+      conditions: next.length > 0 ? next : [createEmptyCondition()],
+    });
   };
   const addCondition = (cond) => {
     onChange({ ...group, conditions: [...conditions, cond] });
   };
 
   return (
-    <div
-      style={{
-        padding: '12px 16px',
-        borderRadius: 8,
-        border: '1px solid var(--semi-color-border)',
-        background: 'var(--semi-color-bg-2)',
-        marginBottom: 8,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <Tag color='blue' size='small'>
-          {t('第 {{n}} 组', { n: index + 1 })}
-        </Tag>
-        <Button icon={<IconDelete />} type='danger' theme='borderless' size='small' onClick={onRemove} />
+    <div className='mb-2 rounded-lg border border-border bg-surface-secondary/40 p-4'>
+      <div className='mb-2.5 flex items-center justify-between'>
+        <ToneChip tone='blue'>{t('第 {{n}} 组', { n: index + 1 })}</ToneChip>
+        <Button
+          isIconOnly
+          size='sm'
+          variant='ghost'
+          className='text-danger hover:bg-danger/10'
+          aria-label={t('删除')}
+          onPress={onRemove}
+        >
+          <Trash2 size={14} />
+        </Button>
       </div>
 
-      <div style={{ marginBottom: 8 }}>
-        <Text size='small' style={{ color: 'var(--semi-color-text-2)', display: 'block', marginBottom: 4 }}>
-          {t('条件')}{conditions.length > 1 ? ` (${t('同时满足')})` : ''}
-        </Text>
+      <div className='mb-2'>
+        <div className='mb-1 block text-xs text-muted'>
+          {t('条件')}
+          {conditions.length > 1 ? ` (${t('同时满足')})` : ''}
+        </div>
         {conditions.map((cond, ci) => (
           <RuleConditionRow
             key={ci}
@@ -1204,28 +1452,44 @@ function RuleGroupCard({ group, index, onChange, onRemove, t }) {
             t={t}
           />
         ))}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Button icon={<IconPlus />} size='small' theme='borderless' onClick={() => addCondition(createEmptyCondition())}>
+        <div className='flex gap-1.5'>
+          <Button
+            size='sm'
+            variant='ghost'
+            onPress={() => addCondition(createEmptyCondition())}
+          >
+            <Plus size={12} />
             {t('添加条件')}
           </Button>
-          <Button icon={<IconPlus />} size='small' theme='borderless' onClick={() => addCondition(createEmptyTimeCondition())}>
+          <Button
+            size='sm'
+            variant='ghost'
+            onPress={() => addCondition(createEmptyTimeCondition())}
+          >
+            <Plus size={12} />
             {t('添加时间条件')}
           </Button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Text size='small' style={{ color: 'var(--semi-color-text-2)', whiteSpace: 'nowrap' }}>
+      <div className='flex items-center gap-2'>
+        <span className='whitespace-nowrap text-xs text-muted'>
           {t('倍率')}
-        </Text>
-        <Input
-          size='small'
-          value={group.multiplier || ''}
-          placeholder={t('例如 0.5 或 2')}
-          suffix='x'
-          onChange={(value) => onChange({ ...group, multiplier: value })}
-          style={{ width: 160 }}
-        />
+        </span>
+        <div className='relative w-40'>
+          <input
+            type='text'
+            value={group.multiplier || ''}
+            placeholder={t('例如 0.5 或 2')}
+            onChange={(event) =>
+              onChange({ ...group, multiplier: event.target.value })
+            }
+            className={`${inputClassSm} pr-6`}
+          />
+          <span className='pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted'>
+            x
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -1331,42 +1595,37 @@ function LlmPromptHelper({ t, model }) {
   }, [prompt, t]);
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div className='mb-3'>
       <Button
-        theme='borderless'
-        size='small'
-        icon={<IconCopy />}
-        onClick={() => setOpen(!open)}
-        style={{ color: 'var(--semi-color-tertiary)' }}
+        size='sm'
+        variant='ghost'
+        className='text-muted'
+        onPress={() => setOpen(!open)}
       >
+        <Copy size={12} />
         {t('LLM 辅助设计提示词')}
       </Button>
-      <Collapsible isOpen={open}>
-        <Card
-          bodyStyle={{ padding: 12 }}
-          style={{ marginTop: 8, background: 'var(--semi-color-fill-0)' }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text size='small' type='secondary'>
-              {t('复制以下提示词发送给 LLM（如 ChatGPT / Claude），让它帮你设计计费表达式')}
-            </Text>
-            <Button
-              icon={<IconCopy />}
-              size='small'
-              theme='light'
-              onClick={handleCopy}
-            >
+      {open ? (
+        <div className='mt-2 rounded-xl bg-surface-secondary/50 p-3'>
+          <div className='mb-2 flex items-center justify-between'>
+            <span className='text-xs text-muted'>
+              {t(
+                '复制以下提示词发送给 LLM（如 ChatGPT / Claude），让它帮你设计计费表达式',
+              )}
+            </span>
+            <Button size='sm' variant='secondary' onPress={handleCopy}>
+              <Copy size={14} />
               {t('复制提示词')}
             </Button>
           </div>
           <TextArea
             value={prompt}
-            readonly
-            autosize={{ minRows: 6, maxRows: 20 }}
-            style={{ fontFamily: 'monospace', fontSize: 12 }}
+            readOnly
+            rows={10}
+            className='font-mono text-xs'
           />
-        </Card>
-      </Collapsible>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1375,7 +1634,13 @@ function LlmPromptHelper({ t, model }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function TieredPricingEditor({ model, onExprChange, requestRuleExpr, onRequestRuleExprChange, t }) {
+export default function TieredPricingEditor({
+  model,
+  onExprChange,
+  requestRuleExpr,
+  onRequestRuleExprChange,
+  t,
+}) {
   const currentExpr = model?.billingExpr || '';
 
   const [editorMode, setEditorMode] = useState('visual');
@@ -1397,7 +1662,9 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
     [currentRequestRuleExpr],
   );
   const canUseVisualRules = parsedRequestRuleGroups !== null;
-  const [requestRuleGroups, setRequestRuleGroups] = useState(parsedRequestRuleGroups || []);
+  const [requestRuleGroups, setRequestRuleGroups] = useState(
+    parsedRequestRuleGroups || [],
+  );
 
   useEffect(() => {
     if (parsedRequestRuleGroups) {
@@ -1407,10 +1674,13 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
     }
   }, [currentRequestRuleExpr, parsedRequestRuleGroups]);
 
-  const handleRequestRuleGroupsChange = useCallback((nextGroups) => {
-    setRequestRuleGroups(nextGroups);
-    onRequestRuleExprChange(buildRequestRuleExpr(nextGroups));
-  }, [onRequestRuleExprChange]);
+  const handleRequestRuleGroupsChange = useCallback(
+    (nextGroups) => {
+      setRequestRuleGroups(nextGroups);
+      onRequestRuleExprChange(buildRequestRuleExpr(nextGroups));
+    },
+    [onRequestRuleExprChange],
+  );
 
   useEffect(() => {
     const parsed = tryParseVisualConfig(currentExpr);
@@ -1427,6 +1697,7 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
       setVisualConfig(createDefaultVisualConfig());
       setRawExpr('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.name]);
 
   const effectiveExpr = useMemo(() => {
@@ -1441,23 +1712,27 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
     if (effectiveExpr !== currentExpr) {
       onExprChange(effectiveExpr);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveExpr]);
 
   const handleVisualChange = useCallback((newConfig) => {
     setVisualConfig(newConfig);
   }, []);
 
-  const handleRawChange = useCallback((val) => {
-    setRawExpr(val);
-    const { requestRuleExpr: ruleStr } = splitBillingExprAndRequestRules(val);
-    onRequestRuleExprChange(ruleStr);
-  }, [onRequestRuleExprChange]);
+  const handleRawChange = useCallback(
+    (val) => {
+      setRawExpr(val);
+      const { requestRuleExpr: ruleStr } = splitBillingExprAndRequestRules(val);
+      onRequestRuleExprChange(ruleStr);
+    },
+    [onRequestRuleExprChange],
+  );
 
   const handleModeSwitch = useCallback(
-    (e) => {
-      const newMode = e.target.value;
+    (newMode) => {
       if (newMode === 'visual') {
-        const { billingExpr, requestRuleExpr: ruleStr } = splitBillingExprAndRequestRules(rawExpr);
+        const { billingExpr, requestRuleExpr: ruleStr } =
+          splitBillingExprAndRequestRules(rawExpr);
         const parsed = tryParseVisualConfig(billingExpr);
         if (parsed) {
           setVisualConfig(parsed);
@@ -1481,7 +1756,8 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
     (preset) => {
       const presetGroups = preset.requestRules || [];
       const ruleExpr = buildRequestRuleExpr(presetGroups);
-      const combined = combineBillingExpr(preset.expr, ruleExpr) || preset.expr;
+      const combined =
+        combineBillingExpr(preset.expr, ruleExpr) || preset.expr;
       setRawExpr(combined);
       const parsed = tryParseVisualConfig(preset.expr);
       if (parsed) {
@@ -1497,48 +1773,81 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
   );
 
   const extraTokenValues = {
-    cacheReadTokens, cacheCreateTokens, cacheCreate1hTokens,
-    imageTokens, imageOutputTokens, audioInputTokens, audioOutputTokens,
+    cacheReadTokens,
+    cacheCreateTokens,
+    cacheCreate1hTokens,
+    imageTokens,
+    imageOutputTokens,
+    audioInputTokens,
+    audioOutputTokens,
   };
   const extraTokenSetters = {
-    cacheReadTokens: setCacheReadTokens, cacheCreateTokens: setCacheCreateTokens,
-    cacheCreate1hTokens: setCacheCreate1hTokens, imageTokens: setImageTokens,
-    imageOutputTokens: setImageOutputTokens, audioInputTokens: setAudioInputTokens,
+    cacheReadTokens: setCacheReadTokens,
+    cacheCreateTokens: setCacheCreateTokens,
+    cacheCreate1hTokens: setCacheCreate1hTokens,
+    imageTokens: setImageTokens,
+    imageOutputTokens: setImageOutputTokens,
+    audioInputTokens: setAudioInputTokens,
     audioOutputTokens: setAudioOutputTokens,
   };
 
-  const evalResult = useMemo(() => {
-      const result = evalExprLocally(effectiveExpr, promptTokens, completionTokens, extraTokenValues);
+  const evalResult = useMemo(
+    () => {
+      const result = evalExprLocally(
+        effectiveExpr,
+        promptTokens,
+        completionTokens,
+        extraTokenValues,
+      );
       if (!result.error) {
-        result.cost = result.cost / 1000000 * (parseFloat(localStorage.getItem('quota_per_unit')) || 500000);
+        result.cost =
+          (result.cost / 1000000) *
+          (parseFloat(localStorage.getItem('quota_per_unit')) || 500000);
       }
       return result;
     },
-    [effectiveExpr, promptTokens, completionTokens,
-      cacheReadTokens, cacheCreateTokens, cacheCreate1hTokens,
-      imageTokens, imageOutputTokens, audioInputTokens, audioOutputTokens],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      effectiveExpr,
+      promptTokens,
+      completionTokens,
+      cacheReadTokens,
+      cacheCreateTokens,
+      cacheCreate1hTokens,
+      imageTokens,
+      imageOutputTokens,
+      audioInputTokens,
+      audioOutputTokens,
+    ],
   );
 
   return (
     <div>
-      <div style={{ marginBottom: 12 }}>
-        <RadioGroup
-          type='button'
-          size='small'
+      {/* Shared timezone autocomplete options for any RuleConditionRow on
+          this editor instance. Avoids re-emitting the <option> list for
+          every row. */}
+      <datalist id={TIMEZONE_DATALIST_ID}>
+        {COMMON_TIMEZONES.map((tz) => (
+          <option key={tz.value} value={tz.value}>
+            {tz.label}
+          </option>
+        ))}
+      </datalist>
+
+      <div className='mb-3'>
+        <SegmentedToggle
           value={editorMode}
           onChange={handleModeSwitch}
-        >
-          <Radio value='visual'>{t('可视化编辑')}</Radio>
-          <Radio value='raw'>{t('表达式编辑')}</Radio>
-        </RadioGroup>
+          options={[
+            { value: 'visual', label: t('可视化编辑') },
+            { value: 'raw', label: t('表达式编辑') },
+          ]}
+        />
       </div>
 
       <PresetSection applyPreset={applyPreset} t={t} />
 
-      <Card
-        bodyStyle={{ padding: 16 }}
-        style={{ marginBottom: 12, background: 'var(--semi-color-fill-0)' }}
-      >
+      <div className='mb-3 rounded-xl bg-surface-secondary/50 p-4'>
         {editorMode === 'visual' ? (
           <VisualEditor
             visualConfig={visualConfig}
@@ -1551,29 +1860,32 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
 
         {editorMode === 'visual' && (
           <>
-            <div style={{ borderTop: '1px solid var(--semi-color-border)', margin: '16px 0' }} />
+            <div className='my-4 border-t border-border' />
 
-            <div className='font-medium mb-2'>{t('请求条件调价')}</div>
-            <div style={{ marginBottom: 12 }}>
-              <Text type='secondary' size='small'>
-                {t('满足条件时，整单价格乘以 X；如果有多条同时命中，会继续相乘。')}
-              </Text>
-              <div style={{ marginTop: 2 }}>
-                <Text type='secondary' size='small'>
-                  {t('X 也可以小于 1，当折扣用。想做"只给输出加价"或"额外加固定费用"，请直接写完整计费公式。')}
-                </Text>
+            <div className='mb-2 font-medium'>{t('请求条件调价')}</div>
+            <div className='mb-3'>
+              <span className='text-xs text-muted'>
+                {t(
+                  '满足条件时，整单价格乘以 X；如果有多条同时命中，会继续相乘。',
+                )}
+              </span>
+              <div className='mt-0.5'>
+                <span className='text-xs text-muted'>
+                  {t(
+                    'X 也可以小于 1，当折扣用。想做"只给输出加价"或"额外加固定费用"，请直接写完整计费公式。',
+                  )}
+                </span>
               </div>
             </div>
 
             {currentRequestRuleExpr && !canUseVisualRules ? (
-              <Banner
-                type='warning'
-                bordered
-                fullMode={false}
-                closeIcon={null}
-                style={{ marginBottom: 12 }}
-                title={t('这个公式比较复杂，下面的简化表单没法完整还原，请在表达式编辑模式下修改。')}
-              />
+              <InfoBanner tone='warning'>
+                <div className='font-medium'>
+                  {t(
+                    '这个公式比较复杂，下面的简化表单没法完整还原，请在表达式编辑模式下修改。',
+                  )}
+                </div>
+              </InfoBanner>
             ) : (
               <>
                 {requestRuleGroups.map((group, gi) => (
@@ -1588,61 +1900,58 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
                       handleRequestRuleGroupsChange(next);
                     }}
                     onRemove={() => {
-                      handleRequestRuleGroupsChange(requestRuleGroups.filter((_, i) => i !== gi));
+                      handleRequestRuleGroupsChange(
+                        requestRuleGroups.filter((_, i) => i !== gi),
+                      );
                     }}
                   />
                 ))}
                 <Button
-                  icon={<IconPlus />}
-                  size='small'
-                  theme='light'
-                  onClick={() => handleRequestRuleGroupsChange([...requestRuleGroups, createEmptyRuleGroup()])}
-                  style={{ marginTop: 4 }}
+                  size='sm'
+                  variant='secondary'
+                  className='mt-1'
+                  onPress={() =>
+                    handleRequestRuleGroupsChange([
+                      ...requestRuleGroups,
+                      createEmptyRuleGroup(),
+                    ])
+                  }
                 >
+                  <Plus size={14} />
                   {t('添加条件组')}
                 </Button>
               </>
             )}
           </>
         )}
-      </Card>
+      </div>
 
-      <Card
-        bodyStyle={{ padding: 16 }}
-        style={{ marginBottom: 12, background: 'var(--semi-color-fill-0)' }}
-      >
-        <div className='font-medium mb-2'>{t('Token 估算器')}</div>
-        <div className='text-xs text-gray-500 mb-3'>
+      <div className='mb-3 rounded-xl bg-surface-secondary/50 p-4'>
+        <div className='mb-2 font-medium'>{t('Token 估算器')}</div>
+        <div className='mb-3 text-xs text-muted'>
           {t('输入 Token 数量，查看按当前配置的预计费用（不含分组倍率）。')}
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-            marginBottom: 12,
-          }}
-        >
+        <div className='mb-3 grid grid-cols-2 gap-3'>
           <div>
-            <Text size='small' className='mb-1' style={{ display: 'block' }}>
+            <div className='mb-1 block text-xs text-muted'>
               {t('输入 Token 数')} (p)
-            </Text>
-            <InputNumber
+            </div>
+            <NumberInput
               value={promptTokens}
               min={0}
-              onChange={(val) => setPromptTokens(val ?? 0)}
-              style={{ width: '100%' }}
+              onChange={(val) => setPromptTokens(Number(val) || 0)}
+              className={inputClass}
             />
           </div>
           <div>
-            <Text size='small' className='mb-1' style={{ display: 'block' }}>
+            <div className='mb-1 block text-xs text-muted'>
               {t('输出 Token 数')} (c)
-            </Text>
-            <InputNumber
+            </div>
+            <NumberInput
               value={completionTokens}
               min={0}
-              onChange={(val) => setCompletionTokens(val ?? 0)}
-              style={{ width: '100%' }}
+              onChange={(val) => setCompletionTokens(Number(val) || 0)}
+              className={inputClass}
             />
           </div>
         </div>
@@ -1654,48 +1963,37 @@ export default function TieredPricingEditor({ model, onExprChange, requestRuleEx
           t={t}
         />
         <div
-          style={{
-            padding: '10px 14px',
-            borderRadius: 8,
-            background: evalResult.error
-              ? 'var(--semi-color-danger-light-default)'
-              : 'var(--semi-color-primary-light-default)',
-            border: `1px solid ${evalResult.error ? 'var(--semi-color-danger)' : 'var(--semi-color-primary)'}`,
-          }}
+          className={`rounded-lg border px-3.5 py-2.5 ${
+            evalResult.error
+              ? 'border-danger bg-danger/10'
+              : 'border-primary bg-primary/10'
+          }`}
         >
           {evalResult.error ? (
-            <Text type='danger'>
+            <div className='text-danger'>
               {t('表达式错误')}: {evalResult.error}
-            </Text>
+            </div>
           ) : (
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Text strong style={{ fontSize: 15 }}>
+              <div className='flex items-center gap-2'>
+                <span className='text-[15px] font-semibold text-foreground'>
                   {t('预计费用')}：{renderQuota(evalResult.cost, 4)}
-                </Text>
+                </span>
                 {evalResult.matchedTier && (
-                  <Tag size='small' color='blue' type='light'>
+                  <ToneChip tone='blue'>
                     {t('命中档位')}：{evalResult.matchedTier}
-                  </Tag>
+                  </ToneChip>
                 )}
               </div>
-              <Text
-                size='small'
-                style={{
-                  display: 'block',
-                  marginTop: 2,
-                  color: 'var(--semi-color-text-3)',
-                }}
-              >
+              <div className='mt-0.5 block text-xs text-muted'>
                 {t('原始额度')}：{evalResult.cost.toLocaleString()}
-              </Text>
+              </div>
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       <LlmPromptHelper t={t} model={model} />
-
     </div>
   );
 }
