@@ -109,12 +109,9 @@ export function AuthAgreement({
       <Checkbox
         isSelected={checked}
         onValueChange={onChange}
-        classNames={{
-          base: 'items-start',
-          label: 'text-sm leading-6 text-muted',
-        }}
+        className='items-start'
       >
-        <>
+        <span className='text-sm leading-6 text-muted'>
           {t('我已阅读并同意')}
           {hasUserAgreement ? (
             <a
@@ -137,7 +134,7 @@ export function AuthAgreement({
               {t('隐私政策')}
             </a>
           ) : null}
-        </>
+        </span>
       </Checkbox>
     </div>
   );
