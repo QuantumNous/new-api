@@ -187,7 +187,6 @@ const NoticeModal = ({
             <span>{t('系统公告')}</span>
             <Tabs
               size='sm'
-              radius='full'
               variant='bordered'
               selectedKey={activeTab}
               onSelectionChange={(key) => setActiveTab(String(key))}
