@@ -264,6 +264,9 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 			Role:    message.Role,
 			Content: message.Content,
 		}
+		if message.ReasoningContent != "" {
+			fmtMessage.ReasoningContent = message.ReasoningContent
+		}
 		if message.Role == "tool" {
 			fmtMessage.ToolCallId = message.ToolCallId
 		}
@@ -330,6 +333,13 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 			}
 			claudeMessage := dto.ClaudeMessage{
 				Role: message.Role,
+			}
+			if message.ReasoningContent != "" {
+				reasoningContent, err := common.Marshal(message.ReasoningContent)
+				if err != nil {
+					return nil, err
+				}
+				claudeMessage.ReasoningContent = reasoningContent
 			}
 			if message.Role == "tool" {
 				if len(claudeMessages) > 0 && claudeMessages[len(claudeMessages)-1].Role == "user" {
