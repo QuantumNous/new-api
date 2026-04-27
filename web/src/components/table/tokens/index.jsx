@@ -462,14 +462,14 @@ function FluentNoticePanel({
           {!prefillKey && (
             <Button
               size='sm'
-              variant='flat'
+              variant='tertiary'
               color='warning'
               onPress={onSuppress}
             >
               {t('不再提醒')}
             </Button>
           )}
-          <Button size='sm' variant='light' onPress={onClose}>
+          <Button size='sm' variant='tertiary' onPress={onClose}>
             {t('关闭')}
           </Button>
           <Button size='sm' color='primary' onPress={onConfirm}>

@@ -209,7 +209,7 @@ export default function CCSwitchModal({
               </div>
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={onClose}>
+              <Button variant='tertiary' onPress={onClose}>
                 {t('取消')}
               </Button>
               <Button color='primary' onPress={handleSubmit}>

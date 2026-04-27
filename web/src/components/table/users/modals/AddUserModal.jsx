@@ -120,7 +120,7 @@ const AddUserModal = (props) => {
           </div>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={props.handleClose}
@@ -219,7 +219,7 @@ const AddUserModal = (props) => {
 
         <footer className='flex justify-end gap-2 border-t border-[color:var(--app-border)] bg-[color:var(--app-background)] px-5 py-3'>
           <Button
-            variant='light'
+            variant='tertiary'
             onPress={props.handleClose}
             startContent={<X size={14} />}
           >

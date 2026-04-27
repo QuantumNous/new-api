@@ -208,7 +208,7 @@ function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
               </div>
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={onCancel}>
+              <Button variant='tertiary' onPress={onCancel}>
                 {t('取消')}
               </Button>
               <Button color='primary' onPress={onOk}>
@@ -725,7 +725,7 @@ export default function UpstreamRatioSync(props) {
         <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
           <div className='flex w-full flex-col gap-2 md:w-auto md:flex-row'>
             <Button
-              variant='flat'
+              variant='tertiary'
               startContent={<RefreshCcw size={14} />}
               onPress={() => {
                 setModalVisible(true);
@@ -736,8 +736,7 @@ export default function UpstreamRatioSync(props) {
               {t('选择同步渠道')}
             </Button>
             <Button
-              variant='flat'
-              color='primary'
+              variant='tertiary'
               startContent={<CheckSquare size={14} />}
               isDisabled={!hasSelections}
               onPress={applySync}
@@ -1014,7 +1013,7 @@ export default function UpstreamRatioSync(props) {
                 </select>
                 <Button
                   size='sm'
-                  variant='light'
+                  variant='tertiary'
                   isDisabled={currentPage <= 1}
                   onPress={() =>
                     setCurrentPage(Math.max(1, currentPage - 1))
@@ -1027,7 +1026,7 @@ export default function UpstreamRatioSync(props) {
                 </span>
                 <Button
                   size='sm'
-                  variant='light'
+                  variant='tertiary'
                   isDisabled={currentPage >= totalPages}
                   onPress={() =>
                     setCurrentPage(Math.min(totalPages, currentPage + 1))

@@ -93,10 +93,10 @@ const ColumnSelectorDialog = ({
               </div>
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='flat' onPress={onReset}>
+              <Button variant='tertiary' onPress={onReset}>
                 {resetText}
               </Button>
-              <Button variant='light' onPress={onClose}>
+              <Button variant='tertiary' onPress={onClose}>
                 {cancelText}
               </Button>
               <Button color='primary' onPress={onClose}>

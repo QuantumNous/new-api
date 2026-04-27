@@ -474,7 +474,7 @@ const EditTokenModal = (props) => {
           </div>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={props.handleClose}
@@ -599,29 +599,28 @@ const EditTokenModal = (props) => {
                     <div className='flex flex-wrap gap-2'>
                       <Button
                         size='sm'
-                        variant='flat'
-                        color='primary'
+                        variant='tertiary'
                         onPress={() => setExpiredTime(0, 0, 0, 0)}
                       >
                         {t('永不过期')}
                       </Button>
                       <Button
                         size='sm'
-                        variant='flat'
+                        variant='tertiary'
                         onPress={() => setExpiredTime(1, 0, 0, 0)}
                       >
                         {t('一个月')}
                       </Button>
                       <Button
                         size='sm'
-                        variant='flat'
+                        variant='tertiary'
                         onPress={() => setExpiredTime(0, 1, 0, 0)}
                       >
                         {t('一天')}
                       </Button>
                       <Button
                         size='sm'
-                        variant='flat'
+                        variant='tertiary'
                         onPress={() => setExpiredTime(0, 0, 1, 0)}
                       >
                         {t('一小时')}
@@ -855,7 +854,7 @@ const EditTokenModal = (props) => {
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
           <Button
-            variant='light'
+            variant='tertiary'
             startContent={<X size={14} />}
             onPress={props.handleClose}
           >

@@ -299,8 +299,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       <div className='flex w-full flex-col items-center justify-between gap-4 md:flex-row'>
         <div className='order-2 flex w-full gap-2 md:order-1 md:w-auto'>
           <Button
-            color='primary'
-            variant='flat'
+            variant='tertiary'
             startContent={<Plus size={14} />}
             onPress={handleAddGroup}
             className='w-full md:w-auto'
@@ -308,8 +307,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
             {t('添加分类')}
           </Button>
           <Button
-            color='danger'
-            variant='flat'
+            variant='danger-soft'
             startContent={<Trash2 size={14} />}
             isDisabled={selectedRowKeys.length === 0}
             onPress={handleBatchDelete}
@@ -319,7 +317,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
             {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button
-            variant='flat'
+            variant='tertiary'
             startContent={<Save size={14} />}
             onPress={submitUptimeGroups}
             isPending={loading}
@@ -412,7 +410,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
                     <td className='px-3 py-2 text-right'>
                       <div className='inline-flex items-center gap-1.5'>
                         <Button
-                          variant='light'
+                          variant='tertiary'
                           size='sm'
                           startContent={<Edit size={14} />}
                           onPress={() => handleEditGroup(record)}
@@ -420,8 +418,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
                           {t('编辑')}
                         </Button>
                         <Button
-                          color='danger'
-                          variant='flat'
+                          variant='danger-soft'
                           size='sm'
                           startContent={<Trash2 size={14} />}
                           onPress={() => setPendingDelete(record)}
@@ -461,7 +458,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
         <div className='flex items-center gap-1'>
           <Button
             size='sm'
-            variant='light'
+            variant='tertiary'
             isDisabled={currentPage <= 1}
             onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
           >
@@ -472,7 +469,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
           </span>
           <Button
             size='sm'
-            variant='light'
+            variant='tertiary'
             isDisabled={currentPage >= totalPages}
             onPress={() =>
               setCurrentPage((p) => Math.min(totalPages, p + 1))
@@ -569,7 +566,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
               </ModalBody>
               <ModalFooter className='border-t border-border'>
                 <Button
-                  variant='light'
+                  variant='tertiary'
                   onPress={() => setShowUptimeModal(false)}
                 >
                   {t('取消')}

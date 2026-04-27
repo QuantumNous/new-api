@@ -430,7 +430,7 @@ const ChannelSelectorModal = forwardRef(
                   <div className='flex items-center gap-1'>
                     <Button
                       size='sm'
-                      variant='light'
+                      variant='tertiary'
                       isDisabled={currentPage <= 1}
                       onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     >
@@ -441,7 +441,7 @@ const ChannelSelectorModal = forwardRef(
                     </span>
                     <Button
                       size='sm'
-                      variant='light'
+                      variant='tertiary'
                       isDisabled={currentPage >= totalPages}
                       onPress={() =>
                         setCurrentPage((p) => Math.min(totalPages, p + 1))
@@ -453,7 +453,7 @@ const ChannelSelectorModal = forwardRef(
                 </div>
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button variant='light' onPress={onCancel}>
+                <Button variant='tertiary' onPress={onCancel}>
                   {t('取消')}
                 </Button>
                 <Button color='primary' onPress={onOk}>

@@ -103,14 +103,14 @@ const UserInfoHeader = ({ t, userState }) => {
               <div className='flex flex-wrap items-center gap-1.5'>
                 <Chip
                   size='sm'
-                  variant='flat'
+                  variant='tertiary'
                   className='!bg-white/20 !text-white backdrop-blur-sm'
                 >
                   {roleLabel}
                 </Chip>
                 <Chip
                   size='sm'
-                  variant='flat'
+                  variant='tertiary'
                   className='!bg-white/20 !text-white backdrop-blur-sm'
                 >
                   ID: {userState?.user?.id}

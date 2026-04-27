@@ -145,7 +145,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       primary: 'primary',
     };
     return (
-      <Chip color={colorMap[config.type] || 'default'} size='sm' variant='flat'>
+      <Chip color={colorMap[config.type] || 'default'} size='sm' variant='tertiary'>
         {t(config.key)}
       </Chip>
     );
@@ -200,7 +200,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         render: (amount, record) => {
           if (isSubscriptionTopup(record)) {
             return (
-              <Chip color='secondary' size='sm' variant='flat'>
+              <Chip color='secondary' size='sm' variant='tertiary'>
                 {t('订阅套餐')}
               </Chip>
             );
@@ -241,8 +241,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
               <Button
                 key="complete"
                 size='sm'
-                color='primary'
-                variant='flat'
+                variant='tertiary'
                 onPress={() => confirmAdminComplete(record.trade_no)}
               >
                 {t('补单')}

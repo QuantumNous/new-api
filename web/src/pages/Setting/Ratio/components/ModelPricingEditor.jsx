@@ -275,7 +275,7 @@ export default function ModelPricingEditor({
         <div className='flex flex-wrap items-center gap-2'>
           {allowAddModel ? (
             <Button
-              variant='flat'
+              variant='tertiary'
               startContent={<Plus size={14} />}
               onPress={() => setAddVisible(true)}
               className={isMobile ? 'w-full' : ''}
@@ -293,7 +293,7 @@ export default function ModelPricingEditor({
             {t('应用更改')}
           </Button>
           <Button
-            variant='flat'
+            variant='tertiary'
             isDisabled={
               !selectedModel || selectedModelNames.length === 0
             }
@@ -485,7 +485,7 @@ export default function ModelPricingEditor({
                                   <Button
                                     isIconOnly
                                     size='sm'
-                                    variant='light'
+                                    variant='tertiary'
                                     color='danger'
                                     aria-label={t('删除')}
                                     onPress={() => deleteModel(record.name)}
@@ -514,7 +514,7 @@ export default function ModelPricingEditor({
                     <div className='flex items-center gap-2'>
                       <Button
                         size='sm'
-                        variant='light'
+                        variant='tertiary'
                         isDisabled={currentPage <= 1}
                         onPress={() =>
                           setCurrentPage(Math.max(1, currentPage - 1))
@@ -527,7 +527,7 @@ export default function ModelPricingEditor({
                       </span>
                       <Button
                         size='sm'
-                        variant='light'
+                        variant='tertiary'
                         isDisabled={currentPage >= totalPages}
                         onPress={() =>
                           setCurrentPage(
@@ -1041,7 +1041,7 @@ export default function ModelPricingEditor({
                 </ModalBody>
                 <ModalFooter className='border-t border-border'>
                   <Button
-                    variant='light'
+                    variant='tertiary'
                     onPress={() => {
                       setAddVisible(false);
                       setNewModelName('');
@@ -1089,7 +1089,7 @@ export default function ModelPricingEditor({
               </ModalBody>
               <ModalFooter className='border-t border-border'>
                 <Button
-                  variant='light'
+                  variant='tertiary'
                   onPress={() => setBatchVisible(false)}
                 >
                   {t('取消')}

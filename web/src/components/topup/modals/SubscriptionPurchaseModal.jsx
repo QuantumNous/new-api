@@ -162,7 +162,7 @@ const SubscriptionPurchaseModal = ({
                         <div className='flex gap-2'>
                           {hasStripe && (
                             <Button
-                              variant='flat'
+                              variant='tertiary'
                               className='flex-1'
                               startContent={<SiStripe size={14} color='#635BFF' />}
                               onPress={onPayStripe}
@@ -174,7 +174,7 @@ const SubscriptionPurchaseModal = ({
                           )}
                           {hasCreem && (
                             <Button
-                              variant='flat'
+                              variant='tertiary'
                               className='flex-1'
                               startContent={<CreditCard size={16} />}
                               onPress={onPayCreem}

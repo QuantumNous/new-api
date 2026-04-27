@@ -52,13 +52,13 @@ const SelectionNotification = ({
           </div>
         </div>
         <div className='flex flex-wrap items-center gap-2'>
-          <Button size='sm' variant='flat' onPress={onClear}>
+          <Button size='sm' variant='tertiary' onPress={onClear}>
             {t('取消全选')}
           </Button>
           <Button size='sm' color='primary' onPress={onAddPrefill}>
             {t('加入预填组')}
           </Button>
-          <Button size='sm' variant='bordered' onPress={onCopy}>
+          <Button size='sm' variant='secondary' onPress={onCopy}>
             {t('复制名称')}
           </Button>
           <Button size='sm' color='danger' onPress={onDelete}>

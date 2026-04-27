@@ -669,7 +669,7 @@ const AccountManagement = ({
                 <span>{t('绑定 Telegram')}</span>
                 <Button
                   isIconOnly
-                  variant='light'
+                  variant='tertiary'
                   size='sm'
                   aria-label={t('关闭')}
                   onPress={() => setShowTelegramBindModal(false)}

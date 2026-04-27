@@ -268,7 +268,7 @@ const CardTable = ({
         {hasDetails && (
           <>
             <Button
-              variant='light'
+              variant='tertiary'
               size='sm'
               className='w-full flex justify-center mt-2'
               startContent={showDetails ? <ChevronUp size={16} /> : <ChevronDown size={16} />}

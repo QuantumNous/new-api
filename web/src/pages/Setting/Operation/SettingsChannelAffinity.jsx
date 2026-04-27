@@ -847,7 +847,7 @@ export default function SettingsChannelAffinity(props) {
                     {record.param_override_template ? (
                       <Button
                         size='sm'
-                        variant='light'
+                        variant='tertiary'
                         startContent={<Search size={14} />}
                         onPress={() => openParamTemplatePreview(record)}
                       >
@@ -878,7 +878,7 @@ export default function SettingsChannelAffinity(props) {
                       <Button
                         isIconOnly
                         size='sm'
-                        variant='light'
+                        variant='tertiary'
                         color='warning'
                         isDisabled={!record.include_rule_name}
                         aria-label={t('清空该规则缓存')}
@@ -889,7 +889,7 @@ export default function SettingsChannelAffinity(props) {
                       <Button
                         isIconOnly
                         size='sm'
-                        variant='light'
+                        variant='tertiary'
                         aria-label={t('编辑规则')}
                         onPress={() => handleEditRule(record)}
                       >
@@ -898,7 +898,7 @@ export default function SettingsChannelAffinity(props) {
                       <Button
                         isIconOnly
                         size='sm'
-                        variant='light'
+                        variant='tertiary'
                         color='danger'
                         aria-label={t('删除规则')}
                         onPress={() => handleDeleteRule(record.id)}
@@ -990,7 +990,7 @@ export default function SettingsChannelAffinity(props) {
                     <Button
                       isIconOnly
                       size='sm'
-                      variant='light'
+                      variant='tertiary'
                       color='danger'
                       aria-label={t('删除 Key 来源')}
                       onPress={() => removeKeySource(idx)}
@@ -1117,11 +1117,11 @@ export default function SettingsChannelAffinity(props) {
               );
             })}
           </div>
-          <Button variant='flat' onPress={handleAppendTemplates}>
+          <Button variant='tertiary' onPress={handleAppendTemplates}>
             {t('填充 Codex CLI / Claude CLI 模版')}
           </Button>
           <Button
-            variant='flat'
+            variant='tertiary'
             startContent={<Plus size={14} />}
             onPress={openAddModal}
           >
@@ -1131,7 +1131,7 @@ export default function SettingsChannelAffinity(props) {
             {t('保存')}
           </Button>
           <Button
-            variant='flat'
+            variant='tertiary'
             startContent={<RefreshCw size={14} />}
             isPending={cacheLoading}
             onPress={refreshCacheStats}
@@ -1362,14 +1362,14 @@ export default function SettingsChannelAffinity(props) {
                             </Button>
                             <Button
                               size='sm'
-                              variant='flat'
+                              variant='tertiary'
                               onPress={formatParamTemplateDraft}
                             >
                               {t('格式化')}
                             </Button>
                             <Button
                               size='sm'
-                              variant='light'
+                              variant='tertiary'
                               onPress={() => updateParamTemplateDraft('')}
                             >
                               {t('清空')}
@@ -1419,7 +1419,7 @@ export default function SettingsChannelAffinity(props) {
                   </span>
                   <Button
                     size='sm'
-                    variant='flat'
+                    variant='tertiary'
                     startContent={<Plus size={14} />}
                     onPress={addKeySource}
                   >
@@ -1445,7 +1445,7 @@ export default function SettingsChannelAffinity(props) {
                 {renderKeySourcesTable()}
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button variant='light' onPress={closeRuleModal}>
+                <Button variant='tertiary' onPress={closeRuleModal}>
                   {t('取消')}
                 </Button>
                 <Button color='primary' onPress={handleModalSave}>

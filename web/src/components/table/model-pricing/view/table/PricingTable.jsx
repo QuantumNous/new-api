@@ -386,7 +386,7 @@ function PaginationBar({
       <div className='flex items-center gap-1'>
         <Button
           size='sm'
-          variant='light'
+          variant='tertiary'
           isDisabled={currentPage <= 1}
           onPress={() => setCurrentPage?.(Math.max(1, currentPage - 1))}
         >
@@ -397,7 +397,7 @@ function PaginationBar({
         </span>
         <Button
           size='sm'
-          variant='light'
+          variant='tertiary'
           isDisabled={currentPage >= totalPages}
           onPress={() =>
             setCurrentPage?.(Math.min(totalPages, currentPage + 1))

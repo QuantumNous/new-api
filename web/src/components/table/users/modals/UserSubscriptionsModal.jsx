@@ -318,7 +318,7 @@ const UserSubscriptionsModal = ({
               <Button
                 size='sm'
                 color='warning'
-                variant='flat'
+                variant='tertiary'
                 isDisabled={!isActive || isCancelled}
                 onPress={() =>
                   setPendingConfirm({
@@ -335,8 +335,7 @@ const UserSubscriptionsModal = ({
               </Button>
               <Button
                 size='sm'
-                color='danger'
-                variant='flat'
+                variant='danger-soft'
                 onPress={() =>
                   setPendingConfirm({
                     title: t('确认删除'),
@@ -390,7 +389,7 @@ const UserSubscriptionsModal = ({
           </div>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={onCancel}

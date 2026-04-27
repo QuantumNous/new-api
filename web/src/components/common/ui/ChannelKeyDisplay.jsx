@@ -131,8 +131,7 @@ const ChannelKeyDisplay = ({
               </span>
               <Button
                 size='sm'
-                color='primary'
-                variant='bordered'
+                variant='secondary'
                 onPress={handleCopyAll}
               >
                 {t('复制全部')}
@@ -154,14 +153,13 @@ const ChannelKeyDisplay = ({
                   </span>
                   <div className='flex items-center gap-2'>
                     {keyItem.type === 'json' && (
-                      <Chip size='sm' color='primary' variant='flat'>
+                      <Chip size='sm' color='primary' variant='tertiary'>
                         {t('JSON')}
                       </Chip>
                     )}
                     <Button
                       size='sm'
-                      color='primary'
-                      variant='bordered'
+                      variant='secondary'
                       startContent={<Clipboard size={14} />}
                       onPress={() => handleCopyKey(keyItem.content)}
                     >

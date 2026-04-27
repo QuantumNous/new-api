@@ -91,7 +91,7 @@ export default function AutoGroupList({ value, groupNames = [], onChange }) {
         </div>
         <div className='mt-2 flex justify-center'>
           <Button
-            variant='bordered'
+            variant='secondary'
             startContent={<Plus size={14} />}
             onPress={addItem}
             size='sm'
@@ -129,7 +129,7 @@ export default function AutoGroupList({ value, groupNames = [], onChange }) {
             </datalist>
             <Button
               isIconOnly
-              variant='light'
+              variant='tertiary'
               size='sm'
               isDisabled={index === 0}
               onPress={() => moveUp(index)}
@@ -139,7 +139,7 @@ export default function AutoGroupList({ value, groupNames = [], onChange }) {
             </Button>
             <Button
               isIconOnly
-              variant='light'
+              variant='tertiary'
               size='sm'
               isDisabled={index === items.length - 1}
               onPress={() => moveDown(index)}
@@ -149,7 +149,7 @@ export default function AutoGroupList({ value, groupNames = [], onChange }) {
             </Button>
             <Button
               isIconOnly
-              variant='light'
+              variant='tertiary'
               color='danger'
               size='sm'
               onPress={() => removeItem(item._id)}
@@ -162,7 +162,7 @@ export default function AutoGroupList({ value, groupNames = [], onChange }) {
       </div>
       <div className='mt-3 flex justify-center'>
         <Button
-          variant='bordered'
+          variant='secondary'
           startContent={<Plus size={14} />}
           onPress={addItem}
           size='sm'

@@ -661,7 +661,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
                       <div className='flex gap-2'>
                         <Button
                           size='sm'
-                          variant='flat'
+                          variant='tertiary'
                           onPress={() =>
                             openEditPayMethodModal(record, index)
                           }
@@ -670,8 +670,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
                         </Button>
                         <Button
                           size='sm'
-                          variant='flat'
-                          color='danger'
+                          variant='danger-soft'
                           onPress={() => handleDeletePayMethod(index)}
                         >
                           {t('删除')}
@@ -745,7 +744,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
                     />
                     <Button
                       size='sm'
-                      variant='flat'
+                      variant='tertiary'
                       onPress={() => iconFileInputRef.current?.click()}
                     >
                       {payMethodForm.icon
@@ -755,8 +754,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
                     {payMethodForm.icon && (
                       <Button
                         size='sm'
-                        variant='flat'
-                        color='danger'
+                        variant='danger-soft'
                         onPress={() =>
                           setPayMethodForm((prev) => ({
                             ...prev,
@@ -817,7 +815,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               </ModalBody>
               <ModalFooter className='border-t border-border'>
                 <Button
-                  variant='light'
+                  variant='tertiary'
                   onPress={() => setPayMethodModalVisible(false)}
                 >
                   {t('取消')}

@@ -91,13 +91,13 @@ function MonthCalendar({ yearMonth, onMonthChange, dateRender, t }) {
     <div className='overflow-hidden rounded-lg border border-[color:var(--app-border)] text-sm'>
       <div className='flex items-center justify-between border-b border-[color:var(--app-border)] bg-[color:var(--app-background)] px-3 py-2'>
         <div className='flex items-center gap-1'>
-          <Button isIconOnly variant='light' size='sm' onPress={goPrev} aria-label='prev'>
+          <Button isIconOnly variant='tertiary' size='sm' onPress={goPrev} aria-label='prev'>
             <ChevronLeft size={14} />
           </Button>
-          <Button variant='light' size='sm' onPress={goToday}>
+          <Button variant='tertiary' size='sm' onPress={goToday}>
             {t('今天')}
           </Button>
-          <Button isIconOnly variant='light' size='sm' onPress={goNext} aria-label='next'>
+          <Button isIconOnly variant='tertiary' size='sm' onPress={goNext} aria-label='next'>
             <ChevronRight size={14} />
           </Button>
         </div>

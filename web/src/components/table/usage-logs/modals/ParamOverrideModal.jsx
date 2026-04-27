@@ -162,7 +162,7 @@ const ParamOverrideModal = ({
 
                 <Button
                   startContent={<Copy size={16} />}
-                  variant='flat'
+                  variant='tertiary'
                   size='sm'
                   onPress={copyAll}
                   isDisabled={lines.length === 0}
@@ -189,7 +189,7 @@ const ParamOverrideModal = ({
                         key={`${item.action}-${index}`}
                         className='flex items-start gap-3 rounded-2xl border border-border bg-surface-secondary/60 p-3'
                       >
-                        <Chip color='primary' size='sm' variant='flat'>
+                        <Chip color='primary' size='sm' variant='tertiary'>
                           {getActionLabel(item.action, t)}
                         </Chip>
                         <pre className='min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground'>

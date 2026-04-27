@@ -309,7 +309,7 @@ function OperationsCell({ record, openEdit, setPlanEnabled, t }) {
   return (
     <div className='flex items-center gap-1.5'>
       <Button
-        variant='light'
+        variant='tertiary'
         size='sm'
         onPress={() => openEdit(record)}
       >
@@ -317,8 +317,7 @@ function OperationsCell({ record, openEdit, setPlanEnabled, t }) {
       </Button>
       {isEnabled ? (
         <Button
-          variant='flat'
-          color='danger'
+          variant='danger-soft'
           size='sm'
           onPress={handleToggle}
         >
@@ -326,8 +325,7 @@ function OperationsCell({ record, openEdit, setPlanEnabled, t }) {
         </Button>
       ) : (
         <Button
-          variant='flat'
-          color='primary'
+          variant='tertiary'
           size='sm'
           onPress={handleToggle}
         >

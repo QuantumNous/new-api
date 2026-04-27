@@ -95,7 +95,7 @@ const ContentModal = ({
               startContent={<ExternalLink size={16} />}
               onPress={handleOpenInNewTab}
               size='sm'
-              variant='flat'
+              variant='tertiary'
             >
               {t('在新标签页中打开')}
             </Button>
@@ -103,7 +103,7 @@ const ContentModal = ({
               startContent={<Copy size={16} />}
               onPress={handleCopyUrl}
               size='sm'
-              variant='flat'
+              variant='tertiary'
             >
               {t('复制链接')}
             </Button>

@@ -75,7 +75,7 @@ function Pager({ current, pageSize, total, onChange, t }) {
       <span>{t('共 {{total}} 条', { total })}</span>
       <Button
         size='sm'
-        variant='light'
+        variant='tertiary'
         isDisabled={current <= 1}
         onPress={() => onChange(current - 1)}
       >
@@ -86,7 +86,7 @@ function Pager({ current, pageSize, total, onChange, t }) {
       </span>
       <Button
         size='sm'
-        variant='light'
+        variant='tertiary'
         isDisabled={current >= totalPages}
         onPress={() => onChange(current + 1)}
       >
@@ -396,7 +396,7 @@ const UpstreamConflictModal = ({
               )}
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={onClose}>
+              <Button variant='tertiary' onPress={onClose}>
                 {t('取消')}
               </Button>
               <Button

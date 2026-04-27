@@ -50,7 +50,7 @@ const renderTimestamp = (timestamp) => {
 const renderStatus = (status, record, t) => {
   if (isExpired(record)) {
     return (
-      <Chip color='warning' size='sm' variant='flat'>
+      <Chip color='warning' size='sm' variant='tertiary'>
         {t('已过期')}
       </Chip>
     );
@@ -59,14 +59,14 @@ const renderStatus = (status, record, t) => {
   const statusConfig = REDEMPTION_STATUS_MAP[status];
   if (statusConfig) {
     return (
-      <Chip color={toChipColor(statusConfig.color)} size='sm' variant='flat'>
+      <Chip color={toChipColor(statusConfig.color)} size='sm' variant='tertiary'>
         {t(statusConfig.text)}
       </Chip>
     );
   }
 
   return (
-    <Chip size='sm' variant='flat'>
+    <Chip size='sm' variant='tertiary'>
       {t('未知状态')}
     </Chip>
   );
@@ -122,7 +122,7 @@ export const getRedemptionsColumns = ({
       render: (text) => {
         return (
           <div>
-            <Chip size='sm' variant='flat'>
+            <Chip size='sm' variant='tertiary'>
               {renderQuota(parseInt(text))}
             </Chip>
           </div>
@@ -165,13 +165,13 @@ export const getRedemptionsColumns = ({
               content={record.key}
               placement='top'
             >
-              <Button variant='flat' size='sm'>
+              <Button variant='tertiary' size='sm'>
                 {t('查看')}
               </Button>
             </Tooltip>
             <Button
               size='sm'
-              variant='flat'
+              variant='tertiary'
               onPress={async () => {
                 await copyText(record.key);
               }}
@@ -179,7 +179,7 @@ export const getRedemptionsColumns = ({
               {t('复制')}
             </Button>
             <Button
-              variant='flat'
+              variant='tertiary'
               size='sm'
               onPress={() => {
                 setEditingRedemption(record);
@@ -192,7 +192,7 @@ export const getRedemptionsColumns = ({
             {canToggle ? (
               <Button
                 size='sm'
-                variant='flat'
+                variant='tertiary'
                 color={isUnused ? 'warning' : 'primary'}
                 onPress={() =>
                   manageRedemption(
@@ -210,8 +210,7 @@ export const getRedemptionsColumns = ({
             ) : null}
             <Button
               size='sm'
-              variant='flat'
-              color='danger'
+              variant='danger-soft'
               onPress={() => showDeleteRedemptionModal(record)}
             >
               {t('删除')}

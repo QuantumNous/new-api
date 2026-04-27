@@ -87,7 +87,7 @@ const ModelDetailSideSheet = ({
           </div>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={onClose}

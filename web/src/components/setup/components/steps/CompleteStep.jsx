@@ -69,7 +69,7 @@ const CompleteStep = ({
             <Rocket size={26} />
           </div>
           <div className='min-w-0'>
-            <Chip variant='flat' color='success' className='mb-3 w-fit'>
+            <Chip variant='tertiary' color='success' className='mb-3 w-fit'>
               <CheckCircle2 size={14} />
               {t('准备就绪')}
             </Chip>

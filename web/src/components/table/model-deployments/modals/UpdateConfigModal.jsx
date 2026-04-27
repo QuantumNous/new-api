@@ -438,8 +438,7 @@ const UpdateConfigModal = ({
                         </span>
                         <Button
                           size='sm'
-                          variant='light'
-                          color='primary'
+                          variant='tertiary'
                           startContent={<FaPlus />}
                           onPress={addEnvVar}
                         >
@@ -471,7 +470,7 @@ const UpdateConfigModal = ({
                           <Button
                             isIconOnly
                             size='sm'
-                            variant='light'
+                            variant='tertiary'
                             color='danger'
                             onPress={() => removeEnvVar(index)}
                             aria-label={t('移除')}
@@ -501,7 +500,7 @@ const UpdateConfigModal = ({
                         </div>
                         <Button
                           size='sm'
-                          variant='light'
+                          variant='tertiary'
                           color='danger'
                           startContent={<FaPlus />}
                           onPress={addSecretEnvVar}
@@ -535,7 +534,7 @@ const UpdateConfigModal = ({
                           <Button
                             isIconOnly
                             size='sm'
-                            variant='light'
+                            variant='tertiary'
                             color='danger'
                             onPress={() => removeSecretEnvVar(index)}
                             aria-label={t('移除')}
@@ -583,7 +582,7 @@ const UpdateConfigModal = ({
               </div>
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={handleCancel}>
+              <Button variant='tertiary' onPress={handleCancel}>
                 {t('取消')}
               </Button>
               <Button

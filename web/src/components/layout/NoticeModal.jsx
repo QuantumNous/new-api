@@ -187,7 +187,7 @@ const NoticeModal = ({
             <span>{t('系统公告')}</span>
             <Tabs
               size='sm'
-              variant='bordered'
+              variant='secondary'
               selectedKey={activeTab}
               onSelectionChange={(key) => setActiveTab(String(key))}
             >
@@ -212,7 +212,7 @@ const NoticeModal = ({
             </ModalHeader>
             <ModalBody>{renderBody()}</ModalBody>
             <ModalFooter className='border-t border-border'>
-          <Button variant='flat' onPress={handleCloseTodayNotice}>
+          <Button variant='tertiary' onPress={handleCloseTodayNotice}>
             {t('今日关闭')}
           </Button>
           <Button color='primary' onPress={onClose}>

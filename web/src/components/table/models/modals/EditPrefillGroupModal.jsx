@@ -249,7 +249,7 @@ const EditPrefillGroupModal = ({
           </div>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={onClose}
@@ -368,7 +368,7 @@ const EditPrefillGroupModal = ({
 
         <footer className='flex justify-end gap-2 border-t border-[color:var(--app-border)] bg-[color:var(--app-background)] px-5 py-3'>
           <Button
-            variant='light'
+            variant='tertiary'
             onPress={onClose}
             startContent={<X size={14} />}
           >

@@ -345,7 +345,7 @@ const renderOperations = (
         <Button
           color='danger'
           size='sm'
-          variant='flat'
+          variant='tertiary'
           onPress={() => showEnableDisableModal(record, 'disable')}
         >
           {t('禁用')}
@@ -353,14 +353,14 @@ const renderOperations = (
       ) : (
         <Button
           size='sm'
-          variant='flat'
+          variant='tertiary'
           onPress={() => showEnableDisableModal(record, 'enable')}
         >
           {t('启用')}
         </Button>
       )}
       <Button
-        variant='light'
+        variant='tertiary'
         size='sm'
         onPress={() => {
           setEditingUser(record);
@@ -371,14 +371,14 @@ const renderOperations = (
       </Button>
       <Button
         color='warning'
-        variant='flat'
+        variant='tertiary'
         size='sm'
         onPress={() => showPromoteModal(record)}
       >
         {t('提升')}
       </Button>
       <Button
-        variant='flat'
+        variant='tertiary'
         size='sm'
         onPress={() => showDemoteModal(record)}
       >
@@ -389,7 +389,7 @@ const renderOperations = (
         trigger={
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label='more'
           >

@@ -392,7 +392,7 @@ const EditModelModal = (props) => {
           </div>
           <Button
             isIconOnly
-            variant='light'
+            variant='tertiary'
             size='sm'
             aria-label={t('关闭')}
             onPress={props.handleClose}
@@ -513,8 +513,7 @@ const EditModelModal = (props) => {
                         <Button
                           key={group.id}
                           size='sm'
-                          variant='flat'
-                          color='primary'
+                          variant='tertiary'
                           onPress={() => {
                             const merged = [
                               ...new Set([
@@ -589,8 +588,7 @@ const EditModelModal = (props) => {
                           <Button
                             key={group.id}
                             size='sm'
-                            variant='flat'
-                            color='primary'
+                            variant='tertiary'
                             onPress={() => {
                               try {
                                 const current = values.endpoints || '';
@@ -672,7 +670,7 @@ const EditModelModal = (props) => {
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
           <Button
-            variant='light'
+            variant='tertiary'
             startContent={<X size={14} />}
             onPress={props.handleClose}
           >

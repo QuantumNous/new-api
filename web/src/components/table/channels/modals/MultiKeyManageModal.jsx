@@ -478,7 +478,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                       <div className='flex flex-wrap items-center gap-2'>
                         <Button
                           size='sm'
-                          variant='flat'
+                          variant='tertiary'
                           startContent={<RefreshCw size={14} />}
                           isPending={loading}
                           onPress={() =>
@@ -612,8 +612,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                                     {record.status === 1 ? (
                                       <Button
                                         size='sm'
-                                        color='danger'
-                                        variant='flat'
+                                        variant='danger-soft'
                                         isPending={
                                           operationLoading[
                                             `disable_${record.index}`
@@ -628,8 +627,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                                     ) : (
                                       <Button
                                         size='sm'
-                                        color='primary'
-                                        variant='flat'
+                                        variant='tertiary'
                                         isPending={
                                           operationLoading[
                                             `enable_${record.index}`
@@ -644,8 +642,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                                     )}
                                     <Button
                                       size='sm'
-                                      color='danger'
-                                      variant='flat'
+                                      variant='danger-soft'
                                       isPending={
                                         operationLoading[
                                           `delete_${record.index}`
@@ -694,7 +691,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                           </select>
                           <Button
                             size='sm'
-                            variant='light'
+                            variant='tertiary'
                             isDisabled={currentPage <= 1}
                             onPress={() => {
                               const next = Math.max(1, currentPage - 1);
@@ -709,7 +706,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                           </span>
                           <Button
                             size='sm'
-                            variant='light'
+                            variant='tertiary'
                             isDisabled={currentPage >= totalPages}
                             onPress={() => {
                               const next = Math.min(

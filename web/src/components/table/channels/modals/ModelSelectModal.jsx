@@ -462,7 +462,7 @@ const ModelSelectModal = ({
               </div>
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={onCancel}>
+              <Button variant='tertiary' onPress={onCancel}>
                 {t('取消')}
               </Button>
               <Button color='primary' onPress={handleOk}>

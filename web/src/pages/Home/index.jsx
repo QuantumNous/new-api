@@ -209,7 +209,7 @@ const Home = () => {
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
                       size={isMobile ? 'md' : 'lg'}
-                      variant='flat'
+                      variant='tertiary'
                       className='rounded-full px-6 py-2 font-semibold'
                       startContent={<Github size={18} />}
                       onPress={() =>
@@ -225,7 +225,7 @@ const Home = () => {
                     docsLink && (
                       <Button
                         size={isMobile ? 'md' : 'lg'}
-                        variant='flat'
+                        variant='tertiary'
                         className='rounded-full px-6 py-2 font-semibold'
                         startContent={<FileText size={18} />}
                         onPress={() => window.open(docsLink, '_blank')}

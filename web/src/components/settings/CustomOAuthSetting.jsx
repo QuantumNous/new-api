@@ -694,7 +694,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       <div className='flex flex-wrap gap-2'>
                         <Button
                           size='sm'
-                          variant='flat'
+                          variant='tertiary'
                           startContent={<Edit3 size={14} />}
                           onPress={() => handleEdit(record)}
                         >
@@ -702,8 +702,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                         </Button>
                         <Button
                           size='sm'
-                          color='danger'
-                          variant='flat'
+                          variant='danger-soft'
                           startContent={<Trash2 size={14} />}
                           onPress={() => setDeleteTarget(record)}
                         >
@@ -810,7 +809,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   </div>
                   <div className='flex items-end md:col-span-3'>
                     <Button
-                      variant='flat'
+                      variant='tertiary'
                       startContent={<RefreshCw size={14} />}
                       isPending={discoveryLoading}
                       onPress={handleFetchFromDiscovery}
@@ -1149,7 +1148,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       <div className='mt-2 flex flex-wrap gap-2'>
                         <Button
                           size='sm'
-                          variant='flat'
+                          variant='tertiary'
                           onPress={() =>
                             applyAccessPolicyTemplate('level_active')
                           }
@@ -1158,7 +1157,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                         </Button>
                         <Button
                           size='sm'
-                          variant='flat'
+                          variant='tertiary'
                           onPress={() =>
                             applyAccessPolicyTemplate('org_or_role')
                           }
@@ -1191,14 +1190,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       <div className='mt-2 flex flex-wrap gap-2'>
                         <Button
                           size='sm'
-                          variant='flat'
+                          variant='tertiary'
                           onPress={() => applyDeniedTemplate('level_hint')}
                         >
                           {t('填充模板：等级提示')}
                         </Button>
                         <Button
                           size='sm'
-                          variant='flat'
+                          variant='tertiary'
                           onPress={() => applyDeniedTemplate('org_hint')}
                         >
                           {t('填充模板：组织提示')}
@@ -1229,7 +1228,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     {formValues.enabled ? t('已启用') : t('已禁用')}
                   </StatusChip>
                 </div>
-                <Button variant='light' onPress={closeModal}>
+                <Button variant='tertiary' onPress={closeModal}>
                   {t('取消')}
                 </Button>
                 <Button color='primary' onPress={handleSubmit}>

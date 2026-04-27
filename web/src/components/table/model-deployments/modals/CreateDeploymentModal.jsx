@@ -1176,21 +1176,21 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               <div className='mb-3 flex flex-wrap items-center justify-end gap-2'>
                 <Button
                   size='sm'
-                  variant='light'
+                  variant='tertiary'
                   onPress={() => scrollToSection(basicSectionRef)}
                 >
                   {t('部署配置')}
                 </Button>
                 <Button
                   size='sm'
-                  variant='light'
+                  variant='tertiary'
                   onPress={() => scrollToSection(priceSectionRef)}
                 >
                   {t('价格预估')}
                 </Button>
                 <Button
                   size='sm'
-                  variant='light'
+                  variant='tertiary'
                   onPress={() => scrollToSection(advancedSectionRef)}
                 >
                   {t('高级配置')}
@@ -1277,7 +1277,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                         />
                         <Button
                           size='sm'
-                          variant='light'
+                          variant='tertiary'
                           startContent={<Copy size={14} />}
                           onPress={async () => {
                             if (!autoOllamaKey) return;
@@ -1524,7 +1524,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                     <Button
                                       isIconOnly
                                       size='sm'
-                                      variant='flat'
+                                      variant='tertiary'
                                       isDisabled={entrypoint.length === 1}
                                       aria-label={t('删除')}
                                       onPress={() =>
@@ -1540,7 +1540,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                 ))}
                                 <Button
                                   size='sm'
-                                  variant='flat'
+                                  variant='tertiary'
                                   startContent={<Plus size={14} />}
                                   onPress={() =>
                                     handleAddArrayField('entrypoint')
@@ -1575,7 +1575,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                     <Button
                                       isIconOnly
                                       size='sm'
-                                      variant='flat'
+                                      variant='tertiary'
                                       isDisabled={args.length === 1}
                                       aria-label={t('删除')}
                                       onPress={() =>
@@ -1588,7 +1588,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                 ))}
                                 <Button
                                   size='sm'
-                                  variant='flat'
+                                  variant='tertiary'
                                   startContent={<Plus size={14} />}
                                   onPress={() => handleAddArrayField('args')}
                                 >
@@ -1648,7 +1648,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                       <Button
                                         isIconOnly
                                         size='sm'
-                                        variant='flat'
+                                        variant='tertiary'
                                         isDisabled={envVariables.length === 1}
                                         aria-label={t('删除')}
                                         onPress={() =>
@@ -1665,7 +1665,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                 ))}
                                 <Button
                                   size='sm'
-                                  variant='flat'
+                                  variant='tertiary'
                                   startContent={<Plus size={14} />}
                                   onPress={() =>
                                     handleAddEnvVariable('env')
@@ -1722,7 +1722,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                         <Button
                                           isIconOnly
                                           size='sm'
-                                          variant='flat'
+                                          variant='tertiary'
                                           isDisabled={
                                             secretEnvVariables.length === 1 ||
                                             isAutoSecret
@@ -1743,7 +1743,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                 })}
                                 <Button
                                   size='sm'
-                                  variant='flat'
+                                  variant='tertiary'
                                   startContent={<Plus size={14} />}
                                   onPress={() =>
                                     handleAddEnvVariable('secret')
@@ -1869,7 +1869,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               </div>
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button variant='light' onPress={onCancel}>
+              <Button variant='tertiary' onPress={onCancel}>
                 {t('取消')}
               </Button>
               <Button

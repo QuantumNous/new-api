@@ -182,7 +182,7 @@ const EditDeploymentModal = ({
             </ModalBody>
             <ModalFooter className='border-t border-border'>
               <Button
-                variant='light'
+                variant='tertiary'
                 onPress={handleClose}
                 isDisabled={loading}
                 startContent={<X size={14} />}

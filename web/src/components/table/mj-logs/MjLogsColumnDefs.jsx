@@ -462,7 +462,7 @@ export const getMjLogsColumns = ({
       render: (text) => {
         if (!text) return t('无');
         return (
-          <Button size='sm' variant='flat' onPress={() => openImageModal(text)}>
+          <Button size='sm' variant='tertiary' onPress={() => openImageModal(text)}>
             {t('查看图片')}
           </Button>
         );

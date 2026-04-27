@@ -245,7 +245,7 @@ function AccountInfoRow({ t, label, value, onCopy, monospace = false }) {
       </div>
       <Button
         size='sm'
-        variant='light'
+        variant='tertiary'
         isDisabled={!hasValue}
         onPress={() => onCopy?.(text)}
       >
@@ -351,7 +351,7 @@ function CodexUsageView({ t, record, payload, onCopy, onRefresh }) {
           </div>
           <Button
             size='sm'
-            variant='bordered'
+            variant='secondary'
             startContent={<RefreshCw size={14} />}
             onPress={onRefresh}
           >
@@ -431,8 +431,7 @@ function CodexUsageView({ t, record, payload, onCopy, onRefresh }) {
           <div className='mb-2 flex justify-end'>
             <Button
               size='sm'
-              variant='bordered'
-              color='primary'
+              variant='secondary'
               isDisabled={!rawText}
               onPress={() => onCopy?.(rawText)}
             >
@@ -513,8 +512,7 @@ function CodexUsageLoader({ t, record, initialPayload, onCopy }) {
         <div className='flex justify-end'>
           <Button
             size='sm'
-            variant='bordered'
-            color='primary'
+            variant='secondary'
             startContent={<RefreshCw size={14} />}
             onPress={fetchUsage}
           >

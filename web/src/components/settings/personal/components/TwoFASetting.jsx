@@ -405,8 +405,7 @@ const TwoFASetting = ({ t }) => {
                     {t('禁用两步验证')}
                   </Button>
                   <Button
-                    color='primary'
-                    variant='flat'
+                    variant='tertiary'
                     startContent={<RefreshCw size={14} />}
                     onPress={() => setBackupModalVisible(true)}
                   >
@@ -528,7 +527,7 @@ const TwoFASetting = ({ t }) => {
               <ModalFooter className='border-t border-border'>
                 {currentStep > 0 && (
                   <Button
-                    variant='light'
+                    variant='tertiary'
                     onPress={() => setCurrentStep(currentStep - 1)}
                   >
                     {t('上一步')}
@@ -649,7 +648,7 @@ const TwoFASetting = ({ t }) => {
                 </div>
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button variant='light' onPress={closeDisableModal}>
+                <Button variant='tertiary' onPress={closeDisableModal}>
                   {t('取消')}
                 </Button>
                 <Button
@@ -736,7 +735,7 @@ const TwoFASetting = ({ t }) => {
                   </Button>
                 ) : (
                   <>
-                    <Button variant='light' onPress={closeBackupModal}>
+                    <Button variant='tertiary' onPress={closeBackupModal}>
                       {t('取消')}
                     </Button>
                     <Button

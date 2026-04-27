@@ -383,8 +383,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       <div className='flex w-full flex-col items-center justify-between gap-4 md:flex-row'>
         <div className='order-2 flex w-full gap-2 md:order-1 md:w-auto'>
           <Button
-            color='primary'
-            variant='flat'
+            variant='tertiary'
             startContent={<Plus size={14} />}
             onPress={handleAddAnnouncement}
             className='w-full md:w-auto'
@@ -392,8 +391,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             {t('添加公告')}
           </Button>
           <Button
-            color='danger'
-            variant='flat'
+            variant='danger-soft'
             startContent={<Trash2 size={14} />}
             isDisabled={selectedRowKeys.length === 0}
             onPress={handleBatchDelete}
@@ -403,7 +401,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button
-            variant='flat'
+            variant='tertiary'
             startContent={<Save size={14} />}
             onPress={submitAnnouncements}
             isPending={loading}
@@ -516,7 +514,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                     <td className='px-3 py-2 text-right'>
                       <div className='inline-flex items-center gap-1.5'>
                         <Button
-                          variant='light'
+                          variant='tertiary'
                           size='sm'
                           startContent={<Edit size={14} />}
                           onPress={() => handleEditAnnouncement(record)}
@@ -524,8 +522,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                           {t('编辑')}
                         </Button>
                         <Button
-                          color='danger'
-                          variant='flat'
+                          variant='danger-soft'
                           size='sm'
                           startContent={<Trash2 size={14} />}
                           onPress={() => setPendingDelete(record)}
@@ -565,7 +562,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         <div className='flex items-center gap-1'>
           <Button
             size='sm'
-            variant='light'
+            variant='tertiary'
             isDisabled={currentPage <= 1}
             onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
           >
@@ -576,7 +573,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
           </span>
           <Button
             size='sm'
-            variant='light'
+            variant='tertiary'
             isDisabled={currentPage >= totalPages}
             onPress={() =>
               setCurrentPage((p) => Math.min(totalPages, p + 1))
@@ -602,7 +599,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                       <span className='ml-1 text-red-500'>*</span>
                     </div>
                     <Button
-                      variant='light'
+                      variant='tertiary'
                       size='sm'
                       startContent={<Maximize2 size={14} />}
                       onPress={() => setShowContentModal(true)}
@@ -700,7 +697,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
               </ModalBody>
               <ModalFooter className='border-t border-border'>
                 <Button
-                  variant='light'
+                  variant='tertiary'
                   onPress={() => setShowAnnouncementModal(false)}
                 >
                   {t('取消')}
@@ -742,7 +739,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                 />
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button variant='light' onPress={() => setShowContentModal(false)}>
+                <Button variant='tertiary' onPress={() => setShowContentModal(false)}>
                   {t('取消')}
                 </Button>
                 <Button

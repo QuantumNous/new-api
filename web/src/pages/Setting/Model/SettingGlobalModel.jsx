@@ -305,7 +305,7 @@ export default function SettingGlobalModel(props) {
 
         <div className='flex flex-wrap items-center gap-2'>
           <Button
-            variant='flat'
+            variant='tertiary'
             size='sm'
             onPress={() =>
               setPolicyValue(chatCompletionsToResponsesPolicyExample)
@@ -314,7 +314,7 @@ export default function SettingGlobalModel(props) {
             {t('填充模板（指定渠道）')}
           </Button>
           <Button
-            variant='flat'
+            variant='tertiary'
             size='sm'
             onPress={() =>
               setPolicyValue(
@@ -325,7 +325,7 @@ export default function SettingGlobalModel(props) {
             {t('填充模板（全渠道）')}
           </Button>
           <Button
-            variant='flat'
+            variant='tertiary'
             size='sm'
             onPress={() => {
               const raw = inputs[policyKey];

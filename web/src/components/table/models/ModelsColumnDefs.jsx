@@ -258,8 +258,7 @@ function OperationsCell({
     <div className='flex flex-wrap items-center gap-1.5'>
       {record.status === 1 ? (
         <Button
-          color='danger'
-          variant='flat'
+          variant='danger-soft'
           size='sm'
           onPress={() => manageModel(record.id, 'disable', record)}
         >
@@ -267,7 +266,7 @@ function OperationsCell({
         </Button>
       ) : (
         <Button
-          variant='flat'
+          variant='tertiary'
           size='sm'
           onPress={() => manageModel(record.id, 'enable', record)}
         >
@@ -276,7 +275,7 @@ function OperationsCell({
       )}
 
       <Button
-        variant='light'
+        variant='tertiary'
         size='sm'
         onPress={() => {
           setEditingModel(record);
@@ -287,8 +286,7 @@ function OperationsCell({
       </Button>
 
       <Button
-        color='danger'
-        variant='flat'
+        variant='danger-soft'
         size='sm'
         onPress={() => setShowDelete(true)}
       >

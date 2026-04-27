@@ -288,8 +288,7 @@ const SettingsFAQ = ({ options, refresh }) => {
       <div className='flex w-full flex-col items-center justify-between gap-4 md:flex-row'>
         <div className='order-2 flex w-full gap-2 md:order-1 md:w-auto'>
           <Button
-            color='primary'
-            variant='flat'
+            variant='tertiary'
             startContent={<Plus size={14} />}
             onPress={handleAddFaq}
             className='w-full md:w-auto'
@@ -297,8 +296,7 @@ const SettingsFAQ = ({ options, refresh }) => {
             {t('添加问答')}
           </Button>
           <Button
-            color='danger'
-            variant='flat'
+            variant='danger-soft'
             startContent={<Trash2 size={14} />}
             isDisabled={selectedRowKeys.length === 0}
             onPress={handleBatchDelete}
@@ -308,7 +306,7 @@ const SettingsFAQ = ({ options, refresh }) => {
             {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button
-            variant='flat'
+            variant='tertiary'
             startContent={<Save size={14} />}
             onPress={submitFAQ}
             isPending={loading}
@@ -399,7 +397,7 @@ const SettingsFAQ = ({ options, refresh }) => {
                     <td className='px-3 py-2 text-right'>
                       <div className='inline-flex items-center gap-1.5'>
                         <Button
-                          variant='light'
+                          variant='tertiary'
                           size='sm'
                           startContent={<Edit size={14} />}
                           onPress={() => handleEditFaq(record)}
@@ -407,8 +405,7 @@ const SettingsFAQ = ({ options, refresh }) => {
                           {t('编辑')}
                         </Button>
                         <Button
-                          color='danger'
-                          variant='flat'
+                          variant='danger-soft'
                           size='sm'
                           startContent={<Trash2 size={14} />}
                           onPress={() => setPendingDelete(record)}
@@ -448,7 +445,7 @@ const SettingsFAQ = ({ options, refresh }) => {
         <div className='flex items-center gap-1'>
           <Button
             size='sm'
-            variant='light'
+            variant='tertiary'
             isDisabled={currentPage <= 1}
             onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
           >
@@ -459,7 +456,7 @@ const SettingsFAQ = ({ options, refresh }) => {
           </span>
           <Button
             size='sm'
-            variant='light'
+            variant='tertiary'
             isDisabled={currentPage >= totalPages}
             onPress={() =>
               setCurrentPage((p) => Math.min(totalPages, p + 1))
@@ -531,7 +528,7 @@ const SettingsFAQ = ({ options, refresh }) => {
                 </div>
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button variant='light' onPress={() => setShowFaqModal(false)}>
+                <Button variant='tertiary' onPress={() => setShowFaqModal(false)}>
                   {t('取消')}
                 </Button>
                 <Button
