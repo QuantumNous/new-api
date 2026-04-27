@@ -18,13 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Avatar,
-  Tag,
-  Table,
-  Typography,
-} from '@/components/common/ui/HeroCompat';
-import { IconPriceTag } from '@/components/common/ui/HeroIconsCompat';
+import { Avatar } from '@heroui/react';
+import { Tag as PriceTagIcon } from 'lucide-react';
 import { parseTiersFromExpr, getCurrencyConfig } from '../../../../../helpers';
 import { BILLING_PRICING_VARS } from '../../../../../constants';
 import {
@@ -39,16 +34,43 @@ import {
   MATCH_EXISTS,
 } from '../../../../../pages/Setting/Ratio/components/requestRuleExpr';
 
-const { Text } = Typography;
-
 const VAR_LABELS = { p: '输入', c: '输出' };
 const OP_LABELS = { '<': '<', '<=': '≤', '>': '>', '>=': '≥' };
-const TIME_FUNC_LABELS = { hour: '小时', minute: '分钟', weekday: '星期', month: '月份', day: '日期' };
+const TIME_FUNC_LABELS = {
+  hour: '小时',
+  minute: '分钟',
+  weekday: '星期',
+  month: '月份',
+  day: '日期',
+};
+
+// Inline chip rendered with the same Tailwind primitives the rest of the
+// pricing surface uses (rather than the v2 Semi `<Tag>`). `tone` mirrors
+// the legacy color prop: blue for tier label, orange for multiplier,
+// amber for the section icon.
+const TONE_CLASSES = {
+  blue: 'bg-primary/15 text-primary',
+  orange: 'bg-warning/15 text-warning',
+  default: 'bg-surface-secondary text-foreground',
+};
+
+function ToneChip({ tone = 'default', className = '', children }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+        TONE_CLASSES[tone] || TONE_CLASSES.default
+      } ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
 
 function formatTokenHint(value) {
   const n = Number(value);
   if (!Number.isFinite(n) || n === 0) return '';
-  if (n >= 1000000) return `${(n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1)}M`;
+  if (n >= 1000000)
+    return `${(n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K`;
   return String(n);
 }
@@ -67,7 +89,6 @@ function formatConditionSummary(conditions, t) {
     .join(' && ');
 }
 
-
 function describeCondition(cond, t) {
   if (cond.source === SOURCE_TIME) {
     const fn = t(TIME_FUNC_LABELS[cond.timeFunc] || cond.timeFunc);
@@ -81,7 +102,8 @@ function describeCondition(cond, t) {
   const src = cond.source === 'header' ? t('请求头') : t('请求参数');
   const path = cond.path || '';
   if (cond.mode === MATCH_EXISTS) return `${src} ${path} ${t('存在')}`;
-  if (cond.mode === MATCH_CONTAINS) return `${src} ${path} ${t('包含')} "${cond.value}"`;
+  if (cond.mode === MATCH_CONTAINS)
+    return `${src} ${path} ${t('包含')} "${cond.value}"`;
   const opMap = { eq: '=', gt: '>', gte: '≥', lt: '<', lte: '≤' };
   return `${src} ${path} ${opMap[cond.mode] || '='} ${cond.value}`;
 }
@@ -102,110 +124,126 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
   const hasTiers = tiers && tiers.length > 0;
   const hasRules = ruleGroups && ruleGroups.length > 0;
 
+  const headerIcon = (
+    <Avatar size='sm' color='warning' className='mr-2 shadow-md'>
+      <Avatar.Fallback>
+        <PriceTagIcon size={16} />
+      </Avatar.Fallback>
+    </Avatar>
+  );
+
   if (!hasTiers && !hasRules) {
     return (
       <div>
-        <div className='flex items-center mb-3'>
-          <Avatar size='small' color='amber' className='mr-2 shadow-md'>
-            <IconPriceTag size={16} />
-          </Avatar>
-          <Text className='text-lg font-medium'>{t('动态计费')}</Text>
+        <div className='mb-3 flex items-center'>
+          {headerIcon}
+          <span className='text-lg font-medium text-foreground'>
+            {t('动态计费')}
+          </span>
         </div>
-        <div className='text-sm text-gray-500'>
-          <code style={{ fontSize: 12, wordBreak: 'break-all' }}>{billingExpr}</code>
-        </div>
+        <code className='block break-all text-xs text-muted'>
+          {billingExpr}
+        </code>
       </div>
     );
   }
 
-  const priceFields = BILLING_PRICING_VARS.map((v) => [v.field, v.shortLabel]);
-
-  const tierColumns = [
-    {
-      title: t('档位'),
-      dataIndex: 'label',
-      render: (text, record) => (
-        <div>
-          <Tag color='blue' size='small'>{text || t('默认')}</Tag>
-          {record.condSummary && (
-            <div className='text-xs text-gray-500 mt-1'>{record.condSummary}</div>
-          )}
-        </div>
-      ),
-    },
-    ...priceFields
-      .filter(([field]) => hasTiers && tiers.some((tier) => tier[field] > 0))
-      .map(([field, label]) => ({
-        title: `${t(label)} (${symbol}/1M tokens)`,
-        dataIndex: field,
-        render: (v) => v > 0 ? <Text strong>{`${symbol}${(v * rate).toFixed(4)}`}</Text> : '-',
-      })),
-  ];
-
-  const tierData = hasTiers
-    ? tiers.map((tier, i) => ({
-        key: `tier-${i}`,
-        label: tier.label,
-        condSummary: formatConditionSummary(tier.conditions, t),
-        ...Object.fromEntries(priceFields.map(([field]) => [field, tier[field] || 0])),
-      }))
-    : [];
+  // Only the price columns the active expression actually uses get rendered
+  // (e.g. don't show a `cc1h` column if no tier prices it).
+  const priceColumns = BILLING_PRICING_VARS.filter(
+    ({ field }) => hasTiers && tiers.some((tier) => tier[field] > 0),
+  ).map(({ field, shortLabel }) => ({ field, shortLabel }));
 
   return (
     <div>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='amber' className='mr-2 shadow-md'>
-          <IconPriceTag size={16} />
-        </Avatar>
+      <div className='mb-4 flex items-center'>
+        {headerIcon}
         <div>
-          <Text className='text-lg font-medium'>{t('动态计费')}</Text>
-          <div className='text-xs text-gray-600'>
+          <div className='text-lg font-medium text-foreground'>
+            {t('动态计费')}
+          </div>
+          <div className='text-xs text-muted'>
             {t('价格根据用量档位和请求条件动态调整')}
           </div>
         </div>
       </div>
 
       {hasTiers && (
-        <div style={{ marginBottom: 16 }}>
-          <Text strong className='text-sm' style={{ display: 'block', marginBottom: 8 }}>
+        <div className='mb-4'>
+          <div className='mb-2 text-sm font-semibold text-foreground'>
             {t('分档价格表')}
-          </Text>
-          <Table
-            dataSource={tierData}
-            columns={tierColumns}
-            pagination={false}
-            size='small'
-            bordered={false}
-            className='!rounded-lg'
-          />
+          </div>
+          <div className='overflow-x-auto rounded-xl border border-border'>
+            <table className='w-full text-left text-sm'>
+              <thead className='bg-surface-secondary text-xs uppercase tracking-wide text-muted'>
+                <tr>
+                  <th className='px-3 py-2 font-medium'>{t('档位')}</th>
+                  {priceColumns.map(({ field, shortLabel }) => (
+                    <th key={field} className='px-3 py-2 font-medium'>
+                      {`${t(shortLabel)} (${symbol}/1M tokens)`}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className='divide-y divide-border'>
+                {tiers.map((tier, i) => {
+                  const condSummary = formatConditionSummary(
+                    tier.conditions,
+                    t,
+                  );
+                  return (
+                    <tr key={`tier-${i}`} className='align-top'>
+                      <td className='px-3 py-2'>
+                        <ToneChip tone='blue'>
+                          {tier.label || t('默认')}
+                        </ToneChip>
+                        {condSummary ? (
+                          <div className='mt-1 text-xs text-muted'>
+                            {condSummary}
+                          </div>
+                        ) : null}
+                      </td>
+                      {priceColumns.map(({ field }) => {
+                        const v = tier[field] || 0;
+                        return (
+                          <td key={field} className='px-3 py-2'>
+                            {v > 0 ? (
+                              <span className='font-semibold text-foreground'>
+                                {`${symbol}${(v * rate).toFixed(4)}`}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {hasRules && (
-        <div style={{ marginBottom: 16 }}>
-          <Text strong className='text-sm' style={{ display: 'block', marginBottom: 8 }}>
+        <div className='mb-4'>
+          <div className='mb-2 text-sm font-semibold text-foreground'>
             {t('条件乘数')}
-          </Text>
+          </div>
           {ruleGroups.map((group, gi) => (
             <div
               key={`group-${gi}`}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '8px 12px',
-                borderRadius: 6,
-                background: 'var(--semi-color-fill-0)',
-                marginBottom: 4,
-              }}
+              className='mb-1 flex items-center justify-between rounded-md bg-surface-secondary px-3 py-2'
             >
-              <Text size='small'>{describeGroup(group, t)}</Text>
-              <Tag color='orange' size='small'>{group.multiplier}x</Tag>
+              <span className='text-xs text-foreground'>
+                {describeGroup(group, t)}
+              </span>
+              <ToneChip tone='orange'>{`${group.multiplier}x`}</ToneChip>
             </div>
           ))}
         </div>
       )}
-
     </div>
   );
 }

@@ -17,26 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Banner,
-  Button,
-  Input,
-  InputNumber,
-  Radio,
-  RadioGroup,
-  Table,
-  TextArea,
-  Typography,
-} from '@/components/common/ui/HeroCompat';
-import {
-  IconCopy,
-  IconDelete,
-  IconPlus,
-} from '@/components/common/ui/HeroIconsCompat';
+import { Button, Input, TextArea } from '@heroui/react';
+import { Copy, Info, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { API, copy, showError, showSuccess } from '../../../helpers';
 
-const { Text } = Typography;
+const inputClass =
+  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:cursor-not-allowed disabled:opacity-50';
 
 const OPTION_KEY = 'tool_price_setting.prices';
 
@@ -67,6 +54,17 @@ function objectToRows(prices) {
     key,
     price,
   }));
+}
+
+// Mirror ModelPricingEditor.jsx so the two ratio-tab editors share the same
+// info-banner palette without pulling a v2 Semi `<Banner>` shim.
+function InfoBanner({ children }) {
+  return (
+    <div className='mb-4 flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground'>
+      <Info size={16} className='mt-0.5 shrink-0 text-primary' />
+      <div className='flex-1'>{children}</div>
+    </div>
+  );
 }
 
 export default function ToolPriceSettings({ options }) {
@@ -106,7 +104,11 @@ export default function ToolPriceSettings({ options }) {
     setJsonText(text);
     try {
       const parsed = JSON.parse(text);
-      if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+      if (
+        typeof parsed !== 'object' ||
+        Array.isArray(parsed) ||
+        parsed === null
+      ) {
         setJsonError(t('JSON 必须是对象'));
         return;
       }
@@ -154,90 +156,131 @@ export default function ToolPriceSettings({ options }) {
     }
   };
 
-  const columns = [
-    {
-      title: t('工具标识'),
-      dataIndex: 'key',
-      render: (text, record) => (
-        <Input
-          value={text}
-          placeholder='web_search_preview:gpt-4o*'
-          onChange={(val) => updateRow(record.id, 'key', val)}
-          style={{ width: '100%' }}
-        />
-      ),
-    },
-    {
-      title: t('价格') + ' ($/1K' + t('次') + ')',
-      dataIndex: 'price',
-      width: 160,
-      render: (val, record) => (
-        <InputNumber
-          value={val}
-          min={0}
-          step={0.5}
-          onChange={(v) => updateRow(record.id, 'price', v ?? 0)}
-          style={{ width: '100%' }}
-        />
-      ),
-    },
-    {
-      title: t('操作'),
-      width: 60,
-      render: (_, record) => (
-        <Button
-          icon={<IconDelete />}
-          type='danger'
-          theme='borderless'
-          size='small'
-          onClick={() => removeRow(record.id)}
-        />
-      ),
-    },
-  ];
+  const isJsonInvalid = mode === 'json' && !!jsonError;
 
   return (
-    <div style={{ maxWidth: 700 }}>
-      <Banner
-        type='info'
-        description={
-          <>
-            <div>{t('配置各工具的调用价格（$/1K次调用）。按次计费模型不额外收取工具费用。')}</div>
-            <div style={{ marginTop: 4 }}>
-              <Text strong>{t('格式')}：</Text>
-              <code>web_search_preview</code> {t('为默认价格')}，
-              <code>web_search_preview:gpt-4o*</code> {t('为模型前缀覆盖')}
-            </div>
-          </>
-        }
-        style={{ marginBottom: 16 }}
-      />
+    <div className='max-w-[700px]'>
+      <InfoBanner>
+        <div>
+          {t(
+            '配置各工具的调用价格（$/1K次调用）。按次计费模型不额外收取工具费用。',
+          )}
+        </div>
+        <div className='mt-1'>
+          <span className='font-semibold'>{t('格式')}：</span>
+          <code className='mx-1 rounded bg-surface-secondary px-1 py-0.5 text-xs'>
+            web_search_preview
+          </code>
+          {t('为默认价格')}，
+          <code className='mx-1 rounded bg-surface-secondary px-1 py-0.5 text-xs'>
+            web_search_preview:gpt-4o*
+          </code>
+          {t('为模型前缀覆盖')}
+        </div>
+      </InfoBanner>
 
-      <RadioGroup
-        type='button'
-        size='small'
-        value={mode}
-        onChange={(e) => setMode(e.target.value)}
-        style={{ marginBottom: 12 }}
-      >
-        <Radio value='visual'>{t('可视化')}</Radio>
-        <Radio value='json'>JSON</Radio>
-      </RadioGroup>
+      {/*
+        Mode toggle. Replaces the v2 Semi `<RadioGroup type='button'>`,
+        which silently no-ops in v3 — there is no equivalent compound on
+        the heroui RadioGroup. A pair of `outline` / `primary` Buttons
+        gives the same pill-pair affordance and stays consistent with the
+        SelectableButtonGroup pattern used elsewhere in /console.
+      */}
+      <div className='mb-3 inline-flex overflow-hidden rounded-xl border border-border'>
+        <Button
+          size='sm'
+          variant={mode === 'visual' ? 'primary' : 'outline'}
+          className='rounded-none border-0'
+          onPress={() => setMode('visual')}
+        >
+          {t('可视化')}
+        </Button>
+        <Button
+          size='sm'
+          variant={mode === 'json' ? 'primary' : 'outline'}
+          className='rounded-none border-0 border-l border-border'
+          onPress={() => setMode('json')}
+        >
+          JSON
+        </Button>
+      </div>
 
       {mode === 'visual' ? (
         <>
-          <Table
-            dataSource={rows}
-            columns={columns}
-            pagination={false}
-            size='small'
-            rowKey='id'
-          />
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <Button icon={<IconPlus />} onClick={addRow}>
+          <div className='overflow-x-auto rounded-xl border border-border'>
+            <table className='w-full text-left text-sm'>
+              <thead className='bg-surface-secondary text-xs uppercase tracking-wide text-muted'>
+                <tr>
+                  <th className='px-3 py-2 font-medium'>{t('工具标识')}</th>
+                  <th className='w-44 px-3 py-2 font-medium'>
+                    {`${t('价格')} ($/1K${t('次')})`}
+                  </th>
+                  <th className='w-16 px-3 py-2 font-medium'>{t('操作')}</th>
+                </tr>
+              </thead>
+              <tbody className='divide-y divide-border'>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className='px-3 py-6 text-center text-sm text-muted'
+                    >
+                      {t('暂无数据')}
+                    </td>
+                  </tr>
+                ) : null}
+                {rows.map((record) => (
+                  <tr key={record.id} className='align-top'>
+                    <td className='px-3 py-2'>
+                      <Input
+                        value={record.key}
+                        placeholder='web_search_preview:gpt-4o*'
+                        onChange={(event) =>
+                          updateRow(record.id, 'key', event.target.value)
+                        }
+                      />
+                    </td>
+                    <td className='px-3 py-2'>
+                      <input
+                        type='number'
+                        value={record.price ?? 0}
+                        min={0}
+                        step={0.5}
+                        onChange={(event) =>
+                          updateRow(
+                            record.id,
+                            'price',
+                            event.target.value === ''
+                              ? 0
+                              : Number(event.target.value) || 0,
+                          )
+                        }
+                        className={inputClass}
+                      />
+                    </td>
+                    <td className='px-3 py-2'>
+                      <Button
+                        isIconOnly
+                        size='sm'
+                        variant='ghost'
+                        aria-label={t('删除')}
+                        className='text-danger hover:bg-danger/10'
+                        onPress={() => removeRow(record.id)}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className='mt-3 flex gap-2'>
+            <Button variant='secondary' size='sm' onPress={addRow}>
+              <Plus size={14} />
               {t('添加')}
             </Button>
-            <Button theme='borderless' onClick={resetToDefault}>
+            <Button variant='ghost' size='sm' onPress={resetToDefault}>
               {t('恢复默认')}
             </Button>
           </div>
@@ -246,38 +289,35 @@ export default function ToolPriceSettings({ options }) {
         <>
           <TextArea
             value={jsonText}
-            onChange={syncToVisual}
-            autosize={{ minRows: 8, maxRows: 20 }}
-            style={{ fontFamily: 'monospace', fontSize: 13 }}
+            onChange={(event) => syncToVisual(event.target.value)}
+            rows={10}
+            className='font-mono text-xs'
           />
-          {jsonError && (
-            <Text type='danger' size='small' style={{ display: 'block', marginTop: 4 }}>
-              {jsonError}
-            </Text>
-          )}
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          {jsonError ? (
+            <div className='mt-1 text-xs text-danger'>{jsonError}</div>
+          ) : null}
+          <div className='mt-2 flex gap-2'>
             <Button
-              icon={<IconCopy />}
-              size='small'
-              theme='borderless'
-              onClick={() => { copy(jsonText, t('JSON')); }}
+              variant='ghost'
+              size='sm'
+              onPress={() => copy(jsonText, t('JSON'))}
             >
+              <Copy size={14} />
               {t('复制')}
             </Button>
-            <Button size='small' theme='borderless' onClick={resetToDefault}>
+            <Button variant='ghost' size='sm' onPress={resetToDefault}>
               {t('恢复默认')}
             </Button>
           </div>
         </>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+      <div className='mt-4 flex justify-end'>
         <Button
-          theme='solid'
-          type='primary'
-          loading={saving}
-          disabled={mode === 'json' && !!jsonError}
-          onClick={handleSave}
+          variant='primary'
+          isPending={saving}
+          isDisabled={isJsonInvalid}
+          onPress={handleSave}
         >
           {t('保存')}
         </Button>
