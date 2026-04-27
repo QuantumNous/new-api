@@ -701,6 +701,24 @@ func GetModelRatioCopy() map[string]float64 {
 	return modelRatioMap.ReadAll()
 }
 
+// IsModelRatioCustomized reports whether an admin has set a non-default ModelRatio
+// for the given model via the DB/UI. Returns false when the model uses only the
+// code default (or has no ratio at all), so callers can safely apply default
+// billing expressions without overriding an explicit admin choice.
+func IsModelRatioCustomized(model string) bool {
+	ratioInMap, inMap := modelRatioMap.Get(model)
+	if !inMap {
+		return false // no entry → nothing customized
+	}
+	defaultRatio, inDefault := defaultModelRatio[model]
+	if !inDefault {
+		// Model absent from code defaults: any value in modelRatioMap came from DB.
+		return true
+	}
+	// Model present in code defaults: custom only when the DB overrode the value.
+	return ratioInMap != defaultRatio
+}
+
 func GetModelPriceCopy() map[string]float64 {
 	return modelPriceMap.ReadAll()
 }

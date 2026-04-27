@@ -5,6 +5,8 @@ import (
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+
 	"github.com/samber/lo"
 )
 
@@ -32,19 +34,65 @@ func init() {
 }
 
 // ---------------------------------------------------------------------------
+// Default billing expressions (Architecture B — lazy fallback)
+//
+// A default expression activates for model X at lookup time only when ALL of:
+//   1. Admin has not set BillingMode[X] in the DB.
+//   2. Admin has not set BillingExpr[X] in the DB.
+//   3. Admin has not customized ModelRatio for X (ratio_setting.IsModelRatioCustomized).
+//      If admin configured a custom ratio they implicitly chose "ratio" mode.
+//
+// This map ships EMPTY in this commit; Step 4 populates it with seedance
+// video-model expressions. No behaviour change for any currently-deployed model.
+// ---------------------------------------------------------------------------
+
+var defaultBillingExpr = map[string]string{
+	// (empty — populated in Step 4)
+}
+
+// ---------------------------------------------------------------------------
 // Read accessors (hot path, must be fast)
 // ---------------------------------------------------------------------------
 
+// GetBillingMode returns the billing mode for the given model.
+// Priority: DB-configured BillingMode > default expression fallback > "ratio".
 func GetBillingMode(model string) string {
 	if mode, ok := billingSetting.BillingMode[model]; ok {
 		return mode
 	}
+	if shouldApplyDefaultBillingExpr(model) {
+		return BillingModeTieredExpr
+	}
 	return BillingModeRatio
 }
 
+// GetBillingExpr returns the billing expression for the given model and whether
+// one was found.  Priority: DB-configured BillingExpr > default expression fallback.
 func GetBillingExpr(model string) (string, bool) {
-	expr, ok := billingSetting.BillingExpr[model]
-	return expr, ok
+	if expr, ok := billingSetting.BillingExpr[model]; ok {
+		return expr, true
+	}
+	if expr, ok := defaultBillingExpr[model]; ok && shouldApplyDefaultBillingExpr(model) {
+		return expr, true
+	}
+	return "", false
+}
+
+// shouldApplyDefaultBillingExpr returns true when it is safe to activate the
+// default tiered-billing expression for model: the admin has not explicitly
+// configured BillingMode, BillingExpr, or a custom ModelRatio for the model.
+func shouldApplyDefaultBillingExpr(model string) bool {
+	if _, hasMode := billingSetting.BillingMode[model]; hasMode {
+		return false // admin set an explicit billing mode
+	}
+	if _, hasExpr := billingSetting.BillingExpr[model]; hasExpr {
+		return false // admin set an explicit billing expression
+	}
+	if ratio_setting.IsModelRatioCustomized(model) {
+		return false // admin chose a custom ratio, implying ratio mode
+	}
+	_, hasDefault := defaultBillingExpr[model]
+	return hasDefault
 }
 
 func GetBillingModeCopy() map[string]string {
