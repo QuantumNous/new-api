@@ -227,10 +227,7 @@ const AddEditSubscriptionModal = ({
       if (!values.custom_seconds || Number(values.custom_seconds) < 1) {
         next.custom_seconds = t('请输入秒数');
       }
-    } else if (
-      !values.duration_value ||
-      Number(values.duration_value) < 1
-    ) {
+    } else if (!values.duration_value || Number(values.duration_value) < 1) {
       next.duration_value = t('请输入数值');
     }
     if (
@@ -620,9 +617,7 @@ const AddEditSubscriptionModal = ({
                   </select>
                 </div>
                 <div className='space-y-2'>
-                  <FieldLabel
-                    required={values.quota_reset_period === 'custom'}
-                  >
+                  <FieldLabel required={values.quota_reset_period === 'custom'}>
                     {t('自定义秒数')}
                   </FieldLabel>
                   <input
@@ -692,19 +687,12 @@ const AddEditSubscriptionModal = ({
         </div>
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
-          <Button
-            variant='tertiary'
-            startContent={<X size={14} />}
-            onPress={handleClose}
-          >
+          <Button variant='tertiary' onPress={handleClose}>
+            <X size={14} />
             {t('取消')}
           </Button>
-          <Button
-            color='primary'
-            isPending={loading}
-            startContent={<Save size={14} />}
-            onPress={submit}
-          >
+          <Button color='primary' isPending={loading} onPress={submit}>
+            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>

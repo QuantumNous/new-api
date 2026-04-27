@@ -153,9 +153,7 @@ const UserBindingManagementModal = ({
         return;
       }
       setCustomOAuthBindings((prev) =>
-        prev.filter(
-          (item) => Number(item.provider_id) !== Number(provider.id),
-        ),
+        prev.filter((item) => Number(item.provider_id) !== Number(provider.id)),
       );
       showSuccess(t('解绑成功'));
     } catch (error) {
@@ -198,9 +196,7 @@ const UserBindingManagementModal = ({
       name: 'Discord',
       enabled: Boolean(statusInfo.discord_oauth),
       value: getBuiltInBindingValue('discord_id'),
-      icon: (
-        <SiDiscord size={20} className='text-foreground' />
-      ),
+      icon: <SiDiscord size={20} className='text-foreground' />,
     },
     {
       key: 'oidc',
@@ -208,9 +204,7 @@ const UserBindingManagementModal = ({
       name: 'OIDC',
       enabled: Boolean(statusInfo.oidc_enabled),
       value: getBuiltInBindingValue('oidc_id'),
-      icon: (
-        <LinkIcon size={20} className='text-foreground' />
-      ),
+      icon: <LinkIcon size={20} className='text-foreground' />,
     },
     {
       key: 'wechat',
@@ -218,9 +212,7 @@ const UserBindingManagementModal = ({
       name: t('微信'),
       enabled: Boolean(statusInfo.wechat_login),
       value: getBuiltInBindingValue('wechat_id'),
-      icon: (
-        <SiWechat size={20} className='text-foreground' />
-      ),
+      icon: <SiWechat size={20} className='text-foreground' />,
     },
     {
       key: 'telegram',
@@ -228,9 +220,7 @@ const UserBindingManagementModal = ({
       name: 'Telegram',
       enabled: Boolean(statusInfo.telegram_oauth),
       value: getBuiltInBindingValue('telegram_id'),
-      icon: (
-        <SiTelegram size={20} className='text-foreground' />
-      ),
+      icon: <SiTelegram size={20} className='text-foreground' />,
     },
     {
       key: 'linuxdo',
@@ -238,9 +228,7 @@ const UserBindingManagementModal = ({
       name: 'LinuxDO',
       enabled: Boolean(statusInfo.linuxdo_oauth),
       value: getBuiltInBindingValue('linux_do_id'),
-      icon: (
-        <SiLinux size={20} className='text-foreground' />
-      ),
+      icon: <SiLinux size={20} className='text-foreground' />,
     },
   ];
 
@@ -306,10 +294,7 @@ const UserBindingManagementModal = ({
     <>
       <Modal state={modalState}>
         <ModalBackdrop variant='blur'>
-          <ModalContainer
-            size={isMobile ? 'full' : 'xl'}
-            placement='center'
-          >
+          <ModalContainer size={isMobile ? 'full' : 'xl'} placement='center'>
             <ModalDialog className='bg-background/95 backdrop-blur'>
               <ModalHeader className='border-b border-border'>
                 <div className='flex items-center gap-2'>
@@ -394,7 +379,6 @@ const UserBindingManagementModal = ({
                                   color='danger'
                                   variant='tertiary'
                                   size='sm'
-                                  startContent={<Trash2 size={14} />}
                                   isDisabled={!isBound}
                                   isPending={Boolean(
                                     bindingActionLoading[loadingKey],
@@ -418,6 +402,7 @@ const UserBindingManagementModal = ({
                                     }
                                   }}
                                 >
+                                  <Trash2 size={14} />
                                   {t('解绑')}
                                 </Button>
                               </Card.Content>
@@ -445,7 +430,8 @@ const UserBindingManagementModal = ({
           const target = pendingUnbind;
           setPendingUnbind(null);
           if (!target) return;
-          if (target.kind === 'builtin') performUnbindBuiltIn(target.bindingItem);
+          if (target.kind === 'builtin')
+            performUnbindBuiltIn(target.bindingItem);
           else performUnbindCustom(target.provider);
         }}
       >

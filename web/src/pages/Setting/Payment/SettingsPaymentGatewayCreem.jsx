@@ -39,7 +39,15 @@ const inputClass =
 const selectClass =
   'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
 
-function Field({ label, value, onChange, placeholder, type = 'text', helper, disabled }) {
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  helper,
+  disabled,
+}) {
   return (
     <div className='space-y-2'>
       <div className='text-sm font-medium text-foreground'>{label}</div>
@@ -288,12 +296,8 @@ export default function SettingsPaymentGatewayCreem(props) {
           <div className='text-sm font-semibold text-foreground'>
             {t('产品配置')}
           </div>
-          <Button
-            color='primary'
-            size='sm'
-            startContent={<Plus size={14} />}
-            onPress={() => openProductModal()}
-          >
+          <Button color='primary' size='sm' onPress={() => openProductModal()}>
+            <Plus size={14} />
             {t('添加产品')}
           </Button>
         </div>

@@ -155,13 +155,17 @@ const AddUserModal = (props) => {
                   <Input
                     type='text'
                     value={values.username}
-                    onChange={(event) => setField('username')(event.target.value)}
+                    onChange={(event) =>
+                      setField('username')(event.target.value)
+                    }
                     placeholder={t('请输入用户名')}
                     aria-label={t('用户名')}
                     className={inputClass}
                   />
                   {errors.username ? (
-                    <div className='text-xs text-red-600'>{errors.username}</div>
+                    <div className='text-xs text-red-600'>
+                      {errors.username}
+                    </div>
                   ) : null}
                 </div>
 
@@ -189,13 +193,17 @@ const AddUserModal = (props) => {
                   <Input
                     type='password'
                     value={values.password}
-                    onChange={(event) => setField('password')(event.target.value)}
+                    onChange={(event) =>
+                      setField('password')(event.target.value)
+                    }
                     placeholder={t('请输入密码')}
                     aria-label={t('密码')}
                     className={inputClass}
                   />
                   {errors.password ? (
-                    <div className='text-xs text-red-600'>{errors.password}</div>
+                    <div className='text-xs text-red-600'>
+                      {errors.password}
+                    </div>
                   ) : null}
                 </div>
 
@@ -218,19 +226,12 @@ const AddUserModal = (props) => {
         </div>
 
         <footer className='flex justify-end gap-2 border-t border-[color:var(--app-border)] bg-[color:var(--app-background)] px-5 py-3'>
-          <Button
-            variant='tertiary'
-            onPress={props.handleClose}
-            startContent={<X size={14} />}
-          >
+          <Button variant='tertiary' onPress={props.handleClose}>
+            <X size={14} />
             {t('取消')}
           </Button>
-          <Button
-            color='primary'
-            onPress={submit}
-            isPending={loading}
-            startContent={<Save size={14} />}
-          >
+          <Button color='primary' onPress={submit} isPending={loading}>
+            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>

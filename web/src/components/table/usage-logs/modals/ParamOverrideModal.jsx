@@ -161,12 +161,12 @@ const ParamOverrideModal = ({
                 </div>
 
                 <Button
-                  startContent={<Copy size={16} />}
                   variant='tertiary'
                   size='sm'
                   onPress={copyAll}
                   isDisabled={lines.length === 0}
                 >
+                  <Copy size={16} />
                   {t('复制')}
                 </Button>
               </div>

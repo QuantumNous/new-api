@@ -18,12 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useState, useCallback, useMemo } from 'react';
 import { Button, Input } from '@heroui/react';
-import {
-  Plus,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-} from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 let _idCounter = 0;
@@ -34,8 +29,10 @@ const OP_REMOVE = 'remove';
 const OP_APPEND = 'append';
 
 function parsePrefix(rawKey) {
-  if (rawKey.startsWith('+:')) return { op: OP_ADD, groupName: rawKey.slice(2) };
-  if (rawKey.startsWith('-:')) return { op: OP_REMOVE, groupName: rawKey.slice(2) };
+  if (rawKey.startsWith('+:'))
+    return { op: OP_ADD, groupName: rawKey.slice(2) };
+  if (rawKey.startsWith('-:'))
+    return { op: OP_REMOVE, groupName: rawKey.slice(2) };
   return { op: OP_APPEND, groupName: rawKey };
 }
 
@@ -96,10 +93,8 @@ const inputClass =
 const opStyles = {
   [OP_ADD]:
     'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
-  [OP_REMOVE]:
-    'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
-  [OP_APPEND]:
-    'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
+  [OP_REMOVE]: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+  [OP_APPEND]: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
 };
 
 function UsableGroupSection({
@@ -114,14 +109,20 @@ function UsableGroupSection({
   const [open, setOpen] = useState(false);
 
   const removeAll = () => {
-    if (typeof window !== 'undefined' && !window.confirm(t('确认删除该分组的所有规则？'))) {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(t('确认删除该分组的所有规则？'))
+    ) {
       return;
     }
     items.forEach((item) => onRemove(item._id));
   };
 
   const removeOne = (id) => {
-    if (typeof window !== 'undefined' && !window.confirm(t('确认删除该规则？'))) {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(t('确认删除该规则？'))
+    ) {
       return;
     }
     onRemove(id);
@@ -255,7 +256,8 @@ export default function GroupSpecialUsableRules({
         rules.map((r) => {
           if (r._id !== id) return r;
           const updated = { ...r, [field]: val };
-          if (field === 'op' && val === OP_REMOVE) updated.description = 'remove';
+          if (field === 'op' && val === OP_REMOVE)
+            updated.description = 'remove';
           else if (field === 'op' && r.op === OP_REMOVE && val !== OP_REMOVE) {
             if (updated.description === 'remove') updated.description = '';
           }
@@ -351,12 +353,8 @@ export default function GroupSpecialUsableRules({
           </option>
         ))}
       </datalist>
-      <Button
-        variant='secondary'
-        startContent={<Plus size={14} />}
-        onPress={addNewGroup}
-        size='sm'
-      >
+      <Button variant='secondary' onPress={addNewGroup} size='sm'>
+        <Plus size={14} />
         {t('添加分组规则')}
       </Button>
     </div>

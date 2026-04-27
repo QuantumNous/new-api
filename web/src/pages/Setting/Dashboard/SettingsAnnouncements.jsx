@@ -33,14 +33,7 @@ import {
   useOverlayState,
 } from '@heroui/react';
 import { EmptyState } from '@heroui-pro/react';
-import {
-  Bell,
-  Edit,
-  Maximize2,
-  Plus,
-  Save,
-  Trash2,
-} from 'lucide-react';
+import { Bell, Edit, Maximize2, Plus, Save, Trash2 } from 'lucide-react';
 import {
   API,
   showError,
@@ -213,8 +206,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
 
   const handleSaveAnnouncement = async () => {
     const next = {};
-    if (!announcementForm.content?.trim())
-      next.content = t('请输入公告内容');
+    if (!announcementForm.content?.trim()) next.content = t('请输入公告内容');
     if (!announcementForm.publishDate) next.publishDate = t('请选择发布日期');
     setFormErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -384,30 +376,30 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         <div className='order-2 flex w-full gap-2 md:order-1 md:w-auto'>
           <Button
             variant='tertiary'
-            startContent={<Plus size={14} />}
             onPress={handleAddAnnouncement}
             className='w-full md:w-auto'
           >
+            <Plus size={14} />
             {t('添加公告')}
           </Button>
           <Button
             variant='danger-soft'
-            startContent={<Trash2 size={14} />}
             isDisabled={selectedRowKeys.length === 0}
             onPress={handleBatchDelete}
             className='w-full md:w-auto'
           >
+            <Trash2 size={14} />
             {t('批量删除')}{' '}
             {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button
             variant='tertiary'
-            startContent={<Save size={14} />}
             onPress={submitAnnouncements}
             isPending={loading}
             isDisabled={!hasChanges}
             className='w-full md:w-auto'
           >
+            <Save size={14} />
             {t('保存设置')}
           </Button>
         </div>
@@ -441,18 +433,14 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                   ariaLabel={t('选择当前页')}
                 />
               </th>
-              <th className='px-3 py-2 text-left font-semibold'>
-                {t('内容')}
-              </th>
+              <th className='px-3 py-2 text-left font-semibold'>{t('内容')}</th>
               <th className='w-44 px-3 py-2 text-left font-semibold'>
                 {t('发布时间')}
               </th>
               <th className='w-24 px-3 py-2 text-left font-semibold'>
                 {t('类型')}
               </th>
-              <th className='px-3 py-2 text-left font-semibold'>
-                {t('说明')}
-              </th>
+              <th className='px-3 py-2 text-left font-semibold'>{t('说明')}</th>
               <th className='w-40 px-3 py-2 text-right font-semibold'>
                 {t('操作')}
               </th>
@@ -525,17 +513,17 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                         <Button
                           variant='tertiary'
                           size='sm'
-                          startContent={<Edit size={14} />}
                           onPress={() => handleEditAnnouncement(record)}
                         >
+                          <Edit size={14} />
                           {t('编辑')}
                         </Button>
                         <Button
                           variant='danger-soft'
                           size='sm'
-                          startContent={<Trash2 size={14} />}
                           onPress={() => setPendingDelete(record)}
                         >
+                          <Trash2 size={14} />
                           {t('删除')}
                         </Button>
                       </div>
@@ -566,7 +554,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
               </option>
             ))}
           </select>
-          <span>{t('共 {{total}} 条', { total: announcementsList.length })}</span>
+          <span>
+            {t('共 {{total}} 条', { total: announcementsList.length })}
+          </span>
         </div>
         <div className='flex items-center gap-1'>
           <Button
@@ -584,9 +574,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             size='sm'
             variant='tertiary'
             isDisabled={currentPage >= totalPages}
-            onPress={() =>
-              setCurrentPage((p) => Math.min(totalPages, p + 1))
-            }
+            onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
           >
             {t('下一页')}
           </Button>
@@ -610,9 +598,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                     <Button
                       variant='tertiary'
                       size='sm'
-                      startContent={<Maximize2 size={14} />}
                       onPress={() => setShowContentModal(true)}
                     >
+                      <Maximize2 size={14} />
                       {t('放大编辑')}
                     </Button>
                   </div>
@@ -644,7 +632,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                   </div>
                   <input
                     type='datetime-local'
-                    value={toLocalDateTimeInputValue(announcementForm.publishDate)}
+                    value={toLocalDateTimeInputValue(
+                      announcementForm.publishDate,
+                    )}
                     onChange={(event) => {
                       const v = event.target.value;
                       setAnnouncementForm((prev) => ({
@@ -748,7 +738,10 @@ const SettingsAnnouncements = ({ options, refresh }) => {
                 />
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button variant='tertiary' onPress={() => setShowContentModal(false)}>
+                <Button
+                  variant='tertiary'
+                  onPress={() => setShowContentModal(false)}
+                >
                   {t('取消')}
                 </Button>
                 <Button

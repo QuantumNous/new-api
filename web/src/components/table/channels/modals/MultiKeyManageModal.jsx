@@ -480,12 +480,10 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                         <Button
                           size='sm'
                           variant='tertiary'
-                          startContent={<RefreshCw size={14} />}
                           isPending={loading}
-                          onPress={() =>
-                            loadKeyStatus(currentPage, pageSize)
-                          }
+                          onPress={() => loadKeyStatus(currentPage, pageSize)}
                         >
+                          <RefreshCw size={14} />
                           {t('刷新')}
                         </Button>
                         {manualDisabledCount + autoDisabledCount > 0 && (
@@ -555,10 +553,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                                 className='px-4 py-10 text-center'
                               >
                                 <div className='flex flex-col items-center gap-2'>
-                                  <Inbox
-                                    size={36}
-                                    className='text-muted/60'
-                                  />
+                                  <Inbox size={36} className='text-muted/60' />
                                   <div className='text-sm font-semibold text-foreground'>
                                     {t('暂无密钥数据')}
                                   </div>
@@ -602,9 +597,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                                       )}
                                     >
                                       <span className='text-xs text-foreground'>
-                                        {timestamp2string(
-                                          record.disabled_time,
-                                        )}
+                                        {timestamp2string(record.disabled_time)}
                                       </span>
                                     </Tooltip>
                                   )}
@@ -679,9 +672,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                           <select
                             value={pageSize}
                             onChange={(event) =>
-                              handlePageSizeChange(
-                                Number(event.target.value),
-                              )
+                              handlePageSizeChange(Number(event.target.value))
                             }
                             className={inputClass}
                           >

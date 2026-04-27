@@ -107,7 +107,10 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
   const removeRow = useCallback(
     (id) => {
       // eslint-disable-next-line no-alert
-      if (typeof window !== 'undefined' && !window.confirm(t('确认删除该分组？'))) {
+      if (
+        typeof window !== 'undefined' &&
+        !window.confirm(t('确认删除该分组？'))
+      ) {
         return;
       }
       emitAndSet((prev) => prev.filter((r) => r._id !== id));
@@ -141,7 +144,9 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
             <Input
               type='text'
               value={record.name}
-              onChange={(event) => updateRow(record._id, 'name', event.target.value)}
+              onChange={(event) =>
+                updateRow(record._id, 'name', event.target.value)
+              }
               aria-label={t('分组名称')}
               className={`${baseInputClass} ${
                 isDup ? 'border-amber-400 focus:border-amber-500' : ''
@@ -158,7 +163,11 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
         render: (_, record) => (
           <Input
             type='number'
-            value={record.ratio === '' || record.ratio == null ? '' : String(record.ratio)}
+            value={
+              record.ratio === '' || record.ratio == null
+                ? ''
+                : String(record.ratio)
+            }
             min={0}
             step={0.1}
             onChange={(event) => {
@@ -244,12 +253,8 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
         }
       />
       <div className='mt-3 flex justify-center'>
-        <Button
-          variant='secondary'
-          startContent={<Plus size={14} />}
-          onPress={addRow}
-          size='sm'
-        >
+        <Button variant='secondary' onPress={addRow} size='sm'>
+          <Plus size={14} />
           {t('添加分组')}
         </Button>
       </div>

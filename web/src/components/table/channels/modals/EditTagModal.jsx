@@ -15,14 +15,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, Spinner } from '@heroui/react';
-import {
-  Bookmark,
-  Code2,
-  Save,
-  Settings,
-  User,
-  X,
-} from 'lucide-react';
+import { Bookmark, Code2, Save, Settings, User, X } from 'lucide-react';
 import {
   API,
   showError,
@@ -245,12 +238,8 @@ function MultiSelectChips({
                         selected ? 'text-primary' : 'text-foreground'
                       }`}
                     >
-                      <span className='truncate'>
-                        {opt.label ?? String(v)}
-                      </span>
-                      {selected ? (
-                        <span className='text-xs'>{'✓'}</span>
-                      ) : null}
+                      <span className='truncate'>{opt.label ?? String(v)}</span>
+                      {selected ? <span className='text-xs'>{'✓'}</span> : null}
                     </button>
                   </li>
                 );
@@ -394,10 +383,7 @@ const EditTagModal = ({ visible, tag, handleClose, refresh }) => {
         return;
       }
       const trimmedHeaderOverride = formVals.header_override.trim();
-      if (
-        trimmedHeaderOverride !== '' &&
-        !verifyJSON(trimmedHeaderOverride)
-      ) {
+      if (trimmedHeaderOverride !== '' && !verifyJSON(trimmedHeaderOverride)) {
         showInfo('请求头覆盖必须是合法的 JSON 格式！');
         setLoading(false);
         return;
@@ -605,9 +591,7 @@ const EditTagModal = ({ visible, tag, handleClose, refresh }) => {
                   <MultiSelectChips
                     value={inputs.models}
                     options={modelOptions}
-                    placeholder={t(
-                      '请选择该渠道所支持的模型，留空则不更改',
-                    )}
+                    placeholder={t('请选择该渠道所支持的模型，留空则不更改')}
                     filter={selectFilter}
                     allowCreate
                     onChange={(v) => setField('models', v)}
@@ -819,8 +803,7 @@ const EditTagModal = ({ visible, tag, handleClose, refresh }) => {
                     </button>
                   </div>
                   <FieldHint>
-                    {t('支持变量：')}
-                    {' '}
+                    {t('支持变量：')}{' '}
                     <span className='ml-1 text-foreground'>
                       {t('渠道密钥')}: {'{api_key}'}
                     </span>
@@ -851,9 +834,7 @@ const EditTagModal = ({ visible, tag, handleClose, refresh }) => {
                   <MultiSelectChips
                     value={inputs.groups}
                     options={groupOptions}
-                    placeholder={t(
-                      '请选择可以使用该渠道的分组，留空则不更改',
-                    )}
+                    placeholder={t('请选择可以使用该渠道的分组，留空则不更改')}
                     allowCreate
                     onChange={(v) => setField('groups', v)}
                   />
@@ -867,19 +848,12 @@ const EditTagModal = ({ visible, tag, handleClose, refresh }) => {
         </div>
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
-          <Button
-            variant='tertiary'
-            startContent={<X size={14} />}
-            onPress={handleClose}
-          >
+          <Button variant='tertiary' onPress={handleClose}>
+            <X size={14} />
             {t('取消')}
           </Button>
-          <Button
-            color='primary'
-            isPending={loading}
-            startContent={<Save size={14} />}
-            onPress={handleSave}
-          >
+          <Button color='primary' isPending={loading} onPress={handleSave}>
+            <Save size={14} />
             {t('保存')}
           </Button>
         </footer>

@@ -59,10 +59,10 @@ function ClickDropdown({ label, items }) {
         variant='tertiary'
         size='sm'
         className='w-full md:w-auto'
-        endContent={<ChevronDown size={14} />}
         onPress={() => setOpen((prev) => !prev)}
       >
         {label}
+        <ChevronDown size={14} />
       </Button>
       {open ? (
         <div
@@ -148,7 +148,9 @@ const ChannelsActions = ({
       onClick: () =>
         ask({
           title: t('确定是否要修复数据库一致性？'),
-          content: t('进行该操作时，可能导致渠道访问错误，请仅在数据库出现问题时使用'),
+          content: t(
+            '进行该操作时，可能导致渠道访问错误，请仅在数据库出现问题时使用',
+          ),
           onConfirm: fixChannelsAbilities,
         }),
     },

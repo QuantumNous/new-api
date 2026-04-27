@@ -86,25 +86,15 @@ const ContentModal = ({
           <p className='mb-2 text-xs text-muted'>
             {t('• 需要特定的请求头或认证')}
           </p>
-          <p className='mb-4 text-xs text-muted'>
-            {t('• 防盗链保护机制')}
-          </p>
+          <p className='mb-4 text-xs text-muted'>{t('• 防盗链保护机制')}</p>
 
           <div className='mt-3 flex flex-wrap justify-center gap-2'>
-            <Button
-              startContent={<ExternalLink size={16} />}
-              onPress={handleOpenInNewTab}
-              size='sm'
-              variant='tertiary'
-            >
+            <Button onPress={handleOpenInNewTab} size='sm' variant='tertiary'>
+              <ExternalLink size={16} />
               {t('在新标签页中打开')}
             </Button>
-            <Button
-              startContent={<Copy size={16} />}
-              onPress={handleCopyUrl}
-              size='sm'
-              variant='tertiary'
-            >
+            <Button onPress={handleCopyUrl} size='sm' variant='tertiary'>
+              <Copy size={16} />
               {t('复制链接')}
             </Button>
           </div>
@@ -143,7 +133,9 @@ const ContentModal = ({
             <ModalHeader className='border-b border-border'>
               {isVideo ? t('视频预览') : t('内容预览')}
             </ModalHeader>
-            <ModalBody className={isVideo ? 'h-[70vh] p-4' : 'max-h-[70vh] p-6'}>
+            <ModalBody
+              className={isVideo ? 'h-[70vh] p-4' : 'max-h-[70vh] p-6'}
+            >
               {isVideo ? (
                 renderVideoContent()
               ) : (

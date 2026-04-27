@@ -1,11 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Button, Input } from '@heroui/react';
-import {
-  Plus,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-} from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 let _idCounter = 0;
@@ -68,14 +63,20 @@ function GroupSection({
   const [open, setOpen] = useState(false);
 
   const removeAll = () => {
-    if (typeof window !== 'undefined' && !window.confirm(t('确认删除该分组的所有规则？'))) {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(t('确认删除该分组的所有规则？'))
+    ) {
       return;
     }
     items.forEach((item) => onRemove(item._id));
   };
 
   const removeOne = (id) => {
-    if (typeof window !== 'undefined' && !window.confirm(t('确认删除该规则？'))) {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(t('确认删除该规则？'))
+    ) {
       return;
     }
     onRemove(id);
@@ -269,12 +270,8 @@ export default function GroupGroupRatioRules({
           </option>
         ))}
       </datalist>
-      <Button
-        variant='secondary'
-        startContent={<Plus size={14} />}
-        onPress={addNewGroup}
-        size='sm'
-      >
+      <Button variant='secondary' onPress={addNewGroup} size='sm'>
+        <Plus size={14} />
         {t('添加分组规则')}
       </Button>
     </div>

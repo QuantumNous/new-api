@@ -12,7 +12,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Spinner, Switch } from '@heroui/react';
 import { ChevronDown, HelpCircle, X } from 'lucide-react';
@@ -174,14 +180,11 @@ export default function GroupRatioSettings(props) {
     if (
       !validateJSON(inputs['group_ratio_setting.group_special_usable_group'])
     ) {
-      next['group_ratio_setting.group_special_usable_group'] = t(
-        '不是合法的 JSON 字符串',
-      );
+      next['group_ratio_setting.group_special_usable_group'] =
+        t('不是合法的 JSON 字符串');
     }
     if (!validateAutoGroups(inputs.AutoGroups)) {
-      next.AutoGroups = t(
-        '必须是有效的 JSON 字符串数组，例如：["g1","g2"]',
-      );
+      next.AutoGroups = t('必须是有效的 JSON 字符串数组，例如：["g1","g2"]');
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -281,7 +284,9 @@ export default function GroupRatioSettings(props) {
       <div className='space-y-3'>
         <SectionHeader title={t('分组管理')} />
         <div className='text-xs text-muted'>
-          {t('倍率用于计费乘数，勾选「用户可选」后用户可在创建令牌时选择该分组')}
+          {t(
+            '倍率用于计费乘数，勾选「用户可选」后用户可在创建令牌时选择该分组',
+          )}
         </div>
         <GroupTable
           key={`gt_${dv}`}
@@ -573,27 +578,32 @@ export default function GroupRatioSettings(props) {
 
               <GuideSection title={t('核心概念')}>
                 <p className='leading-7'>
-                  <strong>{t('用户分组')}</strong>{' — '}
+                  <strong>{t('用户分组')}</strong>
+                  {' — '}
                   {t('由管理员分配，决定用户身份等级（如 default、vip）。')}
                 </p>
                 <p className='mt-1 leading-7'>
-                  <strong>{t('令牌分组')}</strong>{' — '}
+                  <strong>{t('令牌分组')}</strong>
+                  {' — '}
                   {t(
                     '用户创建令牌时选择的分组，决定该令牌的实际计费倍率。一个用户可以创建多个令牌，使用不同分组。',
                   )}
                 </p>
                 <p className='mt-1 leading-7'>
-                  <strong>{t('倍率')}</strong>{' — '}
+                  <strong>{t('倍率')}</strong>
+                  {' — '}
                   {t('计费乘数，倍率越低费用越低。例如倍率 0.5 表示半价。')}
                 </p>
                 <p className='mt-1 leading-7'>
-                  <strong>{t('用户可选')}</strong>{' — '}
+                  <strong>{t('用户可选')}</strong>
+                  {' — '}
                   {t(
                     '勾选后，该分组会出现在用户创建令牌时的下拉菜单中。未勾选的分组只能由管理员分配，用户自己无法选择。',
                   )}
                 </p>
                 <p className='mt-1 leading-7'>
-                  <strong>{t('自动分组')}</strong>{' — '}
+                  <strong>{t('自动分组')}</strong>
+                  {' — '}
                   {t(
                     '令牌分组设为 auto 时，系统按优先级顺序自动选择一个可用分组。',
                   )}
@@ -621,7 +631,9 @@ export default function GroupRatioSettings(props) {
                   {`${t('分组名')}      ${t('倍率')}    ${t('用户可选')}    ${t('说明')}\n──────────────────────────────────────\nstandard  1.0     ${t('是')}        ${t('标准价格')}\npremium   0.5     ${t('是')}        ${t('高级套餐，半价优惠')}`}
                 </CodeBlock>
                 <p className='mt-2 text-xs leading-7'>
-                  {t('两个分组都勾选了「用户可选」，所以用户创建令牌时可以看到这两个选项：')}
+                  {t(
+                    '两个分组都勾选了「用户可选」，所以用户创建令牌时可以看到这两个选项：',
+                  )}
                 </p>
                 <CodeBlock>
                   {t('用户创建令牌 → 选择分组下拉框：')}
@@ -631,7 +643,9 @@ export default function GroupRatioSettings(props) {
                   {`  └─ premium  (${t('高级套餐，半价优惠')})`}
                 </CodeBlock>
                 <p className='mt-2 text-xs leading-7'>
-                  {t('选择 premium 创建的令牌，调用 API 时费用为 standard 的 50%。')}
+                  {t(
+                    '选择 premium 创建的令牌，调用 API 时费用为 standard 的 50%。',
+                  )}
                 </p>
                 <p className='mt-3 text-xs leading-7'>
                   <strong>{t('对比：不勾选「用户可选」的场景')}</strong>
@@ -663,18 +677,22 @@ export default function GroupRatioSettings(props) {
                   <strong>{t('用户分组的联动作用')}</strong>
                 </p>
                 <p className='text-xs leading-7'>
-                  {t('管理员给用户分配的分组（如 vip）不仅决定用户身份，还会影响后续两个功能：')}
+                  {t(
+                    '管理员给用户分配的分组（如 vip）不仅决定用户身份，还会影响后续两个功能：',
+                  )}
                 </p>
                 <p className='mt-1 text-xs leading-7'>
                   {'1. '}
-                  <strong>{t('特殊倍率')}</strong>{' — '}
+                  <strong>{t('特殊倍率')}</strong>
+                  {' — '}
                   {t(
                     '可以根据用户分组设置不同的计费倍率。例如 vip 用户使用 standard 令牌时倍率从 1.0 降为 0.8。',
                   )}
                 </p>
                 <p className='mt-0.5 text-xs leading-7'>
                   {'2. '}
-                  <strong>{t('可用分组')}</strong>{' — '}
+                  <strong>{t('可用分组')}</strong>
+                  {' — '}
                   {t(
                     '可以根据用户分组增减令牌可选的分组范围。例如 vip 用户额外开放 premium 分组，或移除某个分组的选择权。',
                   )}
@@ -728,7 +746,9 @@ export default function GroupRatioSettings(props) {
                   {`1. default    ${t('最高优先级')}\n2. vip`}
                 </CodeBlock>
                 <p className='mt-1.5 text-xs leading-6'>
-                  {t('开启「默认使用 auto 分组」后，新建令牌和初始令牌都会自动设为 auto。')}
+                  {t(
+                    '开启「默认使用 auto 分组」后，新建令牌和初始令牌都会自动设为 auto。',
+                  )}
                 </p>
               </GuideSection>
 
@@ -756,7 +776,9 @@ export default function GroupRatioSettings(props) {
                 )}
               </p>
               <p className='text-sm leading-7 text-foreground'>
-                {t('简单来说：同一个令牌分组，不同等级的用户可以享受不同的价格。')}
+                {t(
+                  '简单来说：同一个令牌分组，不同等级的用户可以享受不同的价格。',
+                )}
               </p>
 
               <GuideSection title={t('查看示例')}>
@@ -777,14 +799,14 @@ export default function GroupRatioSettings(props) {
                 <CodeBlock>
                   {`${t('用户分组')}    ${t('使用分组')}    ${t('倍率')}\n────────────────────────────\nvip       standard   0.8\nvip       premium    0.3`}
                 </CodeBlock>
-                <p className='mt-2 text-xs leading-7'>
-                  {t('配置后的效果：')}
-                </p>
+                <p className='mt-2 text-xs leading-7'>{t('配置后的效果：')}</p>
                 <CodeBlock>
                   {`${t('普通用户')} + standard ${t('令牌')} → ${t('倍率')} 1.0  (${t('不变')})\nvip ${t('用户')}  + standard ${t('令牌')} → ${t('倍率')} 0.8  (${t('享受 8 折')})\nvip ${t('用户')}  + premium  ${t('令牌')} → ${t('倍率')} 0.3  (${t('从 0.5 降到 0.3')})`}
                 </CodeBlock>
                 <p className='mt-2 text-xs leading-7 text-muted'>
-                  {t('只有配置了规则的组合才会覆盖，未配置的组合仍使用令牌分组的基础倍率。')}
+                  {t(
+                    '只有配置了规则的组合才会覆盖，未配置的组合仍使用令牌分组的基础倍率。',
+                  )}
                 </p>
               </GuideSection>
 
@@ -812,7 +834,9 @@ export default function GroupRatioSettings(props) {
                 )}
               </p>
               <p className='text-sm leading-7 text-foreground'>
-                {t('通过此功能，可以根据用户所在分组，为不同等级的用户展示不同的可选列表。')}
+                {t(
+                  '通过此功能，可以根据用户所在分组，为不同等级的用户展示不同的可选列表。',
+                )}
               </p>
 
               <GuideSection title={t('查看示例')}>
@@ -822,7 +846,9 @@ export default function GroupRatioSettings(props) {
                   )}
                 </p>
                 <p className='mb-2 text-xs leading-7'>
-                  <strong>{t('不配置规则时，所有用户看到的下拉框一样：')}</strong>
+                  <strong>
+                    {t('不配置规则时，所有用户看到的下拉框一样：')}
+                  </strong>
                 </p>
                 <CodeBlock>
                   {`${t('所有用户')} → ${t('创建令牌可选')}:\n  ├─ standard\n  └─ premium`}
@@ -833,9 +859,7 @@ export default function GroupRatioSettings(props) {
                 <CodeBlock>
                   {`${t('用户分组')}    ${t('操作')}        ${t('目标分组')}    ${t('描述')}\n──────────────────────────────────────────\nvip       ${t('添加')} (+:)   exclusive   ${t('专属分组')}\nvip       ${t('移除')} (-:)   standard    -`}
                 </CodeBlock>
-                <p className='mt-2 text-xs leading-7'>
-                  {t('配置后的效果：')}
-                </p>
+                <p className='mt-2 text-xs leading-7'>{t('配置后的效果：')}</p>
                 <CodeBlock>
                   {`${t('普通用户')} → ${t('创建令牌可选')}:\n  ├─ standard\n  └─ premium\n\nvip ${t('用户')} → ${t('创建令牌可选')}:\n  ├─ premium     (${t('保留')})\n  └─ exclusive   (${t('新增')})\n\n  ${t('standard 已被移除，vip 用户看不到')}`}
                 </CodeBlock>
@@ -851,12 +875,16 @@ export default function GroupRatioSettings(props) {
               <GuideSection title={t('JSON 格式参考')}>
                 <p className='mb-1 text-xs'>
                   <strong>
-                    <code className='font-mono'>group_special_usable_group</code>
+                    <code className='font-mono'>
+                      group_special_usable_group
+                    </code>
                   </strong>
                 </p>
                 <CodeBlock>{`{\n  "vip": {\n    "+:exclusive": "${t('专属分组')}",\n    "-:standard": "remove"\n  }\n}`}</CodeBlock>
                 <p className='mt-1.5 text-xs leading-6 text-muted'>
-                  {t('键的前缀 +: 表示添加，-: 表示移除，无前缀表示追加。值为分组描述（移除时填 "remove"）。')}
+                  {t(
+                    '键的前缀 +: 表示添加，-: 表示移除，无前缀表示追加。值为分组描述（移除时填 "remove"）。',
+                  )}
                 </p>
               </GuideSection>
             </div>
@@ -897,12 +925,8 @@ export default function GroupRatioSettings(props) {
             );
           })}
         </div>
-        <Button
-          variant='tertiary'
-          size='sm'
-          startContent={<HelpCircle size={14} />}
-          onPress={() => setShowGuide(true)}
-        >
+        <Button variant='tertiary' size='sm' onPress={() => setShowGuide(true)}>
+          <HelpCircle size={14} />
           {t('使用说明')}
         </Button>
       </div>

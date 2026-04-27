@@ -131,12 +131,12 @@ const LoginForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthLoginOptions = Boolean(
     status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.telegram_oauth ||
-      hasCustomOAuthProviders,
+    status.discord_oauth ||
+    status.oidc_enabled ||
+    status.wechat_login ||
+    status.linuxdo_oauth ||
+    status.telegram_oauth ||
+    hasCustomOAuthProviders,
   );
 
   useEffect(() => {
@@ -501,117 +501,111 @@ const LoginForm = () => {
           subtitle={t('选择一种方式继续进入控制台。')}
         >
           <div className='space-y-3'>
-                {status.wechat_login && (
-                  <AuthOutlineButton
-                    startContent={
-                      <WeChatIcon style={{ color: '#07C160' }} />
-                    }
-                    onPress={onWeChatLoginClicked}
-                    isPending={wechatLoading}
-                  >
-                    {t('使用 微信 继续')}
-                  </AuthOutlineButton>
-                )}
+            {status.wechat_login && (
+              <AuthOutlineButton
+                onPress={onWeChatLoginClicked}
+                isPending={wechatLoading}
+              >
+                <WeChatIcon style={{ color: '#07C160' }} />
+                {t('使用 微信 继续')}
+              </AuthOutlineButton>
+            )}
 
-                {status.github_oauth && (
-                  <AuthOutlineButton
-                    startContent={<SiGithub size={20} />}
-                    onPress={handleGitHubClick}
-                    isPending={githubLoading}
-                    isDisabled={githubButtonDisabled}
-                  >
-                    {githubButtonText}
-                  </AuthOutlineButton>
-                )}
+            {status.github_oauth && (
+              <AuthOutlineButton
+                onPress={handleGitHubClick}
+                isPending={githubLoading}
+                isDisabled={githubButtonDisabled}
+              >
+                <SiGithub size={20} />
+                {githubButtonText}
+              </AuthOutlineButton>
+            )}
 
-                {status.discord_oauth && (
-                  <AuthOutlineButton
-                    startContent={
-                      <SiDiscord
-                        style={{
-                          color: '#5865F2',
-                          width: '20px',
-                          height: '20px',
-                        }}
-                      />
-                    }
-                    onPress={handleDiscordClick}
-                    isPending={discordLoading}
-                  >
-                    {t('使用 Discord 继续')}
-                  </AuthOutlineButton>
-                )}
+            {status.discord_oauth && (
+              <AuthOutlineButton
+                onPress={handleDiscordClick}
+                isPending={discordLoading}
+              >
+                <SiDiscord
+                  style={{
+                    color: '#5865F2',
+                    width: '20px',
+                    height: '20px',
+                  }}
+                />
+                {t('使用 Discord 继续')}
+              </AuthOutlineButton>
+            )}
 
-                {status.oidc_enabled && (
-                  <AuthOutlineButton
-                    startContent={<OIDCIcon style={{ color: '#1877F2' }} />}
-                    onPress={handleOIDCClick}
-                    isPending={oidcLoading}
-                  >
-                    {t('使用 OIDC 继续')}
-                  </AuthOutlineButton>
-                )}
+            {status.oidc_enabled && (
+              <AuthOutlineButton
+                onPress={handleOIDCClick}
+                isPending={oidcLoading}
+              >
+                <OIDCIcon style={{ color: '#1877F2' }} />
+                {t('使用 OIDC 继续')}
+              </AuthOutlineButton>
+            )}
 
-                {status.linuxdo_oauth && (
-                  <AuthOutlineButton
-                    startContent={
-                      <LinuxDoIcon
-                        style={{
-                          color: '#E95420',
-                          width: '20px',
-                          height: '20px',
-                        }}
-                      />
-                    }
-                    onPress={handleLinuxDOClick}
-                    isPending={linuxdoLoading}
-                  >
-                    {t('使用 LinuxDO 继续')}
-                  </AuthOutlineButton>
-                )}
+            {status.linuxdo_oauth && (
+              <AuthOutlineButton
+                onPress={handleLinuxDOClick}
+                isPending={linuxdoLoading}
+              >
+                <LinuxDoIcon
+                  style={{
+                    color: '#E95420',
+                    width: '20px',
+                    height: '20px',
+                  }}
+                />
+                {t('使用 LinuxDO 继续')}
+              </AuthOutlineButton>
+            )}
 
-                {status.custom_oauth_providers &&
-                  status.custom_oauth_providers.map((provider) => (
-                    <AuthOutlineButton
-                      key={provider.slug}
-                      startContent={getOAuthProviderIcon(provider.icon || '', 20)}
-                      onPress={() => handleCustomOAuthClick(provider)}
-                      isPending={customOAuthLoading[provider.slug]}
-                    >
-                      {t('使用 {{name}} 继续', { name: provider.name })}
-                    </AuthOutlineButton>
-                  ))}
-
-                {status.telegram_oauth && (
-                  <div className='flex justify-center my-2'>
-                    <TelegramLoginButton
-                      dataOnauth={onTelegramLoginClicked}
-                      botName={status.telegram_bot_name}
-                    />
-                  </div>
-                )}
-
-                {status.passkey_login && passkeySupported && (
-                  <AuthOutlineButton
-                    startContent={<KeyRound size={20} />}
-                    onPress={handlePasskeyLogin}
-                    isPending={passkeyLoading}
-                  >
-                    {t('使用 Passkey 登录')}
-                  </AuthOutlineButton>
-                )}
-
-                <AuthDivider>{t('或')}</AuthDivider>
-
-                <AuthPrimaryButton
-                  startContent={<Mail size={20} />}
-                  onPress={handleEmailLoginClick}
-                  isPending={emailLoginLoading}
-                  className='bg-foreground text-background'
+            {status.custom_oauth_providers &&
+              status.custom_oauth_providers.map((provider) => (
+                <AuthOutlineButton
+                  key={provider.slug}
+                  onPress={() => handleCustomOAuthClick(provider)}
+                  isPending={customOAuthLoading[provider.slug]}
                 >
-                  {t('使用 邮箱或用户名 登录')}
-                </AuthPrimaryButton>
+                  {getOAuthProviderIcon(provider.icon || '', 20)}
+                  {t('使用 {{name}} 继续', { name: provider.name })}
+                </AuthOutlineButton>
+              ))}
+
+            {status.telegram_oauth && (
+              <div className='flex justify-center my-2'>
+                <TelegramLoginButton
+                  dataOnauth={onTelegramLoginClicked}
+                  botName={status.telegram_bot_name}
+                />
               </div>
+            )}
+
+            {status.passkey_login && passkeySupported && (
+              <AuthOutlineButton
+                onPress={handlePasskeyLogin}
+                isPending={passkeyLoading}
+              >
+                <KeyRound size={20} />
+                {t('使用 Passkey 登录')}
+              </AuthOutlineButton>
+            )}
+
+            <AuthDivider>{t('或')}</AuthDivider>
+
+            <AuthPrimaryButton
+              onPress={handleEmailLoginClick}
+              isPending={emailLoginLoading}
+              className='bg-foreground text-background'
+            >
+              <Mail size={20} />
+              {t('使用 邮箱或用户名 登录')}
+            </AuthPrimaryButton>
+          </div>
 
           <AuthAgreement
             checked={agreedToTerms}
@@ -621,13 +615,13 @@ const LoginForm = () => {
             t={t}
           />
 
-              {!status.self_use_mode_enabled && (
-                <AuthLinkRow
-                  prefix={t('没有账户？')}
-                  linkText={t('注册')}
-                  to='/register'
-                />
-              )}
+          {!status.self_use_mode_enabled && (
+            <AuthLinkRow
+              prefix={t('没有账户？')}
+              linkText={t('注册')}
+              to='/register'
+            />
+          )}
         </AuthPanel>
       </>
     );
@@ -641,96 +635,92 @@ const LoginForm = () => {
           title={t('登 录')}
           subtitle={t('使用你的账户信息继续，或切换到更快捷的登录方式。')}
         >
-              {status.passkey_login && passkeySupported && (
-                <AuthOutlineButton
-                  startContent={<KeyRound size={20} />}
-                  onPress={handlePasskeyLogin}
-                  isPending={passkeyLoading}
-                  className='mb-4'
-                >
-                  {t('使用 Passkey 登录')}
-                </AuthOutlineButton>
-              )}
-              <form
-                className='space-y-3'
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  handleSubmit();
-                }}
+          {status.passkey_login && passkeySupported && (
+            <AuthOutlineButton
+              onPress={handlePasskeyLogin}
+              isPending={passkeyLoading}
+              className='mb-4'
+            >
+              <KeyRound size={20} />
+              {t('使用 Passkey 登录')}
+            </AuthOutlineButton>
+          )}
+          <form
+            className='space-y-3'
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSubmit();
+            }}
+          >
+            <AuthTextField
+              label={t('用户名或邮箱')}
+              placeholder={t('请输入您的用户名或邮箱地址')}
+              name='username'
+              value={username}
+              onChange={(event) => handleChange('username', event.target.value)}
+              icon={<Mail size={18} />}
+            />
+
+            <AuthTextField
+              label={t('密码')}
+              placeholder={t('请输入您的密码')}
+              name='password'
+              type='password'
+              value={password}
+              onChange={(event) => handleChange('password', event.target.value)}
+              icon={<LockKeyhole size={18} />}
+            />
+
+            <AuthAgreement
+              checked={agreedToTerms}
+              onChange={setAgreedToTerms}
+              hasUserAgreement={hasUserAgreement}
+              hasPrivacyPolicy={hasPrivacyPolicy}
+              t={t}
+            />
+
+            <div className='space-y-2 pt-2'>
+              <AuthPrimaryButton
+                onPress={handleSubmit}
+                isPending={loginLoading}
+                isDisabled={
+                  (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
+                }
               >
-                <AuthTextField
-                  label={t('用户名或邮箱')}
-                  placeholder={t('请输入您的用户名或邮箱地址')}
-                  name='username'
-                  value={username}
-                  onChange={(event) =>
-                    handleChange('username', event.target.value)
-                  }
-                  icon={<Mail size={18} />}
-                />
+                {t('继续')}
+              </AuthPrimaryButton>
 
-                <AuthTextField
-                  label={t('密码')}
-                  placeholder={t('请输入您的密码')}
-                  name='password'
-                  type='password'
-                  value={password}
-                  onChange={(event) =>
-                    handleChange('password', event.target.value)
-                  }
-                  icon={<LockKeyhole size={18} />}
-                />
+              <AuthGhostButton
+                onPress={handleResetPasswordClick}
+                isPending={resetPasswordLoading}
+              >
+                {t('忘记密码？')}
+              </AuthGhostButton>
+            </div>
+          </form>
 
-                <AuthAgreement
-                  checked={agreedToTerms}
-                  onChange={setAgreedToTerms}
-                  hasUserAgreement={hasUserAgreement}
-                  hasPrivacyPolicy={hasPrivacyPolicy}
-                  t={t}
-                />
+          {hasOAuthLoginOptions && (
+            <>
+              <AuthDivider>{t('或')}</AuthDivider>
 
-                <div className='space-y-2 pt-2'>
-                  <AuthPrimaryButton
-                    onPress={handleSubmit}
-                    isPending={loginLoading}
-                    isDisabled={
-                      (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
-                    }
-                  >
-                    {t('继续')}
-                  </AuthPrimaryButton>
+              <div className='mt-4 text-center'>
+                <AuthOutlineButton
+                  onPress={handleOtherLoginOptionsClick}
+                  isPending={otherLoginOptionsLoading}
+                >
+                  {t('其他登录选项')}
+                </AuthOutlineButton>
+              </div>
+            </>
+          )}
 
-                  <AuthGhostButton
-                    onPress={handleResetPasswordClick}
-                    isPending={resetPasswordLoading}
-                  >
-                    {t('忘记密码？')}
-                  </AuthGhostButton>
-                </div>
-              </form>
-
-              {hasOAuthLoginOptions && (
-                <>
-                  <AuthDivider>{t('或')}</AuthDivider>
-
-                  <div className='mt-4 text-center'>
-                    <AuthOutlineButton
-                      onPress={handleOtherLoginOptionsClick}
-                      isPending={otherLoginOptionsLoading}
-                    >
-                      {t('其他登录选项')}
-                    </AuthOutlineButton>
-                  </div>
-                </>
-              )}
-
-              {!status.self_use_mode_enabled && (
-                <AuthLinkRow
-                  prefix={t('没有账户？')}
-                  linkText={t('注册')}
-                  to='/register'
-                />
-              )}
+          {!status.self_use_mode_enabled && (
+            <AuthLinkRow
+              prefix={t('没有账户？')}
+              linkText={t('注册')}
+              to='/register'
+            />
+          )}
         </AuthPanel>
       </>
     );

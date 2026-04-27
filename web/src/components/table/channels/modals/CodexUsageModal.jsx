@@ -349,12 +349,8 @@ function CodexUsageView({ t, record, payload, onCopy, onRefresh }) {
               </StatusChip>
             </div>
           </div>
-          <Button
-            size='sm'
-            variant='secondary'
-            startContent={<RefreshCw size={14} />}
-            onPress={onRefresh}
-          >
+          <Button size='sm' variant='secondary' onPress={onRefresh}>
+            <RefreshCw size={14} />
             {tt('刷新')}
           </Button>
         </div>
@@ -510,12 +506,8 @@ function CodexUsageLoader({ t, record, initialPayload, onCopy }) {
       <div className='flex flex-col gap-3'>
         <div className='text-sm text-danger'>{tt('获取用量失败')}</div>
         <div className='flex justify-end'>
-          <Button
-            size='sm'
-            variant='secondary'
-            startContent={<RefreshCw size={14} />}
-            onPress={fetchUsage}
-          >
+          <Button size='sm' variant='secondary' onPress={fetchUsage}>
+            <RefreshCw size={14} />
             {tt('刷新')}
           </Button>
         </div>
@@ -553,11 +545,7 @@ const CodexUsageModal = ({
   return (
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
-        <ModalContainer
-          size='3xl'
-          placement='center'
-          className='max-w-[95vw]'
-        >
+        <ModalContainer size='3xl' placement='center' className='max-w-[95vw]'>
           <ModalDialog className='bg-background/95 backdrop-blur'>
             <ModalHeader className='border-b border-border'>
               <span>{tt('Codex 帐号与用量')}</span>
@@ -573,11 +561,8 @@ const CodexUsageModal = ({
               ) : null}
             </ModalBody>
             <ModalFooter className='border-t border-border'>
-              <Button
-                color='primary'
-                startContent={<X size={14} />}
-                onPress={onClose}
-              >
+              <Button color='primary' onPress={onClose}>
+                <X size={14} />
                 {tt('关闭')}
               </Button>
             </ModalFooter>

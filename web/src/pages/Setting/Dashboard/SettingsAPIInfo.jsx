@@ -355,30 +355,30 @@ const SettingsAPIInfo = ({ options, refresh }) => {
         <div className='order-2 flex w-full gap-2 md:order-1 md:w-auto'>
           <Button
             variant='tertiary'
-            startContent={<Plus size={14} />}
             onPress={handleAddApi}
             className='w-full md:w-auto'
           >
+            <Plus size={14} />
             {t('添加API')}
           </Button>
           <Button
             variant='danger-soft'
-            startContent={<Trash2 size={14} />}
             isDisabled={selectedRowKeys.length === 0}
             onPress={handleBatchDelete}
             className='w-full md:w-auto'
           >
+            <Trash2 size={14} />
             {t('批量删除')}{' '}
             {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button
             variant='tertiary'
-            startContent={<Save size={14} />}
             onPress={submitApiInfo}
             isPending={loading}
             isDisabled={!hasChanges}
             className='w-full md:w-auto'
           >
+            <Save size={14} />
             {t('保存设置')}
           </Button>
         </div>
@@ -486,17 +486,17 @@ const SettingsAPIInfo = ({ options, refresh }) => {
                         <Button
                           variant='tertiary'
                           size='sm'
-                          startContent={<Edit size={14} />}
                           onPress={() => handleEditApi(record)}
                         >
+                          <Edit size={14} />
                           {t('编辑')}
                         </Button>
                         <Button
                           variant='danger-soft'
                           size='sm'
-                          startContent={<Trash2 size={14} />}
                           onPress={() => setPendingDelete(record)}
                         >
+                          <Trash2 size={14} />
                           {t('删除')}
                         </Button>
                       </div>
@@ -545,9 +545,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
             size='sm'
             variant='tertiary'
             isDisabled={currentPage >= totalPages}
-            onPress={() =>
-              setCurrentPage((p) => Math.min(totalPages, p + 1))
-            }
+            onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
           >
             {t('下一页')}
           </Button>
@@ -662,7 +660,10 @@ const SettingsAPIInfo = ({ options, refresh }) => {
                 </div>
               </ModalBody>
               <ModalFooter className='border-t border-border'>
-                <Button variant='tertiary' onPress={() => setShowApiModal(false)}>
+                <Button
+                  variant='tertiary'
+                  onPress={() => setShowApiModal(false)}
+                >
                   {t('取消')}
                 </Button>
                 <Button

@@ -193,14 +193,10 @@ const RechargeCard = ({
     const minTopupVal = Number(payMethod.min_topup) || 0;
     const isStripe = payMethod.type === 'stripe';
     const isWaffo =
-      typeof payMethod.type === 'string' &&
-      payMethod.type.startsWith('waffo:');
+      typeof payMethod.type === 'string' && payMethod.type.startsWith('waffo:');
     const isWaffoPancake = payMethod.type === 'waffo_pancake';
     const disabled =
-      (!enableOnlineTopUp &&
-        !isStripe &&
-        !isWaffo &&
-        !isWaffoPancake) ||
+      (!enableOnlineTopUp && !isStripe && !isWaffo && !isWaffoPancake) ||
       (!enableStripeTopUp && isStripe) ||
       (!enableWaffoTopUp && isWaffo) ||
       (!enableWaffoPancakeTopUp && isWaffoPancake) ||
@@ -234,12 +230,12 @@ const RechargeCard = ({
       <Button
         key={payMethod.type}
         variant='secondary'
-        startContent={startIcon}
         onPress={() => preTopUp(payMethod.type)}
         isDisabled={disabled}
         isPending={paymentLoading && payWay === payMethod.type}
         className='!rounded-lg !px-4 !py-2'
       >
+        {startIcon}
         {payMethod.name}
       </Button>
     );
@@ -254,9 +250,7 @@ const RechargeCard = ({
         </Tooltip>
       );
     }
-    return (
-      <React.Fragment key={payMethod.type}>{buttonEl}</React.Fragment>
-    );
+    return <React.Fragment key={payMethod.type}>{buttonEl}</React.Fragment>;
   };
 
   const renderPresetGrid = () => (
@@ -278,9 +272,7 @@ const RechargeCard = ({
       <div className='grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4'>
         {presetAmounts.map((preset, index) => {
           const discount =
-            preset.discount ||
-            topupInfo?.discount?.[preset.value] ||
-            1.0;
+            preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
           const originalPrice = preset.value * priceRatio;
           const discountedPrice = originalPrice * discount;
           const hasDiscount = discount < 1.0;
@@ -324,9 +316,7 @@ const RechargeCard = ({
                 setTopUpCount(preset.value);
               }}
               className={`flex w-full cursor-pointer flex-col items-center gap-1 rounded-xl bg-background px-3 py-3 text-center transition-colors hover:border-primary ${
-                selected
-                  ? 'border-2 border-primary'
-                  : 'border border-border'
+                selected ? 'border-2 border-primary' : 'border border-border'
               }`}
             >
               <div className='flex items-center justify-center gap-1.5 text-base font-semibold text-foreground'>
@@ -551,11 +541,8 @@ const RechargeCard = ({
               </div>
             </div>
           </div>
-          <Button
-            color='primary'
-            startContent={<Receipt size={16} />}
-            onPress={onOpenHistory}
-          >
+          <Button color='primary' onPress={onOpenHistory}>
+            <Receipt size={16} />
             {t('账单')}
           </Button>
         </div>

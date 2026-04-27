@@ -142,12 +142,12 @@ const PasswordResetConfirm = () => {
                 <Button
                   size='sm'
                   variant='ghost'
-                  startContent={<Copy size={14} />}
                   onPress={async () => {
                     await copy(newPassword);
                     showNotice(`${t('密码已复制到剪贴板：')} ${newPassword}`);
                   }}
                 >
+                  <Copy size={14} />
                   {t('复制')}
                 </Button>
               }

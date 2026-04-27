@@ -98,11 +98,11 @@ const CardPro = ({
             <div className='w-full mb-2'>
               <Button
                 onPress={toggleMobileActions}
-                startContent={showMobileActions ? <EyeOff size={16} /> : <Eye size={16} />}
                 variant='secondary'
                 size='sm'
                 className='w-full'
               >
+                {showMobileActions ? <EyeOff size={16} /> : <Eye size={16} />}
                 {showMobileActions ? t('隐藏操作项') : t('显示操作项')}
               </Button>
             </div>

@@ -129,11 +129,7 @@ const ChannelKeyDisplay = ({
               <span className='text-xs text-muted'>
                 {t('共 {{count}} 个密钥', { count: parsedKeys.length })}
               </span>
-              <Button
-                size='sm'
-                variant='secondary'
-                onPress={handleCopyAll}
-              >
+              <Button size='sm' variant='secondary' onPress={handleCopyAll}>
                 {t('复制全部')}
               </Button>
             </div>
@@ -160,9 +156,9 @@ const ChannelKeyDisplay = ({
                     <Button
                       size='sm'
                       variant='secondary'
-                      startContent={<Clipboard size={14} />}
                       onPress={() => handleCopyKey(keyItem.content)}
                     >
+                      <Clipboard size={14} />
                       {t('复制')}
                     </Button>
                   </div>

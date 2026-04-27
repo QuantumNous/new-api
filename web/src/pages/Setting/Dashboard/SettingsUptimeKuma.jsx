@@ -126,7 +126,8 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
 
   const handleSaveGroup = async () => {
     const next = {};
-    if (!uptimeForm.categoryName?.trim()) next.categoryName = t('请输入分类名称');
+    if (!uptimeForm.categoryName?.trim())
+      next.categoryName = t('请输入分类名称');
     if (!uptimeForm.url?.trim()) {
       next.url = t('请输入Uptime Kuma地址');
     } else {
@@ -301,30 +302,30 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
         <div className='order-2 flex w-full gap-2 md:order-1 md:w-auto'>
           <Button
             variant='tertiary'
-            startContent={<Plus size={14} />}
             onPress={handleAddGroup}
             className='w-full md:w-auto'
           >
+            <Plus size={14} />
             {t('添加分类')}
           </Button>
           <Button
             variant='danger-soft'
-            startContent={<Trash2 size={14} />}
             isDisabled={selectedRowKeys.length === 0}
             onPress={handleBatchDelete}
             className='w-full md:w-auto'
           >
+            <Trash2 size={14} />
             {t('批量删除')}{' '}
             {selectedRowKeys.length > 0 ? `(${selectedRowKeys.length})` : ''}
           </Button>
           <Button
             variant='tertiary'
-            startContent={<Save size={14} />}
             onPress={submitUptimeGroups}
             isPending={loading}
             isDisabled={!hasChanges}
             className='w-full md:w-auto'
           >
+            <Save size={14} />
             {t('保存设置')}
           </Button>
         </div>
@@ -419,17 +420,17 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
                         <Button
                           variant='tertiary'
                           size='sm'
-                          startContent={<Edit size={14} />}
                           onPress={() => handleEditGroup(record)}
                         >
+                          <Edit size={14} />
                           {t('编辑')}
                         </Button>
                         <Button
                           variant='danger-soft'
                           size='sm'
-                          startContent={<Trash2 size={14} />}
                           onPress={() => setPendingDelete(record)}
                         >
+                          <Trash2 size={14} />
                           {t('删除')}
                         </Button>
                       </div>
@@ -460,7 +461,9 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
               </option>
             ))}
           </select>
-          <span>{t('共 {{total}} 条', { total: uptimeGroupsList.length })}</span>
+          <span>
+            {t('共 {{total}} 条', { total: uptimeGroupsList.length })}
+          </span>
         </div>
         <div className='flex items-center gap-1'>
           <Button
@@ -478,9 +481,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
             size='sm'
             variant='tertiary'
             isDisabled={currentPage >= totalPages}
-            onPress={() =>
-              setCurrentPage((p) => Math.min(totalPages, p + 1))
-            }
+            onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
           >
             {t('下一页')}
           </Button>
@@ -567,7 +568,9 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
                     className={inputClass}
                   />
                   {formErrors.slug ? (
-                    <div className='text-xs text-red-600'>{formErrors.slug}</div>
+                    <div className='text-xs text-red-600'>
+                      {formErrors.slug}
+                    </div>
                   ) : null}
                 </div>
               </ModalBody>

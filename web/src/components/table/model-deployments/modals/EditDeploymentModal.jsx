@@ -185,16 +185,16 @@ const EditDeploymentModal = ({
                 variant='tertiary'
                 onPress={handleClose}
                 isDisabled={loading}
-                startContent={<X size={14} />}
               >
+                <X size={14} />
                 {t('取消')}
               </Button>
               <Button
                 color='primary'
                 onPress={handleSubmit}
                 isPending={loading}
-                startContent={<Save size={14} />}
               >
+                <Save size={14} />
                 {isEdit ? t('更新') : t('创建')}
               </Button>
             </ModalFooter>

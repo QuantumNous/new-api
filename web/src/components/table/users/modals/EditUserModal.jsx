@@ -27,14 +27,7 @@ import {
   Spinner,
   useOverlayState,
 } from '@heroui/react';
-import {
-  Edit3,
-  Link as LinkIcon,
-  Save,
-  User,
-  Users,
-  X,
-} from 'lucide-react';
+import { Edit3, Link as LinkIcon, Save, User, Users, X } from 'lucide-react';
 import {
   API,
   showError,
@@ -325,9 +318,7 @@ const EditUserModal = (props) => {
       >
         <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
           <div className='flex items-center gap-2'>
-            <StatusChip tone='blue'>
-              {t(isEdit ? '编辑' : '新建')}
-            </StatusChip>
+            <StatusChip tone='blue'>{t(isEdit ? '编辑' : '新建')}</StatusChip>
             <h4 className='m-0 text-lg font-semibold text-foreground'>
               {isEdit ? t('编辑用户') : t('创建用户')}
             </h4>
@@ -482,9 +473,9 @@ const EditUserModal = (props) => {
                         <FieldLabel>{t('调整额度')}</FieldLabel>
                         <Button
                           variant='tertiary'
-                          startContent={<Edit3 size={14} />}
                           onPress={() => setAdjustModalOpen(true)}
                         >
+                          <Edit3 size={14} />
                           {t('调整额度')}
                         </Button>
                       </div>
@@ -532,9 +523,7 @@ const EditUserModal = (props) => {
                           {t('绑定信息')}
                         </div>
                         <div className='text-xs text-muted'>
-                          {t(
-                            '管理用户已绑定的第三方账户，支持筛选与解绑',
-                          )}
+                          {t('管理用户已绑定的第三方账户，支持筛选与解绑')}
                         </div>
                       </div>
                     </div>
@@ -552,19 +541,12 @@ const EditUserModal = (props) => {
         </div>
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
-          <Button
-            variant='tertiary'
-            startContent={<X size={14} />}
-            onPress={handleCancel}
-          >
+          <Button variant='tertiary' onPress={handleCancel}>
+            <X size={14} />
             {t('取消')}
           </Button>
-          <Button
-            color='primary'
-            isPending={loading}
-            startContent={<Save size={14} />}
-            onPress={submit}
-          >
+          <Button color='primary' isPending={loading} onPress={submit}>
+            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>
@@ -675,9 +657,7 @@ const EditUserModal = (props) => {
                             quota === ''
                               ? ''
                               : adjustMode === 'override'
-                                ? Number(
-                                    quotaToDisplayAmount(quota).toFixed(6),
-                                  )
+                                ? Number(quotaToDisplayAmount(quota).toFixed(6))
                                 : Number(
                                     quotaToDisplayAmount(
                                       Math.abs(quota),

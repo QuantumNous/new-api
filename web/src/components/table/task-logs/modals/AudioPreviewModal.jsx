@@ -78,31 +78,25 @@ const AudioClipCard = ({ clip }) => {
           )}
         </div>
 
-        {tags && (
-          <div className='mb-2 truncate text-xs text-muted'>
-            {tags}
-          </div>
-        )}
+        {tags && <div className='mb-2 truncate text-xs text-muted'>{tags}</div>}
 
         {hasError ? (
           <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-sm text-warning'>
-              {t('音频无法播放')}
-            </span>
+            <span className='text-sm text-warning'>{t('音频无法播放')}</span>
             <Button
               size='sm'
-              startContent={<ExternalLink size={16} />}
               onPress={() => window.open(audioUrl, '_blank')}
               variant='tertiary'
             >
+              <ExternalLink size={16} />
               {t('在新标签页中打开')}
             </Button>
             <Button
               size='sm'
-              startContent={<Copy size={16} />}
               onPress={() => navigator.clipboard.writeText(audioUrl)}
               variant='tertiary'
             >
+              <Copy size={16} />
               {t('复制链接')}
             </Button>
           </div>
@@ -141,13 +135,14 @@ const AudioPreviewModal = ({ isModalOpen, setIsModalOpen, audioClips }) => {
             </ModalHeader>
             <ModalBody className='max-h-[70vh] p-4'>
               {clips.length === 0 ? (
-                <span className='text-sm text-muted'>
-                  {t('无')}
-                </span>
+                <span className='text-sm text-muted'>{t('无')}</span>
               ) : (
                 <div className='flex flex-col gap-3'>
                   {clips.map((clip, idx) => (
-                    <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
+                    <AudioClipCard
+                      key={clip.clip_id || clip.id || idx}
+                      clip={clip}
+                    />
                   ))}
                 </div>
               )}

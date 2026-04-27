@@ -92,17 +92,31 @@ function MonthCalendar({ yearMonth, onMonthChange, dateRender, t }) {
     <div className='overflow-hidden rounded-lg border border-[color:var(--app-border)] text-sm'>
       <div className='flex items-center justify-between border-b border-[color:var(--app-border)] bg-[color:var(--app-background)] px-3 py-2'>
         <div className='flex items-center gap-1'>
-          <Button isIconOnly variant='tertiary' size='sm' onPress={goPrev} aria-label='prev'>
+          <Button
+            isIconOnly
+            variant='tertiary'
+            size='sm'
+            onPress={goPrev}
+            aria-label='prev'
+          >
             <ChevronLeft size={14} />
           </Button>
           <Button variant='tertiary' size='sm' onPress={goToday}>
             {t('今天')}
           </Button>
-          <Button isIconOnly variant='tertiary' size='sm' onPress={goNext} aria-label='next'>
+          <Button
+            isIconOnly
+            variant='tertiary'
+            size='sm'
+            onPress={goNext}
+            aria-label='next'
+          >
             <ChevronRight size={14} />
           </Button>
         </div>
-        <div className='text-sm font-semibold text-foreground'>{monthLabel}</div>
+        <div className='text-sm font-semibold text-foreground'>
+          {monthLabel}
+        </div>
         <div className='w-[120px]' />
       </div>
 
@@ -132,9 +146,7 @@ function MonthCalendar({ yearMonth, onMonthChange, dateRender, t }) {
                   <td
                     key={cellKey}
                     className={`relative h-14 align-top ${
-                      isCurrentMonth
-                        ? ''
-                        : 'opacity-40'
+                      isCurrentMonth ? '' : 'opacity-40'
                     }`}
                   >
                     <div
@@ -372,11 +384,11 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
           <Button
             variant='primary'
             className={successButtonClass}
-            startContent={<Gift size={14} />}
             onPress={() => doCheckin()}
             isPending={checkinLoading || !initialLoaded}
             isDisabled={!initialLoaded || checkinData.stats?.checked_in_today}
           >
+            <Gift size={14} />
             {!initialLoaded
               ? t('加载中...')
               : checkinData.stats?.checked_in_today

@@ -39,7 +39,17 @@ import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 const inputClass =
   'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
 
-function NumberField({ label, value, onChange, min, step, prefix, helper, error, placeholder }) {
+function NumberField({
+  label,
+  value,
+  onChange,
+  min,
+  step,
+  prefix,
+  helper,
+  error,
+  placeholder,
+}) {
   return (
     <div className='space-y-2'>
       <div className='text-sm font-medium text-foreground'>{label}</div>
@@ -352,10 +362,7 @@ const EditRedemptionModal = (props) => {
                       value={toLocalDateTimeInputValue(values.expired_time)}
                       onChange={(event) => {
                         const v = event.target.value;
-                        setField(
-                          'expired_time',
-                          v ? new Date(v) : null,
-                        );
+                        setField('expired_time', v ? new Date(v) : null);
                       }}
                       aria-label={t('过期时间')}
                       className={inputClass}
@@ -449,19 +456,16 @@ const EditRedemptionModal = (props) => {
         </div>
 
         <footer className='flex justify-end gap-2 border-t border-[color:var(--app-border)] bg-[color:var(--app-background)] px-5 py-3'>
-          <Button
-            variant='tertiary'
-            onPress={handleCancel}
-            startContent={<X size={14} />}
-          >
+          <Button variant='tertiary' onPress={handleCancel}>
+            <X size={14} />
             {t('取消')}
           </Button>
           <Button
             color='primary'
             onPress={submit}
             isPending={submitting || loading}
-            startContent={<Save size={14} />}
           >
+            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>

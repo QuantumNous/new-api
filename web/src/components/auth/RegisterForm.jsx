@@ -129,12 +129,12 @@ const RegisterForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthRegisterOptions = Boolean(
     status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.telegram_oauth ||
-      hasCustomOAuthProviders,
+    status.discord_oauth ||
+    status.oidc_enabled ||
+    status.wechat_login ||
+    status.linuxdo_oauth ||
+    status.telegram_oauth ||
+    hasCustomOAuthProviders,
   );
 
   const [showEmailVerification, setShowEmailVerification] = useState(false);
@@ -396,109 +396,107 @@ const RegisterForm = () => {
           subtitle={t('先选择一种便捷方式，或继续使用用户名注册。')}
         >
           <div className='space-y-3'>
-                {status.wechat_login && (
-                  <AuthOutlineButton
-                    startContent={
-                      <WeChatIcon style={{ color: '#07C160' }} />
-                    }
-                    onPress={onWeChatLoginClicked}
-                    isPending={wechatLoading}
-                  >
-                    {t('使用 微信 继续')}
-                  </AuthOutlineButton>
-                )}
+            {status.wechat_login && (
+              <AuthOutlineButton
+                onPress={onWeChatLoginClicked}
+                isPending={wechatLoading}
+              >
+                <WeChatIcon style={{ color: '#07C160' }} />
+                {t('使用 微信 继续')}
+              </AuthOutlineButton>
+            )}
 
-                {status.github_oauth && (
-                  <AuthOutlineButton
-                    startContent={<SiGithub size={20} />}
-                    onPress={handleGitHubClick}
-                    isPending={githubLoading}
-                    isDisabled={githubButtonDisabled}
-                  >
-                    {githubButtonText}
-                  </AuthOutlineButton>
-                )}
+            {status.github_oauth && (
+              <AuthOutlineButton
+                onPress={handleGitHubClick}
+                isPending={githubLoading}
+                isDisabled={githubButtonDisabled}
+              >
+                <SiGithub size={20} />
+                {githubButtonText}
+              </AuthOutlineButton>
+            )}
 
-                {status.discord_oauth && (
-                  <AuthOutlineButton
-                    startContent={
-                      <SiDiscord
-                        style={{
-                          color: '#5865F2',
-                          width: '20px',
-                          height: '20px',
-                        }}
-                      />
-                    }
-                    onPress={handleDiscordClick}
-                    isPending={discordLoading}
-                  >
-                    {t('使用 Discord 继续')}
-                  </AuthOutlineButton>
-                )}
+            {status.discord_oauth && (
+              <AuthOutlineButton
+                onPress={handleDiscordClick}
+                isPending={discordLoading}
+              >
+                <SiDiscord
+                  style={{
+                    color: '#5865F2',
+                    width: '20px',
+                    height: '20px',
+                  }}
+                />
+                {t('使用 Discord 继续')}
+              </AuthOutlineButton>
+            )}
 
-                {status.oidc_enabled && (
-                  <AuthOutlineButton
-                    startContent={<OIDCIcon style={{ color: '#1877F2' }} />}
-                    onPress={handleOIDCClick}
-                    isPending={oidcLoading}
-                  >
-                    {t('使用 OIDC 继续')}
-                  </AuthOutlineButton>
-                )}
+            {status.oidc_enabled && (
+              <AuthOutlineButton
+                onPress={handleOIDCClick}
+                isPending={oidcLoading}
+              >
+                <OIDCIcon style={{ color: '#1877F2' }} />
+                {t('使用 OIDC 继续')}
+              </AuthOutlineButton>
+            )}
 
-                {status.linuxdo_oauth && (
-                  <AuthOutlineButton
-                    startContent={
-                      <LinuxDoIcon
-                        style={{
-                          color: '#E95420',
-                          width: '20px',
-                          height: '20px',
-                        }}
-                      />
-                    }
-                    onPress={handleLinuxDOClick}
-                    isPending={linuxdoLoading}
-                  >
-                    {t('使用 LinuxDO 继续')}
-                  </AuthOutlineButton>
-                )}
+            {status.linuxdo_oauth && (
+              <AuthOutlineButton
+                onPress={handleLinuxDOClick}
+                isPending={linuxdoLoading}
+              >
+                <LinuxDoIcon
+                  style={{
+                    color: '#E95420',
+                    width: '20px',
+                    height: '20px',
+                  }}
+                />
+                {t('使用 LinuxDO 继续')}
+              </AuthOutlineButton>
+            )}
 
-                {status.custom_oauth_providers &&
-                  status.custom_oauth_providers.map((provider) => (
-                    <AuthOutlineButton
-                      key={provider.slug}
-                      startContent={getOAuthProviderIcon(provider.icon || '', 20)}
-                      onPress={() => handleCustomOAuthClick(provider)}
-                      isPending={customOAuthLoading[provider.slug]}
-                    >
-                      {t('使用 {{name}} 继续', { name: provider.name })}
-                    </AuthOutlineButton>
-                  ))}
-
-                {status.telegram_oauth && (
-                  <div className='flex justify-center my-2'>
-                    <TelegramLoginButton
-                      dataOnauth={onTelegramLoginClicked}
-                      botName={status.telegram_bot_name}
-                    />
-                  </div>
-                )}
-
-                <AuthDivider>{t('或')}</AuthDivider>
-
-                <AuthPrimaryButton
-                  startContent={<Mail size={20} />}
-                  onPress={handleEmailRegisterClick}
-                  isPending={emailRegisterLoading}
-                  className='bg-foreground text-background'
+            {status.custom_oauth_providers &&
+              status.custom_oauth_providers.map((provider) => (
+                <AuthOutlineButton
+                  key={provider.slug}
+                  onPress={() => handleCustomOAuthClick(provider)}
+                  isPending={customOAuthLoading[provider.slug]}
                 >
-                  {t('使用 用户名 注册')}
-                </AuthPrimaryButton>
-              </div>
+                  {getOAuthProviderIcon(provider.icon || '', 20)}
+                  {t('使用 {{name}} 继续', { name: provider.name })}
+                </AuthOutlineButton>
+              ))}
 
-          <AuthLinkRow prefix={t('已有账户？')} linkText={t('登录')} to='/login' />
+            {status.telegram_oauth && (
+              <div className='flex justify-center my-2'>
+                <TelegramLoginButton
+                  dataOnauth={onTelegramLoginClicked}
+                  botName={status.telegram_bot_name}
+                />
+              </div>
+            )}
+
+            <AuthDivider>{t('或')}</AuthDivider>
+
+            <AuthPrimaryButton
+              onPress={handleEmailRegisterClick}
+              isPending={emailRegisterLoading}
+              className='bg-foreground text-background'
+            >
+              <Mail size={20} />
+              {t('使用 用户名 注册')}
+            </AuthPrimaryButton>
+          </div>
+
+          <AuthLinkRow
+            prefix={t('已有账户？')}
+            linkText={t('登录')}
+            to='/login'
+          />
         </AuthPanel>
       </>
     );
@@ -512,125 +510,125 @@ const RegisterForm = () => {
           title={t('注 册')}
           subtitle={t('创建一个新账户，稍后可以继续使用第三方登录。')}
         >
-              <form
-                className='space-y-3'
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  handleSubmit();
-                }}
-              >
+          <form
+            className='space-y-3'
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSubmit();
+            }}
+          >
+            <AuthTextField
+              label={t('用户名')}
+              placeholder={t('请输入用户名')}
+              name='username'
+              value={inputs.username}
+              onChange={(event) => handleChange('username', event.target.value)}
+              icon={<UserRound size={18} />}
+            />
+
+            <AuthTextField
+              label={t('密码')}
+              placeholder={t('输入密码，最短 8 位，最长 20 位')}
+              name='password'
+              type='password'
+              value={inputs.password}
+              onChange={(event) => handleChange('password', event.target.value)}
+              icon={<LockKeyhole size={18} />}
+            />
+
+            <AuthTextField
+              label={t('确认密码')}
+              placeholder={t('确认密码')}
+              name='password2'
+              type='password'
+              value={inputs.password2}
+              onChange={(event) =>
+                handleChange('password2', event.target.value)
+              }
+              icon={<LockKeyhole size={18} />}
+            />
+
+            {showEmailVerification && (
+              <>
                 <AuthTextField
-                  label={t('用户名')}
-                  placeholder={t('请输入用户名')}
-                  name='username'
-                  value={inputs.username}
+                  label={t('邮箱')}
+                  placeholder={t('输入邮箱地址')}
+                  name='email'
+                  type='email'
+                  value={inputs.email}
                   onChange={(event) =>
-                    handleChange('username', event.target.value)
+                    handleChange('email', event.target.value)
                   }
-                  icon={<UserRound size={18} />}
-                />
-
-                <AuthTextField
-                  label={t('密码')}
-                  placeholder={t('输入密码，最短 8 位，最长 20 位')}
-                  name='password'
-                  type='password'
-                  value={inputs.password}
-                  onChange={(event) =>
-                    handleChange('password', event.target.value)
-                  }
-                  icon={<LockKeyhole size={18} />}
-                />
-
-                <AuthTextField
-                  label={t('确认密码')}
-                  placeholder={t('确认密码')}
-                  name='password2'
-                  type='password'
-                  value={inputs.password2}
-                  onChange={(event) =>
-                    handleChange('password2', event.target.value)
-                  }
-                  icon={<LockKeyhole size={18} />}
-                />
-
-                {showEmailVerification && (
-                  <>
-                    <AuthTextField
-                      label={t('邮箱')}
-                      placeholder={t('输入邮箱地址')}
-                      name='email'
-                      type='email'
-                      value={inputs.email}
-                      onChange={(event) =>
-                        handleChange('email', event.target.value)
-                      }
-                      icon={<Mail size={18} />}
-                      action={
-                        <Button
-                          size='sm'
-                          variant='secondary'
-                          onPress={sendVerificationCode}
-                          isPending={verificationCodeLoading}
-                          isDisabled={disableButton || verificationCodeLoading}
-                          className='rounded-xl'
-                        >
-                          {disableButton
-                            ? `${t('重新发送')} (${countdown})`
-                            : t('获取验证码')}
-                        </Button>
-                      }
-                    />
-                    <AuthTextField
-                      label={t('验证码')}
-                      placeholder={t('输入验证码')}
-                      name='verification_code'
-                      value={inputs.verification_code}
-                      onChange={(event) =>
-                        handleChange('verification_code', event.target.value)
-                      }
-                      icon={<KeyRound size={18} />}
-                    />
-                  </>
-                )}
-
-                <AuthAgreement
-                  checked={agreedToTerms}
-                  onChange={setAgreedToTerms}
-                  hasUserAgreement={hasUserAgreement}
-                  hasPrivacyPolicy={hasPrivacyPolicy}
-                  t={t}
-                />
-
-                <div className='space-y-2 pt-2'>
-                  <AuthPrimaryButton
-                    onPress={handleSubmit}
-                    isPending={registerLoading}
-                    isDisabled={
-                      (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
-                    }
-                  >
-                    {t('注册')}
-                  </AuthPrimaryButton>
-                </div>
-              </form>
-
-              {hasOAuthRegisterOptions && (
-                <>
-                  <AuthDivider>{t('或')}</AuthDivider>
-
-                  <div className='mt-4 text-center'>
-                    <AuthOutlineButton
-                      onPress={handleOtherRegisterOptionsClick}
-                      isPending={otherRegisterOptionsLoading}
+                  icon={<Mail size={18} />}
+                  action={
+                    <Button
+                      size='sm'
+                      variant='secondary'
+                      onPress={sendVerificationCode}
+                      isPending={verificationCodeLoading}
+                      isDisabled={disableButton || verificationCodeLoading}
+                      className='rounded-xl'
                     >
-                      {t('其他注册选项')}
-                    </AuthOutlineButton>
-                  </div>
-                </>
-              )}
+                      {disableButton
+                        ? `${t('重新发送')} (${countdown})`
+                        : t('获取验证码')}
+                    </Button>
+                  }
+                />
+                <AuthTextField
+                  label={t('验证码')}
+                  placeholder={t('输入验证码')}
+                  name='verification_code'
+                  value={inputs.verification_code}
+                  onChange={(event) =>
+                    handleChange('verification_code', event.target.value)
+                  }
+                  icon={<KeyRound size={18} />}
+                />
+              </>
+            )}
 
-          <AuthLinkRow prefix={t('已有账户？')} linkText={t('登录')} to='/login' />
+            <AuthAgreement
+              checked={agreedToTerms}
+              onChange={setAgreedToTerms}
+              hasUserAgreement={hasUserAgreement}
+              hasPrivacyPolicy={hasPrivacyPolicy}
+              t={t}
+            />
+
+            <div className='space-y-2 pt-2'>
+              <AuthPrimaryButton
+                onPress={handleSubmit}
+                isPending={registerLoading}
+                isDisabled={
+                  (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
+                }
+              >
+                {t('注册')}
+              </AuthPrimaryButton>
+            </div>
+          </form>
+
+          {hasOAuthRegisterOptions && (
+            <>
+              <AuthDivider>{t('或')}</AuthDivider>
+
+              <div className='mt-4 text-center'>
+                <AuthOutlineButton
+                  onPress={handleOtherRegisterOptionsClick}
+                  isPending={otherRegisterOptionsLoading}
+                >
+                  {t('其他注册选项')}
+                </AuthOutlineButton>
+              </div>
+            </>
+          )}
+
+          <AuthLinkRow
+            prefix={t('已有账户？')}
+            linkText={t('登录')}
+            to='/login'
+          />
         </AuthPanel>
       </>
     );
