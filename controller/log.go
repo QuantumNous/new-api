@@ -179,6 +179,7 @@ func ExportLogStatistics(c *gin.Context) {
 	}
 
 	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
 	sheet := "Sheet1"
 
 	// Build title: username-token_name-timeRange
@@ -238,10 +239,9 @@ func ExportLogStatistics(c *gin.Context) {
 	}
 
 	filename := title + ".xlsx"
-	// URL-encode filename for non-ASCII characters
-	encodedFilename := url.PathEscape(filename)
+	asciiFallback := url.PathEscape(filename)
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", filename, encodedFilename))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", asciiFallback, asciiFallback))
 	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buf.Bytes())
 }
 

@@ -10,8 +10,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { initVChartSemiTheme } from '@visactor/vchart-semi-theme';
-import { VChart } from '@visactor/react-vchart';
 import {
   API,
   renderQuota,
@@ -56,15 +54,20 @@ export const useLogStatistics = () => {
     let start_timestamp = '';
     let end_timestamp = '';
     if (values.dateRange && Array.isArray(values.dateRange) && values.dateRange.length === 2) {
-      start_timestamp = values.dateRange[0];
-      end_timestamp = values.dateRange[1];
+      const toTimestamp = (v) => {
+        if (v instanceof Date) return v.getTime() / 1000;
+        if (typeof v === 'string' && v) return Date.parse(v) / 1000;
+        return 0;
+      };
+      start_timestamp = toTimestamp(values.dateRange[0]);
+      end_timestamp = toTimestamp(values.dateRange[1]);
     }
     return {
       username,
       token_name: values.token_name || '',
       model_name: values.model_name || '',
-      start_timestamp: Date.parse(start_timestamp) / 1000,
-      end_timestamp: Date.parse(end_timestamp) / 1000,
+      start_timestamp,
+      end_timestamp,
     };
   }, [formApi]);
 
@@ -87,8 +90,9 @@ export const useLogStatistics = () => {
       }
     } catch (e) {
       showError(e.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [getFormParams, t]);
 
   const exportExcel = useCallback(async () => {
@@ -111,11 +115,12 @@ export const useLogStatistics = () => {
       link.href = URL.createObjectURL(blob);
       link.download = filename;
       link.click();
-      URL.revokeObjectURL(link.href);
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     } catch (e) {
       showError(t('导出失败'));
+    } finally {
+      setExportLoading(false);
     }
-    setExportLoading(false);
   }, [getFormParams, t]);
 
   // Build VChart specs from data

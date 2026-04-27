@@ -560,61 +560,45 @@ func GetLogStatistics(username string, tokenName string, startTimestamp int64, e
 func GetLogStatisticsTrend(username string, tokenName string, startTimestamp int64, endTimestamp int64, modelName string) ([]TrendPoint, error) {
 	tx := buildStatisticsQuery(username, tokenName, startTimestamp, endTimestamp, modelName)
 
-	// Determine time granularity: hourly if <=24h, daily otherwise
-	timeFormat := "%Y-%m-%d"
+	// Determine bucket size in seconds: hourly if <=24h, daily otherwise
+	bucketSeconds := int64(86400)
 	if endTimestamp > 0 && startTimestamp > 0 && (endTimestamp-startTimestamp) <= 86400 {
-		timeFormat = "%Y-%m-%d %H:00"
+		bucketSeconds = 3600
 	}
 
-	// Use database-agnostic approach: select raw created_at and process in Go
 	type rawRow struct {
-		CreatedAt       int64  `gorm:"column:created_at"`
-		ModelName       string `gorm:"column:model_name"`
-		Quota           int64  `gorm:"column:quota_sum"`
-		RequestCount    int64  `gorm:"column:request_count"`
+		BucketStart    int64  `gorm:"column:bucket_start"`
+		ModelName      string `gorm:"column:model_name"`
+		Quota          int64  `gorm:"column:quota_sum"`
+		RequestCount   int64  `gorm:"column:request_count"`
 	}
 
+	// Bucket in SQL using integer math: (created_at / bucketSize) * bucketSize
 	var rows []rawRow
-	err := tx.Select("created_at, model_name, COALESCE(SUM(quota),0) as quota_sum, COUNT(*) as request_count").
-		Group("created_at, model_name").
+	err := tx.Select(fmt.Sprintf("(created_at / %d) * %d as bucket_start, model_name, COALESCE(SUM(quota),0) as quota_sum, COUNT(*) as request_count", bucketSeconds, bucketSeconds)).
+		Group("bucket_start, model_name").
+		Order("bucket_start ASC").
 		Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 
-	// Group by time bucket in Go
-	bucketMap := make(map[string]map[string]*TrendPoint)
+	// Format bucket timestamps into readable strings
+	result := make([]TrendPoint, 0, len(rows))
 	for _, row := range rows {
-		t := time.Unix(row.CreatedAt, 0)
-		var bucket string
-		if timeFormat == "%Y-%m-%d %H:00" {
-			bucket = t.Format("2006-01-02 15:04")
-			// Truncate minutes to 00
-			bucket = bucket[:14] + "00"
+		t := time.Unix(row.BucketStart, 0)
+		var label string
+		if bucketSeconds == 3600 {
+			label = t.Format("2006-01-02 15:04")
 		} else {
-			bucket = t.Format("2006-01-02")
+			label = t.Format("2006-01-02")
 		}
-		if bucketMap[bucket] == nil {
-			bucketMap[bucket] = make(map[string]*TrendPoint)
-		}
-		if existing, ok := bucketMap[bucket][row.ModelName]; ok {
-			existing.Quota += row.Quota
-			existing.RequestCount += row.RequestCount
-		} else {
-			bucketMap[bucket][row.ModelName] = &TrendPoint{
-				Time:         bucket,
-				ModelName:    row.ModelName,
-				Quota:        row.Quota,
-				RequestCount: row.RequestCount,
-			}
-		}
-	}
-
-	var result []TrendPoint
-	for _, models := range bucketMap {
-		for _, point := range models {
-			result = append(result, *point)
-		}
+		result = append(result, TrendPoint{
+			Time:         label,
+			ModelName:    row.ModelName,
+			Quota:        row.Quota,
+			RequestCount: row.RequestCount,
+		})
 	}
 	return result, nil
 }
