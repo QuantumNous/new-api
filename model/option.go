@@ -178,6 +178,20 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
 
+	// 拼车模式配置 - CARPOOL MODE START
+	common.OptionMap["CarpoolModeEnabled"] = strconv.FormatBool(common.CarpoolModeEnabled)
+	common.OptionMap["CarpoolModeCloseRegister"] = strconv.FormatBool(common.CarpoolModeCloseRegister)
+	common.OptionMap["CarpoolModeHideAdminMenus"] = strconv.FormatBool(common.CarpoolModeHideAdminMenus)
+	common.OptionMap["CarpoolModeHideChannelInfo"] = strconv.FormatBool(common.CarpoolModeHideChannelInfo)
+	common.OptionMap["CarpoolDefaultDailyRequestLimit"] = strconv.Itoa(common.CarpoolDefaultDailyRequestLimit)
+	common.OptionMap["CarpoolDefaultDailyTokenLimit"] = strconv.Itoa(common.CarpoolDefaultDailyTokenLimit)
+	common.OptionMap["CarpoolDefaultMonthlyTokenLimit"] = strconv.Itoa(common.CarpoolDefaultMonthlyTokenLimit)
+	common.OptionMap["CarpoolDefaultRPM"] = strconv.Itoa(common.CarpoolDefaultRPM)
+	common.OptionMap["CarpoolDefaultTPM"] = strconv.Itoa(common.CarpoolDefaultTPM)
+	common.OptionMap["CarpoolDefaultMaxIPCount"] = strconv.Itoa(common.CarpoolDefaultMaxIPCount)
+	common.OptionMap["CarpoolDefaultAbnormalThreshold"] = strconv.Itoa(common.CarpoolDefaultAbnormalThreshold)
+	// 拼车模式配置 - CARPOOL MODE END
+
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
 	for k, v := range modelConfigs {
@@ -329,6 +343,16 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		// 拼车模式开关 - CARPOOL MODE START
+		case "CarpoolModeEnabled":
+			common.CarpoolModeEnabled = boolValue
+		case "CarpoolModeCloseRegister":
+			common.CarpoolModeCloseRegister = boolValue
+		case "CarpoolModeHideAdminMenus":
+			common.CarpoolModeHideAdminMenus = boolValue
+		case "CarpoolModeHideChannelInfo":
+			common.CarpoolModeHideChannelInfo = boolValue
+		// 拼车模式开关 - CARPOOL MODE END
 		}
 	}
 	switch key {
@@ -547,6 +571,22 @@ func updateOptionMap(key string, value string) (err error) {
 		// WaffoPayMethods is read directly from OptionMap via setting.GetWaffoPayMethods().
 		// The value is already stored in OptionMap at the top of this function (line: common.OptionMap[key] = value).
 		// No additional in-memory variable to update.
+	// 拼车模式限额配置 - CARPOOL MODE START
+	case "CarpoolDefaultDailyRequestLimit":
+		common.CarpoolDefaultDailyRequestLimit, _ = strconv.Atoi(value)
+	case "CarpoolDefaultDailyTokenLimit":
+		common.CarpoolDefaultDailyTokenLimit, _ = strconv.Atoi(value)
+	case "CarpoolDefaultMonthlyTokenLimit":
+		common.CarpoolDefaultMonthlyTokenLimit, _ = strconv.Atoi(value)
+	case "CarpoolDefaultRPM":
+		common.CarpoolDefaultRPM, _ = strconv.Atoi(value)
+	case "CarpoolDefaultTPM":
+		common.CarpoolDefaultTPM, _ = strconv.Atoi(value)
+	case "CarpoolDefaultMaxIPCount":
+		common.CarpoolDefaultMaxIPCount, _ = strconv.Atoi(value)
+	case "CarpoolDefaultAbnormalThreshold":
+		common.CarpoolDefaultAbnormalThreshold, _ = strconv.Atoi(value)
+	// 拼车模式限额配置 - CARPOOL MODE END
 	}
 	return err
 }

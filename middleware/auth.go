@@ -34,6 +34,17 @@ func validUserInfo(username string, role int) bool {
 }
 
 func authHelper(c *gin.Context, minRole int) {
+	// 拼车模式下权限收缩 - CARPOOL MODE START
+	// 拼车模式下，只有超级管理员(RoleRootUser=100)可以访问管理接口
+	// 普通管理员(RoleAdminUser=10)将被视为普通用户
+	if common.CarpoolModeEnabled {
+		// 如果原要求是管理员权限，在拼车模式下提升为超级管理员权限
+		if minRole == common.RoleAdminUser {
+			minRole = common.RoleRootUser
+		}
+	}
+	// 拼车模式下权限收缩 - CARPOOL MODE END
+
 	session := sessions.Default(c)
 	username := session.Get("username")
 	role := session.Get("role")
