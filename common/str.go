@@ -3,10 +3,12 @@ package common
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/samber/lo"
@@ -76,6 +78,102 @@ func String2Int(str string) int {
 		return 0
 	}
 	return num
+}
+
+// IsAllowedRedirectURI checks if a redirect URI's origin is in the allowed list.
+func IsAllowedRedirectURI(redirectURI string) bool {
+	if len(OAuthAllowedRedirectOrigins) == 0 {
+		return false
+	}
+	parsed, err := url.Parse(redirectURI)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return false
+	}
+	host := parsed.Hostname()
+	isLoopback := host == "localhost" || host == "127.0.0.1"
+	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && isLoopback) {
+		return false
+	}
+	origin := parsed.Scheme + "://" + parsed.Host
+	for _, allowed := range OAuthAllowedRedirectOrigins {
+		if strings.EqualFold(origin, allowed) {
+			return true
+		}
+	}
+	return false
+}
+
+// redisStoreOnce stores v as JSON in Redis under prefix:randomKey with the given TTL.
+func redisStoreOnce(prefix string, v any, ttl time.Duration) (string, error) {
+	if !RedisEnabled {
+		return "", errors.New("redis is required for cross-origin OAuth")
+	}
+	key := GetRandomString(32)
+	data, err := Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	if err := RedisSet(prefix+key, string(data), ttl); err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
+// redisRedeemOnce retrieves, deletes, and unmarshals a one-time Redis value.
+func redisRedeemOnce[T any](prefix, key string) *T {
+	if !RedisEnabled {
+		return nil
+	}
+	raw, err := RedisGet(prefix + key)
+	if err != nil {
+		return nil
+	}
+	_ = RedisDel(prefix + key)
+	var v T
+	if Unmarshal([]byte(raw), &v) != nil {
+		return nil
+	}
+	return &v
+}
+
+// --- Cross-origin OAuth state (redirect_uri + aff, 10min TTL) ---
+
+type OAuthStateData struct {
+	RedirectURI string `json:"r"`
+	Aff         string `json:"a,omitempty"`
+	UserID      int    `json:"u,omitempty"`
+	Action      string `json:"act,omitempty"`
+}
+
+func CreateOAuthState(data *OAuthStateData) (string, error) {
+	return redisStoreOnce("oauth_state:", data, 10*time.Minute)
+}
+
+func RedeemOAuthState(state string) *OAuthStateData {
+	data := redisRedeemOnce[OAuthStateData]("oauth_state:", state)
+	if data == nil || !IsAllowedRedirectURI(data.RedirectURI) {
+		return nil
+	}
+	return data
+}
+
+// --- One-time OAuth exchange code (user credentials, 30s TTL) ---
+
+type OAuthExchangeData struct {
+	AccessToken string `json:"access_token"`
+	UserID      int    `json:"user_id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Role        int    `json:"role"`
+	Action      string `json:"action,omitempty"`
+}
+
+func StoreOAuthExchangeCode(data *OAuthExchangeData) (string, error) {
+	return redisStoreOnce("oauth_exchange:", data, 30*time.Second)
+}
+
+func RedeemOAuthExchangeCode(code string) *OAuthExchangeData {
+	return redisRedeemOnce[OAuthExchangeData]("oauth_exchange:", code)
 }
 
 func StringsContains(strs []string, str string) bool {

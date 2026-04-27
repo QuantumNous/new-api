@@ -36,13 +36,12 @@ const OAuth2Callback = (props) => {
   const [, userDispatch] = useContext(UserContext);
   const navigate = useNavigate();
   
-  // 防止 React 18 Strict Mode 下重复执行
+  // Prevent duplicate execution across Strict Mode remounts AND
+  // Safari mobile remounts (useRef resets on remount, so we also
+  // track the code in sessionStorage to survive full remounts).
   const hasExecuted = useRef(false);
 
-  // 最大重试次数
-  const MAX_RETRIES = 3;
-
-  const sendCode = async (code, state, retry = 0) => {
+  const sendCode = async (code, state) => {
     try {
       const { data: resData } = await API.get(
         `/api/oauth/${props.type}?code=${code}&state=${state}`,
@@ -51,12 +50,14 @@ const OAuth2Callback = (props) => {
       const { success, message, data } = resData;
 
       if (!success) {
-        // 业务错误不重试，直接显示错误
         showError(message || t('授权失败'));
         return;
       }
 
-      if (data?.action === 'bind') {
+      if (data?.redirect_url) {
+        window.location.replace(data.redirect_url);
+        return;
+      } else if (data?.action === 'bind') {
         showSuccess(t('绑定成功！'));
         navigate('/console/personal');
       } else {
@@ -68,21 +69,12 @@ const OAuth2Callback = (props) => {
         navigate('/console/token');
       }
     } catch (error) {
-      // 网络错误等可重试
-      if (retry < MAX_RETRIES) {
-        // 递增的退避等待
-        await new Promise((resolve) => setTimeout(resolve, (retry + 1) * 2000));
-        return sendCode(code, state, retry + 1);
-      }
-
-      // 重试次数耗尽，提示错误并返回设置页面
       showError(error.message || t('授权失败'));
       navigate('/console/personal');
     }
   };
 
   useEffect(() => {
-    // 防止 React 18 Strict Mode 下重复执行
     if (hasExecuted.current) {
       return;
     }
@@ -91,12 +83,23 @@ const OAuth2Callback = (props) => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
 
-    // 参数缺失直接返回
     if (!code) {
       showError(t('未获取到授权码'));
       navigate('/console/personal');
       return;
     }
+
+    // OAuth codes are single-use. Guard against Safari mobile (and
+    // other browsers) remounting the component and re-sending the
+    // same code, which would 403 because the provider already
+    // consumed it on the first request.
+    const storageKey = `oauth_code_used_${code}`;
+    if (sessionStorage.getItem(storageKey)) {
+      // Code was already sent in this session; just wait for the
+      // first request to finish and navigate away.
+      return;
+    }
+    sessionStorage.setItem(storageKey, '1');
 
     sendCode(code, state);
   }, []);

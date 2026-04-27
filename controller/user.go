@@ -117,6 +117,105 @@ func setupLogin(user *model.User, c *gin.Context) {
 	})
 }
 
+// setupLoginAndRedirect generates a one-time exchange code and returns a redirect URL.
+// The external frontend exchanges the code for user data via POST /api/oauth/exchange.
+func setupLoginAndRedirect(user *model.User, c *gin.Context, redirectURI string) {
+	accessToken := user.GetAccessToken()
+	if accessToken == "" {
+		key, err := common.GenerateRandomKey(32)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		user.SetAccessToken(key)
+		if err := user.Update(false); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		accessToken = key
+	}
+
+	code, err := common.StoreOAuthExchangeCode(&common.OAuthExchangeData{
+		AccessToken: accessToken,
+		UserID:      user.Id,
+		Username:    user.Username,
+		DisplayName: user.DisplayName,
+		Role:        user.Role,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	parsed, _ := url.Parse(redirectURI)
+	q := parsed.Query()
+	q.Set("code", code)
+	parsed.RawQuery = q.Encode()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "redirect",
+		"data":    map[string]any{"redirect_url": parsed.String()},
+	})
+}
+
+// setupBindAndRedirect generates a one-time exchange code with action=bind and returns a redirect URL.
+func setupBindAndRedirect(user *model.User, c *gin.Context, redirectURI string) {
+	code, err := common.StoreOAuthExchangeCode(&common.OAuthExchangeData{
+		UserID:      user.Id,
+		Username:    user.Username,
+		DisplayName: user.DisplayName,
+		Role:        user.Role,
+		Action:      "bind",
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	parsed, _ := url.Parse(redirectURI)
+	q := parsed.Query()
+	q.Set("code", code)
+	parsed.RawQuery = q.Encode()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "redirect",
+		"data":    map[string]any{"redirect_url": parsed.String()},
+	})
+}
+
+// ExchangeOAuthCode exchanges a one-time code for user data and access token.
+func ExchangeOAuthCode(c *gin.Context) {
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Code == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	data := common.RedeemOAuthExchangeCode(req.Code)
+	if data == nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+		return
+	}
+	respData := map[string]any{
+		"access_token": data.AccessToken,
+		"user_id":      data.UserID,
+		"username":     data.Username,
+		"display_name": data.DisplayName,
+		"role":         data.Role,
+	}
+	if data.Action != "" {
+		respData["action"] = data.Action
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    respData,
+	})
+}
+
 func Logout(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
