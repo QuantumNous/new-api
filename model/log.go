@@ -509,6 +509,116 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	return token
 }
 
+type ModelStatistics struct {
+	ModelName        string `json:"model_name"`
+	Quota            int64  `json:"quota"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	RequestCount     int64  `json:"request_count"`
+}
+
+type TrendPoint struct {
+	Time         string `json:"time"`
+	ModelName    string `json:"model_name"`
+	Quota        int64  `json:"quota"`
+	RequestCount int64  `json:"request_count"`
+}
+
+func buildStatisticsQuery(username string, tokenName string, startTimestamp int64, endTimestamp int64, modelName string) *gorm.DB {
+	tx := LOG_DB.Table("logs").Where("type = ?", LogTypeConsume)
+	if username != "" {
+		tx = tx.Where("username = ?", username)
+	}
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	if modelName != "" {
+		tx = tx.Where("model_name LIKE ?", modelName)
+	}
+	return tx
+}
+
+func GetLogStatistics(username string, tokenName string, startTimestamp int64, endTimestamp int64, modelName string) ([]ModelStatistics, error) {
+	tx := buildStatisticsQuery(username, tokenName, startTimestamp, endTimestamp, modelName)
+	var results []ModelStatistics
+	err := tx.Select("model_name, COALESCE(SUM(quota),0) as quota, COALESCE(SUM(prompt_tokens),0) as prompt_tokens, COALESCE(SUM(completion_tokens),0) as completion_tokens, COUNT(*) as request_count").
+		Group("model_name").
+		Order("quota DESC").
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func GetLogStatisticsTrend(username string, tokenName string, startTimestamp int64, endTimestamp int64, modelName string) ([]TrendPoint, error) {
+	tx := buildStatisticsQuery(username, tokenName, startTimestamp, endTimestamp, modelName)
+
+	// Determine time granularity: hourly if <=24h, daily otherwise
+	timeFormat := "%Y-%m-%d"
+	if endTimestamp > 0 && startTimestamp > 0 && (endTimestamp-startTimestamp) <= 86400 {
+		timeFormat = "%Y-%m-%d %H:00"
+	}
+
+	// Use database-agnostic approach: select raw created_at and process in Go
+	type rawRow struct {
+		CreatedAt       int64  `gorm:"column:created_at"`
+		ModelName       string `gorm:"column:model_name"`
+		Quota           int64  `gorm:"column:quota_sum"`
+		RequestCount    int64  `gorm:"column:request_count"`
+	}
+
+	var rows []rawRow
+	err := tx.Select("created_at, model_name, COALESCE(SUM(quota),0) as quota_sum, COUNT(*) as request_count").
+		Group("created_at, model_name").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Group by time bucket in Go
+	bucketMap := make(map[string]map[string]*TrendPoint)
+	for _, row := range rows {
+		t := time.Unix(row.CreatedAt, 0)
+		var bucket string
+		if timeFormat == "%Y-%m-%d %H:00" {
+			bucket = t.Format("2006-01-02 15:04")
+			// Truncate minutes to 00
+			bucket = bucket[:14] + "00"
+		} else {
+			bucket = t.Format("2006-01-02")
+		}
+		if bucketMap[bucket] == nil {
+			bucketMap[bucket] = make(map[string]*TrendPoint)
+		}
+		if existing, ok := bucketMap[bucket][row.ModelName]; ok {
+			existing.Quota += row.Quota
+			existing.RequestCount += row.RequestCount
+		} else {
+			bucketMap[bucket][row.ModelName] = &TrendPoint{
+				Time:         bucket,
+				ModelName:    row.ModelName,
+				Quota:        row.Quota,
+				RequestCount: row.RequestCount,
+			}
+		}
+	}
+
+	var result []TrendPoint
+	for _, models := range bucketMap {
+		for _, point := range models {
+			result = append(result, *point)
+		}
+	}
+	return result, nil
+}
+
 func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64, error) {
 	var total int64 = 0
 
