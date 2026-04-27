@@ -176,13 +176,15 @@ func SetRelayRouter(router *gin.Engine) {
 	registerMjRouterGroup(relayMjModeRouter)
 	//relayMjRouter.Use()
 
-	// Volc Ark compatible image route (synchronous, same relay chain as /v1)
+	// Volc Ark compatible image route — native pass-through (no body rewriting).
+	// The raw Volc body (including sequential_image_generation, optimize_prompt_options,
+	// watermark, 2K/4K size literals, etc.) is forwarded byte-identical to upstream.
 	volcV3ImageRouter := router.Group("/api/v3")
 	volcV3ImageRouter.Use(middleware.RouteTag("relay"))
-	volcV3ImageRouter.Use(middleware.VolcRequestConvert(), middleware.TokenAuth(), middleware.Distribute())
+	volcV3ImageRouter.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
 		volcV3ImageRouter.POST("/images/generations", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
+			controller.Relay(c, types.RelayFormatVolc)
 		})
 	}
 

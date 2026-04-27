@@ -29,6 +29,10 @@ type Adaptor interface {
 	GetChannelName() string
 	ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error)
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
+	// ConvertVolcRequest converts a Volc-native image request for the upstream.
+	// For Volcengine and VolcAdapter channels this is a no-op pass-through.
+	// All other channels should return (nil, errors.New("volc format not supported...")).
+	ConvertVolcRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.VolcImageRequest) (any, error)
 }
 
 type TaskAdaptor interface {

@@ -37,6 +37,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	case types.RelayFormatOpenAIResponsesCompaction:
 		request, err = GetAndValidateResponsesCompactionRequest(c)
 
+	case types.RelayFormatVolc:
+		request, err = GetAndValidateVolcImageRequest(c)
 	case types.RelayFormatOpenAIImage:
 		request, err = GetAndValidOpenAIImageRequest(c, relayMode)
 	case types.RelayFormatEmbedding:
@@ -337,4 +339,20 @@ func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*dto.GeminiBatch
 		return nil, err
 	}
 	return request, nil
+}
+
+// GetAndValidateVolcImageRequest parses the native Volc Ark image request body.
+// Only model presence is strictly validated; prompt/image validation is relaxed
+// because Volc supports both t2i (prompt required) and i2i (image required) in
+// the same endpoint and we want to pass all other fields through byte-identical.
+func GetAndValidateVolcImageRequest(c *gin.Context) (*dto.VolcImageRequest, error) {
+	req := &dto.VolcImageRequest{}
+	if err := common.UnmarshalBodyReusable(c, req); err != nil {
+		return nil, err
+	}
+	// Accept model, model_name, or req_key as model identifier (Volc uses all three)
+	if req.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	return req, nil
 }

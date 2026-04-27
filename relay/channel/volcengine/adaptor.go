@@ -37,6 +37,12 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 	return nil, errors.New("not implemented")
 }
 
+// ConvertVolcRequest is a no-op pass-through: the volcengine channel IS the
+// native Volc Ark API, so the request body is already in the correct format.
+func (a *Adaptor) ConvertVolcRequest(_ *gin.Context, _ *relaycommon.RelayInfo, request *dto.VolcImageRequest) (any, error) {
+	return request, nil
+}
+
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
 	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
 		adaptor := claude.Adaptor{}
