@@ -29,7 +29,8 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
-import { Modal, Toast } from '@douyinfe/semi-ui';
+import { Modal, Toast, Typography, Card } from '@douyinfe/semi-ui';
+import { CreditCard } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -914,7 +915,12 @@ const TopUp = () => {
 
       {/* Creem 充值确认模态框 */}
       <Modal
-        title={t('确定要充值 $')}
+        title={
+          <div className='flex items-center'>
+            <CreditCard className='mr-2' size={18} />
+            {t('充值确认')}
+          </div>
+        }
         visible={creemOpen}
         onOk={onlineCreemTopUp}
         onCancel={handleCreemCancel}
@@ -924,19 +930,37 @@ const TopUp = () => {
         confirmLoading={confirmLoading}
       >
         {selectedCreemProduct && (
-          <>
-            <p>
-              {t('产品名称')}：{selectedCreemProduct.name}
-            </p>
-            <p>
-              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
-              {selectedCreemProduct.price}
-            </p>
-            <p>
-              {t('充值额度')}：{selectedCreemProduct.quota}
-            </p>
-            <p>{t('是否确认充值？')}</p>
-          </>
+          <div className='space-y-4'>
+            <Card className='!rounded-xl !border-0 bg-slate-50 dark:bg-slate-800'>
+              <div className='space-y-3'>
+                <div className='flex justify-between items-center'>
+                  <Typography.Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('充值数量')}：
+                  </Typography.Text>
+                  <Typography.Text className='text-slate-900 dark:text-slate-100'>
+                    {selectedCreemProduct.name}
+                  </Typography.Text>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <Typography.Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('实付金额')}：
+                  </Typography.Text>
+                  <Typography.Text strong style={{ color: 'red' }}>
+                    {({ EUR: '€', USD: '$', GBP: '£', JPY: '¥', CNY: '¥' }[selectedCreemProduct.currency] ?? selectedCreemProduct.currency + ' ')}
+                    {Number(selectedCreemProduct.price).toFixed(2)}
+                  </Typography.Text>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <Typography.Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('支付方式')}：
+                  </Typography.Text>
+                  <Typography.Text className='text-slate-900 dark:text-slate-100'>
+                    Creem
+                  </Typography.Text>
+                </div>
+              </div>
+            </Card>
+          </div>
         )}
       </Modal>
 
