@@ -90,7 +90,7 @@ type syncRequest struct {
 }
 
 func getHTTPClient() *http.Client {
-	if client := service.GetHttpClient(); client != nil {
+	if client := service.GetHttpClient(service.WithTrustedRedirects()); client != nil {
 		return client
 	}
 	return http.DefaultClient

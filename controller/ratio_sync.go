@@ -92,7 +92,7 @@ type upstreamResult struct {
 }
 
 func getRatioSyncHTTPClient() *http.Client {
-	if client := service.GetHttpClient(); client != nil {
+	if client := service.GetHttpClient(service.WithTrustedRedirects()); client != nil {
 		return client
 	}
 	return http.DefaultClient
@@ -203,8 +203,6 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 	sem := make(chan struct{}, maxConcurrentFetches)
 
-	client := getRatioSyncHTTPClient()
-
 	for _, chn := range upstreams {
 		wg.Add(1)
 		go func(chItem dto.UpstreamDTO) {
@@ -269,6 +267,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 
 			// 简单重试：最多 3 次，指数退避
+			client := getRatioSyncHTTPClient()
 			var resp *http.Response
 			var lastErr error
 			for attempt := 0; attempt < 3; attempt++ {

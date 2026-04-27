@@ -20,7 +20,7 @@ import (
 )
 
 func getOllamaHTTPClient(timeout time.Duration) *http.Client {
-	baseClient := service.GetHttpClient()
+	baseClient := service.GetHttpClient(service.WithTrustedRedirects())
 	if baseClient == nil {
 		if timeout > 0 {
 			return &http.Client{Timeout: timeout}

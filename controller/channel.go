@@ -1033,7 +1033,7 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	client := service.GetHttpClient()
+	client := service.GetHttpClient(service.WithTrustedRedirects())
 	if client == nil {
 		client = http.DefaultClient
 	}
