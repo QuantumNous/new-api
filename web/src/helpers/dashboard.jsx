@@ -131,10 +131,13 @@ export const getTrendSpec = (data, color) => ({
 });
 
 // ========== UI 工具函数 ==========
+// Match HeroUI Pro `Widget.Title` styling (text-sm font-semibold) so the
+// section header inside StatsCards stays visually consistent with the title
+// of every other Widget on the dashboard.
 export const createSectionTitle = (Icon, text) => (
-  <div className='flex items-center gap-2'>
-    <Icon size={16} />
-    {text}
+  <div className='flex items-center gap-2 whitespace-nowrap'>
+    <Icon className='shrink-0' size={16} />
+    <span className='text-sm font-semibold text-foreground'>{text}</span>
   </div>
 );
 
