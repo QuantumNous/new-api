@@ -6,9 +6,9 @@
       "name": "react-template",
       "dependencies": {
         "@gravity-ui/icons": "^2.18.0",
-        "@heroui-pro/react": "^1.0.0-beta.1",
-        "@heroui/react": ">=3.0.0",
-        "@heroui/styles": ">=3.0.0",
+        "@heroui-pro/react": "^1.0.0-beta.2",
+        "@heroui/react": "^3.0.3",
+        "@heroui/styles": "^3.0.3",
         "@lobehub/icons": "^2.0.0",
         "@number-flow/react": ">=0.5.0",
         "@visactor/react-vchart": "~1.8.8",
@@ -383,7 +383,7 @@
 
     "@gravity-ui/icons": ["@gravity-ui/icons@2.18.0", "", { "dependencies": { "tslib": "^2.8.1" }, "peerDependencies": { "react": "*" }, "optionalPeers": ["react"] }, "sha512-JoRc/4Ch9GLaufZfpGd2ePRRisMXEjMI+r3y8kPKyYIAdQZz07jpIXEgsft1gvBxjSht2MS2uu5+vfhe1WP0ow=="],
 
-    "@heroui-pro/react": ["@heroui-pro/react@1.0.0-beta.1", "", { "dependencies": { "chalk": "5.6.2", "heroui-pro": "^1.0.0-alpha.1" } }, "sha512-UHzJfyQrn+rI9aM/b4adyfA8v+ivYYeO+C+IDK3jHq9813Keet3ie0ACpJBvZYyZW+/wfkCr4of1+zk/l2tyZg=="],
+    "@heroui-pro/react": ["@heroui-pro/react@1.0.0-beta.2", "", { "dependencies": { "chalk": "5.6.2", "heroui-pro": "^1.0.0-alpha.1" } }, "sha512-kB/9uFP30MN4F2hU4ONmGlqIVEptPkRSotd2w3bxoRzuZR4Z/9rqTguMFaIABxQJ8NWOXuIGOZLo2OCJU8llTA=="],
 
     "@heroui/react": ["@heroui/react@3.0.3", "", { "dependencies": { "@heroui/styles": "3.0.3", "@radix-ui/react-avatar": "1.1.11", "@react-aria/i18n": "3.13.0", "@react-aria/ssr": "3.10.0", "@react-aria/utils": "3.34.0", "@react-stately/utils": "3.12.0", "@react-types/color": "3.2.0", "@react-types/shared": "3.34.0", "input-otp": "1.4.2", "react-aria-components": "1.17.0", "tailwind-merge": "3.4.0", "tailwind-variants": "3.2.2" }, "peerDependencies": { "react": ">=19.0.0", "react-dom": ">=19.0.0", "tailwindcss": ">=4.0.0" } }, "sha512-UJPOxg3IbS5KtI2GLP7S56KrSBn/r4xQyntCVpnPzgoT7JuciB4dq7IhckuDNHcrdIPO45JrKHGJz2hiYxaRGg=="],
 
