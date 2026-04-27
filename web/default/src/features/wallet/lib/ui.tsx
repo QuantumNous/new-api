@@ -7,7 +7,8 @@ import { PAYMENT_TYPES, PAYMENT_ICON_COLORS } from '../constants'
 // UI Helper Functions
 // ============================================================================
 
-const HAS_LOCATION = typeof globalThis !== 'undefined' && 'location' in globalThis
+const HAS_LOCATION =
+  typeof globalThis !== 'undefined' && 'location' in globalThis
 
 /**
  * Resolves a backend-provided image URL to http(s) only. Rejects javascript:,
@@ -54,9 +55,9 @@ export function getPaymentIcon(
         alt={altName || paymentType || 'payment'}
         className={className}
         style={{ objectFit: 'contain' }}
-        loading="lazy"
-        decoding="async"
-        referrerPolicy="no-referrer"
+        loading='lazy'
+        decoding='async'
+        referrerPolicy='no-referrer'
       />
     )
   }

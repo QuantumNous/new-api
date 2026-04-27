@@ -9,7 +9,12 @@ import {
   getUpstreamChannels,
   updateSystemOption,
 } from '../api'
-import type { DifferencesMap, RatioType, UpstreamChannel, UpstreamConfig } from '../types'
+import type {
+  DifferencesMap,
+  RatioType,
+  UpstreamChannel,
+  UpstreamConfig,
+} from '../types'
 import { ChannelSelectorDialog } from './channel-selector-dialog'
 import {
   ConflictConfirmDialog,
@@ -25,9 +30,7 @@ import {
 import {
   NUMERIC_SYNC_FIELDS,
   RATIO_SYNC_FIELDS,
-  getOrderedRatioTypes,
   getPreferredSyncField,
-  isSelectableUpstreamValue,
   type ResolutionsMap,
 } from './upstream-ratio-sync-columns'
 import { UpstreamRatioSyncTable } from './upstream-ratio-sync-table'
@@ -112,12 +115,13 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   const [channelDialogOpen, setChannelDialogOpen] = useState(false)
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
   const [selectedChannelIds, setSelectedChannelIds] = useState<number[]>([])
-  const [channelEndpoints, setChannelEndpoints] = useState<Record<number, string>>({})
+  const [channelEndpoints, setChannelEndpoints] = useState<
+    Record<number, string>
+  >({})
   const [differences, setDifferences] = useState<DifferencesMap>({})
   const [resolutions, setResolutions] = useState<ResolutionsMap>({})
   const [conflictItems, setConflictItems] = useState<ConflictItem[]>([])
   const [confirmLoading, setConfirmLoading] = useState(false)
-  const [hasSynced, setHasSynced] = useState(false)
 
   const { data: channelsData } = useQuery({
     queryKey: ['upstream-channels'],
@@ -164,7 +168,6 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
 
       setDifferences(diffs)
       setResolutions({})
-      setHasSynced(true)
 
       if (Object.keys(diffs).length === 0) {
         toast.success(t('No price differences found'))
@@ -300,14 +303,35 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
 
   const parsedRatios = useCallback(() => {
     return {
-      ModelRatio: JSON.parse(modelRatios.ModelRatio || '{}') as Record<string, number>,
-      CompletionRatio: JSON.parse(modelRatios.CompletionRatio || '{}') as Record<string, number>,
-      CacheRatio: JSON.parse(modelRatios.CacheRatio || '{}') as Record<string, number>,
-      CreateCacheRatio: JSON.parse(modelRatios.CreateCacheRatio || '{}') as Record<string, number>,
-      ImageRatio: JSON.parse(modelRatios.ImageRatio || '{}') as Record<string, number>,
-      AudioRatio: JSON.parse(modelRatios.AudioRatio || '{}') as Record<string, number>,
-      AudioCompletionRatio: JSON.parse(modelRatios.AudioCompletionRatio || '{}') as Record<string, number>,
-      ModelPrice: JSON.parse(modelRatios.ModelPrice || '{}') as Record<string, number>,
+      ModelRatio: JSON.parse(modelRatios.ModelRatio || '{}') as Record<
+        string,
+        number
+      >,
+      CompletionRatio: JSON.parse(
+        modelRatios.CompletionRatio || '{}'
+      ) as Record<string, number>,
+      CacheRatio: JSON.parse(modelRatios.CacheRatio || '{}') as Record<
+        string,
+        number
+      >,
+      CreateCacheRatio: JSON.parse(
+        modelRatios.CreateCacheRatio || '{}'
+      ) as Record<string, number>,
+      ImageRatio: JSON.parse(modelRatios.ImageRatio || '{}') as Record<
+        string,
+        number
+      >,
+      AudioRatio: JSON.parse(modelRatios.AudioRatio || '{}') as Record<
+        string,
+        number
+      >,
+      AudioCompletionRatio: JSON.parse(
+        modelRatios.AudioCompletionRatio || '{}'
+      ) as Record<string, number>,
+      ModelPrice: JSON.parse(modelRatios.ModelPrice || '{}') as Record<
+        string,
+        number
+      >,
       'billing_setting.billing_mode': JSON.parse(
         modelRatios['billing_setting.billing_mode'] || '{}'
       ) as Record<string, string>,
@@ -336,7 +360,9 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   }
 
   const performSync = useCallback(
-    async (currentRatios: ReturnType<typeof parsedRatios>): Promise<boolean> => {
+    async (
+      currentRatios: ReturnType<typeof parsedRatios>
+    ): Promise<boolean> => {
       const finalRatios: Record<string, Record<string, number | string>> = {
         ModelRatio: { ...currentRatios.ModelRatio },
         CompletionRatio: { ...currentRatios.CompletionRatio },
@@ -357,7 +383,9 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       Object.entries(resolutions).forEach(([model, ratios]) => {
         const selectedTypes = Object.keys(ratios)
         const hasPrice = selectedTypes.includes('model_price')
-        const hasRatio = selectedTypes.some((rt) => RATIO_SYNC_FIELDS.includes(rt as RatioType))
+        const hasRatio = selectedTypes.some((rt) =>
+          RATIO_SYNC_FIELDS.includes(rt as RatioType)
+        )
 
         if (hasPrice) {
           delete finalRatios.ModelRatio[model]
@@ -432,9 +460,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
             : `Model Ratio: ${ratios.model_ratio ?? '-'}\nCompletion Ratio: ${ratios.completion_ratio ?? '-'}`
 
         const channelNames = selectedTypes
-          .map((rt) =>
-            findSourceChannel(model, rt as RatioType, ratios[rt])
-          )
+          .map((rt) => findSourceChannel(model, rt as RatioType, ratios[rt]))
           .filter((v, idx, arr) => arr.indexOf(v) === idx)
           .join(', ')
 
@@ -470,16 +496,14 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   }
 
   const hasSelections = Object.keys(resolutions).length > 0
-  const isLoading = fetchMutation.isPending || syncMutation.isPending || confirmLoading
+  const isLoading =
+    fetchMutation.isPending || syncMutation.isPending || confirmLoading
 
   return (
     <div className='space-y-4'>
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex flex-col gap-2 sm:flex-row'>
-          <Button
-            onClick={handleOpenChannelDialog}
-            disabled={isLoading}
-          >
+          <Button onClick={handleOpenChannelDialog} disabled={isLoading}>
             <RefreshCcw className='mr-2 h-4 w-4' />
             {t('Select Sync Channels')}
           </Button>

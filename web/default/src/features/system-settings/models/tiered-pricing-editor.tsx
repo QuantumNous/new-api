@@ -674,8 +674,9 @@ function RawExprEditor({ exprString, onChange }: RawExprEditorProps) {
         <AlertDescription className='space-y-1 text-xs'>
           <div>
             {t('Variables')}: <code>len</code>, <code>p</code>, <code>c</code>,{' '}
-            <code>cr</code>, <code>cc</code>, <code>cc1h</code>, <code>img</code>,{' '}
-            <code>img_o</code>, <code>ai</code>, <code>ao</code>
+            <code>cr</code>, <code>cc</code>, <code>cc1h</code>,{' '}
+            <code>img</code>, <code>img_o</code>, <code>ai</code>,{' '}
+            <code>ao</code>
           </div>
           <div>
             {t('Functions')}: <code>tier(name, value)</code>, <code>max</code>,{' '}
@@ -1114,6 +1115,10 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
       {usesExtras && (
         <div className='grid grid-cols-2 gap-3'>
           {BILLING_EXTRA_VARS.map((variable) => {
+            // BILLING_EXTRA_VARS only contains pricing variables; they are
+            // guaranteed to have a non-null `field` (the `len` condition-only
+            // variable is filtered out). Narrow the type here for safety.
+            if (!variable.field) return null
             const stateKey = variable.field.replace(
               'Price',
               'Tokens'

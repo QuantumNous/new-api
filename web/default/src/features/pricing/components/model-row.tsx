@@ -1,9 +1,15 @@
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
+import {
+  parseTiersFromExpr,
+  splitBillingExprAndRequestRules,
+  tryParseRequestRuleExpr,
+  SOURCE_TIME,
+} from '../lib/billing-expr'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
@@ -16,6 +22,49 @@ export interface ModelRowProps {
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
+}
+
+interface DynamicPricingHints {
+  tierCount: number
+  hasTimeCondition: boolean
+  hasRequestCondition: boolean
+}
+
+/**
+ * Extract at-a-glance hints from a tiered billing expression.
+ *
+ * The full breakdown lives in `DynamicPricingBreakdown`; here we only need a
+ * minimal summary (tier count + condition presence) so that users scanning
+ * the list can tell *what kind* of dynamic pricing applies before clicking
+ * through to the model details page.
+ */
+function summarizeTieredExpr(
+  expr: string | null | undefined
+): DynamicPricingHints {
+  if (!expr) {
+    return { tierCount: 0, hasTimeCondition: false, hasRequestCondition: false }
+  }
+  const split = splitBillingExprAndRequestRules(expr)
+  const tiers = parseTiersFromExpr(split.billingExpr)
+  const ruleGroups = tryParseRequestRuleExpr(split.requestRuleExpr || '') || []
+
+  let hasTimeCondition = false
+  let hasRequestCondition = false
+  for (const group of ruleGroups) {
+    for (const condition of group.conditions) {
+      if (condition.source === SOURCE_TIME) {
+        hasTimeCondition = true
+      } else {
+        hasRequestCondition = true
+      }
+    }
+  }
+
+  return {
+    tierCount: tiers.length,
+    hasTimeCondition,
+    hasRequestCondition,
+  }
 }
 
 function PriceLabel(props: { label: string; value: string; muted?: boolean }) {
@@ -59,6 +108,13 @@ export const ModelRow = memo(function ModelRow(props: ModelRowProps) {
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const hasCachedPrice = isTokenBased && model.cache_ratio != null
 
+  const isDynamicPricing =
+    model.billing_mode === 'tiered_expr' && Boolean(model.billing_expr)
+  const dynamicHints = useMemo(
+    () => (isDynamicPricing ? summarizeTieredExpr(model.billing_expr) : null),
+    [isDynamicPricing, model.billing_expr]
+  )
+
   return (
     <button
       type='button'
@@ -101,12 +157,27 @@ export const ModelRow = memo(function ModelRow(props: ModelRowProps) {
                   </span>
                 </>
               )}
-            {model.billing_mode === 'tiered_expr' && model.billing_expr && (
+            {isDynamicPricing && (
               <>
                 <span className='text-muted-foreground/30'>·</span>
                 <span className='rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'>
                   {t('Dynamic Pricing')}
                 </span>
+                {dynamicHints && dynamicHints.tierCount > 1 && (
+                  <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium'>
+                    {t('{{count}} tiers', { count: dynamicHints.tierCount })}
+                  </span>
+                )}
+                {dynamicHints?.hasTimeCondition && (
+                  <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium'>
+                    {t('Time-based')}
+                  </span>
+                )}
+                {dynamicHints?.hasRequestCondition && (
+                  <span className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium'>
+                    {t('Request-based')}
+                  </span>
+                )}
               </>
             )}
           </div>

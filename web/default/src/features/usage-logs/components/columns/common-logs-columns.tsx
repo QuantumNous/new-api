@@ -32,6 +32,7 @@ import type { UsageLog } from '../../data/schema'
 import {
   getTimeColor,
   formatModelName,
+  getTieredBillingSummary,
   parseLogOther,
   isViolationFeeLog,
 } from '../../lib/format'
@@ -105,18 +106,34 @@ function buildDetailSegments(
   }
 
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
-  const isPerCall = isPerCallBilling(other.model_price)
-  if (isPerCall) {
-    segments.push({
-      text: `${t('Model Price')} ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
-      muted: true,
-    })
-  } else if (other.model_ratio != null) {
-    const inputPriceUSD = other.model_ratio * 2.0
-    segments.push({
-      text: `${t('Input')} ${formatBillingCurrencyFromUSD(inputPriceUSD, priceOpts)}/M`,
-      muted: true,
-    })
+  const tieredSummary = getTieredBillingSummary(other)
+  if (tieredSummary) {
+    if (tieredSummary.tier.label) {
+      segments.push({
+        text: `${t('Tier')} ${tieredSummary.tier.label}`,
+        muted: true,
+      })
+    }
+    for (const entry of tieredSummary.priceEntries) {
+      segments.push({
+        text: `${t(entry.shortLabel)} ${formatBillingCurrencyFromUSD(entry.price, priceOpts)}/M`,
+        muted: true,
+      })
+    }
+  } else {
+    const isPerCall = isPerCallBilling(other.model_price)
+    if (isPerCall) {
+      segments.push({
+        text: `${t('Model Price')} ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
+        muted: true,
+      })
+    } else if (other.model_ratio != null) {
+      const inputPriceUSD = other.model_ratio * 2.0
+      segments.push({
+        text: `${t('Input')} ${formatBillingCurrencyFromUSD(inputPriceUSD, priceOpts)}/M`,
+        muted: true,
+      })
+    }
   }
 
   if (other.is_system_prompt_overwritten) {

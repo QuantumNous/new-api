@@ -189,9 +189,7 @@ export function tryParseVisualConfig(
       const conditions: TierConditionInput[] = []
       if (condStr) {
         for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp
-            .trim()
-            .match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
+          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
           if (cm) {
             conditions.push({
               var: cm[1] as TierConditionInput['var'],
@@ -270,7 +268,8 @@ export function evalExprLocally(
     const cacheReadTokens = extraTokenValues.cacheReadTokens || 0
     const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0
     const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0
-    const len = promptTokens + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens
+    const len =
+      promptTokens + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens
     const env: Record<string, unknown> = {
       p: promptTokens,
       c: completionTokens,

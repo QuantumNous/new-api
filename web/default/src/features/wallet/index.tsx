@@ -22,7 +22,11 @@ import {
   useWaffoPayment,
   useWaffoPancakePayment,
 } from './hooks'
-import { getDefaultPaymentType, getMinTopupAmount, isWaffoPancakePayment } from './lib'
+import {
+  getDefaultPaymentType,
+  getMinTopupAmount,
+  isWaffoPancakePayment,
+} from './lib'
 import type {
   UserWalletData,
   PaymentMethod,

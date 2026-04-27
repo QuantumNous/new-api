@@ -28,11 +28,14 @@ import {
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
 import type { UsageLog } from '../../data/schema'
 import {
   parseLogOther,
   getParamOverrideActionLabel,
   parseAuditLine,
+  decodeBillingExprB64,
+  getTieredBillingSummary,
   isViolationFeeLog,
   getTimeColor,
 } from '../../lib/format'
@@ -113,13 +116,31 @@ function BillingBreakdown(props: {
   const { log, other, isAdmin } = props
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
+  const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
 
-  if (isPerCall) {
+  if (tieredSummary) {
+    rows.push({
+      label: t('Billing Mode'),
+      value: t('Dynamic Pricing'),
+    })
+    if (tieredSummary.tier.label) {
+      rows.push({
+        label: t('Matched Tier'),
+        value: tieredSummary.tier.label,
+      })
+    }
+    for (const entry of tieredSummary.priceEntries) {
+      rows.push({
+        label: t(entry.shortLabel),
+        value: `${fmtPrice(entry.price)}/M`,
+      })
+    }
+  } else if (isPerCall) {
     rows.push({ label: t('Billing Mode'), value: t('Per-call') })
     if (other.model_price != null) {
       rows.push({
@@ -153,7 +174,7 @@ function BillingBreakdown(props: {
     })
   }
 
-  if (isClaude) {
+  if (!tieredSummary && isClaude) {
     if (other.cache_ratio != null && other.cache_ratio !== 1) {
       rows.push({
         label: t('Cache Read'),
@@ -189,28 +210,30 @@ function BillingBreakdown(props: {
     }
   }
 
-  if (other.audio_ratio != null && other.audio_ratio !== 1) {
-    rows.push({
-      label: t('Audio input'),
-      value: `${fmtPrice(baseInputUSD * other.audio_ratio)}/M`,
-    })
-  }
+  if (!tieredSummary) {
+    if (other.audio_ratio != null && other.audio_ratio !== 1) {
+      rows.push({
+        label: t('Audio input'),
+        value: `${fmtPrice(baseInputUSD * other.audio_ratio)}/M`,
+      })
+    }
 
-  if (
-    other.audio_completion_ratio != null &&
-    other.audio_completion_ratio !== 1
-  ) {
-    rows.push({
-      label: t('Audio output'),
-      value: `${fmtPrice(baseInputUSD * other.audio_completion_ratio)}/M`,
-    })
-  }
+    if (
+      other.audio_completion_ratio != null &&
+      other.audio_completion_ratio !== 1
+    ) {
+      rows.push({
+        label: t('Audio output'),
+        value: `${fmtPrice(baseInputUSD * other.audio_completion_ratio)}/M`,
+      })
+    }
 
-  if (other.image_ratio != null && other.image_ratio !== 1) {
-    rows.push({
-      label: t('Image input'),
-      value: `${fmtPrice(baseInputUSD * other.image_ratio)}/M`,
-    })
+    if (other.image_ratio != null && other.image_ratio !== 1) {
+      rows.push({
+        label: t('Image input'),
+        value: `${fmtPrice(baseInputUSD * other.image_ratio)}/M`,
+      })
+    }
   }
 
   if (other.web_search && other.web_search_call_count) {
@@ -771,6 +794,19 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 isAdmin={props.isAdmin}
               />
             )}
+
+            {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
+            {isConsume &&
+              !isViolation &&
+              other?.billing_mode === 'tiered_expr' &&
+              other?.expr_b64 && (
+                <div className='bg-muted/30 rounded-md border px-3'>
+                  <DynamicPricingBreakdown
+                    billingExpr={decodeBillingExprB64(other.expr_b64)}
+                    matchedTierLabel={other.matched_tier}
+                  />
+                </div>
+              )}
 
             {/* Admin billing mode indicator for non-consume */}
             {props.isAdmin &&

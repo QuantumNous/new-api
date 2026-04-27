@@ -1,4 +1,9 @@
 import type { StatusBadgeProps } from '@/components/status-badge'
+import {
+  BILLING_PRICING_VARS,
+  parseTiersFromExpr,
+  type ParsedTier,
+} from '@/features/pricing/lib/billing-expr'
 import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
 
@@ -108,6 +113,73 @@ export function formatModelName(log: UsageLog): {
     isMapped,
     actualModel: isMapped ? other.upstream_model_name : undefined,
   }
+}
+
+/**
+ * Decode a base64-encoded billing expression. Safely returns an empty string
+ * when the input is missing or malformed (e.g. legacy logs without expr_b64).
+ */
+export function decodeBillingExprB64(exprB64: string | undefined): string {
+  if (!exprB64) return ''
+  try {
+    return atob(exprB64)
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Resolve which parsed tier corresponds to the matched_tier label in a log
+ * entry. Falls back to the first tier when the label is missing or unknown,
+ * which mirrors the behaviour of the classic frontend renderer.
+ */
+export function resolveMatchedTier(
+  tiers: ParsedTier[],
+  matchedLabel: string | undefined
+): ParsedTier | null {
+  if (tiers.length === 0) return null
+  if (matchedLabel) {
+    const found = tiers.find((tier) => tier.label === matchedLabel)
+    if (found) return found
+  }
+  return tiers[0]
+}
+
+/**
+ * Tiered pricing summary derived from an `other` log payload using the
+ * billing-expression library. Returns null when the entry is not a tiered
+ * billing log or the expression failed to parse.
+ */
+export interface TieredBillingSummary {
+  tiers: ParsedTier[]
+  tier: ParsedTier
+  priceEntries: Array<{ field: string; shortLabel: string; price: number }>
+}
+
+export function getTieredBillingSummary(
+  other: LogOtherData | null
+): TieredBillingSummary | null {
+  if (!other || other.billing_mode !== 'tiered_expr') return null
+  const exprStr = decodeBillingExprB64(other.expr_b64)
+  if (!exprStr) return null
+  const tiers = parseTiersFromExpr(exprStr)
+  const tier = resolveMatchedTier(tiers, other.matched_tier)
+  if (!tier) return null
+
+  const priceEntries: TieredBillingSummary['priceEntries'] = []
+  for (const v of BILLING_PRICING_VARS) {
+    if (!v.field) continue
+    const raw = tier[v.field as keyof ParsedTier]
+    const price = Number(raw)
+    if (Number.isFinite(price) && price > 0) {
+      priceEntries.push({
+        field: v.field,
+        shortLabel: v.shortLabel,
+        price,
+      })
+    }
+  }
+  return { tiers, tier, priceEntries }
 }
 
 /**

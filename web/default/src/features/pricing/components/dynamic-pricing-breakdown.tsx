@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { Tag as TagIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -10,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useSystemConfigStore } from '@/stores/system-config-store'
 import {
   BILLING_PRICING_VARS,
   MATCH_CONTAINS,
@@ -31,6 +32,12 @@ import {
 
 type DynamicPricingBreakdownProps = {
   billingExpr: string | null | undefined
+  /**
+   * Label of the tier that fired for the current request. When provided,
+   * the corresponding row is highlighted and tagged as "Matched". Used by
+   * the usage-log details dialog to show which tier the engine selected.
+   */
+  matchedTierLabel?: string | null
 }
 
 const VAR_LABELS: Record<string, string> = {
@@ -122,6 +129,7 @@ function describeGroup(
 
 export function DynamicPricingBreakdown({
   billingExpr,
+  matchedTierLabel,
 }: DynamicPricingBreakdownProps) {
   const { t } = useTranslation()
   const expr = billingExpr || ''
@@ -180,7 +188,7 @@ export function DynamicPricingBreakdown({
     (v) =>
       hasTiers &&
       tiers.some(
-        (tier) => Number(tier[(v.field as string) as keyof ParsedTier] || 0) > 0
+        (tier) => Number(tier[v.field as string as keyof ParsedTier] || 0) > 0
       )
   )
 
@@ -225,15 +233,35 @@ export function DynamicPricingBreakdown({
               <TableBody>
                 {tiers.map((tier, i) => {
                   const condSummary = formatConditionSummary(tier.conditions, t)
+                  const isMatched =
+                    matchedTierLabel != null &&
+                    matchedTierLabel !== '' &&
+                    tier.label === matchedTierLabel
                   return (
-                    <TableRow key={`tier-${i}`}>
+                    <TableRow
+                      key={`tier-${i}`}
+                      className={cn(
+                        isMatched &&
+                          'bg-emerald-50/70 hover:bg-emerald-50/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/10'
+                      )}
+                    >
                       <TableCell className='py-2.5 align-top'>
-                        <Badge
-                          variant='secondary'
-                          className='bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
-                        >
-                          {tier.label || t('Default')}
-                        </Badge>
+                        <div className='flex flex-wrap items-center gap-1.5'>
+                          <Badge
+                            variant='secondary'
+                            className='bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+                          >
+                            {tier.label || t('Default')}
+                          </Badge>
+                          {isMatched && (
+                            <Badge
+                              variant='secondary'
+                              className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                            >
+                              {t('Matched')}
+                            </Badge>
+                          )}
+                        </div>
                         {condSummary && (
                           <div className='text-muted-foreground mt-1 text-xs'>
                             {condSummary}
@@ -242,7 +270,7 @@ export function DynamicPricingBreakdown({
                       </TableCell>
                       {visiblePriceFields.map((v) => {
                         const value = Number(
-                          tier[(v.field as string) as keyof ParsedTier] || 0
+                          tier[v.field as string as keyof ParsedTier] || 0
                         )
                         return (
                           <TableCell

@@ -19,8 +19,8 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getLobeIcon } from '@/lib/lobe-icon'
-import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {

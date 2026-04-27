@@ -2,13 +2,13 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
-import { StatusBadge } from '@/components/status-badge'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { StatusBadge } from '@/components/status-badge'
 import type { RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
 
@@ -52,7 +52,10 @@ const SYNC_FIELD_ORDER: RatioType[] = [
   'billing_expr',
 ]
 
-const NUMERIC_SYNC_FIELDS = new Set<string>([...RATIO_SYNC_FIELDS, 'model_price'])
+const NUMERIC_SYNC_FIELDS = new Set<string>([
+  ...RATIO_SYNC_FIELDS,
+  'model_price',
+])
 
 export function getSyncFieldLabel(
   ratioType: string,
@@ -172,8 +175,7 @@ export function useUpstreamRatioSyncColumns(
                   copyable={false}
                 />
                 {(() => {
-                  const current =
-                    row.original.ratioTypes[ratioType]?.current
+                  const current = row.original.ratioTypes[ratioType]?.current
                   if (current === null || current === undefined) {
                     return (
                       <StatusBadge
@@ -197,7 +199,7 @@ export function useUpstreamRatioSyncColumns(
                           />
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p className='max-w-xs break-all text-xs'>{text}</p>
+                          <p className='max-w-xs text-xs break-all'>{text}</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -252,7 +254,9 @@ export function useUpstreamRatioSyncColumns(
           <div className='flex items-center gap-2'>
             {selectableCount > 0 && (
               <Checkbox
-                checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                checked={
+                  allSelected ? true : someSelected ? 'indeterminate' : false
+                }
                 disabled={isDisabled}
                 onCheckedChange={(checked) => {
                   if (checked) {
@@ -351,7 +355,7 @@ export function useUpstreamRatioSyncColumns(
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p className='max-w-xs break-all text-xs'>
+                                <p className='max-w-xs text-xs break-all'>
                                   {text}
                                 </p>
                               </TooltipContent>

@@ -95,9 +95,9 @@ export function UpstreamRatioSyncTable({
     filteredData.forEach((row) => {
       getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
         (ratioType) => {
-          Object.keys(
-            row.ratioTypes[ratioType]?.upstreams || {}
-          ).forEach((name) => set.add(name))
+          Object.keys(row.ratioTypes[ratioType]?.upstreams || {}).forEach(
+            (name) => set.add(name)
+          )
         }
       )
     })
