@@ -41,9 +41,7 @@ const ModelDeploymentPage = () => {
       connectionError={connectionError}
       onRetry={() => testConnection()}
     >
-      <div className='mt-[60px] px-2'>
-        <DeploymentsTable />
-      </div>
+      <DeploymentsTable />
     </DeploymentAccessGuard>
   );
 };

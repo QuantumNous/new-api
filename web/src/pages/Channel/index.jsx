@@ -20,12 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import ChannelsTable from '../../components/table/channels';
 
-const File = () => {
-  return (
-    <div className='mt-[60px] px-2'>
-      <ChannelsTable />
-    </div>
-  );
-};
+const File = () => <ChannelsTable />;
 
 export default File;

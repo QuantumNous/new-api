@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Skeleton } from '@heroui/react';
-import { Inbox } from 'lucide-react';
+import { EmptyState } from '@heroui-pro/react';
+import { SearchX } from 'lucide-react';
 import CardTable from '../../../../common/ui/CardTable';
 import { getPricingTableColumns } from './PricingTableColumns';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
@@ -145,11 +146,20 @@ const PricingTable = ({
             style: { cursor: 'pointer' },
           })}
           empty={
-            <div className='flex flex-col items-center gap-3 py-10 text-center'>
-              <div className='flex h-20 w-20 items-center justify-center rounded-full bg-surface-secondary text-muted'>
-                <Inbox size={36} />
-              </div>
-              <div className='text-sm text-muted'>{t('搜索无结果')}</div>
+            // Match the /console panels' empty-state styling — heroui-pro
+            // <EmptyState> with variant="icon" + size="sm".
+            <div className='py-10'>
+              <EmptyState size='sm'>
+                <EmptyState.Header>
+                  <EmptyState.Media variant='icon'>
+                    <SearchX />
+                  </EmptyState.Media>
+                  <EmptyState.Title>{t('搜索无结果')}</EmptyState.Title>
+                  <EmptyState.Description>
+                    {t('尝试调整筛选条件或搜索关键词')}
+                  </EmptyState.Description>
+                </EmptyState.Header>
+              </EmptyState>
             </div>
           }
           hidePagination
@@ -274,14 +284,22 @@ const PricingTable = ({
                     colSpan={
                       processedColumns.length + (selectionEnabled ? 1 : 0)
                     }
-                    className='py-12 text-center text-sm text-muted'
+                    className='py-12'
                   >
-                    <div className='flex flex-col items-center gap-3'>
-                      <div className='flex h-20 w-20 items-center justify-center rounded-full bg-surface-secondary text-muted'>
-                        <Inbox size={36} />
-                      </div>
-                      <div>{t('搜索无结果')}</div>
-                    </div>
+                    {/* Match the /console panels' empty-state styling. */}
+                    <EmptyState size='sm'>
+                      <EmptyState.Header>
+                        <EmptyState.Media variant='icon'>
+                          <SearchX />
+                        </EmptyState.Media>
+                        <EmptyState.Title>
+                          {t('搜索无结果')}
+                        </EmptyState.Title>
+                        <EmptyState.Description>
+                          {t('尝试调整筛选条件或搜索关键词')}
+                        </EmptyState.Description>
+                      </EmptyState.Header>
+                    </EmptyState>
                   </td>
                 </tr>
               ) : (

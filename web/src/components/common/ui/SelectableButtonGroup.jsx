@@ -132,6 +132,18 @@ const SelectableButtonGroup = ({
     );
   };
 
+  // High-contrast active state: black button bg + white text in light mode
+  // (inverts in dark). We override heroui Button's color tokens directly via
+  // Tailwind arbitrary properties so the override propagates through the
+  // base / hover / pressed states without us having to redeclare each.
+  // Inactive state stays as `outline` shell but with `text-muted` so the
+  // selected option clearly stands out from the rest.
+  const activeButtonClass =
+    'border-foreground [--button-bg:var(--foreground)] [--button-fg:var(--background)] [--button-bg-hover:var(--foreground)] [--button-bg-pressed:var(--foreground)]';
+  const inactiveButtonClass = 'text-muted';
+  const activeBadgeClass = 'bg-background/20 text-background';
+  const inactiveBadgeClass = 'bg-surface-secondary text-muted';
+
   const contentElement = showSkeleton ? (
     renderSkeletonButtons()
   ) : (
@@ -146,8 +158,10 @@ const SelectableButtonGroup = ({
             <div key={item.value}>
               <Button
                 onPress={() => onChange(item.value)}
-                variant={isActive ? 'secondary' : 'outline'}
-                className='h-8 w-full justify-start rounded-xl px-2'
+                variant='outline'
+                className={`h-8 w-full justify-start rounded-xl px-2 ${
+                  isActive ? activeButtonClass : inactiveButtonClass
+                }`}
               >
                 <div className='flex min-w-0 flex-1 items-center gap-2'>
                   <Checkbox
@@ -160,9 +174,7 @@ const SelectableButtonGroup = ({
                   {item.tagCount !== undefined && shouldShowTags && (
                     <span
                       className={`ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-medium ${
-                        isActive
-                          ? 'bg-accent text-accent-foreground'
-                          : 'bg-surface-secondary text-muted'
+                        isActive ? activeBadgeClass : inactiveBadgeClass
                       }`}
                     >
                       {item.tagCount}
@@ -178,8 +190,10 @@ const SelectableButtonGroup = ({
           <div key={item.value}>
             <Button
               onPress={() => onChange(item.value)}
-              variant={isActive ? 'secondary' : 'outline'}
-              className='h-8 w-full justify-start rounded-xl px-2'
+              variant='outline'
+              className={`h-8 w-full justify-start rounded-xl px-2 ${
+                isActive ? activeButtonClass : inactiveButtonClass
+              }`}
             >
               <div className='flex min-w-0 flex-1 items-center gap-2'>
                 {item.icon && <span className='shrink-0'>{item.icon}</span>}
@@ -187,9 +201,7 @@ const SelectableButtonGroup = ({
                 {item.tagCount !== undefined && shouldShowTags && item.tagCount !== '' && (
                   <span
                     className={`ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-medium ${
-                      isActive
-                        ? 'bg-accent text-accent-foreground'
-                        : 'bg-surface-secondary text-muted'
+                      isActive ? activeBadgeClass : inactiveBadgeClass
                     }`}
                   >
                     {item.tagCount}

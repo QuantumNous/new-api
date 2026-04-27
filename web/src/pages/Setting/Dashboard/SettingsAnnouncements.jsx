@@ -32,10 +32,10 @@ import {
   Tooltip,
   useOverlayState,
 } from '@heroui/react';
+import { EmptyState } from '@heroui-pro/react';
 import {
   Bell,
   Edit,
-  Inbox,
   Maximize2,
   Plus,
   Save,
@@ -461,13 +461,22 @@ const SettingsAnnouncements = ({ options, refresh }) => {
           <tbody className='divide-y divide-[color:var(--app-border)]'>
             {pagedData.length === 0 ? (
               <tr>
-                <td colSpan={6} className='py-12 text-center text-sm text-muted'>
-                  <div className='flex flex-col items-center gap-3'>
-                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
-                      <Inbox size={28} />
-                    </div>
-                    <div>{t('暂无系统公告')}</div>
-                  </div>
+                {/* Use heroui-pro's EmptyState so this matches the same
+                    component the /console dashboard's AnnouncementsPanel
+                    uses for its empty state — same icon, same typography,
+                    same spacing. */}
+                <td colSpan={6} className='py-12'>
+                  <EmptyState size='sm'>
+                    <EmptyState.Header>
+                      <EmptyState.Media variant='icon'>
+                        <Bell />
+                      </EmptyState.Media>
+                      <EmptyState.Title>{t('暂无系统公告')}</EmptyState.Title>
+                      <EmptyState.Description>
+                        {t('点击上方「添加公告」按钮添加系统公告')}
+                      </EmptyState.Description>
+                    </EmptyState.Header>
+                  </EmptyState>
                 </td>
               </tr>
             ) : (

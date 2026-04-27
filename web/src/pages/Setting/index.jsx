@@ -199,30 +199,28 @@ const Setting = () => {
   const activePane = panes.find((pane) => pane.itemKey === tabActiveKey) || panes[0];
 
   return (
-    <div className='mt-[60px] px-2'>
-      <main className='min-w-0'>
-        <div className='mb-4 flex flex-wrap items-center gap-2'>
-          {panes.map((pane) => {
-            const selected = pane.itemKey === tabActiveKey;
-            return (
-              <button
-                key={pane.itemKey}
-                type='button'
-                className={`rounded-full px-4 py-2 text-sm transition ${
-                  selected
-                    ? 'bg-foreground text-background'
-                    : 'bg-surface-secondary text-muted'
-                }`}
-                aria-current={selected ? 'page' : undefined}
-                onClick={() => onChangeTab(pane.itemKey)}
-              >
-                {pane.tab}
-              </button>
-            );
-          })}
-        </div>
-        <div key={activePane?.itemKey}>{activePane?.content}</div>
-      </main>
+    <div className='min-w-0'>
+      <div className='mb-4 flex flex-wrap items-center gap-2'>
+        {panes.map((pane) => {
+          const selected = pane.itemKey === tabActiveKey;
+          return (
+            <button
+              key={pane.itemKey}
+              type='button'
+              className={`rounded-full px-4 py-2 text-sm transition ${
+                selected
+                  ? 'bg-foreground text-background'
+                  : 'bg-surface-secondary text-muted'
+              }`}
+              aria-current={selected ? 'page' : undefined}
+              onClick={() => onChangeTab(pane.itemKey)}
+            >
+              {pane.tab}
+            </button>
+          );
+        })}
+      </div>
+      <div key={activePane?.itemKey}>{activePane?.content}</div>
     </div>
   );
 };

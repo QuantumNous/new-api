@@ -20,10 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import Dashboard from '../../components/dashboard';
 
-const Detail = () => (
-  <div className='mt-[60px] px-2'>
-    <Dashboard />
-  </div>
-);
+const Detail = () => <Dashboard />;
 
 export default Detail;

@@ -37,22 +37,31 @@ const PricingPage = () => {
     setViewMode,
   };
 
+  // The page is rendered inside <main> from PageLayout, which already
+  // handles the global header offset and provides a bounded height. We
+  // just fill that container with `h-full` and create independent scroll
+  // for the filter sidebar + main content. The previous `pt-[60px]` /
+  // `h-[100dvh]` was a leftover from when this page rendered outside the
+  // app shell — it duplicated the header offset and caused a redundant
+  // viewport-sized box.
+  //
+  // Inner element is a `<div>` (not nested `<main>`) since PageLayout
+  // already owns the document `<main>` landmark; nesting two would be
+  // invalid HTML.
   return (
-    <div className='h-[100dvh] overflow-hidden bg-background pt-[60px]'>
-      <div className='flex h-[calc(100dvh-60px)] min-h-0 bg-transparent'>
-        {!isMobile && (
-          <aside className='pricing-scroll-hide h-full w-72 shrink-0 overflow-y-auto border-r border-border bg-background px-2 py-4'>
-            <PricingSidebar {...allProps} />
-          </aside>
-        )}
+    <div className='flex h-full min-h-0 overflow-hidden bg-background'>
+      {!isMobile && (
+        <aside className='pricing-scroll-hide h-full w-72 shrink-0 overflow-y-auto border-r border-border bg-background px-2 py-4'>
+          <PricingSidebar {...allProps} />
+        </aside>
+      )}
 
-        <main className='pricing-scroll-hide h-full min-w-0 flex-1 overflow-y-auto bg-background'>
-          <PricingContent
-            {...allProps}
-            isMobile={isMobile}
-            sidebarProps={allProps}
-          />
-        </main>
+      <div className='pricing-scroll-hide h-full min-w-0 flex-1 overflow-y-auto bg-background'>
+        <PricingContent
+          {...allProps}
+          isMobile={isMobile}
+          sidebarProps={allProps}
+        />
       </div>
 
       {pricingData.isModalOpenurl && pricingData.modalImageUrl ? (

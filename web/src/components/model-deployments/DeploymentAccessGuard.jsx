@@ -41,7 +41,7 @@ const DeploymentAccessGuard = ({
 
   if (loading) {
     return (
-      <div className='mt-[60px] px-2'>
+      <div>
         <Card className='min-h-[400px] rounded-2xl border border-border bg-background/80 shadow-sm'>
           <div className='flex flex-col items-center justify-center gap-3 py-20 text-center'>
             <Spinner size='lg' />
@@ -56,7 +56,7 @@ const DeploymentAccessGuard = ({
 
   if (!isEnabled) {
     return (
-      <div className='mt-[60px] flex min-h-[calc(100vh-60px)] items-center justify-center px-4'>
+      <div className='flex min-h-[calc(100vh-180px)] items-center justify-center px-4'>
         <div className='w-full max-w-2xl px-5 text-center'>
           <Card className='rounded-[28px] border border-warning/30 bg-warning/5 p-10 shadow-[0_24px_80px_rgba(15,23,42,0.12)]'>
             <div className='mb-8'>
@@ -121,7 +121,7 @@ const DeploymentAccessGuard = ({
 
   if (connectionLoading || (connectionOk === null && !connectionError)) {
     return (
-      <div className='mt-[60px] px-2'>
+      <div>
         <Card className='min-h-[400px] rounded-2xl border border-border bg-background/80 shadow-sm'>
           <div className='flex flex-col items-center justify-center gap-3 py-20 text-center'>
             <Spinner size='lg' />
@@ -143,7 +143,7 @@ const DeploymentAccessGuard = ({
     const detail = connectionError?.message || '';
 
     return (
-      <div className='mt-[60px] flex min-h-[calc(100vh-60px)] items-center justify-center px-4'>
+      <div className='flex min-h-[calc(100vh-180px)] items-center justify-center px-4'>
         <div className='w-full max-w-2xl px-5 text-center'>
           <Card className='rounded-[28px] border border-danger/30 bg-danger/5 p-10 shadow-[0_24px_80px_rgba(15,23,42,0.12)]'>
             <div className='mb-8'>

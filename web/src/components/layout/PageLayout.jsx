@@ -23,8 +23,13 @@ import App from '../../App';
 import FooterBar from './Footer';
 import ToastViewport from '../ui/ToastViewport';
 import ErrorBoundary from '../common/ErrorBoundary';
+import {
+  PageHeaderProvider,
+  usePageHeaderContent,
+} from './PageHeaderContext';
 import React, { useCallback, useContext, useEffect } from 'react';
 import { Sidebar, useSidebar } from '@heroui-pro/react';
+import { PanelLeft } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -79,7 +84,7 @@ const getFallbackStatus = () => {
 const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
   const [, statusDispatch] = useContext(StatusContext);
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -198,48 +203,101 @@ const PageLayout = () => {
       // to scroll, which broke the sticky-sidebar UX.
       className='app-layout flex !flex-col h-dvh overflow-hidden'
     >
-      <header className='shrink-0 z-50 w-full'>
-        <HeaderBar />
-      </header>
+      <PageHeaderProvider>
+        <header className='shrink-0 z-50 w-full'>
+          <HeaderBar />
+        </header>
 
-      <div className='flex flex-1 min-h-0 w-full'>
-        {isConsoleRoute && <SiderBar />}
+        <div className='flex flex-1 min-h-0 w-full'>
+          {isConsoleRoute && <SiderBar />}
 
-        <main
-          className='flex-1 min-w-0 relative overflow-y-auto'
-          style={{
-            padding: shouldInnerPadding ? '24px' : 0,
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
-          {isConsoleRoute ? <ConsolePageTrigger /> : null}
-          <ErrorBoundary key={location.pathname}>
-            <App />
-          </ErrorBoundary>
-          {!shouldHideFooter && (
-            <footer className='w-full'>
-              <FooterBar />
-            </footer>
-          )}
-        </main>
-      </div>
+          {/*
+            Right content column. On console routes we render a single
+            page-header row above <main> that hosts the sidebar collapse
+            trigger plus any title/actions a page contributes via
+            `usePageHeader(...)`. This mirrors heroui-pro's AppLayout where
+            the trigger lives in the navbar row at the top of the body
+            column — and lets pages like Dashboard place their greeting on
+            the same row instead of stacking it below.
+          */}
+          <div className='flex flex-1 min-w-0 flex-col'>
+            {isConsoleRoute && <ConsolePageHeader t={t} />}
 
-      <ToastViewport />
+            {/*
+              Padding lives on an inner wrapper rather than on <main> itself.
+              Putting `padding-bottom` directly on a `overflow-y: auto`
+              container causes the bottom gap to disappear when content
+              overflows (browsers treat the padding-bottom as part of the
+              scroll viewport, not the scroll content). Moving it onto a
+              normal block child preserves both top *and* bottom breathing
+              room regardless of scroll state.
+            */}
+            <main
+              className='flex-1 min-w-0 relative overflow-y-auto'
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <div className={shouldInnerPadding ? 'p-6' : ''}>
+                <ErrorBoundary key={location.pathname}>
+                  <App />
+                </ErrorBoundary>
+              </div>
+              {!shouldHideFooter && (
+                <footer className='w-full'>
+                  <FooterBar />
+                </footer>
+              )}
+            </main>
+          </div>
+        </div>
+
+        <ToastViewport />
+      </PageHeaderProvider>
     </Sidebar.Provider>
   );
 };
 
-// Renders <Sidebar.Trigger /> at the top-left of every console page's
-// content area — but only while the sidebar is expanded. Once the sidebar
-// collapses, the trigger moves *into* the sidebar's top (rendered by
-// CollapsedHeaderTrigger inside SiderBar.jsx) so it's anchored to whichever
-// side of the page is most useful in each state.
-function ConsolePageTrigger() {
-  const { isOpen } = useSidebar();
-  if (!isOpen) return null;
+// Single console page-header row: [trigger] [page title]      [page actions].
+// Pages contribute their `title` / `actions` slots via the `usePageHeader`
+// hook (see PageHeaderContext). Pages that don't push anything just get a
+// trigger-only row, which keeps every console page visually consistent.
+//
+// On mobile the trigger is suppressed because `MobileMenuButton` in the
+// global HeaderBar already toggles the same `Sidebar.Mobile` sheet —
+// rendering both would put two identical controls within ~80px of each
+// other. If a page also provides no title/actions, we hide the whole row
+// so we don't leave an empty padding bar above content.
+function ConsolePageHeader({ t }) {
+  const { isOpen, isMobile } = useSidebar();
+  const { title, actions } = usePageHeaderContent();
+
+  if (isMobile && !title && !actions) {
+    return null;
+  }
+
+  const label = isOpen ? t('收起侧边栏') : t('打开侧边栏');
+
+  // Horizontal padding matches <main>'s 24px (`pt-1 pb-0` keeps the header
+  // visually compact — the 24px gap below comes from <main>'s padding-top
+  // alone, no double-spacing). Aligning to 24px makes the trigger button
+  // and any page-supplied actions sit flush with the card edges below,
+  // since console pages already render inside <main padding=24>.
   return (
-    <div className='mb-3 flex items-center'>
-      <Sidebar.Trigger />
+    <div className='shrink-0 flex items-center justify-between gap-3 px-6 pt-3 pb-1'>
+      <div className='flex items-center gap-3 min-w-0 flex-1'>
+        {!isMobile && (
+          <Sidebar.Trigger
+            variant='tertiary'
+            aria-label={label}
+            className='rounded-full text-foreground hover:bg-surface-secondary shrink-0'
+          >
+            <PanelLeft size={19} strokeWidth={2.4} />
+          </Sidebar.Trigger>
+        )}
+        {title}
+      </div>
+      {actions ? (
+        <div className='flex items-center gap-1 shrink-0'>{actions}</div>
+      ) : null}
     </div>
   );
 }
