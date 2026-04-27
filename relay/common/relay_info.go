@@ -545,7 +545,14 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 	case types.RelayFormatOpenAIImage:
 		info = GenRelayInfoImage(c, request)
 	case types.RelayFormatVolc:
-		info = GenRelayInfoVolc(c, request)
+		// When called with a nil request (task path), build task-style relay info.
+		if request == nil {
+			info = genBaseRelayInfo(c, nil)
+			info.TaskRelayInfo = &TaskRelayInfo{}
+			info.RelayFormat = types.RelayFormatVolc
+		} else {
+			info = GenRelayInfoVolc(c, request)
+		}
 	case types.RelayFormatOpenAIRealtime:
 		info = GenRelayInfoWs(c, ws)
 	case types.RelayFormatClaude:
