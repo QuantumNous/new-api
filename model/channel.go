@@ -275,6 +275,12 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool) ([]*Chan
 	return channels, err
 }
 
+func GetAutoDisabledChannelsWithAutoBan() ([]*Channel, error) {
+	var channels []*Channel
+	err := DB.Where("status = ? AND auto_ban = ?", common.ChannelStatusAutoDisabled, 1).Find(&channels).Error
+	return channels, err
+}
+
 func GetChannelsByTag(tag string, idSort bool, selectAll bool) ([]*Channel, error) {
 	var channels []*Channel
 	order := "priority desc"

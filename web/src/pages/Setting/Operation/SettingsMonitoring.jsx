@@ -44,6 +44,8 @@ export default function SettingsMonitoring(props) {
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
+    'monitor_setting.auto_test_disabled_channel_enabled': false,
+    'monitor_setting.auto_test_disabled_channel_minutes': 10,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -162,6 +164,48 @@ export default function SettingsMonitoring(props) {
                         parseInt(value),
                     })
                   }
+                />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'monitor_setting.auto_test_disabled_channel_enabled'}
+                  label={t('定时测试自动禁用的通道')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  extraText={t(
+                    '仅测试开启了自动禁用的通道，需同时开启「成功时自动启用通道」',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_disabled_channel_enabled':
+                        value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('自动测试禁用通道间隔时间')}
+                  step={1}
+                  min={1}
+                  suffix={t('分钟')}
+                  extraText={t(
+                    '每隔多少分钟测试一次自动禁用的通道，成功后自动启用',
+                  )}
+                  placeholder={''}
+                  field={'monitor_setting.auto_test_disabled_channel_minutes'}
+                  onChange={(value) => {
+                    const parsed = parseInt(value);
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.auto_test_disabled_channel_minutes':
+                        isNaN(parsed) ? 10 : parsed,
+                    });
+                  }}
                 />
               </Col>
             </Row>
