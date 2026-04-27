@@ -1210,6 +1210,177 @@ html.dark .with-pastel-balls::before {
   font-weight: 700;
 }
 
+.dashboard-promo-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  overflow: hidden;
+  padding: 26px 28px;
+  border: 1px solid rgba(198, 145, 255, 0.24);
+  border-radius: 32px;
+  background: linear-gradient(
+    102deg,
+    #b14df1 0%,
+    #e447a4 44%,
+    #7d7df8 72%,
+    #2ea8ff 100%
+  );
+  box-shadow: 0 28px 48px rgba(177, 77, 241, 0.16);
+}
+
+.dashboard-promo-glow {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+  filter: blur(16px);
+  opacity: 0.58;
+}
+
+.dashboard-promo-glow-left {
+  top: -44px;
+  left: -18px;
+  width: 180px;
+  height: 180px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.dashboard-promo-glow-right {
+  right: -42px;
+  bottom: -64px;
+  width: 220px;
+  height: 220px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.dashboard-promo-main,
+.dashboard-promo-actions {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-promo-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.dashboard-promo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  min-width: 58px;
+  height: 58px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  backdrop-filter: blur(12px);
+}
+
+.dashboard-promo-copy {
+  min-width: 0;
+}
+
+.dashboard-promo-topline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.dashboard-promo-eyebrow {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.dashboard-promo-badge.semi-tag {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-promo-title {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.dashboard-promo-subtitle {
+  max-width: 680px;
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.dashboard-promo-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.dashboard-promo-pill {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard-promo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.dashboard-promo-button.semi-button {
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 999px !important;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
+}
+
+.dashboard-promo-button-primary.semi-button {
+  border: none;
+  background: rgba(255, 255, 255, 0.96);
+  color: #b14df1;
+}
+
+.dashboard-promo-button-primary.semi-button:hover {
+  background: #ffffff;
+  color: #9f3eed;
+}
+
+.dashboard-promo-button-secondary.semi-button {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.dashboard-promo-button-secondary.semi-button:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
 .dashboard-chart-panel.semi-card,
 .dashboard-uptime-panel.semi-card {
   overflow: hidden;
@@ -1289,12 +1460,14 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-chart-tabs .semi-tabs-bar {
+  display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .dashboard-chart-tabs .semi-tabs-tab-button {
   min-height: 40px;
-  padding: 0 14px;
+  /* padding: 0 14px; */
   border: 1px solid rgba(220, 226, 236, 0.95);
   border-radius: 999px !important;
   background: rgba(255, 255, 255, 0.9);
@@ -1595,7 +1768,246 @@ html.dark .with-pastel-balls::before {
   background: rgba(220, 226, 236, 0.95);
 }
 
+html.dark .dashboard-header-panel {
+  border-color: rgba(58, 66, 82, 0.9);
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(177, 77, 241, 0.16),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 86% 18%,
+      rgba(46, 168, 255, 0.12),
+      transparent 22%
+    ),
+    linear-gradient(135deg, #111318 0%, #141821 52%, #10141b 100%);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.32);
+  color: #f8fafc;
+}
+
+html.dark .dashboard-header-panel::before {
+  background: rgba(226, 94, 193, 0.12);
+}
+
+html.dark .dashboard-header-panel::after {
+  background: rgba(42, 191, 255, 0.1);
+}
+
+html.dark .dashboard-header-eyebrow,
+html.dark .dashboard-panel-eyebrow {
+  color: #d48dff;
+}
+
+html.dark .dashboard-header-title,
+html.dark .dashboard-card-title,
+html.dark .dashboard-card-title > div,
+html.dark .dashboard-panel-title-row,
+html.dark .dashboard-chart-title-group > div:first-child,
+html.dark .dashboard-api-route,
+html.dark .dashboard-announcements-timeline .semi-timeline-item-content,
+html.dark .dashboard-announcement-content,
+html.dark .dashboard-announcement-content p,
+html.dark .dashboard-announcement-extra p,
+html.dark .dashboard-faq-answer p,
+html.dark .dashboard-uptime-monitor-name {
+  color: #f8fafc;
+}
+
+html.dark .dashboard-header-subtitle,
+html.dark .dashboard-chart-subtitle,
+html.dark .dashboard-metric-label,
+html.dark .dashboard-api-description,
+html.dark .dashboard-legend-label,
+html.dark .dashboard-announcement-extra,
+html.dark .dashboard-faq-answer,
+html.dark .dashboard-uptime-monitor-status,
+html.dark .dashboard-uptime-group-title,
+html.dark .dashboard-uptime-panel .dashboard-legend-label,
+html.dark .dashboard-uptime-panel .dashboard-uptime-monitor-status,
+html.dark .dashboard-uptime-panel .dashboard-uptime-group-title,
+html.dark .dashboard-uptime-panel .dashboard-uptime-monitor-percent {
+  color: #98a2b3;
+}
+
+html.dark .dashboard-header-button.semi-button,
+html.dark .dashboard-uptime-refresh.semi-button {
+  border-color: rgba(66, 76, 94, 0.95);
+  background: rgba(19, 23, 31, 0.92);
+  color: #f8fafc;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+html.dark .dashboard-header-button.semi-button:hover,
+html.dark .dashboard-uptime-refresh.semi-button:hover {
+  border-color: rgba(89, 99, 120, 1);
+  background: rgba(25, 31, 42, 0.98);
+  color: #ffffff;
+}
+
+html.dark .dashboard-metric-card.semi-card,
+html.dark .dashboard-chart-panel.semi-card,
+html.dark .dashboard-uptime-panel.semi-card,
+html.dark .dashboard-api-panel.semi-card,
+html.dark .dashboard-announcements-panel.semi-card,
+html.dark .dashboard-faq-panel.semi-card {
+  border-color: rgba(50, 58, 73, 0.96);
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.22);
+}
+
+html.dark .dashboard-metric-card.semi-card {
+  background: linear-gradient(180deg, #14161c 0%, #111318 100%);
+}
+
+html.dark .dashboard-metric-card.semi-card::after {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--dashboard-accent, #0052ff) 22%, black) 0%,
+    rgba(0, 0, 0, 0) 72%
+  );
+}
+
+html.dark .dashboard-card-index {
+  color: rgba(255, 255, 255, 0.24);
+}
+
+html.dark .dashboard-metric-item + .dashboard-metric-item {
+  border-top-color: rgba(52, 60, 75, 0.92);
+}
+
+html.dark .dashboard-metric-value {
+  color: #f8fafc;
+}
+
+html.dark .dashboard-metric-trend {
+  background: linear-gradient(135deg, #181c24 0%, #11161d 100%);
+}
+
+html.dark .dashboard-metric-action-tag.semi-tag,
+html.dark .dashboard-api-tag.semi-tag,
+html.dark .dashboard-panel-badge.semi-tag,
+html.dark .dashboard-uptime-count.semi-tag {
+  border-color: rgba(58, 68, 84, 0.95);
+  background: rgba(29, 35, 46, 0.96);
+  color: #f8fafc;
+}
+
+html.dark .dashboard-promo-banner {
+  border-color: rgba(186, 120, 255, 0.2);
+  background: linear-gradient(
+    102deg,
+    #9f48df 0%,
+    #dd449d 42%,
+    #6c6ff0 72%,
+    #2a9ce8 100%
+  );
+  box-shadow: 0 30px 54px rgba(0, 0, 0, 0.28);
+}
+
+html.dark .dashboard-promo-button-primary.semi-button {
+  background: rgba(255, 255, 255, 0.96);
+  color: #a242ee;
+}
+
+html.dark .dashboard-promo-button-secondary.semi-button {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+html.dark .dashboard-chart-panel.semi-card,
+html.dark .dashboard-uptime-panel.semi-card {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(177, 77, 241, 0.1),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(46, 168, 255, 0.08),
+      transparent 26%
+    ),
+    linear-gradient(145deg, #14171d 0%, #101319 100%);
+  color: #f8fafc;
+}
+
+html.dark .dashboard-chart-tabs .semi-tabs-tab-button,
+html.dark .dashboard-uptime-tabs .semi-tabs-tab-button {
+  border-color: rgba(60, 69, 85, 0.96);
+  background: rgba(22, 27, 36, 0.95);
+  color: #98a2b3;
+}
+
+html.dark .dashboard-chart-canvas {
+  border-color: rgba(49, 58, 74, 0.96);
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(46, 168, 255, 0.08),
+      transparent 22%
+    ),
+    linear-gradient(180deg, #12161d 0%, #0f1318 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 12px 24px rgba(0, 0, 0, 0.18);
+}
+
+html.dark .dashboard-api-panel.semi-card,
+html.dark .dashboard-announcements-panel.semi-card,
+html.dark .dashboard-faq-panel.semi-card {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(177, 77, 241, 0.08),
+      transparent 22%
+    ),
+    linear-gradient(180deg, #14171d 0%, #111318 100%);
+}
+
+html.dark .dashboard-panel-fade {
+  background: linear-gradient(transparent, #111318);
+}
+
+html.dark .dashboard-api-url,
+html.dark .dashboard-api-copy-icon:hover {
+  color: #d48dff;
+}
+
+html.dark .dashboard-api-copy-icon {
+  color: #98a2b3;
+}
+
+html.dark .dashboard-api-divider.semi-divider,
+html.dark .dashboard-faq-collapse .semi-collapse-item,
+html.dark .dashboard-uptime-legend,
+html.dark .dashboard-uptime-monitor-item + .dashboard-uptime-monitor-item {
+  border-color: rgba(52, 60, 75, 0.92);
+}
+
+html.dark .dashboard-faq-collapse .semi-collapse-header {
+  color: #f8fafc;
+}
+
+html.dark .dashboard-uptime-group-title {
+  color: #98a2b3;
+}
+
+html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
+  background: rgba(39, 46, 58, 0.98);
+}
+
 @media (max-width: 1279px) {
+  .dashboard-promo-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dashboard-promo-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .dashboard-chart-header,
   .dashboard-announcements-header,
   .dashboard-uptime-header {
@@ -1617,6 +2029,7 @@ html.dark .with-pastel-balls::before {
   }
 
   .dashboard-header-panel,
+  .dashboard-promo-banner,
   .dashboard-chart-panel.semi-card,
   .dashboard-uptime-panel.semi-card,
   .dashboard-api-panel.semi-card,
@@ -1626,6 +2039,7 @@ html.dark .with-pastel-balls::before {
   }
 
   .dashboard-header-actions,
+  .dashboard-promo-main,
   .dashboard-api-topline,
   .dashboard-api-url-row {
     flex-direction: column;
