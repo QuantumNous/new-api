@@ -151,7 +151,7 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <div className='h-full'>
+    <div className='dashboard-shell h-full'>
       <DashboardHeader
         getGreeting={dashboardData.getGreeting}
         greetingVisible={dashboardData.greetingVisible}
@@ -183,7 +183,7 @@ const Dashboard = () => {
       />
 
       {/* API信息和图表面板 */}
-      <div className='mb-4'>
+      <div className='dashboard-analytics-row mb-4'>
         <div
           className={`grid grid-cols-1 gap-4 ${dashboardData.hasApiInfoPanel ? 'lg:grid-cols-4' : ''}`}
         >
@@ -220,7 +220,7 @@ const Dashboard = () => {
 
       {/* 系统公告和常见问答卡片 */}
       {dashboardData.hasInfoPanels && (
-        <div className='mb-4'>
+        <div className='dashboard-insights-row mb-4'>
           <div className='grid grid-cols-1 lg:grid-cols-4 gap-4'>
             {/* 公告卡片 */}
             {dashboardData.announcementsEnabled && (

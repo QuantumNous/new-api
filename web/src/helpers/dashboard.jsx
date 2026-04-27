@@ -196,26 +196,24 @@ export const renderMonitorList = (
   });
 
   const renderItem = (monitor, idx) => (
-    <div key={idx} className='p-2 hover:bg-white rounded-lg transition-colors'>
-      <div className='flex items-center justify-between mb-1'>
-        <div className='flex items-center gap-2'>
+    <div key={idx} className='dashboard-uptime-monitor-item'>
+      <div className='dashboard-uptime-monitor-topline'>
+        <div className='dashboard-uptime-monitor-name'>
           <div
-            className='w-2 h-2 rounded-full flex-shrink-0'
+            className='dashboard-uptime-monitor-dot'
             style={{ backgroundColor: getUptimeStatusColor(monitor.status) }}
           />
-          <span className='text-sm font-medium text-gray-900'>
-            {monitor.name}
-          </span>
+          <span>{monitor.name}</span>
         </div>
-        <span className='text-xs text-gray-500'>
+        <span className='dashboard-uptime-monitor-percent'>
           {((monitor.uptime || 0) * 100).toFixed(2)}%
         </span>
       </div>
-      <div className='flex items-center gap-2'>
-        <span className='text-xs text-gray-500'>
+      <div className='dashboard-uptime-monitor-bottomline'>
+        <span className='dashboard-uptime-monitor-status'>
           {getUptimeStatusText(monitor.status)}
         </span>
-        <div className='flex-1'>
+        <div className='dashboard-uptime-monitor-progress'>
           <Progress
             percent={(monitor.uptime || 0) * 100}
             showInfo={false}
@@ -228,13 +226,11 @@ export const renderMonitorList = (
   );
 
   return Object.entries(grouped).map(([gname, list]) => (
-    <div key={gname || 'default'} className='mb-2'>
+    <div key={gname || 'default'} className='dashboard-uptime-monitor-group'>
       {gname && (
         <>
-          <div className='text-md font-semibold text-gray-500 px-2 py-1'>
-            {gname}
-          </div>
-          <Divider />
+          <div className='dashboard-uptime-group-title'>{gname}</div>
+          <Divider className='dashboard-api-divider' />
         </>
       )}
       {list.map(renderItem)}

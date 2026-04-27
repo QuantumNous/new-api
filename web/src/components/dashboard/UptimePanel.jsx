@@ -49,12 +49,15 @@ const UptimePanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
+      className='dashboard-uptime-panel !rounded-[2rem] lg:col-span-1'
       title={
-        <div className='flex items-center justify-between w-full gap-2'>
-          <div className='flex items-center gap-2'>
-            <Gauge size={16} />
-            {t('服务可用性')}
+        <div className='dashboard-panel-header dashboard-uptime-header'>
+          <div>
+            <div className='dashboard-panel-eyebrow'>{t('监控')}</div>
+            <div className='dashboard-panel-title-row'>
+              <Gauge size={16} />
+              {t('服务可用性')}
+            </div>
           </div>
           <Button
             icon={<RefreshCw size={14} />}
@@ -63,24 +66,29 @@ const UptimePanel = ({
             size='small'
             theme='borderless'
             type='tertiary'
-            className='text-gray-500 hover:text-blue-500 hover:bg-blue-50 !rounded-full'
+            className='dashboard-uptime-refresh'
           />
         </div>
       }
       bodyStyle={{ padding: 0 }}
     >
-      {/* 内容区域 */}
-      <div className='relative'>
+      <div className='dashboard-uptime-body'>
         <Spin spinning={uptimeLoading}>
           {uptimeData.length > 0 ? (
             uptimeData.length === 1 ? (
-              <ScrollableContainer maxHeight='24rem'>
+              <ScrollableContainer
+                maxHeight='24rem'
+                className='dashboard-panel-scroll-wrap'
+                contentClassName='dashboard-panel-scroll'
+                fadeIndicatorClassName='dashboard-panel-fade'
+              >
                 {renderMonitorList(uptimeData[0].monitors)}
               </ScrollableContainer>
             ) : (
               <Tabs
                 type='card'
                 collapsible
+                className='dashboard-uptime-tabs'
                 activeKey={activeUptimeTab}
                 onChange={setActiveUptimeTab}
                 size='small'
@@ -99,6 +107,7 @@ const UptimePanel = ({
                           }
                           size='small'
                           shape='circle'
+                          className='dashboard-uptime-count'
                         >
                           {group.monitors ? group.monitors.length : 0}
                         </Tag>
@@ -107,7 +116,12 @@ const UptimePanel = ({
                     itemKey={group.categoryName}
                     key={groupIdx}
                   >
-                    <ScrollableContainer maxHeight='21.5rem'>
+                    <ScrollableContainer
+                      maxHeight='21.5rem'
+                      className='dashboard-panel-scroll-wrap'
+                      contentClassName='dashboard-panel-scroll'
+                      fadeIndicatorClassName='dashboard-panel-fade'
+                    >
                       {renderMonitorList(group.monitors)}
                     </ScrollableContainer>
                   </TabPane>
@@ -115,7 +129,7 @@ const UptimePanel = ({
               </Tabs>
             )
           ) : (
-            <div className='flex justify-center items-center py-8'>
+            <div className='dashboard-panel-empty py-8'>
               <Empty
                 image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
                 darkModeImage={
@@ -129,17 +143,16 @@ const UptimePanel = ({
         </Spin>
       </div>
 
-      {/* 图例 */}
       {uptimeData.length > 0 && (
-        <div className='p-3 bg-gray-50 rounded-b-2xl'>
-          <div className='flex flex-wrap gap-3 text-xs justify-center'>
+        <div className='dashboard-uptime-legend'>
+          <div className='dashboard-legend-list justify-center'>
             {uptimeLegendData.map((legend, index) => (
-              <div key={index} className='flex items-center gap-1'>
+              <div key={index} className='dashboard-legend-item'>
                 <div
-                  className='w-2 h-2 rounded-full'
+                  className='dashboard-legend-dot'
                   style={{ backgroundColor: legend.color }}
                 />
-                <span className='text-gray-600'>{legend.label}</span>
+                <span className='dashboard-legend-label'>{legend.label}</span>
               </div>
             ))}
           </div>

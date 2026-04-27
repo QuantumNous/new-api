@@ -32,34 +32,46 @@ const StatsCards = ({
 }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const accentColors = ['#0052ff', '#0f766e', '#b45309', '#4f46e5'];
+
   return (
-    <div className='mb-4'>
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+    <div className='dashboard-stats-row mb-4'>
+      <div className='dashboard-stats-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
         {groupedStatsData.map((group, idx) => (
           <Card
             key={idx}
             {...CARD_PROPS}
-            className={`${group.color} border-0 !rounded-2xl w-full`}
-            title={group.title}
+            className='dashboard-metric-card w-full'
+            style={{
+              '--dashboard-accent': accentColors[idx % accentColors.length],
+            }}
+            title={
+              <div className='dashboard-card-heading'>
+                <div className='dashboard-card-title'>{group.title}</div>
+                <span className='dashboard-card-index'>
+                  {String(idx + 1).padStart(2, '0')}
+                </span>
+              </div>
+            }
           >
-            <div className='space-y-4'>
+            <div className='dashboard-metric-list'>
               {group.items.map((item, itemIdx) => (
                 <div
                   key={itemIdx}
-                  className='flex items-center justify-between cursor-pointer'
+                  className='dashboard-metric-item'
                   onClick={item.onClick}
                 >
-                  <div className='flex items-center'>
+                  <div className='dashboard-metric-main'>
                     <Avatar
-                      className='mr-3'
+                      className='dashboard-metric-avatar'
                       size='small'
                       color={item.avatarColor}
                     >
                       {item.icon}
                     </Avatar>
-                    <div>
-                      <div className='text-xs text-gray-500'>{item.title}</div>
-                      <div className='text-lg font-semibold'>
+                    <div className='dashboard-metric-copy'>
+                      <div className='dashboard-metric-label'>{item.title}</div>
+                      <div className='dashboard-metric-value'>
                         <Skeleton
                           loading={loading}
                           active
@@ -85,6 +97,7 @@ const StatsCards = ({
                       color='white'
                       shape='circle'
                       size='large'
+                      className='dashboard-metric-action-tag'
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate('/console/topup');
@@ -95,7 +108,7 @@ const StatsCards = ({
                   ) : (
                     (loading ||
                       (item.trendData && item.trendData.length > 0)) && (
-                      <div className='w-24 h-10'>
+                      <div className='dashboard-metric-trend'>
                         <VChart
                           spec={getTrendSpec(item.trendData, item.trendColor)}
                           option={CHART_CONFIG}
