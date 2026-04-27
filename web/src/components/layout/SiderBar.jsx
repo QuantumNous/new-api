@@ -21,7 +21,7 @@ import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@heroui/react';
-import { Sidebar, useSidebar as useSidebarUI } from '@heroui-pro/react';
+import { Sidebar } from '@heroui-pro/react';
 import { getLucideIcon } from '../../helpers/render';
 import { isAdmin, isRoot, showError, stringToColor } from '../../helpers';
 import { useSidebar } from '../../hooks/common/useSidebar';
@@ -187,14 +187,20 @@ const SidebarBody = ({
 
   // Per product spec we deviate from template-dashboard in two ways:
   //   1. The collapse trigger lives in the top navbar (rendered by HeaderBar
-  //      via <Sidebar.Trigger />), not inside the sidebar itself.
+  //      via <SidebarToggleButton /> wrapping <Sidebar.Trigger />), not
+  //      inside the sidebar itself. This matches the canonical heroui-pro
+  //      pattern from the AppLayout / Sidebar docs.
   //   2. The user avatar / role block sits at the BOTTOM of the sidebar
   //      (Sidebar.Footer), not at the top.
   //
   return (
     <>
-      <CollapsedHeaderTrigger />
-      <Sidebar.Content>
+      {/* `pt-4` adds breathing room above the first group label so it
+          doesn't sit flush against the sidebar's top edge. heroui-pro's
+          default Sidebar.Content has no built-in top padding because it
+          assumes a Sidebar.Header is rendered above it, which we omit
+          (the brand/logo lives in HeaderBar instead). */}
+      <Sidebar.Content className='pt-4'>
         {visibleSections.map((section) => (
           <Sidebar.Group key={section.key}>
             <Sidebar.GroupLabel>{section.label}</Sidebar.GroupLabel>
@@ -216,22 +222,6 @@ const SidebarBody = ({
     </>
   );
 };
-
-// Renders <Sidebar.Trigger /> at the top of the sidebar (inside
-// Sidebar.Header) ONLY while the sidebar is collapsed. When expanded, the
-// trigger lives outside the sidebar — see ConsolePageTrigger in PageLayout.
-// Extra `pt-6` for visual breathing room from the sidebar's top edge.
-function CollapsedHeaderTrigger() {
-  // useSidebarUI = heroui-pro's hook (renamed to avoid colliding with our
-  // own ../../hooks/common/useSidebar which manages module visibility).
-  const { isOpen } = useSidebarUI();
-  if (isOpen) return null;
-  return (
-    <Sidebar.Header className='pt-6 pb-3'>
-      <Sidebar.Trigger />
-    </Sidebar.Header>
-  );
-}
 
 const SiderBar = () => {
   const { t } = useTranslation();
