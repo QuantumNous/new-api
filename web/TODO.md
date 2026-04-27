@@ -20,74 +20,87 @@ Goal: bring `web/` into full compliance with HeroUI v3 component rules
 
 ### Phase 1 — Drop the last HeroCompat (Semi-style) usages
 
-Only 3 files left. Once they're migrated, `HeroCompat.jsx` and `semi.js`
-can be deleted.
+3 files still importing `@/components/common/ui/HeroCompat`. Once they're
+migrated, `HeroCompat.jsx`, `semi.js`, `HeroIconsCompat.jsx`,
+`HeroIllustrationsCompat.jsx`, `semi-icons.js`, `semi-illustrations.js`
+can all be deleted.
 
-- [ ] `web/src/pages/Setting/Ratio/ToolPriceSettings.jsx`
-- [ ] `web/src/pages/Setting/Ratio/components/TieredPricingEditor.jsx`
+- [ ] `web/src/pages/Setting/Ratio/ToolPriceSettings.jsx` (~290 lines)
+- [ ] `web/src/pages/Setting/Ratio/components/TieredPricingEditor.jsx` (~1700 lines)
 - [ ] `web/src/components/table/model-pricing/modal/components/DynamicPricingBreakdown.jsx`
-- [ ] After all three are migrated: delete `HeroCompat.jsx`, `semi.js`,
-      `HeroIconsCompat.jsx`, `HeroIllustrationsCompat.jsx`, `semi-icons.js`,
-      `semi-illustrations.js` if unused.
 
-### Phase 2 — Quick fixes
+Deferred to a follow-up PR — the size of `TieredPricingEditor` makes it
+risky to bundle here; the compat layer keeps these working in the
+meantime.
 
-- [ ] `web/src/components/topup/modals/SubscriptionPurchaseModal.jsx` — 3 ×
-      `isLoading={paying}` → `isPending={paying}` + render-prop spinner.
-- [ ] `radius=` prop usages (HeroUI v3 dropped this prop) →
-      Tailwind `rounded-*` class:
-  - `web/src/components/auth/AuthLayout.jsx`
-  - `web/src/components/layout/PageLayout.jsx`
-  - `web/src/components/common/ErrorBoundary.jsx`
-  - `web/src/components/layout/headerbar/HeaderLogo.jsx`
-  - `web/src/components/layout/NoticeModal.jsx`
-  - `web/src/components/layout/headerbar/MobileMenuButton.jsx`
-  - `web/src/pages/Home/index.jsx` (3 occurrences)
+### Phase 2 — Quick fixes ✅
 
-### Phase 3 — v2 → v3 variant system (largest)
+- [x] `SubscriptionPurchaseModal` — 3 × `isLoading={paying}` → `isPending={paying}`.
+- [x] 9 × `radius=` prop → Tailwind `rounded-*` class on:
+  - MobileMenuButton, ErrorBoundary refresh, Home copy/CTA buttons,
+    HeaderLogo Chip, NoticeModal Tabs, console PageLayout sidebar trigger.
 
-HeroUI v3 Button/Chip variants are semantic
-(`primary | secondary | tertiary | danger | danger-soft | ghost | outline`),
-not visual (`solid | bordered | flat | light | faded | shadow`).
+### Phase 3 — v2 → v3 variant system ✅
 
-Mapping:
+Codemod: `web/scripts/heroui-v3-variant-codemod.mjs`. Idempotent — safe
+to re-run on any branch that picks up new v2-style variants.
 
-| v2                                      | v3 (Button)        | v3 (Chip) |
-| --------------------------------------- | ------------------ | --------- |
-| `variant='solid'`                       | `variant='primary'`     | `variant='primary'` |
-| `variant='bordered'`                    | `variant='secondary'`   | `variant='secondary'` |
-| `variant='flat'`                        | `variant='tertiary'`    | `variant='tertiary'` |
-| `variant='light'`                       | `variant='tertiary'`    | `variant='soft'` |
-| `variant='faded'`                       | `variant='secondary'`   | `variant='secondary'` |
-| `color='danger' variant='flat'`         | `variant='danger-soft'` | n/a |
-| `color='danger' variant='solid'`        | `variant='danger'`      | `color='danger'` |
-| `color='primary'` (any)                 | drop `color`, keep variant | `color='accent'` |
-| `color='success'` / `color='warning'`   | drop `color`, keep variant + custom Tailwind | unchanged |
+Mapping applied:
 
-- [ ] Auto-rewrite `<Button>` props across the ~100 files (`scripts/heroui-v3-codemod.mjs`).
-- [ ] Manual review pass for ambiguous cases (`color='success'`, custom one-offs).
-- [ ] Drop the now-redundant `color` prop on Button.
+| v2                                     | v3                  |
+| -------------------------------------- | ------------------- |
+| `variant='solid'`                      | `variant='primary'` |
+| `variant='bordered'`                   | `variant='secondary'` |
+| `variant='flat'`                       | `variant='tertiary'` |
+| `variant='light'`                      | `variant='tertiary'` |
+| `variant='faded'`                      | `variant='secondary'` |
+| `variant='shadow'`                     | `variant='primary'` |
+| `color='danger' variant='flat'`        | `variant='danger-soft'` (drops color) |
+| `color='danger' variant='solid'`       | `variant='danger'` (drops color) |
+| `color='primary'\|'secondary'\|'default'` next to a variant | drops color |
 
-### Phase 4 — `startContent` / `endContent` → children
+- [x] Run codemod (102 component files, ~325 prop edits + Chip in semi.js).
+- [x] Verify zero `variant='solid|bordered|flat|light|faded|shadow'` and zero `radius=` left in `web/src/`.
 
-v3 removed `startContent` / `endContent` on Button & Chip; icons go in
-`children`. ~50 files. Mostly mechanical but needs a pass to keep
-ordering and `gap` Tailwind classes correct.
+### Phase 4 — Manual review of `color='success' / 'warning'`
 
-- [ ] Codemod with manual review.
+v3 Button has no built-in success/warning variant. The codemod left
+these in place; each needs a Tailwind override (`bg-success`, etc.) or
+a swap to the closest semantic intent.
 
-### Phase 5 — `classNames={...}` cleanup
+- [ ] `web/src/components/settings/personal/cards/CheckinCalendar.jsx` —
+      "补签 / Gift" success Button.
+- [ ] `web/src/components/table/channels/modals/ModelTestModal.jsx` —
+      "测试中" warning indicator.
+- [ ] `web/src/components/table/channels/modals/MultiKeyManageModal.jsx` —
+      warning badge.
+- [ ] `web/src/components/table/tokens/index.jsx` — warning label.
+- [ ] `web/src/components/table/users/UsersColumnDefs.jsx` — risk warning.
+- [ ] `web/src/components/table/users/modals/UserSubscriptionsModal.jsx` —
+      warning.
+- [ ] `web/src/pages/Setting/Operation/SettingsChannelAffinity.jsx` —
+      warning.
+- [ ] `web/src/pages/Setting/Performance/SettingsPerformance.jsx` —
+      "清理缓存" warning Button.
+
+### Phase 5 — `startContent` / `endContent` → children
+
+v3 removed these props on Button & Chip; icons go in `children` with
+the parent's `gap-*` Tailwind class controlling spacing. ~50 files.
+Mostly mechanical but needs human review for ordering and gap classes.
+
+- [ ] Write codemod, run, manual sanity pass.
+
+### Phase 6 — `classNames={...}` cleanup
 
 Single occurrence remaining (`web/src/components/auth/AuthLayout.jsx`),
 v3 uses plain `className`.
 
 - [ ] Migrate.
 
-### Phase 6 — Final verification
+### Phase 7 — Final verification
 
-- [ ] `bun run eslint`
-- [ ] `bun run lint`
-- [ ] manual smoke test of `/console` pages.
+- [ ] Manual smoke test of `/console` pages (variants, radius, payments).
 - [ ] Open PR.
 
 ## Out of scope
@@ -95,3 +108,5 @@ v3 uses plain `className`.
 - HeroUI Pro components (Sheet, Sidebar, Stepper, Segment, …). Already
   on the latest beta after Phase 0; no API drift identified.
 - `@heroui-native(-pro)`. Native targets are not in this repo's runtime.
+- Pre-existing eslint/prettier offenses (94 missing-license-header errors
+  in files unrelated to this PR).
