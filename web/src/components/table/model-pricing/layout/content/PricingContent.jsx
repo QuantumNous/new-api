@@ -22,16 +22,23 @@ import PricingTopSection from '../header/PricingTopSection';
 import PricingView from './PricingView';
 
 const PricingContent = ({ isMobile, sidebarProps, ...props }) => {
+  // `min-h-full` lets the column fill its parent (which is already height-
+  // bounded by PageLayout's main + PricingPage's flex container). The old
+  // `min-h-[calc(100dvh-60px)]` hard-coded the global header height which
+  // duplicated the offset PageLayout already accounts for.
   return (
     <div
       className={
         isMobile
-          ? 'flex min-h-[calc(100dvh-60px)] flex-col'
+          ? 'flex min-h-full flex-col'
           : 'pricing-scroll-hide flex min-h-full flex-col'
       }
     >
-      {/* Sticky header with vendor intro, search, and actions. */}
-      <div className='sticky top-0 z-10 bg-background/95 p-4 pb-3 backdrop-blur'>
+      {/* Sticky header with vendor intro, search, and actions.
+          Top padding is `pt-6` (24px) to give breathing room from the
+          global navbar above — `pt-4` left the vendor name flush against
+          the navbar bottom edge. */}
+      <div className='sticky top-0 z-10 bg-background/95 px-4 pt-6 pb-3 backdrop-blur'>
         <PricingTopSection
           {...props}
           isMobile={isMobile}

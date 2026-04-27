@@ -16,6 +16,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  ListBox,
   Modal,
   ModalBackdrop,
   ModalBody,
@@ -27,9 +28,11 @@ import {
   Switch,
   useOverlayState,
 } from '@heroui/react';
+import { CellSelect } from '@heroui-pro/react';
 import {
   CheckCircle2,
   ChevronDown,
+  ChevronsUpDown,
   Edit3,
   Info,
   Plus,
@@ -772,21 +775,44 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 {/* 预设 / Issuer / Discovery */}
                 <div className='grid grid-cols-1 gap-4 md:grid-cols-12'>
                   <div className='space-y-2 md:col-span-4'>
-                    <FieldLabel>{t('预设模板')}</FieldLabel>
-                    <select
-                      value={selectedPreset}
-                      onChange={(event) =>
-                        handlePresetChange(event.target.value)
-                      }
-                      className={inputClass}
+                    {/* CellSelect inlines the label inside the trigger,
+                        so the explicit FieldLabel above the native select
+                        is no longer needed. */}
+                    <CellSelect
+                      aria-label={t('预设模板')}
+                      selectedKey={selectedPreset || 'custom'}
+                      onSelectionChange={(key) => {
+                        // Map synthetic 'custom' id back to '' so the
+                        // existing handler logic is preserved.
+                        handlePresetChange(key === 'custom' ? '' : String(key ?? ''));
+                      }}
                     >
-                      <option value=''>{t('自定义')}</option>
-                      {Object.entries(OAUTH_PRESETS).map(([key, config]) => (
-                        <option key={key} value={key}>
-                          {config.name}
-                        </option>
-                      ))}
-                    </select>
+                      <CellSelect.Trigger>
+                        <CellSelect.Label>{t('预设模板')}</CellSelect.Label>
+                        <CellSelect.Value />
+                        <CellSelect.Indicator>
+                          <ChevronsUpDown size={14} />
+                        </CellSelect.Indicator>
+                      </CellSelect.Trigger>
+                      <CellSelect.Popover>
+                        <ListBox>
+                          <ListBox.Item id='custom' textValue={t('自定义')}>
+                            {t('自定义')}
+                            <ListBox.ItemIndicator />
+                          </ListBox.Item>
+                          {Object.entries(OAUTH_PRESETS).map(([key, config]) => (
+                            <ListBox.Item
+                              key={key}
+                              id={key}
+                              textValue={config.name}
+                            >
+                              {config.name}
+                              <ListBox.ItemIndicator />
+                            </ListBox.Item>
+                          ))}
+                        </ListBox>
+                      </CellSelect.Popover>
+                    </CellSelect>
                   </div>
                   <div className='space-y-2 md:col-span-5'>
                     <FieldLabel>
@@ -1100,18 +1126,43 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   <div className='space-y-4 border-t border-border px-3 py-3'>
                     <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
                       <div className='space-y-2'>
-                        <FieldLabel>{t('认证方式')}</FieldLabel>
-                        <select
-                          value={formValues.auth_style ?? 0}
-                          onChange={(event) =>
-                            setField('auth_style')(Number(event.target.value))
-                          }
-                          className={inputClass}
+                        <CellSelect
+                          aria-label={t('认证方式')}
+                          selectedKey={String(formValues.auth_style ?? 0)}
+                          onSelectionChange={(key) => {
+                            if (key !== null && key !== undefined)
+                              setField('auth_style')(Number(key));
+                          }}
                         >
-                          <option value={0}>{t('自动检测')}</option>
-                          <option value={1}>{t('POST 参数')}</option>
-                          <option value={2}>{t('Basic Auth 头')}</option>
-                        </select>
+                          <CellSelect.Trigger>
+                            <CellSelect.Label>
+                              {t('认证方式')}
+                            </CellSelect.Label>
+                            <CellSelect.Value />
+                            <CellSelect.Indicator>
+                              <ChevronsUpDown size={14} />
+                            </CellSelect.Indicator>
+                          </CellSelect.Trigger>
+                          <CellSelect.Popover>
+                            <ListBox>
+                              <ListBox.Item id='0' textValue={t('自动检测')}>
+                                {t('自动检测')}
+                                <ListBox.ItemIndicator />
+                              </ListBox.Item>
+                              <ListBox.Item id='1' textValue={t('POST 参数')}>
+                                {t('POST 参数')}
+                                <ListBox.ItemIndicator />
+                              </ListBox.Item>
+                              <ListBox.Item
+                                id='2'
+                                textValue={t('Basic Auth 头')}
+                              >
+                                {t('Basic Auth 头')}
+                                <ListBox.ItemIndicator />
+                              </ListBox.Item>
+                            </ListBox>
+                          </CellSelect.Popover>
+                        </CellSelect>
                       </div>
                     </div>
 

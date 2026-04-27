@@ -18,7 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Button, Input, Switch } from '@heroui/react';
+import { Button, Input, ListBox, Switch } from '@heroui/react';
+import { CellSelect } from '@heroui-pro/react';
+import { ChevronsUpDown } from 'lucide-react';
 import {
   compareObjects,
   API,
@@ -167,24 +169,40 @@ export default function DataDashboard(props) {
         </div>
 
         <div className='space-y-2'>
-          <div className='text-sm font-medium text-foreground'>
-            {t('数据看板默认时间粒度')}
-          </div>
-          <select
-            value={inputs.DataExportDefaultTime ?? ''}
-            onChange={(e) =>
-              setField('DataExportDefaultTime')(e.target.value)
-            }
+          {/* heroui-pro CellSelect — keeps this dropdown visually consistent
+              with other settings-cell selects (e.g. SettingsGeneral's
+              quota display type, PreferencesSettings's language picker). */}
+          <CellSelect
             aria-label={t('数据看板默认时间粒度')}
-            className='h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary'
+            selectedKey={inputs.DataExportDefaultTime || null}
+            onSelectionChange={(key) => {
+              setField('DataExportDefaultTime')(key ? String(key) : '');
+            }}
           >
-            <option value=''>{t('数据看板默认时间粒度')}</option>
-            {intervalOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            <CellSelect.Trigger>
+              <CellSelect.Label>
+                {t('数据看板默认时间粒度')}
+              </CellSelect.Label>
+              <CellSelect.Value />
+              <CellSelect.Indicator>
+                <ChevronsUpDown size={14} />
+              </CellSelect.Indicator>
+            </CellSelect.Trigger>
+            <CellSelect.Popover>
+              <ListBox>
+                {intervalOptions.map((opt) => (
+                  <ListBox.Item
+                    key={opt.value}
+                    id={opt.value}
+                    textValue={opt.label}
+                  >
+                    {opt.label}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </CellSelect.Popover>
+          </CellSelect>
           <div className='text-xs leading-snug text-muted'>
             {t('仅修改展示粒度，统计精确到小时')}
           </div>

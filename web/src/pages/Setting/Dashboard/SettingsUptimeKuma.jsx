@@ -31,7 +31,8 @@ import {
   Switch,
   useOverlayState,
 } from '@heroui/react';
-import { Activity, Edit, Inbox, Plus, Save, Trash2 } from 'lucide-react';
+import { EmptyState } from '@heroui-pro/react';
+import { Activity, Edit, Gauge, Plus, Save, Trash2 } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
@@ -374,13 +375,19 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
           <tbody className='divide-y divide-[color:var(--app-border)]'>
             {pagedData.length === 0 ? (
               <tr>
-                <td colSpan={5} className='py-12 text-center text-sm text-muted'>
-                  <div className='flex flex-col items-center gap-3'>
-                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
-                      <Inbox size={28} />
-                    </div>
-                    <div>{t('暂无监控数据')}</div>
-                  </div>
+                {/* Match the /console dashboard's UptimePanel empty state. */}
+                <td colSpan={5} className='py-12'>
+                  <EmptyState size='sm'>
+                    <EmptyState.Header>
+                      <EmptyState.Media variant='icon'>
+                        <Gauge />
+                      </EmptyState.Media>
+                      <EmptyState.Title>{t('暂无监控数据')}</EmptyState.Title>
+                      <EmptyState.Description>
+                        {t('点击上方「添加分类」按钮添加监控分类')}
+                      </EmptyState.Description>
+                    </EmptyState.Header>
+                  </EmptyState>
                 </td>
               </tr>
             ) : (

@@ -31,7 +31,8 @@ import {
   Switch,
   useOverlayState,
 } from '@heroui/react';
-import { Edit, Inbox, Plus, Save, Settings, Trash2 } from 'lucide-react';
+import { EmptyState } from '@heroui-pro/react';
+import { Edit, Plus, Save, Server, Settings, Trash2 } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
@@ -430,13 +431,22 @@ const SettingsAPIInfo = ({ options, refresh }) => {
           <tbody className='divide-y divide-[color:var(--app-border)]'>
             {pagedData.length === 0 ? (
               <tr>
-                <td colSpan={7} className='py-12 text-center text-sm text-muted'>
-                  <div className='flex flex-col items-center gap-3'>
-                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
-                      <Inbox size={28} />
-                    </div>
-                    <div>{t('暂无API信息')}</div>
-                  </div>
+                {/* Use heroui-pro's EmptyState so this matches the same
+                    component the /console dashboard's ApiInfoPanel uses for
+                    its empty state — same icon, same typography, same
+                    spacing. */}
+                <td colSpan={7} className='py-12'>
+                  <EmptyState size='sm'>
+                    <EmptyState.Header>
+                      <EmptyState.Media variant='icon'>
+                        <Server />
+                      </EmptyState.Media>
+                      <EmptyState.Title>{t('暂无API信息')}</EmptyState.Title>
+                      <EmptyState.Description>
+                        {t('点击上方「添加API」按钮添加API信息')}
+                      </EmptyState.Description>
+                    </EmptyState.Header>
+                  </EmptyState>
                 </td>
               </tr>
             ) : (

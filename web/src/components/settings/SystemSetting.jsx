@@ -13,10 +13,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Card, Spinner } from '@heroui/react';
+import { Button, Card, ListBox, Spinner } from '@heroui/react';
+import { CellSelect } from '@heroui-pro/react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
+import { ChevronsUpDown, X } from 'lucide-react';
 import {
   API,
   removeTrailingSlash,
@@ -1127,40 +1128,90 @@ const SystemSetting = () => {
             </Field>
           </div>
           <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-            <Field
-              label={t('安全验证级别')}
-              hint={t('推荐：用户可以选择是否使用指纹等验证')}
-            >
-              <select
-                value={inputs['passkey.user_verification'] || 'preferred'}
-                onChange={(event) =>
-                  setField('passkey.user_verification')(event.target.value)
-                }
-                className={inputClass}
+            {/* CellSelect inlines the label inside the trigger so the
+                surrounding <Field> wrapper would duplicate it — we drop
+                Field and keep just the hint via FieldHint below. */}
+            <div className='space-y-2'>
+              <CellSelect
+                aria-label={t('安全验证级别')}
+                selectedKey={inputs['passkey.user_verification'] || 'preferred'}
+                onSelectionChange={(key) => {
+                  if (key)
+                    setField('passkey.user_verification')(String(key));
+                }}
               >
-                <option value='preferred'>{t('推荐使用（用户可选）')}</option>
-                <option value='required'>{t('强制要求')}</option>
-                <option value='discouraged'>{t('不建议使用')}</option>
-              </select>
-            </Field>
-            <Field
-              label={t('设备类型偏好')}
-              hint={t('本设备：手机指纹/面容，外接：USB安全密钥')}
-            >
-              <select
-                value={inputs['passkey.attachment_preference'] || ''}
-                onChange={(event) =>
+                <CellSelect.Trigger>
+                  <CellSelect.Label>{t('安全验证级别')}</CellSelect.Label>
+                  <CellSelect.Value />
+                  <CellSelect.Indicator>
+                    <ChevronsUpDown size={14} />
+                  </CellSelect.Indicator>
+                </CellSelect.Trigger>
+                <CellSelect.Popover>
+                  <ListBox>
+                    <ListBox.Item id='preferred' textValue={t('推荐使用（用户可选）')}>
+                      {t('推荐使用（用户可选）')}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                    <ListBox.Item id='required' textValue={t('强制要求')}>
+                      {t('强制要求')}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                    <ListBox.Item id='discouraged' textValue={t('不建议使用')}>
+                      {t('不建议使用')}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  </ListBox>
+                </CellSelect.Popover>
+              </CellSelect>
+              <FieldHint>
+                {t('推荐：用户可以选择是否使用指纹等验证')}
+              </FieldHint>
+            </div>
+            <div className='space-y-2'>
+              <CellSelect
+                aria-label={t('设备类型偏好')}
+                selectedKey={inputs['passkey.attachment_preference'] || 'any'}
+                onSelectionChange={(key) => {
+                  // Map the synthetic 'any' key back to '' so the existing
+                  // backend contract (empty string = no constraint) is
+                  // preserved without leaking the synthetic id elsewhere.
                   setField('passkey.attachment_preference')(
-                    event.target.value,
-                  )
-                }
-                className={inputClass}
+                    key === 'any' ? '' : String(key ?? ''),
+                  );
+                }}
               >
-                <option value=''>{t('不限制')}</option>
-                <option value='platform'>{t('本设备内置')}</option>
-                <option value='cross-platform'>{t('外接设备')}</option>
-              </select>
-            </Field>
+                <CellSelect.Trigger>
+                  <CellSelect.Label>{t('设备类型偏好')}</CellSelect.Label>
+                  <CellSelect.Value />
+                  <CellSelect.Indicator>
+                    <ChevronsUpDown size={14} />
+                  </CellSelect.Indicator>
+                </CellSelect.Trigger>
+                <CellSelect.Popover>
+                  <ListBox>
+                    <ListBox.Item id='any' textValue={t('不限制')}>
+                      {t('不限制')}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                    <ListBox.Item id='platform' textValue={t('本设备内置')}>
+                      {t('本设备内置')}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                    <ListBox.Item
+                      id='cross-platform'
+                      textValue={t('外接设备')}
+                    >
+                      {t('外接设备')}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  </ListBox>
+                </CellSelect.Popover>
+              </CellSelect>
+              <FieldHint>
+                {t('本设备：手机指纹/面容，外接：USB安全密钥')}
+              </FieldHint>
+            </div>
           </div>
           <CheckboxRow
             label={t('允许不安全的 Origin（HTTP）')}

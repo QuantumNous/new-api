@@ -32,10 +32,10 @@ import {
   Tooltip,
   useOverlayState,
 } from '@heroui/react';
+import { EmptyState } from '@heroui-pro/react';
 import {
   Edit,
   HelpCircle,
-  Inbox,
   Plus,
   Save,
   Trash2,
@@ -360,13 +360,19 @@ const SettingsFAQ = ({ options, refresh }) => {
           <tbody className='divide-y divide-[color:var(--app-border)]'>
             {pagedData.length === 0 ? (
               <tr>
-                <td colSpan={4} className='py-12 text-center text-sm text-muted'>
-                  <div className='flex flex-col items-center gap-3'>
-                    <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
-                      <Inbox size={28} />
-                    </div>
-                    <div>{t('暂无常见问答')}</div>
-                  </div>
+                {/* Match the /console dashboard's FaqPanel empty state. */}
+                <td colSpan={4} className='py-12'>
+                  <EmptyState size='sm'>
+                    <EmptyState.Header>
+                      <EmptyState.Media variant='icon'>
+                        <HelpCircle />
+                      </EmptyState.Media>
+                      <EmptyState.Title>{t('暂无常见问答')}</EmptyState.Title>
+                      <EmptyState.Description>
+                        {t('点击上方「添加问答」按钮添加常见问答')}
+                      </EmptyState.Description>
+                    </EmptyState.Header>
+                  </EmptyState>
                 </td>
               </tr>
             ) : (

@@ -18,7 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Button, Input, Switch } from '@heroui/react';
+import { Button, Input, ListBox, Switch } from '@heroui/react';
+import { CellSelect } from '@heroui-pro/react';
+import { ChevronsUpDown } from 'lucide-react';
 import {
   compareObjects,
   API,
@@ -305,22 +307,49 @@ export default function GeneralSettings(props) {
         />
 
         <div className='space-y-2'>
-          <div className='text-sm font-medium text-foreground'>
-            {t('额度展示类型')}
-          </div>
-          <select
-            value={quotaDisplayType}
-            onChange={(e) =>
-              setField('general_setting.quota_display_type')(e.target.value)
-            }
+          {/* heroui-pro CellSelect — settings-cell styled dropdown matching
+              the rest of the design system (see also PreferencesSettings's
+              language picker which uses the same pattern). The label lives
+              inside the trigger row, so the explicit `<div>` label above
+              the native `<select>` is no longer needed. */}
+          <CellSelect
             aria-label={t('额度展示类型')}
-            className={selectClass}
+            selectedKey={quotaDisplayType}
+            onSelectionChange={(key) => {
+              if (key)
+                setField('general_setting.quota_display_type')(String(key));
+            }}
           >
-            <option value='USD'>USD ($)</option>
-            <option value='CNY'>CNY (¥)</option>
-            {showTokensOption && <option value='TOKENS'>Tokens</option>}
-            <option value='CUSTOM'>{t('自定义货币')}</option>
-          </select>
+            <CellSelect.Trigger>
+              <CellSelect.Label>{t('额度展示类型')}</CellSelect.Label>
+              <CellSelect.Value />
+              <CellSelect.Indicator>
+                <ChevronsUpDown size={14} />
+              </CellSelect.Indicator>
+            </CellSelect.Trigger>
+            <CellSelect.Popover>
+              <ListBox>
+                <ListBox.Item id='USD' textValue='USD ($)'>
+                  USD ($)
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                <ListBox.Item id='CNY' textValue='CNY (¥)'>
+                  CNY (¥)
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                {showTokensOption ? (
+                  <ListBox.Item id='TOKENS' textValue='Tokens'>
+                    Tokens
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ) : null}
+                <ListBox.Item id='CUSTOM' textValue={t('自定义货币')}>
+                  {t('自定义货币')}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              </ListBox>
+            </CellSelect.Popover>
+          </CellSelect>
           {quotaDisplayTypeDesc ? (
             <div className='text-xs leading-snug text-muted'>
               {quotaDisplayTypeDesc}

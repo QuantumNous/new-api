@@ -18,8 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo, useCallback } from 'react';
-import { Button, Input, Separator, Switch } from '@heroui/react';
-import { Copy, Filter, Search } from 'lucide-react';
+import { Button, Input, ListBox, Separator, Switch } from '@heroui/react';
+import { InlineSelect, Segment } from '@heroui-pro/react';
+import {
+  ChevronsUpDown,
+  Copy,
+  Filter,
+  LayoutGrid,
+  Search,
+  Table,
+} from 'lucide-react';
 
 const SearchActions = memo(
   ({
@@ -55,14 +63,6 @@ const SearchActions = memo(
     const handleFilterClick = useCallback(() => {
       setShowFilterModal?.(true);
     }, [setShowFilterModal]);
-
-    const handleViewModeToggle = useCallback(() => {
-      setViewMode?.(viewMode === 'table' ? 'card' : 'table');
-    }, [viewMode, setViewMode]);
-
-    const handleTokenUnitToggle = useCallback(() => {
-      setTokenUnit?.(tokenUnit === 'K' ? 'M' : 'K');
-    }, [tokenUnit, setTokenUnit]);
 
     return (
       <div className='flex items-center gap-2 w-full'>
@@ -110,17 +110,46 @@ const SearchActions = memo(
               </div>
             )}
 
-            {/* 货币单位选择 */}
+            {/* 货币单位选择 — heroui-pro InlineSelect 是为这种与周边
+                控件并排的紧凑场景设计的（ghost 样式、内联），比原来的
+                原生 <select> 更贴合设计系统。 */}
             {supportsCurrencyDisplay && showWithRecharge && (
-              <select
-                value={currency}
-                onChange={(event) => setCurrency?.(event.target.value)}
-                className='h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none transition focus:border-accent'
+              <InlineSelect
+                aria-label={t('货币')}
+                selectedKey={currency}
+                onSelectionChange={(key) => {
+                  if (key) setCurrency?.(String(key));
+                }}
               >
-                <option value='USD'>USD</option>
-                <option value='CNY'>CNY</option>
-                <option value='CUSTOM'>{t('自定义货币')}</option>
-              </select>
+                <InlineSelect.Trigger>
+                  <InlineSelect.Value />
+                  {/* Default indicator falls back to a @gravity-ui icon
+                      that breaks under our Vite + esbuild `loader:'jsx'`
+                      CJS interop (resolves to the full module.exports
+                      object instead of .default). Passing an explicit
+                      lucide icon both fixes the crash and stays consistent
+                      with the rest of the app's iconography. */}
+                  <InlineSelect.Indicator>
+                    <ChevronsUpDown size={12} />
+                  </InlineSelect.Indicator>
+                </InlineSelect.Trigger>
+                <InlineSelect.Popover className='min-w-[140px]'>
+                  <ListBox>
+                    <ListBox.Item id='USD' textValue='USD'>
+                      USD
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                    <ListBox.Item id='CNY' textValue='CNY'>
+                      CNY
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                    <ListBox.Item id='CUSTOM' textValue={t('自定义货币')}>
+                      {t('自定义货币')}
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  </ListBox>
+                </InlineSelect.Popover>
+              </InlineSelect>
             )}
 
             {/* 显示倍率开关 */}
@@ -137,29 +166,51 @@ const SearchActions = memo(
               </Switch>
             </div>
 
-            {/* 视图模式切换按钮 */}
-            <Button
-              variant={viewMode === 'table' ? 'primary' : 'outline'}
-              onPress={handleViewModeToggle}
+            {/* 视图模式 — Segment 取代了原来"两个 Button 互相切换"
+                的写法，UX 更直观（哪个被选中一目了然，且两个状态在
+                视觉上是平等的，没有"哪个高亮就是当前"这种二义性）。 */}
+            <Segment
+              size='sm'
+              aria-label={t('视图模式')}
+              selectedKey={viewMode}
+              onSelectionChange={(key) => {
+                if (key) setViewMode?.(String(key));
+              }}
             >
-              {t('表格视图')}
-            </Button>
+              <Segment.Item id='card' aria-label={t('卡片视图')}>
+                <Segment.Separator />
+                <LayoutGrid size={14} />
+              </Segment.Item>
+              <Segment.Item id='table' aria-label={t('表格视图')}>
+                <Segment.Separator />
+                <Table size={14} />
+              </Segment.Item>
+            </Segment>
 
-            {/* Token单位切换按钮 */}
-            <Button
-              variant={tokenUnit === 'K' ? 'primary' : 'outline'}
-              onPress={handleTokenUnitToggle}
+            {/* Token 单位（每千 / 每百万）— 同样用 Segment 表达
+                两个互斥选项。 */}
+            <Segment
+              size='sm'
+              aria-label={t('Token 单位')}
+              selectedKey={tokenUnit}
+              onSelectionChange={(key) => {
+                if (key) setTokenUnit?.(String(key));
+              }}
             >
-              {tokenUnit}
-            </Button>
+              <Segment.Item id='K'>
+                <Segment.Separator />
+                /1K
+              </Segment.Item>
+              <Segment.Item id='M'>
+                <Segment.Separator />
+                /1M
+              </Segment.Item>
+            </Segment>
           </>
         )}
 
         {isMobile && (
-          <Button
-            variant='outline'
-            onPress={handleFilterClick}
-          >
+          <Button variant='outline' onPress={handleFilterClick}>
             <Filter size={16} />
             {t('筛选')}
           </Button>

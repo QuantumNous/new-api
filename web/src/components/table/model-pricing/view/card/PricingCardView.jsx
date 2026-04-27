@@ -197,14 +197,18 @@ const PricingCardView = ({
 
   if (!filteredModels || filteredModels.length === 0) {
     return (
-      <div className='flex justify-center items-center py-20'>
+      // Match the /console panels' empty-state styling — variant="icon"
+      // (not "illustration"), no manual size override, no muted opacity.
+      <div className='flex items-center justify-center py-20'>
         <EmptyState size='sm'>
           <EmptyState.Header>
-            <EmptyState.Media variant='illustration'>
-              <SearchX size={96} className='text-muted/60' strokeWidth={1.25} />
+            <EmptyState.Media variant='icon'>
+              <SearchX />
             </EmptyState.Media>
-            <EmptyState.Title>{t('暂无内容')}</EmptyState.Title>
-            <EmptyState.Description>{t('搜索无结果')}</EmptyState.Description>
+            <EmptyState.Title>{t('搜索无结果')}</EmptyState.Title>
+            <EmptyState.Description>
+              {t('尝试调整筛选条件或搜索关键词')}
+            </EmptyState.Description>
           </EmptyState.Header>
         </EmptyState>
       </div>
