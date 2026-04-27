@@ -2,7 +2,8 @@
 <html lang="zh">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="/logo.png" />
+    <base href="%BASE_URL%" />
+    <link rel="icon" href="%BASE_URL%logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#ffffff" />
     <meta
@@ -17,6 +18,11 @@
     />
     <meta name="generator" content="new-api" />
     <title>New API</title>
+    <script>
+      window.__NEW_API_RUNTIME__ = {
+        appBasePath: "__APP_BASE_PATH_PLACEHOLDER__",
+      };
+    </script>
     <!--umami-->
     <!--Google Analytics-->
   </head>
@@ -24,6 +30,6 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <script type="module" src="/src/index.jsx"></script>
+    <script type="module" src="./src/index.jsx"></script>
   </body>
 </html>

@@ -24,84 +24,121 @@ import path from 'path';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
 const { vitePluginSemi } = pkg;
 
-// https://vitejs.dev/config/
-export default defineConfig({
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
-  plugins: [
-    codeInspectorPlugin({
-      bundler: 'vite',
-    }),
-    {
-      name: 'treat-js-files-as-jsx',
-      async transform(code, id) {
-        if (!/src\/.*\.js$/.test(id)) {
-          return null;
-        }
+function normalizeBasePath(basePath) {
+  const raw = typeof basePath === 'string' ? basePath.trim() : '';
+  if (!raw || raw === '/' || raw === '.' || raw === './') {
+    return '';
+  }
+  if (!raw.startsWith('/')) {
+    throw new Error('APP_BASE_PATH must start with "/"');
+  }
+  if (/[?#]/.test(raw)) {
+    throw new Error('APP_BASE_PATH must not contain query or fragment');
+  }
 
-        // Use the exposed transform from vite, instead of directly
-        // transforming with esbuild
-        return transformWithEsbuild(code, id, {
-          loader: 'jsx',
-          jsx: 'automatic',
-        });
+  const normalized = raw.replace(/\/+$/, '');
+  if (!normalized) {
+    return '';
+  }
+  const hasInvalidSegment = normalized
+    .split('/')
+    .slice(1)
+    .some((segment) => segment === '' || segment === '.' || segment === '..');
+  if (hasInvalidSegment) {
+    throw new Error('APP_BASE_PATH contains invalid path segments');
+  }
+  return normalized;
+}
+
+const appBasePath = normalizeBasePath(process.env.APP_BASE_PATH);
+
+function createProxyEntries(prefixes) {
+  return prefixes.reduce((acc, prefix) => {
+    acc[prefix] = {
+      target: 'http://localhost:3000',
+      changeOrigin: true,
+    };
+    if (appBasePath) {
+      acc[`${appBasePath}${prefix}`] = {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      };
+    }
+    return acc;
+  }, {});
+}
+
+// https://vitejs.dev/config/
+export default defineConfig(({ command }) => {
+  const viteBase =
+    command === 'build' ? './' : appBasePath ? `${appBasePath}/` : '/';
+
+  return {
+    base: viteBase,
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
       },
     },
-    react(),
-    vitePluginSemi({
-      cssLayer: true,
-    }),
-  ],
-  optimizeDeps: {
-    force: true,
-    esbuildOptions: {
-      loader: {
-        '.js': 'jsx',
-        '.json': 'json',
+    plugins: [
+      codeInspectorPlugin({
+        bundler: 'vite',
+      }),
+      {
+        name: 'treat-js-files-as-jsx',
+        async transform(code, id) {
+          if (!/src\/.*\.js$/.test(id)) {
+            return null;
+          }
+
+          // Use the exposed transform from vite, instead of directly
+          // transforming with esbuild
+          return transformWithEsbuild(code, id, {
+            loader: 'jsx',
+            jsx: 'automatic',
+          });
+        },
       },
-    },
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'react-core': ['react', 'react-dom', 'react-router-dom'],
-          'semi-ui': ['@douyinfe/semi-icons', '@douyinfe/semi-ui'],
-          tools: ['axios', 'history', 'marked'],
-          'react-components': [
-            'react-dropzone',
-            'react-fireworks',
-            'react-telegram-login',
-            'react-toastify',
-            'react-turnstile',
-          ],
-          i18n: [
-            'i18next',
-            'react-i18next',
-            'i18next-browser-languagedetector',
-          ],
+      react(),
+      vitePluginSemi({
+        cssLayer: true,
+      }),
+    ],
+    optimizeDeps: {
+      force: true,
+      esbuildOptions: {
+        loader: {
+          '.js': 'jsx',
+          '.json': 'json',
         },
       },
     },
-  },
-  server: {
-    host: '0.0.0.0',
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-      '/mj': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-      '/pg': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'react-core': ['react', 'react-dom', 'react-router-dom'],
+            'semi-ui': ['@douyinfe/semi-icons', '@douyinfe/semi-ui'],
+            tools: ['axios', 'history', 'marked'],
+            'react-components': [
+              'react-dropzone',
+              'react-fireworks',
+              'react-telegram-login',
+              'react-toastify',
+              'react-turnstile',
+            ],
+            i18n: [
+              'i18next',
+              'react-i18next',
+              'i18next-browser-languagedetector',
+            ],
+          },
+        },
       },
     },
-  },
+    server: {
+      host: '0.0.0.0',
+      proxy: createProxyEntries(['/api', '/mj', '/pg', '/v1', '/v1beta']),
+    },
+  };
 });

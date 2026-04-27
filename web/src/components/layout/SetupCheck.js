@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useContext, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { StatusContext } from '../../context/Status';
+import { redirectToApp } from '../../helpers';
 
 const SetupCheck = ({ children }) => {
   const [statusState] = useContext(StatusContext);
@@ -30,7 +31,7 @@ const SetupCheck = ({ children }) => {
       statusState?.status?.setup === false &&
       location.pathname !== '/setup'
     ) {
-      window.location.href = '/setup';
+      redirectToApp('/setup');
     }
   }, [statusState?.status?.setup, location.pathname]);
 

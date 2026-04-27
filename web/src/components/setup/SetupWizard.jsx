@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, Divider, Steps, Form } from '@douyinfe/semi-ui';
-import { API, showError, showNotice } from '../../helpers';
+import { API, redirectToApp, showError, showNotice } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
 import StepNavigation from './components/StepNavigation';
@@ -86,7 +86,7 @@ const SetupWizard = () => {
 
         // If setup is already completed, redirect to home
         if (data.status) {
-          window.location.href = '/';
+          redirectToApp('/');
           return;
         }
 

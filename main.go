@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"html"
 	"log"
 	"net/http"
 	"os"
@@ -171,7 +172,7 @@ func main() {
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
 	store.Options(sessions.Options{
-		Path:     "/",
+		Path:     common.SessionCookiePath(),
 		MaxAge:   2592000, // 30 days
 		HttpOnly: true,
 		Secure:   false,
@@ -179,6 +180,7 @@ func main() {
 	})
 	server.Use(sessions.Sessions("session", store))
 
+	InjectAppBasePath()
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
 
@@ -196,6 +198,41 @@ func main() {
 	if err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
+}
+
+func InjectAppBasePath() {
+	indexPage = injectAppBasePath(indexPage, common.AppBasePath)
+}
+
+func injectAppBasePath(page []byte, appBasePath string) []byte {
+	page = bytes.ReplaceAll(
+		page,
+		[]byte(`"__APP_BASE_PATH_PLACEHOLDER__"`),
+		[]byte(strconv.Quote(appBasePath)),
+	)
+	return injectAppBaseHref(page, appBaseHref(appBasePath))
+}
+
+func injectAppBaseHref(page []byte, href string) []byte {
+	baseTag := []byte(`<base href="` + html.EscapeString(href) + `" />`)
+	for _, candidate := range []string{
+		`<base href="./" />`,
+		`<base href="/" />`,
+		`<base href="%BASE_URL%" />`,
+		`<base href="__APP_BASE_PATH_HREF_PLACEHOLDER__" />`,
+	} {
+		if bytes.Contains(page, []byte(candidate)) {
+			return bytes.Replace(page, []byte(candidate), baseTag, 1)
+		}
+	}
+	return bytes.Replace(page, []byte(`<head>`), []byte("<head>\n    "+string(baseTag)), 1)
+}
+
+func appBaseHref(appBasePath string) string {
+	if appBasePath == "" {
+		return "/"
+	}
+	return strings.TrimRight(appBasePath, "/") + "/"
 }
 
 func InjectUmamiAnalytics() {

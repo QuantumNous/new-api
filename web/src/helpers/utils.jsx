@@ -27,6 +27,7 @@ import {
 } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
+import { openWithBasePath, redirectToApp, withBasePath } from './base-path';
 
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
@@ -54,7 +55,7 @@ export function getSystemName() {
 
 export function getLogo() {
   let logo = localStorage.getItem('logo');
-  if (!logo) return '/logo.png';
+  if (!logo) return withBasePath('/logo.png');
   return logo;
 }
 
@@ -128,7 +129,7 @@ export function showError(error) {
           // 清除用户状态
           localStorage.removeItem('user');
           // toast.error('错误：未登录或登录已过期，请重新登录！', showErrorOptions);
-          window.location.href = '/login?expired=true';
+          redirectToApp('/login?expired=true');
           break;
         case 429:
           Toast.error('错误：请求次数过多，请稍后再试！');
@@ -171,7 +172,7 @@ export function showNotice(message, isHTML = false) {
 }
 
 export function openPage(url) {
-  window.open(url);
+  openWithBasePath(url);
 }
 
 export function removeTrailingSlash(url) {

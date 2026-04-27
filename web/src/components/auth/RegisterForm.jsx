@@ -31,6 +31,7 @@ import {
   setUserData,
   onDiscordOAuthClicked,
   onCustomOAuthClicked,
+  withBasePath,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
 import {
@@ -133,12 +134,12 @@ const RegisterForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthRegisterOptions = Boolean(
     status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.telegram_oauth ||
-      hasCustomOAuthProviders,
+    status.discord_oauth ||
+    status.oidc_enabled ||
+    status.wechat_login ||
+    status.linuxdo_oauth ||
+    status.telegram_oauth ||
+    hasCustomOAuthProviders,
   );
 
   const [showEmailVerification, setShowEmailVerification] = useState(false);
@@ -648,7 +649,7 @@ const RegisterForm = () => {
                         {hasUserAgreement && (
                           <>
                             <a
-                              href='/user-agreement'
+                              href={withBasePath('/user-agreement')}
                               target='_blank'
                               rel='noopener noreferrer'
                               className='text-blue-600 hover:text-blue-800 mx-1'
@@ -661,7 +662,7 @@ const RegisterForm = () => {
                         {hasPrivacyPolicy && (
                           <>
                             <a
-                              href='/privacy-policy'
+                              href={withBasePath('/privacy-policy')}
                               target='_blank'
                               rel='noopener noreferrer'
                               className='text-blue-600 hover:text-blue-800 mx-1'
@@ -781,8 +782,7 @@ const RegisterForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister ||
-        !hasOAuthRegisterOptions
+        {showEmailRegister || !hasOAuthRegisterOptions
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

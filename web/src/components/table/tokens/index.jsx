@@ -28,6 +28,7 @@ import {
 } from '@douyinfe/semi-ui';
 import {
   API,
+  getAppOrigin,
   showError,
   getModelCategories,
   selectFilter,
@@ -229,7 +230,7 @@ function TokensPage() {
         serverAddress = status.server_address || '';
       } catch (_) {}
     }
-    if (!serverAddress) serverAddress = window.location.origin;
+    if (!serverAddress) serverAddress = getAppOrigin();
 
     let apiKeyToUse = '';
     if (overrideKey) {

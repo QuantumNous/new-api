@@ -51,12 +51,20 @@ func LogStartupSuccess(startTime time.Time, port string) {
 	fmt.Fprintf(gin.DefaultWriter, "\n")
 
 	if !IsRunningInContainer() {
-		fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1mLocal:\033[0m   http://localhost:%s/\n", port)
+		fmt.Fprintf(gin.DefaultWriter, "  ->  \033[1mLocal:\033[0m   %s\n", startupURL("localhost", port))
 	}
 
 	for _, ip := range networkIps {
-		fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1mNetwork:\033[0m http://%s:%s/\n", ip, port)
+		fmt.Fprintf(gin.DefaultWriter, "  ->  \033[1mNetwork:\033[0m %s\n", startupURL(ip, port))
 	}
 
 	fmt.Fprintf(gin.DefaultWriter, "\n")
+}
+
+func startupURL(host string, port string) string {
+	rootPath := "/"
+	if AppBasePath != "" {
+		rootPath = AppBasePath + "/"
+	}
+	return fmt.Sprintf("http://%s:%s%s", host, port, rootPath)
 }

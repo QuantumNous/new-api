@@ -151,6 +151,8 @@ docker run --name new-api -d --restart always \
 
 🎉 部署完成后，访问 `http://localhost:3000` 即可使用！
 
+如果你希望通过 `http://localhost:3000/new-api` 这样的子路径访问服务，请在启动前设置 `APP_BASE_PATH=/new-api`。若你还配置了用于 OAuth 或支付回调的 `ServerAddress`，请确保它也包含相同的子路径。若使用 `FRONTEND_BASE_URL` 将网页流量重定向到独立前端域名，后端会把原始请求 URI 追加到该地址后面；当 `APP_BASE_PATH=/new-api` 时，通常设置 `FRONTEND_BASE_URL=https://cdn.example.com`，这样 `/new-api/console` 会重定向到 `https://cdn.example.com/new-api/console`，不要在两个变量里重复配置同一个 `/new-api`。
+
 📖 更多部署方式请参考 [部署指南](https://docs.newapi.pro/zh/docs/installation)
 
 ---
