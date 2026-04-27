@@ -16,12 +16,13 @@
 
 export type BillingVar = {
   key: string
-  field: string
-  tierField: string
+  field: string | null
+  tierField: string | null
   label: string
   shortLabel: string
-  side: 'input' | 'output'
+  side: 'input' | 'output' | 'condition'
   isBase?: boolean
+  isConditionOnly?: boolean
   group?: string
 }
 
@@ -43,6 +44,15 @@ export const BILLING_VARS: BillingVar[] = [
     shortLabel: 'Output',
     side: 'output',
     isBase: true,
+  },
+  {
+    key: 'len',
+    field: null,
+    tierField: null,
+    label: 'Input length',
+    shortLabel: 'Length',
+    side: 'condition',
+    isConditionOnly: true,
   },
   {
     key: 'cr',
@@ -109,22 +119,31 @@ export const BILLING_VARS: BillingVar[] = [
   },
 ]
 
-const BILLING_VAR_KEYS = BILLING_VARS.map((v) => v.key)
+/** Vars that have real price fields (excludes condition-only vars like `len`) */
+export const BILLING_PRICING_VARS: BillingVar[] = BILLING_VARS.filter(
+  (v) => !v.isConditionOnly
+)
+
+/** Vars valid in tier conditions (`p`, `c`, `len`) */
+export const BILLING_CONDITION_VARS: string[] = BILLING_VARS.filter(
+  (v) => v.isBase || v.isConditionOnly
+).map((v) => v.key)
+
 const BILLING_VAR_KEY_TO_FIELD = Object.fromEntries(
-  BILLING_VARS.map((v) => [v.key, v.field])
+  BILLING_PRICING_VARS.map((v) => [v.key, v.field as string])
 ) as Record<string, string>
 
 export const BILLING_EXTRA_VARS: BillingVar[] = BILLING_VARS.filter(
-  (v) => !v.isBase
+  (v) => !v.isBase && !v.isConditionOnly
 )
 
 export const BILLING_CACHE_VAR_MAP = BILLING_EXTRA_VARS.map((v) => ({
-  field: v.tierField,
+  field: v.tierField as string,
   exprVar: v.key,
 }))
 
 const BILLING_VAR_REGEX = new RegExp(
-  `\\b(${BILLING_VAR_KEYS.join('|')})\\s*\\*\\s*([\\d.eE+-]+)`,
+  `\\b(${BILLING_PRICING_VARS.map((v) => v.key).join('|')})\\s*\\*\\s*([\\d.eE+-]+)`,
   'g'
 )
 
@@ -192,7 +211,7 @@ export type RequestRuleGroup = {
 }
 
 export type TierCondition = {
-  var: 'p' | 'c'
+  var: 'p' | 'c' | 'len'
   op: '<' | '<=' | '>' | '>='
   value: number
 }
@@ -233,8 +252,8 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   try {
     const { body } = stripExprVersion(exprStr)
     const condGroup =
-      `((?:(?:p|c)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
-      `(?:\\s*&&\\s*(?:p|c)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
+      `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
+      `(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
     const tierRe = new RegExp(
       `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`,
       'g'
@@ -246,7 +265,7 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
       const conditions: TierCondition[] = []
       if (condStr) {
         for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
+          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
           if (cm) {
             conditions.push({
               var: cm[1] as TierCondition['var'],

@@ -10,8 +10,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 import {
-  BILLING_VARS,
+  BILLING_PRICING_VARS,
   MATCH_CONTAINS,
   MATCH_EQ,
   MATCH_EXISTS,
@@ -32,9 +33,11 @@ type DynamicPricingBreakdownProps = {
   billingExpr: string | null | undefined
 }
 
-const PRICE_SUFFIX = '$/1M tokens'
-
-const VAR_LABELS: Record<string, string> = { p: 'Input', c: 'Output' }
+const VAR_LABELS: Record<string, string> = {
+  p: 'Input',
+  c: 'Output',
+  len: 'Length',
+}
 const OP_LABELS: Record<string, string> = {
   '<': '<',
   '<=': '≤',
@@ -122,6 +125,22 @@ export function DynamicPricingBreakdown({
 }: DynamicPricingBreakdownProps) {
   const { t } = useTranslation()
   const expr = billingExpr || ''
+  const currency = useSystemConfigStore((s) => s.config.currency)
+
+  const { symbol, rate } = useMemo(() => {
+    if (currency.quotaDisplayType === 'CNY') {
+      return { symbol: '¥', rate: currency.usdExchangeRate || 7 }
+    }
+    if (currency.quotaDisplayType === 'CUSTOM') {
+      return {
+        symbol: currency.customCurrencySymbol || '¤',
+        rate: currency.customCurrencyExchangeRate || 1,
+      }
+    }
+    return { symbol: '$', rate: 1 }
+  }, [currency])
+
+  const priceSuffix = `${symbol}/1M tokens`
 
   const { tiers, ruleGroups, baseExpr } = useMemo(() => {
     const split = splitBillingExprAndRequestRules(expr)
@@ -157,10 +176,12 @@ export function DynamicPricingBreakdown({
     )
   }
 
-  const visiblePriceFields = BILLING_VARS.filter(
+  const visiblePriceFields = BILLING_PRICING_VARS.filter(
     (v) =>
       hasTiers &&
-      tiers.some((tier) => Number(tier[v.field as keyof ParsedTier] || 0) > 0)
+      tiers.some(
+        (tier) => Number(tier[(v.field as string) as keyof ParsedTier] || 0) > 0
+      )
   )
 
   return (
@@ -196,7 +217,7 @@ export function DynamicPricingBreakdown({
                       key={v.field}
                       className='text-muted-foreground py-2 text-right text-[10px] font-medium tracking-wider uppercase'
                     >
-                      {`${t(v.shortLabel)} (${PRICE_SUFFIX})`}
+                      {`${t(v.shortLabel)} (${priceSuffix})`}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -221,7 +242,7 @@ export function DynamicPricingBreakdown({
                       </TableCell>
                       {visiblePriceFields.map((v) => {
                         const value = Number(
-                          tier[v.field as keyof ParsedTier] || 0
+                          tier[(v.field as string) as keyof ParsedTier] || 0
                         )
                         return (
                           <TableCell
@@ -230,7 +251,7 @@ export function DynamicPricingBreakdown({
                           >
                             {value > 0 ? (
                               <span className='font-semibold'>
-                                ${value.toFixed(4)}
+                                {`${symbol}${(value * rate).toFixed(4)}`}
                               </span>
                             ) : (
                               '-'

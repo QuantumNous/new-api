@@ -36,6 +36,7 @@ export const userSchema = z.object({
   role: userRoleSchema,
   created_at: z.number().optional(),
   updated_at: z.number().optional(),
+  last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
 })

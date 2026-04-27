@@ -38,8 +38,9 @@ import { useChannels } from '../channels-provider'
 type FetchModelsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onModelsSelected?: (models: string[]) => void // Optional callback for form filling mode
-  redirectModels?: string[] // Models from model_mapping
+  onModelsSelected?: (models: string[]) => void
+  redirectModels?: string[]
+  redirectSourceModels?: string[]
 }
 
 export function FetchModelsDialog({
@@ -47,6 +48,7 @@ export function FetchModelsDialog({
   onOpenChange,
   onModelsSelected,
   redirectModels = [],
+  redirectSourceModels = [],
 }: FetchModelsDialogProps) {
   const { t } = useTranslation()
   const { currentRow } = useChannels()
@@ -70,6 +72,13 @@ export function FetchModelsDialog({
   )
 
   const { classificationSet, redirectOnlySet } = modelCategories
+
+  // Models that are source keys in model_mapping but NOT in the current models list
+  const removedModels = useMemo(() => {
+    return redirectSourceModels.filter(
+      (m) => !classificationSet.has(normalizeModelName(m))
+    )
+  }, [redirectSourceModels, classificationSet])
 
   useEffect(() => {
     if (open && currentRow) {
@@ -348,9 +357,19 @@ export function FetchModelsDialog({
                 />
               </div>
 
-              {/* Tabs for New vs Existing */}
-              <Tabs defaultValue={newModels.length > 0 ? 'new' : 'existing'}>
-                <TabsList className='grid w-full grid-cols-2'>
+              {/* Tabs for New vs Existing vs Removed */}
+              <Tabs
+                defaultValue={
+                  newModels.length > 0
+                    ? 'new'
+                    : removedModels.length > 0
+                      ? 'removed'
+                      : 'existing'
+                }
+              >
+                <TabsList
+                  className={`grid w-full ${removedModels.length > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}
+                >
                   <TabsTrigger value='new' disabled={newModels.length === 0}>
                     {t('New Models (')}
                     {newModels.length})
@@ -362,6 +381,12 @@ export function FetchModelsDialog({
                     {t('Existing Models (')}
                     {existingFilteredModels.length})
                   </TabsTrigger>
+                  {removedModels.length > 0 && (
+                    <TabsTrigger value='removed'>
+                      {t('Removed Models (')}
+                      {removedModels.length})
+                    </TabsTrigger>
+                  )}
                 </TabsList>
 
                 <TabsContent
@@ -383,6 +408,20 @@ export function FetchModelsDialog({
                       renderModelCategory(category, models)
                   )}
                 </TabsContent>
+
+                {removedModels.length > 0 && (
+                  <TabsContent
+                    value='removed'
+                    className='max-h-96 space-y-2 overflow-y-auto'
+                  >
+                    <p className='text-muted-foreground text-xs'>
+                      {t(
+                        'These models are source keys in model_mapping but are not in the models list. Select them to add back.'
+                      )}
+                    </p>
+                    {renderModelCategory(t('Removed'), removedModels)}
+                  </TabsContent>
+                )}
               </Tabs>
 
               {/* Selection Summary */}

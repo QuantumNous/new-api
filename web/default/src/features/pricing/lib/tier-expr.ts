@@ -5,7 +5,7 @@ export const CACHE_MODE_GENERIC = 'generic'
 export type CacheMode = typeof CACHE_MODE_TIMED | typeof CACHE_MODE_GENERIC
 
 export type TierConditionInput = {
-  var: 'p' | 'c'
+  var: 'p' | 'c' | 'len'
   op: '<' | '<=' | '>' | '>='
   value: number | string
 }
@@ -176,8 +176,8 @@ export function tryParseVisualConfig(
     }
 
     const condGroup =
-      `((?:(?:p|c)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
-      `(?:\\s*&&\\s*(?:p|c)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
+      `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
+      `(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
     const tierRe = new RegExp(
       `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*${bodyPat}\\)`,
       'g'
@@ -189,7 +189,9 @@ export function tryParseVisualConfig(
       const conditions: TierConditionInput[] = []
       if (condStr) {
         for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
+          const cm = cp
+            .trim()
+            .match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
           if (cm) {
             conditions.push({
               var: cm[1] as TierConditionInput['var'],
@@ -265,9 +267,14 @@ export function evalExprLocally(
       matchedTier = name
       return value
     }
+    const cacheReadTokens = extraTokenValues.cacheReadTokens || 0
+    const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0
+    const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0
+    const len = promptTokens + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens
     const env: Record<string, unknown> = {
       p: promptTokens,
       c: completionTokens,
+      len,
       tier: tierFn,
       max: Math.max,
       min: Math.min,

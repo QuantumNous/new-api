@@ -99,6 +99,7 @@ import {
   parseModelsString,
   formatModelsArray,
   extractRedirectModels,
+  extractMappingSourceModels,
   hasModelConfigChanged,
   findMissingModelsInMapping,
   validateModelMappingJson,
@@ -337,9 +338,15 @@ export function ChannelMutateDrawer({
     [currentModels]
   )
 
-  // Extract redirect models from model_mapping
+  // Extract redirect models from model_mapping (target values)
   const redirectModelList = useMemo(
     () => extractRedirectModels(currentModelMapping || ''),
+    [currentModelMapping]
+  )
+
+  // Extract source keys from model_mapping (models being remapped FROM)
+  const redirectModelKeyList = useMemo(
+    () => extractMappingSourceModels(currentModelMapping || ''),
     [currentModelMapping]
   )
 
@@ -2967,6 +2974,7 @@ export function ChannelMutateDrawer({
             form.setValue('models', formatModelsArray(models))
           }}
           redirectModels={redirectModelList}
+          redirectSourceModels={redirectModelKeyList}
         />
       )}
 

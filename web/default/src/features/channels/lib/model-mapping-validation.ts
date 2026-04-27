@@ -29,6 +29,31 @@ export function normalizeModelName(model: string): string {
 }
 
 /**
+ * Extract source keys from model_mapping JSON
+ * (the keys of the mapping object — models being remapped FROM)
+ */
+export function extractMappingSourceModels(modelMapping: string): string[] {
+  if (typeof modelMapping !== 'string') return []
+  const trimmed = modelMapping.trim()
+  if (!trimmed) return []
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return []
+    }
+
+    const keys = Object.keys(parsed)
+      .map((key) => key.trim())
+      .filter(Boolean)
+
+    return Array.from(new Set(keys))
+  } catch {
+    return []
+  }
+}
+
+/**
  * Extract redirect models from model_mapping JSON
  */
 export function extractRedirectModels(modelMapping: string): string[] {

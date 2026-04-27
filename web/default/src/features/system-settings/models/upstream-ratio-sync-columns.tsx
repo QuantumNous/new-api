@@ -1,82 +1,140 @@
 import { type ColumnDef } from '@tanstack/react-table'
-import { AlertTriangle, CheckCircle } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { StatusBadge } from '@/components/status-badge'
 import type { RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
 
-export type DifferenceRow = {
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type RatioDifferenceEntry = {
+  current: number | string | null
+  upstreams: Record<string, number | string | 'same'>
+  confidence: Record<string, boolean>
+}
+
+export type ModelRow = {
   key: string
   model: string
-  ratioType: RatioType
-  current: number | null
-  upstreams: Record<string, number | 'same'>
-  confidence: Record<string, boolean>
+  ratioTypes: Partial<Record<RatioType, RatioDifferenceEntry>>
   billingConflict: boolean
 }
 
-type ResolutionsMap = Record<string, Record<RatioType, number>>
+export type ResolutionsMap = Record<string, Record<string, number | string>>
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const RATIO_SYNC_FIELDS: RatioType[] = [
+  'model_ratio',
+  'completion_ratio',
+  'cache_ratio',
+  'create_cache_ratio',
+  'image_ratio',
+  'audio_ratio',
+  'audio_completion_ratio',
+]
+
+const SYNC_FIELD_ORDER: RatioType[] = [
+  ...RATIO_SYNC_FIELDS,
+  'model_price',
+  'billing_mode',
+  'billing_expr',
+]
+
+const NUMERIC_SYNC_FIELDS = new Set<string>([...RATIO_SYNC_FIELDS, 'model_price'])
+
+export function getSyncFieldLabel(
+  ratioType: string,
+  t: (key: string) => string
+): string {
+  const opt = RATIO_TYPE_OPTIONS.find((o) => o.value === ratioType)
+  if (opt) return t(opt.label)
+  return ratioType
+}
+
+export function getOrderedRatioTypes(
+  ratioTypes: Partial<Record<RatioType, RatioDifferenceEntry>>,
+  filter?: string
+): RatioType[] {
+  const keys = Object.keys(ratioTypes) as RatioType[]
+  const ordered = [
+    ...SYNC_FIELD_ORDER.filter((f) => keys.includes(f)),
+    ...keys.filter((f) => !SYNC_FIELD_ORDER.includes(f)),
+  ]
+  return filter ? ordered.filter((f) => f === filter) : ordered
+}
+
+export function getPreferredSyncField(
+  ratioTypes: Partial<Record<RatioType, RatioDifferenceEntry>>,
+  ratioType: RatioType,
+  sourceName: string
+): RatioType {
+  const exprValue = ratioTypes.billing_expr?.upstreams?.[sourceName]
+  if (
+    ratioType !== 'billing_expr' &&
+    exprValue !== null &&
+    exprValue !== undefined &&
+    exprValue !== 'same'
+  ) {
+    return 'billing_expr'
+  }
+  return ratioType
+}
+
+export function isSelectableUpstreamValue(
+  value: number | string | 'same' | null | undefined
+): boolean {
+  return value !== null && value !== undefined && value !== 'same'
+}
+
+export { RATIO_SYNC_FIELDS, NUMERIC_SYNC_FIELDS }
+
+// ---------------------------------------------------------------------------
+// Column definitions
+// ---------------------------------------------------------------------------
 
 export function useUpstreamRatioSyncColumns(
   upstreamNames: string[],
   resolutions: ResolutionsMap,
-  onSelectValue: (model: string, ratioType: RatioType, value: number) => void,
+  ratioTypeFilter: string,
+  isDisabled: boolean,
+  onSelectValue: (
+    model: string,
+    ratioType: RatioType,
+    value: number | string,
+    sourceName: string
+  ) => void,
   onUnselectValue: (model: string, ratioType: RatioType) => void,
-  onBulkSelect: (upstreamName: string, rows: DifferenceRow[]) => void,
-  onBulkUnselect: (upstreamName: string, rows: DifferenceRow[]) => void
-): ColumnDef<DifferenceRow>[] {
+  onBulkSelect: (upstreamName: string, rows: ModelRow[]) => void,
+  onBulkUnselect: (upstreamName: string, rows: ModelRow[]) => void
+): ColumnDef<ModelRow>[] {
   const { t } = useTranslation()
-  const baseColumns: ColumnDef<DifferenceRow>[] = [
+
+  const baseColumns: ColumnDef<ModelRow>[] = [
     {
       accessorKey: 'model',
       header: t('Model'),
       cell: ({ row }) => {
-        const model = row.getValue('model') as string
+        const model = row.original.model
         return (
-          <StatusBadge
-            label={model}
-            autoColor={model}
-            copyText={model}
-            size='sm'
-            className='font-mono'
-          />
-        )
-      },
-    },
-    {
-      accessorKey: 'ratioType',
-      header: t('Ratio Type'),
-      cell: ({ row }) => {
-        const ratioType = row.getValue('ratioType') as RatioType
-        const billingConflict = row.original.billingConflict
-
-        const config = RATIO_TYPE_OPTIONS.find((opt) => opt.value === ratioType)
-        const label = config?.label || ratioType
-
-        const badge = (
-          <StatusBadge
-            label={label}
-            autoColor={ratioType}
-            size='sm'
-            copyable={false}
-          />
-        )
-
-        if (billingConflict) {
-          return (
-            <TooltipProvider>
-              <div className='flex items-center gap-1.5'>
-                {badge}
+          <div className='flex min-w-[180px] items-center gap-2'>
+            <span className='font-medium'>{model}</span>
+            {row.original.billingConflict && (
+              <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <AlertTriangle className='h-3.5 w-3.5 text-amber-500' />
+                    <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-amber-500' />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>
@@ -86,191 +144,242 @@ export function useUpstreamRatioSyncColumns(
                     </p>
                   </TooltipContent>
                 </Tooltip>
-              </div>
-            </TooltipProvider>
-          )
-        }
-
-        return badge
-      },
-    },
-    {
-      id: 'confidence',
-      header: t('Confidence'),
-      cell: ({ row }) => {
-        const confidence = row.original.confidence
-        const allConfident = Object.values(confidence).every((v) => v !== false)
-
-        if (allConfident) {
-          return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <StatusBadge
-                    label={t('Trusted')}
-                    variant='success'
-                    size='sm'
-                    copyable={false}
-                    icon={CheckCircle}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t('All upstream data is trusted')}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )
-        }
-
-        const untrustedSources = Object.entries(confidence)
-          .filter(([_, isConfident]) => isConfident === false)
-          .map(([name]) => name)
-          .join(', ')
-
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                <StatusBadge
-                  label={t('Caution')}
-                  variant='warning'
-                  size='sm'
-                  copyable={false}
-                  icon={AlertTriangle}
-                />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>
-                  {t('Untrusted upstream data:')} {untrustedSources}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              </TooltipProvider>
+            )}
+          </div>
         )
       },
     },
     {
-      accessorKey: 'current',
-      header: t('Current Value'),
+      id: 'current',
+      header: t('Current Price'),
       cell: ({ row }) => {
-        const current = row.getValue('current') as number | null
+        const fields = getOrderedRatioTypes(
+          row.original.ratioTypes,
+          ratioTypeFilter
+        )
         return (
-          <StatusBadge
-            label={current !== null ? String(current) : 'Not Set'}
-            variant={current !== null ? 'info' : 'neutral'}
-            size='sm'
-            copyable={false}
-          />
+          <div className='flex min-w-[260px] flex-col gap-2'>
+            {fields.map((ratioType) => (
+              <div
+                key={ratioType}
+                className='flex min-w-0 flex-wrap items-center gap-2'
+              >
+                <StatusBadge
+                  label={getSyncFieldLabel(ratioType, t)}
+                  autoColor={ratioType}
+                  size='sm'
+                  copyable={false}
+                />
+                {(() => {
+                  const current =
+                    row.original.ratioTypes[ratioType]?.current
+                  if (current === null || current === undefined) {
+                    return (
+                      <StatusBadge
+                        label={t('Not Set')}
+                        variant='neutral'
+                        size='sm'
+                        copyable={false}
+                      />
+                    )
+                  }
+                  const text = String(current)
+                  return (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <StatusBadge
+                            label={text}
+                            variant='info'
+                            size='sm'
+                            className='max-w-[200px] truncate'
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className='max-w-xs break-all text-xs'>{text}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )
+                })()}
+              </div>
+            ))}
+          </div>
         )
       },
     },
   ]
 
-  const upstreamColumns: ColumnDef<DifferenceRow>[] = upstreamNames.map(
+  const upstreamColumns: ColumnDef<ModelRow>[] = upstreamNames.map(
     (upstreamName) => ({
       id: `upstream_${upstreamName}`,
       header: ({ table }) => {
         const rows = table.getFilteredRowModel().rows.map((r) => r.original)
 
-        const selectableRows = rows.filter((row) => {
-          const value = row.upstreams[upstreamName]
-          return value !== null && value !== undefined && value !== 'same'
+        let selectableCount = 0
+        let selectedCount = 0
+
+        rows.forEach((row) => {
+          getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
+            (ratioType) => {
+              const upstreamVal =
+                row.ratioTypes[ratioType]?.upstreams?.[upstreamName]
+              const preferredField = getPreferredSyncField(
+                row.ratioTypes,
+                ratioType,
+                upstreamName
+              )
+              if (
+                preferredField === ratioType &&
+                isSelectableUpstreamValue(upstreamVal)
+              ) {
+                selectableCount++
+                if (resolutions[row.model]?.[ratioType] === upstreamVal) {
+                  selectedCount++
+                }
+              }
+            }
+          )
         })
 
-        if (selectableRows.length === 0) {
-          return <span className='font-medium'>{upstreamName}</span>
-        }
-
-        const selectedCount = selectableRows.filter((row) => {
-          const value = row.upstreams[upstreamName]
-          return (
-            typeof value === 'number' &&
-            resolutions[row.model]?.[row.ratioType] === value
-          )
-        }).length
-
         const allSelected =
-          selectedCount > 0 && selectedCount === selectableRows.length
+          selectableCount > 0 && selectedCount === selectableCount
         const someSelected =
-          selectedCount > 0 && selectedCount < selectableRows.length
+          selectedCount > 0 && selectedCount < selectableCount
 
         return (
           <div className='flex items-center gap-2'>
-            <Checkbox
-              checked={
-                allSelected ? true : someSelected ? 'indeterminate' : false
-              }
-              onCheckedChange={(checked) => {
-                if (checked) {
-                  onBulkSelect(upstreamName, selectableRows)
-                } else {
-                  onBulkUnselect(upstreamName, selectableRows)
-                }
-              }}
-            />
+            {selectableCount > 0 && (
+              <Checkbox
+                checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                disabled={isDisabled}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    onBulkSelect(upstreamName, rows)
+                  } else {
+                    onBulkUnselect(upstreamName, rows)
+                  }
+                }}
+              />
+            )}
             <span className='font-medium'>{upstreamName}</span>
           </div>
         )
       },
       cell: ({ row }) => {
-        const upstreamValue = row.original.upstreams[upstreamName]
-        const isConfident = row.original.confidence[upstreamName] !== false
-
-        if (upstreamValue === null || upstreamValue === undefined) {
-          return (
-            <StatusBadge
-              label={t('Not Set')}
-              variant='neutral'
-              size='sm'
-              copyable={false}
-            />
-          )
-        }
-
-        if (upstreamValue === 'same') {
-          return (
-            <StatusBadge
-              label={t('Same as Local')}
-              variant='info'
-              size='sm'
-              copyable={false}
-            />
-          )
-        }
-
-        const isSelected =
-          resolutions[row.original.model]?.[row.original.ratioType] ===
-          upstreamValue
+        const fields = getOrderedRatioTypes(
+          row.original.ratioTypes,
+          ratioTypeFilter
+        ).filter(
+          (ratioType) =>
+            getPreferredSyncField(
+              row.original.ratioTypes,
+              ratioType,
+              upstreamName
+            ) === ratioType
+        )
 
         return (
-          <div className='flex items-center gap-2'>
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={(checked) => {
-                if (checked) {
-                  onSelectValue(
-                    row.original.model,
-                    row.original.ratioType,
-                    upstreamValue as number
-                  )
-                } else {
-                  onUnselectValue(row.original.model, row.original.ratioType)
-                }
-              }}
-            />
-            <span className='font-mono text-sm'>{upstreamValue}</span>
-            {!isConfident && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <AlertTriangle className='h-3.5 w-3.5 text-amber-500' />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{t('This data may be unreliable, use with caution')}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+          <div className='flex min-w-[280px] flex-col gap-2'>
+            {fields.map((ratioType) => {
+              const diff = row.original.ratioTypes[ratioType]
+              const upstreamVal = diff?.upstreams?.[upstreamName]
+              const isConfident = diff?.confidence?.[upstreamName] !== false
+
+              return (
+                <div key={ratioType} className='flex min-w-0 items-start gap-2'>
+                  <StatusBadge
+                    label={getSyncFieldLabel(ratioType, t)}
+                    autoColor={ratioType}
+                    size='sm'
+                    copyable={false}
+                    className='shrink-0'
+                  />
+                  <div className='min-w-0 flex-1'>
+                    {(() => {
+                      if (upstreamVal === null || upstreamVal === undefined) {
+                        return (
+                          <StatusBadge
+                            label={t('Not Set')}
+                            variant='neutral'
+                            size='sm'
+                            copyable={false}
+                          />
+                        )
+                      }
+
+                      if (upstreamVal === 'same') {
+                        return (
+                          <StatusBadge
+                            label={t('Same as Local')}
+                            variant='info'
+                            size='sm'
+                            copyable={false}
+                          />
+                        )
+                      }
+
+                      const text = String(upstreamVal)
+                      const isSelected =
+                        resolutions[row.original.model]?.[ratioType] ===
+                        upstreamVal
+
+                      return (
+                        <div className='flex min-w-0 items-center gap-2'>
+                          <Checkbox
+                            checked={isSelected}
+                            disabled={isDisabled}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                onSelectValue(
+                                  row.original.model,
+                                  ratioType,
+                                  upstreamVal,
+                                  upstreamName
+                                )
+                              } else {
+                                onUnselectValue(row.original.model, ratioType)
+                              }
+                            }}
+                          />
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className='inline-block max-w-[240px] cursor-default truncate font-mono text-sm'>
+                                  {text}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className='max-w-xs break-all text-xs'>
+                                  {text}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          {!isConfident && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <AlertTriangle className='h-3.5 w-3.5 shrink-0 text-amber-500' />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>
+                                    {t(
+                                      'This data may be unreliable, use with caution'
+                                    )}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )
       },

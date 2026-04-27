@@ -2,12 +2,10 @@ import { useMemo, useState } from 'react'
 import {
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getPaginationRowModel,
   useReactTable,
-  type ColumnFiltersState,
 } from '@tanstack/react-table'
-import { Search } from 'lucide-react'
+import { Loader2, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import {
@@ -29,99 +27,126 @@ import { DataTablePagination } from '@/components/data-table/pagination'
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
 import {
+  getOrderedRatioTypes,
+  getPreferredSyncField,
+  isSelectableUpstreamValue,
   useUpstreamRatioSyncColumns,
-  type DifferenceRow,
+  type ModelRow,
+  type ResolutionsMap,
 } from './upstream-ratio-sync-columns'
+import { RATIO_SYNC_FIELDS } from './upstream-ratio-sync-columns'
 
 type UpstreamRatioSyncTableProps = {
   differences: DifferencesMap
-  resolutions: Record<string, Record<RatioType, number>>
-  onSelectValue: (model: string, ratioType: RatioType, value: number) => void
+  resolutions: ResolutionsMap
+  isDisabled: boolean
+  isSyncing: boolean
+  onSelectValue: (
+    model: string,
+    ratioType: RatioType,
+    value: number | string,
+    sourceName: string
+  ) => void
   onUnselectValue: (model: string, ratioType: RatioType) => void
 }
 
 export function UpstreamRatioSyncTable({
   differences,
   resolutions,
+  isDisabled,
+  isSyncing,
   onSelectValue,
   onUnselectValue,
 }: UpstreamRatioSyncTableProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [ratioTypeFilter, setRatioTypeFilter] = useState<string>('')
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
-  const dataSource = useMemo(() => {
-    const rows: DifferenceRow[] = []
-
-    Object.entries(differences).forEach(([model, ratioTypes]) => {
+  const dataSource = useMemo<ModelRow[]>(() => {
+    return Object.entries(differences).map(([model, ratioTypes]) => {
       const hasPrice = 'model_price' in ratioTypes
-      const hasOtherRatio = [
-        'model_ratio',
-        'completion_ratio',
-        'cache_ratio',
-      ].some((rt) => rt in ratioTypes)
-      const billingConflict = hasPrice && hasOtherRatio
-
-      Object.entries(ratioTypes).forEach(([ratioType, diff]) => {
-        rows.push({
-          key: `${model}_${ratioType}`,
-          model,
-          ratioType: ratioType as RatioType,
-          current: diff.current,
-          upstreams: diff.upstreams,
-          confidence: diff.confidence || {},
-          billingConflict,
-        })
-      })
+      const hasOtherRatio = RATIO_SYNC_FIELDS.some((rt) => rt in ratioTypes)
+      return {
+        key: model,
+        model,
+        ratioTypes,
+        billingConflict: hasPrice && hasOtherRatio,
+      }
     })
-
-    return rows
   }, [differences])
 
   const filteredData = useMemo(() => {
-    let filtered = dataSource
+    let data = dataSource
 
     if (search.trim()) {
-      const searchLower = search.toLowerCase()
-      filtered = filtered.filter((row) =>
-        row.model.toLowerCase().includes(searchLower)
-      )
+      const lower = search.toLowerCase()
+      data = data.filter((row) => row.model.toLowerCase().includes(lower))
     }
 
     if (ratioTypeFilter && ratioTypeFilter !== '__all__') {
-      filtered = filtered.filter((row) => row.ratioType === ratioTypeFilter)
+      data = data.filter((row) => ratioTypeFilter in row.ratioTypes)
     }
 
-    return filtered
+    return data
   }, [dataSource, search, ratioTypeFilter])
 
   const upstreamNames = useMemo(() => {
-    const names = new Set<string>()
+    const set = new Set<string>()
     filteredData.forEach((row) => {
-      Object.keys(row.upstreams).forEach((name) => names.add(name))
+      getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
+        (ratioType) => {
+          Object.keys(
+            row.ratioTypes[ratioType]?.upstreams || {}
+          ).forEach((name) => set.add(name))
+        }
+      )
     })
-    return Array.from(names)
-  }, [filteredData])
+    return Array.from(set)
+  }, [filteredData, ratioTypeFilter])
 
-  const handleBulkSelect = (upstream: string, rows: DifferenceRow[]) => {
+  const handleBulkSelect = (upstream: string, rows: ModelRow[]) => {
     rows.forEach((row) => {
-      const value = row.upstreams[upstream]
-      if (typeof value === 'number') {
-        onSelectValue(row.model, row.ratioType, value)
-      }
+      getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
+        (ratioType) => {
+          const upstreamVal = row.ratioTypes[ratioType]?.upstreams?.[upstream]
+          const preferredField = getPreferredSyncField(
+            row.ratioTypes,
+            ratioType,
+            upstream
+          )
+          if (
+            preferredField === ratioType &&
+            isSelectableUpstreamValue(upstreamVal)
+          ) {
+            onSelectValue(
+              row.model,
+              ratioType,
+              upstreamVal as number | string,
+              upstream
+            )
+          }
+        }
+      )
     })
   }
 
-  const handleBulkUnselect = (_upstream: string, rows: DifferenceRow[]) => {
+  const handleBulkUnselect = (_upstream: string, rows: ModelRow[]) => {
     rows.forEach((row) => {
-      onUnselectValue(row.model, row.ratioType)
+      getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
+        (ratioType) => {
+          if (row.ratioTypes[ratioType]?.upstreams?.[_upstream] !== undefined) {
+            onUnselectValue(row.model, ratioType)
+          }
+        }
+      )
     })
   }
 
   const columns = useUpstreamRatioSyncColumns(
     upstreamNames,
     resolutions,
+    ratioTypeFilter,
+    isDisabled,
     onSelectValue,
     onUnselectValue,
     handleBulkSelect,
@@ -131,29 +156,34 @@ export function UpstreamRatioSyncTable({
   const table = useReactTable({
     data: filteredData,
     columns,
-    state: {
-      columnFilters,
-    },
-    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (row) => row.key,
     initialState: {
-      pagination: {
-        pageSize: 10,
-      },
+      pagination: { pageSize: 10 },
     },
   })
 
   if (dataSource.length === 0) {
+    if (isSyncing) {
+      return (
+        <div className='flex h-64 flex-col items-center justify-center gap-3 rounded-md border'>
+          <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
+          <p className='text-muted-foreground text-sm'>
+            {t('Fetching upstream prices...')}
+          </p>
+        </div>
+      )
+    }
+
     return (
       <div className='flex h-64 items-center justify-center rounded-md border'>
         <div className='text-center'>
           <p className='text-muted-foreground text-sm'>
-            {t('No upstream ratio differences found')}
+            {t('No upstream price differences found')}
           </p>
           <p className='text-muted-foreground mt-1 text-xs'>
-            {t('Select sync channels to compare ratios')}
+            {t('Select sync channels to compare prices')}
           </p>
         </div>
       </div>
@@ -169,18 +199,23 @@ export function UpstreamRatioSyncTable({
             placeholder={t('Search model name...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            disabled={isDisabled}
             className='ps-8'
           />
         </div>
-        <Select value={ratioTypeFilter} onValueChange={setRatioTypeFilter}>
-          <SelectTrigger className='w-full sm:w-48'>
-            <SelectValue placeholder={t('Filter by ratio type')} />
+        <Select
+          value={ratioTypeFilter}
+          onValueChange={setRatioTypeFilter}
+          disabled={isDisabled}
+        >
+          <SelectTrigger className='w-full sm:w-56'>
+            <SelectValue placeholder={t('Filter by price field')} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='__all__'>{t('All Types')}</SelectItem>
             {RATIO_TYPE_OPTIONS.map((option) => (
               <SelectItem key={option.value} value={option.value}>
-                {option.label}
+                {t(option.label)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -194,7 +229,7 @@ export function UpstreamRatioSyncTable({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className='align-top'>
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -207,11 +242,11 @@ export function UpstreamRatioSyncTable({
               ))}
             </TableHeader>
             <TableBody>
-              {table.getRowModel().rows?.length ? (
+              {table.getRowModel().rows.length > 0 ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} className='align-top'>
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell key={cell.id} className='align-top'>
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()

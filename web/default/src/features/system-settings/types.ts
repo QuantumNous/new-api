@@ -286,15 +286,24 @@ export type RatioType =
   | 'model_ratio'
   | 'completion_ratio'
   | 'cache_ratio'
+  | 'create_cache_ratio'
+  | 'image_ratio'
+  | 'audio_ratio'
+  | 'audio_completion_ratio'
   | 'model_price'
+  | 'billing_mode'
+  | 'billing_expr'
 
 export type RatioDifference = {
-  current: number | null
-  upstreams: Record<string, number | 'same'>
+  current: number | string | null
+  upstreams: Record<string, number | string | 'same'>
   confidence: Record<string, boolean>
 }
 
-export type DifferencesMap = Record<string, Record<RatioType, RatioDifference>>
+export type DifferencesMap = Record<
+  string,
+  Partial<Record<RatioType, RatioDifference>>
+>
 
 export type UpstreamChannelsResponse = {
   success: boolean
