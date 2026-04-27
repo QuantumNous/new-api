@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -54,6 +55,7 @@ func GetSetup(c *gin.Context) {
 func PostSetup(c *gin.Context) {
 	// Check if setup is already completed
 	if constant.Setup {
+		logger.LogWarn(c.Request.Context(), "setup rejected reason=setup_completed client_ip="+c.ClientIP())
 		c.JSON(200, gin.H{
 			"success": false,
 			"message": "系统已经初始化完成",
@@ -63,6 +65,14 @@ func PostSetup(c *gin.Context) {
 
 	// Check if root user already exists
 	rootExists := model.RootUserExists()
+	if rootExists {
+		logger.LogWarn(c.Request.Context(), "setup rejected reason=root_exists client_ip="+c.ClientIP())
+		c.JSON(200, gin.H{
+			"success": false,
+			"message": "系统已经初始化完成",
+		})
+		return
+	}
 
 	var req SetupRequest
 	err := c.ShouldBindJSON(&req)

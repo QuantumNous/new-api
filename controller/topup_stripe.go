@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
 	"github.com/stripe/stripe-go/v81/webhook"
@@ -279,6 +280,38 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		return
 	}
 
+	topUp := model.GetTopUpByTradeNo(referenceId)
+	if topUp == nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe callback rejected provider=%s trade_no=%s reason=order_not_found client_ip=%s", model.PaymentProviderStripe, referenceId, callerIp))
+		return
+	}
+	if topUp.PaymentProvider != model.PaymentProviderStripe {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe callback rejected provider=%s trade_no=%s reason=provider_mismatch actual_provider=%s client_ip=%s", model.PaymentProviderStripe, referenceId, topUp.PaymentProvider, callerIp))
+		return
+	}
+	if topUp.Status == common.TopUpStatusSuccess {
+		logger.LogInfo(ctx, fmt.Sprintf("Stripe callback idempotent success trade_no=%s client_ip=%s", referenceId, callerIp))
+		return
+	}
+	if topUp.Status != common.TopUpStatusPending {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe callback rejected provider=%s trade_no=%s reason=invalid_status status=%s client_ip=%s", model.PaymentProviderStripe, referenceId, topUp.Status, callerIp))
+		return
+	}
+	actualMinor, parseErr := strconv.ParseInt(event.GetObjectValue("amount_total"), 10, 64)
+	if parseErr != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe callback rejected provider=%s trade_no=%s reason=invalid_amount_total client_ip=%s", model.PaymentProviderStripe, referenceId, callerIp))
+		return
+	}
+	expectedAmount := decimal.NewFromFloat(topUp.Money).Round(2)
+	actualAmount := decimal.NewFromInt(actualMinor).Div(decimal.NewFromInt(100)).Round(2)
+	if !expectedAmount.Equal(actualAmount) {
+		logPaymentReject(ctx, model.PaymentProviderStripe, referenceId, expectedAmount, actualAmount, "amount_mismatch", callerIp)
+		return
+	}
+	if strings.ToUpper(event.GetObjectValue("currency")) != "USD" {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe callback rejected provider=%s trade_no=%s reason=currency_mismatch expected_currency=%s actual_currency=%s client_ip=%s", model.PaymentProviderStripe, referenceId, "USD", strings.ToUpper(event.GetObjectValue("currency")), callerIp))
+		return
+	}
 	err := model.Recharge(referenceId, customerId, callerIp)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 充值处理失败 trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))

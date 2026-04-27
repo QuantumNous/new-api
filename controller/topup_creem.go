@@ -15,9 +15,11 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/thanhpk/randstr"
 )
 
@@ -337,6 +339,42 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 
 	// 处理充值，传入客户邮箱和姓名信息
 	customerEmail := event.Object.Customer.Email
+	if topUp.PaymentProvider != model.PaymentProviderCreem {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Creem callback rejected provider=%s trade_no=%s reason=provider_mismatch actual_provider=%s client_ip=%s", model.PaymentProviderCreem, referenceId, topUp.PaymentProvider, c.ClientIP()))
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	expectedAmount := decimal.NewFromFloat(topUp.Money).Round(2)
+	actualAmount := decimal.NewFromInt(int64(event.Object.Order.AmountPaid)).Div(decimal.NewFromInt(100)).Round(2)
+	if !expectedAmount.Equal(actualAmount) {
+		logPaymentReject(c.Request.Context(), model.PaymentProviderCreem, referenceId, expectedAmount, actualAmount, "amount_mismatch", c.ClientIP())
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	var products []CreemProduct
+	if err := common.UnmarshalJsonStr(setting.CreemProducts, &products); err == nil {
+		var matchedProducts []CreemProduct
+		for _, product := range products {
+			if product.Quota == topUp.Amount && decimal.NewFromFloat(product.Price).Round(2).Equal(expectedAmount) {
+				matchedProducts = append(matchedProducts, product)
+			}
+		}
+		if len(matchedProducts) == 1 {
+			expectedProduct := matchedProducts[0]
+			if expectedProduct.ProductId != "" && event.Object.Product.Id != expectedProduct.ProductId {
+				logger.LogWarn(c.Request.Context(), fmt.Sprintf("Creem callback rejected provider=%s trade_no=%s reason=product_mismatch expected_product=%s actual_product=%s client_ip=%s", model.PaymentProviderCreem, referenceId, expectedProduct.ProductId, event.Object.Product.Id, c.ClientIP()))
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+			expectedCurrency := strings.ToUpper(expectedProduct.Currency)
+			actualCurrency := strings.ToUpper(event.Object.Order.Currency)
+			if expectedCurrency != "" && actualCurrency != expectedCurrency {
+				logger.LogWarn(c.Request.Context(), fmt.Sprintf("Creem callback rejected provider=%s trade_no=%s reason=currency_mismatch expected_currency=%s actual_currency=%s client_ip=%s", model.PaymentProviderCreem, referenceId, expectedCurrency, actualCurrency, c.ClientIP()))
+				c.AbortWithStatus(http.StatusBadRequest)
+				return
+			}
+		}
+	}
 	customerName := event.Object.Customer.Name
 
 	// 防护性检查，确保邮箱和姓名不为空字符串

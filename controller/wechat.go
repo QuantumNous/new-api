@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-contrib/sessions"
@@ -104,6 +105,7 @@ func WeChatAuth(c *gin.Context) {
 				return
 			}
 		} else {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("wechat auto register rejected provider=wechat reason=register_disabled wechat_id=%s client_ip=%s", wechatId, c.ClientIP()))
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "管理员关闭了新用户注册",

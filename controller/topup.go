@@ -1,10 +1,12 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -177,6 +179,30 @@ func getMinTopup() int64 {
 	return int64(minTopup)
 }
 
+func normalizeMoneyDecimalFromFloat(amount float64) decimal.Decimal {
+	return decimal.NewFromFloat(amount).Round(2)
+}
+
+func normalizeMoneyDecimalFromMinorUnits(amount int64) decimal.Decimal {
+	return decimal.NewFromInt(amount).Div(decimal.NewFromInt(100)).Round(2)
+}
+
+func normalizeMoneyDecimalFromString(amount string) (decimal.Decimal, error) {
+	trimmed := strings.TrimSpace(amount)
+	if trimmed == "" {
+		return decimal.Zero, fmt.Errorf("empty amount")
+	}
+	value, err := decimal.NewFromString(trimmed)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return value.Round(2), nil
+}
+
+func logPaymentReject(ctx context.Context, provider string, tradeNo string, expectedAmount decimal.Decimal, actualAmount decimal.Decimal, reason string, clientIP string) {
+	logger.LogWarn(ctx, fmt.Sprintf("%s callback rejected provider=%s trade_no=%s expected_amount=%s actual_amount=%s reason=%s client_ip=%s", provider, provider, tradeNo, expectedAmount.StringFixed(2), actualAmount.StringFixed(2), reason, clientIP))
+}
+
 func RequestEpay(c *gin.Context) {
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
@@ -344,6 +370,36 @@ func EpayNotify(c *gin.Context) {
 	verifyInfo, err := client.Verify(params)
 	if err == nil && verifyInfo.VerifyStatus {
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 webhook 验签成功 trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))
+		if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
+			topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
+			if topUp == nil {
+				logger.LogWarn(c.Request.Context(), fmt.Sprintf("Epay callback rejected provider=%s trade_no=%s reason=order_not_found client_ip=%s", model.PaymentProviderEpay, verifyInfo.ServiceTradeNo, c.ClientIP()))
+				_, _ = c.Writer.Write([]byte("fail"))
+				return
+			}
+			if topUp.PaymentProvider != model.PaymentProviderEpay {
+				logger.LogWarn(c.Request.Context(), fmt.Sprintf("Epay callback rejected provider=%s trade_no=%s reason=provider_mismatch actual_provider=%s client_ip=%s", model.PaymentProviderEpay, verifyInfo.ServiceTradeNo, topUp.PaymentProvider, c.ClientIP()))
+				_, _ = c.Writer.Write([]byte("fail"))
+				return
+			}
+			expectedAmount := normalizeMoneyDecimalFromFloat(topUp.Money)
+			actualAmount, amountErr := normalizeMoneyDecimalFromString(verifyInfo.Money)
+			if amountErr != nil {
+				logPaymentReject(c.Request.Context(), model.PaymentProviderEpay, verifyInfo.ServiceTradeNo, expectedAmount, decimal.Zero, "invalid_callback_amount", c.ClientIP())
+				_, _ = c.Writer.Write([]byte("fail"))
+				return
+			}
+			if !expectedAmount.Equal(actualAmount) {
+				logPaymentReject(c.Request.Context(), model.PaymentProviderEpay, verifyInfo.ServiceTradeNo, expectedAmount, actualAmount, "amount_mismatch", c.ClientIP())
+				_, _ = c.Writer.Write([]byte("fail"))
+				return
+			}
+			if topUp.Status != common.TopUpStatusPending && topUp.Status != common.TopUpStatusSuccess {
+				logger.LogWarn(c.Request.Context(), fmt.Sprintf("Epay callback rejected provider=%s trade_no=%s reason=invalid_status status=%s client_ip=%s", model.PaymentProviderEpay, verifyInfo.ServiceTradeNo, topUp.Status, c.ClientIP()))
+				_, _ = c.Writer.Write([]byte("fail"))
+				return
+			}
+		}
 		_, err := c.Writer.Write([]byte("success"))
 		if err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 webhook 响应写入失败 trade_no=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), err.Error()))

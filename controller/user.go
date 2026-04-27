@@ -630,9 +630,39 @@ func UpdateSelf(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	sensitiveFields := []string{
+		"quota",
+		"balance",
+		"role",
+		"group",
+		"status",
+		"aff_code",
+		"used_quota",
+		"request_count",
+		"inviter_id",
+		"stripe_customer",
+		"access_token",
+		"token",
+		"root",
+		"is_admin",
+		"permission",
+		"quota_setting",
+		"subscription",
+	}
+	for _, field := range sensitiveFields {
+		if _, exists := requestData[field]; exists {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("forbidden self update rejected user_id=%d field=%s reason=forbidden_self_update_field client_ip=%s", c.GetInt("id"), field, c.ClientIP()))
+			common.ApiErrorI18n(c, i18n.MsgInvalidInput)
+			return
+		}
+	}
 
 	// 检查是否是用户设置更新请求 (sidebar_modules 或 language)
 	if sidebarModules, sidebarExists := requestData["sidebar_modules"]; sidebarExists {
+		if len(requestData) != 1 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidInput)
+			return
+		}
 		userId := c.GetInt("id")
 		user, err := model.GetUserById(userId, false)
 		if err != nil {
@@ -661,6 +691,10 @@ func UpdateSelf(c *gin.Context) {
 
 	// 检查是否是语言偏好更新请求
 	if language, langExists := requestData["language"]; langExists {
+		if len(requestData) != 1 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidInput)
+			return
+		}
 		userId := c.GetInt("id")
 		user, err := model.GetUserById(userId, false)
 		if err != nil {
@@ -688,16 +722,54 @@ func UpdateSelf(c *gin.Context) {
 	}
 
 	// 原有的用户信息更新逻辑
-	var user model.User
-	requestDataBytes, err := json.Marshal(requestData)
-	if err != nil {
+	allowedFields := map[string]struct{}{
+		"username":          {},
+		"password":          {},
+		"display_name":      {},
+		"original_password": {},
+	}
+	for field := range requestData {
+		if _, ok := allowedFields[field]; !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidInput)
+			return
+		}
+	}
+	if len(requestData) == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	err = json.Unmarshal(requestDataBytes, &user)
-	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
-		return
+	var user model.User
+	if username, ok := requestData["username"]; ok {
+		usernameStr, ok := username.(string)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		user.Username = usernameStr
+	}
+	if displayName, ok := requestData["display_name"]; ok {
+		displayNameStr, ok := displayName.(string)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		user.DisplayName = displayNameStr
+	}
+	if password, ok := requestData["password"]; ok {
+		passwordStr, ok := password.(string)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		user.Password = passwordStr
+	}
+	if originalPassword, ok := requestData["original_password"]; ok {
+		originalPasswordStr, ok := originalPassword.(string)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		user.OriginalPassword = originalPasswordStr
 	}
 
 	if user.Password == "" {

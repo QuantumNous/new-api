@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/thanhpk/randstr"
 	waffo "github.com/waffo-com/waffo-go"
 	"github.com/waffo-com/waffo-go/config"
@@ -394,6 +395,39 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 
 	LockOrder(merchantOrderId)
 	defer UnlockOrder(merchantOrderId)
+	topUp := model.GetTopUpByTradeNo(merchantOrderId)
+	if topUp == nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Waffo callback rejected provider=%s trade_no=%s reason=order_not_found client_ip=%s", model.PaymentProviderWaffo, merchantOrderId, c.ClientIP()))
+		sendWaffoWebhookResponse(c, wh, false, "order not found")
+		return
+	}
+	if topUp.PaymentProvider != model.PaymentProviderWaffo {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Waffo callback rejected provider=%s trade_no=%s reason=provider_mismatch actual_provider=%s client_ip=%s", model.PaymentProviderWaffo, merchantOrderId, topUp.PaymentProvider, c.ClientIP()))
+		sendWaffoWebhookResponse(c, wh, false, "provider mismatch")
+		return
+	}
+	if topUp.Status == common.TopUpStatusSuccess {
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo callback idempotent success trade_no=%s client_ip=%s", merchantOrderId, c.ClientIP()))
+		sendWaffoWebhookResponse(c, wh, true, "")
+		return
+	}
+	if topUp.Status != common.TopUpStatusPending {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Waffo callback rejected provider=%s trade_no=%s reason=invalid_status status=%s client_ip=%s", model.PaymentProviderWaffo, merchantOrderId, topUp.Status, c.ClientIP()))
+		sendWaffoWebhookResponse(c, wh, false, "invalid status")
+		return
+	}
+	expectedAmount := decimal.NewFromFloat(topUp.Money).Round(2)
+	actualAmount, err := normalizeMoneyDecimalFromString(result.OrderAmount)
+	if err != nil {
+		logPaymentReject(c.Request.Context(), model.PaymentProviderWaffo, merchantOrderId, expectedAmount, decimal.Zero, "invalid_callback_amount", c.ClientIP())
+		sendWaffoWebhookResponse(c, wh, false, "invalid amount")
+		return
+	}
+	if !expectedAmount.Equal(actualAmount) {
+		logPaymentReject(c.Request.Context(), model.PaymentProviderWaffo, merchantOrderId, expectedAmount, actualAmount, "amount_mismatch", c.ClientIP())
+		sendWaffoWebhookResponse(c, wh, false, "amount mismatch")
+		return
+	}
 
 	if err := model.RechargeWaffo(merchantOrderId, c.ClientIP()); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 充值处理失败 trade_no=%s client_ip=%s error=%q", merchantOrderId, c.ClientIP(), err.Error()))
