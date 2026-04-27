@@ -1,6 +1,7 @@
 package volcengine
 
 var ModelList = []string{
+	// LLM
 	"Doubao-pro-128k",
 	"Doubao-pro-32k",
 	"Doubao-pro-4k",
@@ -8,6 +9,9 @@ var ModelList = []string{
 	"Doubao-lite-32k",
 	"Doubao-lite-4k",
 	"Doubao-embedding",
+	"doubao-seed-1-6-thinking-250715",
+	"seed-1-6-thinking-250715",
+	// Image generation (Seedream) — synchronous via /volc/api/v3/images/generations
 	"doubao-seedream-5-0-260128",
 	"doubao-seedream-5-0-lite-260128",
 	"doubao-seedream-4-5-251128",
@@ -18,22 +22,6 @@ var ModelList = []string{
 	"seedream-4-5-251128",
 	"seedream-4-0-250828",
 	"seedream-3-0-t2i-250415",
-	"doubao-seedance-2-0-260128",
-	"doubao-seedance-2-0-fast-260128",
-	"doubao-seedance-1-5-pro-251215",
-	"doubao-seedance-1-0-pro-fast-251015",
-	"doubao-seedance-1-0-pro-250528",
-	"doubao-seedance-1-0-lite-i2v-250428",
-	"doubao-seedance-1-0-lite-t2v-250428",
-	"seedance-2-0-260128",
-	"seedance-2-0-fast-260128",
-	"seedance-1-5-pro-251215",
-	"seedance-1-0-pro-fast-251015",
-	"seedance-1-0-pro-250528",
-	"seedance-1-0-lite-i2v-250428",
-	"seedance-1-0-lite-t2v-250428",
-	"doubao-seed-1-6-thinking-250715",
-	"seed-1-6-thinking-250715",
 }
 
 var ChannelName = "volcengine"

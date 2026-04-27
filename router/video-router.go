@@ -3,7 +3,6 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -46,9 +45,6 @@ func SetVideoRouter(router *gin.Engine) {
 	volcV3Router.Use(middleware.RouteTag("relay"))
 	volcV3Router.Use(middleware.VolcRequestConvert(), middleware.TokenAuth(), middleware.Distribute())
 	{
-		volcV3Router.POST("/images/generations", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
-		})
 		volcV3Router.POST("/contents/generations/tasks", controller.RelayTask)
 		volcV3Router.GET("/contents/generations/tasks", controller.RelayTaskFetch)
 		volcV3Router.GET("/contents/generations/tasks/:id", controller.RelayTaskFetch)

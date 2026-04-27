@@ -1,6 +1,7 @@
 package doubao
 
 var ModelList = []string{
+	// Official Volc model IDs
 	"doubao-seedance-2-0-260128",
 	"doubao-seedance-2-0-fast-260128",
 	"doubao-seedance-1-5-pro-251215",
@@ -8,6 +9,15 @@ var ModelList = []string{
 	"doubao-seedance-1-0-pro-250528",
 	"doubao-seedance-1-0-lite-i2v-250428",
 	"doubao-seedance-1-0-lite-t2v-250428",
+	// Bare aliases (without doubao- prefix, for convenience)
+	"seedance-2-0-260128",
+	"seedance-2-0-fast-260128",
+	"seedance-1-5-pro-251215",
+	"seedance-1-0-pro-fast-251015",
+	"seedance-1-0-pro-250528",
+	"seedance-1-0-lite-i2v-250428",
+	"seedance-1-0-lite-t2v-250428",
+	// Legacy bare aliases without date suffix
 	"doubao-seedance-1-0-lite-i2v",
 	"doubao-seedance-1-0-lite-t2v",
 }

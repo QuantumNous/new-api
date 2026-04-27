@@ -30,6 +30,20 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
 	case constant.ChannelTypeSora:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
+	case constant.ChannelTypeDoubaoVideo:
+		// Async video task channel: surfaceVolc-native path first, then OpenAI-video compat path.
+		return []constant.EndpointType{constant.EndpointTypeVolcVideo, constant.EndpointTypeOpenAIVideo}
+	case constant.ChannelTypeVolcEngine:
+		if IsImageGenerationModel(modelName) {
+			// Seedream image models: Volc-native path first, then standard image-generation and OpenAI paths.
+			return []constant.EndpointType{
+				constant.EndpointTypeVolcImage,
+				constant.EndpointTypeImageGeneration,
+				constant.EndpointTypeOpenAI,
+			}
+		}
+		// LLM / TTS / embedding models fall through to default handling below.
+		fallthrough
 	default:
 		if IsOpenAIResponseOnlyModel(modelName) {
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIResponse}
