@@ -30,6 +30,7 @@ import {
   handleApiError,
   processThinkTags,
   processIncompleteThinkTags,
+  withBasePath,
 } from '../../helpers';
 
 export const useApiRequest = (
@@ -185,14 +186,17 @@ export const useApiRequest = (
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
       try {
-        const response = await fetch(API_ENDPOINTS.CHAT_COMPLETIONS, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'New-Api-User': getUserIdFromLocalStorage(),
+        const response = await fetch(
+          withBasePath(API_ENDPOINTS.CHAT_COMPLETIONS),
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'New-Api-User': getUserIdFromLocalStorage(),
+            },
+            body: JSON.stringify(payload),
           },
-          body: JSON.stringify(payload),
-        });
+        );
 
         if (!response.ok) {
           let errorBody = '';
@@ -313,7 +317,7 @@ export const useApiRequest = (
       }));
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
-      const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
+      const source = new SSE(withBasePath(API_ENDPOINTS.CHAT_COMPLETIONS), {
         headers: {
           'Content-Type': 'application/json',
           'New-Api-User': getUserIdFromLocalStorage(),
