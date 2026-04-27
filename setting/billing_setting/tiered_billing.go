@@ -5,11 +5,14 @@ import (
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/samber/lo"
 )
 
 const (
 	BillingModeRatio      = "ratio"
 	BillingModeTieredExpr = "tiered_expr"
+	BillingModeField      = "billing_mode"
+	BillingExprField      = "billing_expr"
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.
@@ -42,6 +45,25 @@ func GetBillingMode(model string) string {
 func GetBillingExpr(model string) (string, bool) {
 	expr, ok := billingSetting.BillingExpr[model]
 	return expr, ok
+}
+
+func GetBillingModeCopy() map[string]string {
+	return lo.Assign(billingSetting.BillingMode)
+}
+
+func GetBillingExprCopy() map[string]string {
+	return lo.Assign(billingSetting.BillingExpr)
+}
+
+func GetPricingSyncData(base map[string]any) map[string]any {
+	extra := make(map[string]any, 2)
+	if modes := GetBillingModeCopy(); len(modes) > 0 {
+		extra[BillingModeField] = modes
+	}
+	if exprs := GetBillingExprCopy(); len(exprs) > 0 {
+		extra[BillingExprField] = exprs
+	}
+	return lo.Assign(base, extra)
 }
 
 // ---------------------------------------------------------------------------

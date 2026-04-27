@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -346,7 +347,20 @@ type ResponsesOutput struct {
 	Size      string                   `json:"size"`
 	CallId    string                   `json:"call_id,omitempty"`
 	Name      string                   `json:"name,omitempty"`
-	Arguments string                   `json:"arguments,omitempty"`
+	Arguments json.RawMessage          `json:"arguments,omitempty"`
+}
+
+// ArgumentsString returns function call arguments in the string form expected by Chat Completions.
+func (r *ResponsesOutput) ArgumentsString() string {
+	if r == nil {
+		return ""
+	}
+	return ResponsesArgumentsString(r.Arguments)
+}
+
+// ResponsesArgumentsString returns function call arguments in the string form expected by Chat Completions.
+func ResponsesArgumentsString(arguments json.RawMessage) string {
+	return common.JsonRawMessageToString(arguments)
 }
 
 type ResponsesOutputContent struct {
