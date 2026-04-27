@@ -427,9 +427,12 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 }
 
 type Stat struct {
-	Quota int `json:"quota"`
-	Rpm   int `json:"rpm"`
-	Tpm   int `json:"tpm"`
+	Quota           int `json:"quota"`
+	Rpm             int `json:"rpm"`
+	Tpm             int `json:"tpm"`
+	PromptTokens    int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	CacheTokens     int `json:"cache_tokens"`
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
@@ -438,19 +441,47 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
+	// 为prompt_tokens创建单独的查询（统计筛选范围内的总和）
+	promptTokensQuery := LOG_DB.Table("logs").Select("sum(prompt_tokens) prompt_tokens")
+
+	// 为completion_tokens创建单独的查询（统计筛选范围内的总和）
+	completionTokensQuery := LOG_DB.Table("logs").Select("sum(completion_tokens) completion_tokens")
+
+	// 为cache_tokens创建单独的查询（统计筛选范围内的总和，从JSON字段中提取）
+	var cacheTokensQuery *gorm.DB
+	if common.UsingPostgreSQL {
+		cacheTokensQuery = LOG_DB.Table("logs").Select("COALESCE(SUM((other::jsonb->>'cache_tokens')::int), 0) cache_tokens")
+	} else if common.UsingSQLite {
+		cacheTokensQuery = LOG_DB.Table("logs").Select("COALESCE(SUM(json_extract(other, '$.cache_tokens')), 0) cache_tokens")
+	} else { // MySQL
+		cacheTokensQuery = LOG_DB.Table("logs").Select("COALESCE(SUM(CAST(JSON_EXTRACT(other, '$.cache_tokens') AS SIGNED)), 0) cache_tokens")
+	}
+
 	if username != "" {
 		tx = tx.Where("username = ?", username)
 		rpmTpmQuery = rpmTpmQuery.Where("username = ?", username)
+		promptTokensQuery = promptTokensQuery.Where("username = ?", username)
+		completionTokensQuery = completionTokensQuery.Where("username = ?", username)
+		cacheTokensQuery = cacheTokensQuery.Where("username = ?", username)
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)
 		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
+		promptTokensQuery = promptTokensQuery.Where("token_name = ?", tokenName)
+		completionTokensQuery = completionTokensQuery.Where("token_name = ?", tokenName)
+		cacheTokensQuery = cacheTokensQuery.Where("token_name = ?", tokenName)
 	}
 	if startTimestamp != 0 {
 		tx = tx.Where("created_at >= ?", startTimestamp)
+		promptTokensQuery = promptTokensQuery.Where("created_at >= ?", startTimestamp)
+		completionTokensQuery = completionTokensQuery.Where("created_at >= ?", startTimestamp)
+		cacheTokensQuery = cacheTokensQuery.Where("created_at >= ?", startTimestamp)
 	}
 	if endTimestamp != 0 {
 		tx = tx.Where("created_at <= ?", endTimestamp)
+		promptTokensQuery = promptTokensQuery.Where("created_at <= ?", endTimestamp)
+		completionTokensQuery = completionTokensQuery.Where("created_at <= ?", endTimestamp)
+		cacheTokensQuery = cacheTokensQuery.Where("created_at <= ?", endTimestamp)
 	}
 	if modelName != "" {
 		modelNamePattern, err := sanitizeLikePattern(modelName)
@@ -459,18 +490,30 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 		}
 		tx = tx.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
 		rpmTpmQuery = rpmTpmQuery.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+		promptTokensQuery = promptTokensQuery.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+		completionTokensQuery = completionTokensQuery.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
+		cacheTokensQuery = cacheTokensQuery.Where("model_name LIKE ? ESCAPE '!'", modelNamePattern)
 	}
 	if channel != 0 {
 		tx = tx.Where("channel_id = ?", channel)
 		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
+		promptTokensQuery = promptTokensQuery.Where("channel_id = ?", channel)
+		completionTokensQuery = completionTokensQuery.Where("channel_id = ?", channel)
+		cacheTokensQuery = cacheTokensQuery.Where("channel_id = ?", channel)
 	}
 	if group != "" {
 		tx = tx.Where(logGroupCol+" = ?", group)
 		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
+		promptTokensQuery = promptTokensQuery.Where(logGroupCol+" = ?", group)
+		completionTokensQuery = completionTokensQuery.Where(logGroupCol+" = ?", group)
+		cacheTokensQuery = cacheTokensQuery.Where(logGroupCol+" = ?", group)
 	}
 
 	tx = tx.Where("type = ?", LogTypeConsume)
 	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
+	promptTokensQuery = promptTokensQuery.Where("type = ?", LogTypeConsume)
+	completionTokensQuery = completionTokensQuery.Where("type = ?", LogTypeConsume)
+	cacheTokensQuery = cacheTokensQuery.Where("type = ?", LogTypeConsume)
 
 	// 只统计最近60秒的rpm和tpm
 	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
@@ -482,6 +525,18 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 	if err := rpmTpmQuery.Scan(&stat).Error; err != nil {
 		common.SysError("failed to query rpm/tpm stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	if err := promptTokensQuery.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query prompt tokens stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	if err := completionTokensQuery.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query completion tokens stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	if err := cacheTokensQuery.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query cache tokens stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
 	}
 
