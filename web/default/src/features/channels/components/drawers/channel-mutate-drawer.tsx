@@ -19,6 +19,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -188,8 +189,6 @@ export function ChannelMutateDrawer({
   const [codexOAuthDialogOpen, setCodexOAuthDialogOpen] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
-  const [doubaoApiEditUnlocked, setDoubaoApiEditUnlocked] = useState(false)
-  const doubaoApiClickCountRef = useRef(0)
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
@@ -251,8 +250,6 @@ export function ChannelMutateDrawer({
     if (!open) {
       setChannelKey(null)
       setIsChannelKeyLoading(false)
-      setDoubaoApiEditUnlocked(false)
-      doubaoApiClickCountRef.current = 0
     } else if (channelId) {
       setChannelKey(null)
     }
@@ -278,6 +275,23 @@ export function ChannelMutateDrawer({
   const currentModels = form.watch('models')
   const currentModelMapping = form.watch('model_mapping')
   const awsKeyType = form.watch('aws_key_type')
+  const {
+    unlocked: doubaoApiEditUnlocked,
+    handleClick: handleApiConfigSecretClick,
+    reset: resetDoubaoApiUnlock,
+  } = useHiddenClickUnlock({
+    requiredClicks: 10,
+    disabled: currentType !== 45,
+    onUnlock: () => {
+      toast.info(t('Doubao custom API address editing unlocked'))
+    },
+  })
+
+  useEffect(() => {
+    if (!open) {
+      resetDoubaoApiUnlock()
+    }
+  }, [open, resetDoubaoApiUnlock])
 
   // Helper computed values
   const isBatchMode =
@@ -465,21 +479,6 @@ export function ChannelMutateDrawer({
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBaseUrl])
-
-  // Handle secret click to unlock Doubao custom API edit
-  const handleApiConfigSecretClick = () => {
-    if (currentType !== 45) return
-    const next = doubaoApiClickCountRef.current + 1
-    doubaoApiClickCountRef.current = next
-    if (next >= 10) {
-      setDoubaoApiEditUnlocked((unlocked) => {
-        if (!unlocked) {
-          toast.info(t('Doubao custom API address editing unlocked'))
-        }
-        return true
-      })
-    }
-  }
 
   // Handle key deduplication
   const handleDeduplicateKeys = () => {
