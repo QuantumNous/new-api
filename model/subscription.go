@@ -168,6 +168,9 @@ type SubscriptionPlan struct {
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 
+	// Groups that can consume this plan's subscription quota (comma separated, empty = unrestricted)
+	AllowedGroups string `json:"allowed_groups" gorm:"type:text"`
+
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
 
@@ -304,6 +307,44 @@ func NormalizeResetPeriod(period string) string {
 	default:
 		return SubscriptionResetNever
 	}
+}
+
+func NormalizeSubscriptionAllowedGroups(groups string) string {
+	parts := strings.Split(groups, ",")
+	seen := make(map[string]struct{}, len(parts))
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		group := strings.TrimSpace(part)
+		if group == "" {
+			continue
+		}
+		if _, ok := seen[group]; ok {
+			continue
+		}
+		seen[group] = struct{}{}
+		result = append(result, group)
+	}
+	return strings.Join(result, ",")
+}
+
+func subscriptionPlanAllowsGroup(plan *SubscriptionPlan, usingGroup string) bool {
+	if plan == nil {
+		return false
+	}
+	allowedGroups := NormalizeSubscriptionAllowedGroups(plan.AllowedGroups)
+	if allowedGroups == "" {
+		return true
+	}
+	usingGroup = strings.TrimSpace(usingGroup)
+	if usingGroup == "" {
+		return false
+	}
+	for _, group := range strings.Split(allowedGroups, ",") {
+		if group == usingGroup {
+			return true
+		}
+	}
+	return false
 }
 
 func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) int64 {
@@ -967,7 +1008,7 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+func PreConsumeUserSubscription(requestId string, userId int, modelName string, usingGroup string, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1013,12 +1054,17 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		hasGroupMatchedSub := false
 		for _, candidate := range subs {
 			sub := candidate
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
 			}
+			if !subscriptionPlanAllowsGroup(plan, usingGroup) {
+				continue
+			}
+			hasGroupMatchedSub = true
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
 			}
@@ -1061,6 +1107,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
 			return nil
+		}
+		if !hasGroupMatchedSub {
+			return fmt.Errorf("no active subscription for group %s", strings.TrimSpace(usingGroup))
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})

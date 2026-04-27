@@ -506,6 +506,9 @@ const SubscriptionPlansCard = ({
                 const upgradeLabel = plan?.upgrade_group
                   ? `${t('升级分组')}: ${plan.upgrade_group}`
                   : null;
+                const allowedGroupsLabel = plan?.allowed_groups
+                  ? `${t('适用分组')}: ${plan.allowed_groups}`
+                  : null;
                 const resetLabel =
                   formatSubscriptionResetPeriod(plan, t) === t('不重置')
                     ? null
@@ -523,6 +526,7 @@ const SubscriptionPlansCard = ({
                     : { label: totalLabel },
                   limitLabel ? { label: limitLabel } : null,
                   upgradeLabel ? { label: upgradeLabel } : null,
+                  allowedGroupsLabel ? { label: allowedGroupsLabel } : null,
                 ].filter(Boolean);
 
                 return (
