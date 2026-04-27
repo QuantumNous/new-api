@@ -9,6 +9,8 @@ build
 *.db-journal
 logs
 web/dist
+web/node_modules
+VERSION
 .env
 one-api
 new-api
