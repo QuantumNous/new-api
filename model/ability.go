@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -43,6 +45,44 @@ func GetGroupEnabledModels(group string) []string {
 	// Find distinct models
 	DB.Table("abilities").Where(commonGroupCol+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &models)
 	return models
+}
+
+type abilityEndpointRow struct {
+	Model     string
+	ChannelId int
+	Setting   *string
+}
+
+func GetGroupEnabledModelsByEndpoint(group string, endpointType constant.EndpointType) []string {
+	if endpointType == "" {
+		return GetGroupEnabledModels(group)
+	}
+	rows := make([]abilityEndpointRow, 0)
+	DB.Table("abilities").
+		Select("abilities.model, abilities.channel_id, channels.setting").
+		Joins("left join channels on channels.id = abilities.channel_id").
+		Where("abilities."+commonGroupCol+" = ? and abilities.enabled = ?", group, true).
+		Scan(&rows)
+	supportedByChannel := make(map[int]bool)
+	return lo.Uniq(lo.FilterMap(rows, func(row abilityEndpointRow, _ int) (string, bool) {
+		supported, ok := supportedByChannel[row.ChannelId]
+		if !ok {
+			supported = channelSettingSupportsEndpoint(row.Setting, endpointType)
+			supportedByChannel[row.ChannelId] = supported
+		}
+		return row.Model, supported
+	}))
+}
+
+func channelSettingSupportsEndpoint(settingJSON *string, endpointType constant.EndpointType) bool {
+	if settingJSON == nil || strings.TrimSpace(*settingJSON) == "" {
+		return true
+	}
+	setting := dto.ChannelSettings{}
+	if err := common.UnmarshalJsonStr(*settingJSON, &setting); err != nil {
+		return true
+	}
+	return setting.SupportsEndpointType(endpointType)
 }
 
 func GetEnabledModels() []string {
@@ -103,7 +143,7 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannel(group string, model string, retry int, endpointType constant.EndpointType) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
@@ -120,6 +160,19 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 		return nil, err
 	}
 	channel := Channel{}
+	if endpointType != "" && len(abilities) > 0 {
+		filteredAbilities := make([]Ability, 0, len(abilities))
+		for _, ability := range abilities {
+			ch := Channel{}
+			if err := DB.First(&ch, "id = ?", ability.ChannelId).Error; err != nil {
+				return nil, err
+			}
+			if ch.SupportsEndpointType(endpointType) {
+				filteredAbilities = append(filteredAbilities, ability)
+			}
+		}
+		abilities = filteredAbilities
+	}
 	if len(abilities) > 0 {
 		// Randomly choose one
 		weightSum := uint(0)

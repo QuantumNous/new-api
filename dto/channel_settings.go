@@ -1,5 +1,12 @@
 package dto
 
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/samber/lo"
+)
+
 type ChannelSettings struct {
 	ForceFormat            bool   `json:"force_format,omitempty"`
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
@@ -7,6 +14,31 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	SupportedEndpoints     string `json:"supported_endpoints,omitempty"`
+}
+
+func (s ChannelSettings) GetSupportedEndpointTypes() []constant.EndpointType {
+	trimmed := strings.TrimSpace(s.SupportedEndpoints)
+	if trimmed == "" {
+		return []constant.EndpointType{}
+	}
+	endpoints := lo.FilterMap(strings.Split(trimmed, ","), func(rawEndpoint string, _ int) (constant.EndpointType, bool) {
+		endpoint := constant.NormalizeEndpointType(strings.TrimSpace(rawEndpoint))
+		return endpoint, endpoint != ""
+	})
+	return lo.Uniq(endpoints)
+}
+
+func (s ChannelSettings) SupportsEndpointType(endpointType constant.EndpointType) bool {
+	endpointType = constant.NormalizeEndpointType(string(endpointType))
+	if endpointType == "" {
+		return true
+	}
+	endpoints := s.GetSupportedEndpointTypes()
+	if len(endpoints) == 0 {
+		return true
+	}
+	return lo.Contains(endpoints, endpointType)
 }
 
 type VertexKeyType string

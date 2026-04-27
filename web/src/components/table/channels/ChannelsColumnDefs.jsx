@@ -40,6 +40,7 @@ import {
   showInfo,
 } from '../../../helpers';
 import {
+  CHANNEL_ENDPOINT_OPTIONS,
   CHANNEL_OPTIONS,
   MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../constants';
@@ -48,10 +49,76 @@ import {
   IconTreeTriangleDown,
   IconMore,
   IconAlertTriangle,
+  IconLock,
 } from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
+const endpointOptionByValue = CHANNEL_ENDPOINT_OPTIONS.reduce((acc, option) => {
+  acc[option.value] = option;
+  return acc;
+}, {});
+
+const parseChannelSetting = (settingValue) => {
+  if (!settingValue) {
+    return {};
+  }
+  if (typeof settingValue === 'object') {
+    return settingValue;
+  }
+  if (typeof settingValue !== 'string') {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(settingValue);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+};
+
+const parseEndpointRestrictions = (record = {}) => {
+  const endpoints = parseChannelSetting(record.setting)?.supported_endpoints;
+  const values = Array.isArray(endpoints)
+    ? endpoints
+    : String(endpoints || '').split(',');
+  return [...new Set(values.map((item) => item.trim()).filter(Boolean))];
+};
+
+const renderEndpointRestrictions = (record = {}, t) => {
+  const endpointValues = parseEndpointRestrictions(record);
+  if (endpointValues.length === 0) {
+    return null;
+  }
+  const endpointLabels = endpointValues.map(
+    (endpoint) => endpointOptionByValue[endpoint]?.label || endpoint,
+  );
+  return (
+    <Tooltip
+      position='top'
+      content={
+        <div className='max-w-xs'>
+          <div className='mb-1 text-xs text-gray-600'>
+            {t('仅支持这些端点')}
+          </div>
+          <div className='text-xs'>{endpointLabels.join('、')}</div>
+        </div>
+      }
+    >
+      <span className='inline-flex cursor-help' tabIndex={0}>
+        <Tag
+          aria-label={t('端点受限')}
+          color='blue'
+          prefixIcon={<IconLock size='small' />}
+          shape='circle'
+          size='small'
+          type='light'
+        />
+      </span>
+    </Tooltip>
+  );
+};
+
 const renderType = (type, record = {}, t) => {
   const channelInfo = record?.channel_info;
   let type2label = new Map();
@@ -95,10 +162,6 @@ const renderType = (type, record = {}, t) => {
     }
   }
 
-  if (!ionetMeta) {
-    return typeTag;
-  }
-
   const handleNavigate = (event) => {
     event?.stopPropagation?.();
     if (!ionetMeta?.deployment_id) {
@@ -108,7 +171,9 @@ const renderType = (type, record = {}, t) => {
     window.open(targetUrl, '_blank', 'noopener');
   };
 
-  return (
+  const typeContent = !ionetMeta ? (
+    typeTag
+  ) : (
     <Space spacing={6}>
       {typeTag}
       <Tooltip
@@ -136,6 +201,13 @@ const renderType = (type, record = {}, t) => {
           </Tag>
         </span>
       </Tooltip>
+    </Space>
+  );
+
+  return (
+    <Space spacing={4} wrap>
+      {typeContent}
+      {renderEndpointRestrictions(record, t)}
     </Space>
   );
 };
@@ -257,22 +329,9 @@ const isRequestPassThroughEnabled = (record) => {
   if (!record || record.children !== undefined) {
     return false;
   }
-  const settingValue = record.setting;
-  if (!settingValue) {
-    return false;
-  }
-  if (typeof settingValue === 'object') {
-    return settingValue.pass_through_body_enabled === true;
-  }
-  if (typeof settingValue !== 'string') {
-    return false;
-  }
-  try {
-    const parsed = JSON.parse(settingValue);
-    return parsed?.pass_through_body_enabled === true;
-  } catch (error) {
-    return false;
-  }
+  return (
+    parseChannelSetting(record.setting)?.pass_through_body_enabled === true
+  );
 };
 
 const getUpstreamUpdateMeta = (record) => {
