@@ -28,7 +28,6 @@ import {
   ModalFooter,
   ModalHeader,
   Spinner,
-  Tab,
   Tabs,
   useOverlayState,
 } from '@heroui/react';
@@ -191,22 +190,18 @@ const NoticeModal = ({
               selectedKey={activeTab}
               onSelectionChange={(key) => setActiveTab(String(key))}
             >
-              <Tab
-                key='inApp'
-                title={
+              <Tabs.List aria-label={t('系统公告')}>
+                <Tabs.Tab id='inApp'>
                   <span className='flex items-center gap-1'>
                     <Bell size={14} /> {t('通知')}
                   </span>
-                }
-              />
-              <Tab
-                key='system'
-                title={
+                </Tabs.Tab>
+                <Tabs.Tab id='system'>
                   <span className='flex items-center gap-1'>
                     <Megaphone size={14} /> {t('系统公告')}
                   </span>
-                }
-              />
+                </Tabs.Tab>
+              </Tabs.List>
             </Tabs>
           </div>
             </ModalHeader>

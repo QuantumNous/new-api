@@ -24,7 +24,6 @@ import {
   Card,
   Input,
   Switch,
-  Tab,
   Tabs,
   TextArea,
   Tooltip,
@@ -651,8 +650,10 @@ const JSONEditor = ({
             size='sm'
             variant='underlined'
           >
-            <Tab key='visual' title={t('可视化')} />
-            <Tab key='manual' title={t('手动编辑')} />
+            <Tabs.List aria-label={t('编辑模式')}>
+              <Tabs.Tab id='visual'>{t('可视化')}</Tabs.Tab>
+              <Tabs.Tab id='manual'>{t('手动编辑')}</Tabs.Tab>
+            </Tabs.List>
           </Tabs>
 
           {template && templateLabel && (

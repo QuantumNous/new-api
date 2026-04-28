@@ -29,7 +29,6 @@ import {
   ModalHeader,
   Button,
   Input,
-  Tab,
   Tabs,
   useOverlayState,
 } from '@heroui/react';
@@ -146,8 +145,17 @@ const SecureVerificationModal = ({
                   size='default'
                   variant='underlined'
                 >
-                  {has2FA && (
-                    <Tab key='2fa' title={t('两步验证')}>
+                  <Tabs.List aria-label={t('验证方式')}>
+                    {has2FA ? (
+                      <Tabs.Tab id='2fa'>{t('两步验证')}</Tabs.Tab>
+                    ) : null}
+                    {hasPasskey && passkeySupported ? (
+                      <Tabs.Tab id='passkey'>{t('Passkey')}</Tabs.Tab>
+                    ) : null}
+                  </Tabs.List>
+
+                  {has2FA ? (
+                    <Tabs.Panel id='2fa'>
                       <div className='pt-5'>
                         <div className='mb-3'>
                           <Input
@@ -187,11 +195,11 @@ const SecureVerificationModal = ({
                           </Button>
                         </div>
                       </div>
-                    </Tab>
-                  )}
+                    </Tabs.Panel>
+                  ) : null}
 
-                  {hasPasskey && passkeySupported && (
-                    <Tab key='passkey' title={t('Passkey')}>
+                  {hasPasskey && passkeySupported ? (
+                    <Tabs.Panel id='passkey'>
                       <div className='pt-5'>
                         <div className='mb-5 px-4 py-6 text-center'>
                           <div className='mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent'>
@@ -222,8 +230,8 @@ const SecureVerificationModal = ({
                           </Button>
                         </div>
                       </div>
-                    </Tab>
-                  )}
+                    </Tabs.Panel>
+                  ) : null}
                 </Tabs>
               </div>
             </ModalBody>
