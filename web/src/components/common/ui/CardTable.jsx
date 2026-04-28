@@ -137,10 +137,26 @@ const CardTable = ({
       return renderEmpty();
     }
 
+    // Honor the `scroll={{ x: ... }}` contract that 9 list pages already pass
+    // through. Numeric → fixed min-width in px; 'max-content' → let intrinsic
+    // cell widths dictate the table width and let the parent overflow-x-auto
+    // scroll. Without this CardTable was silently fitting every column to the
+    // container, which collapsed CJK chips/buttons character-by-character.
+    const scrollX = tableProps.scroll?.x;
+    const tableMinWidth =
+      typeof scrollX === 'number'
+        ? `${scrollX}px`
+        : scrollX === 'max-content'
+          ? 'max-content'
+          : undefined;
+
     return (
       <div className={tableProps.className}>
         <div className='overflow-x-auto rounded-2xl border border-border bg-background/80'>
-          <table className='min-w-full border-collapse text-sm'>
+          <table
+            className='min-w-full border-collapse text-sm'
+            style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}
+          >
             <thead className='bg-surface-secondary text-left text-xs font-semibold uppercase tracking-wide text-muted'>
               <tr>
                 {visibleColumns.map((col, idx) => (
@@ -163,14 +179,24 @@ const CardTable = ({
                     className='transition-colors hover:bg-surface-secondary/60'
                     {...rowProps}
                   >
-                    {visibleColumns.map((col, colIdx) => (
-                      <td
-                        key={col.key || col.dataIndex || colIdx}
-                        className='px-4 py-3 align-middle text-foreground'
-                      >
-                        {renderCell(col, record, index) ?? '-'}
-                      </td>
-                    ))}
+                    {visibleColumns.map((col, colIdx) => {
+                      // Default to nowrap so CJK pills don't break char-by-char
+                      // (the same rule `<th>` already uses). Columns with long
+                      // prose can opt out via `col.wrap === true` and wrap the
+                      // cell in their own `whitespace-normal` container.
+                      const wrapClass =
+                        col.wrap === true
+                          ? 'whitespace-normal'
+                          : 'whitespace-nowrap';
+                      return (
+                        <td
+                          key={col.key || col.dataIndex || colIdx}
+                          className={`px-4 py-3 align-middle text-foreground ${wrapClass}`}
+                        >
+                          {renderCell(col, record, index) ?? '-'}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}

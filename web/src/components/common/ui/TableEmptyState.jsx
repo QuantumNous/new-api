@@ -19,11 +19,19 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { SearchX } from 'lucide-react';
+import { Surface } from '@heroui/react';
 import { EmptyState } from '@heroui-pro/react';
 
 const TableEmptyState = ({ title, description, icon, size = 'sm' }) => {
   return (
-    <div className='flex min-h-48 w-full items-center justify-center px-4 py-8'>
+    // Wrap the empty state in a HeroUI `Surface` so it gets the same
+    // surface bg + foreground tokens as the rest of the table body
+    // cards. Without this the empty state floats over the gray
+    // `.table-root--primary` container and looks like a hole in the page.
+    <Surface
+      variant='default'
+      className='flex min-h-48 w-full items-center justify-center rounded-2xl px-4 py-8'
+    >
       <EmptyState size={size}>
         <EmptyState.Header>
           <EmptyState.Media variant='icon'>
@@ -35,7 +43,7 @@ const TableEmptyState = ({ title, description, icon, size = 'sm' }) => {
           ) : null}
         </EmptyState.Header>
       </EmptyState>
-    </div>
+    </Surface>
   );
 };
 

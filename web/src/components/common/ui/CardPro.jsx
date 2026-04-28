@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Button } from '@heroui/react';
+import { Button, Surface } from '@heroui/react';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { Eye, EyeOff } from 'lucide-react';
@@ -155,8 +155,14 @@ const CardPro = ({
   const footerContent = renderFooter();
 
   return (
-    <section
-      className={`table-scroll-card rounded-2xl bg-background/90 shadow-sm backdrop-blur ${bordered ? 'border border-border' : ''} ${className}`}
+    // HeroUI `Surface` — root visual container for every list-page card.
+    // `default` variant paints the design-system surface bg / fg tokens.
+    // No border by design: HeroUI Surface itself doesn't carry one and
+    // separation now comes from the elevation (shadow + bg contrast).
+    // The legacy `bordered` prop is intentionally ignored.
+    <Surface
+      variant='default'
+      className={`table-scroll-card rounded-2xl shadow-sm backdrop-blur ${className}`}
       style={style}
       data-shadow={shadows || undefined}
       {...props}
@@ -164,7 +170,7 @@ const CardPro = ({
       {headerContent && <div className='p-4 pb-3'>{headerContent}</div>}
       <div className='p-4 pt-0'>{children}</div>
       {footerContent && <div className='px-4 pb-4'>{footerContent}</div>}
-    </section>
+    </Surface>
   );
 };
 
