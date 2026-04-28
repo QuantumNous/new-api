@@ -149,6 +149,8 @@ func (a *responsesStreamAccumulator) Result() (messageText string, reasoningText
 	}
 	if usage.TotalTokens == 0 {
 		usage = service.ResponseText2Usage(a.c, a.usageText.String(), a.info.UpstreamModelName, a.info.GetEstimatePromptTokens())
+		usage.CompletionTokens += len(a.toolCallIndexByID) * 7
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 		a.usage = usage
 	}
 	if a.sawToolCall && a.outputText.Len() == 0 {
@@ -797,6 +799,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			}
 
 		case "response.error", "response.failed":
+			// Error events are converted to streamErr by acc.Apply before dispatch.
 
 		default:
 		}
