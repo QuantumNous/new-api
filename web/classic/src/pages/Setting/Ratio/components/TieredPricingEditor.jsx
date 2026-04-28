@@ -803,27 +803,27 @@ const PRESET_GROUPS = [
       },
       {
         key: 'doubao-seedance-2-0', label: 'Doubao Seedance 2.0',
-        expr: `(param('resolution') == '1080p' || param('metadata.resolution') == '1080p') ? ((param('content.#(type=="video_url")') != nil || param('metadata.content.#(type=="video_url")') != nil) ? tier('1080p · 输入包含视频', c * 31) : tier('1080p · 输入不含视频', c * 51)) : ((param('content.#(type=="video_url")') != nil || param('metadata.content.#(type=="video_url")') != nil) ? tier('标准 · 输入包含视频', c * 28) : tier('标准 · 输入不含视频', c * 46))`,
+        expr: `tier("base", c * 46) * ((param("resolution") == "1080p" || param("metadata.resolution") == "1080p") ? ((param("content.#(type==\"video_url\")") != nil || param("metadata.content.#(type==\"video_url\")") != nil) ? 31.0/46.0 : 51.0/46.0) : ((param("content.#(type==\"video_url\")") != nil || param("metadata.content.#(type==\"video_url\")") != nil) ? 28.0/46.0 : 1.0))`,
       },
       {
         key: 'doubao-seedance-2-0-fast', label: 'Doubao Seedance 2.0 Fast',
-        expr: `(param('content.#(type=="video_url")') != nil || param('metadata.content.#(type=="video_url")') != nil) ? tier('输入包含视频', c * 22) : tier('输入不含视频', c * 37)`,
+        expr: `tier("base", c * 37) * ((param("content.#(type==\"video_url\")") != nil || param("metadata.content.#(type==\"video_url\")") != nil) ? 22.0/37.0 : 1.0)`,
       },
       {
         key: 'doubao-seedance-1-5-pro', label: 'Doubao Seedance 1.5 Pro',
-        expr: `(param('generate_audio') == false || param('metadata.generate_audio') == false) ? tier('无声视频', c * 8) : tier('有声视频', c * 16)`,
+        expr: `tier("base", c * 16) * ((param("generate_audio") == false || param("metadata.generate_audio") == false) ? 0.5 : 1.0)`,
       },
       {
         key: 'doubao-seedance-1-0-pro', label: 'Doubao Seedance 1.0 Pro',
-        expr: `(param('service_tier') == 'flex' || param('metadata.service_tier') == 'flex') ? tier('离线推理', c * 7.5) : tier('在线推理', c * 15)`,
+        expr: `tier("base", c * 15) * ((param("service_tier") == "flex" || param("metadata.service_tier") == "flex") ? 0.5 : 1.0)`,
       },
       {
         key: 'doubao-seedance-1-0-pro-fast', label: 'Doubao Seedance 1.0 Pro Fast',
-        expr: `(param('service_tier') == 'flex' || param('metadata.service_tier') == 'flex') ? tier('离线推理', c * 2.1) : tier('在线推理', c * 4.2)`,
+        expr: `tier("base", c * 4.2) * ((param("service_tier") == "flex" || param("metadata.service_tier") == "flex") ? 0.5 : 1.0)`,
       },
       {
         key: 'doubao-seedance-1-0-lite', label: 'Doubao Seedance 1.0 Lite',
-        expr: `(param('service_tier') == 'flex' || param('metadata.service_tier') == 'flex') ? tier('离线推理', c * 5) : tier('在线推理', c * 10)`,
+        expr: `tier("base", c * 10) * ((param("service_tier") == "flex" || param("metadata.service_tier") == "flex") ? 0.5 : 1.0)`,
       },
     ],
   },
@@ -999,7 +999,14 @@ function evalExprLocally(exprStr, p, c, extraTokenValues) {
     const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0;
     const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0;
     const len = p + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens;
-    const env = { p, c, len, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
+    // param() and header() are stubs for local preview — always return null/empty.
+    // nil is the expr-lang null sentinel; map to JS null so comparisons work.
+    // eslint-disable-next-line no-unused-vars
+    const nil = null;
+    const param = () => null;
+    const header = () => '';
+    const has = (source, substr) => source != null && String(source).includes(substr);
+    const env = { p, c, len, nil, param, header, has, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
     for (const field of EXTRA_ESTIMATOR_FIELDS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0;
     }
