@@ -1050,16 +1050,23 @@ export function useModelPricingEditorState({
             tieredOutput['billing_setting.billing_expr'][model.name] = finalBillingExpr;
           }
         }
-        if (model.billingMode === 'tiered_expr') {
-          continue;
-        }
 
-        const serialized = serializeModel(model, t);
-        Object.entries(serialized).forEach(([key, value]) => {
-          if (value !== null) {
-            output[key][model.name] = value;
+        // Always serialize ratio/price values for all models (including
+        // tiered_expr) so they serve as fallback during multi-instance sync
+        // delay.  ModelPriceHelper checks billing_mode first, so these values
+        // are only used when billing_setting hasn't propagated yet.
+        try {
+          const serialized = serializeModel(model, t);
+          Object.entries(serialized).forEach(([key, value]) => {
+            if (value !== null) {
+              output[key][model.name] = value;
+            }
+          });
+        } catch (e) {
+          if (model.billingMode !== 'tiered_expr') {
+            throw e;
           }
-        });
+        }
       }
 
       const requestQueue = [

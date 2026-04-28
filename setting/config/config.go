@@ -252,8 +252,16 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 					continue
 				}
 			}
-		case reflect.Map, reflect.Slice, reflect.Struct:
-			// 复杂类型使用JSON反序列化
+		case reflect.Map:
+			// json.Unmarshal merges into existing maps (keeps old keys that are
+			// absent from the new JSON). Allocate a fresh map so removed keys
+			// are properly cleared.
+			fresh := reflect.New(field.Type())
+			if err := json.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+				continue
+			}
+			field.Set(fresh.Elem())
+		case reflect.Slice, reflect.Struct:
 			err := json.Unmarshal([]byte(strValue), field.Addr().Interface())
 			if err != nil {
 				continue
