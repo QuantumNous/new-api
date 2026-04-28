@@ -273,7 +273,7 @@ func ollamaChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 
 	msg := dto.Message{Role: "assistant", Content: contentPtr(content)}
 	if rc := reasoningBuilder.String(); rc != "" {
-		msg.ReasoningContent = rc
+		msg.ReasoningContent = &rc
 	}
 	full := dto.OpenAITextResponse{
 		Id:      common.GetUUID(),
