@@ -20,9 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useRef, useEffect, useState, useContext } from 'react';
 import {
   Button,
-  Typography,
   Card,
-  Avatar,
   Form,
   Radio,
   Toast,
@@ -33,7 +31,13 @@ import {
   Col,
 } from '@douyinfe/semi-ui';
 import { IconMail, IconKey, IconBell, IconLink } from '@douyinfe/semi-icons';
-import { ShieldCheck, Bell, DollarSign, Settings } from 'lucide-react';
+import {
+  Bell,
+  DollarSign,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+} from 'lucide-react';
 import {
   renderQuotaWithPrompt,
   API,
@@ -353,7 +357,7 @@ const NotificationSettings = ({
 
   return (
     <Card
-      className='!rounded-2xl shadow-sm border-0'
+      className='personal-settings-surface personal-settings-section-card'
       footer={
         <div className='flex justify-end gap-3'>
           {activeTabKey === 'sidebar' ? (
@@ -362,7 +366,7 @@ const NotificationSettings = ({
               <Button
                 type='tertiary'
                 onClick={resetSidebarModules}
-                className='!rounded-lg'
+                className='personal-settings-outline-button'
               >
                 {t('重置为默认')}
               </Button>
@@ -370,31 +374,34 @@ const NotificationSettings = ({
                 type='primary'
                 onClick={saveSidebarSettings}
                 loading={sidebarLoading}
-                className='!rounded-lg'
+                className='personal-settings-primary-button'
               >
                 {t('保存设置')}
               </Button>
             </>
           ) : (
             // 其他标签页的通用保存按钮
-            <Button type='primary' onClick={handleSubmit}>
+            <Button
+              type='primary'
+              onClick={handleSubmit}
+              className='personal-settings-primary-button'
+            >
               {t('保存设置')}
             </Button>
           )}
         </div>
       }
     >
-      {/* 卡片头部 */}
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='blue' className='mr-3 shadow-md'>
-          <Bell size={16} />
-        </Avatar>
-        <div>
-          <Typography.Text className='text-lg font-medium'>
-            {t('其他设置')}
-          </Typography.Text>
-          <div className='text-xs text-gray-600'>
-            {t('通知、价格和隐私相关设置')}
+      <div className='personal-settings-card-head'>
+        <div className='personal-settings-card-title-row'>
+          <span className='personal-settings-card-icon'>
+            <SlidersHorizontal size={16} strokeWidth={2.1} />
+          </span>
+          <div>
+            <h2 className='personal-settings-card-title'>{t('通知与偏好')}</h2>
+            <p className='personal-settings-card-subtitle'>
+              {t('管理通知方式、隐私选项和界面模块显示')}
+            </p>
           </div>
         </div>
       </div>
@@ -409,6 +416,7 @@ const NotificationSettings = ({
             type='card'
             defaultActiveKey='notification'
             onChange={(key) => setActiveTabKey(key)}
+            className='personal-settings-tabs'
           >
             {/* 通知配置 Tab */}
             <TabPane
@@ -420,7 +428,7 @@ const NotificationSettings = ({
               }
               itemKey='notification'
             >
-              <div className='py-4'>
+              <div className='py-2 personal-settings-form-pane'>
                 <Form.RadioGroup
                   field='warningType'
                   label={t('通知方式')}
@@ -478,7 +486,10 @@ const NotificationSettings = ({
                     checkedText={t('开')}
                     uncheckedText={t('关')}
                     onChange={(value) =>
-                      handleFormChange('upstreamModelUpdateNotifyEnabled', value)
+                      handleFormChange(
+                        'upstreamModelUpdateNotifyEnabled',
+                        value,
+                      )
                     }
                     extraText={t(
                       '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',
@@ -559,7 +570,7 @@ const NotificationSettings = ({
                             language='json'
                           />
                         </div>
-                        <div className='text-xs text-gray-500 leading-relaxed'>
+                        <div className='text-xs personal-settings-item-text leading-relaxed'>
                           <div>
                             <strong>type:</strong>{' '}
                             {t('通知类型 (quota_exceed: 额度预警)')}{' '}
@@ -611,30 +622,28 @@ const NotificationSettings = ({
                       ]}
                     />
 
-                    <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
-                      <div className='text-sm text-gray-700 mb-3'>
+                    <div className='personal-settings-help-block mt-3'>
+                      <div className='text-sm mb-3'>
                         <strong>{t('模板示例')}</strong>
                       </div>
-                      <div className='text-xs text-gray-600 font-mono bg-white p-3 rounded-lg shadow-sm mb-4'>
+                      <div className='personal-settings-help-code mb-4'>
                         https://api.day.app/yourkey/{'{{title}}'}/
                         {'{{content}}'}?sound=alarm&group=quota
                       </div>
-                      <div className='text-xs text-gray-500 space-y-2'>
+                      <div className='text-xs personal-settings-item-text space-y-2'>
                         <div>
                           • <strong>{'title'}:</strong> {t('通知标题')}
                         </div>
                         <div>
                           • <strong>{'content'}:</strong> {t('通知内容')}
                         </div>
-                        <div className='mt-3 pt-3 border-t border-gray-200'>
-                          <span className='text-gray-400'>
-                            {t('更多参数请参考')}
-                          </span>{' '}
+                        <div className='mt-3 pt-3 personal-settings-help-divider'>
+                          <span>{t('更多参数请参考')}</span>{' '}
                           <a
                             href='https://github.com/Finb/Bark'
                             target='_blank'
                             rel='noopener noreferrer'
-                            className='text-blue-500 hover:text-blue-600 font-medium'
+                            className='personal-settings-link'
                           >
                             Bark {t('官方文档')}
                           </a>
@@ -712,11 +721,11 @@ const NotificationSettings = ({
                       style={{ width: '100%', maxWidth: '300px' }}
                     />
 
-                    <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
-                      <div className='text-sm text-gray-700 mb-3'>
+                    <div className='personal-settings-help-block mt-3'>
+                      <div className='text-sm mb-3'>
                         <strong>{t('配置说明')}</strong>
                       </div>
-                      <div className='text-xs text-gray-500 space-y-2'>
+                      <div className='text-xs personal-settings-item-text space-y-2'>
                         <div>
                           1. {t('在Gotify服务器的应用管理中创建新应用')}
                         </div>
@@ -727,15 +736,13 @@ const NotificationSettings = ({
                           )}
                         </div>
                         <div>3. {t('填写Gotify服务器的完整URL地址')}</div>
-                        <div className='mt-3 pt-3 border-t border-gray-200'>
-                          <span className='text-gray-400'>
-                            {t('更多信息请参考')}
-                          </span>{' '}
+                        <div className='mt-3 pt-3 personal-settings-help-divider'>
+                          <span>{t('更多信息请参考')}</span>{' '}
                           <a
                             href='https://gotify.net/'
                             target='_blank'
                             rel='noopener noreferrer'
-                            className='text-blue-500 hover:text-blue-600 font-medium'
+                            className='personal-settings-link'
                           >
                             Gotify {t('官方文档')}
                           </a>
@@ -757,7 +764,7 @@ const NotificationSettings = ({
               }
               itemKey='pricing'
             >
-              <div className='py-4'>
+              <div className='py-2 personal-settings-form-pane'>
                 <Form.Switch
                   field='acceptUnsetModelRatioModel'
                   label={t('接受未设置价格模型')}
@@ -783,7 +790,7 @@ const NotificationSettings = ({
               }
               itemKey='privacy'
             >
-              <div className='py-4'>
+              <div className='py-2 personal-settings-form-pane'>
                 <Form.Switch
                   field='recordIpLog'
                   label={t('记录请求与错误日志IP')}
@@ -808,54 +815,23 @@ const NotificationSettings = ({
                 }
                 itemKey='sidebar'
               >
-                <div className='py-4'>
-                  <div className='mb-4'>
-                    <Typography.Text
-                      type='secondary'
-                      size='small'
-                      style={{
-                        fontSize: '12px',
-                        lineHeight: '1.5',
-                        color: 'var(--semi-color-text-2)',
-                      }}
-                    >
-                      {t('您可以个性化设置侧边栏的要显示功能')}
-                    </Typography.Text>
+                <div className='py-2 personal-settings-form-pane'>
+                  <div className='mb-4 personal-settings-item-text text-sm'>
+                    {t('你可以个性化设置侧边栏需要显示的功能。')}
                   </div>
                   {/* 边栏设置功能区域容器 */}
-                  <div
-                    className='border rounded-xl p-4'
-                    style={{
-                      borderColor: 'var(--semi-color-border)',
-                      backgroundColor: 'var(--semi-color-bg-1)',
-                    }}
-                  >
+                  <div className='personal-settings-help-block p-4'>
                     {sectionConfigs.map((section) => (
                       <div key={section.key} className='mb-6'>
                         {/* 区域标题和总开关 */}
-                        <div
-                          className='flex justify-between items-center mb-4 p-4 rounded-lg'
-                          style={{
-                            backgroundColor: 'var(--semi-color-fill-0)',
-                            border: '1px solid var(--semi-color-border-light)',
-                            borderColor: 'var(--semi-color-fill-1)',
-                          }}
-                        >
+                        <div className='personal-settings-sidebar-section'>
                           <div>
-                            <div className='font-semibold text-base text-gray-900 mb-1'>
+                            <div className='personal-settings-item-title mb-1'>
                               {section.title}
                             </div>
-                            <Typography.Text
-                              type='secondary'
-                              size='small'
-                              style={{
-                                fontSize: '12px',
-                                lineHeight: '1.5',
-                                color: 'var(--semi-color-text-2)',
-                              }}
-                            >
+                            <div className='personal-settings-item-text text-xs'>
                               {section.description}
-                            </Typography.Text>
+                            </div>
                           </div>
                           <Switch
                             checked={
@@ -882,33 +858,22 @@ const NotificationSettings = ({
                                 xl={8}
                               >
                                 <Card
-                                  className={`!rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-200 ${
+                                  className={`personal-settings-item-card transition-all duration-200 ${
                                     sidebarModulesUser[section.key]?.enabled !==
                                     false
                                       ? ''
                                       : 'opacity-50'
                                   }`}
-                                  bodyStyle={{ padding: '16px' }}
                                   hoverable
                                 >
                                   <div className='flex justify-between items-center h-full'>
                                     <div className='flex-1 text-left'>
-                                      <div className='font-semibold text-sm text-gray-900 mb-1'>
+                                      <div className='personal-settings-item-title mb-1'>
                                         {module.title}
                                       </div>
-                                      <Typography.Text
-                                        type='secondary'
-                                        size='small'
-                                        className='block'
-                                        style={{
-                                          fontSize: '12px',
-                                          lineHeight: '1.5',
-                                          color: 'var(--semi-color-text-2)',
-                                          marginTop: '4px',
-                                        }}
-                                      >
+                                      <div className='personal-settings-item-text text-xs block mt-1'>
                                         {module.description}
-                                      </Typography.Text>
+                                      </div>
                                     </div>
                                     <div className='ml-4'>
                                       <Switch

@@ -2392,3 +2392,732 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
 .ec-dbcd0a3c01b55203 {
   forced-color-adjust: auto;
 }
+
+/* ==================== personal settings ==================== */
+.personal-settings-shell {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 0 40px;
+}
+
+.personal-settings-page-header {
+  margin-bottom: 22px;
+}
+
+.personal-settings-page-title {
+  margin: 0;
+  color: #0a0b0d;
+  font-size: clamp(30px, 3vw, 40px);
+  font-weight: 600;
+  line-height: 1.06;
+}
+
+.personal-settings-page-subtitle {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: #5b616e;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.personal-settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.personal-settings-surface.semi-card,
+.personal-settings-checkin-wrap > .semi-card {
+  overflow: hidden;
+  border: 1px solid rgba(91, 97, 110, 0.2);
+  border-radius: 28px !important;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(10, 11, 13, 0.04);
+}
+
+.personal-settings-section-card .semi-card-body,
+.personal-settings-overview .semi-card-body,
+.personal-settings-checkin-wrap > .semi-card .semi-card-body {
+  padding: 28px !important;
+}
+
+.personal-settings-section-card .semi-card-footer {
+  padding: 0 28px 28px !important;
+  border-top: none !important;
+}
+
+.personal-settings-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.personal-settings-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.personal-settings-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  border: 1px solid rgba(0, 82, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(0, 82, 255, 0.08);
+  color: #0052ff;
+}
+
+.personal-settings-card-title {
+  margin: 0;
+  color: #0a0b0d;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.12;
+}
+
+.personal-settings-card-subtitle {
+  margin: 6px 0 0;
+  color: #5b616e;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.personal-settings-role-tag.semi-tag {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 82, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(0, 82, 255, 0.08);
+  color: #0052ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.personal-settings-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.88fr);
+  gap: 22px;
+}
+
+.personal-settings-profile-panel,
+.personal-settings-quota-panel {
+  min-width: 0;
+}
+
+.personal-settings-profile-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.personal-settings-profile-avatar.semi-avatar {
+  width: 60px;
+  min-width: 60px;
+  height: 60px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.personal-settings-profile-name {
+  color: #0a0b0d;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.08;
+}
+
+.personal-settings-profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: #5b616e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.personal-settings-profile-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(91, 97, 110, 0.44);
+}
+
+.personal-settings-detail-list {
+  border-top: 1px solid rgba(91, 97, 110, 0.16);
+}
+
+.personal-settings-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 58px;
+  border-bottom: 1px solid rgba(91, 97, 110, 0.16);
+}
+
+.personal-settings-detail-label {
+  color: #5b616e;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.personal-settings-detail-value-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.personal-settings-detail-value {
+  color: #0a0b0d;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  word-break: break-all;
+}
+
+.personal-settings-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  border: 1px solid rgba(91, 97, 110, 0.18);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #5b616e;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.personal-settings-copy-button:hover {
+  border-color: rgba(0, 82, 255, 0.24);
+  background: rgba(0, 82, 255, 0.08);
+  color: #0052ff;
+}
+
+.personal-settings-quota-label {
+  margin-bottom: 12px;
+  color: #5b616e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.personal-settings-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.personal-settings-metric-card {
+  min-height: 128px;
+  padding: 18px;
+  border: 1px solid rgba(91, 97, 110, 0.12);
+  border-radius: 22px;
+}
+
+.personal-settings-metric-balance {
+  background: rgba(0, 82, 255, 0.06);
+  border-color: rgba(0, 82, 255, 0.12);
+}
+
+.personal-settings-metric-used {
+  background: rgba(10, 11, 13, 0.04);
+}
+
+.personal-settings-metric-top,
+.personal-settings-requests-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #5b616e;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.personal-settings-metric-value {
+  margin-top: 18px;
+  color: #0a0b0d;
+  font-size: clamp(26px, 2.4vw, 34px);
+  font-weight: 600;
+  line-height: 1.05;
+}
+
+.personal-settings-requests-card {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid rgba(91, 97, 110, 0.12);
+  border-radius: 22px;
+  background: #eef0f3;
+}
+
+.personal-settings-requests-track {
+  height: 8px;
+  margin-top: 14px;
+  border-radius: 999px;
+  background: rgba(91, 97, 110, 0.1);
+  overflow: hidden;
+}
+
+.personal-settings-requests-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0052ff 0%, #578bfa 100%);
+}
+
+.personal-settings-cta-button.semi-button,
+.personal-settings-primary-button.semi-button,
+.personal-settings-outline-button.semi-button,
+.personal-settings-danger-button.semi-button,
+.personal-settings-danger-outline-button.semi-button {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 999px !important;
+  font-size: 14px;
+  font-weight: 600;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.personal-settings-cta-button.semi-button,
+.personal-settings-primary-button.semi-button {
+  border-color: #0052ff;
+  background: #0052ff;
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(0, 82, 255, 0.18);
+}
+
+.personal-settings-cta-button.semi-button:hover,
+.personal-settings-primary-button.semi-button:hover {
+  border-color: #578bfa;
+  background: #578bfa;
+  color: #ffffff;
+}
+
+.personal-settings-cta-button.semi-button {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.personal-settings-outline-button.semi-button {
+  border-color: rgba(91, 97, 110, 0.18);
+  background: #eef0f3;
+  color: #0a0b0d;
+}
+
+.personal-settings-outline-button.semi-button:hover {
+  border-color: rgba(0, 82, 255, 0.24);
+  background: rgba(0, 82, 255, 0.08);
+  color: #0052ff;
+}
+
+.personal-settings-danger-button.semi-button {
+  border-color: #0a0b0d;
+  background: #0a0b0d;
+  color: #ffffff;
+}
+
+.personal-settings-danger-button.semi-button:hover {
+  border-color: #282b31;
+  background: #282b31;
+  color: #ffffff;
+}
+
+.personal-settings-danger-outline-button.semi-button {
+  border-color: rgba(180, 35, 24, 0.16);
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
+}
+
+.personal-settings-danger-outline-button.semi-button:hover {
+  border-color: rgba(180, 35, 24, 0.26);
+  background: rgba(180, 35, 24, 0.12);
+  color: #912018;
+}
+
+.personal-settings-item-card.semi-card {
+  border: 1px solid rgba(91, 97, 110, 0.12);
+  border-radius: 22px !important;
+  background: #f7f8fa;
+  box-shadow: none;
+}
+
+.personal-settings-item-card .semi-card-body {
+  padding: 18px !important;
+}
+
+.personal-settings-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  margin-right: 14px;
+  border: 1px solid rgba(0, 82, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(0, 82, 255, 0.08);
+  color: #0052ff;
+}
+
+.personal-settings-item-icon-lg {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  border-radius: 16px;
+}
+
+.personal-settings-item-title {
+  color: #0a0b0d;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.personal-settings-item-text,
+.personal-settings-note {
+  color: #5b616e;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.personal-settings-note {
+  margin: 14px 0 0;
+}
+
+.personal-settings-form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.personal-settings-form-copy {
+  min-width: 0;
+}
+
+.personal-settings-help-block {
+  border: 1px solid rgba(91, 97, 110, 0.12);
+  border-radius: 18px;
+  background: #f7f8fa;
+}
+
+.personal-settings-help-code {
+  padding: 14px;
+  border: 1px solid rgba(91, 97, 110, 0.12);
+  border-radius: 16px;
+  background: #ffffff;
+  color: #0a0b0d;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.personal-settings-help-divider {
+  border-top: 1px solid rgba(91, 97, 110, 0.12);
+}
+
+.personal-settings-link {
+  color: #0052ff;
+  font-weight: 600;
+}
+
+.personal-settings-link:hover {
+  color: #0667d0;
+}
+
+.personal-settings-tabs .semi-tabs-bar {
+  margin-bottom: 18px;
+}
+
+.personal-settings-tabs .semi-tabs-tab {
+  padding-left: 0;
+}
+
+.personal-settings-tabs .semi-tabs-tab-button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(91, 97, 110, 0.16);
+  border-radius: 999px !important;
+  background: #eef0f3;
+  color: #5b616e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.personal-settings-tabs .semi-tabs-tab-active .semi-tabs-tab-button,
+.personal-settings-tabs .semi-tabs-tab-button:hover {
+  border-color: rgba(0, 82, 255, 0.16);
+  background: rgba(0, 82, 255, 0.08);
+  color: #0052ff;
+}
+
+.personal-settings-shell .semi-form-field-label-text,
+.personal-settings-shell .semi-form-field-label {
+  color: #0a0b0d;
+  font-weight: 600;
+}
+
+.personal-settings-shell .semi-form-field-extra {
+  color: #5b616e;
+}
+
+.personal-settings-shell .semi-input-wrapper,
+.personal-settings-shell .semi-select,
+.personal-settings-shell .semi-input-number,
+.personal-settings-shell .semi-input-textarea-wrapper,
+.personal-settings-shell .semi-treeSelect,
+.personal-settings-shell .semi-auto-complete {
+  border-color: rgba(91, 97, 110, 0.18) !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.personal-settings-shell .semi-input-wrapper:hover,
+.personal-settings-shell .semi-select:hover,
+.personal-settings-shell .semi-input-number:hover,
+.personal-settings-shell .semi-input-textarea-wrapper:hover,
+.personal-settings-shell .semi-auto-complete:hover {
+  border-color: rgba(0, 82, 255, 0.24) !important;
+}
+
+.personal-settings-shell .semi-input-wrapper-focus,
+.personal-settings-shell .semi-select-focus,
+.personal-settings-shell .semi-input-number-focus,
+.personal-settings-shell .semi-input-textarea-focus,
+.personal-settings-shell .semi-auto-complete-focus {
+  border-color: rgba(0, 82, 255, 0.48) !important;
+  box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.12) !important;
+}
+
+.personal-settings-sidebar-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid rgba(91, 97, 110, 0.12);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+html.dark .personal-settings-page-title,
+html.dark .personal-settings-card-title,
+html.dark .personal-settings-profile-name,
+html.dark .personal-settings-detail-value,
+html.dark .personal-settings-item-title,
+html.dark .personal-settings-metric-value,
+html.dark .personal-settings-shell .semi-form-field-label-text,
+html.dark .personal-settings-shell .semi-form-field-label {
+  color: #f8fafc;
+}
+
+html.dark .personal-settings-page-subtitle,
+html.dark .personal-settings-card-subtitle,
+html.dark .personal-settings-profile-meta,
+html.dark .personal-settings-detail-label,
+html.dark .personal-settings-item-text,
+html.dark .personal-settings-note,
+html.dark .personal-settings-shell .semi-form-field-extra,
+html.dark .personal-settings-metric-top,
+html.dark .personal-settings-requests-top,
+html.dark .personal-settings-quota-label {
+  color: #98a2b3;
+}
+
+html.dark .personal-settings-surface.semi-card,
+html.dark .personal-settings-checkin-wrap > .semi-card {
+  border-color: rgba(58, 66, 82, 0.9);
+  background: #111318;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.24);
+}
+
+html.dark .personal-settings-card-icon,
+html.dark .personal-settings-role-tag.semi-tag,
+html.dark .personal-settings-item-icon {
+  border-color: rgba(87, 139, 250, 0.2);
+  background: rgba(87, 139, 250, 0.12);
+  color: #7ca2ff;
+}
+
+html.dark .personal-settings-detail-list,
+html.dark .personal-settings-detail-row,
+html.dark .personal-settings-help-divider {
+  border-color: rgba(58, 66, 82, 0.9);
+}
+
+html.dark .personal-settings-copy-button {
+  border-color: rgba(58, 66, 82, 0.9);
+  background: #171b22;
+  color: #98a2b3;
+}
+
+html.dark .personal-settings-copy-button:hover {
+  border-color: rgba(87, 139, 250, 0.3);
+  background: rgba(87, 139, 250, 0.12);
+  color: #7ca2ff;
+}
+
+html.dark .personal-settings-metric-balance {
+  border-color: rgba(87, 139, 250, 0.16);
+  background: rgba(0, 82, 255, 0.12);
+}
+
+html.dark .personal-settings-metric-used {
+  border-color: rgba(72, 78, 89, 0.86);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html.dark .personal-settings-requests-card,
+html.dark .personal-settings-item-card.semi-card,
+html.dark .personal-settings-help-block,
+html.dark .personal-settings-sidebar-section {
+  border-color: rgba(58, 66, 82, 0.9);
+  background: #171b22;
+}
+
+html.dark .personal-settings-help-code {
+  border-color: rgba(58, 66, 82, 0.9);
+  background: #111318;
+  color: #f8fafc;
+}
+
+html.dark .personal-settings-requests-track {
+  background: rgba(91, 97, 110, 0.22);
+}
+
+html.dark .personal-settings-outline-button.semi-button {
+  border-color: rgba(58, 66, 82, 0.9);
+  background: #171b22;
+  color: #f8fafc;
+}
+
+html.dark .personal-settings-outline-button.semi-button:hover {
+  border-color: rgba(87, 139, 250, 0.32);
+  background: rgba(87, 139, 250, 0.12);
+  color: #7ca2ff;
+}
+
+html.dark .personal-settings-danger-button.semi-button {
+  border-color: #282b31;
+  background: #282b31;
+}
+
+html.dark .personal-settings-danger-button.semi-button:hover {
+  border-color: #3a3e45;
+  background: #3a3e45;
+}
+
+html.dark .personal-settings-danger-outline-button.semi-button {
+  border-color: rgba(251, 112, 91, 0.2);
+  background: rgba(251, 112, 91, 0.12);
+  color: #fda29b;
+}
+
+html.dark .personal-settings-tabs .semi-tabs-tab-button {
+  border-color: rgba(58, 66, 82, 0.9);
+  background: #171b22;
+  color: #98a2b3;
+}
+
+html.dark .personal-settings-tabs .semi-tabs-tab-active .semi-tabs-tab-button,
+html.dark .personal-settings-tabs .semi-tabs-tab-button:hover {
+  border-color: rgba(87, 139, 250, 0.3);
+  background: rgba(87, 139, 250, 0.12);
+  color: #7ca2ff;
+}
+
+html.dark .personal-settings-shell .semi-input-wrapper,
+html.dark .personal-settings-shell .semi-select,
+html.dark .personal-settings-shell .semi-input-number,
+html.dark .personal-settings-shell .semi-input-textarea-wrapper,
+html.dark .personal-settings-shell .semi-treeSelect,
+html.dark .personal-settings-shell .semi-auto-complete {
+  border-color: rgba(58, 66, 82, 0.9) !important;
+  background: #171b22 !important;
+}
+
+html.dark .personal-settings-shell .semi-input,
+html.dark .personal-settings-shell .semi-input-textarea,
+html.dark .personal-settings-shell .semi-select-selection-text {
+  color: #f8fafc !important;
+}
+
+html.dark .personal-settings-shell .semi-input-wrapper-focus,
+html.dark .personal-settings-shell .semi-select-focus,
+html.dark .personal-settings-shell .semi-input-number-focus,
+html.dark .personal-settings-shell .semi-input-textarea-focus,
+html.dark .personal-settings-shell .semi-auto-complete-focus {
+  border-color: rgba(87, 139, 250, 0.42) !important;
+  box-shadow: 0 0 0 3px rgba(87, 139, 250, 0.14) !important;
+}
+
+html.dark .personal-settings-link {
+  color: #7ca2ff;
+}
+
+@media (max-width: 767px) {
+  .personal-settings-shell {
+    padding: 16px 0 28px;
+  }
+
+  .personal-settings-surface.semi-card,
+  .personal-settings-checkin-wrap > .semi-card {
+    border-radius: 24px !important;
+  }
+
+  .personal-settings-section-card .semi-card-body,
+  .personal-settings-overview .semi-card-body,
+  .personal-settings-checkin-wrap > .semi-card .semi-card-body {
+    padding: 18px !important;
+  }
+
+  .personal-settings-section-card .semi-card-footer {
+    padding: 0 18px 18px !important;
+  }
+
+  .personal-settings-card-head,
+  .personal-settings-form-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .personal-settings-overview-grid,
+  .personal-settings-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-settings-detail-row {
+    min-height: 0;
+    padding: 14px 0;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .personal-settings-detail-value {
+    text-align: left;
+  }
+}

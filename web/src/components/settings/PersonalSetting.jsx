@@ -449,15 +449,24 @@ const PersonalSetting = () => {
   };
 
   return (
-    <div className='mt-[60px]'>
-      <div className='flex justify-center'>
-        <div className='w-full max-w-7xl mx-auto px-2'>
-          {/* 顶部用户信息区域 */}
-          <UserInfoHeader t={t} userState={userState} />
+    <div className='mt-[60px] md:mt-0 px-2'>
+      <div className='personal-settings-shell'>
+        <div className='personal-settings-page-header'>
+          <h1 className='personal-settings-page-title'>{t('个人设置')}</h1>
+          <p className='personal-settings-page-subtitle'>
+            {t('管理你的账户资料、安全验证和通知偏好')}
+          </p>
+        </div>
 
-          {/* 签到日历 - 仅在启用时显示 */}
+        <div className='personal-settings-stack'>
+          <UserInfoHeader
+            t={t}
+            userState={userState}
+            onTopUp={() => navigate('/console/topup')}
+          />
+
           {status?.checkin_enabled && (
-            <div className='mt-4 md:mt-6'>
+            <div className='personal-settings-checkin-wrap'>
               <CheckinCalendar
                 t={t}
                 status={status}
@@ -467,41 +476,33 @@ const PersonalSetting = () => {
             </div>
           )}
 
-          {/* 账户管理和其他设置 */}
-          <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
-            {/* 左侧：账户管理设置 */}
-            <div className='flex flex-col gap-4 md:gap-6'>
-              <AccountManagement
-                t={t}
-                userState={userState}
-                status={status}
-                systemToken={systemToken}
-                setShowEmailBindModal={setShowEmailBindModal}
-                setShowWeChatBindModal={setShowWeChatBindModal}
-                generateAccessToken={generateAccessToken}
-                handleSystemTokenClick={handleSystemTokenClick}
-                setShowChangePasswordModal={setShowChangePasswordModal}
-                setShowAccountDeleteModal={setShowAccountDeleteModal}
-                passkeyStatus={passkeyStatus}
-                passkeySupported={passkeySupported}
-                passkeyRegisterLoading={passkeyRegisterLoading}
-                passkeyDeleteLoading={passkeyDeleteLoading}
-                onPasskeyRegister={handleRegisterPasskey}
-                onPasskeyDelete={handleRemovePasskey}
-              />
+          <AccountManagement
+            t={t}
+            userState={userState}
+            status={status}
+            systemToken={systemToken}
+            setShowEmailBindModal={setShowEmailBindModal}
+            setShowWeChatBindModal={setShowWeChatBindModal}
+            generateAccessToken={generateAccessToken}
+            handleSystemTokenClick={handleSystemTokenClick}
+            setShowChangePasswordModal={setShowChangePasswordModal}
+            setShowAccountDeleteModal={setShowAccountDeleteModal}
+            passkeyStatus={passkeyStatus}
+            passkeySupported={passkeySupported}
+            passkeyRegisterLoading={passkeyRegisterLoading}
+            passkeyDeleteLoading={passkeyDeleteLoading}
+            onPasskeyRegister={handleRegisterPasskey}
+            onPasskeyDelete={handleRemovePasskey}
+          />
 
-              {/* 偏好设置（语言等） */}
-              <PreferencesSettings t={t} />
-            </div>
+          <PreferencesSettings t={t} />
 
-            {/* 右侧：其他设置 */}
-            <NotificationSettings
-              t={t}
-              notificationSettings={notificationSettings}
-              handleNotificationSettingChange={handleNotificationSettingChange}
-              saveNotificationSettings={saveNotificationSettings}
-            />
-          </div>
+          <NotificationSettings
+            t={t}
+            notificationSettings={notificationSettings}
+            handleNotificationSettingChange={handleNotificationSettingChange}
+            saveNotificationSettings={saveNotificationSettings}
+          />
         </div>
       </div>
 
