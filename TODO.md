@@ -396,3 +396,51 @@ clashed with the rest of the HeroUI surface on `/console/midjourney`,
 - [x] Manual QA: trigger reads `MM / DD / YYYY - MM / DD / YYYY`; popover
   matches trigger width; presets sit on one row aligned with the calendar
   underneath; clicking 今天 populates the trigger and closes the popover.
+
+## Tabs Render Crash + Demo Data Seed Script (feature/fix-heroui-tabs-and-seed-demo)
+
+`/console/channel` was crashing on first render with `cannot be rendered
+outside a collection.` from react-aria's `CollectionBuilder`. The page itself
+is fine — the offending node is `JSONEditor`, embedded inside
+`EditChannelModal`, which mounts unconditionally (the v3 modal only toggles
+`isOpen`, it does not gate children). Three call sites still used the legacy
+HeroUI v2 flat Tabs API, which never registers `<Tab>` into the parent
+collection in v3:
+
+- [x] `web/src/components/common/ui/JSONEditor.jsx` — visual / 手动编辑
+  switcher (root cause of `/console/channel` crash).
+- [x] `web/src/components/common/modals/SecureVerificationModal.jsx` —
+  两步验证 / Passkey switcher.
+- [x] `web/src/components/layout/NoticeModal.jsx` — 通知 / 系统公告 switcher.
+
+All three migrated to `Tabs.List` + `Tabs.Tab` (+ `Tabs.Panel` where the tab
+actually owns content), matching the existing pattern already in
+`UptimePanel.jsx`.
+
+### Demo Data Seed Script
+
+A second commit adds `scripts/seed_demo.py`, a stdlib-only Python helper that
+hits the admin HTTP API to populate a local instance with realistic demo
+data so the channels page (and friends) actually have content to render
+during dev work:
+
+- [x] Two auth modes: `username + password` and `access token + user id`
+  (the latter via the `access_token` column on the `users` table, so CI /
+  scripted runs can skip interactive prompts).
+- [x] 8 channel presets covering distinct types (OpenAI / Claude / Gemini /
+  DeepSeek / Moonshot / SiliconFlow / Custom / a manually-disabled OpenAI)
+  so the channel page tabs and status filter all have content.
+- [x] All seeded records use the `[DEMO]` name prefix so `--cleanup` can
+  remove only seeded data without touching real records.
+
+### Verification
+
+- HMR reloaded `JSONEditor`, `SecureVerificationModal`, `NoticeModal`
+  cleanly; no further `cannot be rendered outside a collection` entries
+  in the browser console after the third hot update.
+- `/console/channel` renders a populated table of 8 demo channels with
+  per-type tabs (OpenAI 2 / Claude / Gemini / DeepSeek / Moonshot /
+  SiliconFlow / Custom).
+- Clicking the header 系统公告 button mounts `NoticeModal` with both
+  `通知` / `系统公告` tabs visible and selectable.
+- `python3 scripts/seed_demo.py --help` prints the expected CLI surface.
