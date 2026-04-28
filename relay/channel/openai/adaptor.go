@@ -678,6 +678,3 @@ func (a *Adaptor) GetChannelName() string {
 	}
 }
 
-func (a *Adaptor) ConvertVolcRequest(*gin.Context, *relaycommon.RelayInfo, *dto.VolcImageRequest) (any, error) {
-	return nil, errors.New("volc format not supported on this channel")
-}

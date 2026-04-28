@@ -30,20 +30,6 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
 	case constant.ChannelTypeSora:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
-	//case constant.ChannelTypeVolcAdapter:
-	// VolcAdapter (ch 58) is a task-style channel like Kling/Jimeng/Suno; it does not
-	// need dedicated endpoint types. It falls through to the default case below,
-	// returning EndpointTypeOpenAI — consistent with how upstream new-api treats
-	// all task channels that have their endpoint types commented out.
-	//
-	//	if IsImageGenerationModel(modelName) {
-	//		return []constant.EndpointType{
-	//			constant.EndpointTypeVolcImage,
-	//			constant.EndpointTypeImageGeneration,
-	//			constant.EndpointTypeOpenAI,
-	//		}
-	//	}
-	//	return []constant.EndpointType{constant.EndpointTypeVolcVideo, constant.EndpointTypeOpenAIVideo}
 	default:
 		if IsOpenAIResponseOnlyModel(modelName) {
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIResponse}

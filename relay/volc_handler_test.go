@@ -155,8 +155,8 @@ func TestVolcImageHelper_BodyStorageReusable(t *testing.T) {
 }
 
 // TestVolcImageHelper_ConvertVolcRequest_CalledOnVolcChannel verifies that
-// ConvertVolcRequest is invoked on the adaptor when the channel type is volcengine
-// and returns no error.
+// volcengine.Adaptor implements volcImageConverter and ConvertVolcRequest
+// returns no error (it is a no-op pass-through for the native Volc channel).
 func TestVolcImageHelper_ConvertVolcRequest_CalledOnVolcChannel(t *testing.T) {
 	body := []byte(`{"model":"high-aes-general-v21-L","prompt":"test"}`)
 	c := newTestGinContextWithBody(t, body)
@@ -179,36 +179,44 @@ func TestVolcImageHelper_ConvertVolcRequest_CalledOnVolcChannel(t *testing.T) {
 	}
 	adaptor.Init(info)
 
-	_, err := adaptor.ConvertVolcRequest(c, info, req)
+	converter, ok := adaptor.(volcImageConverter)
+	if !ok {
+		t.Fatal("volcengine.Adaptor does not implement volcImageConverter")
+	}
+	_, err := converter.ConvertVolcRequest(c, info, req)
 	if err != nil {
 		t.Errorf("ConvertVolcRequest on volcengine channel returned error: %v", err)
 	}
 }
 
 // TestVolcImageHelper_ConvertVolcRequest_ErrorOnNonVolcChannel verifies that
-// ConvertVolcRequest returns an error for non-Volc channels (e.g. OpenAI).
+// non-Volc channels (e.g. OpenAI) do not implement volcImageConverter, so
+// VolcImageHelper will return a "channel does not support" error.
 func TestVolcImageHelper_ConvertVolcRequest_ErrorOnNonVolcChannel(t *testing.T) {
 	body := []byte(`{"model":"dall-e-3","prompt":"test"}`)
-	c := newTestGinContextWithBody(t, body)
 
 	req := &dto.VolcImageRequest{Model: "dall-e-3", Prompt: "test"}
-	info := &relaycommon.RelayInfo{
+
+	adaptor := GetAdaptor(constant.APITypeOpenAI)
+	if adaptor == nil {
+		t.Fatal("GetAdaptor returned nil for APITypeOpenAI")
+	}
+
+	_, ok := adaptor.(volcImageConverter)
+	if ok {
+		t.Error("expected openai.Adaptor NOT to implement volcImageConverter")
+	}
+	// Confirm VolcImageHelper itself returns a 400 error for this channel.
+	c2 := newTestGinContextWithBody(t, body)
+	info2 := &relaycommon.RelayInfo{
 		Request: req,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType: constant.ChannelTypeOpenAI,
 			ApiType:     constant.APITypeOpenAI,
-			ApiKey:      "test-key",
 		},
 	}
-
-	adaptor := GetAdaptor(info.ApiType)
-	if adaptor == nil {
-		t.Fatal("GetAdaptor returned nil for APITypeOpenAI")
-	}
-	adaptor.Init(info)
-
-	_, err := adaptor.ConvertVolcRequest(c, info, req)
-	if err == nil {
-		t.Error("expected error for non-Volc channel, got nil")
+	apiErr := VolcImageHelper(c2, info2)
+	if apiErr == nil {
+		t.Error("expected VolcImageHelper to return error for non-Volc channel, got nil")
 	}
 }

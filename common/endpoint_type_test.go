@@ -22,11 +22,9 @@ func TestGetEndpointTypesByChannelType(t *testing.T) {
 	}
 
 	cases := []testCase{
-		// --- VolcAdapter (ch 58): EndpointTypeVolcImage/Video are commented out;
-		//     ch 58 falls through to the default case (EndpointTypeOpenAI),
+		// --- VolcAdapter (ch 58): falls through to the default case (EndpointTypeOpenAI),
 		//     matching upstream's treatment of task-style channels (Kling/Jimeng/Suno).
-		// EndpointTypeVolcImage and EndpointTypeVolcVideo are commented out (matching upstream
-		// pattern for task-style channels). Use string literals in absence assertions below.
+		// Use string literals for the volc-image/volc-video absence assertions below.
 		{
 			name:        "VolcAdapter + seedream model → falls through to default (image-generation prepend applies)",
 			channelType: constant.ChannelTypeVolcAdapter,

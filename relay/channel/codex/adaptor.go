@@ -191,6 +191,3 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
-func (a *Adaptor) ConvertVolcRequest(*gin.Context, *relaycommon.RelayInfo, *dto.VolcImageRequest) (any, error) {
-	return nil, errors.New("volc format not supported on this channel")
-}

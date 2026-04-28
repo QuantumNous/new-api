@@ -65,10 +65,6 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 	return err
 }
 
-func volcRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
-	return relay.VolcImageHelper(c, info)
-}
-
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
@@ -221,7 +217,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		case types.RelayFormatGemini:
 			newAPIError = geminiRelayHandler(c, relayInfo)
 		case types.RelayFormatVolc:
-			newAPIError = volcRelayHandler(c, relayInfo)
+			newAPIError = relay.VolcImageHelper(c, relayInfo)
 		default:
 			newAPIError = relayHandler(c, relayInfo)
 		}

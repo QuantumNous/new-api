@@ -16,6 +16,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// volcImageConverter is implemented by adaptors that natively accept
+// Volc-format image requests (volcengine and volcadapter).
+type volcImageConverter interface {
+	ConvertVolcRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.VolcImageRequest) (any, error)
+}
+
 // VolcImageHelper handles the /api/v3/images/generations endpoint using the
 // native Volc Ark API format (RelayFormatVolc).
 //
@@ -26,8 +32,8 @@ import (
 //
 // This mirrors the structure of GeminiHelper; the key difference is that
 // the upstream URL is always the Volc /api/v3/images/generations path and
-// ConvertVolcRequest is used (which is a no-op for volcengine/volcadapter
-// channels and returns "unsupported" for all other channel types).
+// a type assertion to volcImageConverter checks channel support before
+// forwarding.
 func VolcImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
@@ -65,9 +71,18 @@ func VolcImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	}
 	adaptor.Init(info)
 
-	// ConvertVolcRequest is a no-op for volcengine/volcadapter channels;
-	// it returns an error for all other channel types.
-	if _, err = adaptor.ConvertVolcRequest(c, info, request); err != nil {
+	// Only volcengine and volcadapter channels implement ConvertVolcRequest.
+	// All other adaptors do not support the Volc-native image format.
+	converter, ok := adaptor.(volcImageConverter)
+	if !ok {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("channel does not support volc-native image requests"),
+			types.ErrorCodeConvertRequestFailed,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+	if _, err = converter.ConvertVolcRequest(c, info, request); err != nil {
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeConvertRequestFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 

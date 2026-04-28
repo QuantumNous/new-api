@@ -530,6 +530,3 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 	return nil, errors.New("replicate adaptor: ConvertGeminiRequest is not implemented")
 }
 
-func (a *Adaptor) ConvertVolcRequest(*gin.Context, *relaycommon.RelayInfo, *dto.VolcImageRequest) (any, error) {
-	return nil, errors.New("volc format not supported on this channel")
-}
