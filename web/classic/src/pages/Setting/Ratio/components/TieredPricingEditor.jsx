@@ -801,6 +801,30 @@ const PRESET_GROUPS = [
           { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
         ],
       },
+      {
+        key: 'doubao-seedance-2-0', label: 'Doubao Seedance 2.0',
+        expr: `(param('resolution') == '1080p' || param('metadata.resolution') == '1080p') ? ((param('content.#(type=="video_url")') != nil || param('metadata.content.#(type=="video_url")') != nil) ? tier('1080p · 输入包含视频', c * 31) : tier('1080p · 输入不含视频', c * 51)) : ((param('content.#(type=="video_url")') != nil || param('metadata.content.#(type=="video_url")') != nil) ? tier('标准 · 输入包含视频', c * 28) : tier('标准 · 输入不含视频', c * 46))`,
+      },
+      {
+        key: 'doubao-seedance-2-0-fast', label: 'Doubao Seedance 2.0 Fast',
+        expr: `(param('content.#(type=="video_url")') != nil || param('metadata.content.#(type=="video_url")') != nil) ? tier('输入包含视频', c * 22) : tier('输入不含视频', c * 37)`,
+      },
+      {
+        key: 'doubao-seedance-1-5-pro', label: 'Doubao Seedance 1.5 Pro',
+        expr: `(param('generate_audio') == false || param('metadata.generate_audio') == false) ? tier('无声视频', c * 8) : tier('有声视频', c * 16)`,
+      },
+      {
+        key: 'doubao-seedance-1-0-pro', label: 'Doubao Seedance 1.0 Pro',
+        expr: `(param('service_tier') == 'flex' || param('metadata.service_tier') == 'flex') ? tier('离线推理', c * 7.5) : tier('在线推理', c * 15)`,
+      },
+      {
+        key: 'doubao-seedance-1-0-pro-fast', label: 'Doubao Seedance 1.0 Pro Fast',
+        expr: `(param('service_tier') == 'flex' || param('metadata.service_tier') == 'flex') ? tier('离线推理', c * 2.1) : tier('在线推理', c * 4.2)`,
+      },
+      {
+        key: 'doubao-seedance-1-0-lite', label: 'Doubao Seedance 1.0 Lite',
+        expr: `(param('service_tier') == 'flex' || param('metadata.service_tier') == 'flex') ? tier('离线推理', c * 5) : tier('在线推理', c * 10)`,
+      },
     ],
   },
   {
