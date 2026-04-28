@@ -481,6 +481,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			logger.LogWarn(ctx, fmt.Sprintf("Task %s already transitioned by another process, skip billing", task.TaskID))
 			shouldRefund = false
 			shouldSettle = false
+		} else if task.Status == model.TaskStatusFailure {
+			recordTaskPollingErrorLog(ctx, ch, task)
 		}
 	} else if !snap.Equal(task.Snapshot()) {
 		if _, err := task.UpdateWithStatus(snap.Status); err != nil {
@@ -499,6 +501,51 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	return nil
+}
+
+func recordTaskPollingErrorLog(ctx context.Context, ch *model.Channel, task *model.Task) {
+	if !constant.ErrorLogEnabled || task == nil {
+		return
+	}
+
+	endTime := lo.Ternary(task.FinishTime > 0, task.FinishTime, time.Now().Unix())
+	useTimeSeconds := lo.Ternary(task.SubmitTime > 0 && endTime >= task.SubmitTime, int(endTime-task.SubmitTime), 0)
+
+	channelName := ""
+	channelType := 0
+	if ch != nil {
+		channelName = ch.Name
+		channelType = ch.Type
+	}
+	content := strings.TrimSpace(task.FailReason)
+	if content == "" {
+		content = "task polling failed"
+	}
+	other := map[string]interface{}{
+		"task_id":       task.TaskID,
+		"channel_id":    task.ChannelId,
+		"channel_name":  channelName,
+		"channel_type":  channelType,
+		"failure_stage": "task_polling",
+		"admin_info": map[string]interface{}{
+			"use_channel": []string{fmt.Sprintf("%d", task.ChannelId)},
+		},
+	}
+
+	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		UserId:     task.UserId,
+		LogType:    model.LogTypeError,
+		Content:    content,
+		ChannelId:  task.ChannelId,
+		ModelName:  taskModelName(task),
+		Quota:      0,
+		TokenId:    task.PrivateData.TokenId,
+		Group:      task.Group,
+		UseTime:    useTimeSeconds,
+		Properties: &task.Properties,
+		Other:      other,
+	})
+	logger.LogInfo(ctx, fmt.Sprintf("Recorded polling error log for task %s", task.TaskID))
 }
 
 func redactVideoResponseBody(body []byte) []byte {
