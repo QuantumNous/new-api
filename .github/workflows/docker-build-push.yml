@@ -78,22 +78,40 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
 
-      # 步骤 3：设置 Docker Buildx
+      # 步骤 3：调试 - 检查 Secrets 配置
+      # 安全地检查 secrets 是否已配置（不打印实际值）
+      - name: Debug - Check Secrets
+        run: |
+          echo "=== Checking Docker Hub Secrets ==="
+          echo "DOCKER_HUB_USERNAME length: ${#DOCKER_HUB_USERNAME}"
+          echo "DOCKER_HUB_USERNAME is set: $([ -n \"$DOCKER_HUB_USERNAME\" ] && echo 'YES' || echo 'NO')"
+          echo "DOCKER_HUB_ACCESS_TOKEN length: ${#DOCKER_HUB_ACCESS_TOKEN}"
+          echo "DOCKER_HUB_ACCESS_TOKEN is set: $([ -n \"$DOCKER_HUB_ACCESS_TOKEN\" ] && echo 'YES' || echo 'NO')"
+          echo ""
+          echo "=== Checking Environment Secrets (gq-api-dockerhub) ==="
+          echo "gq-api-dockerhub.DOCKER_HUB_USERNAME length: ${#DOCKER_HUB_USERNAME_ENV}"
+          echo "gq-api-dockerhub.DOCKER_HUB_USERNAME is set: $([ -n \"$DOCKER_HUB_USERNAME_ENV\" ] && echo 'YES' || echo 'NO')"
+        env:
+          DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          DOCKER_HUB_USERNAME_ENV: ${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}
+
+      # 步骤 4：设置 Docker Buildx
       # Buildx 是 Docker 的扩展构建工具，支持多平台构建和缓存
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 步骤 4：登录 Docker Hub
+      # 步骤 5：登录 Docker Hub
       # 使用配置的 secrets 进行身份验证
       # secrets.DOCKER_HUB_USERNAME - Docker Hub 用户名
       # secrets.DOCKER_HUB_ACCESS_TOKEN - Docker Hub 访问令牌
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.gq-api-dockerhub.DOCKER_HUB_ACCESS_TOKEN }}
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      # 步骤 5：构建并推送 Docker 镜像
+      # 步骤 6：构建并推送 Docker 镜像
       # - context: . 表示使用当前目录（Dockerfile 所在目录）
       # - push: true 表示构建完成后自动推送到 Docker Hub
       # - tags: 镜像标签，包含版本号标签和 latest 标签
@@ -104,13 +122,13 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}
-            ${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}/gq-api:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:latest
           # 启用 GitHub Actions 缓存，加速后续构建
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 步骤 6：输出构建摘要
+      # 步骤 7：输出构建摘要
       # 在 GitHub Actions 运行页面显示构建结果信息
       - name: Summary
         run: |
@@ -118,8 +136,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Tags**:" >> $GITHUB_STEP_SUMMARY
-          echo "  - \`${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "  - \`${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}/gq-api:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "  - \`${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "  - \`${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:latest\`" >> $GITHUB_STEP_SUMMARY
 
   # ---------------------------------------------------------------------------
   # Job 2: 构建后处理 - 发送邮件通知
