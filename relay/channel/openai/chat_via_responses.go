@@ -302,6 +302,13 @@ func (a *responsesStreamAccumulator) applyError() error {
 	return fmt.Errorf("responses stream error")
 }
 
+func emptyResponsesChatResultError(messageText string, reasoning string, toolCalls []dto.ToolCallResponse) *types.NewAPIError {
+	if messageText != "" || reasoning != "" || len(toolCalls) > 0 {
+		return nil
+	}
+	return types.NewOpenAIError(fmt.Errorf("responses stream returned empty assistant response"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
+}
+
 func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -415,6 +422,9 @@ func OaiResponsesToChatStreamToNonStreamHandler(c *gin.Context, info *relaycommo
 	messageText, reasoning, usage, toolCalls, streamErr := acc.Result()
 	if streamErr != nil {
 		return nil, streamErr
+	}
+	if emptyErr := emptyResponsesChatResultError(messageText, reasoning, toolCalls); emptyErr != nil {
+		return nil, emptyErr
 	}
 
 	msg := dto.Message{
@@ -729,12 +739,12 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		//	}
 
 		case "response.output_text.delta":
-			if !sendStartIfNeeded() {
-				sr.Stop(streamErr)
-				return
-			}
-
 			if streamEvent.Delta != "" {
+				if !sendStartIfNeeded() {
+					sr.Stop(streamErr)
+					return
+				}
+
 				delta := streamEvent.Delta
 				chunk := &dto.ChatCompletionsStreamResponse{
 					Id:      acc.responseID,
@@ -772,9 +782,14 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		case "response.function_call_arguments.done":
 
 		case "response.completed":
-			_, _, usage, toolCalls, resultErr := acc.Result()
+			messageText, reasoning, usage, toolCalls, resultErr := acc.Result()
 			if resultErr != nil {
 				streamErr = resultErr
+				sr.Stop(streamErr)
+				return
+			}
+			if emptyErr := emptyResponsesChatResultError(messageText, reasoning, toolCalls); emptyErr != nil {
+				streamErr = emptyErr
 				sr.Stop(streamErr)
 				return
 			}
@@ -810,9 +825,12 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return nil, streamErr
 	}
 
-	_, _, usage, toolCalls, streamErr := acc.Result()
+	messageText, reasoning, usage, toolCalls, streamErr := acc.Result()
 	if streamErr != nil {
 		return nil, streamErr
+	}
+	if emptyErr := emptyResponsesChatResultError(messageText, reasoning, toolCalls); emptyErr != nil {
+		return nil, emptyErr
 	}
 
 	if !sentStart {
