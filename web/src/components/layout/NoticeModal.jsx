@@ -183,12 +183,12 @@ const NoticeModal = ({
           placement='center'
         >
           <ModalDialog className='bg-background/95 backdrop-blur'>
-            <ModalHeader className='flex flex-col gap-3 border-b border-border px-5 pb-0 pt-4'>
+            <ModalHeader className='flex flex-col gap-3 px-5 pb-0 pt-4'>
               <div className='flex items-center justify-between gap-3'>
                 <div className='flex min-w-0 items-center gap-2.5'>
                   <div
                     aria-hidden='true'
-                    className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground'
+                    className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-foreground text-background'
                   >
                     <Megaphone size={18} />
                   </div>
@@ -228,6 +228,7 @@ const NoticeModal = ({
               <Button
                 variant='ghost'
                 size='sm'
+                className='-ml-3'
                 onPress={handleCloseTodayNotice}
               >
                 {t('今日关闭')}
