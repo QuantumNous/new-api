@@ -280,6 +280,7 @@ export type UpstreamChannel = {
   name: string
   base_url: string
   status: number
+  type?: number
 }
 
 export type RatioType =

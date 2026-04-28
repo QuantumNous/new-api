@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckSquare, RefreshCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -22,17 +22,19 @@ import {
 } from './conflict-confirm-dialog'
 import {
   DEFAULT_ENDPOINT,
-  OFFICIAL_CHANNEL_BASE_URL,
+  MODELS_DEV_PRESET_ENDPOINT,
+  MODELS_DEV_PRESET_ID,
   OFFICIAL_CHANNEL_ENDPOINT,
   OFFICIAL_CHANNEL_ID,
-  OFFICIAL_CHANNEL_NAME,
+  OPENROUTER_CHANNEL_TYPE,
+  OPENROUTER_ENDPOINT,
 } from './constants'
 import {
   NUMERIC_SYNC_FIELDS,
   RATIO_SYNC_FIELDS,
   getPreferredSyncField,
   type ResolutionsMap,
-} from './upstream-ratio-sync-columns'
+} from './upstream-ratio-sync-helpers'
 import { UpstreamRatioSyncTable } from './upstream-ratio-sync-table'
 
 // ---------------------------------------------------------------------------
@@ -58,12 +60,14 @@ type UpstreamRatioSyncProps = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function isOfficialChannel(channel: UpstreamChannel): boolean {
-  return (
-    channel.id === OFFICIAL_CHANNEL_ID ||
-    channel.base_url === OFFICIAL_CHANNEL_BASE_URL ||
-    channel.name === OFFICIAL_CHANNEL_NAME
-  )
+// The two synthesized presets always carry stable negative IDs assigned by
+// `controller/ratio_sync.go`; matching by ID alone is sufficient and avoids
+// fragile name/base_url comparisons.
+function getDefaultEndpointForChannel(channel: UpstreamChannel): string {
+  if (channel.id === MODELS_DEV_PRESET_ID) return MODELS_DEV_PRESET_ENDPOINT
+  if (channel.id === OFFICIAL_CHANNEL_ID) return OFFICIAL_CHANNEL_ENDPOINT
+  if (channel.type === OPENROUTER_CHANNEL_TYPE) return OPENROUTER_ENDPOINT
+  return DEFAULT_ENDPOINT
 }
 
 function getBillingCategory(ratioType: string): 'price' | 'ratio' | 'tiered' {
@@ -83,6 +87,14 @@ function optionKeyBySyncField(ratioType: string): string {
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join('')
+}
+
+function parseJsonRecord<T>(raw: string | undefined | null): Record<string, T> {
+  try {
+    return JSON.parse(raw || '{}') as Record<string, T>
+  } catch {
+    return {}
+  }
 }
 
 function deleteResolutionField(
@@ -129,24 +141,25 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
     enabled: channelDialogOpen,
   })
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const channels = channelsData?.data || []
+  // Memoize the channels list so the effect below only re-runs when the query
+  // data actually changes, instead of on every render (the `|| []` fallback
+  // would otherwise produce a new array reference each render).
+  const channels = useMemo(() => channelsData?.data ?? [], [channelsData?.data])
 
   useEffect(() => {
-    if (channels.length > 0) {
-      const newEndpoints: Record<number, string> = {}
-      channels.forEach((channel) => {
-        if (!channelEndpoints[channel.id]) {
-          newEndpoints[channel.id] = isOfficialChannel(channel)
-            ? OFFICIAL_CHANNEL_ENDPOINT
-            : DEFAULT_ENDPOINT
+    if (channels.length === 0) return
+    setChannelEndpoints((prev) => {
+      let mutated = false
+      const next = { ...prev }
+      for (const channel of channels) {
+        if (!next[channel.id]) {
+          next[channel.id] = getDefaultEndpointForChannel(channel)
+          mutated = true
         }
-      })
-      if (Object.keys(newEndpoints).length > 0) {
-        setChannelEndpoints((prev) => ({ ...prev, ...newEndpoints }))
       }
-    }
-  }, [channels, channelEndpoints])
+      return mutated ? next : prev
+    })
+  }, [channels])
 
   const fetchMutation = useMutation({
     mutationFn: fetchUpstreamRatios,
@@ -180,7 +193,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
     },
   })
 
-  const syncMutation = useMutation({
+  const { mutate: syncMutate, isPending: isSyncPending } = useMutation({
     mutationFn: async (updates: Array<{ key: string; value: string }>) => {
       for (const update of updates) {
         await updateSystemOption(update)
@@ -301,49 +314,32 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
     []
   )
 
-  const parsedRatios = useCallback(() => {
+  const parsedRatios = useMemo(() => {
     return {
-      ModelRatio: JSON.parse(modelRatios.ModelRatio || '{}') as Record<
-        string,
-        number
-      >,
-      CompletionRatio: JSON.parse(
-        modelRatios.CompletionRatio || '{}'
-      ) as Record<string, number>,
-      CacheRatio: JSON.parse(modelRatios.CacheRatio || '{}') as Record<
-        string,
-        number
-      >,
-      CreateCacheRatio: JSON.parse(
-        modelRatios.CreateCacheRatio || '{}'
-      ) as Record<string, number>,
-      ImageRatio: JSON.parse(modelRatios.ImageRatio || '{}') as Record<
-        string,
-        number
-      >,
-      AudioRatio: JSON.parse(modelRatios.AudioRatio || '{}') as Record<
-        string,
-        number
-      >,
-      AudioCompletionRatio: JSON.parse(
-        modelRatios.AudioCompletionRatio || '{}'
-      ) as Record<string, number>,
-      ModelPrice: JSON.parse(modelRatios.ModelPrice || '{}') as Record<
-        string,
-        number
-      >,
-      'billing_setting.billing_mode': JSON.parse(
-        modelRatios['billing_setting.billing_mode'] || '{}'
-      ) as Record<string, string>,
-      'billing_setting.billing_expr': JSON.parse(
-        modelRatios['billing_setting.billing_expr'] || '{}'
-      ) as Record<string, string>,
+      ModelRatio: parseJsonRecord<number>(modelRatios.ModelRatio),
+      CompletionRatio: parseJsonRecord<number>(modelRatios.CompletionRatio),
+      CacheRatio: parseJsonRecord<number>(modelRatios.CacheRatio),
+      CreateCacheRatio: parseJsonRecord<number>(modelRatios.CreateCacheRatio),
+      ImageRatio: parseJsonRecord<number>(modelRatios.ImageRatio),
+      AudioRatio: parseJsonRecord<number>(modelRatios.AudioRatio),
+      AudioCompletionRatio: parseJsonRecord<number>(
+        modelRatios.AudioCompletionRatio
+      ),
+      ModelPrice: parseJsonRecord<number>(modelRatios.ModelPrice),
+      'billing_setting.billing_mode': parseJsonRecord<string>(
+        modelRatios['billing_setting.billing_mode']
+      ),
+      'billing_setting.billing_expr': parseJsonRecord<string>(
+        modelRatios['billing_setting.billing_expr']
+      ),
     }
   }, [modelRatios])
 
+  type ParsedRatios = typeof parsedRatios
+
   const getLocalBillingCategory = (
     model: string,
-    currentRatios: ReturnType<typeof parsedRatios>
+    currentRatios: ParsedRatios
   ): 'price' | 'ratio' | null => {
     if (currentRatios.ModelPrice[model] !== undefined) return 'price'
     if (
@@ -360,9 +356,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   }
 
   const performSync = useCallback(
-    async (
-      currentRatios: ReturnType<typeof parsedRatios>
-    ): Promise<boolean> => {
+    async (currentRatios: ParsedRatios): Promise<boolean> => {
       const finalRatios: Record<string, Record<string, number | string>> = {
         ModelRatio: { ...currentRatios.ModelRatio },
         CompletionRatio: { ...currentRatios.CompletionRatio },
@@ -414,13 +408,13 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       }))
 
       return new Promise<boolean>((resolve) => {
-        syncMutation.mutate(updates, {
+        syncMutate(updates, {
           onSuccess: () => resolve(true),
           onError: () => resolve(false),
         })
       })
     },
-    [resolutions, syncMutation]
+    [resolutions, syncMutate]
   )
 
   const findSourceChannel = (
@@ -435,29 +429,35 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   }
 
   const handleApplySync = () => {
-    const currentRatios = parsedRatios()
+    const currentRatios = parsedRatios
     const conflicts: ConflictItem[] = []
+
+    const fixedPriceLabel = t('Fixed Price')
+    const modelRatioLabel = t('Model Ratio')
+    const completionRatioLabel = t('Completion Ratio')
 
     Object.entries(resolutions).forEach(([model, ratios]) => {
       const localCat = getLocalBillingCategory(model, currentRatios)
       const selectedTypes = Object.keys(ratios)
-      const newCat =
-        'model_price' in ratios
-          ? 'price'
-          : RATIO_SYNC_FIELDS.some((rt) => selectedTypes.includes(rt))
-            ? 'ratio'
-            : 'tiered'
+      let newCat: 'price' | 'ratio' | 'tiered'
+      if ('model_price' in ratios) {
+        newCat = 'price'
+      } else if (RATIO_SYNC_FIELDS.some((rt) => selectedTypes.includes(rt))) {
+        newCat = 'ratio'
+      } else {
+        newCat = 'tiered'
+      }
 
       if (localCat && newCat !== 'tiered' && localCat !== newCat) {
         const currentDesc =
           localCat === 'price'
-            ? `Fixed Price: ${currentRatios.ModelPrice[model]}`
-            : `Model Ratio: ${currentRatios.ModelRatio[model] ?? '-'}\nCompletion Ratio: ${currentRatios.CompletionRatio[model] ?? '-'}`
+            ? `${fixedPriceLabel}: ${currentRatios.ModelPrice[model]}`
+            : `${modelRatioLabel}: ${currentRatios.ModelRatio[model] ?? '-'}\n${completionRatioLabel}: ${currentRatios.CompletionRatio[model] ?? '-'}`
 
         const newDesc =
           newCat === 'price'
-            ? `Fixed Price: ${ratios.model_price}`
-            : `Model Ratio: ${ratios.model_ratio ?? '-'}\nCompletion Ratio: ${ratios.completion_ratio ?? '-'}`
+            ? `${fixedPriceLabel}: ${ratios.model_price}`
+            : `${modelRatioLabel}: ${ratios.model_ratio ?? '-'}\n${completionRatioLabel}: ${ratios.completion_ratio ?? '-'}`
 
         const channelNames = selectedTypes
           .map((rt) => findSourceChannel(model, rt as RatioType, ratios[rt]))
@@ -486,7 +486,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   const handleConfirmConflict = async () => {
     setConfirmLoading(true)
     try {
-      const success = await performSync(parsedRatios())
+      const success = await performSync(parsedRatios)
       if (success) {
         setConflictDialogOpen(false)
       }
@@ -496,8 +496,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
   }
 
   const hasSelections = Object.keys(resolutions).length > 0
-  const isLoading =
-    fetchMutation.isPending || syncMutation.isPending || confirmLoading
+  const isLoading = fetchMutation.isPending || isSyncPending || confirmLoading
 
   return (
     <div className='space-y-4'>
@@ -512,7 +511,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
             onClick={handleApplySync}
             disabled={!hasSelections || isLoading}
           >
-            {(syncMutation.isPending || confirmLoading) && (
+            {(isSyncPending || confirmLoading) && (
               <span className='mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
             )}
             <CheckSquare className='mr-2 h-4 w-4' />

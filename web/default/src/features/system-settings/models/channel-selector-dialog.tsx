@@ -43,9 +43,8 @@ import {
   CHANNEL_STATUS_CONFIG,
   DEFAULT_ENDPOINT,
   ENDPOINT_OPTIONS,
-  OFFICIAL_CHANNEL_BASE_URL,
+  MODELS_DEV_PRESET_ID,
   OFFICIAL_CHANNEL_ID,
-  OFFICIAL_CHANNEL_NAME,
 } from './constants'
 
 type ChannelSelectorDialogProps = {
@@ -59,11 +58,11 @@ type ChannelSelectorDialogProps = {
   onConfirm: (selectedIds: number[]) => void
 }
 
+// Synthesized presets from `controller/ratio_sync.go` always carry stable
+// negative IDs, so matching by ID alone is reliable and self-documenting.
 function isOfficialChannel(channel: UpstreamChannel): boolean {
   return (
-    channel.id === OFFICIAL_CHANNEL_ID ||
-    channel.base_url === OFFICIAL_CHANNEL_BASE_URL ||
-    channel.name === OFFICIAL_CHANNEL_NAME
+    channel.id === OFFICIAL_CHANNEL_ID || channel.id === MODELS_DEV_PRESET_ID
   )
 }
 

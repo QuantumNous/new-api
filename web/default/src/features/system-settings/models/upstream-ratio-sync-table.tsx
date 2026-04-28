@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -26,15 +26,15 @@ import {
 import { DataTablePagination } from '@/components/data-table/pagination'
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
+import { useUpstreamRatioSyncColumns } from './upstream-ratio-sync-columns'
 import {
   getOrderedRatioTypes,
   getPreferredSyncField,
   isSelectableUpstreamValue,
-  useUpstreamRatioSyncColumns,
+  RATIO_SYNC_FIELDS,
   type ModelRow,
   type ResolutionsMap,
-} from './upstream-ratio-sync-columns'
-import { RATIO_SYNC_FIELDS } from './upstream-ratio-sync-columns'
+} from './upstream-ratio-sync-helpers'
 
 type UpstreamRatioSyncTableProps = {
   differences: DifferencesMap
@@ -104,43 +104,51 @@ export function UpstreamRatioSyncTable({
     return Array.from(set)
   }, [filteredData, ratioTypeFilter])
 
-  const handleBulkSelect = (upstream: string, rows: ModelRow[]) => {
-    rows.forEach((row) => {
-      getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
-        (ratioType) => {
-          const upstreamVal = row.ratioTypes[ratioType]?.upstreams?.[upstream]
-          const preferredField = getPreferredSyncField(
-            row.ratioTypes,
-            ratioType,
-            upstream
-          )
-          if (
-            preferredField === ratioType &&
-            isSelectableUpstreamValue(upstreamVal)
-          ) {
-            onSelectValue(
-              row.model,
+  const handleBulkSelect = useCallback(
+    (upstream: string, rows: ModelRow[]) => {
+      rows.forEach((row) => {
+        getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
+          (ratioType) => {
+            const upstreamVal = row.ratioTypes[ratioType]?.upstreams?.[upstream]
+            const preferredField = getPreferredSyncField(
+              row.ratioTypes,
               ratioType,
-              upstreamVal as number | string,
               upstream
             )
+            if (
+              preferredField === ratioType &&
+              isSelectableUpstreamValue(upstreamVal)
+            ) {
+              onSelectValue(
+                row.model,
+                ratioType,
+                upstreamVal as number | string,
+                upstream
+              )
+            }
           }
-        }
-      )
-    })
-  }
+        )
+      })
+    },
+    [ratioTypeFilter, onSelectValue]
+  )
 
-  const handleBulkUnselect = (_upstream: string, rows: ModelRow[]) => {
-    rows.forEach((row) => {
-      getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
-        (ratioType) => {
-          if (row.ratioTypes[ratioType]?.upstreams?.[_upstream] !== undefined) {
-            onUnselectValue(row.model, ratioType)
+  const handleBulkUnselect = useCallback(
+    (upstream: string, rows: ModelRow[]) => {
+      rows.forEach((row) => {
+        getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
+          (ratioType) => {
+            if (
+              row.ratioTypes[ratioType]?.upstreams?.[upstream] !== undefined
+            ) {
+              onUnselectValue(row.model, ratioType)
+            }
           }
-        }
-      )
-    })
-  }
+        )
+      })
+    },
+    [ratioTypeFilter, onUnselectValue]
+  )
 
   const columns = useUpstreamRatioSyncColumns(
     upstreamNames,

@@ -426,7 +426,9 @@ export function RatioSettingsCard({
           <TabsTrigger value='models'>{t('Model ratios')}</TabsTrigger>
           <TabsTrigger value='groups'>{t('Group ratios')}</TabsTrigger>
           <TabsTrigger value='tool-prices'>{t('Tool prices')}</TabsTrigger>
-          <TabsTrigger value='upstream-sync'>{t('Upstream sync')}</TabsTrigger>
+          <TabsTrigger value='upstream-sync'>
+            {t('Upstream price sync')}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value='models'>

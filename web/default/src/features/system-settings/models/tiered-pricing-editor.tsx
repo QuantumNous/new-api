@@ -488,6 +488,7 @@ function VisualTierCard({
             variant='ghost'
             size='sm'
             onClick={onAddCondition}
+            disabled={tier.conditions.length >= 2}
             className='h-7 px-2 text-xs'
           >
             <Plus className='mr-1 h-3 w-3' />
@@ -599,18 +600,26 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
   }
 
   const handleAddTier = () => {
-    onChange({
-      ...config,
-      tiers: [
-        ...config.tiers,
-        normalizeVisualTier({
-          label: `tier_${config.tiers.length + 1}`,
-          conditions: [],
-          input_unit_cost: 0,
-          output_unit_cost: 0,
-        }),
-      ],
-    })
+    const tiers = [...config.tiers]
+    const lastIndex = tiers.length - 1
+    // When adding a new fallback, give the previous catch-all tier a default
+    // upper-bound condition so the expression compiles into a sane two-tier
+    // shape. Mirrors the classic editor's UX for adding tiers.
+    if (lastIndex >= 0 && tiers[lastIndex].conditions.length === 0) {
+      tiers[lastIndex] = normalizeVisualTier({
+        ...tiers[lastIndex],
+        conditions: [{ var: 'len', op: '<', value: 200000 }],
+      })
+    }
+    tiers.push(
+      normalizeVisualTier({
+        label: `tier_${tiers.length + 1}`,
+        conditions: [],
+        input_unit_cost: 0,
+        output_unit_cost: 0,
+      })
+    )
+    onChange({ ...config, tiers })
   }
 
   const handleRemoveTier = (index: number) => {
@@ -620,6 +629,13 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
 
   const handleAddCondition = (index: number) => {
     const tier = config.tiers[index]
+    if (tier.conditions.length >= 2) return
+    // Prefer `len` (input length) over `p`/`c` for tier conditions because
+    // `p` is subject to auto-exclusion when sub-categories like `cr` are
+    // priced separately, which can misroute long-input requests into shorter
+    // tiers when cache-hits reduce the effective `p`.
+    const usedVars = new Set(tier.conditions.map((c) => c.var))
+    const nextVar: TierConditionInput['var'] = usedVars.has('len') ? 'c' : 'len'
     onChange({
       ...config,
       tiers: config.tiers.map((current, i) =>
@@ -628,7 +644,7 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
               ...current,
               conditions: [
                 ...tier.conditions,
-                { var: 'p', op: '<=', value: '' },
+                { var: nextVar, op: '<', value: 200000 },
               ],
             }
           : current
@@ -638,6 +654,13 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
 
   return (
     <div className='space-y-3'>
+      <Alert>
+        <AlertDescription className='text-xs'>
+          {t(
+            'Each tier supports 0~2 conditions (over len, p, c); the last tier is the catch-all without conditions. Use len (full input length, including cache hits) for tier conditions to avoid mis-routing when cache hits reduce p.'
+          )}
+        </AlertDescription>
+      </Alert>
       {config.tiers.map((tier, index) => (
         <VisualTierCard
           key={index}

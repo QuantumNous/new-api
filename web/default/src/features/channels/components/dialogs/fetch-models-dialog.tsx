@@ -35,6 +35,12 @@ import {
 } from '../../lib'
 import { useChannels } from '../channels-provider'
 
+function normalizeModelNameList(models: readonly string[]): string[] {
+  return Array.from(
+    new Set(models.map((m) => normalizeModelName(m)).filter(Boolean))
+  )
+}
+
 type FetchModelsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -73,12 +79,28 @@ export function FetchModelsDialog({
 
   const { classificationSet, redirectOnlySet } = modelCategories
 
-  // Models that are source keys in model_mapping but NOT in the current models list
+  const fetchedModelSet = useMemo(
+    () => new Set(normalizeModelNameList(fetchedModels)),
+    [fetchedModels]
+  )
+
+  // Source keys in model_mapping are aliases, not real upstream IDs, so we
+  // must skip them when computing "removed upstream" entries to avoid false
+  // positives.
+  const redirectSourceKeysSet = useMemo(
+    () => new Set(normalizeModelNameList(redirectSourceModels)),
+    [redirectSourceModels]
+  )
+
   const removedModels = useMemo(() => {
-    return redirectSourceModels.filter(
-      (m) => !classificationSet.has(normalizeModelName(m))
-    )
-  }, [redirectSourceModels, classificationSet])
+    const kw = searchKeyword.toLowerCase().trim()
+    return normalizeModelNameList(selectedModels).filter((model) => {
+      if (fetchedModelSet.has(model)) return false
+      if (redirectSourceKeysSet.has(model)) return false
+      if (!kw) return true
+      return model.toLowerCase().includes(kw)
+    })
+  }, [fetchedModelSet, redirectSourceKeysSet, searchKeyword, selectedModels])
 
   useEffect(() => {
     if (open && currentRow) {
@@ -93,13 +115,11 @@ export function FetchModelsDialog({
     setIsFetching(true)
     try {
       const response = await fetchUpstreamModels(currentRow.id)
-      if (response.success && response.data) {
-        setFetchedModels(response.data)
-        // Pre-select existing models
+      if (response.success) {
+        const list = Array.isArray(response.data) ? response.data : []
+        setFetchedModels(list)
         setSelectedModels(existingModels)
-        toast.success(
-          t('Fetched {{count}} models', { count: response.data.length })
-        )
+        toast.success(t('Fetched {{count}} models', { count: list.length }))
       } else {
         toast.error(response.message || t('Failed to fetch models'))
         setFetchedModels([])
@@ -332,7 +352,7 @@ export function FetchModelsDialog({
           <div className='flex items-center justify-center py-12'>
             <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
           </div>
-        ) : fetchedModels.length === 0 ? (
+        ) : fetchedModels.length === 0 && removedModels.length === 0 ? (
           <div className='text-muted-foreground py-8 text-center'>
             <p>{t('No models fetched yet.')}</p>
             <Button
@@ -359,6 +379,7 @@ export function FetchModelsDialog({
 
               {/* Tabs for New vs Existing vs Removed */}
               <Tabs
+                key={`${currentRow?.id}-${fetchedModels.length}-${removedModels.length}`}
                 defaultValue={
                   newModels.length > 0
                     ? 'new'
@@ -371,20 +392,21 @@ export function FetchModelsDialog({
                   className={`grid w-full ${removedModels.length > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}
                 >
                   <TabsTrigger value='new' disabled={newModels.length === 0}>
-                    {t('New Models (')}
-                    {newModels.length})
+                    {t('New Models ({{count}})', { count: newModels.length })}
                   </TabsTrigger>
                   <TabsTrigger
                     value='existing'
                     disabled={existingFilteredModels.length === 0}
                   >
-                    {t('Existing Models (')}
-                    {existingFilteredModels.length})
+                    {t('Existing Models ({{count}})', {
+                      count: existingFilteredModels.length,
+                    })}
                   </TabsTrigger>
                   {removedModels.length > 0 && (
                     <TabsTrigger value='removed'>
-                      {t('Removed Models (')}
-                      {removedModels.length})
+                      {t('Removed Models ({{count}})', {
+                        count: removedModels.length,
+                      })}
                     </TabsTrigger>
                   )}
                 </TabsList>
@@ -416,7 +438,7 @@ export function FetchModelsDialog({
                   >
                     <p className='text-muted-foreground text-xs'>
                       {t(
-                        'These models are source keys in model_mapping but are not in the models list. Select them to add back.'
+                        'These models are still in your selection but were not returned by the upstream listing. Entries that are only model_mapping source aliases are omitted. Toggle to adjust before saving.'
                       )}
                     </p>
                     {renderModelCategory(t('Removed'), removedModels)}
@@ -426,9 +448,7 @@ export function FetchModelsDialog({
 
               {/* Selection Summary */}
               <div className='bg-muted/50 rounded-lg border p-3 text-sm'>
-                <strong>{selectedModels.length}</strong>{' '}
-                {t('model(s) selected out of')}{' '}
-                <strong>{filteredModels.length}</strong>
+                {t('{{n}} model(s) selected', { n: selectedModels.length })}
               </div>
             </div>
 
