@@ -73,25 +73,31 @@ export const useDashboardCharts = (
         values: [{ type: 'null', value: '0' }],
       },
     ],
-    outerRadius: 0.8,
-    innerRadius: 0.5,
-    padAngle: 0.6,
+    outerRadius: 0.78,
+    innerRadius: 0.58,
+    padAngle: 1,
     valueField: 'value',
     categoryField: 'type',
     pie: {
       style: {
-        cornerRadius: 10,
+        cornerRadius: 14,
       },
       state: {
         hover: {
-          outerRadius: 0.85,
-          stroke: '#000',
-          lineWidth: 1,
+          outerRadius: 0.78,
+          lineWidth: 0,
         },
         selected: {
-          outerRadius: 0.85,
-          stroke: '#000',
-          lineWidth: 1,
+          outerRadius: 0.78,
+          lineWidth: 0,
+        },
+        hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        selected_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
         },
       },
     },
@@ -102,10 +108,13 @@ export const useDashboardCharts = (
     },
     legends: {
       visible: true,
-      orient: 'left',
+      orient: 'bottom',
     },
     label: {
-      visible: true,
+      visible: false,
+    },
+    labelLine: {
+      visible: false,
     },
     tooltip: {
       mark: {
@@ -135,8 +144,23 @@ export const useDashboardCharts = (
     yField: 'Usage',
     seriesField: 'Model',
     stack: true,
+    axes: [
+      {
+        orient: 'bottom',
+        domainLine: {
+          visible: false,
+        },
+        tick: {
+          visible: false,
+        },
+      },
+    ],
+    crosshair: {
+      visible: false,
+    },
     legends: {
       visible: true,
+      orient: 'bottom',
       selectMode: 'single',
     },
     title: {
@@ -145,10 +169,31 @@ export const useDashboardCharts = (
       subtext: `${t('总计')}：${renderQuota(0, 2)}`,
     },
     bar: {
+      style: {
+        cornerRadius: 8,
+      },
       state: {
         hover: {
-          stroke: '#000',
-          lineWidth: 1,
+          lineWidth: 0,
+        },
+        selected: {
+          lineWidth: 0,
+        },
+        hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        selected_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
         },
       },
     },
@@ -209,14 +254,45 @@ export const useDashboardCharts = (
     xField: 'Time',
     yField: 'Count',
     seriesField: 'Model',
+    axes: [
+      {
+        orient: 'bottom',
+        domainLine: {
+          visible: false,
+        },
+        tick: {
+          visible: false,
+        },
+      },
+    ],
+    crosshair: {
+      visible: false,
+    },
     legends: {
       visible: true,
+      orient: 'bottom',
       selectMode: 'single',
     },
     title: {
       visible: true,
       text: t('调用趋势'),
       subtext: '',
+    },
+    line: {
+      style: {
+        lineWidth: 3,
+        curveType: 'monotone',
+        lineCap: 'round',
+        lineJoin: 'round',
+      },
+    },
+    point: {
+      visible: true,
+      style: {
+        size: 5,
+        lineWidth: 2,
+        stroke: '#fff',
+      },
     },
     tooltip: {
       mark: {
@@ -268,8 +344,23 @@ export const useDashboardCharts = (
     xField: 'Model',
     yField: 'Count',
     seriesField: 'Model',
+    axes: [
+      {
+        orient: 'bottom',
+        domainLine: {
+          visible: false,
+        },
+        tick: {
+          visible: false,
+        },
+      },
+    ],
+    crosshair: {
+      visible: false,
+    },
     legends: {
       visible: true,
+      orient: 'bottom',
       selectMode: 'single',
     },
     title: {
@@ -278,10 +369,31 @@ export const useDashboardCharts = (
       subtext: '',
     },
     bar: {
+      style: {
+        cornerRadius: 8,
+      },
       state: {
         hover: {
-          stroke: '#000',
-          lineWidth: 1,
+          lineWidth: 0,
+        },
+        selected: {
+          lineWidth: 0,
+        },
+        hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        selected_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
         },
       },
     },
@@ -316,11 +428,42 @@ export const useDashboardCharts = (
       subtext: '',
     },
     bar: {
-      state: { hover: { stroke: '#000', lineWidth: 1 } },
+      style: {
+        cornerRadius: 999,
+      },
+      state: {
+        hover: {
+          lineWidth: 0,
+        },
+        selected: {
+          lineWidth: 0,
+        },
+        hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        selected_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+        dimension_hover_reverse: {
+          fillOpacity: 1,
+          strokeOpacity: 1,
+        },
+      },
     },
     label: {
       visible: true,
       position: 'outside',
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        fill: '#667085',
+      },
       formatMethod: (value, datum) => renderQuota(datum['rawQuota'] || 0, 2),
     },
     axes: [
@@ -357,7 +500,7 @@ export const useDashboardCharts = (
     yField: 'rawQuota',
     seriesField: 'User',
     stack: false,
-    legends: { visible: true, selectMode: 'single' },
+    legends: { visible: true, orient: 'bottom', selectMode: 'single' },
     title: {
       visible: true,
       text: t('用户消耗趋势'),
@@ -365,15 +508,45 @@ export const useDashboardCharts = (
     },
     axes: [
       {
+        orient: 'bottom',
+        domainLine: {
+          visible: false,
+        },
+        tick: {
+          visible: false,
+        },
+      },
+      {
         orient: 'left',
         label: {
           formatMethod: (value) => renderQuota(value, 2),
         },
       },
     ],
-    area: { style: { fillOpacity: 0.15 } },
-    line: { style: { lineWidth: 2 } },
-    point: { visible: false },
+    crosshair: {
+      visible: false,
+    },
+    area: {
+      style: {
+        fillOpacity: 0.12,
+      },
+    },
+    line: {
+      style: {
+        lineWidth: 3,
+        curveType: 'monotone',
+        lineCap: 'round',
+        lineJoin: 'round',
+      },
+    },
+    point: {
+      visible: true,
+      style: {
+        size: 4,
+        lineWidth: 2,
+        stroke: '#fff',
+      },
+    },
     tooltip: {
       mark: {
         content: [
