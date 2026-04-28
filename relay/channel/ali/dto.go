@@ -234,3 +234,41 @@ type AliRerankResponse struct {
 	RequestId string   `json:"request_id"`
 	AliError
 }
+// ==================== Multimodal Embedding ====================
+
+type AliMultimodalContent struct {
+	Text  string `json:"text,omitempty"`
+	Image string `json:"image,omitempty"`
+	Video string `json:"video,omitempty"`
+}
+
+type AliMultimodalEmbeddingInput struct {
+	Contents []AliMultimodalContent `json:"contents"`
+}
+
+type AliMultimodalEmbeddingParameters struct {
+	EnableFusion bool `json:"enable_fusion"`
+}
+
+type AliMultimodalEmbeddingRequest struct {
+	Model      string                           `json:"model"`
+	Input      AliMultimodalEmbeddingInput      `json:"input"`
+	Parameters AliMultimodalEmbeddingParameters `json:"parameters"`
+}
+
+type AliMultimodalEmbeddingItem struct {
+	Embedding []float64 `json:"embedding"`
+	Index     int       `json:"index"`
+}
+
+type AliMultimodalEmbeddingOutput struct {
+	Embeddings []AliMultimodalEmbeddingItem `json:"embeddings"`
+}
+
+type AliMultimodalEmbeddingResponse struct {
+	Output    AliMultimodalEmbeddingOutput `json:"output"`
+	Usage     AliUsage                     `json:"usage"`
+	RequestId string                       `json:"request_id"`
+	Code      string                       `json:"code,omitempty"`
+	Message   string                       `json:"message,omitempty"`
+}
