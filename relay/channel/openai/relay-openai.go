@@ -374,14 +374,7 @@ func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	}
 
 	if len(responseChoices) == 0 {
-		responseChoices = append(responseChoices, dto.OpenAITextResponseChoice{
-			Index:        0,
-			FinishReason: constant.FinishReasonStop,
-			Message: dto.Message{
-				Role:    "assistant",
-				Content: "",
-			},
-		})
+		return nil, types.NewOpenAIError(fmt.Errorf("no choices parsed from upstream"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
 	simpleResponse := dto.OpenAITextResponse{
