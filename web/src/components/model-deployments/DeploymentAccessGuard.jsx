@@ -43,7 +43,7 @@ const DeploymentAccessGuard = ({
 
   if (loading) {
     return (
-      <div className='mt-[60px] px-2'>
+      <div className='header-offset-top px-2'>
         <Card loading={true} style={{ minHeight: '400px' }}>
           <div style={{ textAlign: 'center', padding: '50px 0' }}>
             <Text type='secondary'>{t('加载设置中...')}</Text>
@@ -56,9 +56,9 @@ const DeploymentAccessGuard = ({
   if (!isEnabled) {
     return (
       <div
-        className='mt-[60px] px-4'
+        className='header-offset-top px-4'
         style={{
-          minHeight: 'calc(100vh - 60px)',
+          minHeight: 'calc(100vh - var(--header-height))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -282,7 +282,7 @@ const DeploymentAccessGuard = ({
 
   if (connectionLoading || (connectionOk === null && !connectionError)) {
     return (
-      <div className='mt-[60px] px-2'>
+      <div className='header-offset-top px-2'>
         <Card loading={true} style={{ minHeight: '400px' }}>
           <div style={{ textAlign: 'center', padding: '50px 0' }}>
             <Text type='secondary'>{t('正在检查 io.net 连接...')}</Text>
@@ -302,9 +302,9 @@ const DeploymentAccessGuard = ({
 
     return (
       <div
-        className='mt-[60px] px-4'
+        className='header-offset-top px-4'
         style={{
-          minHeight: 'calc(100vh - 60px)',
+          minHeight: 'calc(100vh - var(--header-height))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

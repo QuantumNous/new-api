@@ -15,6 +15,7 @@
 
 /* ==================== 全局基础样式 ==================== */
 :root {
+  --header-height: 72px;
   --sidebar-width: 180px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
@@ -43,9 +44,32 @@ body {
   height: 100dvh;
 }
 
+.app-header,
+.header-nav-solid,
+.headerbar-container {
+  height: var(--header-height);
+  min-height: var(--header-height);
+}
+
+.header-offset-top {
+  margin-top: var(--header-height);
+}
+
+.header-offset-padding-top {
+  padding-top: var(--header-height);
+}
+
+.header-offset-height {
+  height: calc(100vh - var(--header-height));
+}
+
+.header-offset-min-height {
+  min-height: calc(100vh - var(--header-height));
+}
+
 .app-sider {
-  height: calc(100vh - 64px);
-  height: calc(100dvh - 64px);
+  height: calc(100vh - var(--header-height));
+  height: calc(100dvh - var(--header-height));
 }
 
 code {
@@ -1212,22 +1236,22 @@ html.dark .with-pastel-balls::before {
 
 /* ==================== 模型定价页面布局 ==================== */
 .pricing-layout {
-  height: calc(100vh - 60px);
+  height: calc(100vh - var(--header-height));
   overflow: hidden;
-  margin-top: 60px;
+  margin-top: var(--header-height);
 }
 
 .pricing-sidebar {
   width: clamp(280px, 24vw, 520px) !important;
   min-width: clamp(280px, 24vw, 520px) !important;
   max-width: clamp(280px, 24vw, 520px) !important;
-  height: calc(100vh - 60px);
+  height: calc(100vh - var(--header-height));
   background-color: var(--semi-color-bg-0);
   overflow: auto;
 }
 
 .pricing-content {
-  height: calc(100vh - 60px);
+  height: calc(100vh - var(--header-height));
   background-color: var(--semi-color-bg-0);
   display: flex;
   flex-direction: column;

@@ -163,7 +163,7 @@ const DefaultHomePage = ({ t, docsLink, isDemoSiteMode }) => {
   const docsHref = docsLink || 'https://doc.infistar.ai/';
 
   return (
-    <main id='homepage' data-homepage-default='true' className='pt-[60px]'>
+    <main id='homepage' data-homepage-default='true' className='header-offset-padding-top'>
       <section className='relative overflow-hidden bg-[#FAFAFB] pb-32 pt-14'>
         <div className='home-hero-glow pointer-events-none absolute right-0 top-0 h-[600px] w-[600px] -translate-y-1/3 translate-x-1/4 rounded-full bg-indigo-100/60 blur-[120px]' />
 

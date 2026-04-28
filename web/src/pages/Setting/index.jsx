@@ -193,7 +193,7 @@ const Setting = () => {
     }
   }, [location.search]);
   return (
-    <div className='mt-[60px] px-2'>
+    <div className='header-offset-top px-2'>
       <Layout>
         <Layout.Content>
           <Tabs

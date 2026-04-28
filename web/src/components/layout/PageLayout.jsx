@@ -160,9 +160,11 @@ const PageLayout = () => {
       }}
     >
       <Header
+        className='app-header'
         style={{
           padding: 0,
-          height: 'auto',
+          height: 'var(--header-height)',
+          minHeight: 'var(--header-height)',
           lineHeight: 'normal',
           position: 'fixed',
           width: '100%',
@@ -188,7 +190,7 @@ const PageLayout = () => {
             style={{
               position: 'fixed',
               left: 0,
-              top: '60px',
+              top: 'var(--header-height)',
               zIndex: 99,
               border: 'none',
               paddingRight: '0',

@@ -24,7 +24,7 @@ import { Bell } from 'lucide-react';
 const NotificationButton = ({ unreadCount, onNoticeOpen, t }) => {
   const buttonProps = {
     icon: <Bell size={18} />,
-    'aria-label': t('系统公告'),
+    'aria-label': t('通知'),
     onClick: onNoticeOpen,
     theme: 'borderless',
     type: 'tertiary',
