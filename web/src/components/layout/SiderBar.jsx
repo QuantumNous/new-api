@@ -21,14 +21,12 @@ import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon } from '../../helpers/render';
-import { ChevronLeft } from 'lucide-react';
-import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { isAdmin, isRoot, showError } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
-import { Nav, Divider, Button, Avatar, Typography } from '@douyinfe/semi-ui';
+import { Nav, Divider, Avatar, Typography } from '@douyinfe/semi-ui';
 import { UserContext } from '../../context/User';
 import { getLogo, getSystemName, stringToColor } from '../../helpers';
 
@@ -53,10 +51,13 @@ const routerMap = {
   personal: '/console/personal',
 };
 
-const SiderBar = ({ onNavigate = () => {} }) => {
+const SiderBar = ({
+  collapsed,
+  onCollapseToggle = () => {},
+  onNavigate = () => {},
+}) => {
   const { t } = useTranslation();
   const [userState] = useContext(UserContext);
-  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const {
     isModuleVisible,
     hasSectionVisibleModules,
@@ -299,15 +300,6 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     }
   }, [location.pathname, routerMapState]);
 
-  // 监控折叠状态变化以更新 body class
-  useEffect(() => {
-    if (collapsed) {
-      document.body.classList.add('sidebar-collapsed');
-    } else {
-      document.body.classList.remove('sidebar-collapsed');
-    }
-  }, [collapsed]);
-
   // 选中高亮颜色（统一）
   const SELECTED_COLOR = 'var(--semi-color-primary)';
 
@@ -424,7 +416,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           className='sidebar-nav'
           defaultIsCollapsed={collapsed}
           isCollapsed={collapsed}
-          onCollapseChange={toggleCollapsed}
+          onCollapseChange={() => onCollapseToggle()}
           selectedKeys={selectedKeys}
           itemStyle='sidebar-nav-item'
           hoverStyle='sidebar-nav-item:hover'
@@ -529,42 +521,6 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           </div>
         </div>
       )}
-
-      {/* 底部折叠按钮 */}
-      <div className='sidebar-collapse-button'>
-        <SkeletonWrapper
-          loading={showSkeleton}
-          type='button'
-          width={collapsed ? 36 : 156}
-          height={24}
-          className='w-full'
-        >
-          <Button
-            theme='outline'
-            type='tertiary'
-            size='small'
-            icon={
-              <ChevronLeft
-                size={16}
-                strokeWidth={2.5}
-                color='var(--semi-color-text-2)'
-                style={{
-                  transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)',
-                }}
-              />
-            }
-            onClick={toggleCollapsed}
-            icononly={collapsed}
-            style={
-              collapsed
-                ? { width: 36, height: 36, padding: 0 }
-                : { padding: '6px 12px', width: '100%' }
-            }
-          >
-            {!collapsed ? t('收起') : null}
-          </Button>
-        </SkeletonWrapper>
-      </div>
     </div>
   );
 };

@@ -36,8 +36,12 @@ const MobileMenuButton = ({
   return (
     <Button
       icon={
-        (isMobile ? drawerOpen : collapsed) ? (
-          <IconClose className='text-lg' />
+        isMobile ? (
+          drawerOpen ? (
+            <IconClose className='text-lg' />
+          ) : (
+            <IconMenu className='text-lg' />
+          )
         ) : (
           <IconMenu className='text-lg' />
         )

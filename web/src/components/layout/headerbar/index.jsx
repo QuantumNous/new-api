@@ -27,12 +27,16 @@ import HeaderLogo from './HeaderLogo';
 import Navigation from './Navigation';
 import ActionButtons from './ActionButtons';
 
-const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
+const HeaderBar = ({
+  onMobileMenuToggle,
+  drawerOpen,
+  collapsed,
+  onDesktopCollapseToggle,
+}) => {
   const {
     userState,
     statusState,
     isMobile,
-    collapsed,
     logoLoaded,
     currentLang,
     isLoading,
@@ -52,7 +56,12 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     handleMobileMenuToggle,
     navigate,
     t,
-  } = useHeaderBar({ onMobileMenuToggle, drawerOpen });
+  } = useHeaderBar({
+    onMobileMenuToggle,
+    drawerOpen,
+    collapsed,
+    onDesktopCollapseToggle,
+  });
 
   const {
     noticeVisible,

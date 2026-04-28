@@ -45,7 +45,7 @@ const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
   const [, statusDispatch] = useContext(StatusContext);
   const isMobile = useIsMobile();
-  const [collapsed, , setCollapsed] = useSidebarCollapsed();
+  const [collapsed, toggleCollapsed, setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { i18n } = useTranslation();
   const location = useLocation();
@@ -81,6 +81,14 @@ const PageLayout = () => {
       setCollapsed(false);
     }
   }, [isMobile, drawerOpen, collapsed, setCollapsed]);
+
+  useEffect(() => {
+    if (collapsed) {
+      document.body.classList.add('sidebar-collapsed');
+    } else {
+      document.body.classList.remove('sidebar-collapsed');
+    }
+  }, [collapsed]);
 
   const loadUser = () => {
     let user = localStorage.getItem('user');
@@ -174,6 +182,8 @@ const PageLayout = () => {
         <HeaderBar
           onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
           drawerOpen={drawerOpen}
+          collapsed={collapsed}
+          onDesktopCollapseToggle={toggleCollapsed}
         />
       </Header>
       <Layout
@@ -198,6 +208,8 @@ const PageLayout = () => {
             }}
           >
             <SiderBar
+              collapsed={collapsed}
+              onCollapseToggle={toggleCollapsed}
               onNavigate={() => {
                 if (isMobile) setDrawerOpen(false);
               }}
