@@ -23,10 +23,12 @@ import {
   Modal,
   ModalBackdrop,
   ModalBody,
+  ModalCloseTrigger,
   ModalContainer,
   ModalDialog,
   ModalFooter,
   ModalHeader,
+  ModalHeading,
   Spinner,
   Tabs,
   useOverlayState,
@@ -35,7 +37,7 @@ import { useTranslation } from 'react-i18next';
 import { API, showError, getRelativeTime } from '../../helpers';
 import { marked } from 'marked';
 import { StatusContext } from '../../context/Status';
-import { Bell, Megaphone, Inbox } from 'lucide-react';
+import { Bell, Megaphone, Inbox, X } from 'lucide-react';
 
 const NoticeModal = ({
   visible,
@@ -181,38 +183,58 @@ const NoticeModal = ({
           placement='center'
         >
           <ModalDialog className='bg-background/95 backdrop-blur'>
-            <ModalHeader className='border-b border-border'>
-          <div className='flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <span>{t('系统公告')}</span>
-            <Tabs
-              size='sm'
-              variant='secondary'
-              selectedKey={activeTab}
-              onSelectionChange={(key) => setActiveTab(String(key))}
-            >
-              <Tabs.List aria-label={t('系统公告')}>
-                <Tabs.Tab id='inApp'>
-                  <span className='flex items-center gap-1'>
-                    <Bell size={14} /> {t('通知')}
-                  </span>
-                </Tabs.Tab>
-                <Tabs.Tab id='system'>
-                  <span className='flex items-center gap-1'>
-                    <Megaphone size={14} /> {t('系统公告')}
-                  </span>
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs>
-          </div>
+            <ModalHeader className='flex flex-col gap-3 border-b border-border px-5 pb-0 pt-4'>
+              <div className='flex items-center justify-between gap-3'>
+                <div className='flex min-w-0 items-center gap-2.5'>
+                  <div
+                    aria-hidden='true'
+                    className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground'
+                  >
+                    <Megaphone size={18} />
+                  </div>
+                  <ModalHeading className='truncate text-base font-semibold text-foreground'>
+                    {t('系统公告')}
+                  </ModalHeading>
+                </div>
+                <ModalCloseTrigger
+                  className='-mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted outline-none transition hover:bg-surface-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary'
+                  aria-label={t('关闭')}
+                >
+                  <X size={16} />
+                </ModalCloseTrigger>
+              </div>
+              <Tabs
+                selectedKey={activeTab}
+                onSelectionChange={(key) => setActiveTab(String(key))}
+              >
+                <Tabs.List aria-label={t('系统公告')}>
+                  <Tabs.Tab id='inApp'>
+                    <span className='flex items-center gap-1.5'>
+                      <Bell size={14} /> {t('通知')}
+                    </span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                  <Tabs.Tab id='system'>
+                    <span className='flex items-center gap-1.5'>
+                      <Megaphone size={14} /> {t('系统公告')}
+                    </span>
+                    <Tabs.Indicator />
+                  </Tabs.Tab>
+                </Tabs.List>
+              </Tabs>
             </ModalHeader>
-            <ModalBody>{renderBody()}</ModalBody>
-            <ModalFooter className='border-t border-border'>
-          <Button variant='tertiary' onPress={handleCloseTodayNotice}>
-            {t('今日关闭')}
-          </Button>
-          <Button color='primary' onPress={onClose}>
-            {t('关闭公告')}
-          </Button>
+            <ModalBody className='px-5 py-4'>{renderBody()}</ModalBody>
+            <ModalFooter className='justify-between border-t border-border px-5 py-3'>
+              <Button
+                variant='ghost'
+                size='sm'
+                onPress={handleCloseTodayNotice}
+              >
+                {t('今日关闭')}
+              </Button>
+              <Button color='primary' size='sm' onPress={onClose}>
+                {t('关闭公告')}
+              </Button>
             </ModalFooter>
           </ModalDialog>
         </ModalContainer>
@@ -222,9 +244,9 @@ const NoticeModal = ({
 };
 
 const EmptyState = ({ description }) => (
-  <div className='flex flex-col items-center justify-center gap-3 py-12 text-muted'>
-    <div className='flex h-16 w-16 items-center justify-center rounded-3xl bg-surface-secondary text-muted'>
-      <Inbox size={30} />
+  <div className='flex flex-col items-center justify-center gap-2.5 py-8 text-muted'>
+    <div className='flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-secondary text-muted'>
+      <Inbox size={22} />
     </div>
     <span className='text-sm'>{description}</span>
   </div>

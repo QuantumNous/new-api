@@ -647,12 +647,16 @@ const JSONEditor = ({
                 toggleEditMode();
               }
             }}
-            size='sm'
-            variant='underlined'
           >
             <Tabs.List aria-label={t('编辑模式')}>
-              <Tabs.Tab id='visual'>{t('可视化')}</Tabs.Tab>
-              <Tabs.Tab id='manual'>{t('手动编辑')}</Tabs.Tab>
+              <Tabs.Tab id='visual'>
+                {t('可视化')}
+                <Tabs.Indicator />
+              </Tabs.Tab>
+              <Tabs.Tab id='manual'>
+                {t('手动编辑')}
+                <Tabs.Indicator />
+              </Tabs.Tab>
             </Tabs.List>
           </Tabs>
 

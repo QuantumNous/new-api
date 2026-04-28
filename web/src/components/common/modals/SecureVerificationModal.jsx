@@ -142,15 +142,19 @@ const SecureVerificationModal = ({
                 <Tabs
                   selectedKey={method}
                   onSelectionChange={(key) => onMethodSwitch(String(key))}
-                  size='default'
-                  variant='underlined'
                 >
                   <Tabs.List aria-label={t('验证方式')}>
                     {has2FA ? (
-                      <Tabs.Tab id='2fa'>{t('两步验证')}</Tabs.Tab>
+                      <Tabs.Tab id='2fa'>
+                        {t('两步验证')}
+                        <Tabs.Indicator />
+                      </Tabs.Tab>
                     ) : null}
                     {hasPasskey && passkeySupported ? (
-                      <Tabs.Tab id='passkey'>{t('Passkey')}</Tabs.Tab>
+                      <Tabs.Tab id='passkey'>
+                        {t('Passkey')}
+                        <Tabs.Indicator />
+                      </Tabs.Tab>
                     ) : null}
                   </Tabs.List>
 
