@@ -367,6 +367,9 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	userId := c.GetInt("id")
 
 	originTask, exist, err := model.GetByTaskId(userId, taskId)
+	if !exist && model.IsAdmin(userId) {
+		originTask, exist, err = model.GetByOnlyTaskId(taskId)
+	}
 	if err != nil {
 		taskResp = service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
 		return
