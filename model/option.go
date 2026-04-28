@@ -1,6 +1,7 @@
 package model
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -12,12 +13,15 @@ import (
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"gorm.io/gorm"
 )
 
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
 	Value string `json:"value"`
 }
+
+const paymentSettingOptionPrefix = "payment_setting."
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -207,22 +211,56 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
-	// Save to database first
-	option := Option{
-		Key: key,
+	return UpdateOptions(map[string]string{key: value})
+}
+
+func UpdateOptions(optionValues map[string]string) error {
+	if len(optionValues) == 0 {
+		return nil
 	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
-	// Update OptionMap
-	return updateOptionMap(key, value)
+
+	keys := make([]string, 0, len(optionValues))
+	for key := range optionValues {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	normalizedOptionValues, err := normalizePaymentSettingOptionValues(optionValues)
+	if err != nil {
+		return err
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		for _, key := range keys {
+			option := Option{Key: key}
+			if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+				return err
+			}
+			option.Value = normalizedOptionValues[key]
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+		}
+
+		paymentSettingOptionValues := make(map[string]string)
+		for _, key := range keys {
+			if isPaymentSettingOptionKey(key) {
+				paymentSettingOptionValues[key] = normalizedOptionValues[key]
+				continue
+			}
+			if err := updateOptionMap(key, normalizedOptionValues[key]); err != nil {
+				return err
+			}
+		}
+		return updatePaymentSettingOptionMap(paymentSettingOptionValues)
+	})
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if isPaymentSettingOptionKey(key) {
+		return updatePaymentSettingOptionMap(map[string]string{key: value})
+	}
+
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value
@@ -549,6 +587,96 @@ func updateOptionMap(key string, value string) (err error) {
 		// No additional in-memory variable to update.
 	}
 	return err
+}
+
+func isPaymentSettingOptionKey(key string) bool {
+	return strings.HasPrefix(key, paymentSettingOptionPrefix)
+}
+
+func paymentSettingConfigKey(key string) string {
+	return strings.TrimPrefix(key, paymentSettingOptionPrefix)
+}
+
+func normalizePaymentSettingOptionValues(optionValues map[string]string) (map[string]string, error) {
+	normalizedOptionValues := make(map[string]string, len(optionValues))
+	paymentSettingOptionValues := make(map[string]string)
+	for key, value := range optionValues {
+		normalizedOptionValues[key] = value
+		if isPaymentSettingOptionKey(key) {
+			paymentSettingOptionValues[key] = value
+		}
+	}
+	if len(paymentSettingOptionValues) == 0 {
+		return normalizedOptionValues, nil
+	}
+
+	configMap := make(map[string]string, len(paymentSettingOptionValues))
+	for key, value := range paymentSettingOptionValues {
+		configKey := paymentSettingConfigKey(key)
+		if configKey == "" || configKey == key {
+			continue
+		}
+		configMap[configKey] = value
+	}
+	if len(configMap) == 0 {
+		return normalizedOptionValues, nil
+	}
+
+	paymentSetting := operation_setting.GetPaymentSetting()
+	if err := config.UpdateConfigFromMap(paymentSetting, configMap); err != nil {
+		return nil, err
+	}
+	paymentSetting.AutoSwitchGroupBaseGroup = operation_setting.NormalizePaymentAutoSwitchGroupBaseGroup(paymentSetting.AutoSwitchGroupBaseGroup)
+
+	paymentSettingMap, err := config.ConfigToMap(paymentSetting)
+	if err != nil {
+		return nil, err
+	}
+	for key := range paymentSettingOptionValues {
+		if value, ok := paymentSettingMap[paymentSettingConfigKey(key)]; ok {
+			normalizedOptionValues[key] = value
+		}
+	}
+	return normalizedOptionValues, nil
+}
+
+func updatePaymentSettingOptionMap(optionValues map[string]string) error {
+	if len(optionValues) == 0 {
+		return nil
+	}
+
+	configMap := make(map[string]string, len(optionValues))
+	for key, value := range optionValues {
+		configKey := paymentSettingConfigKey(key)
+		if configKey == "" || configKey == key {
+			continue
+		}
+		configMap[configKey] = value
+	}
+	if len(configMap) == 0 {
+		return nil
+	}
+
+	var updateErr error
+	paymentSetting := operation_setting.UpdatePaymentSetting(func(setting *operation_setting.PaymentSetting) {
+		updateErr = config.UpdateConfigFromMap(setting, configMap)
+	})
+	if updateErr != nil {
+		return updateErr
+	}
+	paymentSettingMap, err := config.ConfigToMap(paymentSetting)
+	if err != nil {
+		return err
+	}
+
+	common.OptionMapRWMutex.Lock()
+	defer common.OptionMapRWMutex.Unlock()
+	for key := range optionValues {
+		if value, ok := paymentSettingMap[paymentSettingConfigKey(key)]; ok {
+			common.OptionMap[key] = value
+		}
+	}
+	return nil
 }
 
 // handleConfigUpdate 处理分层配置更新，返回是否已处理

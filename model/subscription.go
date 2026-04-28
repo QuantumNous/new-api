@@ -400,6 +400,64 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	return group, nil
 }
 
+func getLatestActiveSubscriptionUpgradeTx(tx *gorm.DB, userId int, now int64, excludedSubscriptionId int) (*UserSubscription, error) {
+	if tx == nil {
+		return nil, errors.New("tx is nil")
+	}
+	if userId <= 0 {
+		return nil, errors.New("invalid userId")
+	}
+	if now <= 0 {
+		now = GetDBTimestamp()
+	}
+
+	var activeSub UserSubscription
+	query := tx.Where("user_id = ? AND status = ? AND end_time > ? AND upgrade_group <> ''", userId, "active", now)
+	if excludedSubscriptionId > 0 {
+		query = query.Where("id <> ?", excludedSubscriptionId)
+	}
+	query = query.Order("end_time desc, id desc").Limit(1).Find(&activeSub)
+	if query.Error != nil {
+		return nil, query.Error
+	}
+	if query.RowsAffected == 0 {
+		return nil, nil
+	}
+	return &activeSub, nil
+}
+
+func getActiveSubscriptionUpgradeGroupTx(tx *gorm.DB, userId int, now int64, excludedSubscriptionId int) (string, error) {
+	activeSub, err := getLatestActiveSubscriptionUpgradeTx(tx, userId, now, excludedSubscriptionId)
+	if err != nil || activeSub == nil {
+		return "", err
+	}
+	return strings.TrimSpace(activeSub.UpgradeGroup), nil
+}
+
+func resolveUserEffectiveGroupTx(tx *gorm.DB, userId int, now int64, fallbackGroup string, excludedSubscriptionId int) (string, error) {
+	activeUpgradeGroup, err := getActiveSubscriptionUpgradeGroupTx(tx, userId, now, excludedSubscriptionId)
+	if err != nil {
+		return "", err
+	}
+	if activeUpgradeGroup != "" {
+		return activeUpgradeGroup, nil
+	}
+
+	fallbackGroup = strings.TrimSpace(fallbackGroup)
+	chainGroups := getPaymentAutoSwitchGroupChainSet()
+	if isPaymentAutoSwitchGroupChainMember(fallbackGroup, chainGroups) {
+		topUpGroup, err := getTopUpAutoSwitchTargetGroupTx(tx, userId)
+		if err != nil {
+			return "", err
+		}
+		if topUpGroup != "" {
+			return topUpGroup, nil
+		}
+	}
+
+	return fallbackGroup, nil
+}
+
 func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now int64) (string, error) {
 	if tx == nil || sub == nil {
 		return "", errors.New("invalid downgrade args")
@@ -408,31 +466,26 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	if upgradeGroup == "" {
 		return "", nil
 	}
-	currentGroup, err := getUserGroupByIdTx(tx, sub.UserId)
+	currentGroup, err := getUserGroupForUpdateTx(tx, sub.UserId)
 	if err != nil {
 		return "", err
 	}
+
 	if currentGroup != upgradeGroup {
 		return "", nil
 	}
-	var activeSub UserSubscription
-	activeQuery := tx.Where("user_id = ? AND status = ? AND end_time > ? AND id <> ? AND upgrade_group <> ''",
-		sub.UserId, "active", now, sub.Id).
-		Order("end_time desc, id desc").
-		Limit(1).
-		Find(&activeSub)
-	if activeQuery.Error == nil && activeQuery.RowsAffected > 0 {
-		return "", nil
-	}
-	prevGroup := strings.TrimSpace(sub.PrevUserGroup)
-	if prevGroup == "" || prevGroup == currentGroup {
-		return "", nil
-	}
-	if err := tx.Model(&User{}).Where("id = ?", sub.UserId).
-		Update("group", prevGroup).Error; err != nil {
+
+	targetGroup, err := resolveUserEffectiveGroupTx(tx, sub.UserId, now, sub.PrevUserGroup, sub.Id)
+	if err != nil {
 		return "", err
 	}
-	return prevGroup, nil
+	if targetGroup == "" || targetGroup == currentGroup {
+		return "", nil
+	}
+	if err := updateUserGroupTx(tx, sub.UserId, targetGroup); err != nil {
+		return "", err
+	}
+	return targetGroup, nil
 }
 
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
@@ -471,14 +524,13 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
 	prevGroup := ""
 	if upgradeGroup != "" {
-		currentGroup, err := getUserGroupByIdTx(tx, userId)
+		currentGroup, err := getUserGroupForUpdateTx(tx, userId)
 		if err != nil {
 			return nil, err
 		}
 		if currentGroup != upgradeGroup {
 			prevGroup = currentGroup
-			if err := tx.Model(&User{}).Where("id = ?", userId).
-				Update("group", upgradeGroup).Error; err != nil {
+			if err := updateUserGroupTx(tx, userId, upgradeGroup); err != nil {
 				return nil, err
 			}
 		}
@@ -856,44 +908,40 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			}
 			expiredCount += int(res.RowsAffected)
 
-			// If there's an active upgraded subscription, keep current group.
-			var activeSub UserSubscription
-			activeQuery := tx.Where("user_id = ? AND status = ? AND end_time > ? AND upgrade_group <> ''",
-				userId, "active", now).
-				Order("end_time desc, id desc").
-				Limit(1).
-				Find(&activeSub)
-			if activeQuery.Error == nil && activeQuery.RowsAffected > 0 {
-				return nil
-			}
-
-			// No active upgraded subscription, downgrade to previous group if needed.
 			var lastExpired UserSubscription
 			expiredQuery := tx.Where("user_id = ? AND status = ? AND upgrade_group <> ''",
 				userId, "expired").
-				Order("end_time desc, id desc").
+				Order("end_time desc, created_at desc, id desc").
 				Limit(1).
 				Find(&lastExpired)
-			if expiredQuery.Error != nil || expiredQuery.RowsAffected == 0 {
+			if expiredQuery.Error != nil {
+				return expiredQuery.Error
+			}
+			if expiredQuery.RowsAffected == 0 {
 				return nil
 			}
-			upgradeGroup := strings.TrimSpace(lastExpired.UpgradeGroup)
-			prevGroup := strings.TrimSpace(lastExpired.PrevUserGroup)
-			if upgradeGroup == "" || prevGroup == "" {
-				return nil
-			}
-			currentGroup, err := getUserGroupByIdTx(tx, userId)
+
+			currentGroup, err := getUserGroupForUpdateTx(tx, userId)
 			if err != nil {
 				return err
 			}
-			if currentGroup != upgradeGroup || currentGroup == prevGroup {
+			expiredUpgradeGroup := strings.TrimSpace(lastExpired.UpgradeGroup)
+			if expiredUpgradeGroup == "" || currentGroup != expiredUpgradeGroup {
 				return nil
 			}
-			if err := tx.Model(&User{}).Where("id = ?", userId).
-				Update("group", prevGroup).Error; err != nil {
+
+			fallbackGroup := strings.TrimSpace(lastExpired.PrevUserGroup)
+			targetGroup, err := resolveUserEffectiveGroupTx(tx, userId, now, fallbackGroup, 0)
+			if err != nil {
 				return err
 			}
-			cacheGroup = prevGroup
+			if targetGroup == "" || targetGroup == currentGroup {
+				return nil
+			}
+			if err := updateUserGroupTx(tx, userId, targetGroup); err != nil {
+				return err
+			}
+			cacheGroup = targetGroup
 			return nil
 		})
 		if err != nil {

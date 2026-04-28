@@ -3,12 +3,15 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TopUp struct {
@@ -77,6 +80,240 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 	return topUp
 }
 
+func normalizeTopUpPaymentMethod(method string) string {
+	return strings.ToLower(strings.TrimSpace(method))
+}
+
+func NormalizeTopUpValueUSD(topUp *TopUp) float64 {
+	if topUp == nil {
+		return 0
+	}
+
+	switch normalizeTopUpPaymentMethod(topUp.PaymentMethod) {
+	case PaymentMethodStripe:
+		return topUp.Money
+	case PaymentMethodCreem:
+		if common.QuotaPerUnit <= 0 {
+			return 0
+		}
+		return float64(topUp.Amount) / common.QuotaPerUnit
+	default:
+		return float64(topUp.Amount)
+	}
+}
+
+func buildPaymentAutoSwitchGroupChainSet(paymentSetting *operation_setting.PaymentSetting) map[string]struct{} {
+	if paymentSetting == nil {
+		paymentSetting = operation_setting.GetPaymentSetting()
+	}
+	chainGroups := make(map[string]struct{}, len(paymentSetting.AutoSwitchGroupRules)+1)
+	chainGroups[operation_setting.NormalizePaymentAutoSwitchGroupBaseGroup(paymentSetting.AutoSwitchGroupBaseGroup)] = struct{}{}
+	for _, rule := range paymentSetting.AutoSwitchGroupRules {
+		group := strings.TrimSpace(rule.Group)
+		if group == "" {
+			continue
+		}
+		chainGroups[group] = struct{}{}
+	}
+	return chainGroups
+}
+
+func getPaymentAutoSwitchGroupChainSet() map[string]struct{} {
+	return buildPaymentAutoSwitchGroupChainSet(operation_setting.GetPaymentSetting())
+}
+
+func isPaymentAutoSwitchGroupChainMember(group string, chainGroups map[string]struct{}) bool {
+	trimmedGroup := strings.TrimSpace(group)
+	if trimmedGroup == "" {
+		return false
+	}
+	_, ok := chainGroups[trimmedGroup]
+	return ok
+}
+
+func getPaymentAutoSwitchGroupTopUpCutoffTime() int64 {
+	paymentSetting := operation_setting.GetPaymentSetting()
+	if !paymentSetting.AutoSwitchGroupOnlyNewTopups || paymentSetting.AutoSwitchGroupEnabledFrom <= 0 {
+		return 0
+	}
+	return paymentSetting.AutoSwitchGroupEnabledFrom
+}
+
+func GetUserSuccessfulTopupTotalUSDTx(tx *gorm.DB, userId int) (float64, error) {
+	if tx == nil {
+		return 0, errors.New("tx is nil")
+	}
+	if userId <= 0 {
+		return 0, errors.New("invalid user id")
+	}
+
+	query := tx.Model(&TopUp{}).
+		Select("amount", "money", "payment_method").
+		Where(
+			"user_id = ? AND status = ? AND ((LOWER(payment_method) = ? AND money > 0) OR (LOWER(payment_method) <> ? AND amount > 0))",
+			userId,
+			common.TopUpStatusSuccess,
+			PaymentMethodStripe,
+			PaymentMethodStripe,
+		)
+	if cutoffTime := getPaymentAutoSwitchGroupTopUpCutoffTime(); cutoffTime > 0 {
+		query = query.Where("complete_time >= ?", cutoffTime)
+	}
+
+	var topUps []TopUp
+	if err := query.Find(&topUps).Error; err != nil {
+		return 0, err
+	}
+
+	totalUSD := 0.0
+	for i := range topUps {
+		totalUSD += NormalizeTopUpValueUSD(&topUps[i])
+	}
+	return totalUSD, nil
+}
+
+func matchPaymentAutoSwitchGroupRule(totalTopUpUSD float64, rules []operation_setting.PaymentAutoSwitchGroupRule) string {
+	if totalTopUpUSD <= 0 || len(rules) == 0 {
+		return ""
+	}
+
+	matchedGroup := ""
+	matchedThreshold := -1.0
+	for _, rule := range rules {
+		group := strings.TrimSpace(rule.Group)
+		if group == "" || rule.ThresholdUSD > totalTopUpUSD {
+			continue
+		}
+		if rule.ThresholdUSD > matchedThreshold {
+			matchedThreshold = rule.ThresholdUSD
+			matchedGroup = group
+		}
+	}
+	return matchedGroup
+}
+
+func getTopUpAutoSwitchTargetGroupTx(tx *gorm.DB, userId int) (string, error) {
+	if tx == nil {
+		return "", errors.New("tx is nil")
+	}
+	if userId <= 0 {
+		return "", errors.New("invalid user id")
+	}
+
+	paymentSetting := operation_setting.GetPaymentSetting()
+	if !paymentSetting.AutoSwitchGroupEnabled {
+		return "", nil
+	}
+
+	totalTopUpUSD, err := GetUserSuccessfulTopupTotalUSDTx(tx, userId)
+	if err != nil {
+		return "", err
+	}
+	return matchPaymentAutoSwitchGroupRule(totalTopUpUSD, paymentSetting.AutoSwitchGroupRules), nil
+}
+
+func updateUserGroupTx(tx *gorm.DB, userId int, targetGroup string) error {
+	if tx == nil {
+		return errors.New("tx is nil")
+	}
+	if userId <= 0 {
+		return errors.New("invalid user id")
+	}
+
+	targetGroup = strings.TrimSpace(targetGroup)
+	if targetGroup == "" {
+		return nil
+	}
+
+	return tx.Model(&User{}).Where("id = ?", userId).Update("group", targetGroup).Error
+}
+
+func getUserGroupForUpdateTx(tx *gorm.DB, userId int) (string, error) {
+	if tx == nil {
+		return "", errors.New("tx is nil")
+	}
+	if userId <= 0 {
+		return "", errors.New("invalid user id")
+	}
+
+	var group string
+	query := tx.Model(&User{}).Where("id = ?", userId).Select(commonGroupCol)
+	if !common.UsingSQLite {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	if err := query.Find(&group).Error; err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(group), nil
+}
+
+func applyTopUpAutoSwitchGroupTx(tx *gorm.DB, userId int) (string, error) {
+	if tx == nil {
+		return "", errors.New("tx is nil")
+	}
+	if userId <= 0 {
+		return "", errors.New("invalid user id")
+	}
+
+	paymentSetting := operation_setting.GetPaymentSetting()
+	if !paymentSetting.AutoSwitchGroupEnabled {
+		return "", nil
+	}
+
+	currentGroup, err := getUserGroupForUpdateTx(tx, userId)
+	if err != nil {
+		return "", err
+	}
+
+	activeUpgradeGroup, err := getActiveSubscriptionUpgradeGroupTx(tx, userId, GetDBTimestamp(), 0)
+	if err != nil {
+		return "", err
+	}
+	if activeUpgradeGroup != "" {
+		if currentGroup == activeUpgradeGroup {
+			return "", nil
+		}
+		if err := updateUserGroupTx(tx, userId, activeUpgradeGroup); err != nil {
+			return "", err
+		}
+		return activeUpgradeGroup, nil
+	}
+
+	chainGroups := buildPaymentAutoSwitchGroupChainSet(paymentSetting)
+	if !isPaymentAutoSwitchGroupChainMember(currentGroup, chainGroups) {
+		return "", nil
+	}
+
+	targetGroup, err := getTopUpAutoSwitchTargetGroupTx(tx, userId)
+	if err != nil {
+		return "", err
+	}
+	if targetGroup == "" || currentGroup == targetGroup {
+		return "", nil
+	}
+
+	if err := updateUserGroupTx(tx, userId, targetGroup); err != nil {
+		return "", err
+	}
+	return targetGroup, nil
+}
+
+func ApplyTopUpAutoSwitchGroup(userId int) (string, error) {
+	var switchedGroup string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		switchedGroup, err = applyTopUpAutoSwitchGroupTx(tx, userId)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	if switchedGroup != "" {
+		_ = UpdateUserGroupCache(userId, switchedGroup)
+	}
+	return switchedGroup, nil
+}
+
 func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
@@ -110,6 +347,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	var quota float64
+	var switchedGroup string
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -144,12 +382,16 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			return err
 		}
 
-		return nil
+		switchedGroup, err = applyTopUpAutoSwitchGroupTx(tx, topUp.UserId)
+		return err
 	})
 
 	if err != nil {
 		common.SysError("topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
+	}
+	if switchedGroup != "" {
+		_ = UpdateUserGroupCache(topUp.UserId, switchedGroup)
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
@@ -329,6 +571,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
+	var switchedGroup string
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
@@ -376,11 +619,16 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		userId = topUp.UserId
 		payMoney = topUp.Money
 		paymentMethod = topUp.PaymentMethod
-		return nil
+		var switchErr error
+		switchedGroup, switchErr = applyTopUpAutoSwitchGroupTx(tx, topUp.UserId)
+		return switchErr
 	})
 
 	if err != nil {
 		return err
+	}
+	if switchedGroup != "" {
+		_ = UpdateUserGroupCache(userId, switchedGroup)
 	}
 
 	// 事务外记录日志，避免阻塞
@@ -393,6 +641,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	var quota int64
+	var switchedGroup string
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -449,12 +698,16 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return err
 		}
 
-		return nil
+		switchedGroup, err = applyTopUpAutoSwitchGroupTx(tx, topUp.UserId)
+		return err
 	})
 
 	if err != nil {
 		common.SysError("creem topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
+	}
+	if switchedGroup != "" {
+		_ = UpdateUserGroupCache(topUp.UserId, switchedGroup)
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
@@ -468,6 +721,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	}
 
 	var quotaToAdd int
+	var switchedGroup string
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -510,12 +764,16 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return err
 		}
 
-		return nil
+		switchedGroup, err = applyTopUpAutoSwitchGroupTx(tx, topUp.UserId)
+		return err
 	})
 
 	if err != nil {
 		common.SysError("waffo topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
+	}
+	if switchedGroup != "" {
+		_ = UpdateUserGroupCache(topUp.UserId, switchedGroup)
 	}
 
 	if quotaToAdd > 0 {
@@ -531,6 +789,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	var quotaToAdd int
+	var switchedGroup string
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -571,12 +830,16 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 			return err
 		}
 
-		return nil
+		switchedGroup, err = applyTopUpAutoSwitchGroupTx(tx, topUp.UserId)
+		return err
 	})
 
 	if err != nil {
 		common.SysError("waffo pancake topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
+	}
+	if switchedGroup != "" {
+		_ = UpdateUserGroupCache(topUp.UserId, switchedGroup)
 	}
 
 	if quotaToAdd > 0 {
