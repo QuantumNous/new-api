@@ -127,6 +127,62 @@ func TestVideoFetchListRespBuilder_InvalidStatus(t *testing.T) {
 	}
 }
 
+// TestVideoFetchListRespBuilder_RejectsSpoofedUserID verifies that the list
+// endpoint ignores any attempt to inject a different user ID via a query
+// parameter.  The handler derives the owner exclusively from c.GetInt("id")
+// (the token-derived user ID set by auth middleware), so even if a caller
+// appends ?filter.user_id=<other> or ?filter.user=<other> the response MUST
+// only contain tasks belonging to the authenticated user.
+//
+// Security invariant: user 1001 MUST NOT see user 1002's tasks regardless of
+// any query-string manipulation.
+func TestVideoFetchListRespBuilder_RejectsSpoofedUserID(t *testing.T) {
+	setupVolcListTestDB(t)
+	// Insert tasks for two different users.
+	insertVolcTask(t, 1001, "u1_task_a", model.TaskStatusSuccess, "doubao-seedance-2-0-260128")
+	insertVolcTask(t, 1001, "u1_task_b", model.TaskStatusQueued, "doubao-seedance-2-0-260128")
+	insertVolcTask(t, 1002, "u2_task_secret", model.TaskStatusSuccess, "doubao-seedance-2-0-260128")
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	// Authenticated as user 1001 — the token-derived identity.
+	c.Set("id", 1001)
+
+	// Attempt to spoof user 1002 via query params.  The handler does not
+	// recognise either of these param names; both should be silently ignored.
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v3/contents/generations/tasks?filter.user_id=1002&filter.user=1002",
+		nil,
+	)
+	c.Request = req
+
+	respBody, taskErr := videoFetchListRespBodyBuilder(c)
+	if taskErr != nil {
+		t.Fatalf("unexpected taskErr: %+v", taskErr)
+	}
+
+	var resp volcVideoTaskListResponse
+	if err := common.Unmarshal(respBody, &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Must see ONLY user 1001's tasks.
+	for _, item := range resp.Items {
+		if item.ID == "u2_task_secret" {
+			t.Errorf("security violation: user 1001 can see user 1002's task %q via spoofed query param", item.ID)
+		}
+	}
+	if resp.Total != 2 {
+		t.Errorf("expected total=2 (user 1001 owns 2 tasks), got %d", resp.Total)
+	}
+	if len(resp.Items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(resp.Items))
+	}
+}
+
 // TestVideoFetchListRespBuilder_PlatformCoexistence verifies that tasks stored
 // under legacy platform 45 (DoubaoVideo / VolcEngine) do NOT appear in the
 // /api/v3/contents/generations/tasks list endpoint, while VolcAdapter tasks do.

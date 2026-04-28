@@ -1,13 +1,38 @@
 package volcadapter
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
 )
+
+func init() {
+	gin.SetMode(gin.TestMode)
+}
+
+// newVolcTaskTestContext creates a gin.Context with JSON body stored in
+// common.KeyBodyStorage so validateVolcNativeTaskRequest can read it.
+func newVolcTaskTestContext(t *testing.T, body []byte) *gin.Context {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v3/contents/generations/tasks", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	bs, err := common.CreateBodyStorage(body)
+	if err != nil {
+		t.Fatalf("failed to create body storage: %v", err)
+	}
+	c.Set(common.KeyBodyStorage, bs)
+	return c
+}
 
 // ─────────────────────────────────────────
 // AdjustBillingOnComplete unit tests
@@ -308,5 +333,109 @@ func TestBuildSynthesizedBody_WithFlags(t *testing.T) {
 	}
 	if firstItem["type"] != "video_url" {
 		t.Errorf("content[0].type: got %v, want video_url", firstItem["type"])
+	}
+}
+
+// ─────────────────────────────────────────
+// T-6: validateVolcNativeTaskRequest — malformed input cases
+// ─────────────────────────────────────────
+
+// TestValidateVolcNativeTaskRequest_MissingModel verifies that a body without
+// a model field returns a 400 TaskError.
+func TestValidateVolcNativeTaskRequest_MissingModel(t *testing.T) {
+	body := []byte(`{"content":[{"type":"text","text":"make a video"}]}`)
+	c := newVolcTaskTestContext(t, body)
+	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+
+	taskErr := validateVolcNativeTaskRequest(c, info)
+	if taskErr == nil {
+		t.Fatal("expected TaskError for missing model, got nil")
+	}
+	if taskErr.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", taskErr.StatusCode)
+	}
+	if taskErr.Code != "invalid_request" {
+		t.Errorf("expected code=invalid_request, got %q", taskErr.Code)
+	}
+}
+
+// TestValidateVolcNativeTaskRequest_EmptyBody verifies that an empty JSON
+// object ({} with no fields) returns a 400 — model is required.
+func TestValidateVolcNativeTaskRequest_EmptyBody(t *testing.T) {
+	body := []byte(`{}`)
+	c := newVolcTaskTestContext(t, body)
+	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+
+	taskErr := validateVolcNativeTaskRequest(c, info)
+	if taskErr == nil {
+		t.Fatal("expected TaskError for empty body, got nil")
+	}
+	if taskErr.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", taskErr.StatusCode)
+	}
+}
+
+// TestValidateVolcNativeTaskRequest_EmptyContentArray verifies that a body with
+// content: [] (empty array) is accepted when model is present.
+// The validator does not require content[] to be non-empty.
+func TestValidateVolcNativeTaskRequest_EmptyContentArray(t *testing.T) {
+	body := []byte(`{"model":"doubao-seedance-2-0","content":[]}`)
+	c := newVolcTaskTestContext(t, body)
+	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+
+	taskErr := validateVolcNativeTaskRequest(c, info)
+	if taskErr != nil {
+		t.Errorf("expected no error for empty content array (model is present), got: %+v", taskErr)
+	}
+}
+
+// TestValidateVolcNativeTaskRequest_MalformedContentItems verifies that content[]
+// entries missing the "type" field do not panic and are handled gracefully.
+// Items without type are skipped when scanning for image/video inputs.
+func TestValidateVolcNativeTaskRequest_MalformedContentItems(t *testing.T) {
+	// content[] items have no "type" key — should not crash.
+	body := []byte(`{"model":"doubao-seedance-2-0","content":[{"text":"hello"},{"random_key":42}]}`)
+	c := newVolcTaskTestContext(t, body)
+	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+
+	taskErr := validateVolcNativeTaskRequest(c, info)
+	if taskErr != nil {
+		t.Errorf("unexpected error for malformed content items: %+v", taskErr)
+	}
+	// Without any image_url/video_url items the action defaults to TextGenerate.
+	if info.Action != "textGenerate" {
+		t.Errorf("expected action=textGenerate for typeless content items, got %q", info.Action)
+	}
+}
+
+// TestValidateVolcNativeTaskRequest_NonJSONBody verifies that a non-JSON request
+// body returns a 400 and does NOT panic.
+func TestValidateVolcNativeTaskRequest_NonJSONBody(t *testing.T) {
+	body := []byte(`not json at all`)
+	c := newVolcTaskTestContext(t, body)
+	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+
+	taskErr := validateVolcNativeTaskRequest(c, info)
+	if taskErr == nil {
+		t.Fatal("expected TaskError for non-JSON body, got nil")
+	}
+	if taskErr.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", taskErr.StatusCode)
+	}
+}
+
+// TestValidateVolcNativeTaskRequest_InvalidJSONBody verifies that syntactically
+// broken JSON (truncated / malformed) returns a 400 with no panic.
+func TestValidateVolcNativeTaskRequest_InvalidJSONBody(t *testing.T) {
+	body := []byte(`{"model":"doubao-seedance-2-0","content":[{"type":"text"`)
+	c := newVolcTaskTestContext(t, body)
+	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+
+	taskErr := validateVolcNativeTaskRequest(c, info)
+	if taskErr == nil {
+		t.Fatal("expected TaskError for truncated JSON, got nil")
+	}
+	if taskErr.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", taskErr.StatusCode)
 	}
 }

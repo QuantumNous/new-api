@@ -2,8 +2,10 @@ package helper
 
 import (
 	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
@@ -122,5 +124,100 @@ func TestGetAndValidateRequest_VolcFormat(t *testing.T) {
 	}
 	if volcReq.Model != "high-aes-general-v21-L" {
 		t.Errorf("model: got %q", volcReq.Model)
+	}
+}
+
+// ── T-6 additional cases ──────────────────────────────────────────────────────
+
+// TestGetAndValidateVolcImageRequest_EmptyBody verifies that an empty JSON
+// object (no fields at all) returns a 400-class "model is required" error.
+func TestGetAndValidateVolcImageRequest_EmptyBody(t *testing.T) {
+	body := `{}`
+	c := newTestContextWithBody(t, body)
+
+	_, err := GetAndValidateVolcImageRequest(c)
+	if err == nil {
+		t.Fatal("expected error for empty body {}, got nil")
+	}
+	if err.Error() != "model is required" {
+		t.Errorf("error message: got %q, want %q", err.Error(), "model is required")
+	}
+}
+
+// TestGetAndValidateVolcImageRequest_EmptyModelField verifies that
+// model: "" (explicitly present but empty) is treated the same as absent.
+func TestGetAndValidateVolcImageRequest_EmptyModelField(t *testing.T) {
+	body := `{"model":"","prompt":"some prompt"}`
+	c := newTestContextWithBody(t, body)
+
+	_, err := GetAndValidateVolcImageRequest(c)
+	if err == nil {
+		t.Fatal("expected error for model:\"\", got nil")
+	}
+	if err.Error() != "model is required" {
+		t.Errorf("error message: got %q, want %q", err.Error(), "model is required")
+	}
+}
+
+// TestGetAndValidateVolcImageRequest_WrongContentType verifies that a
+// multipart/form-data body without a JSON Content-Type is handled safely.
+// UnmarshalBodyReusable skips form-data parsing for the VolcImageRequest struct
+// (no form tags), so the model field is unpopulated → returns "model is required".
+// This tests that the validator does NOT panic on unexpected content types.
+func TestGetAndValidateVolcImageRequest_WrongContentType(t *testing.T) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("model", "high-aes-general-v21-L")
+	_ = mw.WriteField("prompt", "a beautiful sunset")
+	mw.Close()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v3/images/generations", &buf)
+	c.Request.Header.Set("Content-Type", mw.FormDataContentType())
+
+	// Must not panic; any error (including "model is required") is acceptable.
+	// The key invariant is: no crash.
+	_, _ = GetAndValidateVolcImageRequest(c)
+	// No t.Fatal here — we're verifying robustness, not a specific error message,
+	// because multipart field parsing behaviour for struct-mapped fields depends
+	// on whether form tags are present (they are not on VolcImageRequest).
+}
+
+// TestGetAndValidateVolcImageRequest_ExtremelyLongModel verifies that a
+// very large model string (10 KB) is accepted by the validator — there is no
+// built-in size cap on the model field in GetAndValidateVolcImageRequest.
+// The string is passed through to the upstream caller unchanged.
+// This is intentional: length validation is the caller's / upstream's concern.
+func TestGetAndValidateVolcImageRequest_ExtremelyLongModel(t *testing.T) {
+	longModel := strings.Repeat("x", 10*1024) // 10 KB
+	body := `{"model":"` + longModel + `","prompt":"test"}`
+	c := newTestContextWithBody(t, body)
+
+	req, err := GetAndValidateVolcImageRequest(c)
+	// Accepted — no length limit in the validator.
+	if err != nil {
+		t.Fatalf("expected no error for long model (validator has no length cap), got: %v", err)
+	}
+	if req.Model != longModel {
+		t.Errorf("model field should be preserved verbatim (got length %d, want %d)", len(req.Model), len(longModel))
+	}
+}
+
+// TestGetAndValidateVolcImageRequest_DeeplyNestedUnexpectedFields verifies that
+// deeply-nested unknown fields do not cause a panic and are preserved in Extra.
+func TestGetAndValidateVolcImageRequest_DeeplyNestedUnexpectedFields(t *testing.T) {
+	body := `{"model":"m1","deep":{"a":{"b":{"c":{"d":"leaf"}}}},"arr":[1,2,{"x":3}]}`
+	c := newTestContextWithBody(t, body)
+
+	req, err := GetAndValidateVolcImageRequest(c)
+	if err != nil {
+		t.Fatalf("unexpected error for body with nested unknown fields: %v", err)
+	}
+	if _, ok := req.Extra["deep"]; !ok {
+		t.Error("expected nested field 'deep' captured in Extra")
+	}
+	if _, ok := req.Extra["arr"]; !ok {
+		t.Error("expected array field 'arr' captured in Extra")
 	}
 }
