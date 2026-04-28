@@ -13,8 +13,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useContext } from 'react';
-import { Button, Card, Spinner, Switch } from '@heroui/react';
-import { CreditCard, KeyRound, Link as LinkIcon, Save, X } from 'lucide-react';
+import {
+  Button,
+  ButtonGroup,
+  Card,
+  Checkbox,
+  Input,
+  ListBox,
+  Select,
+  Spinner,
+  Switch,
+  TextArea,
+} from '@heroui/react';
+import {
+  ChevronDown,
+  CreditCard,
+  KeyRound,
+  Link as LinkIcon,
+  X,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -30,6 +47,7 @@ import {
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { StatusContext } from '../../../../context/Status';
+import DateTimePicker from '../../../common/ui/DateTimePicker';
 
 const TAG_TONE = {
   green: 'bg-success/15 text-success',
@@ -48,8 +66,10 @@ function StatusChip({ tone, children }) {
   );
 }
 
+// Visual baseline for the HeroUI Input/Select/Textarea triggers used inside
+// this modal. Keeps every form field on the same 40px / rounded-xl rhythm.
 const inputClass =
-  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
 
 const textareaClass =
   'w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary';
@@ -106,27 +126,6 @@ const INIT_VALUES = {
   tokenCount: 1,
 };
 
-// Convert a server timestamp/string `expired_time` into the format
-// expected by `<input type='datetime-local'>`. The original Semi
-// `Form.DatePicker` accepted both -1 and a `YYYY-MM-DD HH:mm:ss` string.
-const toDateTimeInputValue = (value) => {
-  if (value === -1 || value === null || value === undefined || value === '') {
-    return '';
-  }
-  if (typeof value === 'number') {
-    const date = new Date(value * 1000);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toISOString().slice(0, 16);
-  }
-  // Server already gave us "YYYY-MM-DD HH:mm:ss"; convert to the
-  // `<input>` format "YYYY-MM-DDTHH:mm".
-  const time = Date.parse(value);
-  if (Number.isNaN(time)) return '';
-  const d = new Date(time);
-  const pad = (n) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-
 const EditTokenModal = (props) => {
   const { t } = useTranslation();
   const [statusState] = useContext(StatusContext);
@@ -137,6 +136,12 @@ const EditTokenModal = (props) => {
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const [values, setValues] = useState(INIT_VALUES);
   const [errors, setErrors] = useState({});
+  // Tracks which "过期时间快捷设置" chip was last clicked so it can render in
+  // the active style. We can derive `'never'` from `expired_time === -1`, but
+  // the time-delta presets ("一个月/一天/一小时") all bake `Date.now()` into
+  // the resulting `YYYY-MM-DD HH:mm:ss` value, so the only reliable way to
+  // know the user picked one is to remember it explicitly.
+  const [activePreset, setActivePreset] = useState(null);
   const isEdit = props.editingToken?.id !== undefined;
 
   const setField = (key) => (value) => {
@@ -148,11 +153,14 @@ const EditTokenModal = (props) => {
     setValues(INIT_VALUES);
     setErrors({});
     setShowQuotaInput(false);
+    setActivePreset(null);
   };
 
   // Sets `expired_time` to a timestamp (in seconds) `month`+`day`+`hour`
   // +`minute` from now. Passing all zeroes resets to "永不过期" (-1).
-  const setExpiredTime = (month, day, hour, minute) => {
+  // `presetKey` lets the calling chip register itself as the "active" preset
+  // so it can render in the secondary (selected) style.
+  const setExpiredTime = (month, day, hour, minute, presetKey = null) => {
     const now = new Date();
     let timestamp = now.getTime() / 1000;
     let seconds =
@@ -166,7 +174,21 @@ const EditTokenModal = (props) => {
     } else {
       setField('expired_time')(-1);
     }
+    setActivePreset(presetKey);
   };
+
+  // `'never'` is unambiguous (expired_time === -1), so we can derive it
+  // without consulting `activePreset`. The time-delta presets must rely on
+  // `activePreset` since their resulting timestamp drifts with wall-clock.
+  const isPresetActive = (presetKey) => {
+    if (presetKey === 'never') return values.expired_time === -1;
+    return activePreset === presetKey && values.expired_time !== -1;
+  };
+  // Inside a ButtonGroup, leaving `variant` undefined lets the group's
+  // `tertiary` variant show through; setting it to `'primary'` overrides
+  // for the active chip — see the precedence rule in HeroUI Button.
+  const presetVariant = (presetKey) =>
+    isPresetActive(presetKey) ? 'primary' : undefined;
 
   const loadModels = async () => {
     try {
@@ -252,6 +274,8 @@ const EditTokenModal = (props) => {
             quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
           ),
         });
+        // Loaded values came from the server, not from clicking a chip.
+        setActivePreset(null);
       } else {
         showError(message);
       }
@@ -336,12 +360,13 @@ const EditTokenModal = (props) => {
     return Object.keys(next).length === 0;
   };
 
-  const handleDateTimeChange = (raw) => {
-    if (!raw) {
-      setField('expired_time')(-1);
-      return;
-    }
-    setField('expired_time')(raw.replace('T', ' ') + ':00');
+  // Wired into `<DateTimePicker>` — it emits an empty string when the user
+  // clears the field, which we map back to the `-1` sentinel ("永不过期")
+  // expected by the API and the rest of this component. Manual edits also
+  // clear `activePreset` so the time-delta chips stop showing as selected.
+  const handleExpiredTimeChange = (next) => {
+    setField('expired_time')(next ? next : -1);
+    setActivePreset(null);
   };
 
   const submit = async () => {
@@ -504,11 +529,12 @@ const EditTokenModal = (props) => {
               <div className='space-y-3'>
                 <div className='space-y-2'>
                   <FieldLabel required>{t('名称')}</FieldLabel>
-                  <input
+                  <Input
                     type='text'
-                    value={values.name}
+                    value={values.name ?? ''}
                     onChange={(event) => setField('name')(event.target.value)}
                     placeholder={t('请输入名称')}
+                    aria-label={t('名称')}
                     className={inputClass}
                   />
                   <FieldError>{errors.name}</FieldError>
@@ -516,29 +542,49 @@ const EditTokenModal = (props) => {
 
                 <div className='space-y-2'>
                   <FieldLabel>{t('令牌分组')}</FieldLabel>
-                  {groups.length > 0 ? (
-                    <select
-                      value={values.group || ''}
-                      onChange={(event) =>
-                        setField('group')(event.target.value)
-                      }
-                      className={inputClass}
+                  <Select
+                    aria-label={t('令牌分组')}
+                    selectedKey={values.group || null}
+                    onSelectionChange={(key) =>
+                      setField('group')(key ? String(key) : '')
+                    }
+                    isDisabled={groups.length === 0}
+                    placeholder={
+                      groups.length === 0
+                        ? t('管理员未设置用户可选分组')
+                        : t('令牌分组，默认为用户的分组')
+                    }
+                  >
+                    <Select.Trigger
+                      className={`${inputClass} flex items-center justify-between gap-2 cursor-pointer text-left`}
                     >
-                      <option value=''>
-                        {t('令牌分组，默认为用户的分组')}
-                      </option>
-                      {groups.map((g) => (
-                        <option key={g.value} value={g.value}>
-                          {g.label}
-                          {g.ratio !== undefined ? ` (${g.ratio}x)` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <select disabled className={inputClass}>
-                      <option>{t('管理员未设置用户可选分组')}</option>
-                    </select>
-                  )}
+                      <Select.Value className='truncate' />
+                      <Select.Indicator>
+                        <ChevronDown size={14} className='text-muted' />
+                      </Select.Indicator>
+                    </Select.Trigger>
+                    <Select.Popover className='min-w-(--trigger-width)'>
+                      <ListBox>
+                        {groups.map((g) => (
+                          <ListBox.Item
+                            key={g.value}
+                            id={g.value}
+                            textValue={
+                              g.ratio !== undefined
+                                ? `${g.label} (${g.ratio}x)`
+                                : g.label
+                            }
+                          >
+                            <span>
+                              {g.label}
+                              {g.ratio !== undefined ? ` (${g.ratio}x)` : ''}
+                            </span>
+                            <ListBox.ItemIndicator />
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
                 </div>
 
                 {values.group === 'auto' && (
@@ -569,17 +615,15 @@ const EditTokenModal = (props) => {
                 <div className='grid grid-cols-1 gap-3 lg:grid-cols-12'>
                   <div className='space-y-2 lg:col-span-5'>
                     <FieldLabel required>{t('过期时间')}</FieldLabel>
-                    <input
-                      type='datetime-local'
+                    <DateTimePicker
                       value={
                         values.expired_time === -1
                           ? ''
-                          : toDateTimeInputValue(values.expired_time)
+                          : values.expired_time
                       }
-                      onChange={(event) =>
-                        handleDateTimeChange(event.target.value)
-                      }
-                      className={inputClass}
+                      onChange={handleExpiredTimeChange}
+                      placeholder={t('过期时间')}
+                      isInvalid={!!errors.expired_time}
                     />
                     {values.expired_time === -1 && (
                       <FieldHint>{t('当前：永不过期')}</FieldHint>
@@ -588,46 +632,51 @@ const EditTokenModal = (props) => {
                   </div>
                   <div className='space-y-2 lg:col-span-7'>
                     <FieldLabel>{t('过期时间快捷设置')}</FieldLabel>
-                    <div className='flex flex-wrap gap-2'>
+                    {/* HeroUI ButtonGroup: shares `size` + `variant` via
+                        context so the four presets line up as one connected
+                        toggle bar. Per-button `variant='primary'` overrides
+                        the group's `tertiary` for the selected chip — see
+                        https://heroui.com/docs/react/components/button-group */}
+                    <ButtonGroup size='sm' variant='tertiary'>
                       <Button
-                        size='sm'
-                        variant='tertiary'
-                        onPress={() => setExpiredTime(0, 0, 0, 0)}
+                        variant={presetVariant('never')}
+                        onPress={() => setExpiredTime(0, 0, 0, 0, 'never')}
                       >
                         {t('永不过期')}
                       </Button>
                       <Button
-                        size='sm'
-                        variant='tertiary'
-                        onPress={() => setExpiredTime(1, 0, 0, 0)}
+                        variant={presetVariant('month')}
+                        onPress={() => setExpiredTime(1, 0, 0, 0, 'month')}
                       >
                         {t('一个月')}
                       </Button>
                       <Button
-                        size='sm'
-                        variant='tertiary'
-                        onPress={() => setExpiredTime(0, 1, 0, 0)}
+                        variant={presetVariant('day')}
+                        onPress={() => setExpiredTime(0, 1, 0, 0, 'day')}
                       >
                         {t('一天')}
                       </Button>
                       <Button
-                        size='sm'
-                        variant='tertiary'
-                        onPress={() => setExpiredTime(0, 0, 1, 0)}
+                        variant={presetVariant('hour')}
+                        onPress={() => setExpiredTime(0, 0, 1, 0, 'hour')}
                       >
                         {t('一小时')}
                       </Button>
-                    </div>
+                    </ButtonGroup>
                   </div>
                 </div>
 
                 {!isEdit && (
                   <div className='space-y-2'>
                     <FieldLabel required>{t('新建数量')}</FieldLabel>
-                    <input
+                    <Input
                       type='number'
                       min={1}
-                      value={values.tokenCount}
+                      value={
+                        values.tokenCount === '' || values.tokenCount == null
+                          ? ''
+                          : String(values.tokenCount)
+                      }
                       onChange={(event) =>
                         setField('tokenCount')(
                           event.target.value === ''
@@ -635,6 +684,7 @@ const EditTokenModal = (props) => {
                             : Number(event.target.value),
                         )
                       }
+                      aria-label={t('新建数量')}
                       className={inputClass}
                     />
                     <FieldHint>
@@ -668,19 +718,19 @@ const EditTokenModal = (props) => {
                 <div className='space-y-2'>
                   <FieldLabel>{t('金额')}</FieldLabel>
                   <div className='relative'>
-                    <span className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted'>
+                    <span className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 z-10 text-sm text-muted'>
                       {getCurrencyConfig().symbol}
                     </span>
-                    <input
+                    <Input
                       type='number'
                       min={0}
                       step={0.000001}
                       value={
                         values.unlimited_quota
                           ? ''
-                          : (values.remain_amount ?? 0)
+                          : String(values.remain_amount ?? 0)
                       }
-                      disabled={values.unlimited_quota}
+                      isDisabled={values.unlimited_quota}
                       onChange={(event) => {
                         const raw = event.target.value;
                         const amount = raw === '' ? 0 : Number(raw);
@@ -691,9 +741,8 @@ const EditTokenModal = (props) => {
                         }));
                       }}
                       placeholder={t('输入金额')}
-                      className={`${inputClass} pl-8 ${
-                        values.unlimited_quota ? 'opacity-50' : ''
-                      }`}
+                      aria-label={t('金额')}
+                      className={`${inputClass} pl-8`}
                     />
                   </div>
                   <FieldError>{errors.remain_amount}</FieldError>
@@ -712,16 +761,16 @@ const EditTokenModal = (props) => {
                   {showQuotaInput && (
                     <div className='mt-2 space-y-2'>
                       <FieldLabel>{t('额度')}</FieldLabel>
-                      <input
+                      <Input
                         type='number'
                         min={0}
                         step={500000}
                         value={
                           values.unlimited_quota
                             ? ''
-                            : (values.remain_quota ?? 0)
+                            : String(values.remain_quota ?? 0)
                         }
-                        disabled={values.unlimited_quota}
+                        isDisabled={values.unlimited_quota}
                         onChange={(event) => {
                           const raw = event.target.value;
                           const quota = raw === '' ? 0 : Number(raw);
@@ -734,9 +783,8 @@ const EditTokenModal = (props) => {
                           }));
                         }}
                         placeholder={t('输入额度')}
-                        className={`${inputClass} ${
-                          values.unlimited_quota ? 'opacity-50' : ''
-                        }`}
+                        aria-label={t('额度')}
+                        className={inputClass}
                       />
                     </div>
                   )}
@@ -804,11 +852,10 @@ const EditTokenModal = (props) => {
                               key={model.value}
                               className='flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm text-foreground hover:bg-surface-secondary'
                             >
-                              <input
-                                type='checkbox'
-                                checked={checked}
+                              <Checkbox
+                                isSelected={checked}
                                 onChange={() => toggleModelLimit(model.value)}
-                                className='h-4 w-4 accent-primary'
+                                aria-label={model.value}
                               />
                               <span className='min-w-0 truncate'>
                                 {model.label}
@@ -824,13 +871,14 @@ const EditTokenModal = (props) => {
 
                 <div className='space-y-2'>
                   <FieldLabel>{t('IP白名单（支持CIDR表达式）')}</FieldLabel>
-                  <textarea
-                    value={values.allow_ips}
+                  <TextArea
+                    value={values.allow_ips ?? ''}
                     onChange={(event) =>
                       setField('allow_ips')(event.target.value)
                     }
                     placeholder={t('允许的IP，一行一个，不填写则不限制')}
                     rows={3}
+                    aria-label={t('IP白名单')}
                     className={textareaClass}
                   />
                   <FieldHint>
@@ -850,7 +898,6 @@ const EditTokenModal = (props) => {
             {t('取消')}
           </Button>
           <Button color='primary' isPending={loading} onPress={submit}>
-            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>
