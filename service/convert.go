@@ -135,7 +135,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			Role: claudeMessage.Role,
 		}
 		if len(claudeMessage.ReasoningContent) > 0 {
-			openAIMessage.ReasoningContent = common.JsonRawMessageToString(claudeMessage.ReasoningContent)
+			openAIMessage.ReasoningContent = claudeMessage.ReasoningContent
 		}
 
 		//log.Printf("claudeMessage.Content: %v", claudeMessage.Content)

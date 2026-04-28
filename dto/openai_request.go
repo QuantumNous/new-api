@@ -279,12 +279,21 @@ type Message struct {
 	Content          any             `json:"content"`
 	Name             *string         `json:"name,omitempty"`
 	Prefix           *bool           `json:"prefix,omitempty"`
-	ReasoningContent string          `json:"reasoning_content,omitempty"`
+	ReasoningContent json.RawMessage `json:"reasoning_content,omitempty"`
 	Reasoning        string          `json:"reasoning,omitempty"`
 	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
 	ToolCallId       string          `json:"tool_call_id,omitempty"`
 	parsedContent    []MediaContent
 	//parsedStringContent *string
+}
+
+func (m *Message) SetReasoningContent(content string) {
+	encoded, _ := common.Marshal(content)
+	m.ReasoningContent = encoded
+}
+
+func (m *Message) GetReasoningContent() string {
+	return common.JsonRawMessageToString(m.ReasoningContent)
 }
 
 type MediaContent struct {

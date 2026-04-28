@@ -264,7 +264,7 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 			Role:    message.Role,
 			Content: message.Content,
 		}
-		if message.ReasoningContent != "" {
+		if len(message.ReasoningContent) > 0 {
 			fmtMessage.ReasoningContent = message.ReasoningContent
 		}
 		if message.Role == "tool" {
@@ -334,12 +334,8 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 			claudeMessage := dto.ClaudeMessage{
 				Role: message.Role,
 			}
-			if message.ReasoningContent != "" {
-				reasoningContent, err := common.Marshal(message.ReasoningContent)
-				if err != nil {
-					return nil, err
-				}
-				claudeMessage.ReasoningContent = reasoningContent
+			if len(message.ReasoningContent) > 0 {
+				claudeMessage.ReasoningContent = message.ReasoningContent
 			}
 			if message.Role == "tool" {
 				if len(claudeMessages) > 0 && claudeMessages[len(claudeMessages)-1].Role == "user" {
@@ -577,12 +573,14 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 	}
 	choice.SetStringContent(responseText)
 	if len(responseThinking) > 0 {
-		choice.ReasoningContent = responseThinking
+		choice.Message.SetReasoningContent(responseThinking)
 	}
 	if len(tools) > 0 {
 		choice.Message.SetToolCalls(tools)
 	}
-	choice.Message.ReasoningContent = thinkingContent
+	if len(thinkingContent) > 0 {
+		choice.Message.SetReasoningContent(thinkingContent)
+	}
 	fullTextResponse.Model = claudeResponse.Model
 	choices = append(choices, choice)
 	fullTextResponse.Choices = choices

@@ -383,10 +383,10 @@ func TestRequestOpenAI2ClaudeMessage_ConvertsTextFileContentToText(t *testing.T)
 
 func TestRequestOpenAI2ClaudeMessagePreservesReasoningContent(t *testing.T) {
 	message := dto.Message{
-		Role:             "assistant",
-		Content:          "",
-		ReasoningContent: " ",
+		Role:    "assistant",
+		Content: "",
 	}
+	message.SetReasoningContent(" ")
 	message.SetToolCalls([]dto.ToolCallRequest{
 		{
 			ID:   "call_123",
