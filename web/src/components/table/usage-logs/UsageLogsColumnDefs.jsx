@@ -33,6 +33,7 @@ import {
   getLogOther,
   renderModelTag,
   renderModelPriceSimple,
+  renderTieredModelPriceSimple,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { CircleAlert, Route, Sparkles } from 'lucide-react';
@@ -460,48 +461,16 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
+  const summaryOpts = { ...other, displayMode: billingDisplayMode, outputMode: 'segments' };
+
+  if (other?.billing_mode === 'tiered_expr') {
+    return { segments: renderTieredModelPriceSimple(summaryOpts) };
+  }
+
   return {
     segments: other?.claude
-      ? renderModelPriceSimple(
-          other.model_ratio,
-          other.model_price,
-          other.group_ratio,
-          other?.user_group_ratio,
-          other.cache_tokens || 0,
-          other.cache_ratio || 1.0,
-          other.cache_creation_tokens || 0,
-          other.cache_creation_ratio || 1.0,
-          other.cache_creation_tokens_5m || 0,
-          other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
-          other.cache_creation_tokens_1h || 0,
-          other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
-          false,
-          1.0,
-          other?.is_system_prompt_overwritten,
-          'claude',
-          billingDisplayMode,
-          'segments',
-        )
-      : renderModelPriceSimple(
-          other.model_ratio,
-          other.model_price,
-          other.group_ratio,
-          other?.user_group_ratio,
-          other.cache_tokens || 0,
-          other.cache_ratio || 1.0,
-          0,
-          1.0,
-          0,
-          1.0,
-          0,
-          1.0,
-          false,
-          1.0,
-          other?.is_system_prompt_overwritten,
-          'openai',
-          billingDisplayMode,
-          'segments',
-        ),
+      ? renderModelPriceSimple({ ...summaryOpts, provider: 'claude' })
+      : renderModelPriceSimple({ ...summaryOpts, provider: 'openai' }),
   };
 }
 
@@ -876,7 +845,12 @@ export const getLogsColumns = ({
       ),
       dataIndex: 'ip',
       render: (text, record, index) => {
-        return (record.type === 2 || record.type === 5) && text ? (
+        const showIp =
+          (record.type === 2 ||
+            record.type === 5 ||
+            (isAdminUser && record.type === 1)) &&
+          text;
+        return showIp ? (
           <Tooltip content={text}>
             <span>
               <Tag

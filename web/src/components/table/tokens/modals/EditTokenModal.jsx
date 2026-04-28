@@ -24,10 +24,14 @@ import {
   showSuccess,
   timestamp2string,
   renderGroupOption,
-  renderQuotaWithPrompt,
+  getCurrencyConfig,
   getModelCategories,
   selectFilter,
 } from '../../../../helpers';
+import {
+  quotaToDisplayAmount,
+  displayAmountToQuota,
+} from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   Button,
@@ -41,6 +45,7 @@ import {
   Form,
   Col,
   Row,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
@@ -62,11 +67,13 @@ const EditTokenModal = (props) => {
   const formApiRef = useRef(null);
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [showQuotaInput, setShowQuotaInput] = useState(false);
   const isEdit = props.editingToken.id !== undefined;
 
   const getInitValues = () => ({
     name: '',
     remain_quota: 0,
+    remain_amount: 0,
     expired_time: -1,
     unlimited_quota: true,
     model_limits_enabled: false,
@@ -162,6 +169,9 @@ const EditTokenModal = (props) => {
       } else {
         data.model_limits = [];
       }
+      data.remain_amount = Number(
+        quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
+      );
       if (formApiRef.current) {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
@@ -209,7 +219,14 @@ const EditTokenModal = (props) => {
     setLoading(true);
     if (isEdit) {
       let { tokenCount: _tc, ...localInputs } = values;
-      localInputs.remain_quota = parseInt(localInputs.remain_quota);
+      localInputs.remain_quota = localInputs.unlimited_quota
+        ? 0
+        : displayAmountToQuota(localInputs.remain_amount);
+      if (!localInputs.unlimited_quota && localInputs.remain_quota <= 0) {
+        showError(t('请输入金额'));
+        setLoading(false);
+        return;
+      }
       if (localInputs.expired_time !== -1) {
         let time = Date.parse(localInputs.expired_time);
         if (isNaN(time)) {
@@ -245,7 +262,14 @@ const EditTokenModal = (props) => {
         } else {
           localInputs.name = baseName;
         }
-        localInputs.remain_quota = parseInt(localInputs.remain_quota);
+        localInputs.remain_quota = localInputs.unlimited_quota
+          ? 0
+          : displayAmountToQuota(localInputs.remain_amount);
+        if (!localInputs.unlimited_quota && localInputs.remain_quota <= 0) {
+          showError(t('请输入金额'));
+          setLoading(false);
+          break;
+        }
 
         if (localInputs.expired_time !== -1) {
           let time = Date.parse(localInputs.expired_time);
@@ -497,27 +521,62 @@ const EditTokenModal = (props) => {
                 </div>
                 <Row gutter={12}>
                   <Col span={24}>
-                    <Form.AutoComplete
-                      field='remain_quota'
-                      label={t('额度')}
-                      placeholder={t('请输入额度')}
-                      type='number'
+                    <Form.InputNumber
+                      field='remain_amount'
+                      label={t('金额')}
+                      prefix={getCurrencyConfig().symbol}
+                      placeholder={t('输入金额')}
+                      precision={6}
                       disabled={values.unlimited_quota}
-                      extraText={renderQuotaWithPrompt(values.remain_quota)}
-                      rules={
-                        values.unlimited_quota
-                          ? []
-                          : [{ required: true, message: t('请输入额度') }]
-                      }
-                      data={[
-                        { value: 500000, label: '1$' },
-                        { value: 5000000, label: '10$' },
-                        { value: 25000000, label: '50$' },
-                        { value: 50000000, label: '100$' },
-                        { value: 250000000, label: '500$' },
-                        { value: 500000000, label: '1000$' },
-                      ]}
+                      min={0}
+                      step={0.000001}
+                      onChange={(val) => {
+                        const amount = val === '' || val == null ? 0 : val;
+                        formApiRef.current?.setValue('remain_amount', amount);
+                        formApiRef.current?.setValue(
+                          'remain_quota',
+                          displayAmountToQuota(amount),
+                        );
+                      }}
+                      style={{ width: '100%' }}
+                      showClear
                     />
+                  </Col>
+                  <Col span={24}>
+                    <div
+                      className='text-xs cursor-pointer mt-1'
+                      style={{ color: 'var(--semi-color-text-2)' }}
+                      onClick={() => setShowQuotaInput((v) => !v)}
+                    >
+                      {showQuotaInput
+                        ? `▾ ${t('收起原生额度输入')}`
+                        : `▸ ${t('使用原生额度输入')}`}
+                    </div>
+                    <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                      <Form.InputNumber
+                        field='remain_quota'
+                        label={t('额度')}
+                        placeholder={t('输入额度')}
+                        disabled={values.unlimited_quota}
+                        min={0}
+                        step={500000}
+                        rules={
+                          values.unlimited_quota
+                            ? []
+                            : [{ required: true, message: t('请输入额度') }]
+                        }
+                        onChange={(val) => {
+                          const quota = val === '' || val == null ? 0 : val;
+                          formApiRef.current?.setValue('remain_quota', quota);
+                          formApiRef.current?.setValue(
+                            'remain_amount',
+                            Number(quotaToDisplayAmount(quota).toFixed(6)),
+                          );
+                        }}
+                        style={{ width: '100%' }}
+                        showClear
+                      />
+                    </div>
                   </Col>
                   <Col span={24}>
                     <Form.Switch
