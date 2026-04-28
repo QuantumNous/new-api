@@ -614,7 +614,7 @@ const AccountManagement = ({
           itemKey='security'
         >
           <div className='py-2'>
-            <div className='space-y-4'>
+            <div className='grid grid-cols-1 gap-4'>
               {/* 系统访问令牌 */}
               <Card className='personal-settings-item-card w-full'>
                 <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>

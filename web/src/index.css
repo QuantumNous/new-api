@@ -3030,7 +3030,7 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
 .personal-settings-modal .semi-select,
 .personal-settings-modal .semi-input-number,
 .personal-settings-modal .semi-input-textarea-wrapper {
-  min-height: 56px;
+  min-height: 46px;
   border-color: rgba(91, 97, 110, 0.16) !important;
   border-radius: 20px !important;
   background: #ffffff !important;
