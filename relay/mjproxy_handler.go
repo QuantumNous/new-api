@@ -218,7 +218,11 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	requestURL := getMjRequestPath(c.Request.URL.String())
 	baseURL := c.GetString("base_url")
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
+	keepalive := startJSONKeepalive(c, jsonKeepaliveInitialDelay, jsonKeepaliveInterval)
+	defer keepalive.stop()
+
 	mjResp, _, err := service.DoMidjourneyHttpRequest(c, time.Second*60, fullRequestURL)
+	keepalive.stop()
 	if err != nil {
 		return &mjResp.Response
 	}
@@ -301,7 +305,11 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 
 	requestURL := getMjRequestPath(c.Request.URL.String())
 	fullRequestURL := fmt.Sprintf("%s%s", channel.GetBaseURL(), requestURL)
+	keepalive := startJSONKeepalive(c, jsonKeepaliveInitialDelay, jsonKeepaliveInterval)
+	defer keepalive.stop()
+
 	midjResponseWithStatus, _, err := service.DoMidjourneyHttpRequest(c, time.Second*30, fullRequestURL)
+	keepalive.stop()
 	if err != nil {
 		return &midjResponseWithStatus.Response
 	}
@@ -523,7 +531,11 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		}
 	}
 
+	keepalive := startJSONKeepalive(c, jsonKeepaliveInitialDelay, jsonKeepaliveInterval)
+	defer keepalive.stop()
+
 	midjResponseWithStatus, responseBody, err := service.DoMidjourneyHttpRequest(c, time.Second*60, fullRequestURL)
+	keepalive.stop()
 	if err != nil {
 		return &midjResponseWithStatus.Response
 	}
