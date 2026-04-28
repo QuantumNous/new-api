@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -188,7 +189,8 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 
-	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
+	postProcessingBody := buildStreamUsagePostProcessingBody(info, streamItems)
+	applyUsagePostProcessing(info, usage, postProcessingBody)
 
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
@@ -212,7 +214,6 @@ func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	var responseTextBuilder strings.Builder
 	var toolCount int
 	var streamItems []string
-	var lastStreamData string
 	choices := make(map[int]*dto.OpenAITextResponseChoice)
 	toolCallsByChoice := make(map[int]map[int]*dto.ToolCallResponse)
 	var streamErr *types.NewAPIError
@@ -245,7 +246,6 @@ func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 
 		info.SetFirstResponseTime()
 		info.ReceivedResponseCount++
-		lastStreamData = data
 		streamItems = append(streamItems, data)
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
@@ -331,8 +331,14 @@ func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 
+	choiceIndexes := make([]int, 0, len(choices))
+	for index := range choices {
+		choiceIndexes = append(choiceIndexes, index)
+	}
+	sort.Ints(choiceIndexes)
+
 	responseChoices := make([]dto.OpenAITextResponseChoice, 0, len(choices))
-	for index := 0; index < len(choices); index++ {
+	for _, index := range choiceIndexes {
 		choice, ok := choices[index]
 		if !ok || choice == nil {
 			continue
@@ -348,8 +354,14 @@ func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "openai_finish_reason=content_filter")
 		}
 		if choiceToolCalls := toolCallsByChoice[index]; len(choiceToolCalls) > 0 {
+			toolCallIndexes := make([]int, 0, len(choiceToolCalls))
+			for toolIndex := range choiceToolCalls {
+				toolCallIndexes = append(toolCallIndexes, toolIndex)
+			}
+			sort.Ints(toolCallIndexes)
+
 			toolCalls := make([]dto.ToolCallResponse, 0, len(choiceToolCalls))
-			for toolIndex := 0; toolIndex < len(choiceToolCalls); toolIndex++ {
+			for _, toolIndex := range toolCallIndexes {
 				toolCall := choiceToolCalls[toolIndex]
 				if toolCall == nil {
 					continue
@@ -381,12 +393,11 @@ func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 		Usage:   *usage,
 	}
 
-	responseBody, err := common.Marshal(simpleResponse)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
-	}
-	applyUsagePostProcessing(info, &simpleResponse.Usage, common.StringToByteSlice(lastStreamData))
+	postProcessingBody := buildStreamUsagePostProcessingBody(info, streamItems)
+	applyUsagePostProcessing(info, &simpleResponse.Usage, postProcessingBody)
 
+	var responseBody []byte
+	var err error
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
 		claudeResp := service.ResponseOpenAI2Claude(&simpleResponse, info)
@@ -394,6 +405,8 @@ func OaiStreamToNonStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	case types.RelayFormatGemini:
 		geminiResp := service.ResponseOpenAI2Gemini(&simpleResponse, info)
 		responseBody, err = common.Marshal(geminiResp)
+	default:
+		responseBody, err = common.Marshal(simpleResponse)
 	}
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
@@ -801,6 +814,73 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
+}
+
+func buildStreamUsagePostProcessingBody(info *relaycommon.RelayInfo, streamItems []string) []byte {
+	if info == nil || len(streamItems) == 0 {
+		return nil
+	}
+
+	switch info.ChannelType {
+	case constant.ChannelTypeZhipu_v4:
+		if cachedTokens, ok := findCachedTokensInStream(streamItems, extractCachedTokensFromBody); ok {
+			return marshalPostProcessingPayload(map[string]any{
+				"usage": map[string]any{
+					"prompt_tokens_details": map[string]any{
+						"cached_tokens": cachedTokens,
+					},
+				},
+			})
+		}
+	case constant.ChannelTypeMoonshot:
+		if cachedTokens, ok := findCachedTokensInStream(streamItems, extractMoonshotCachedTokensFromBody); ok {
+			return marshalPostProcessingPayload(map[string]any{
+				"choices": []map[string]any{
+					{
+						"usage": map[string]any{
+							"cached_tokens": cachedTokens,
+						},
+					},
+				},
+			})
+		}
+		if cachedTokens, ok := findCachedTokensInStream(streamItems, extractCachedTokensFromBody); ok {
+			return marshalPostProcessingPayload(map[string]any{
+				"usage": map[string]any{
+					"prompt_tokens_details": map[string]any{
+						"cached_tokens": cachedTokens,
+					},
+				},
+			})
+		}
+	case constant.ChannelTypeOpenAI:
+		if cachedTokens, ok := findCachedTokensInStream(streamItems, extractLlamaCachedTokensFromBody); ok {
+			return marshalPostProcessingPayload(map[string]any{
+				"timings": map[string]any{
+					"cache_n": cachedTokens,
+				},
+			})
+		}
+	}
+
+	return nil
+}
+
+func findCachedTokensInStream(streamItems []string, extractor func([]byte) (int, bool)) (int, bool) {
+	for i := len(streamItems) - 1; i >= 0; i-- {
+		if cachedTokens, ok := extractor(common.StringToByteSlice(streamItems[i])); ok {
+			return cachedTokens, true
+		}
+	}
+	return 0, false
+}
+
+func marshalPostProcessingPayload(payload any) []byte {
+	body, err := common.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	return body
 }
 
 func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
