@@ -1,10 +1,10 @@
-package doubao
+package volcadapter
 
 import (
 	"testing"
 )
 
-// TestEstimateSeedanceTokens_ParseResolution validates parseResolution corner cases.
+// TestParseResolution validates parseResolution corner cases.
 func TestParseResolution(t *testing.T) {
 	cases := []struct {
 		res  string

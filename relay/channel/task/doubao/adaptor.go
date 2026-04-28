@@ -2,7 +2,6 @@ package doubao
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,7 +17,6 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -121,83 +119,9 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
-//
-// When info.RelayFormat is RelayFormatVolc the body is a native Volc Ark request.
-// We parse it minimally (just to detect model and content[]) without touching it,
-// then set the action based on whether content[] contains an image_url item.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
-	if info.RelayFormat == types.RelayFormatVolc {
-		return a.validateVolcNativeTaskRequest(c, info)
-	}
 	// Accept only POST /v1/video/generations as "generate" action.
 	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
-}
-
-// validateVolcNativeTaskRequest parses a Volc-native task submit body minimally.
-// It detects the model name and whether content[] has image/video inputs to set action.
-func (a *TaskAdaptor) validateVolcNativeTaskRequest(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	var body map[string]json.RawMessage
-	if err := common.UnmarshalBodyReusable(c, &body); err != nil {
-		return &dto.TaskError{
-			Code:       "invalid_request",
-			Message:    "invalid request body: " + err.Error(),
-			StatusCode: http.StatusBadRequest,
-			LocalError: true,
-		}
-	}
-
-	// Extract model name
-	if modelRaw, ok := body["model"]; ok {
-		var modelName string
-		if err := json.Unmarshal(modelRaw, &modelName); err == nil && modelName != "" {
-			info.OriginModelName = modelName
-		}
-	}
-	if info.OriginModelName == "" {
-		return &dto.TaskError{
-			Code:       "invalid_request",
-			Message:    "model is required",
-			StatusCode: http.StatusBadRequest,
-			LocalError: true,
-		}
-	}
-
-	// Determine action: if content[] has image_url or video_url items → Generate, else TextGenerate
-	action := constant.TaskActionTextGenerate
-	if contentRaw, ok := body["content"]; ok {
-		if hasImageOrVideoInVolcContent(contentRaw) {
-			action = constant.TaskActionGenerate
-		}
-	}
-	// Ensure TaskRelayInfo is initialized before setting Action.
-	if info.TaskRelayInfo == nil {
-		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
-	}
-	info.Action = action
-	return nil
-}
-
-// hasImageOrVideoInVolcContent checks whether the Volc content[] JSON array contains
-// any item with type "image_url" or "video_url".
-func hasImageOrVideoInVolcContent(contentRaw json.RawMessage) bool {
-	var items []map[string]json.RawMessage
-	if err := json.Unmarshal(contentRaw, &items); err != nil {
-		return false
-	}
-	for _, item := range items {
-		typeRaw, ok := item["type"]
-		if !ok {
-			continue
-		}
-		var typeStr string
-		if err := json.Unmarshal(typeRaw, &typeStr); err != nil {
-			continue
-		}
-		if typeStr == "image_url" || typeStr == "video_url" {
-			return true
-		}
-	}
-	return false
 }
 
 // BuildRequestURL constructs the upstream URL.
@@ -214,14 +138,7 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 // EstimateBilling 检测请求 metadata 中是否包含视频输入，返回视频折扣 OtherRatio。
-//
-// For RelayFormatVolc, the video_url detection reads from the raw body content[]
-// instead of TaskSubmitReq.Metadata, since the Volc body is not parsed into
-// TaskSubmitReq for native pass-through requests.
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	if info.RelayFormat == types.RelayFormatVolc {
-		return a.estimateBillingVolcNative(c, info)
-	}
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
@@ -232,54 +149,6 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		}
 	}
 	return nil
-}
-
-// estimateBillingVolcNative checks the raw Volc body for video_url content items.
-func (a *TaskAdaptor) estimateBillingVolcNative(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	storage, err := common.GetBodyStorage(c)
-	if err != nil {
-		return nil
-	}
-	rawBytes, err := storage.Bytes()
-	if err != nil {
-		return nil
-	}
-	var body map[string]json.RawMessage
-	if err = json.Unmarshal(rawBytes, &body); err != nil {
-		return nil
-	}
-	contentRaw, ok := body["content"]
-	if !ok {
-		return nil
-	}
-	if hasVideoInVolcContent(contentRaw) {
-		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			return map[string]float64{"video_input": ratio}
-		}
-	}
-	return nil
-}
-
-// hasVideoInVolcContent checks whether the Volc content[] JSON array contains
-// any item with type "video_url" (or has a "video_url" key in the item).
-func hasVideoInVolcContent(contentRaw json.RawMessage) bool {
-	var items []map[string]json.RawMessage
-	if err := json.Unmarshal(contentRaw, &items); err != nil {
-		return false
-	}
-	for _, item := range items {
-		typeRaw, ok := item["type"]
-		if ok {
-			var typeStr string
-			if err := json.Unmarshal(typeRaw, &typeStr); err == nil && typeStr == "video_url" {
-				return true
-			}
-		}
-		if _, hasVideoURL := item["video_url"]; hasVideoURL {
-			return true
-		}
-	}
-	return false
 }
 
 // hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，
@@ -312,50 +181,7 @@ func hasVideoInMetadata(metadata map[string]interface{}) bool {
 }
 
 // BuildRequestBody converts request into Doubao specific format.
-//
-// When info.RelayFormat is RelayFormatVolc, the client sent a native Volc body.
-// We forward it byte-identical to upstream to preserve all Volc-specific fields
-// (tools, resolution, ratio, duration, etc.) without normalization.
-//
-// For non-Volc paths (e.g. /v1/video/generations), the existing TaskSubmitReq
-// normalization is performed as before.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	if info.RelayFormat == types.RelayFormatVolc {
-		// Native Volc pass-through: forward the original body byte-identical.
-		storage, err := common.GetBodyStorage(c)
-		if err != nil {
-			return nil, fmt.Errorf("BuildRequestBody (volc native): read body failed: %w", err)
-		}
-		if _, err = storage.Seek(0, io.SeekStart); err != nil {
-			return nil, fmt.Errorf("BuildRequestBody (volc native): seek body failed: %w", err)
-		}
-		rawBytes, err := storage.Bytes()
-		if err != nil {
-			return nil, fmt.Errorf("BuildRequestBody (volc native): read bytes failed: %w", err)
-		}
-		// If model is mapped, patch just the model field in the JSON.
-		if info.IsModelMapped && info.UpstreamModelName != "" {
-			rawBytes, err = patchVolcBodyModel(rawBytes, info.UpstreamModelName)
-			if err != nil {
-				return nil, fmt.Errorf("BuildRequestBody (volc native): patch model failed: %w", err)
-			}
-		} else {
-			// Extract model name from raw body so info.UpstreamModelName is populated.
-			if info.UpstreamModelName == "" {
-				var bodyMap map[string]json.RawMessage
-				if jsonErr := json.Unmarshal(rawBytes, &bodyMap); jsonErr == nil {
-					if modelRaw, ok := bodyMap["model"]; ok {
-						var m string
-						if jsonErr2 := json.Unmarshal(modelRaw, &m); jsonErr2 == nil && m != "" {
-							info.UpstreamModelName = m
-						}
-					}
-				}
-			}
-		}
-		return bytes.NewReader(rawBytes), nil
-	}
-
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil, err
@@ -375,21 +201,6 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 	return bytes.NewReader(data), nil
-}
-
-// patchVolcBodyModel replaces the "model" field in a raw Volc JSON body with
-// the mapped upstream model name, preserving all other fields.
-func patchVolcBodyModel(rawBody []byte, upstreamModel string) ([]byte, error) {
-	var bodyMap map[string]json.RawMessage
-	if err := json.Unmarshal(rawBody, &bodyMap); err != nil {
-		return rawBody, err
-	}
-	modelJSON, err := json.Marshal(upstreamModel)
-	if err != nil {
-		return rawBody, err
-	}
-	bodyMap["model"] = modelJSON
-	return json.Marshal(bodyMap)
 }
 
 // DoRequest delegates to common helper.
@@ -459,24 +270,6 @@ func (a *TaskAdaptor) GetModelList() []string {
 
 func (a *TaskAdaptor) GetChannelName() string {
 	return ChannelName
-}
-
-// EstimateBillingTokens returns a conservative upper-bound token count for
-// tiered_expr pre-charge, using the Volc token formula.
-// Only fires for Volc-native requests (RelayFormatVolc); returns 0 otherwise.
-func (a *TaskAdaptor) EstimateBillingTokens(c *gin.Context, info *relaycommon.RelayInfo) int64 {
-	if info.RelayFormat != types.RelayFormatVolc {
-		return 0
-	}
-	storage, err := common.GetBodyStorage(c)
-	if err != nil {
-		return 0
-	}
-	rawBytes, err := storage.Bytes()
-	if err != nil {
-		return 0
-	}
-	return EstimateSeedanceTokens(info.OriginModelName, rawBytes)
 }
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
@@ -578,3 +371,4 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 
 	return common.Marshal(openAIVideo)
 }
+

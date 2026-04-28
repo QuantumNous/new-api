@@ -119,12 +119,25 @@ type TaskBillingContext struct {
 
 	// TieredSnapshot captures the frozen billing expression state for tiered_expr
 	// models. Present only when BillingMode == tiered_expr at submit time.
-	// Used by RecalculateTaskQuotaByTokens to re-run the expression with actual
-	// token counts returned by the upstream at task completion.
+	// Used by volcadapter.AdjustBillingOnComplete to re-run the expression with
+	// actual token counts returned by the upstream at task completion.
 	TieredSnapshot *billingexpr.BillingSnapshot `json:"tiered_snapshot,omitempty"`
-	// TieredRequestBody is the original request body bytes, serialized as base64
-	// JSON string. Required so param() calls in the expression work at settlement.
-	TieredRequestBody []byte `json:"tiered_request_body,omitempty"`
+
+	// TieredVolcFlags holds the three submit-time flags needed by the billing
+	// expression for Volc-native (ChannelTypeVolcAdapter) tasks. Replaces the
+	// former TieredRequestBody []byte field (~1-2 KB) with a ~30-byte struct.
+	// These flags, combined with resolution/duration/service_tier from task.Data,
+	// allow volcadapter.AdjustBillingOnComplete to synthesize the param() body.
+	TieredVolcFlags *TieredVolcFlags `json:"tiered_volc_flags,omitempty"`
+}
+
+// TieredVolcFlags stores the three Volc-specific billing flags captured at task
+// submission time. Pointer fields distinguish "not present in request" (nil) from
+// "explicitly set to false".
+type TieredVolcFlags struct {
+	GenerateAudio *bool `json:"generate_audio,omitempty"` // nil = absent in request
+	Draft         *bool `json:"draft,omitempty"`          // nil = absent in request
+	HasVideoInput bool  `json:"has_video_input"`          // true if content[] had a video_url item
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

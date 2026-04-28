@@ -609,8 +609,13 @@ func RelayTask(c *gin.Context) {
 		// Persist tiered_expr snapshot for settlement-time re-evaluation.
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 			bc.TieredSnapshot = snap
-			if relayInfo.BillingRequestInput != nil {
-				bc.TieredRequestBody = relayInfo.BillingRequestInput.Body
+			// For VolcAdapter tasks, persist only the 3 minimal flags needed by
+			// volcadapter.AdjustBillingOnComplete to synthesize the param() body.
+			// Other fields (resolution, duration, service_tier) are read from
+			// task.Data (the Volc fetch response) at settlement time.
+			if relayInfo.ChannelType == constant.ChannelTypeVolcAdapter &&
+				relayInfo.BillingRequestInput != nil && len(relayInfo.BillingRequestInput.Body) > 0 {
+				bc.TieredVolcFlags = extractVolcFlags(relayInfo.BillingRequestInput.Body)
 			}
 		}
 		task.PrivateData.BillingContext = bc
@@ -625,6 +630,48 @@ func RelayTask(c *gin.Context) {
 	if taskErr != nil {
 		respondTaskError(c, taskErr)
 	}
+}
+
+// extractVolcFlags parses the 3 Volc-specific billing flags from a raw request
+// body JSON. Used at task submission time to snapshot the flags that are needed
+// for billing expression settlement but are not available in the Volc fetch response.
+func extractVolcFlags(body []byte) *model.TieredVolcFlags {
+	if len(body) == 0 {
+		return nil
+	}
+	flags := &model.TieredVolcFlags{}
+	var parsed map[string]interface{}
+	if err := common.Unmarshal(body, &parsed); err != nil {
+		return flags
+	}
+	if v, ok := parsed["generate_audio"]; ok {
+		if b, ok := v.(bool); ok {
+			flags.GenerateAudio = &b
+		}
+	}
+	if v, ok := parsed["draft"]; ok {
+		if b, ok := v.(bool); ok {
+			flags.Draft = &b
+		}
+	}
+	// HasVideoInput: true if content[] contains any video_url item
+	if contentRaw, ok := parsed["content"]; ok {
+		if items, ok := contentRaw.([]interface{}); ok {
+			for _, item := range items {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					if typeStr, _ := itemMap["type"].(string); typeStr == "video_url" {
+						flags.HasVideoInput = true
+						break
+					}
+					if _, hasKey := itemMap["video_url"]; hasKey {
+						flags.HasVideoInput = true
+						break
+					}
+				}
+			}
+		}
+	}
+	return flags
 }
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
