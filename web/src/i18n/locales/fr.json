@@ -29,7 +29,7 @@
     "[最多请求次数]和[最多请求完成次数]的最大值为2147483647。": "La valeur maximale de [Nombre maximal de requêtes] et [Nombre maximal d'achèvements de requêtes] est 2147483647.",
     "[最多请求次数]必须大于等于0，[最多请求完成次数]必须大于等于1。": "[Nombre maximal de requêtes] doit être supérieur ou égal à 0, [Nombre maximal d'achèvements de requêtes] doit être supérieur ou égal à 1.",
     "{\n  \"default\": [200, 100],\n  \"vip\": [0, 1000]\n}": "{\n  \"default\": [200, 100],\n  \"vip\": [0, 1000]\n}",
-    "{{breakdown}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}": "{{breakdown}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}",
+    "({{breakdown}}) * {{ratioType}} {{ratio}} = {{symbol}}{{total}}": "({{breakdown}}) * {{ratioType}} {{ratio}} = {{symbol}}{{total}}",
     "{{count}} 项操作_one": "",
     "{{count}} 项操作_many": "",
     "{{count}} 项操作_other": "",

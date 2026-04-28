@@ -25,7 +25,7 @@
     "[最多请求次数]和[最多请求完成次数]的最大值为2147483647。": "[最大リクエスト数]と[最大成功リクエスト数]の最大値は2147483647です",
     "[最多请求次数]必须大于等于0，[最多请求完成次数]必须大于等于1。": "[最大リクエスト数]は0以上、[最大成功リクエスト数]は1以上である必要があります",
     "{\n  \"default\": [200, 100],\n  \"vip\": [0, 1000]\n}": "{\n  \"default\": [200, 100],\n  \"vip\": [0, 1000]\n}",
-    "{{breakdown}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}": "{{breakdown}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}",
+    "({{breakdown}}) * {{ratioType}} {{ratio}} = {{symbol}}{{total}}": "({{breakdown}}) * {{ratioType}} {{ratio}} = {{symbol}}{{total}}",
     "{{count}} 项操作_other": "",
     "{{inputDesc}} + {{outputDesc}}{{extraServices}} = {{symbol}}{{total}}": "{{inputDesc}} + {{outputDesc}}{{extraServices}} = {{symbol}}{{total}}",
     "{{name}} ID": "{{name}} ID",

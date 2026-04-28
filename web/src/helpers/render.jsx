@@ -2887,7 +2887,7 @@ export function renderClaudeModelPrice(opts) {
           )
         : null,
       buildBillingText(
-        '{{breakdown}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
+        '({{breakdown}}) * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
         {
           breakdown: breakdownText,
           ratioType: ratioLabel,
