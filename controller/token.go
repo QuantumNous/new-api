@@ -187,6 +187,26 @@ func AddToken(c *gin.Context) {
 			return
 		}
 	}
+	// 检查令牌额度是否超过用户剩余额度
+	userQuota, err := model.GetUserQuota(c.GetInt("id"), false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if token.RemainQuota > userQuota {
+		common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedUserQuota)
+		return
+	}
+	// 检查所有令牌总额度是否超过用户剩余额度
+	sumQuota, err := model.SumUserTokensQuota(c.GetInt("id"), 0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if token.RemainQuota+sumQuota > userQuota {
+		common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedUserQuota)
+		return
+	}
 	// 检查用户令牌数量是否已达上限
 	maxTokens := operation_setting.GetMaxUserTokens()
 	count, err := model.CountUserTokens(c.GetInt("id"))
@@ -270,6 +290,26 @@ func UpdateToken(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
 			return
 		}
+	}
+	// 检查令牌额度是否超过用户剩余额度
+	userQuota, err := model.GetUserQuota(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if token.RemainQuota > userQuota {
+		common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedUserQuota)
+		return
+	}
+	// 检查所有令牌总额度是否超过用户剩余额度（排除当前令牌自身）
+	sumQuota, err := model.SumUserTokensQuota(userId, token.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if token.RemainQuota+sumQuota > userQuota {
+		common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedUserQuota)
+		return
 	}
 	cleanToken, err := model.GetTokenByIds(token.Id, userId)
 	if err != nil {
