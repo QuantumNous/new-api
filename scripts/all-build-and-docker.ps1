@@ -7,7 +7,7 @@
 # 5. Push to Docker Hub (beyondandforever/gq-api)
 
 param(
-    [string]$dockerHubUsername = "beyondandforever",
+    [string]$dockerHubUsername = "gqapi",
     [string]$imageName = "gq-api",
     [string]$version = "v0.13.2",
     [switch]$skipPush = $false,
