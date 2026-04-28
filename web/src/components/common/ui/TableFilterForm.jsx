@@ -18,26 +18,56 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Button as HeroButton,
+  DateField,
+  DateRangePicker,
+  RangeCalendar,
+} from '@heroui/react';
+import { CalendarDate, parseDate } from '@internationalized/date';
 
-const toDateTimeInputValue = (value) => {
-  if (!value) {
-    return '';
+// Two-digit zero-pad helper used for `YYYY-MM-DD HH:mm:ss` formatting.
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// Convert a Date or `YYYY-MM-DD ...`/ISO-ish string into a CalendarDate
+// (the value type expected by HeroUI / React Aria date components when
+// `granularity="day"`). Returns null on invalid input so the picker can
+// render an empty state cleanly. The time portion of the input string is
+// intentionally discarded — this picker is date-only.
+const toCalendarDate = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
   }
 
   if (value instanceof Date) {
-    const offsetDate = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
-    return offsetDate.toISOString().slice(0, 16);
+    if (Number.isNaN(value.getTime())) {
+      return null;
+    }
+    return new CalendarDate(
+      value.getFullYear(),
+      value.getMonth() + 1,
+      value.getDate(),
+    );
   }
 
-  return String(value).replace(' ', 'T').slice(0, 16);
+  try {
+    // Accept both space- and `T`-separated forms; we only need the date part.
+    const datePart = String(value).slice(0, 10);
+    return parseDate(datePart);
+  } catch (error) {
+    return null;
+  }
 };
 
-const fromDateTimeInputValue = (value) => {
+// Convert a CalendarDate into the `YYYY-MM-DD HH:mm:ss` string the rest of
+// the app (filter state, API requests) speaks. `endOfDay = true` snaps to
+// 23:59:59 so a single-day range still covers the full day on the API side.
+const fromCalendarDate = (value, { endOfDay = false } = {}) => {
   if (!value) {
     return '';
   }
-
-  return `${value.replace('T', ' ')}:00`;
+  const time = endOfDay ? '23:59:59' : '00:00:00';
+  return `${value.year}-${pad2(value.month)}-${pad2(value.day)} ${time}`;
 };
 
 export function useTableFilterForm({ initValues = {}, setFormApi, onSubmit }) {
@@ -145,46 +175,109 @@ export function FilterDateRange({
   presets = [],
   className = '',
 }) {
-  const [start = '', end = ''] = value || [];
+  const [startRaw = '', endRaw = ''] = value || [];
 
-  const setRangeValue = (index, nextValue) => {
-    const nextRange = [start, end];
-    nextRange[index] = fromDateTimeInputValue(nextValue);
-    onChange(nextRange);
+  const startValue = toCalendarDate(startRaw);
+  const endValue = toCalendarDate(endRaw);
+  const rangeValue =
+    startValue && endValue ? { start: startValue, end: endValue } : null;
+
+  const [isOpen, setIsOpen] = useState(false);
+
+  const ariaLabel = startPlaceholder || endPlaceholder;
+
+  const handleChange = (next) => {
+    if (!next) {
+      onChange(['', '']);
+      return;
+    }
+    onChange([
+      fromCalendarDate(next.start),
+      fromCalendarDate(next.end, { endOfDay: true }),
+    ]);
+  };
+
+  const handlePreset = (preset) => {
+    onChange([
+      fromCalendarDate(toCalendarDate(preset.start)),
+      fromCalendarDate(toCalendarDate(preset.end), { endOfDay: true }),
+    ]);
+    setIsOpen(false);
   };
 
   return (
-    <div className={`flex flex-col gap-2 ${className}`}>
-      <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
-        <input
-          type='datetime-local'
-          value={toDateTimeInputValue(start)}
-          onChange={(event) => setRangeValue(0, event.target.value)}
-          aria-label={startPlaceholder}
-          className='h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
-        />
-        <input
-          type='datetime-local'
-          value={toDateTimeInputValue(end)}
-          onChange={(event) => setRangeValue(1, event.target.value)}
-          aria-label={endPlaceholder}
-          className='h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
-        />
-      </div>
-      {presets.length > 0 ? (
-        <div className='flex flex-wrap gap-1.5'>
-          {presets.map((preset) => (
-            <button
-              key={preset.text}
-              type='button'
-              onClick={() => onChange([preset.start, preset.end])}
-              className='rounded-full border border-border bg-surface-secondary px-2.5 py-1 text-xs text-muted transition hover:border-primary hover:text-foreground'
-            >
-              {preset.text}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <DateRangePicker
+      value={rangeValue}
+      onChange={handleChange}
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      granularity='day'
+      shouldForceLeadingZeros
+      aria-label={ariaLabel}
+      className={`w-full max-w-72 ${className}`}
+    >
+      <DateField.Group fullWidth variant='primary'>
+        <DateField.InputContainer>
+          <DateField.Input slot='start'>
+            {(segment) => <DateField.Segment segment={segment} />}
+          </DateField.Input>
+          <DateRangePicker.RangeSeparator />
+          <DateField.Input slot='end'>
+            {(segment) => <DateField.Segment segment={segment} />}
+          </DateField.Input>
+        </DateField.InputContainer>
+        <DateField.Suffix>
+          <DateRangePicker.Trigger>
+            <DateRangePicker.TriggerIndicator />
+          </DateRangePicker.Trigger>
+        </DateField.Suffix>
+      </DateField.Group>
+      <DateRangePicker.Popover className='w-(--trigger-width) p-2'>
+        {presets.length > 0 ? (
+          <div className='mb-2 flex flex-wrap gap-1'>
+            {presets.map((preset) => (
+              <HeroButton
+                key={preset.text}
+                size='sm'
+                variant='ghost'
+                type='button'
+                className='h-7 px-2 text-xs md:h-7'
+                onPress={() => handlePreset(preset)}
+              >
+                {preset.text}
+              </HeroButton>
+            ))}
+          </div>
+        ) : null}
+        <RangeCalendar aria-label={ariaLabel} className='w-full'>
+          <RangeCalendar.Header>
+            <RangeCalendar.YearPickerTrigger>
+              <RangeCalendar.YearPickerTriggerHeading />
+              {/* Override the default `text-accent` chevron + nav arrows
+                  with a softer muted tone to match the rest of the picker. */}
+              <RangeCalendar.YearPickerTriggerIndicator className='text-muted!' />
+            </RangeCalendar.YearPickerTrigger>
+            <RangeCalendar.NavButton
+              slot='previous'
+              className='text-muted! hover:text-foreground!'
+            />
+            <RangeCalendar.NavButton
+              slot='next'
+              className='text-muted! hover:text-foreground!'
+            />
+          </RangeCalendar.Header>
+          <RangeCalendar.Grid>
+            <RangeCalendar.GridHeader>
+              {(day) => (
+                <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>
+              )}
+            </RangeCalendar.GridHeader>
+            <RangeCalendar.GridBody>
+              {(date) => <RangeCalendar.Cell date={date} />}
+            </RangeCalendar.GridBody>
+          </RangeCalendar.Grid>
+        </RangeCalendar>
+      </DateRangePicker.Popover>
+    </DateRangePicker>
   );
 }

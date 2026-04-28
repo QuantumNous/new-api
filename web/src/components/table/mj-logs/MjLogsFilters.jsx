@@ -63,11 +63,14 @@ const MjLogsFilters = ({
             />
           </div>
 
-          {/* 任务 ID */}
+          {/* 任务 ID — when the admin-only 渠道 ID slot is hidden, snap this
+              field to the rightmost column at lg so the row doesn't end with
+              an awkward empty cell on the right for non-admin users. */}
           <FilterInput
             value={values.mj_id}
             onChange={(nextValue) => setFieldValue('mj_id', nextValue)}
             placeholder={t('任务 ID')}
+            className={isAdminUser ? '' : 'lg:col-start-4'}
           />
 
           {/* 渠道 ID - 仅管理员可见 */}
