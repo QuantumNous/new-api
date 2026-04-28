@@ -38,6 +38,13 @@ type DynamicPricingBreakdownProps = {
    * the usage-log details dialog to show which tier the engine selected.
    */
   matchedTierLabel?: string | null
+  /**
+   * Hide cache-pricing columns regardless of the per-tier values. The log
+   * details dialog passes this when the actual request did not consume any
+   * cache tokens, so users only see pricing rows that were relevant to the
+   * call they are inspecting. Defaults to false (show all configured prices).
+   */
+  hideCacheColumns?: boolean
 }
 
 const VAR_LABELS: Record<string, string> = {
@@ -130,6 +137,7 @@ function describeGroup(
 export function DynamicPricingBreakdown({
   billingExpr,
   matchedTierLabel,
+  hideCacheColumns = false,
 }: DynamicPricingBreakdownProps) {
   const { t } = useTranslation()
   const expr = billingExpr || ''
@@ -184,13 +192,13 @@ export function DynamicPricingBreakdown({
     )
   }
 
-  const visiblePriceFields = BILLING_PRICING_VARS.filter(
-    (v) =>
-      hasTiers &&
-      tiers.some(
-        (tier) => Number(tier[v.field as string as keyof ParsedTier] || 0) > 0
-      )
-  )
+  const visiblePriceFields = BILLING_PRICING_VARS.filter((v) => {
+    if (!hasTiers) return false
+    if (hideCacheColumns && v.group === 'cache') return false
+    return tiers.some(
+      (tier) => Number(tier[v.field as string as keyof ParsedTier] || 0) > 0
+    )
+  })
 
   return (
     <section className='py-4'>

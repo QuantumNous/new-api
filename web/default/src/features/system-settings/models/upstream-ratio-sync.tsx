@@ -432,9 +432,9 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
     const currentRatios = parsedRatios
     const conflicts: ConflictItem[] = []
 
-    const fixedPriceLabel = t('Fixed Price')
-    const modelRatioLabel = t('Model Ratio')
-    const completionRatioLabel = t('Completion Ratio')
+    const fixedPriceLabel = t('Fixed price')
+    const modelRatioLabel = t('Model ratio')
+    const completionRatioLabel = t('Completion ratio')
 
     Object.entries(resolutions).forEach(([model, ratios]) => {
       const localCat = getLocalBillingCategory(model, currentRatios)

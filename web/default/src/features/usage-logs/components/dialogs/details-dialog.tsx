@@ -36,6 +36,7 @@ import {
   parseAuditLine,
   decodeBillingExprB64,
   getTieredBillingSummary,
+  hasAnyCacheTokens,
   isViolationFeeLog,
   getTimeColor,
 } from '../../lib/format'
@@ -804,6 +805,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   <DynamicPricingBreakdown
                     billingExpr={decodeBillingExprB64(other.expr_b64)}
                     matchedTierLabel={other.matched_tier}
+                    hideCacheColumns={!hasAnyCacheTokens(other)}
                   />
                 </div>
               )}

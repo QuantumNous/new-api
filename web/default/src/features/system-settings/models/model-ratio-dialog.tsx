@@ -148,24 +148,27 @@ export function ModelRatioDialog({
   }, [editData, form, open])
 
   const handleSubmit = (values: ModelDialogFormValues) => {
+    // Always pass through every field. The visual editor decides what to
+    // persist based on `billingMode`, and tiered_expr models also keep the
+    // ratio/price values as fallback during multi-instance sync delays
+    // (the backend's ModelPriceHelper checks billing_mode first, so these
+    // fallbacks only kick in when billing_setting hasn't propagated yet).
     const data: ModelRatioData = {
       name: values.name,
       billingMode: pricingMode,
+      price: values.price || '',
+      ratio: values.ratio || '',
+      cacheRatio: values.cacheRatio || '',
+      createCacheRatio: values.createCacheRatio || '',
+      completionRatio: values.completionRatio || '',
+      imageRatio: values.imageRatio || '',
+      audioRatio: values.audioRatio || '',
+      audioCompletionRatio: values.audioCompletionRatio || '',
     }
 
     if (pricingMode === 'tiered_expr') {
       data.billingExpr = billingExpr
       data.requestRuleExpr = requestRuleExpr
-    } else if (pricingMode === 'per-request') {
-      data.price = values.price || ''
-    } else {
-      data.ratio = values.ratio || ''
-      data.cacheRatio = values.cacheRatio || ''
-      data.createCacheRatio = values.createCacheRatio || ''
-      data.completionRatio = values.completionRatio || ''
-      data.imageRatio = values.imageRatio || ''
-      data.audioRatio = values.audioRatio || ''
-      data.audioCompletionRatio = values.audioCompletionRatio || ''
     }
 
     onSave(data)

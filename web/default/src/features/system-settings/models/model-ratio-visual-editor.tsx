@@ -194,20 +194,6 @@ export const ModelRatioVisualEditor = memo(
       ])
 
       const modelData: ModelRow[] = Array.from(modelNames).map((name) => {
-        const modeForModel = billingModeMap[name]
-        if (modeForModel === 'tiered_expr') {
-          const fullExpr = billingExprMap[name] || ''
-          const { billingExpr: pureExpr, requestRuleExpr } =
-            splitBillingExprAndRequestRules(fullExpr)
-          return {
-            name,
-            billingMode: 'tiered_expr',
-            billingExpr: pureExpr,
-            requestRuleExpr,
-            hasConflict: false,
-          }
-        }
-
         const price = priceMap[name]?.toString() || ''
         const ratio = ratioMap[name]?.toString() || ''
         const cache = cacheMap[name]?.toString() || ''
@@ -216,6 +202,31 @@ export const ModelRatioVisualEditor = memo(
         const image = imageMap[name]?.toString() || ''
         const audio = audioMap[name]?.toString() || ''
         const audioCompletion = audioCompletionMap[name]?.toString() || ''
+
+        const modeForModel = billingModeMap[name]
+        if (modeForModel === 'tiered_expr') {
+          // Tiered_expr models may also retain ratio/price values as fallback
+          // during multi-instance sync delays. We preserve them in the row so
+          // the edit dialog round-trip and the next save don't drop them.
+          const fullExpr = billingExprMap[name] || ''
+          const { billingExpr: pureExpr, requestRuleExpr } =
+            splitBillingExprAndRequestRules(fullExpr)
+          return {
+            name,
+            billingMode: 'tiered_expr',
+            billingExpr: pureExpr,
+            requestRuleExpr,
+            price,
+            ratio,
+            cacheRatio: cache,
+            createCacheRatio: createCache,
+            completionRatio: completion,
+            imageRatio: image,
+            audioRatio: audio,
+            audioCompletionRatio: audioCompletion,
+            hasConflict: false,
+          }
+        }
 
         return {
           name,
@@ -371,8 +382,16 @@ export const ModelRatioVisualEditor = memo(
       ]
     )
 
-    const columns = useMemo<ColumnDef<ModelRow>[]>(
-      () => [
+    const columns = useMemo<ColumnDef<ModelRow>[]>(() => {
+      // Ratio fields are not the primary pricing when a per-request fixed
+      // price is set, or when the model is in tiered_expr mode (the
+      // expression is primary; ratios are fallback during sync delays).
+      const isFallbackRow = (row: ModelRow) =>
+        row.billingMode === 'tiered_expr' || !!row.price
+      const fallbackClass = (row: ModelRow) =>
+        isFallbackRow(row) ? 'text-muted-foreground' : ''
+
+      return [
         {
           accessorKey: 'name',
           header: ({ column }) => (
@@ -404,7 +423,17 @@ export const ModelRatioVisualEditor = memo(
           header: ({ column }) => (
             <DataTableColumnHeader column={column} title={t('Fixed price')} />
           ),
-          cell: ({ row }) => formatValue(row.getValue('price')),
+          cell: ({ row }) => (
+            <span
+              className={
+                row.original.billingMode === 'tiered_expr'
+                  ? 'text-muted-foreground'
+                  : ''
+              }
+            >
+              {formatValue(row.getValue('price'))}
+            </span>
+          ),
           meta: { label: 'Fixed price' },
         },
         {
@@ -413,7 +442,7 @@ export const ModelRatioVisualEditor = memo(
             <DataTableColumnHeader column={column} title={t('Ratio')} />
           ),
           cell: ({ row }) => (
-            <span className={row.original.price ? 'text-muted-foreground' : ''}>
+            <span className={fallbackClass(row.original)}>
               {formatValue(row.getValue('ratio'))}
             </span>
           ),
@@ -425,7 +454,7 @@ export const ModelRatioVisualEditor = memo(
             <DataTableColumnHeader column={column} title={t('Completion')} />
           ),
           cell: ({ row }) => (
-            <span className={row.original.price ? 'text-muted-foreground' : ''}>
+            <span className={fallbackClass(row.original)}>
               {formatValue(row.getValue('completionRatio'))}
             </span>
           ),
@@ -437,7 +466,7 @@ export const ModelRatioVisualEditor = memo(
             <DataTableColumnHeader column={column} title={t('Cache')} />
           ),
           cell: ({ row }) => (
-            <span className={row.original.price ? 'text-muted-foreground' : ''}>
+            <span className={fallbackClass(row.original)}>
               {formatValue(row.getValue('cacheRatio'))}
             </span>
           ),
@@ -449,7 +478,7 @@ export const ModelRatioVisualEditor = memo(
             <DataTableColumnHeader column={column} title={t('Create cache')} />
           ),
           cell: ({ row }) => (
-            <span className={row.original.price ? 'text-muted-foreground' : ''}>
+            <span className={fallbackClass(row.original)}>
               {formatValue(row.getValue('createCacheRatio'))}
             </span>
           ),
@@ -461,7 +490,7 @@ export const ModelRatioVisualEditor = memo(
             <DataTableColumnHeader column={column} title={t('Image')} />
           ),
           cell: ({ row }) => (
-            <span className={row.original.price ? 'text-muted-foreground' : ''}>
+            <span className={fallbackClass(row.original)}>
               {formatValue(row.getValue('imageRatio'))}
             </span>
           ),
@@ -473,7 +502,7 @@ export const ModelRatioVisualEditor = memo(
             <DataTableColumnHeader column={column} title={t('Audio')} />
           ),
           cell: ({ row }) => (
-            <span className={row.original.price ? 'text-muted-foreground' : ''}>
+            <span className={fallbackClass(row.original)}>
               {formatValue(row.getValue('audioRatio'))}
             </span>
           ),
@@ -485,7 +514,7 @@ export const ModelRatioVisualEditor = memo(
             <DataTableColumnHeader column={column} title={t('Audio comp.')} />
           ),
           cell: ({ row }) => (
-            <span className={row.original.price ? 'text-muted-foreground' : ''}>
+            <span className={fallbackClass(row.original)}>
               {formatValue(row.getValue('audioCompletionRatio'))}
             </span>
           ),
@@ -513,9 +542,8 @@ export const ModelRatioVisualEditor = memo(
           ),
           enableHiding: false,
         },
-      ],
-      [handleEdit, handleDelete, t]
-    )
+      ]
+    }, [handleEdit, handleDelete, t])
 
     const table = useReactTable({
       data: models,
@@ -593,6 +621,15 @@ export const ModelRatioVisualEditor = memo(
         delete billingModeMap[data.name]
         delete billingExprMap[data.name]
 
+        const setIfPresent = (
+          target: Record<string, number>,
+          value: string | undefined
+        ) => {
+          if (!value || value === '') return
+          const parsed = parseFloat(value)
+          if (Number.isFinite(parsed)) target[data.name] = parsed
+        }
+
         if (data.billingMode === 'tiered_expr') {
           const combined = combineBillingExpr(
             data.billingExpr || '',
@@ -602,25 +639,28 @@ export const ModelRatioVisualEditor = memo(
             billingModeMap[data.name] = 'tiered_expr'
             billingExprMap[data.name] = combined
           }
+          // Always serialize ratio/price values for tiered_expr models so they
+          // serve as fallback during multi-instance sync delays. The backend's
+          // ModelPriceHelper checks billing_mode first, so these values are
+          // only consulted when billing_setting hasn't propagated yet.
+          setIfPresent(priceMap, data.price)
+          setIfPresent(ratioMap, data.ratio)
+          setIfPresent(cacheMap, data.cacheRatio)
+          setIfPresent(createCacheMap, data.createCacheRatio)
+          setIfPresent(completionMap, data.completionRatio)
+          setIfPresent(imageMap, data.imageRatio)
+          setIfPresent(audioMap, data.audioRatio)
+          setIfPresent(audioCompletionMap, data.audioCompletionRatio)
         } else if (data.price && data.price !== '') {
-          priceMap[data.name] = parseFloat(data.price)
+          setIfPresent(priceMap, data.price)
         } else {
-          if (data.ratio && data.ratio !== '')
-            ratioMap[data.name] = parseFloat(data.ratio)
-          if (data.cacheRatio && data.cacheRatio !== '')
-            cacheMap[data.name] = parseFloat(data.cacheRatio)
-          if (data.createCacheRatio && data.createCacheRatio !== '')
-            createCacheMap[data.name] = parseFloat(data.createCacheRatio)
-          if (data.completionRatio && data.completionRatio !== '')
-            completionMap[data.name] = parseFloat(data.completionRatio)
-          if (data.imageRatio && data.imageRatio !== '')
-            imageMap[data.name] = parseFloat(data.imageRatio)
-          if (data.audioRatio && data.audioRatio !== '')
-            audioMap[data.name] = parseFloat(data.audioRatio)
-          if (data.audioCompletionRatio && data.audioCompletionRatio !== '')
-            audioCompletionMap[data.name] = parseFloat(
-              data.audioCompletionRatio
-            )
+          setIfPresent(ratioMap, data.ratio)
+          setIfPresent(cacheMap, data.cacheRatio)
+          setIfPresent(createCacheMap, data.createCacheRatio)
+          setIfPresent(completionMap, data.completionRatio)
+          setIfPresent(imageMap, data.imageRatio)
+          setIfPresent(audioMap, data.audioRatio)
+          setIfPresent(audioCompletionMap, data.audioCompletionRatio)
         }
 
         onChange('ModelPrice', JSON.stringify(priceMap, null, 2))

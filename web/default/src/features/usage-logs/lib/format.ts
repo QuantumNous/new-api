@@ -156,6 +156,23 @@ export interface TieredBillingSummary {
   priceEntries: Array<{ field: string; shortLabel: string; price: number }>
 }
 
+/**
+ * Whether the request payload reports any cache-related token usage. Used to
+ * suppress cache pricing rows from the tiered breakdown when the request did
+ * not exercise the cache path (mirrors the classic frontend behaviour).
+ */
+export function hasAnyCacheTokens(
+  other: LogOtherData | null | undefined
+): boolean {
+  if (!other) return false
+  return (
+    (other.cache_tokens || 0) > 0 ||
+    (other.cache_creation_tokens || 0) > 0 ||
+    (other.cache_creation_tokens_5m || 0) > 0 ||
+    (other.cache_creation_tokens_1h || 0) > 0
+  )
+}
+
 export function getTieredBillingSummary(
   other: LogOtherData | null
 ): TieredBillingSummary | null {
@@ -166,9 +183,12 @@ export function getTieredBillingSummary(
   const tier = resolveMatchedTier(tiers, other.matched_tier)
   if (!tier) return null
 
+  const cacheTokensPresent = hasAnyCacheTokens(other)
+
   const priceEntries: TieredBillingSummary['priceEntries'] = []
   for (const v of BILLING_PRICING_VARS) {
     if (!v.field) continue
+    if (v.group === 'cache' && !cacheTokensPresent) continue
     const raw = tier[v.field as keyof ParsedTier]
     const price = Number(raw)
     if (Number.isFinite(price) && price > 0) {

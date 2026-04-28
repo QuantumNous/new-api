@@ -36,16 +36,20 @@ export const ENDPOINT_OPTIONS = [
   { label: 'custom', value: 'custom' },
 ] as const
 
+// Labels reuse the existing sentence-case i18n keys defined for form fields
+// (e.g. `Model ratio`, `Audio completion ratio`). Do NOT switch to Title Case
+// here without updating the i18n catalog; otherwise we end up with two keys per
+// ratio type that only differ in capitalization.
 export const RATIO_TYPE_OPTIONS = [
-  { label: 'Model Ratio', value: 'model_ratio' },
-  { label: 'Completion Ratio', value: 'completion_ratio' },
-  { label: 'Cache Ratio', value: 'cache_ratio' },
-  { label: 'Cache Create Ratio', value: 'create_cache_ratio' },
-  { label: 'Image Ratio', value: 'image_ratio' },
-  { label: 'Audio Ratio', value: 'audio_ratio' },
-  { label: 'Audio Completion Ratio', value: 'audio_completion_ratio' },
-  { label: 'Fixed Price', value: 'model_price' },
-  { label: 'Expression Billing', value: 'billing_expr' },
+  { label: 'Model ratio', value: 'model_ratio' },
+  { label: 'Completion ratio', value: 'completion_ratio' },
+  { label: 'Cache ratio', value: 'cache_ratio' },
+  { label: 'Create cache ratio', value: 'create_cache_ratio' },
+  { label: 'Image ratio', value: 'image_ratio' },
+  { label: 'Audio ratio', value: 'audio_ratio' },
+  { label: 'Audio completion ratio', value: 'audio_completion_ratio' },
+  { label: 'Fixed price', value: 'model_price' },
+  { label: 'Expression billing', value: 'billing_expr' },
 ] as const
 
 export const CHANNEL_STATUS_CONFIG = {
