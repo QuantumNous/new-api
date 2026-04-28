@@ -113,7 +113,7 @@ const PreferencesSettings = ({ t }) => {
   };
 
   return (
-    <Card className='personal-settings-surface personal-settings-section-card'>
+    <Card className='personal-settings-surface personal-settings-section-card personal-settings-preferences'>
       <div className='personal-settings-card-head'>
         <div className='personal-settings-card-title-row'>
           <span className='personal-settings-card-icon'>
@@ -138,7 +138,6 @@ const PreferencesSettings = ({ t }) => {
         <Select
           value={currentLanguage}
           onChange={handleLanguagePreferenceChange}
-          style={{ width: 200 }}
           loading={loading}
           className='personal-settings-select'
           optionList={languageOptions.map((opt) => ({

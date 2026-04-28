@@ -357,7 +357,7 @@ const NotificationSettings = ({
 
   return (
     <Card
-      className='personal-settings-surface personal-settings-section-card'
+      className='personal-settings-surface personal-settings-section-card personal-settings-notifications'
       footer={
         <div className='flex justify-end gap-3'>
           {activeTabKey === 'sidebar' ? (
@@ -410,6 +410,7 @@ const NotificationSettings = ({
         getFormApi={(api) => (formApiRef.current = api)}
         initValues={notificationSettings}
         onSubmit={handleSubmit}
+        className='personal-settings-notification-form'
       >
         {() => (
           <Tabs

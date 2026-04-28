@@ -2809,6 +2809,30 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
   min-width: 0;
 }
 
+.personal-settings-preferences .personal-settings-select {
+  width: min(100%, 220px);
+}
+
+.personal-settings-preferences .personal-settings-select.semi-select {
+  min-height: 46px;
+  border-radius: 20px !important;
+}
+
+/* .personal-settings-preferences
+  .personal-settings-select
+  .semi-select-selection {
+  min-height: 46px;
+} */
+
+.personal-settings-preferences
+  .personal-settings-select
+  .semi-select-selection-text,
+.personal-settings-preferences
+  .personal-settings-select
+  .semi-select-selection-placeholder {
+  font-size: 14px !important;
+}
+
 .personal-settings-help-block {
   border: 1px solid rgba(91, 97, 110, 0.12);
   border-radius: 18px;
@@ -2838,6 +2862,12 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
 
 .personal-settings-link:hover {
   color: #0667d0;
+}
+
+.personal-settings-form-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .personal-settings-tabs .semi-tabs-bar {
@@ -2902,6 +2932,106 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
 .personal-settings-shell .semi-auto-complete-focus {
   border-color: rgba(0, 82, 255, 0.48) !important;
   box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.12) !important;
+}
+
+.personal-settings-notifications .semi-form-field {
+  margin-bottom: 0 !important;
+}
+
+.personal-settings-notifications .semi-form-field-label {
+  margin-bottom: 8px;
+}
+
+.personal-settings-notifications .semi-form-field-label-text {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.personal-settings-notifications .semi-form-field-extra {
+  max-width: 760px;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.personal-settings-notifications .semi-input-wrapper,
+.personal-settings-notifications .semi-select,
+.personal-settings-notifications .semi-input-number,
+.personal-settings-notifications .semi-input-textarea-wrapper,
+.personal-settings-notifications .semi-auto-complete {
+  min-height: 46px;
+  border-radius: 20px !important;
+}
+
+.personal-settings-notifications .semi-input,
+.personal-settings-notifications .semi-input-textarea,
+.personal-settings-notifications .semi-select-selection-text,
+.personal-settings-notifications .semi-select-selection-placeholder {
+  font-size: 14px !important;
+}
+
+.personal-settings-notifications .semi-select .semi-select-selection,
+.personal-settings-notifications .semi-auto-complete .semi-input-wrapper {
+  min-height: 46px;
+}
+
+.personal-settings-notifications .semi-radioGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+
+.personal-settings-notifications .semi-radio {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(91, 97, 110, 0.16);
+  background: #f7f8fa;
+}
+
+.personal-settings-notifications .semi-radio.checked {
+  border-color: rgba(0, 82, 255, 0.18);
+  background: rgba(0, 82, 255, 0.08);
+}
+
+.personal-settings-notifications .semi-radio-content {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.personal-settings-notifications .semi-switch {
+  background-color: rgba(91, 97, 110, 0.22);
+  transform: scale(0.94);
+  transform-origin: left center;
+}
+
+.personal-settings-notifications .semi-switch.semi-switch-checked {
+  background-color: #12b76a;
+}
+
+.personal-settings-notifications .semi-switch-text {
+  font-size: 12px;
+}
+
+.personal-settings-notifications .personal-settings-help-block {
+  padding: 18px;
+  border-radius: 20px;
+}
+
+.personal-settings-notifications .personal-settings-help-code {
+  font-size: 12px;
+}
+
+.personal-settings-notifications .semi-card-footer {
+  padding-top: 12px !important;
+}
+
+.personal-settings-notifications .semi-input-wrapper-focus,
+.personal-settings-notifications .semi-select-focus,
+.personal-settings-notifications .semi-input-number-focus,
+.personal-settings-notifications .semi-input-textarea-focus,
+.personal-settings-notifications .semi-auto-complete-focus {
+  border-color: rgba(0, 82, 255, 0.34) !important;
+  box-shadow: none !important;
 }
 
 .personal-settings-sidebar-section {
@@ -3236,6 +3366,36 @@ html.dark .personal-settings-link {
   color: #7ca2ff;
 }
 
+html.dark
+  .personal-settings-preferences
+  .personal-settings-select
+  .semi-select-selection-text,
+html.dark
+  .personal-settings-preferences
+  .personal-settings-select
+  .semi-select-selection-placeholder {
+  color: #f8fafc;
+}
+
+html.dark .personal-settings-notifications .semi-radio {
+  border-color: rgba(58, 66, 82, 0.9);
+  background: #171b22;
+}
+
+html.dark .personal-settings-notifications .semi-radio.checked {
+  border-color: rgba(87, 139, 250, 0.3);
+  background: rgba(87, 139, 250, 0.12);
+}
+
+html.dark .personal-settings-notifications .semi-radio-content,
+html.dark .personal-settings-notifications .semi-select-selection-text {
+  color: #f8fafc;
+}
+
+html.dark .personal-settings-notifications .semi-select-selection-placeholder {
+  color: #98a2b3 !important;
+}
+
 html.dark .personal-settings-modal .semi-modal-content {
   border-color: rgba(58, 66, 82, 0.9);
   background: #17191f;
@@ -3350,6 +3510,82 @@ html.dark
     text-align: left;
   }
 
+  .personal-settings-form-pane {
+    gap: 12px;
+  }
+
+  .personal-settings-preferences .personal-settings-select {
+    width: 100%;
+  }
+
+  .personal-settings-preferences .personal-settings-select.semi-select {
+    min-height: 40px;
+    border-radius: 16px !important;
+  }
+
+  /* .personal-settings-preferences
+    .personal-settings-select
+    .semi-select-selection {
+    min-height: 40px;
+  } */
+
+  .personal-settings-preferences
+    .personal-settings-select
+    .semi-select-selection-text,
+  .personal-settings-preferences
+    .personal-settings-select
+    .semi-select-selection-placeholder {
+    font-size: 13px !important;
+  }
+
+  .personal-settings-notifications .semi-form-field-label-text {
+    font-size: 13px;
+  }
+
+  .personal-settings-notifications .semi-form-field-extra,
+  .personal-settings-notifications .semi-radio-content,
+  .personal-settings-notifications .personal-settings-help-code,
+  .personal-settings-notifications .personal-settings-item-text {
+    font-size: 12px;
+  }
+
+  .personal-settings-notifications .semi-input-wrapper,
+  .personal-settings-notifications .semi-select,
+  .personal-settings-notifications .semi-input-number,
+  .personal-settings-notifications .semi-input-textarea-wrapper,
+  .personal-settings-notifications .semi-auto-complete {
+    min-height: 40px;
+    border-radius: 16px !important;
+  }
+
+  .personal-settings-notifications .semi-input,
+  .personal-settings-notifications .semi-input-textarea,
+  .personal-settings-notifications .semi-select-selection-text,
+  .personal-settings-notifications .semi-select-selection-placeholder {
+    font-size: 13px !important;
+  }
+
+  .personal-settings-notifications .semi-radioGroup {
+    gap: 8px;
+  }
+
+  .personal-settings-notifications .semi-radio {
+    min-height: 36px;
+    padding: 0 12px;
+  }
+
+  .personal-settings-notifications .semi-switch {
+    transform: scale(0.9);
+  }
+
+  .personal-settings-notifications .semi-switch-text {
+    font-size: 11px;
+  }
+
+  .personal-settings-notifications .personal-settings-help-block {
+    padding: 14px;
+  }
+
   .personal-settings-modal .semi-modal-content {
     border-radius: 28px !important;
   }
@@ -3368,5 +3604,71 @@ html.dark
 
   .personal-settings-modal .semi-modal-footer .semi-button {
     min-width: 0;
+  }
+}
+
+@media (min-width: 896px) {
+  .personal-settings-form-pane {
+    gap: 18px;
+  }
+
+  .personal-settings-preferences .personal-settings-select {
+    width: min(100%, 240px);
+  }
+
+  .personal-settings-preferences
+    .personal-settings-select
+    .semi-select-selection-text,
+  .personal-settings-preferences
+    .personal-settings-select
+    .semi-select-selection-placeholder {
+    font-size: 15px !important;
+  }
+
+  .personal-settings-notifications .semi-form-field-label-text {
+    font-size: 15px;
+  }
+
+  .personal-settings-notifications .semi-form-field-extra,
+  .personal-settings-notifications .semi-radio-content,
+  .personal-settings-notifications .personal-settings-item-text {
+    font-size: 13px;
+  }
+
+  .personal-settings-notifications .semi-input-wrapper,
+  .personal-settings-notifications .semi-select,
+  .personal-settings-notifications .semi-input-number,
+  .personal-settings-notifications .semi-input-textarea-wrapper,
+  .personal-settings-notifications .semi-auto-complete {
+    min-height: 46px;
+    border-radius: 20px !important;
+  }
+
+  .personal-settings-notifications .semi-input,
+  .personal-settings-notifications .semi-input-textarea,
+  .personal-settings-notifications .semi-select-selection-text,
+  .personal-settings-notifications .semi-select-selection-placeholder {
+    font-size: 15px !important;
+  }
+
+  .personal-settings-notifications .semi-radio {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+
+  .personal-settings-notifications .semi-switch {
+    transform: scale(1);
+  }
+
+  .personal-settings-notifications .semi-switch-text {
+    font-size: 12px;
+  }
+
+  .personal-settings-notifications .personal-settings-help-block {
+    padding: 20px;
+  }
+
+  .personal-settings-notifications .personal-settings-help-code {
+    font-size: 13px;
   }
 }
