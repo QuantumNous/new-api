@@ -18,26 +18,58 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Button as HeroButton,
+  DateField,
+  DateRangePicker,
+  RangeCalendar,
+} from '@heroui/react';
+import { CalendarDateTime, parseDateTime } from '@internationalized/date';
 
-const toDateTimeInputValue = (value) => {
-  if (!value) {
-    return '';
+// Two-digit zero-pad helper used for `YYYY-MM-DD HH:mm:ss` formatting.
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// Convert a Date or `YYYY-MM-DD HH:mm:ss`/ISO-ish string into a CalendarDateTime
+// (the value type expected by HeroUI / React Aria date components). Returns
+// null on invalid input so the picker can render an empty state cleanly.
+const toCalendarDateTime = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
   }
 
   if (value instanceof Date) {
-    const offsetDate = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
-    return offsetDate.toISOString().slice(0, 16);
+    if (Number.isNaN(value.getTime())) {
+      return null;
+    }
+    return new CalendarDateTime(
+      value.getFullYear(),
+      value.getMonth() + 1,
+      value.getDate(),
+      value.getHours(),
+      value.getMinutes(),
+      value.getSeconds(),
+    );
   }
 
-  return String(value).replace(' ', 'T').slice(0, 16);
+  try {
+    // Accept both space- and `T`-separated forms; trim sub-second parts.
+    const normalized = String(value).replace(' ', 'T').slice(0, 19);
+    return parseDateTime(normalized);
+  } catch (error) {
+    return null;
+  }
 };
 
-const fromDateTimeInputValue = (value) => {
+// Convert a CalendarDateTime back into the `YYYY-MM-DD HH:mm:ss` string the
+// rest of the app (filter state, API requests) already speaks.
+const fromCalendarDateTime = (value) => {
   if (!value) {
     return '';
   }
-
-  return `${value.replace('T', ' ')}:00`;
+  return (
+    `${value.year}-${pad2(value.month)}-${pad2(value.day)} ` +
+    `${pad2(value.hour)}:${pad2(value.minute)}:${pad2(value.second ?? 0)}`
+  );
 };
 
 export function useTableFilterForm({ initValues = {}, setFormApi, onSubmit }) {
@@ -145,46 +177,99 @@ export function FilterDateRange({
   presets = [],
   className = '',
 }) {
-  const [start = '', end = ''] = value || [];
+  const [startRaw = '', endRaw = ''] = value || [];
 
-  const setRangeValue = (index, nextValue) => {
-    const nextRange = [start, end];
-    nextRange[index] = fromDateTimeInputValue(nextValue);
-    onChange(nextRange);
+  const startValue = toCalendarDateTime(startRaw);
+  const endValue = toCalendarDateTime(endRaw);
+  const rangeValue =
+    startValue && endValue ? { start: startValue, end: endValue } : null;
+
+  const [isOpen, setIsOpen] = useState(false);
+
+  const ariaLabel = startPlaceholder || endPlaceholder;
+
+  const handleChange = (next) => {
+    if (!next) {
+      onChange(['', '']);
+      return;
+    }
+    onChange([fromCalendarDateTime(next.start), fromCalendarDateTime(next.end)]);
+  };
+
+  const handlePreset = (preset) => {
+    onChange([
+      fromCalendarDateTime(toCalendarDateTime(preset.start)),
+      fromCalendarDateTime(toCalendarDateTime(preset.end)),
+    ]);
+    setIsOpen(false);
   };
 
   return (
-    <div className={`flex flex-col gap-2 ${className}`}>
-      <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
-        <input
-          type='datetime-local'
-          value={toDateTimeInputValue(start)}
-          onChange={(event) => setRangeValue(0, event.target.value)}
-          aria-label={startPlaceholder}
-          className='h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
-        />
-        <input
-          type='datetime-local'
-          value={toDateTimeInputValue(end)}
-          onChange={(event) => setRangeValue(1, event.target.value)}
-          aria-label={endPlaceholder}
-          className='h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary'
-        />
-      </div>
-      {presets.length > 0 ? (
-        <div className='flex flex-wrap gap-1.5'>
-          {presets.map((preset) => (
-            <button
-              key={preset.text}
-              type='button'
-              onClick={() => onChange([preset.start, preset.end])}
-              className='rounded-full border border-border bg-surface-secondary px-2.5 py-1 text-xs text-muted transition hover:border-primary hover:text-foreground'
-            >
-              {preset.text}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <DateRangePicker
+      value={rangeValue}
+      onChange={handleChange}
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      granularity='minute'
+      hourCycle={24}
+      hideTimeZone
+      shouldForceLeadingZeros
+      aria-label={ariaLabel}
+      className={`flex flex-col gap-1 ${className}`}
+    >
+      <DateField.Group fullWidth variant='primary'>
+        <DateField.InputContainer>
+          <DateField.Input slot='start'>
+            {(segment) => <DateField.Segment segment={segment} />}
+          </DateField.Input>
+          <DateRangePicker.RangeSeparator />
+          <DateField.Input slot='end'>
+            {(segment) => <DateField.Segment segment={segment} />}
+          </DateField.Input>
+        </DateField.InputContainer>
+        <DateField.Suffix>
+          <DateRangePicker.Trigger>
+            <DateRangePicker.TriggerIndicator />
+          </DateRangePicker.Trigger>
+        </DateField.Suffix>
+      </DateField.Group>
+      <DateRangePicker.Popover>
+        {presets.length > 0 ? (
+          <div className='flex flex-wrap gap-1 p-2 pb-0'>
+            {presets.map((preset) => (
+              <HeroButton
+                key={preset.text}
+                size='sm'
+                variant='ghost'
+                type='button'
+                onPress={() => handlePreset(preset)}
+              >
+                {preset.text}
+              </HeroButton>
+            ))}
+          </div>
+        ) : null}
+        <RangeCalendar aria-label={ariaLabel}>
+          <RangeCalendar.Header>
+            <RangeCalendar.YearPickerTrigger>
+              <RangeCalendar.YearPickerTriggerHeading />
+              <RangeCalendar.YearPickerTriggerIndicator />
+            </RangeCalendar.YearPickerTrigger>
+            <RangeCalendar.NavButton slot='previous' />
+            <RangeCalendar.NavButton slot='next' />
+          </RangeCalendar.Header>
+          <RangeCalendar.Grid>
+            <RangeCalendar.GridHeader>
+              {(day) => (
+                <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>
+              )}
+            </RangeCalendar.GridHeader>
+            <RangeCalendar.GridBody>
+              {(date) => <RangeCalendar.Cell date={date} />}
+            </RangeCalendar.GridBody>
+          </RangeCalendar.Grid>
+        </RangeCalendar>
+      </DateRangePicker.Popover>
+    </DateRangePicker>
   );
 }

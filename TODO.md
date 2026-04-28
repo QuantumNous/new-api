@@ -335,3 +335,38 @@ shadow defined by `widget.css`.
   API info panel, announcements panel, FAQ panel, and uptime panel all
   render with the Widget surface (gray outer shell + elevated white
   content area + subtle shadow) and remain functional.
+
+## Filter Date Range → HeroUI DateRangePicker (feature/heroui-date-range-picker)
+
+Replace the native `<input type="datetime-local">` pair inside the shared
+`FilterDateRange` (`web/src/components/common/ui/TableFilterForm.jsx`) with the
+HeroUI v3 `DateRangePicker` composition (`DateField` + `RangeCalendar`). The
+old browser-native datetime control rendered an unstyled OS dropdown that
+clashed with the rest of the HeroUI surface on `/console/midjourney`,
+`/console/task`, and `/console/log`.
+
+- [x] Add `@internationalized/date@^3.12.1` as a direct dependency (already a
+  transitive dep of `react-aria-components`, but now imported explicitly for
+  `parseDateTime` and `CalendarDateTime`).
+- [x] Rewrite `FilterDateRange` using `DateRangePicker` + `DateField.Group` +
+  `RangeCalendar` from `@heroui/react`. Trigger renders the segmented start/end
+  date+time fields with a calendar icon suffix; popover hosts a row of preset
+  shortcut buttons (今天 / 近 7 天 / 本周 / 近 30 天 / 本月) above the
+  `RangeCalendar`. Granularity is `minute`, hour cycle is 24.
+- [x] Preserve the external API: `value` stays as `[startStr, endStr]` of
+  `YYYY-MM-DD HH:mm:ss` strings (or `Date` objects from
+  `DATE_RANGE_PRESETS`), and `onChange` always emits the same string format.
+  Internal helpers `toCalendarDateTime` / `fromCalendarDateTime` round-trip
+  values through React Aria's `CalendarDateTime` type without leaking it to
+  callers, so `useMjLogsData`, `useTaskLogsData`, and `useUsageLogsData`
+  continue to work unchanged.
+- [x] Picker is fully controlled (`isOpen` / `onOpenChange`); preset buttons
+  set the value and explicitly close the popover.
+
+### Verification
+
+- `bun run build`: passed (28.21s, no new warnings).
+- Manual QA at `http://localhost:5173/console/task` and `/console/midjourney`:
+  segmented input renders with the HeroUI border + calendar icon suffix;
+  popover opens with the 5 preset chips + RangeCalendar grid; clicking 今天
+  populates the trigger with today's full-day range and closes the popover.
