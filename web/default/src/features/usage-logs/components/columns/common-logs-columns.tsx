@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Route, CircleAlert, Sparkles } from 'lucide-react'
+import { Route, CircleAlert, Sparkles, KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import {
@@ -8,8 +8,8 @@ import {
   formatLogQuota,
   formatTimestampToDate,
 } from '@/lib/format'
+import { getAvatarColorClass } from '@/lib/colors'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
@@ -33,6 +33,7 @@ import {
   getTimeColor,
   formatModelName,
   getTieredBillingSummary,
+  hasAnyCacheTokens,
   parseLogOther,
   isViolationFeeLog,
 } from '../../lib/format'
@@ -45,7 +46,6 @@ import {
 import type { LogOtherData } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
-import { CacheTooltip } from './column-helpers'
 
 interface DetailSegment {
   text: string
@@ -90,33 +90,60 @@ function buildDetailSegments(
 
   const segments: DetailSegment[] = []
 
-  const userGroupRatio = other.user_group_ratio
-  const groupRatio = other.group_ratio
-  const isUserGroup =
-    userGroupRatio != null &&
-    Number.isFinite(userGroupRatio) &&
-    userGroupRatio !== -1
-  const effectiveRatio = isUserGroup ? userGroupRatio : groupRatio
-  const ratioLabel = isUserGroup ? t('User Exclusive Ratio') : t('Group Ratio')
-
-  if (effectiveRatio != null && Number.isFinite(effectiveRatio)) {
-    segments.push({
-      text: `${ratioLabel} ${formatRatioCompact(effectiveRatio)}x`,
-    })
-  }
-
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
+  const formatPrice = (price: number) =>
+    `${formatBillingCurrencyFromUSD(price, priceOpts)}/M`
+  const formatPriceCompact = (price: number) =>
+    formatBillingCurrencyFromUSD(price, priceOpts)
+  const formatPriceList = (prices: string[], showUnit: boolean) => {
+    const text = prices.join(' / ')
+    return showUnit ? `${text}/M` : text
+  }
   const tieredSummary = getTieredBillingSummary(other)
   if (tieredSummary) {
-    if (tieredSummary.tier.label) {
+    const baseEntries = tieredSummary.priceEntries
+      .filter((entry) => ['inputPrice', 'outputPrice'].includes(entry.field))
+      .map((entry) => formatPriceCompact(entry.price))
+    if (baseEntries.length > 0) {
+      const tierLabel = tieredSummary.tier.label || t('Default')
       segments.push({
-        text: `${t('Tier')} ${tieredSummary.tier.label}`,
+        text: `${tierLabel} · ${formatPriceList(baseEntries, true)}`,
+      })
+    }
+
+    const cacheEntries = tieredSummary.priceEntries
+      .filter((entry) =>
+        [
+          'cacheReadPrice',
+          'cacheCreatePrice',
+          'cacheCreate1hPrice',
+        ].includes(entry.field)
+      )
+      .map((entry) => {
+        return formatPriceCompact(entry.price)
+      })
+    if (cacheEntries.length > 0) {
+      segments.push({
+        text: `${t('Cache')} ${formatPriceList(cacheEntries, false)}`,
         muted: true,
       })
     }
-    for (const entry of tieredSummary.priceEntries) {
+
+    const otherEntries = tieredSummary.priceEntries
+      .filter(
+        (entry) =>
+          ![
+            'inputPrice',
+            'outputPrice',
+            'cacheReadPrice',
+            'cacheCreatePrice',
+            'cacheCreate1hPrice',
+          ].includes(entry.field)
+      )
+      .map((entry) => `${t(entry.shortLabel)} ${formatPrice(entry.price)}`)
+    if (otherEntries.length > 0) {
       segments.push({
-        text: `${t(entry.shortLabel)} ${formatBillingCurrencyFromUSD(entry.price, priceOpts)}/M`,
+        text: otherEntries.join(' · '),
         muted: true,
       })
     }
@@ -124,15 +151,59 @@ function buildDetailSegments(
     const isPerCall = isPerCallBilling(other.model_price)
     if (isPerCall) {
       segments.push({
-        text: `${t('Model Price')} ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
-        muted: true,
+        text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(other.model_price!, priceOpts)}`,
       })
     } else if (other.model_ratio != null) {
       const inputPriceUSD = other.model_ratio * 2.0
+      const baseEntries = [formatPriceCompact(inputPriceUSD)]
+      if (other.completion_ratio != null) {
+        baseEntries.push(
+          formatPriceCompact(inputPriceUSD * other.completion_ratio)
+        )
+      }
       segments.push({
-        text: `${t('Input')} ${formatBillingCurrencyFromUSD(inputPriceUSD, priceOpts)}/M`,
-        muted: true,
+        text: `${t('Standard')} · ${formatPriceList(baseEntries, true)}`,
       })
+
+      if (hasAnyCacheTokens(other)) {
+        const cacheEntries = [
+          other.cache_ratio != null && other.cache_ratio !== 1
+            ? formatPriceCompact(inputPriceUSD * other.cache_ratio)
+            : null,
+          other.cache_creation_ratio != null &&
+          other.cache_creation_ratio !== 1
+            ? formatPriceCompact(inputPriceUSD * other.cache_creation_ratio)
+            : null,
+          other.cache_creation_ratio_1h != null &&
+          other.cache_creation_ratio_1h !== 0
+            ? formatPriceCompact(inputPriceUSD * other.cache_creation_ratio_1h)
+            : null,
+        ].filter(Boolean) as string[]
+
+        if (cacheEntries.length > 0) {
+          segments.push({
+            text: `${t('Cache')} ${formatPriceList(cacheEntries, false)}`,
+            muted: true,
+          })
+        }
+      }
+    } else {
+      const userGroupRatio = other.user_group_ratio
+      const groupRatio = other.group_ratio
+      const isUserGroup =
+        userGroupRatio != null &&
+        Number.isFinite(userGroupRatio) &&
+        userGroupRatio !== -1
+      const effectiveRatio = isUserGroup ? userGroupRatio : groupRatio
+      const ratioLabel = isUserGroup
+        ? t('User Exclusive Ratio')
+        : t('Group Ratio')
+
+      if (effectiveRatio != null && Number.isFinite(effectiveRatio)) {
+        segments.push({
+          text: `${ratioLabel} ${formatRatioCompact(effectiveRatio)}x`,
+        })
+      }
     }
   }
 
@@ -170,19 +241,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               size='sm'
               copyable={false}
             />
-            {log.request_id && (
-              <StatusBadge
-                label={
-                  log.request_id.length > 18
-                    ? `${log.request_id.slice(0, 18)}…`
-                    : log.request_id
-                }
-                variant='neutral'
-                size='sm'
-                copyText={log.request_id}
-                className='max-w-[140px] truncate font-mono'
-              />
-            )}
           </div>
         )
       },
@@ -196,45 +254,47 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   ]
 
   if (isAdmin) {
-    columns.push({
-      id: 'source',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Source')} />
-      ),
-      cell: function SourceCell({ row }) {
-        const {
-          setAffinityTarget,
-          setAffinityDialogOpen,
-          setSelectedUserId,
-          setUserInfoDialogOpen,
-        } = useUsageLogsContext()
-        const log = row.original
+    columns.push(
+      {
+        id: 'channel',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Channel')} />
+        ),
+        cell: function ChannelCell({ row }) {
+          const {
+            sensitiveVisible,
+            setAffinityTarget,
+            setAffinityDialogOpen,
+          } = useUsageLogsContext()
+          const log = row.original
 
-        if (!isDisplayableLogType(log.type)) return null
+          if (!isDisplayableLogType(log.type)) return null
 
-        const other = parseLogOther(log.other)
-        const affinity = other?.admin_info?.channel_affinity
-        const useChannel = other?.admin_info?.use_channel
-        const channelChain =
-          useChannel && useChannel.length > 0
-            ? useChannel.join(' → ')
-            : undefined
-        const channelDisplay = log.channel_name
-          ? `${log.channel_name} #${log.channel}`
-          : `#${log.channel}`
+          const other = parseLogOther(log.other)
+          const affinity = other?.admin_info?.channel_affinity
+          const useChannel = other?.admin_info?.use_channel
+          const channelChain =
+            useChannel && useChannel.length > 0
+              ? useChannel.join(' → ')
+              : undefined
+          const channelDisplay = log.channel_name
+            ? `${log.channel_name} #${log.channel}`
+            : `#${log.channel}`
+          const channelIdDisplay = `#${log.channel}`
+          const channelName = sensitiveVisible ? log.channel_name : '••••'
 
-        return (
-          <div className='flex flex-col gap-1'>
-            <div className='flex items-center gap-1'>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className='relative'>
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className='flex max-w-[160px] flex-col gap-0.5'>
+                    <div className='relative inline-flex w-fit'>
                       <StatusBadge
-                        label={channelDisplay}
-                        autoColor={log.channel_name || String(log.channel)}
+                        label={channelIdDisplay}
+                        autoColor={String(log.channel)}
                         copyText={String(log.channel)}
                         size='sm'
+                        className='font-mono'
                       />
                       {affinity && (
                         <button
@@ -258,58 +318,123 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                         </button>
                       )}
                     </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <div className='space-y-1'>
-                      <p>{channelDisplay}</p>
-                      {channelChain && (
-                        <p className='text-muted-foreground text-xs'>
-                          {t('Chain')}: {channelChain}
+                    {log.channel_name && (
+                      <span className='text-muted-foreground/70 truncate text-[11px]'>
+                        {channelName}
+                      </span>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className='space-y-1'>
+                    <p>{sensitiveVisible ? channelDisplay : channelIdDisplay}</p>
+                    {channelChain && (
+                      <p className='text-muted-foreground text-xs'>
+                        {t('Chain')}: {channelChain}
+                      </p>
+                    )}
+                    {affinity && (
+                      <div className='border-t pt-1 text-xs'>
+                        <p className='font-medium'>{t('Channel Affinity')}</p>
+                        <p>
+                          {t('Rule')}: {affinity.rule_name || '-'}
                         </p>
-                      )}
-                      {affinity && (
-                        <div className='border-t pt-1 text-xs'>
-                          <p className='font-medium'>{t('Channel Affinity')}</p>
-                          <p>
-                            {t('Rule')}: {affinity.rule_name || '-'}
-                          </p>
-                          <p>
-                            {t('Group')}:{' '}
-                            {affinity.using_group ||
+                        <p>
+                          {t('Group')}:{' '}
+                          {sensitiveVisible
+                            ? affinity.using_group ||
                               affinity.selected_group ||
-                              '-'}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            {log.username && (
-              <button
-                type='button'
-                className='flex items-center gap-1 text-left'
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setSelectedUserId(log.user_id)
-                  setUserInfoDialogOpen(true)
-                }}
-              >
-                <span className='bg-primary/10 text-primary flex size-4 items-center justify-center rounded-full text-[10px] font-bold'>
-                  {log.username.charAt(0).toUpperCase()}
-                </span>
-                <span className='text-muted-foreground truncate text-xs hover:underline'>
-                  {log.username}
-                </span>
-              </button>
-            )}
-          </div>
-        )
+                              '-'
+                            : '••••'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        },
+        meta: { label: t('Channel'), mobileHidden: true },
       },
-      meta: { label: t('Source'), mobileHidden: true },
-    })
+      {
+        id: 'user',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('User')} />
+        ),
+        cell: function UserCell({ row }) {
+          const {
+            sensitiveVisible,
+            setSelectedUserId,
+            setUserInfoDialogOpen,
+          } = useUsageLogsContext()
+          const log = row.original
+
+          if (!log.username) return null
+
+          return (
+            <button
+              type='button'
+              className='flex items-center gap-1.5 text-left'
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedUserId(log.user_id)
+                setUserInfoDialogOpen(true)
+              }}
+            >
+              <span
+                className={cn(
+                  'flex size-6 items-center justify-center rounded-full text-xs font-bold ring-1 ring-border/60 saturate-[1.2] brightness-95 dark:brightness-110',
+                  sensitiveVisible
+                    ? getAvatarColorClass(log.username)
+                    : 'bg-muted text-muted-foreground'
+                )}
+              >
+                {sensitiveVisible ? log.username.charAt(0).toUpperCase() : '•'}
+              </span>
+              <span className='text-muted-foreground truncate text-sm hover:underline'>
+                {sensitiveVisible ? log.username : '••••'}
+              </span>
+            </button>
+          )
+        },
+        meta: { label: t('User'), mobileHidden: true },
+      }
+    )
   }
+
+  columns.push({
+    accessorKey: 'token_name',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('Token')} />
+    ),
+    cell: function TokenNameCell({ row }) {
+      const { sensitiveVisible } = useUsageLogsContext()
+      const log = row.original
+      if (!isDisplayableLogType(log.type)) return null
+
+      const tokenName = log.token_name
+      if (!tokenName) return null
+
+      const displayName = sensitiveVisible ? tokenName : '••••'
+
+      return (
+        <div className='max-w-[120px]'>
+          <StatusBadge
+            label={displayName}
+            icon={KeyRound}
+            autoColor={tokenName}
+            copyText={sensitiveVisible ? tokenName : undefined}
+            size='sm'
+            showDot={false}
+            className='max-w-full overflow-hidden rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono'
+          />
+        </div>
+      )
+    },
+    meta: { label: t('Token') },
+    size: 130,
+  })
 
   columns.push(
     {
@@ -318,34 +443,34 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         <DataTableColumnHeader column={column} title={t('Model')} />
       ),
       cell: function ModelCell({ row }) {
+        const { sensitiveVisible } = useUsageLogsContext()
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
 
         const modelInfo = formatModelName(log)
-        const tokenName = log.token_name
         const other = parseLogOther(log.other)
         let group = log.group
         if (!group) group = other?.group || ''
 
+        const badgeClass =
+          'truncate rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono'
+
         const modelBadge = modelInfo.isMapped ? (
           <Popover>
             <PopoverTrigger asChild>
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-auto p-0 hover:bg-transparent'
+              <button
+                type='button'
+                className='inline-flex items-center gap-1'
               >
-                <span className='flex items-center gap-1'>
-                  <StatusBadge
-                    label={modelInfo.name}
-                    autoColor={modelInfo.name}
-                    copyText={modelInfo.name}
-                    size='sm'
-                    className='truncate font-mono'
-                  />
-                  <Route className='text-muted-foreground size-3 shrink-0' />
-                </span>
-              </Button>
+                <StatusBadge
+                  label={modelInfo.name}
+                  autoColor={modelInfo.name}
+                  copyText={modelInfo.name}
+                  size='sm'
+                  className={badgeClass}
+                />
+                <Route className='text-muted-foreground size-3 shrink-0' />
+              </button>
             </PopoverTrigger>
             <PopoverContent className='w-72'>
               <div className='space-y-2'>
@@ -374,13 +499,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             autoColor={modelInfo.name}
             copyText={modelInfo.name}
             size='sm'
-            className='truncate font-mono'
+            className={badgeClass}
           />
         )
 
         const metaParts: string[] = []
-        if (tokenName) metaParts.push(tokenName)
-        if (group) metaParts.push(group)
+        if (group) metaParts.push(sensitiveVisible ? group : '••••')
 
         return (
           <div className='flex max-w-[220px] flex-col gap-0.5'>
@@ -411,41 +535,65 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const timeVariant = getTimeColor(useTime)
         const frtVariant = frt ? getTimeColor(frt / 1000) : null
 
+        const pillBg: Record<string, string> = {
+          success:
+            'border border-emerald-200/60 bg-emerald-50/50 dark:border-emerald-800/50 dark:bg-emerald-950/20',
+          info: 'border border-sky-200/60 bg-sky-50/50 dark:border-sky-800/50 dark:bg-sky-950/20',
+          warning:
+            'border border-amber-200/60 bg-amber-50/50 dark:border-amber-800/50 dark:bg-amber-950/20',
+        }
+
         return (
-          <div className='flex flex-col gap-0.5'>
-            <div className='flex items-center gap-1 text-xs'>
+          <div className='flex flex-col gap-1'>
+            <div className='flex items-center gap-1.5'>
               <span
                 className={cn(
-                  'size-1.5 shrink-0 rounded-full',
-                  dotColorMap[timeVariant]
-                )}
-                aria-hidden='true'
-              />
-              <span
-                className={cn(
-                  'font-mono font-medium',
+                  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-xs font-medium',
+                  pillBg[timeVariant],
                   textColorMap[timeVariant]
                 )}
               >
+                <span
+                  className={cn(
+                    'size-1.5 shrink-0 rounded-full',
+                    dotColorMap[timeVariant]
+                  )}
+                  aria-hidden='true'
+                />
                 {formatUseTime(useTime)}
               </span>
-              {log.is_stream && frt != null && frt > 0 && (
-                <>
-                  <span className='text-muted-foreground/30'>·</span>
-                  <span
-                    className={cn(
-                      'font-mono font-medium',
-                      textColorMap[frtVariant!]
-                    )}
-                  >
-                    {formatUseTime(frt / 1000)}
-                  </span>
-                </>
-              )}
+              {log.is_stream && (frt != null && frt > 0 ? (
+                <span
+                  className={cn(
+                    'inline-flex items-center rounded-md px-1.5 py-0.5 font-mono text-xs font-medium',
+                    pillBg[frtVariant!],
+                    textColorMap[frtVariant!]
+                  )}
+                >
+                  {formatUseTime(frt / 1000)}
+                </span>
+              ) : (
+                <span className='inline-flex items-center rounded-md border border-border/60 px-1.5 py-0.5 text-[11px] text-muted-foreground/50'>
+                  N/A
+                </span>
+              ))}
             </div>
             <div className='flex items-center gap-1 text-[11px]'>
               <span className='text-muted-foreground/60'>
                 {log.is_stream ? t('Stream') : t('Non-stream')}
+                {useTime > 0 && (log.prompt_tokens + log.completion_tokens) > 0 && (
+                  <>
+                    {' · '}
+                    <span className='font-mono tabular-nums'>
+                      {Math.round(
+                        (log.is_stream
+                          ? log.completion_tokens
+                          : log.prompt_tokens + log.completion_tokens) / useTime
+                      )}
+                    </span>
+                    {' t/s'}
+                  </>
+                )}
               </span>
               {log.is_stream &&
                 other?.stream_status &&
@@ -482,66 +630,21 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     {
       accessorKey: 'prompt_tokens',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Input')} />
+        <DataTableColumnHeader column={column} title='Tokens' />
       ),
       cell: ({ row }) => {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
 
         const other = parseLogOther(log.other)
-        if (isPerCallBilling(other?.model_price)) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
 
         const promptTokens = log.prompt_tokens || 0
-        if (promptTokens === 0) {
+        const completionTokens = log.completion_tokens || 0
+        if (promptTokens === 0 && completionTokens === 0) {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
 
         const cacheReadTokens = other?.cache_tokens || 0
-
-        return (
-          <div className='flex flex-col gap-0.5'>
-            <span className='font-mono text-xs font-medium'>
-              {promptTokens.toLocaleString()}
-            </span>
-            {cacheReadTokens > 0 && (
-              <span className='flex items-center gap-1 text-[11px]'>
-                <CacheTooltip
-                  tokens={cacheReadTokens}
-                  label={t('Cache Read')}
-                  color='fill-amber-500 text-amber-500'
-                />
-                <span className='text-muted-foreground/60'>
-                  {t('Cache Read')} {cacheReadTokens.toLocaleString()}
-                </span>
-              </span>
-            )}
-          </div>
-        )
-      },
-      meta: { label: t('Input'), mobileHidden: true },
-    },
-
-    {
-      accessorKey: 'completion_tokens',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Output')} />
-      ),
-      cell: ({ row }) => {
-        const log = row.original
-        if (!isDisplayableLogType(log.type)) return null
-
-        const other = parseLogOther(log.other)
-        if (isPerCallBilling(other?.model_price)) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
-        const completionTokens = log.completion_tokens || 0
-        if (completionTokens === 0) {
-          return <span className='text-muted-foreground text-xs'>-</span>
-        }
-
         const cacheWrite5m = other?.cache_creation_tokens_5m || 0
         const cacheWrite1h = other?.cache_creation_tokens_1h || 0
         const hasSplitCache = cacheWrite5m > 0 || cacheWrite1h > 0
@@ -551,27 +654,27 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <div className='flex flex-col gap-0.5'>
-            <span className='font-mono text-xs font-medium'>
-              {completionTokens.toLocaleString()}
+            <span className='font-mono text-xs font-medium tabular-nums'>
+              {promptTokens.toLocaleString()} / {completionTokens.toLocaleString()}
             </span>
-            {cacheWriteTokens > 0 && (
-              <span className='flex items-center gap-1 text-[11px]'>
-                <CacheTooltip
-                  tokens={cacheWriteTokens}
-                  label={t('Cache Write')}
-                  color='fill-blue-500 text-blue-500'
-                />
-                <span className='text-muted-foreground/60'>
-                  {hasSplitCache
-                    ? `${t('Cache Write')} ${cacheWrite5m.toLocaleString()}/${cacheWrite1h.toLocaleString()}`
-                    : `${t('Cache Write')} ${cacheWriteTokens.toLocaleString()}`}
-                </span>
-              </span>
+            {(cacheReadTokens > 0 || cacheWriteTokens > 0) && (
+              <div className='flex items-center gap-1 text-[11px]'>
+                {cacheReadTokens > 0 && (
+                  <span className='text-muted-foreground/60'>
+                    {t('Cache')}↓ {cacheReadTokens.toLocaleString()}
+                  </span>
+                )}
+                {cacheWriteTokens > 0 && (
+                  <span className='text-muted-foreground/60'>
+                    ↑ {cacheWriteTokens.toLocaleString()}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )
       },
-      meta: { label: t('Output'), mobileHidden: true },
+      meta: { label: 'Tokens', mobileHidden: true },
     },
 
     {
@@ -592,14 +695,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div>
-                    <StatusBadge
-                      label={t('Subscription')}
-                      variant='green'
-                      size='sm'
-                      copyable={false}
-                    />
-                  </div>
+                  <span className='inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'>
+                    <span className='size-1.5 rounded-full bg-emerald-500' aria-hidden='true' />
+                    {t('Subscription')}
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent>
                   <span>
@@ -611,10 +710,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           )
         }
 
+        const quotaStr = formatLogQuota(quota)
+
         return (
-          <div className='flex flex-col'>
-            <span className='font-mono text-xs font-medium tabular-nums'>
-              {formatLogQuota(quota)}
+          <div className='flex flex-col gap-0.5'>
+            <span className='border-border/80 inline-flex w-fit items-center rounded-md border bg-muted/60 px-1.5 py-0.5 font-mono text-xs font-semibold tabular-nums'>
+              {quotaStr}
             </span>
             {(() => {
               const userGroupRatio = other?.user_group_ratio
@@ -654,39 +755,43 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const other = parseLogOther(log.other)
 
         const segments = buildDetailSegments(log, other, t)
+        const primary = segments[0]
+        const hasMore = segments.length > 1
 
         return (
           <>
-            <Button
-              variant='ghost'
-              className='h-auto max-w-[220px] justify-start p-0 text-left text-xs font-normal hover:underline'
+            <button
+              type='button'
+              className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
               onClick={() => setDialogOpen(true)}
               title={t('Click to view full details')}
             >
-              {segments.length > 0 ? (
-                <div className='flex flex-col gap-px'>
-                  {segments.map((seg, i) => (
-                    <span
-                      key={i}
-                      className={cn(
-                        'leading-snug',
-                        seg.muted
-                          ? 'text-muted-foreground/60'
-                          : seg.danger
-                            ? 'text-red-600 dark:text-red-400'
-                            : 'text-foreground'
-                      )}
-                    >
-                      {seg.text}
+              {primary ? (
+                <span
+                  className={cn(
+                    'truncate leading-snug group-hover:underline',
+                    primary.muted
+                      ? 'text-muted-foreground/60'
+                      : primary.danger
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-foreground'
+                  )}
+                >
+                  {primary.text}
+                  {hasMore && (
+                    <span className='text-muted-foreground/40 ml-0.5'>
+                      +{segments.length - 1}
                     </span>
-                  ))}
-                </div>
+                  )}
+                </span>
               ) : log.content ? (
-                <span className='line-clamp-2'>{log.content}</span>
+                <span className='text-muted-foreground truncate group-hover:underline'>
+                  {log.content}
+                </span>
               ) : (
-                <span className='text-muted-foreground'>-</span>
+                <span className='text-muted-foreground/40'>—</span>
               )}
-            </Button>
+            </button>
             <DetailsDialog
               log={log}
               isAdmin={isAdmin}
@@ -697,8 +802,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
       },
       meta: { label: t('Details'), mobileHidden: true },
-      size: 200,
-      maxSize: 220,
+      size: 180,
+      maxSize: 200,
     }
   )
 

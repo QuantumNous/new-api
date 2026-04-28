@@ -262,6 +262,7 @@ function formatCurrencyValue(
     const formatted = new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: meta.currencyCode,
+      currencyDisplay: 'narrowSymbol',
       minimumFractionDigits: 0,
       maximumFractionDigits: digits,
     }).format(adjustedValue)
@@ -337,11 +338,11 @@ export function formatCurrencyFromUSD(
   const { config, meta } = getCurrencyDisplay()
   const merged = mergeOptions(options)
 
-  if (!config.displayInCurrency || meta.kind === 'tokens') {
+  if (meta.kind === 'tokens') {
     const tokens = amountUSD * config.quotaPerUnit
     return formatNumberWithSuffix(
       tokens,
-      meta.kind === 'tokens' ? 0 : merged.digitsLarge,
+      0,
       merged.digitsSmall,
       merged.abbreviate
     )
@@ -463,7 +464,7 @@ export function formatQuotaWithCurrency(
 export function getCurrencyLabel(): string {
   const { config, meta } = getCurrencyDisplay()
 
-  if (!config.displayInCurrency || meta.kind === 'tokens') {
+  if (meta.kind === 'tokens') {
     return 'Tokens'
   }
 
@@ -494,8 +495,8 @@ export function getCurrencyLabel(): string {
  * Use this to conditionally show currency-specific UI elements
  */
 export function isCurrencyDisplayEnabled(): boolean {
-  const { config, meta } = getCurrencyDisplay()
-  return config.displayInCurrency && meta.kind !== 'tokens'
+  const { meta } = getCurrencyDisplay()
+  return meta.kind !== 'tokens'
 }
 
 /**

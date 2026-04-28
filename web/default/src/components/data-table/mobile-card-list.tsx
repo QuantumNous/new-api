@@ -14,6 +14,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 interface MobileCardListProps<TData> {
   table: Table<TData>
@@ -21,6 +22,7 @@ interface MobileCardListProps<TData> {
   emptyTitle?: string
   emptyDescription?: string
   getRowKey?: (row: Row<TData>) => string | number
+  getRowClassName?: (row: Row<TData>) => string | undefined
 }
 
 interface MobileColumnMeta {
@@ -238,6 +240,7 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
     emptyTitle,
     emptyDescription,
     getRowKey,
+    getRowClassName,
   } = props
   const { t } = useTranslation()
 
@@ -278,7 +281,10 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
       {rows.map((row) => {
         const key = getRowKey ? getRowKey(row) : row.id
         return (
-          <div key={key} className='bg-card px-3 py-2.5'>
+          <div
+            key={key}
+            className={cn('bg-card px-3 py-2.5', getRowClassName?.(row))}
+          >
             <RowComponent row={row} />
           </div>
         )

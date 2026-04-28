@@ -35,6 +35,12 @@ const LazyModelCharts = lazy(() =>
   }))
 )
 
+const LazyConsumptionDistributionChart = lazy(() =>
+  import('./components/models/consumption-distribution-chart').then((m) => ({
+    default: m.ConsumptionDistributionChart,
+  }))
+)
+
 const LazyUserCharts = lazy(() =>
   import('./components/users/user-charts').then((m) => ({
     default: m.UserCharts,
@@ -80,8 +86,8 @@ const SECTION_META: Record<
     descriptionKey: 'View dashboard overview and statistics',
   },
   models: {
-    titleKey: 'Models',
-    descriptionKey: 'View model statistics and charts',
+    titleKey: 'Model Call Analytics',
+    descriptionKey: 'View model call count analytics and charts',
   },
   users: {
     titleKey: 'User Analytics',
@@ -163,6 +169,17 @@ export function Dashboard() {
                 </Suspense>
               </FadeIn>
               <FadeIn delay={0.1}>
+                <Suspense fallback={<ModelChartsFallback />}>
+                  <LazyConsumptionDistributionChart
+                    data={modelData}
+                    loading={dataLoading}
+                    timeGranularity={
+                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
+                    }
+                  />
+                </Suspense>
+              </FadeIn>
+              <FadeIn delay={0.15}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyModelCharts
                     data={modelData}

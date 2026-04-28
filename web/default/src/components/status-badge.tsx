@@ -69,7 +69,7 @@ export interface StatusBadgeProps extends Omit<
   children?: React.ReactNode
   icon?: LucideIcon
   pulse?: boolean
-  /** @deprecated Dot is always shown in flat design */
+  /** When false, hides the leading dot */
   showDot?: boolean
   variant?: StatusVariant | null
   size?: 'sm' | 'md' | 'lg' | null
@@ -87,7 +87,7 @@ export function StatusBadge({
   variant,
   size = 'sm',
   pulse = false,
-  showDot: _showDot,
+  showDot = true,
   rounded: _rounded,
   copyable = true,
   copyText,
@@ -110,7 +110,7 @@ export function StatusBadge({
     onClick?.(e)
   }
 
-  const content = children ?? (label ? <span>{label}</span> : null)
+  const content = children ?? (label ? <span className='truncate'>{label}</span> : null)
 
   return (
     <span
@@ -127,14 +127,16 @@ export function StatusBadge({
       title={copyable ? `Click to copy: ${copyText || label || ''}` : undefined}
       {...props}
     >
-      <span
-        className={cn(
-          'inline-block size-1.5 shrink-0 rounded-full',
-          dotColorMap[computedVariant]
-        )}
-        aria-hidden='true'
-      />
-      {Icon && <Icon className='h-3 w-3' />}
+      {showDot && (
+        <span
+          className={cn(
+            'inline-block size-1.5 shrink-0 rounded-full',
+            dotColorMap[computedVariant]
+          )}
+          aria-hidden='true'
+        />
+      )}
+      {Icon && <Icon className='size-3 shrink-0' />}
       {content}
     </span>
   )

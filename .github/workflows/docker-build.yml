@@ -2,16 +2,14 @@ name: Publish Docker image (Multi-arch)
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
       - '!nightly*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag name to build (e.g., v0.10.8)'
-        required: false
+        description: 'Tag name to build (e.g., v0.10.8-alpha.3)'
+        required: true
         type: string
 
 jobs:
@@ -30,7 +28,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     outputs:
       tag: ${{ steps.version.outputs.tag }}
-      is_tag: ${{ steps.version.outputs.is_tag }}
 
     permissions:
       packages: write
@@ -44,43 +41,22 @@ jobs:
           fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
           ref: ${{ github.event.inputs.tag || github.ref }}
 
-      - name: Resolve version
+      - name: Resolve tag & write VERSION
         id: version
         run: |
-          IS_TAG=false
           if [ -n "${{ github.event.inputs.tag }}" ]; then
             TAG="${{ github.event.inputs.tag }}"
             if ! git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
               echo "::error::Tag '$TAG' does not exist"
               exit 1
             fi
-            IS_TAG=true
-          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-            IS_TAG=true
           else
-            TAG="$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
+            TAG=${GITHUB_REF#refs/tags/}
           fi
           echo "TAG=${TAG}" >> $GITHUB_ENV
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "is_tag=${IS_TAG}" >> $GITHUB_OUTPUT
           echo "${TAG}" > VERSION
-          echo "Building version: ${TAG} for ${{ matrix.arch }}"
-
-      - name: Compute image tags
-        id: tags
-        run: |
-          TAGS="calciumion/new-api:${TAG}-${{ matrix.arch }}"
-          if [ "${{ steps.version.outputs.is_tag }}" = "true" ]; then
-            TAGS="${TAGS}"$'\n'"calciumion/new-api:latest-${{ matrix.arch }}"
-          else
-            TAGS="${TAGS}"$'\n'"calciumion/new-api:main-${{ matrix.arch }}"
-          fi
-          {
-            echo "tags<<EOF"
-            echo "${TAGS}"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          echo "Building tag: ${TAG} for ${{ matrix.arch }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -104,7 +80,9 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
+          tags: |
+            calciumion/new-api:${{ env.TAG }}-${{ matrix.arch }}
+            calciumion/new-api:latest-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -112,11 +90,9 @@ jobs:
           sbom: true
 
       - name: Install cosign
-        if: steps.version.outputs.is_tag == 'true'
         uses: sigstore/cosign-installer@v3
 
       - name: Sign image with cosign
-        if: steps.version.outputs.is_tag == 'true'
         run: cosign sign --yes calciumion/new-api@${{ steps.build.outputs.digest }}
 
       - name: Image summary
@@ -131,6 +107,7 @@ jobs:
     name: Create multi-arch manifests
     needs: [build_single_arch]
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Set version
@@ -150,20 +127,11 @@ jobs:
             calciumion/new-api:${TAG}-arm64
 
       - name: Create & push manifest (latest)
-        if: needs.build_single_arch.outputs.is_tag == 'true'
         run: |
           docker buildx imagetools create \
             -t calciumion/new-api:latest \
             calciumion/new-api:latest-amd64 \
             calciumion/new-api:latest-arm64
-
-      - name: Create & push manifest (main)
-        if: needs.build_single_arch.outputs.is_tag != 'true'
-        run: |
-          docker buildx imagetools create \
-            -t calciumion/new-api:main \
-            calciumion/new-api:main-amd64 \
-            calciumion/new-api:main-arm64
 
       - name: Manifest summary
         run: |

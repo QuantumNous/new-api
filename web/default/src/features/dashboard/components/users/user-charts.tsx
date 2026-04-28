@@ -24,10 +24,8 @@ let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
 > | null = null
 
-type UserChartTab = 'rank' | 'trend'
-
-const CHART_TABS: {
-  value: UserChartTab
+const USER_CHARTS: {
+  value: string
   labelKey: string
   specKey: keyof ProcessedUserChartData
 }[] = [
@@ -43,10 +41,11 @@ const CHART_TABS: {
   },
 ]
 
+const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
+
 export function UserCharts() {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
-  const [activeTab, setActiveTab] = useState<UserChartTab>('rank')
   const [themeReady, setThemeReady] = useState(false)
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
@@ -58,6 +57,7 @@ export function UserCharts() {
   const [selectedRange, setSelectedRange] = useState<number>(() =>
     getDefaultDays(timeGranularity)
   )
+  const [topUserLimit, setTopUserLimit] = useState(10)
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
     const { start, end } = getNormalizedDateRange(days)
@@ -116,13 +116,11 @@ export function UserCharts() {
       processUserChartData(
         isLoading ? [] : (userData ?? []),
         timeGranularity,
-        t
+        t,
+        topUserLimit
       ),
-    [userData, isLoading, timeGranularity, t]
+    [userData, isLoading, timeGranularity, t, topUserLimit]
   )
-
-  const activeSpec = CHART_TABS.find((tab) => tab.value === activeTab)
-  const spec = activeSpec ? chartData[activeSpec.specKey] : null
 
   return (
     <div className='space-y-4'>
@@ -164,55 +162,66 @@ export function UserCharts() {
           ))}
         </div>
 
+        <div className='flex items-center gap-1.5 rounded-md border p-0.5'>
+          <span className='text-muted-foreground px-2 text-xs font-medium'>
+            {t('Top Users')}
+          </span>
+          {TOP_USER_LIMIT_OPTIONS.map((limit) => (
+            <button
+              key={limit}
+              type='button'
+              onClick={() => setTopUserLimit(limit)}
+              className={`rounded-[5px] px-2.5 py-1 text-xs font-medium transition-colors ${
+                topUserLimit === limit
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {t('Top {{count}}', { count: limit })}
+            </button>
+          ))}
+        </div>
+
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
         )}
       </div>
 
-      {/* Chart card */}
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='flex w-full flex-col gap-3 border-b px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between'>
-          <div className='flex items-center gap-2'>
-            <Users className='text-muted-foreground/60 size-4' />
-            <div className='text-sm font-semibold'>{t('User Analytics')}</div>
-          </div>
+      <div className='grid gap-4'>
+        {USER_CHARTS.map((chart) => {
+          const spec = chartData[chart.specKey]
 
-          <div className='bg-muted/60 inline-flex h-8 rounded-md border p-0.5'>
-            {CHART_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                type='button'
-                onClick={() => setActiveTab(tab.value)}
-                className={`rounded-[5px] px-3 text-xs font-medium transition-colors ${
-                  activeTab === tab.value
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {t(tab.labelKey)}
-              </button>
-            ))}
-          </div>
-        </div>
+          return (
+            <div
+              key={chart.value}
+              className='overflow-hidden rounded-lg border'
+            >
+              <div className='flex w-full items-center gap-2 border-b px-4 py-3 sm:px-5'>
+                <Users className='text-muted-foreground/60 size-4' />
+                <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
+              </div>
 
-        <div className='h-96 p-2'>
-          {isLoading ? (
-            <Skeleton className='h-full w-full' />
-          ) : (
-            themeReady &&
-            spec && (
-              <VChart
-                key={`user-${activeTab}-${resolvedTheme}`}
-                spec={{
-                  ...spec,
-                  theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                  background: 'transparent',
-                }}
-                option={VCHART_OPTION}
-              />
-            )
-          )}
-        </div>
+              <div className='h-96 p-2'>
+                {isLoading ? (
+                  <Skeleton className='h-full w-full' />
+                ) : (
+                  themeReady &&
+                  spec && (
+                    <VChart
+                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}`}
+                      spec={{
+                        ...spec,
+                        theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+                        background: 'transparent',
+                      }}
+                      option={VCHART_OPTION}
+                    />
+                  )
+                )}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

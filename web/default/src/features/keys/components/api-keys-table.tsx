@@ -38,6 +38,7 @@ import { getApiKeys, searchApiKeys } from '../api'
 import { API_KEY_STATUS_OPTIONS, ERROR_MESSAGES } from '../constants'
 import { type ApiKey } from '../types'
 import { useApiKeysColumns } from './api-keys-columns'
+import { ApiKeysPrimaryButtons } from './api-keys-primary-buttons'
 import { useApiKeys } from './api-keys-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
@@ -160,17 +161,22 @@ export function ApiKeysTable() {
   return (
     <>
       <div className='space-y-4'>
-        <DataTableToolbar
-          table={table}
-          searchPlaceholder={t('Filter by name or key...')}
-          filters={[
-            {
-              columnId: 'status',
-              title: t('Status'),
-              options: API_KEY_STATUS_OPTIONS,
-            },
-          ]}
-        />
+        <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
+          <ApiKeysPrimaryButtons />
+          <div className='min-w-0 sm:flex sm:justify-end'>
+            <DataTableToolbar
+              table={table}
+              searchPlaceholder={t('Filter by name or key...')}
+              filters={[
+                {
+                  columnId: 'status',
+                  title: t('Status'),
+                  options: API_KEY_STATUS_OPTIONS,
+                },
+              ]}
+            />
+          </div>
+        </div>
         {isMobile ? (
           <MobileCardList
             table={table}

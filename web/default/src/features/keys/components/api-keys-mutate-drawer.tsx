@@ -24,13 +24,6 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -53,18 +46,24 @@ import {
   transformApiKeyToFormDefaults,
 } from '../lib'
 import { type ApiKey } from '../types'
+import {
+  ApiKeyGroupCombobox,
+  type ApiKeyGroupOption,
+} from './api-key-group-combobox'
 import { useApiKeys } from './api-keys-provider'
 
 type ApiKeyMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: ApiKey
+  side?: 'left' | 'right'
 }
 
 export function ApiKeysMutateDrawer({
   open,
   onOpenChange,
   currentRow,
+  side = 'right',
 }: ApiKeyMutateDrawerProps) {
   const { t } = useTranslation()
   const isUpdate = !!currentRow
@@ -88,14 +87,22 @@ export function ApiKeysMutateDrawer({
 
   const models = modelsData?.data || []
   const groupsRaw = groupsData?.data || {}
-  const groups = Object.entries(groupsRaw).map(([key, info]) => ({
-    value: key,
-    label: info.desc || key,
-  }))
+  const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw).map(
+    ([key, info]) => ({
+      value: key,
+      label: key,
+      desc: info.desc || key,
+      ratio: info.ratio,
+    })
+  )
 
   // Add auto group if configured
   if (!groups.some((g) => g.value === 'auto')) {
-    groups.unshift({ value: 'auto', label: t('Auto (Circuit Breaker)') })
+    groups.unshift({
+      value: 'auto',
+      label: 'auto',
+      desc: t('Auto (Circuit Breaker)'),
+    })
   }
 
   const form = useForm<ApiKeyFormValues>({
@@ -187,10 +194,9 @@ export function ApiKeysMutateDrawer({
     form.setValue('expired_time', now)
   }
 
-  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
-  const tokensOnly =
-    !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
+  const tokensOnly = currencyMeta.kind === 'tokens'
   const quotaLabel = t('Quota ({{currency}})', { currency: currencyLabel })
   const quotaPlaceholder = tokensOnly
     ? t('Enter quota in tokens')
@@ -206,7 +212,10 @@ export function ApiKeysMutateDrawer({
         }
       }}
     >
-      <SheetContent className='flex w-full flex-col sm:max-w-[600px]'>
+      <SheetContent
+        side={side}
+        className='flex w-full flex-col sm:max-w-[600px]'
+      >
         <SheetHeader className='text-start'>
           <SheetTitle>
             {isUpdate ? t('Update API Key') : t('Create API Key')}
@@ -244,20 +253,14 @@ export function ApiKeysMutateDrawer({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('Group')}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('Select a group')} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {groups.map((group) => (
-                        <SelectItem key={group.value} value={group.value}>
-                          {group.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <ApiKeyGroupCombobox
+                      options={groups}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      placeholder={t('Select a group')}
+                    />
+                  </FormControl>
                   <FormDescription>
                     {t('Auto group enables circuit breaker mechanism')}
                   </FormDescription>

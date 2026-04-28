@@ -71,8 +71,11 @@ type VChartSpec = Record<string, any>
 export interface ProcessedChartData {
   spec_pie: VChartSpec
   spec_line: VChartSpec
+  spec_area: VChartSpec
   spec_model_line: VChartSpec
   spec_rank_bar: VChartSpec
+  totalQuotaDisplay: string
+  totalCountDisplay: string
 }
 
 export interface ProcessedUserChartData {

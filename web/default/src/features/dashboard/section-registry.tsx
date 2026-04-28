@@ -13,8 +13,8 @@ const DASHBOARD_SECTIONS = [
   },
   {
     id: 'models',
-    titleKey: 'Models',
-    descriptionKey: 'View model statistics and charts',
+    titleKey: 'Model Call Analytics',
+    descriptionKey: 'View model call count analytics and charts',
     build: () => null,
   },
   {

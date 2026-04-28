@@ -35,6 +35,7 @@ import { PageFooterPortal } from '@/components/layout'
 import { getChannels, searchChannels, getGroups } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
+  CHANNEL_STATUS,
   CHANNEL_STATUS_OPTIONS,
   CHANNEL_TYPE_OPTIONS,
 } from '../constants'
@@ -49,6 +50,10 @@ import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 const route = getRouteApi('/_authenticated/channels/')
+
+function isDisabledChannelRow(channel: Channel) {
+  return !isTagAggregateRow(channel) && channel.status !== CHANNEL_STATUS.ENABLED
+}
 
 export function ChannelsTable() {
   const { t } = useTranslation()
@@ -318,6 +323,11 @@ export function ChannelsTable() {
             isLoading={isLoading}
             emptyTitle='No Channels Found'
             emptyDescription='No channels available. Create your first channel to get started.'
+            getRowClassName={(row) =>
+              isDisabledChannelRow(row.original)
+                ? 'border-l-4 border-l-muted-foreground/35 bg-muted/85 dark:border-l-zinc-300/70 dark:bg-zinc-700/55'
+                : undefined
+            }
           />
         ) : (
           <>
@@ -363,6 +373,10 @@ export function ChannelsTable() {
                       <TableRow
                         key={row.id}
                         data-state={row.getIsSelected() && 'selected'}
+                        className={cn(
+                          isDisabledChannelRow(row.original) &&
+                            'bg-muted/85 hover:bg-muted dark:bg-zinc-700/55 dark:hover:bg-zinc-700/70 [&>td:first-child]:border-l-4 [&>td:first-child]:border-l-muted-foreground/35 [&>td:first-child]:pl-1 dark:[&>td:first-child]:border-l-zinc-300/70'
+                        )}
                       >
                         {row.getVisibleCells().map((cell) => (
                           <TableCell key={cell.id}>

@@ -120,70 +120,87 @@ export function WorkspaceSwitcher({
     return null
   }
 
+  const canSwitchWorkspace = availableWorkspaces.length > 1
+  const workspaceButtonContent = (
+    <>
+      {activeWorkspace.id === WORKSPACE_IDS.SYSTEM_SETTINGS ? (
+        <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg'>
+          <activeWorkspace.logo className='size-4' />
+        </div>
+      ) : (
+        <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
+          <img
+            src={logo}
+            alt={t('Logo')}
+            className='size-full rounded-lg object-cover'
+          />
+        </div>
+      )}
+      <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
+        <span className='truncate font-semibold'>{activeWorkspace.name}</span>
+        <span className='truncate text-xs'>{activeWorkspace.plan}</span>
+      </div>
+      {canSwitchWorkspace && (
+        <ChevronsUpDown className='ms-auto group-data-[collapsible=icon]:hidden' />
+      )}
+    </>
+  )
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size='lg'
-              className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
-            >
-              {activeWorkspace.id === WORKSPACE_IDS.SYSTEM_SETTINGS ? (
-                <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg'>
-                  <activeWorkspace.logo className='size-4' />
-                </div>
-              ) : (
-                <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
-                  <img
-                    src={logo}
-                    alt={t('Logo')}
-                    className='size-full rounded-lg object-cover'
-                  />
-                </div>
-              )}
-              <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
-                <span className='truncate font-semibold'>
-                  {activeWorkspace.name}
-                </span>
-                <span className='truncate text-xs'>{activeWorkspace.plan}</span>
-              </div>
-              <ChevronsUpDown className='ms-auto group-data-[collapsible=icon]:hidden' />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className='w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg'
-            align='start'
-            side={isMobile ? 'bottom' : 'right'}
-            sideOffset={4}
-          >
-            <DropdownMenuLabel className='text-muted-foreground text-xs'>
-              {t('Workspaces')}
-            </DropdownMenuLabel>
-            {availableWorkspaces.map((workspace, index) => (
-              <DropdownMenuItem
-                key={workspace.id}
-                onClick={() => handleWorkspaceChange(workspace)}
-                className='gap-2 p-2'
+        {canSwitchWorkspace ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <SidebarMenuButton
+                size='lg'
+                className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
               >
-                {index === 0 ? (
-                  <div className='flex size-6 items-center justify-center overflow-hidden rounded-sm border'>
-                    <img
-                      src={logo}
-                      alt='Logo'
-                      className='size-full object-cover'
-                    />
-                  </div>
-                ) : (
-                  <div className='flex size-6 items-center justify-center rounded-sm border'>
-                    <workspace.logo className='size-4 shrink-0' />
-                  </div>
-                )}
-                {workspace.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                {workspaceButtonContent}
+              </SidebarMenuButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className='w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg'
+              align='start'
+              side={isMobile ? 'bottom' : 'right'}
+              sideOffset={4}
+            >
+              <DropdownMenuLabel className='text-muted-foreground text-xs'>
+                {t('Workspaces')}
+              </DropdownMenuLabel>
+              {availableWorkspaces.map((workspace, index) => (
+                <DropdownMenuItem
+                  key={workspace.id}
+                  onClick={() => handleWorkspaceChange(workspace)}
+                  className='gap-2 p-2'
+                >
+                  {index === 0 ? (
+                    <div className='flex size-6 items-center justify-center overflow-hidden rounded-sm border'>
+                      <img
+                        src={logo}
+                        alt='Logo'
+                        className='size-full object-cover'
+                      />
+                    </div>
+                  ) : (
+                    <div className='flex size-6 items-center justify-center rounded-sm border'>
+                      <workspace.logo className='size-4 shrink-0' />
+                    </div>
+                  )}
+                  {workspace.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <SidebarMenuButton
+            asChild
+            size='lg'
+            className='cursor-default hover:bg-transparent hover:text-sidebar-foreground active:bg-transparent active:text-sidebar-foreground'
+          >
+            <div>{workspaceButtonContent}</div>
+          </SidebarMenuButton>
+        )}
       </SidebarMenuItem>
     </SidebarMenu>
   )

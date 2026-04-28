@@ -45,14 +45,12 @@ export function buildQueryParams(
 ): {
   start_timestamp: number
   end_timestamp: number
-  default_time?: string
+  default_time: string
   username?: string
 } {
   return {
     ...timeRange,
-    ...(filters?.time_granularity && {
-      default_time: filters.time_granularity,
-    }),
+    default_time: getSavedGranularity(filters?.time_granularity),
     ...(filters?.username && { username: filters.username }),
   }
 }

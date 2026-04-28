@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
+import { useAuthStore } from '@/stores/auth-store'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
@@ -21,6 +22,8 @@ interface LogStatCardsProps {
 
 export function LogStatCards(props: LogStatCardsProps) {
   const statCardsConfig = useModelStatCardsConfig()
+  const user = useAuthStore((state) => state.auth.user)
+  const isAdmin = !!(user?.role && user.role >= 10)
   const [stats, setStats] = useState<{
     totalQuota: number
     totalCount: number
@@ -49,7 +52,7 @@ export function LogStatCards(props: LogStatCardsProps) {
     const timeDiff = (timeRange.end_timestamp - timeRange.start_timestamp) / 60
     setTimeRangeMinutes(timeDiff)
 
-    getUserQuotaDates(buildQueryParams(timeRange, filters))
+    getUserQuotaDates(buildQueryParams(timeRange, filters), isAdmin)
       .then((res) => {
         if (abortController.signal.aborted) return
         const data = res?.data || []
@@ -71,7 +74,7 @@ export function LogStatCards(props: LogStatCardsProps) {
     return () => {
       abortController.abort()
     }
-  }, [filters, onDataUpdate])
+  }, [filters, isAdmin, onDataUpdate])
 
   const adaptedStats = {
     rpm: stats?.totalCount ?? 0,

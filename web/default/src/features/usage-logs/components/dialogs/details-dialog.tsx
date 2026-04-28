@@ -175,7 +175,7 @@ function BillingBreakdown(props: {
     })
   }
 
-  if (!tieredSummary && isClaude) {
+  if (!tieredSummary && isClaude && hasAnyCacheTokens(other)) {
     if (other.cache_ratio != null && other.cache_ratio !== 1) {
       rows.push({
         label: t('Cache Read'),
@@ -376,6 +376,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const isTopup = props.log.type === 1
   const isManage = props.log.type === 3
   const isSubscription = other?.billing_source === 'subscription'
+  const isTieredBilling =
+    isConsume &&
+    !isViolation &&
+    other?.billing_mode === 'tiered_expr' &&
+    !!other?.expr_b64
   const hasAudioTokens = other?.ws || other?.audio
   const showTiming = isTimingLogType(props.log.type)
   const showAdminIp =
@@ -446,7 +451,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent
+        className={cn(
+          'min-w-0',
+          isTieredBilling ? 'sm:max-w-4xl lg:max-w-5xl' : 'sm:max-w-lg'
+        )}
+      >
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2 text-base'>
             {t('Log Details')}
@@ -462,8 +472,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className='max-h-[70vh] pr-4'>
-          <div className='space-y-3 py-1'>
+        <ScrollArea className='max-h-[70vh] min-w-0 pr-4'>
+          <div className='min-w-0 space-y-3 py-1'>
             {/* Overview section - key identifiers */}
             <div className='space-y-1.5'>
               {props.log.request_id && (
@@ -797,18 +807,15 @@ export function DetailsDialog(props: DetailsDialogProps) {
             )}
 
             {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
-            {isConsume &&
-              !isViolation &&
-              other?.billing_mode === 'tiered_expr' &&
-              other?.expr_b64 && (
-                <div className='bg-muted/30 rounded-md border px-3'>
-                  <DynamicPricingBreakdown
-                    billingExpr={decodeBillingExprB64(other.expr_b64)}
-                    matchedTierLabel={other.matched_tier}
-                    hideCacheColumns={!hasAnyCacheTokens(other)}
-                  />
-                </div>
-              )}
+            {isTieredBilling && other?.expr_b64 && (
+              <div className='bg-muted/30 min-w-0 rounded-md border px-3'>
+                <DynamicPricingBreakdown
+                  billingExpr={decodeBillingExprB64(other.expr_b64)}
+                  matchedTierLabel={other.matched_tier}
+                  hideCacheColumns={!hasAnyCacheTokens(other)}
+                />
+              </div>
+            )}
 
             {/* Admin billing mode indicator for non-consume */}
             {props.isAdmin &&

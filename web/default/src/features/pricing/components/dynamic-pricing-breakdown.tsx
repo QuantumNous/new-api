@@ -176,7 +176,7 @@ export function DynamicPricingBreakdown({
 
   if (!hasTiers && !hasRules) {
     return (
-      <section className='py-4'>
+      <section className='min-w-0 py-4'>
         <div className='mb-3 flex items-center gap-2'>
           <span className='inline-flex size-6 items-center justify-center rounded-full bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
             <TagIcon className='size-3.5' />
@@ -201,7 +201,7 @@ export function DynamicPricingBreakdown({
   })
 
   return (
-    <section className='py-4'>
+    <section className='min-w-0 py-4'>
       <div className='mb-4 flex items-start gap-2'>
         <span className='mt-0.5 inline-flex size-6 items-center justify-center rounded-full bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
           <TagIcon className='size-3.5' />
@@ -221,7 +221,7 @@ export function DynamicPricingBreakdown({
           <div className='text-foreground mb-2 text-sm font-semibold'>
             {t('Tiered price table')}
           </div>
-          <div className='-mx-4 sm:mx-0'>
+          <div className='-mx-4 max-w-[calc(100%+2rem)] overflow-x-auto sm:mx-0 sm:max-w-full'>
             <Table className='text-sm'>
               <TableHeader>
                 <TableRow className='hover:bg-transparent'>

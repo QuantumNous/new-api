@@ -3,6 +3,7 @@ import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -110,6 +111,12 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
     })
 
   const displayType = form.watch('general_setting.quota_display_type') ?? 'USD'
+  const displayInCurrencyEnabled = form.watch('DisplayInCurrencyEnabled')
+  const showTokensOnlyOption = displayType === 'TOKENS'
+  const showQuotaPerUnit =
+    displayType === 'TOKENS' ||
+    defaultValues.QuotaPerUnit !== DEFAULT_CURRENCY_CONFIG.quotaPerUnit
+  const showDisplayInCurrencyOption = displayInCurrencyEnabled === false
 
   return (
     <>
@@ -122,30 +129,32 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
         <Form {...form}>
           <form onSubmit={handleSubmit} className='space-y-6'>
             <FormDirtyIndicator isDirty={isDirty} />
-            <FormField
-              control={form.control}
-              name='QuotaPerUnit'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Quota Per Unit')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type='number'
-                      step='0.01'
-                      value={field.value as number}
-                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t('Number of tokens per unit quota')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {showQuotaPerUnit && (
+              <FormField
+                control={form.control}
+                name='QuotaPerUnit'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Quota Per Unit')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        step='0.01'
+                        value={field.value as number}
+                        disabled
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Number of tokens per unit quota')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -165,7 +174,11 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                       <SelectItem value='CUSTOM'>
                         {t('Custom Currency')}
                       </SelectItem>
-                      <SelectItem value='TOKENS'>{t('Tokens Only')}</SelectItem>
+                      {showTokensOnlyOption && (
+                        <SelectItem value='TOKENS'>
+                          {t('Tokens Only')}
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormDescription>
@@ -272,32 +285,34 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
               </div>
             )}
 
-            <FormField
-              control={form.control}
-              name='DisplayInCurrencyEnabled'
-              render={({ field }) => (
-                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                  <div className='space-y-0.5'>
-                    <FormLabel className='text-base'>
-                      {t('Display in Currency')}
-                    </FormLabel>
-                    <FormDescription>
-                      {displayType === 'TOKENS'
-                        ? t(
-                            'Tokens-only mode will show raw quota values regardless of this toggle.'
-                          )
-                        : t('Show prices in currency instead of quota.')}
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            {showDisplayInCurrencyOption && (
+              <FormField
+                control={form.control}
+                name='DisplayInCurrencyEnabled'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>
+                        {t('Display in Currency')}
+                      </FormLabel>
+                      <FormDescription>
+                        {displayType === 'TOKENS'
+                          ? t(
+                              'Tokens-only mode will show raw quota values regardless of this toggle.'
+                            )
+                          : t('Show prices in currency instead of quota.')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

@@ -5,7 +5,6 @@ import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
-import { AvailableModelsCard } from './components/available-models-card'
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
@@ -35,10 +34,6 @@ export function Profile() {
           <CardStaggerContainer className='space-y-8'>
             <CardStaggerItem>
               <ProfileHeader profile={profile} loading={loading} />
-            </CardStaggerItem>
-
-            <CardStaggerItem>
-              <AvailableModelsCard />
             </CardStaggerItem>
 
             <CardStaggerItem>

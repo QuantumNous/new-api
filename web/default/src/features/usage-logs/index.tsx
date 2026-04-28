@@ -2,7 +2,6 @@ import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
-import { CommonLogsStats } from './components/common-logs-stats'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import { UsageLogsPrimaryButtons } from './components/usage-logs-primary-buttons'
 import {
@@ -60,8 +59,9 @@ function UsageLogsContent() {
           {description}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
-          {activeCategory === 'common' && <CommonLogsStats />}
-          <UsageLogsPrimaryButtons logCategory={activeCategory} />
+          {activeCategory !== 'common' && (
+            <UsageLogsPrimaryButtons logCategory={activeCategory} />
+          )}
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <UsageLogsTable logCategory={activeCategory} />

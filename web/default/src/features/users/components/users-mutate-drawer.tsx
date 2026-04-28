@@ -95,10 +95,9 @@ export function UsersMutateDrawer({
     }
   }, [open, isUpdate, currentRow, form])
 
-  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
-  const tokensOnly =
-    !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
+  const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
 

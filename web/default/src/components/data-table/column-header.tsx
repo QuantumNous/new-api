@@ -19,7 +19,7 @@ import {
 type DataTableColumnHeaderProps<TData, TValue> =
   React.HTMLAttributes<HTMLDivElement> & {
     column: Column<TData, TValue>
-    title: string
+    title: React.ReactNode
   }
 
 export function DataTableColumnHeader<TData, TValue>({

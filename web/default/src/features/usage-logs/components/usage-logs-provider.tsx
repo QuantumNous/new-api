@@ -11,6 +11,8 @@ interface UsageLogsContextValue {
   setAffinityTarget: (target: ChannelAffinityInfo | null) => void
   affinityDialogOpen: boolean
   setAffinityDialogOpen: (open: boolean) => void
+  sensitiveVisible: boolean
+  setSensitiveVisible: (visible: boolean) => void
 }
 
 const UsageLogsContext = createContext<UsageLogsContextValue | undefined>(
@@ -23,6 +25,7 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
   const [affinityTarget, setAffinityTarget] =
     useState<ChannelAffinityInfo | null>(null)
   const [affinityDialogOpen, setAffinityDialogOpen] = useState(false)
+  const [sensitiveVisible, setSensitiveVisible] = useState(true)
 
   return (
     <UsageLogsContext.Provider
@@ -35,6 +38,8 @@ export function UsageLogsProvider({ children }: { children: ReactNode }) {
         setAffinityTarget,
         affinityDialogOpen,
         setAffinityDialogOpen,
+        sensitiveVisible,
+        setSensitiveVisible,
       }}
     >
       {children}

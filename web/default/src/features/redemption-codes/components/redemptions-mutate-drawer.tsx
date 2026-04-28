@@ -115,10 +115,9 @@ export function RedemptionsMutateDrawer({
     form.setValue('expired_time', newDate)
   }
 
-  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
-  const tokensOnly =
-    !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
+  const tokensOnly = currencyMeta.kind === 'tokens'
   const quotaLabel = t('Quota ({{currency}})', { currency: currencyLabel })
   const quotaPlaceholder = tokensOnly
     ? t('Enter quota in tokens')

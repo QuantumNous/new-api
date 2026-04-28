@@ -62,7 +62,7 @@ function useGroupRatios(): Record<string, number> {
       if (!res.success || !res.data) return {}
       const ratios: Record<string, number> = {}
       for (const [group, info] of Object.entries(res.data)) {
-        if (info.ratio !== undefined) {
+        if (typeof info.ratio === 'number') {
           ratios[group] = info.ratio
         }
       }

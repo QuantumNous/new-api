@@ -32,10 +32,9 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()
-  const tokensOnly =
-    !currencyConfig.displayInCurrency || currencyMeta.kind === 'tokens'
+  const tokensOnly = currencyMeta.kind === 'tokens'
 
   const amountValue = parseFloat(amount) || 0
   const quotaValue = parseQuotaFromDollars(Math.abs(amountValue))

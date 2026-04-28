@@ -10,14 +10,17 @@ import type { QuotaDataItem, UptimeGroupResult } from './types'
 // ----------------------------------------------------------------------------
 
 // Get user quota data within a time range
-// Admin users can specify 'username' to view other users' data
-export async function getUserQuotaDates(params: {
-  start_timestamp: number
-  end_timestamp: number
-  default_time?: string
-  username?: string
-}) {
-  const endpoint = params.username ? '/api/data' : '/api/data/self'
+// Admin users get all users' data by default (matching classic frontend behavior)
+export async function getUserQuotaDates(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+    default_time?: string
+    username?: string
+  },
+  isAdmin = false
+) {
+  const endpoint = isAdmin ? '/api/data' : '/api/data/self'
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
     endpoint,
     { params }
