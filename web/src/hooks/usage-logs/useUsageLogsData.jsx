@@ -42,9 +42,11 @@ import {
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
+import { useLogStatistics } from './useLogStatistics';
 
 export const useLogsData = () => {
   const { t } = useTranslation();
+  const logStatistics = useLogStatistics();
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -896,5 +898,9 @@ export const useLogsData = () => {
 
     // Translation
     t,
+
+    // Statistics drawer
+    ...logStatistics,
+    setShowStatisticsDrawer: logStatistics.setVisible,
   };
 };
