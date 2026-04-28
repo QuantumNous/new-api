@@ -803,27 +803,53 @@ const PRESET_GROUPS = [
       },
       {
         key: 'doubao-seedance-2-0', label: 'Doubao Seedance 2.0',
-        expr: `tier("base", c * 46) * ((param("resolution") == "1080p" || param("metadata.resolution") == "1080p") ? ((param("content.#(type==\"video_url\")") != nil || param("metadata.content.#(type==\"video_url\")") != nil) ? 31.0/46.0 : 51.0/46.0) : ((param("content.#(type==\"video_url\")") != nil || param("metadata.content.#(type==\"video_url\")") != nil) ? 28.0/46.0 : 1.0))`,
+        expr: 'tier("base", c * 46)',
+        requestRules: [
+          { conditions: [{ source: SOURCE_PARAM, path: 'resolution', mode: MATCH_EQ, value: '1080p' }], multiplier: '1.108696' },
+          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.resolution', mode: MATCH_EQ, value: '1080p' }], multiplier: '1.108696' },
+          { conditions: [{ source: SOURCE_PARAM, path: 'content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.608696' },
+          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.608696' },
+        ],
       },
       {
         key: 'doubao-seedance-2-0-fast', label: 'Doubao Seedance 2.0 Fast',
-        expr: `tier("base", c * 37) * ((param("content.#(type==\"video_url\")") != nil || param("metadata.content.#(type==\"video_url\")") != nil) ? 22.0/37.0 : 1.0)`,
+        expr: 'tier("base", c * 37)',
+        requestRules: [
+          { conditions: [{ source: SOURCE_PARAM, path: 'content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.594595' },
+          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.594595' },
+        ],
       },
       {
         key: 'doubao-seedance-1-5-pro', label: 'Doubao Seedance 1.5 Pro',
-        expr: `tier("base", c * 16) * ((param("generate_audio") == false || param("metadata.generate_audio") == false) ? 0.5 : 1.0)`,
+        expr: 'tier("base", c * 16)',
+        requestRules: [
+          { conditions: [{ source: SOURCE_PARAM, path: 'generate_audio', mode: MATCH_EQ, value: 'false' }], multiplier: '0.5' },
+          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.generate_audio', mode: MATCH_EQ, value: 'false' }], multiplier: '0.5' },
+        ],
       },
       {
         key: 'doubao-seedance-1-0-pro', label: 'Doubao Seedance 1.0 Pro',
-        expr: `tier("base", c * 15) * ((param("service_tier") == "flex" || param("metadata.service_tier") == "flex") ? 0.5 : 1.0)`,
+        expr: 'tier("base", c * 15)',
+        requestRules: [
+          { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
+          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
+        ],
       },
       {
         key: 'doubao-seedance-1-0-pro-fast', label: 'Doubao Seedance 1.0 Pro Fast',
-        expr: `tier("base", c * 4.2) * ((param("service_tier") == "flex" || param("metadata.service_tier") == "flex") ? 0.5 : 1.0)`,
+        expr: 'tier("base", c * 4.2)',
+        requestRules: [
+          { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
+          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
+        ],
       },
       {
         key: 'doubao-seedance-1-0-lite', label: 'Doubao Seedance 1.0 Lite',
-        expr: `tier("base", c * 10) * ((param("service_tier") == "flex" || param("metadata.service_tier") == "flex") ? 0.5 : 1.0)`,
+        expr: 'tier("base", c * 10)',
+        requestRules: [
+          { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
+          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
+        ],
       },
     ],
   },
