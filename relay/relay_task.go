@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -393,6 +395,13 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
+	// Volc-native format: return task.Data (raw upstream response) if available,
+	// otherwise synthesize a minimal queued response.
+	if c.GetString("relay_format") == string(types.RelayFormatVolc) {
+		respBody = buildVolcNativeTaskFetchResp(originTask)
+		return
+	}
+
 	// OpenAI Video API 格式: 走各 adaptor 的 ConvertToOpenAIVideo
 	if isOpenAIVideoAPI {
 		adaptor := GetTaskAdaptor(originTask.Platform)
@@ -422,6 +431,65 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+// buildVolcNativeTaskFetchResp returns the Volc-native ContentGenerationTask JSON
+// for a GET /api/v3/contents/generations/tasks/:id response.
+//
+// If task.Data already contains a polled upstream response (has "status" field),
+// it is returned with the "id" field patched to the public task ID. Otherwise a
+// minimal synthesized response is returned using the task's internal status so
+// the SDK can determine the current state without waiting for the next background
+// poll cycle.
+func buildVolcNativeTaskFetchResp(t *model.Task) []byte {
+	// Check if task.Data contains a full polled response (has "status" key).
+	if len(t.Data) > 0 {
+		var probe map[string]json.RawMessage
+		if json.Unmarshal(t.Data, &probe) == nil {
+			if _, hasStatus := probe["status"]; hasStatus {
+				// task.Data is an upstream Volc response — return it with the
+				// public task ID so the SDK's polling loop can match responses.
+				probe["id"] = json.RawMessage(`"` + t.TaskID + `"`)
+				if patched, err := json.Marshal(probe); err == nil {
+					return patched
+				}
+				return t.Data
+			}
+		}
+	}
+
+	// No polled data yet — synthesize a minimal response.
+	arkStatus := mapInternalTaskStatusToArk(t.Status)
+	modelName := t.Properties.OriginModelName
+	if modelName == "" {
+		modelName = t.Properties.UpstreamModelName
+	}
+	synth := map[string]interface{}{
+		"id":         t.TaskID,
+		"model":      modelName,
+		"status":     arkStatus,
+		"created_at": t.CreatedAt,
+		"updated_at": t.UpdatedAt,
+	}
+	if t.Status == model.TaskStatusSuccess {
+		synth["content"] = map[string]string{
+			"video_url":      t.GetResultURL(),
+			"last_frame_url": "",
+			"file_url":       "",
+		}
+		synth["usage"] = map[string]int{"completion_tokens": 0}
+	}
+	if t.FailReason != "" {
+		synth["error"] = map[string]string{
+			"message": t.FailReason,
+			"code":    "task_failed",
+		}
+	}
+	b, err := common.Marshal(synth)
+	if err != nil {
+		return []byte(`{"id":"` + t.TaskID + `","status":"` + arkStatus + `"}`)
+	}
+	return b
 }
 
 type volcVideoTaskListItem struct {
