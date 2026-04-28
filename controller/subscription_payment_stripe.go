@@ -3,7 +3,6 @@ package controller
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -41,7 +40,11 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "该套餐未配置 StripePriceId")
 		return
 	}
-	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
+	if !setting.StripeEnabled {
+		common.ApiErrorMsg(c, "Stripe 未启用")
+		return
+	}
+	if !isStripeAPISecretConfigured() {
 		common.ApiErrorMsg(c, "Stripe 未配置或密钥无效")
 		return
 	}
@@ -76,7 +79,9 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
-	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId)
+	stripeLiveMode := isStripeLiveMode()
+	customerId := model.GetStripeCustomerID(user, stripeLiveMode)
+	payLink, err := genStripeSubscriptionLink(referenceId, customerId, user.Email, plan.StripePriceId)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅支付链接创建失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
@@ -107,7 +112,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 }
 
 func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string) (string, error) {
-	stripe.Key = setting.StripeApiSecret
+	stripe.Key = getStripeAPISecret()
 
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),

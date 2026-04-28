@@ -7,8 +7,23 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
+func getStripeAPISecret() string {
+	return strings.TrimSpace(setting.StripeApiSecret)
+}
+
+func isStripeAPISecretConfigured() bool {
+	key := getStripeAPISecret()
+	return strings.HasPrefix(key, "sk_") || strings.HasPrefix(key, "rk_")
+}
+
+func isStripeLiveMode() bool {
+	key := getStripeAPISecret()
+	return strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_")
+}
+
 func isStripeTopUpEnabled() bool {
-	return strings.TrimSpace(setting.StripeApiSecret) != "" &&
+	return setting.StripeEnabled &&
+		isStripeAPISecretConfigured() &&
 		strings.TrimSpace(setting.StripeWebhookSecret) != "" &&
 		strings.TrimSpace(setting.StripePriceId) != ""
 }
@@ -18,7 +33,7 @@ func isStripeWebhookConfigured() bool {
 }
 
 func isStripeWebhookEnabled() bool {
-	return isStripeTopUpEnabled()
+	return isStripeWebhookConfigured()
 }
 
 func isCreemTopUpEnabled() bool {
