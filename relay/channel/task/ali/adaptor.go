@@ -387,8 +387,8 @@ func (a *TaskAdaptor) convertToHappyHorseRequest(info *relaycommon.RelayInfo, up
 			aliReq.Input.Media = append(aliReq.Input.Media, AliMediaItem{Type: "reference_image", URL: url})
 		}
 	} else if isEdit {
-		if len(req.Videos) < 1 {
-			return nil, fmt.Errorf("happyhorse video-edit requires exactly 1 video")
+		if len(req.Videos) != 1 {
+			return nil, fmt.Errorf("happyhorse video-edit requires exactly 1 video, got %d", len(req.Videos))
 		}
 		if len(req.Images) > 5 {
 			return nil, fmt.Errorf("happyhorse video-edit supports at most 5 reference images, got %d", len(req.Images))
