@@ -93,7 +93,7 @@ const SearchActions = memo(
           <>
             <Divider layout='vertical' margin='8px' />
 
-            {/* 充值价格显示开关 */}
+{/*           
             {supportsCurrencyDisplay && (
               <div className='flex items-center gap-2'>
                 <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
@@ -104,7 +104,7 @@ const SearchActions = memo(
               </div>
             )}
 
-            {/* 货币单位选择 */}
+           
             {supportsCurrencyDisplay && showWithRecharge && (
               <Select
                 value={currency}
@@ -115,7 +115,7 @@ const SearchActions = memo(
                   { value: 'CUSTOM', label: t('自定义货币') },
                 ]}
               />
-            )}
+            )}  */}
 
             {/* 显示倍率开关 */}
             <div className='flex items-center gap-2'>

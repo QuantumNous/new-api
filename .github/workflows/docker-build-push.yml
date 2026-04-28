@@ -1,0 +1,219 @@
+# =============================================================================
+# GQ API Docker 镜像构建与推送工作流
+# =============================================================================
+# 功能说明：
+#   当 gqapi_release 分支有新代码提交时，自动构建 Docker 镜像并推送到 Docker Hub
+#   版本号从项目根目录的 VERSION 文件读取
+#
+# 触发条件：
+#   1. 推送代码到 gqapi_release 分支
+#   2. 手动触发（workflow_dispatch）
+#
+# 输出镜像：
+#   - {DOCKER_HUB_USERNAME}/gq-api:{version}  (如 v0.13.2)
+#   - {DOCKER_HUB_USERNAME}/gq-api:latest
+#
+# 前置条件：
+#   需要在 GitHub 仓库 Settings → Secrets and variables → Actions 中配置：
+#   - DOCKER_HUB_USERNAME: Docker Hub 用户名
+#   - DOCKER_HUB_ACCESS_TOKEN: Docker Hub Access Token
+#   - SMTP_SERVER: SMTP 服务器地址（如 smtp.qq.com）
+#   - SMTP_PORT: SMTP 端口（如 465）
+#   - SMTP_USERNAME: SMTP 用户名（邮箱地址）
+#   - SMTP_PASSWORD: SMTP 密码/授权码
+#   - NOTIFY_EMAIL: 接收通知的邮箱地址
+# =============================================================================
+
+name: Build and Push Docker Image
+
+# -----------------------------------------------------------------------------
+# 触发条件配置
+# -----------------------------------------------------------------------------
+on:
+  # 当推送到 gqapi_release 分支时触发
+  push:
+    branches:
+      - gqapi_release
+  # 允许在 GitHub Actions 页面手动触发
+  workflow_dispatch:
+
+# -----------------------------------------------------------------------------
+# 任务定义
+# -----------------------------------------------------------------------------
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: 构建并推送 Docker 镜像
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    # 使用 Ubuntu 最新版本作为运行环境
+    runs-on: ubuntu-latest
+    
+    # 配置权限
+    # - contents: read - 读取仓库代码
+    # - packages: write - 推送镜像到容器仓库
+    permissions:
+      contents: read
+      packages: write
+
+    # 输出变量供后续任务使用
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    # -------------------------------------------------------------------------
+    # 构建步骤
+    # -------------------------------------------------------------------------
+    steps:
+      # 步骤 1：检出代码
+      # 从 GitHub 仓库拉取最新代码到工作目录
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 步骤 2：读取版本号
+      # 从项目根目录的 VERSION 文件读取版本号（如 v0.13.2）
+      # 输出变量：version - 用于后续步骤的镜像标签
+      - name: Read version from VERSION file
+        id: version
+        run: |
+          VERSION=$(cat VERSION)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      # 步骤 3：设置 Docker Buildx
+      # Buildx 是 Docker 的扩展构建工具，支持多平台构建和缓存
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 步骤 4：登录 Docker Hub
+      # 使用配置的 secrets 进行身份验证
+      # secrets.DOCKER_HUB_USERNAME - Docker Hub 用户名
+      # secrets.DOCKER_HUB_ACCESS_TOKEN - Docker Hub 访问令牌
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      # 步骤 5：构建并推送 Docker 镜像
+      # - context: . 表示使用当前目录（Dockerfile 所在目录）
+      # - push: true 表示构建完成后自动推送到 Docker Hub
+      # - tags: 镜像标签，包含版本号标签和 latest 标签
+      # - cache: 使用 GitHub Actions 缓存加速后续构建
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:latest
+          # 启用 GitHub Actions 缓存，加速后续构建
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 步骤 6：输出构建摘要
+      # 在 GitHub Actions 运行页面显示构建结果信息
+      - name: Summary
+        run: |
+          echo "### Docker Image Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tags**:" >> $GITHUB_STEP_SUMMARY
+          echo "  - \`${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "  - \`${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:latest\`" >> $GITHUB_STEP_SUMMARY
+
+  # ---------------------------------------------------------------------------
+  # Job 2: 构建后处理 - 发送邮件通知
+  # ---------------------------------------------------------------------------
+  # always() 确保无论构建成功还是失败都会执行邮件通知
+  post-build:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: always()
+    
+    steps:
+      # 获取构建任务的状态
+      - name: Get build status
+        id: status
+        run: |
+          if [ "${{ needs.build-and-push.result }}" == "success" ]; then
+            echo "status=成功 ✅" >> $GITHUB_OUTPUT
+            echo "color=#28a745" >> $GITHUB_OUTPUT
+          else
+            echo "status=失败 ❌" >> $GITHUB_OUTPUT
+            echo "color=#dc3545" >> $GITHUB_OUTPUT
+          fi
+
+      # 发送邮件通知
+      # 使用 dawidd6/action-send-mail 发送邮件
+      - name: Send email notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          # SMTP 服务器配置
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          # SMTP 认证信息
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          # 邮件内容
+          subject: "GQ API Docker 构建通知 - ${{ steps.status.outputs.status }}"
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: GQ API CI/CD
+          # 邮件正文（HTML 格式）
+          html_body: |
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: ${{ steps.status.outputs.color }}; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+                .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-radius: 0 0 5px 5px; }
+                .info-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                .info-table td { padding: 10px; border-bottom: 1px solid #ddd; }
+                .info-table td:first-child { font-weight: bold; width: 120px; }
+                .footer { margin-top: 20px; font-size: 12px; color: #666; text-align: center; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h2>🚀 GQ API Docker 构建通知</h2>
+                </div>
+                <div class="content">
+                  <p>构建状态：<strong style="color: ${{ steps.status.outputs.color }}">{{ steps.status.outputs.status }}</strong></p>
+                  <table class="info-table">
+                    <tr>
+                      <td>版本号</td>
+                      <td>${{ needs.build-and-push.outputs.version || 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                      <td>分支</td>
+                      <td>${{ github.ref_name }}</td>
+                    </tr>
+                    <tr>
+                      <td>触发者</td>
+                      <td>${{ github.actor }}</td>
+                    </tr>
+                    <tr>
+                      <td>提交信息</td>
+                      <td>${{ github.event.head_commit.message }}</td>
+                    </tr>
+                    <tr>
+                      <td>构建时间</td>
+                      <td>${{ github.event.head_commit.timestamp }}</td>
+                    </tr>
+                  </table>
+                  <p style="margin-top: 20px;">
+                    <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" 
+                       style="background: #0366d6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                      查看构建详情
+                    </a>
+                  </p>
+                </div>
+                <div class="footer">
+                  此邮件由 GitHub Actions 自动发送
+                </div>
+              </div>
+            </body>
+            </html>
