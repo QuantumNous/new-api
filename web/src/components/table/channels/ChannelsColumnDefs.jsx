@@ -683,6 +683,66 @@ export const getChannelsColumns = ({
       },
     },
     {
+      key: COLUMN_KEYS.MAX_CONCURRENCY,
+      title: t('最大并发'),
+      dataIndex: 'max_concurrency',
+      render: (text, record, index) => {
+        if (record.children === undefined) {
+          return (
+            <div>
+              <InputNumber
+                style={{ width: 70 }}
+                name='max_concurrency'
+                onBlur={(e) => {
+                  manageChannel(
+                    record.id,
+                    'max_concurrency',
+                    record,
+                    e.target.value,
+                  );
+                }}
+                keepFocus={true}
+                innerButtons
+                defaultValue={record.max_concurrency}
+                min={0}
+                size='small'
+              />
+            </div>
+          );
+        } else {
+          return (
+            <InputNumber
+              style={{ width: 70 }}
+              name='max_concurrency'
+              keepFocus={true}
+              onBlur={(e) => {
+                Modal.warning({
+                  title: t('修改子渠道最大并发'),
+                  content:
+                    t('确定要修改所有子渠道最大并发为 ') +
+                    e.target.value +
+                    t(' 吗？'),
+                  onOk: () => {
+                    if (e.target.value === '') {
+                      return;
+                    }
+                    submitTagEdit('max_concurrency', {
+                      tag: record.key,
+                      max_concurrency: e.target.value,
+                    });
+                  },
+                });
+              }}
+              innerButtons
+              defaultValue={record.max_concurrency}
+              min={0}
+              size='small'
+            />
+          );
+        }
+      },
+    },
+    {
       key: COLUMN_KEYS.OPERATE,
       title: '',
       dataIndex: 'operate',
