@@ -257,7 +257,7 @@ const Home = () => {
             />
           ) : (
             <div
-              className='mt-[60px]'
+              className='header-offset-top'
               dangerouslySetInnerHTML={{ __html: homePageContent }}
             />
           )}

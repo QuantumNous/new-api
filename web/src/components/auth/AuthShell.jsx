@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconArrowLeft } from '@douyinfe/semi-icons';
 import { getSystemName } from '../../helpers';
 import {
   getAuthPageCopy,
@@ -51,11 +49,6 @@ const AuthShell = ({ mode, children }) => {
           <div className='auth-shell-glow auth-shell-glow-secondary' />
 
           <div className='relative z-10'>
-            <Link to='/' className={themeClasses.backLink}>
-              <IconArrowLeft size='small' />
-              <span>{t('返回首页')}</span>
-            </Link>
-
             <h2 className={themeClasses.headline}>
               {t('在这里，')}
               <br />
@@ -112,11 +105,6 @@ const AuthShell = ({ mode, children }) => {
         </div>
 
         <div className={themeClasses.surface}>
-          <Link to='/' className={themeClasses.mobileBackLink}>
-            <IconArrowLeft size='small' />
-            <span>{t('返回首页')}</span>
-          </Link>
-
           <div className='mx-auto w-full max-w-[440px]'>
             <div className='mb-8'>
               <h1 className={themeClasses.title}>{copy.title}</h1>

@@ -21,7 +21,7 @@ import ModelsTable from '../../components/table/models';
 
 const ModelPage = () => {
   return (
-    <div className='mt-[60px] px-2'>
+    <div className='header-offset-top px-2'>
       <ModelsTable />
     </div>
   );
