@@ -15,7 +15,7 @@
 
 /* ==================== 全局基础样式 ==================== */
 :root {
-  --sidebar-width: 180px;
+  --sidebar-width: 256px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
 }
@@ -36,16 +36,21 @@ body {
   body {
     overflow-y: hidden;
   }
+
+  .app-layout .mt-\[60px\] {
+    margin-top: 0 !important;
+  }
 }
 
 .app-layout {
   height: 100vh;
   height: 100dvh;
+  background: var(--semi-color-bg-0);
 }
 
 .app-sider {
-  height: calc(100vh - 64px);
-  height: calc(100dvh - 64px);
+  height: 100vh;
+  height: 100dvh;
 }
 
 code {
@@ -72,7 +77,7 @@ code {
 /* ==================== 导航和侧边栏样式 ==================== */
 .semi-navigation-item {
   margin-bottom: 4px !important;
-  padding: 4px 12px !important;
+  padding: 10px 12px !important;
 }
 
 .semi-navigation-sub-title {
@@ -91,6 +96,8 @@ code {
 .sidebar-nav .semi-navigation-item-text {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
 }
 
 .semi-navigation-item,
@@ -126,13 +133,14 @@ code {
   flex-direction: column;
   min-height: 0;
   transition: width 0.3s ease;
-  background: var(--semi-color-bg-0);
+  background: linear-gradient(180deg, #ffffff 0%, #fcfcfe 100%);
+  border-right: 1px solid rgba(219, 224, 234, 0.9);
 }
 
 .sidebar-nav {
   flex: 1;
   width: 100%;
-  background: var(--semi-color-bg-0);
+  background: transparent;
   height: 100%;
   overflow-x: hidden;
   border-right: none;
@@ -149,31 +157,40 @@ code {
 
 /* 侧边栏导航项样式 */
 .sidebar-nav-item {
-  border-radius: 6px;
-  margin: 3px 8px;
+  border-radius: 18px;
+  margin: 2px 12px;
   transition: all 0.15s ease;
-  padding: 8px 12px;
+  padding: 10px 12px;
 }
 
 .sidebar-nav-item:hover {
-  background-color: rgba(var(--semi-blue-0), 0.08);
-  color: var(--semi-color-primary);
+  background: linear-gradient(
+    135deg,
+    rgba(202, 136, 255, 0.1),
+    rgba(46, 168, 255, 0.08)
+  );
+  color: #9d42ef;
 }
 
 .sidebar-nav-item-selected {
-  background-color: rgba(var(--semi-blue-0), 0.12);
-  color: var(--semi-color-primary);
-  font-weight: 500;
+  background: linear-gradient(
+    135deg,
+    rgba(202, 136, 255, 0.22),
+    rgba(46, 168, 255, 0.12)
+  );
+  color: #9d42ef;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 /* 图标容器样式 */
 .sidebar-icon-container {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 10px;
+  margin-right: 12px;
   transition: all 0.2s ease;
 }
 
@@ -190,18 +207,20 @@ code {
 
 /* 分割线样式 */
 .sidebar-divider {
-  margin: 4px 8px;
-  opacity: 0.15;
+  margin: 10px 16px;
+  opacity: 1;
+  border-color: rgba(219, 224, 234, 0.9) !important;
 }
 
 /* 分组标签样式 */
 .sidebar-group-label {
-  padding: 4px 15px 8px;
-  color: var(--semi-color-text-2);
-  font-size: 12px;
+  padding: 4px 20px 8px;
+  color: #98a2b3;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  opacity: 0.8;
+  letter-spacing: 0.12em;
+  opacity: 1;
 }
 
 /* 底部折叠按钮 */
@@ -212,13 +231,13 @@ code {
   padding: 12px;
   margin-top: auto;
   cursor: pointer;
-  background-color: var(--semi-color-bg-0);
+  background-color: transparent;
   position: sticky;
   bottom: 0;
   z-index: 10;
-  box-shadow: 0 -10px 10px -5px var(--semi-color-bg-0);
+  box-shadow: 0 -10px 18px -10px rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(4px);
-  border-top: 1px solid rgba(var(--semi-grey-0), 0.08);
+  border-top: 1px solid rgba(219, 224, 234, 0.9);
 }
 
 .sidebar-collapse-button-inner {
@@ -242,6 +261,150 @@ code {
   padding-top: 12px;
 }
 
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(219, 224, 234, 0.9);
+  text-decoration: none;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.sidebar-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #c454f5 0%, #ec4899 52%, #2ea8ff 100%);
+  box-shadow: 0 10px 22px rgba(196, 84, 245, 0.18);
+}
+
+.sidebar-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sidebar-brand-copy {
+  min-width: 0;
+}
+
+.sidebar-brand-title {
+  display: block;
+  color: #101828 !important;
+  font-size: 15px;
+  font-weight: 700 !important;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-card {
+  margin: 0 12px 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(219, 224, 234, 0.9);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fbfbfd 0%, #f4f6fb 100%);
+}
+
+.sidebar-user-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-user-avatar.semi-avatar {
+  flex-shrink: 0;
+}
+
+.sidebar-user-copy {
+  min-width: 0;
+}
+
+.sidebar-user-name {
+  color: #101828;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-meta {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    backdrop-filter 0.2s ease;
+}
+
+.app-header-console {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(219, 224, 234, 0.9);
+}
+
+.app-header-site {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(14px);
+}
+
+.app-header-inner {
+  gap: 16px;
+}
+
+.app-header-left {
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.app-header-actions {
+  flex-shrink: 0;
+}
+
+.app-header-menu-button.semi-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.05);
+}
+
+.app-header-menu-button.semi-button:hover {
+  background: #ffffff;
+}
+
+.app-header-nav a {
+  color: #667085;
+}
+
+.app-header-nav a:hover {
+  color: #9d42ef;
+}
+
+.app-header-actions
+  .semi-button:not(.dashboard-header-button):not(.dashboard-promo-button) {
+  border-radius: 12px !important;
+}
+
 @media (max-width: 767px) {
   .sidebar-container {
     background: var(--semi-color-bg-1);
@@ -256,6 +419,81 @@ code {
     background-color: var(--semi-color-bg-1);
     box-shadow: 0 -10px 10px -5px var(--semi-color-bg-1);
   }
+}
+
+html.dark .sidebar-container {
+  background: linear-gradient(180deg, #111318 0%, #0f1115 100%);
+  border-right-color: rgba(43, 48, 59, 0.95);
+}
+
+html.dark .sidebar-brand {
+  background: rgba(17, 19, 24, 0.94);
+  border-bottom-color: rgba(43, 48, 59, 0.95);
+}
+
+html.dark .sidebar-brand-title,
+html.dark .sidebar-user-name {
+  color: #f8fafc !important;
+}
+
+html.dark .sidebar-user-meta,
+html.dark .sidebar-group-label {
+  color: #98a2b3;
+}
+
+html.dark .sidebar-nav-item:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(177, 77, 241, 0.18),
+    rgba(46, 168, 255, 0.1)
+  );
+  color: #d48dff;
+}
+
+html.dark .sidebar-nav-item-selected {
+  background: linear-gradient(
+    135deg,
+    rgba(177, 77, 241, 0.24),
+    rgba(46, 168, 255, 0.12)
+  );
+  color: #d48dff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html.dark .sidebar-divider {
+  border-color: rgba(43, 48, 59, 0.95) !important;
+}
+
+html.dark .sidebar-user-card {
+  border-color: rgba(43, 48, 59, 0.95);
+  background: linear-gradient(180deg, #171a21 0%, #12151b 100%);
+}
+
+html.dark .sidebar-collapse-button {
+  border-top-color: rgba(43, 48, 59, 0.95);
+  box-shadow: 0 -10px 18px -10px rgba(0, 0, 0, 0.45);
+}
+
+html.dark .app-header-console {
+  background: rgba(17, 19, 24, 0.88);
+  border-bottom-color: rgba(43, 48, 59, 0.95);
+}
+
+html.dark .app-header-menu-button.semi-button {
+  background: rgba(24, 28, 35, 0.96);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .app-header-menu-button.semi-button:hover {
+  background: rgba(30, 35, 43, 1);
+}
+
+html.dark .app-header-nav a {
+  color: #98a2b3;
+}
+
+html.dark .app-header-nav a:hover {
+  color: #d48dff;
 }
 
 /* ==================== 聊天界面样式 ==================== */

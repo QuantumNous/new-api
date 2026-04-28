@@ -51,6 +51,7 @@ const PageLayout = () => {
   const location = useLocation();
 
   const cardProPages = [
+    '/console',
     '/console/channel',
     '/console/log',
     '/console/redemption',
@@ -71,6 +72,7 @@ const PageLayout = () => {
 
   const isConsoleRoute = location.pathname.startsWith('/console');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
+  const desktopConsoleShell = isConsoleRoute && !isMobile;
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -159,7 +161,10 @@ const PageLayout = () => {
           height: 'auto',
           lineHeight: 'normal',
           position: 'fixed',
-          width: '100%',
+          width: desktopConsoleShell
+            ? 'calc(100% - var(--sidebar-current-width))'
+            : '100%',
+          left: desktopConsoleShell ? 'var(--sidebar-current-width)' : '0',
           top: 0,
           zIndex: 100,
         }}
@@ -182,11 +187,12 @@ const PageLayout = () => {
             style={{
               position: 'fixed',
               left: 0,
-              top: '64px',
+              top: desktopConsoleShell ? '0' : '64px',
               zIndex: 99,
               border: 'none',
               paddingRight: '0',
               width: 'var(--sidebar-current-width)',
+              height: desktopConsoleShell ? '100vh' : 'calc(100vh - 64px)',
             }}
           >
             <SiderBar
@@ -214,6 +220,7 @@ const PageLayout = () => {
               overflowY: isMobile ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
+              paddingTop: desktopConsoleShell ? '88px' : undefined,
               position: 'relative',
             }}
           >

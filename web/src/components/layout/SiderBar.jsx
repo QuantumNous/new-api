@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon } from '../../helpers/render';
@@ -28,7 +28,9 @@ import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime'
 import { isAdmin, isRoot, showError } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
-import { Nav, Divider, Button } from '@douyinfe/semi-ui';
+import { Nav, Divider, Button, Avatar, Typography } from '@douyinfe/semi-ui';
+import { UserContext } from '../../context/User';
+import { getLogo, getSystemName, stringToColor } from '../../helpers';
 
 const routerMap = {
   home: '/',
@@ -53,6 +55,7 @@ const routerMap = {
 
 const SiderBar = ({ onNavigate = () => {} }) => {
   const { t } = useTranslation();
+  const [userState] = useContext(UserContext);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const {
     isModuleVisible,
@@ -67,6 +70,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const [openedKeys, setOpenedKeys] = useState([]);
   const location = useLocation();
   const [routerMapState, setRouterMapState] = useState(routerMap);
+  const logo = getLogo();
+  const systemName = getSystemName();
 
   const workspaceItems = useMemo(() => {
     const items = [
@@ -400,6 +405,21 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         collapsed={collapsed}
         showAdmin={isAdmin()}
       >
+        <Link to='/' className='sidebar-brand' onClick={onNavigate}>
+          <div className='sidebar-brand-mark'>
+            {logo ? (
+              <img src={logo} alt='logo' className='sidebar-brand-logo' />
+            ) : null}
+          </div>
+          {!collapsed && (
+            <div className='sidebar-brand-copy'>
+              <Typography.Text className='sidebar-brand-title'>
+                {systemName}
+              </Typography.Text>
+            </div>
+          )}
+        </Link>
+
         <Nav
           className='sidebar-nav'
           defaultIsCollapsed={collapsed}
@@ -490,6 +510,26 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         </Nav>
       </SkeletonWrapper>
 
+      {userState?.user && !collapsed && !showSkeleton && (
+        <div className='sidebar-user-card'>
+          <div className='sidebar-user-main'>
+            <Avatar
+              size='small'
+              color={stringToColor(userState.user.username)}
+              className='sidebar-user-avatar'
+            >
+              {userState.user.username?.[0]?.toUpperCase()}
+            </Avatar>
+            <div className='sidebar-user-copy'>
+              <div className='sidebar-user-name'>{userState.user.username}</div>
+              <div className='sidebar-user-meta'>
+                {userState.user.email || t('已登录用户')}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 底部折叠按钮 */}
       <div className='sidebar-collapse-button'>
         <SkeletonWrapper
@@ -517,11 +557,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             icononly={collapsed}
             style={
               collapsed
-                ? { width: 36, height: 24, padding: 0 }
-                : { padding: '4px 12px', width: '100%' }
+                ? { width: 36, height: 36, padding: 0 }
+                : { padding: '6px 12px', width: '100%' }
             }
           >
-            {!collapsed ? t('收起侧边栏') : null}
+            {!collapsed ? t('收起') : null}
           </Button>
         </SkeletonWrapper>
       </div>

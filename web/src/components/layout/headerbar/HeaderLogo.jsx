@@ -33,13 +33,13 @@ const HeaderLogo = ({
   isDemoSiteMode,
   t,
 }) => {
-  if (isMobile && isConsoleRoute) {
+  if (isConsoleRoute) {
     return null;
   }
 
   return (
-    <Link to='/' className='group flex items-center gap-2'>
-      <div className='relative w-8 h-8 md:w-8 md:h-8'>
+    <Link to='/' className='app-header-brand group flex items-center gap-3'>
+      <div className='relative w-9 h-9 md:w-9 md:h-9'>
         <SkeletonWrapper loading={isLoading || !logoLoaded} type='image' />
         <img
           src={logo}

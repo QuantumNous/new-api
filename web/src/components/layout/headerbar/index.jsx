@@ -65,7 +65,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
 
   return (
-    <header className='text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg'>
+    <header
+      className={`app-header text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 ${isConsoleRoute ? 'app-header-console' : 'app-header-site'}`}
+    >
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
@@ -74,9 +76,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         unreadKeys={getUnreadKeys()}
       />
 
-      <div className='w-full px-2'>
-        <div className='flex items-center justify-between h-16'>
-          <div className='flex items-center'>
+      <div className='w-full px-2 md:px-4'>
+        <div className='app-header-inner flex items-center justify-between h-16'>
+          <div className='app-header-left flex items-center'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}
@@ -102,27 +104,30 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
           <Navigation
             mainNavLinks={mainNavLinks}
             isMobile={isMobile}
+            isConsoleRoute={isConsoleRoute}
             isLoading={isLoading}
             userState={userState}
             pricingRequireAuth={pricingRequireAuth}
           />
 
-          <ActionButtons
-            isNewYear={isNewYear}
-            unreadCount={unreadCount}
-            onNoticeOpen={handleNoticeOpen}
-            theme={theme}
-            onThemeToggle={handleThemeToggle}
-            currentLang={currentLang}
-            onLanguageChange={handleLanguageChange}
-            userState={userState}
-            isLoading={isLoading}
-            isMobile={isMobile}
-            isSelfUseMode={isSelfUseMode}
-            logout={logout}
-            navigate={navigate}
-            t={t}
-          />
+          <div className='app-header-actions'>
+            <ActionButtons
+              isNewYear={isNewYear}
+              unreadCount={unreadCount}
+              onNoticeOpen={handleNoticeOpen}
+              theme={theme}
+              onThemeToggle={handleThemeToggle}
+              currentLang={currentLang}
+              onLanguageChange={handleLanguageChange}
+              userState={userState}
+              isLoading={isLoading}
+              isMobile={isMobile}
+              isSelfUseMode={isSelfUseMode}
+              logout={logout}
+              navigate={navigate}
+              t={t}
+            />
+          </div>
         </div>
       </div>
     </header>
