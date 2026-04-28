@@ -48,6 +48,9 @@ jobs:
     # 使用 Ubuntu 最新版本作为运行环境
     runs-on: ubuntu-latest
     
+    # 指定使用 gq-api-dockerhub 环境的 secrets
+    environment: gq-api-dockerhub
+    
     # 配置权限
     # - contents: read - 读取仓库代码
     # - packages: write - 推送镜像到容器仓库
@@ -84,17 +87,12 @@ jobs:
         run: |
           echo "=== Checking Docker Hub Secrets ==="
           echo "DOCKER_HUB_USERNAME length: ${#DOCKER_HUB_USERNAME}"
-          echo "DOCKER_HUB_USERNAME is set: $([ -n \"$DOCKER_HUB_USERNAME\" ] && echo 'YES' || echo 'NO')"
+          if [ -n "$DOCKER_HUB_USERNAME" ]; then echo "DOCKER_HUB_USERNAME: SET"; else echo "DOCKER_HUB_USERNAME: NOT SET"; fi
           echo "DOCKER_HUB_ACCESS_TOKEN length: ${#DOCKER_HUB_ACCESS_TOKEN}"
-          echo "DOCKER_HUB_ACCESS_TOKEN is set: $([ -n \"$DOCKER_HUB_ACCESS_TOKEN\" ] && echo 'YES' || echo 'NO')"
-          echo ""
-          echo "=== Checking Environment Secrets (gq-api-dockerhub) ==="
-          echo "gq-api-dockerhub.DOCKER_HUB_USERNAME length: ${#DOCKER_HUB_USERNAME_ENV}"
-          echo "gq-api-dockerhub.DOCKER_HUB_USERNAME is set: $([ -n \"$DOCKER_HUB_USERNAME_ENV\" ] && echo 'YES' || echo 'NO')"
+          if [ -n "$DOCKER_HUB_ACCESS_TOKEN" ]; then echo "DOCKER_HUB_ACCESS_TOKEN: SET"; else echo "DOCKER_HUB_ACCESS_TOKEN: NOT SET"; fi
         env:
           DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
           DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-          DOCKER_HUB_USERNAME_ENV: ${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}
 
       # 步骤 4：设置 Docker Buildx
       # Buildx 是 Docker 的扩展构建工具，支持多平台构建和缓存
@@ -148,6 +146,9 @@ jobs:
     needs: build-and-push
     if: always()
     
+    # 指定使用 gq-api-dockerhub 环境的 secrets
+    environment: gq-api-dockerhub
+    
     steps:
       # 获取构建任务的状态
       - name: Get build status
@@ -167,14 +168,14 @@ jobs:
         uses: dawidd6/action-send-mail@v3
         with:
           # SMTP 服务器配置
-          server_address: ${{ secrets.gq-api-dockerhub.SMTP_SERVER }}
-          server_port: ${{ secrets.gq-api-dockerhub.SMTP_PORT }}
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
           # SMTP 认证信息
-          username: ${{ secrets.gq-api-dockerhub.SMTP_USERNAME }}
-          password: ${{ secrets.gq-api-dockerhub.SMTP_PASSWORD }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
           # 邮件内容
           subject: "GQ API Docker 构建通知 - ${{ steps.status.outputs.status }}"
-          to: ${{ secrets.gq-api-dockerhub.NOTIFY_EMAIL }}
+          to: ${{ secrets.NOTIFY_EMAIL }}
           from: GQ API CI/CD
           # 邮件正文（HTML 格式）
           html_body: |
