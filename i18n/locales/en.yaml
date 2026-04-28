@@ -208,6 +208,9 @@ setting.gotify_url_empty: "Gotify server URL cannot be empty"
 setting.gotify_token_empty: "Gotify token cannot be empty"
 setting.gotify_url_invalid: "Invalid Gotify server URL"
 setting.url_must_http: "URL must start with http:// or https://"
+setting.sms_phone_empty: "Phone number cannot be empty"
+setting.sms_phone_invalid: "Invalid phone number format"
+setting.sms_not_configured: "SMS service is not configured, please contact the administrator"
 setting.saved: "Settings updated"
 
 # Deployment messages (io.net)

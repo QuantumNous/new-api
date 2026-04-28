@@ -71,12 +71,11 @@ func GetOptions(c *gin.Context) {
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
 			strings.HasSuffix(k, "api_key") ||
-			// SMS 敏感凭证字段
+			// SMS 敏感凭证字段（ID类也隐藏，防止凭证泄露）
 			k == "SMSAliyunAccessKeyId" ||
 			k == "SMSSendCloudSmsUser" ||
 			k == "SMSTencentSecretId" ||
-			k == "SMSCustomUrl" ||
-			k == "SMSCustomTemplate" {
+			k == "SMSTencentSmsSdkAppId" {
 			continue
 		}
 		options = append(options, &model.Option{

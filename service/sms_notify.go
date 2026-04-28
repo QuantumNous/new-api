@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -106,7 +105,7 @@ func sendAliyunSms(accessKeyId, accessKeySecret, signName, templateCode, phoneNu
 			templateParamMap[name] = templateValues[i]
 		}
 	}
-	templateParam, _ := json.Marshal(templateParamMap)
+	templateParam, _ := common.Marshal(templateParamMap)
 
 	params := map[string]string{
 		"AccessKeyId":      accessKeyId,
@@ -158,7 +157,7 @@ func sendAliyunSms(accessKeyId, accessKeySecret, signName, templateCode, phoneNu
 		Code    string `json:"Code"`
 		Message string `json:"Message"`
 	}
-	if err := json.Unmarshal(body, &result); err != nil {
+	if err := common.Unmarshal(body, &result); err != nil {
 		return fmt.Errorf("failed to parse aliyun sms response: %v", err)
 	}
 
@@ -187,7 +186,7 @@ func sendSendCloudSms(smsUser, smsKey, templateId, phoneNumber string, templateV
 			varsMap[name] = templateValues[i]
 		}
 	}
-	varsJSON, _ := json.Marshal(varsMap)
+	varsJSON, _ := common.Marshal(varsMap)
 	params["vars"] = string(varsJSON)
 
 	// 按 key 排序生成签名字符串
@@ -232,7 +231,7 @@ func sendSendCloudSms(smsUser, smsKey, templateId, phoneNumber string, templateV
 		StatusCode int    `json:"statusCode"`
 		Message    string `json:"message"`
 	}
-	if err := json.Unmarshal(body, &result); err != nil {
+	if err := common.Unmarshal(body, &result); err != nil {
 		return fmt.Errorf("failed to parse sendcloud sms response: %v", err)
 	}
 
@@ -284,7 +283,7 @@ func sendTencentSms(secretId, secretKey, smsSdkAppId, signName, templateId, phon
 		TemplateParamSet: templateValues,
 	}
 
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := common.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal tencent sms payload: %v", err)
 	}
@@ -346,7 +345,7 @@ func sendTencentSms(secretId, secretKey, smsSdkAppId, signName, templateId, phon
 			} `json:"Error"`
 		} `json:"Response"`
 	}
-	if err := json.Unmarshal(body, &result); err != nil {
+	if err := common.Unmarshal(body, &result); err != nil {
 		return fmt.Errorf("failed to parse tencent sms response: %v", err)
 	}
 
@@ -363,8 +362,8 @@ func sendTencentSms(secretId, secretKey, smsSdkAppId, signName, templateId, phon
 
 // jsonEscapeString 对字符串进行 JSON 转义，防止模板注入
 func jsonEscapeString(s string) string {
-	b, _ := json.Marshal(s)
-	// json.Marshal 返回带引号的字符串，去掉首尾引号
+	b, _ := common.Marshal(s)
+	// common.Marshal 返回带引号的字符串，去掉首尾引号
 	return string(b[1 : len(b)-1])
 }
 
@@ -397,7 +396,7 @@ func sendCustomSms(smsUrl, method, template, phoneNumber, title, content string)
 			Method: method,
 			Headers: map[string]string{
 				"Content-Type": "application/json; charset=utf-8",
-				"User-Agent":   "OneAPI-SMS-Notify/1.0",
+				"User-Agent":   "NewAPI-SMS-Notify/1.0",
 			},
 		}
 		if method == "POST" {
@@ -429,7 +428,7 @@ func sendCustomSms(smsUrl, method, template, phoneNumber, title, content string)
 		}
 
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		req.Header.Set("User-Agent", "OneAPI-SMS-Notify/1.0")
+		req.Header.Set("User-Agent", "NewAPI-SMS-Notify/1.0")
 
 		client := GetHttpClient()
 		resp, err = client.Do(req)

@@ -378,7 +378,15 @@ func updateOptionMap(key string, value string) (err error) {
 	case "SMSCustomUrl":
 		common.SMSCustomUrl = value
 	case "SMSCustomMethod":
-		common.SMSCustomMethod = value
+		upperMethod := strings.ToUpper(value)
+		switch upperMethod {
+		case "GET", "POST", "PUT", "DELETE", "PATCH":
+			common.SMSCustomMethod = upperMethod
+		case "":
+			// 空值保留默认的 POST
+		default:
+			common.SMSCustomMethod = "POST"
+		}
 	case "SMSCustomTemplate":
 		common.SMSCustomTemplate = value
 	case "ServerAddress":

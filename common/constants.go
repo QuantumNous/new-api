@@ -86,7 +86,7 @@ var SMTPFrom = ""
 var SMTPToken = ""
 
 // SMS 短信通知系统级配置
-var SMSProvider = ""              // 短信服务商: aliyun, tencent, custom
+var SMSProvider = ""              // 短信服务商: aliyun, sendcloud, tencent, custom
 var SMSAliyunAccessKeyId = ""     // 阿里云 AccessKeyId
 var SMSAliyunAccessKeySecret = "" // 阿里云 AccessKeySecret
 var SMSAliyunSignName = ""        // 阿里云短信签名

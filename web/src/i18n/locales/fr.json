@@ -3264,7 +3264,6 @@
     "配置短信服务": "Configurer le service SMS",
     "用以支持短信通知推送，用户可在个人设置中选择短信通知方式": "Pour prendre en charge les notifications SMS, les utilisateurs peuvent sélectionner les notifications SMS dans les paramètres personnels",
     "未配置": "Non configuré",
-    "敏感信息不会发送到前端显示": "Les informations sensibles ne seront pas envoyées au frontend",
     "保存短信设置": "Enregistrer les paramètres SMS",
     "通过划转功能将奖励额度转入到您的账户余额中": "Transférez le montant de la récompense sur le solde de votre compte via la fonction de virement",
     "通过密码注册时需要进行邮箱验证": "La vérification par e-mail est requise lors de l'inscription via mot de passe",

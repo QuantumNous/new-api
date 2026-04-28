@@ -3298,7 +3298,6 @@
     "配置短信服务": "Configure SMS Service",
     "用以支持短信通知推送，用户可在个人设置中选择短信通知方式": "To support SMS notification push, users can select SMS notification in personal settings",
     "未配置": "Not configured",
-    "敏感信息不会发送到前端显示": "Sensitive information will not be sent to the frontend",
     "保存短信设置": "Save SMS Settings",
     "通过划转功能将奖励额度转入到您的账户余额中": "Transfer the reward amount to your account balance through the transfer function",
     "通过密码注册时需要进行邮箱验证": "Email verification is required when registering via password",

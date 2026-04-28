@@ -1188,26 +1188,17 @@ func UpdateUserSetting(c *gin.Context) {
 	// 如果是SMS类型，验证手机号和系统SMS配置
 	if req.QuotaWarningType == dto.NotifyTypeSms {
 		if req.SmsPhoneNumber == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "手机号码不能为空",
-			})
+			common.ApiErrorI18n(c, i18n.MsgSettingSmsPhoneEmpty)
 			return
 		}
 		// 验证手机号格式：允许国际号码格式，7-15位数字，可选+前缀
 		phoneRegex := regexp.MustCompile(`^\+?[0-9]{7,15}$`)
 		if !phoneRegex.MatchString(req.SmsPhoneNumber) {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "手机号码格式不正确",
-			})
+			common.ApiErrorI18n(c, i18n.MsgSettingSmsPhoneInvalid)
 			return
 		}
 		if common.SMSProvider == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "系统未配置短信服务，请联系管理员",
-			})
+			common.ApiErrorI18n(c, i18n.MsgSettingSmsNotConfigured)
 			return
 		}
 	}

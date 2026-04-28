@@ -3746,7 +3746,6 @@
     "配置短信服务": "Cấu hình dịch vụ SMS",
     "用以支持短信通知推送，用户可在个人设置中选择短信通知方式": "Hỗ trợ thông báo SMS. Người dùng có thể chọn thông báo SMS trong cài đặt cá nhân",
     "未配置": "Chưa cấu hình",
-    "敏感信息不会发送到前端显示": "Thông tin nhạy cảm sẽ không được gửi đến frontend",
     "保存短信设置": "Lưu cài đặt SMS",
     "通过": "Thông qua",
     "通过 GitHub 登录": "Đăng nhập qua GitHub",
