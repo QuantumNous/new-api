@@ -52,6 +52,9 @@ type responsesStreamAccumulator struct {
 	reasoningText strings.Builder
 	usageText     strings.Builder
 
+	terminalStatus   string
+	incompleteReason string
+
 	sawToolCall                 bool
 	toolCallIndexByID           map[string]int
 	toolCallNameByID            map[string]string
@@ -115,6 +118,12 @@ func (a *responsesStreamAccumulator) Apply(ev *dto.ResponsesStreamResponse) erro
 	case "response.function_call_arguments.done":
 
 	case "response.completed":
+		a.applyEventTerminalStatus(ev.Type)
+		a.applyResponseMeta(ev.Response)
+		a.mergeUsage(ev.Response)
+
+	case "response.incomplete":
+		a.applyEventTerminalStatus(ev.Type)
 		a.applyResponseMeta(ev.Response)
 		a.mergeUsage(ev.Response)
 
@@ -172,6 +181,39 @@ func (a *responsesStreamAccumulator) applyResponseMeta(response *dto.OpenAIRespo
 	if response.CreatedAt != 0 {
 		a.createdAt = int64(response.CreatedAt)
 	}
+	if status := strings.TrimSpace(common.JsonRawMessageToString(response.Status)); status != "" {
+		a.terminalStatus = status
+	}
+	if response.IncompleteDetails != nil {
+		reason := strings.TrimSpace(response.IncompleteDetails.Reason)
+		if reason == "" {
+			reason = strings.TrimSpace(response.IncompleteDetails.Reasoning)
+		}
+		if reason != "" {
+			a.incompleteReason = reason
+		}
+	}
+}
+
+func (a *responsesStreamAccumulator) applyEventTerminalStatus(eventType string) {
+	if a == nil {
+		return
+	}
+	switch eventType {
+	case "response.completed":
+		a.terminalStatus = "completed"
+	case "response.incomplete":
+		a.terminalStatus = "incomplete"
+	case "response.failed":
+		a.terminalStatus = "failed"
+	}
+}
+
+func (a *responsesStreamAccumulator) finishReason(hasToolCalls bool) string {
+	if a == nil {
+		return service.MapResponsesTerminalStatusToFinishReason("", "", hasToolCalls)
+	}
+	return service.MapResponsesTerminalStatusToFinishReason(a.terminalStatus, a.incompleteReason, hasToolCalls)
 }
 
 func (a *responsesStreamAccumulator) mergeUsage(response *dto.OpenAIResponsesResponse) {
@@ -440,10 +482,7 @@ func OaiResponsesToChatStreamToNonStreamHandler(c *gin.Context, info *relaycommo
 		msg.Content = ""
 	}
 
-	finishReason := "stop"
-	if len(toolCalls) > 0 {
-		finishReason = "tool_calls"
-	}
+	finishReason := acc.finishReason(len(toolCalls) > 0)
 
 	chatResp := &dto.OpenAITextResponse{
 		Id:      acc.responseID,
@@ -781,7 +820,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 		case "response.function_call_arguments.done":
 
-		case "response.completed":
+		case "response.completed", "response.incomplete":
 			messageText, reasoning, usage, toolCalls, resultErr := acc.Result()
 			if resultErr != nil {
 				streamErr = resultErr
@@ -802,10 +841,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo != nil {
 					info.ClaudeConvertInfo.Usage = usage
 				}
-				finishReason := "stop"
-				if len(toolCalls) > 0 {
-					finishReason = "tool_calls"
-				}
+				finishReason := acc.finishReason(len(toolCalls) > 0)
 				stop := helper.GenerateStopResponse(acc.responseID, acc.createdAt, acc.model, finishReason)
 				if !sendChatChunk(stop) {
 					sr.Stop(streamErr)
@@ -842,10 +878,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo != nil {
 			info.ClaudeConvertInfo.Usage = usage
 		}
-		finishReason := "stop"
-		if len(toolCalls) > 0 {
-			finishReason = "tool_calls"
-		}
+		finishReason := acc.finishReason(len(toolCalls) > 0)
 		stop := helper.GenerateStopResponse(acc.responseID, acc.createdAt, acc.model, finishReason)
 		if !sendChatChunk(stop) {
 			return nil, streamErr
