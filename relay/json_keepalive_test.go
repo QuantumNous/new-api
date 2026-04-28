@@ -12,12 +12,13 @@ import (
 )
 
 type jsonKeepaliveRecorder struct {
-	mu            sync.Mutex
-	header        http.Header
-	informational []int
-	finalStatus   int
-	body          []byte
-	flushes       int
+	mu                   sync.Mutex
+	header               http.Header
+	informational        []int
+	informationalHeaders []http.Header
+	finalStatus          int
+	body                 []byte
+	flushes              int
 }
 
 func newJSONKeepaliveRecorder() *jsonKeepaliveRecorder {
@@ -43,6 +44,7 @@ func (r *jsonKeepaliveRecorder) WriteHeader(code int) {
 	defer r.mu.Unlock()
 	if code >= 100 && code < 200 {
 		r.informational = append(r.informational, code)
+		r.informationalHeaders = append(r.informationalHeaders, cloneTestHeader(r.header))
 		return
 	}
 	r.finalStatus = code
@@ -54,11 +56,34 @@ func (r *jsonKeepaliveRecorder) Flush() {
 	r.flushes++
 }
 
-func (r *jsonKeepaliveRecorder) snapshot() ([]int, int, int, string) {
+type jsonKeepaliveRecorderSnapshot struct {
+	informational        []int
+	informationalHeaders []http.Header
+	finalStatus          int
+	flushes              int
+	body                 string
+	header               http.Header
+}
+
+func (r *jsonKeepaliveRecorder) snapshot() jsonKeepaliveRecorderSnapshot {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	informational := append([]int(nil), r.informational...)
-	return informational, r.finalStatus, r.flushes, string(r.body)
+	return jsonKeepaliveRecorderSnapshot{
+		informational:        append([]int(nil), r.informational...),
+		informationalHeaders: append([]http.Header(nil), r.informationalHeaders...),
+		finalStatus:          r.finalStatus,
+		flushes:              r.flushes,
+		body:                 string(r.body),
+		header:               cloneTestHeader(r.header),
+	}
+}
+
+func cloneTestHeader(src http.Header) http.Header {
+	dst := make(http.Header, len(src))
+	for key, values := range src {
+		dst[key] = append([]string(nil), values...)
+	}
+	return dst
 }
 
 func newJSONKeepaliveTestContext(rec *jsonKeepaliveRecorder) *gin.Context {
@@ -75,15 +100,21 @@ func TestJSONKeepaliveSendsInformationalProcessing(t *testing.T) {
 	keepalive := startJSONKeepalive(c, time.Millisecond, time.Millisecond)
 	require.NotNil(t, keepalive)
 	require.Eventually(t, func() bool {
-		informational, _, flushes, _ := rec.snapshot()
-		return keepalive.wasWritten() && len(informational) > 0 && flushes > 0
+		snap := rec.snapshot()
+		return keepalive.wasWritten() && len(snap.informational) > 0 && snap.flushes > 0
 	}, time.Second, time.Millisecond)
 	keepalive.stop()
 
-	informational, finalStatus, flushes, _ := rec.snapshot()
-	require.Equal(t, http.StatusProcessing, informational[0])
-	require.Greater(t, flushes, 0)
-	require.Zero(t, finalStatus)
+	snap := rec.snapshot()
+	require.Equal(t, http.StatusProcessing, snap.informational[0])
+	require.Equal(t, "application/json; charset=utf-8", snap.informationalHeaders[0].Get("Content-Type"))
+	require.Equal(t, "no-cache", snap.informationalHeaders[0].Get("Cache-Control"))
+	require.Equal(t, "no", snap.informationalHeaders[0].Get("X-Accel-Buffering"))
+	require.Empty(t, snap.header.Get("Content-Type"))
+	require.Empty(t, snap.header.Get("Cache-Control"))
+	require.Empty(t, snap.header.Get("X-Accel-Buffering"))
+	require.Greater(t, snap.flushes, 0)
+	require.Zero(t, snap.finalStatus)
 }
 
 func TestJSONKeepalivePreservesFinalJSONStatus(t *testing.T) {
@@ -100,9 +131,41 @@ func TestJSONKeepalivePreservesFinalJSONStatus(t *testing.T) {
 	_, err := rec.Write([]byte(`{"data":[]}`))
 	require.NoError(t, err)
 
-	informational, finalStatus, _, body := rec.snapshot()
-	require.NotEmpty(t, informational)
-	require.Equal(t, http.StatusProcessing, informational[0])
-	require.Equal(t, http.StatusOK, finalStatus)
-	require.Equal(t, `{"data":[]}`, body)
+	snap := rec.snapshot()
+	require.NotEmpty(t, snap.informational)
+	require.Equal(t, http.StatusProcessing, snap.informational[0])
+	require.Equal(t, http.StatusOK, snap.finalStatus)
+	require.Equal(t, `{"data":[]}`, snap.body)
+}
+
+func TestJSONKeepaliveDoesNotSetHeadersBeforeFirstTick(t *testing.T) {
+	rec := newJSONKeepaliveRecorder()
+	c := newJSONKeepaliveTestContext(rec)
+
+	keepalive := startJSONKeepalive(c, time.Hour, time.Hour)
+	require.NotNil(t, keepalive)
+	keepalive.stop()
+
+	snap := rec.snapshot()
+	require.Empty(t, snap.informational)
+	require.Empty(t, snap.header.Get("Content-Type"))
+	require.Empty(t, snap.header.Get("Cache-Control"))
+	require.Empty(t, snap.header.Get("X-Accel-Buffering"))
+}
+
+func TestJSONKeepaliveRepeatsUntilStoppedThenStaysQuiet(t *testing.T) {
+	rec := newJSONKeepaliveRecorder()
+	c := newJSONKeepaliveTestContext(rec)
+
+	keepalive := startJSONKeepalive(c, time.Millisecond, time.Millisecond)
+	require.NotNil(t, keepalive)
+	require.Eventually(t, func() bool {
+		return len(rec.snapshot().informational) >= 3
+	}, time.Second, time.Millisecond)
+
+	keepalive.stop()
+	countAfterStop := len(rec.snapshot().informational)
+	time.Sleep(10 * time.Millisecond)
+
+	require.Equal(t, countAfterStop, len(rec.snapshot().informational))
 }

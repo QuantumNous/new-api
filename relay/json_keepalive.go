@@ -27,10 +27,6 @@ func startJSONKeepalive(c *gin.Context, initialDelay, interval time.Duration) *j
 		return nil
 	}
 
-	c.Header("Content-Type", "application/json; charset=utf-8")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("X-Accel-Buffering", "no")
-
 	keepalive := &jsonKeepalive{
 		stopCh: make(chan struct{}),
 		doneCh: make(chan struct{}),
@@ -96,12 +92,54 @@ func (k *jsonKeepalive) write(c *gin.Context) bool {
 		return false
 	}
 
+	headerSnapshot := setJSONKeepaliveHeaders(writer.Header())
+	defer restoreJSONKeepaliveHeaders(writer.Header(), headerSnapshot)
+
 	writer.WriteHeader(http.StatusProcessing)
 	k.written.Store(true)
 	if flusher, ok := writer.(http.Flusher); ok {
 		flusher.Flush()
 	}
 	return true
+}
+
+type jsonKeepaliveHeaderSnapshot struct {
+	values []string
+	exists bool
+}
+
+func setJSONKeepaliveHeaders(header http.Header) map[string]jsonKeepaliveHeaderSnapshot {
+	const (
+		contentType     = "Content-Type"
+		cacheControl    = "Cache-Control"
+		accelBuffering  = "X-Accel-Buffering"
+		jsonContentType = "application/json; charset=utf-8"
+	)
+
+	keys := []string{contentType, cacheControl, accelBuffering}
+	snapshot := make(map[string]jsonKeepaliveHeaderSnapshot, len(keys))
+	for _, key := range keys {
+		values, exists := header[key]
+		snapshot[key] = jsonKeepaliveHeaderSnapshot{
+			values: append([]string(nil), values...),
+			exists: exists,
+		}
+	}
+
+	header.Set(contentType, jsonContentType)
+	header.Set(cacheControl, "no-cache")
+	header.Set(accelBuffering, "no")
+	return snapshot
+}
+
+func restoreJSONKeepaliveHeaders(header http.Header, snapshot map[string]jsonKeepaliveHeaderSnapshot) {
+	for key, previous := range snapshot {
+		if previous.exists {
+			header[key] = append([]string(nil), previous.values...)
+		} else {
+			delete(header, key)
+		}
+	}
 }
 
 func jsonKeepaliveResponseWriter(c *gin.Context) http.ResponseWriter {
