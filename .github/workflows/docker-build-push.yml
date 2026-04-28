@@ -90,8 +90,8 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          username: ${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.gq-api-dockerhub.DOCKER_HUB_ACCESS_TOKEN }}
 
       # 步骤 5：构建并推送 Docker 镜像
       # - context: . 表示使用当前目录（Dockerfile 所在目录）
@@ -104,8 +104,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:latest
+            ${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}
+            ${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}/gq-api:latest
           # 启用 GitHub Actions 缓存，加速后续构建
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -118,8 +118,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Tags**:" >> $GITHUB_STEP_SUMMARY
-          echo "  - \`${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "  - \`${{ secrets.DOCKER_HUB_USERNAME }}/gq-api:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "  - \`${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}/gq-api:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "  - \`${{ secrets.gq-api-dockerhub.DOCKER_HUB_USERNAME }}/gq-api:latest\`" >> $GITHUB_STEP_SUMMARY
 
   # ---------------------------------------------------------------------------
   # Job 2: 构建后处理 - 发送邮件通知
@@ -149,14 +149,14 @@ jobs:
         uses: dawidd6/action-send-mail@v3
         with:
           # SMTP 服务器配置
-          server_address: ${{ secrets.SMTP_SERVER }}
-          server_port: ${{ secrets.SMTP_PORT }}
+          server_address: ${{ secrets.gq-api-dockerhub.SMTP_SERVER }}
+          server_port: ${{ secrets.gq-api-dockerhub.SMTP_PORT }}
           # SMTP 认证信息
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
+          username: ${{ secrets.gq-api-dockerhub.SMTP_USERNAME }}
+          password: ${{ secrets.gq-api-dockerhub.SMTP_PASSWORD }}
           # 邮件内容
           subject: "GQ API Docker 构建通知 - ${{ steps.status.outputs.status }}"
-          to: ${{ secrets.NOTIFY_EMAIL }}
+          to: ${{ secrets.gq-api-dockerhub.NOTIFY_EMAIL }}
           from: GQ API CI/CD
           # 邮件正文（HTML 格式）
           html_body: |
