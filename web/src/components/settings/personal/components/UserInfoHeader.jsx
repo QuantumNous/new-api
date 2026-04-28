@@ -39,7 +39,7 @@ const UserInfoHeader = ({ t, userState, onTopUp }) => {
   const getAvatarText = () => {
     const username = getUsername();
     if (username && username.length > 0) {
-      return username.slice(0, 2).toUpperCase();
+      return username.slice(0, 1).toUpperCase();
     }
     return 'NA';
   };
