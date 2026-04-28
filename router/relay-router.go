@@ -5,6 +5,7 @@ import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/relay"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -184,6 +185,7 @@ func SetRelayRouter(router *gin.Engine) {
 	volcV3ImageRouter.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
 		volcV3ImageRouter.POST("/images/generations", func(c *gin.Context) {
+			c.Set("relay_mode", relayconstant.RelayModeImagesGenerations)
 			controller.Relay(c, types.RelayFormatVolc)
 		})
 	}
