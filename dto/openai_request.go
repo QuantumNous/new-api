@@ -279,8 +279,8 @@ type Message struct {
 	Content          any             `json:"content"`
 	Name             *string         `json:"name,omitempty"`
 	Prefix           *bool           `json:"prefix,omitempty"`
-	ReasoningContent string          `json:"reasoning_content,omitempty"`
-	Reasoning        string          `json:"reasoning,omitempty"`
+	ReasoningContent *string         `json:"reasoning_content,omitempty"`
+	Reasoning        *string         `json:"reasoning,omitempty"`
 	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
 	ToolCallId       string          `json:"tool_call_id,omitempty"`
 	parsedContent    []MediaContent
@@ -456,6 +456,20 @@ func (m *Message) ParseToolCalls() []ToolCallRequest {
 func (m *Message) SetToolCalls(toolCalls any) {
 	toolCallsJson, _ := json.Marshal(toolCalls)
 	m.ToolCalls = toolCallsJson
+}
+
+func (m *Message) GetReasoningContent() string {
+	if m.ReasoningContent != nil {
+		return *m.ReasoningContent
+	}
+	return ""
+}
+
+func (m *Message) GetReasoning() string {
+	if m.Reasoning != nil {
+		return *m.Reasoning
+	}
+	return ""
 }
 
 func (m *Message) StringContent() string {
