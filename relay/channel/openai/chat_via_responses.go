@@ -227,7 +227,7 @@ func (a *responsesStreamAccumulator) applyToolCallItem(item *dto.ResponsesOutput
 		a.toolCallNameByID[callID] = name
 		a.lastToolCallName = name
 	}
-	if args := item.Arguments; args != "" {
+	if args := item.ArgumentsString(); args != "" {
 		prevArgs := a.toolCallArgsByID[callID]
 		switch {
 		case prevArgs == "":
@@ -758,6 +758,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 		case "response.output_item.added", "response.output_item.done":
 			if !sendToolCallDelta(acc.lastToolCallID, acc.lastToolCallName, acc.lastToolCallArgsDelta) {
+
 				sr.Stop(streamErr)
 				return
 			}

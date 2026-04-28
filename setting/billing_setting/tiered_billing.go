@@ -5,11 +5,14 @@ import (
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/samber/lo"
 )
 
 const (
 	BillingModeRatio      = "ratio"
 	BillingModeTieredExpr = "tiered_expr"
+	BillingModeField      = "billing_mode"
+	BillingExprField      = "billing_expr"
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.
@@ -44,6 +47,25 @@ func GetBillingExpr(model string) (string, bool) {
 	return expr, ok
 }
 
+func GetBillingModeCopy() map[string]string {
+	return lo.Assign(billingSetting.BillingMode)
+}
+
+func GetBillingExprCopy() map[string]string {
+	return lo.Assign(billingSetting.BillingExpr)
+}
+
+func GetPricingSyncData(base map[string]any) map[string]any {
+	extra := make(map[string]any, 2)
+	if modes := GetBillingModeCopy(); len(modes) > 0 {
+		extra[BillingModeField] = modes
+	}
+	if exprs := GetBillingExprCopy(); len(exprs) > 0 {
+		extra[BillingExprField] = exprs
+	}
+	return lo.Assign(base, extra)
+}
+
 // ---------------------------------------------------------------------------
 // Smoke test (called externally for validation before save)
 // ---------------------------------------------------------------------------
@@ -54,10 +76,10 @@ func SmokeTestExpr(exprStr string) error {
 
 func smokeTestExpr(exprStr string) error {
 	vectors := []billingexpr.TokenParams{
-		{P: 0, C: 0},
-		{P: 1000, C: 1000},
-		{P: 100000, C: 100000},
-		{P: 1000000, C: 1000000},
+		{P: 0, C: 0, Len: 0},
+		{P: 1000, C: 1000, Len: 1000},
+		{P: 100000, C: 100000, Len: 100000},
+		{P: 1000000, C: 1000000, Len: 1000000},
 	}
 	requests := []billingexpr.RequestInput{
 		{},
