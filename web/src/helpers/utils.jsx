@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { Pagination as HeroPagination } from '@heroui/react';
+import TablePagination from '../components/common/ui/TablePagination';
 import { BILLING_PRICING_VARS, BILLING_VAR_REGEX } from '../constants';
 
 const dispatchAppToast = (type, input) => {
@@ -1020,32 +1020,22 @@ export const createCardProPagination = ({
   t = (key) => key,
 }) => {
   if (!total || total <= 0) return null;
-
-  const start = (currentPage - 1) * pageSize + 1;
-  const end = Math.min(currentPage * pageSize, total);
-  const totalText = `${t('显示第')} ${start} ${t('条 - 第')} ${end} ${t('条，共')} ${total} ${t('条')}`;
-
+  // Delegated to a real component so it can use HeroUI Pagination (compositional
+  // in v3), wire the page-size Select, and own its responsive layout. Returning
+  // a node from a helper keeps the existing `paginationArea={...}` call sites
+  // (9 list pages) backwards-compatible — no per-page changes needed.
   return (
-    <>
-      {/* 桌面端左侧总数信息 */}
-      {!isMobile && (
-        <span
-          className='text-sm select-none'
-          style={{ color: 'var(--app-muted)' }}
-        >
-          {totalText}
-        </span>
-      )}
-
-      {/* 右侧分页控件：HeroUI v3 Pagination uses `page`/`total`(=pages)/`onChange`. */}
-      <HeroPagination
-        page={currentPage}
-        total={Math.max(1, Math.ceil(total / pageSize))}
-        size={isMobile ? 'sm' : 'md'}
-        onChange={(page) => onPageChange?.(page, pageSize)}
-        showControls
-      />
-    </>
+    <TablePagination
+      currentPage={currentPage}
+      pageSize={pageSize}
+      total={total}
+      onPageChange={onPageChange}
+      onPageSizeChange={onPageSizeChange}
+      isMobile={isMobile}
+      pageSizeOpts={pageSizeOpts}
+      showSizeChanger={showSizeChanger}
+      t={t}
+    />
   );
 };
 
