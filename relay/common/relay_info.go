@@ -97,6 +97,7 @@ type RelayInfo struct {
 	//SendLastReasoningResponse bool
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
+	IsCountTokens          bool
 	IsPlayground           bool
 	UsePrice               bool
 	RelayMode              int
@@ -342,6 +343,10 @@ func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 		LastMessagesType: LastMessageTypeNone,
 	}
 	info.IsClaudeBetaQuery = c.Query("beta") == "true"
+	if strings.Contains(c.Request.URL.Path, "count_tokens") {
+		info.IsCountTokens = true
+		info.IsStream = false
+	}
 	return info
 }
 
