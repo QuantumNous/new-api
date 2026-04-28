@@ -24,15 +24,17 @@ import {
   DateRangePicker,
   RangeCalendar,
 } from '@heroui/react';
-import { CalendarDateTime, parseDateTime } from '@internationalized/date';
+import { CalendarDate, parseDate } from '@internationalized/date';
 
 // Two-digit zero-pad helper used for `YYYY-MM-DD HH:mm:ss` formatting.
 const pad2 = (n) => String(n).padStart(2, '0');
 
-// Convert a Date or `YYYY-MM-DD HH:mm:ss`/ISO-ish string into a CalendarDateTime
-// (the value type expected by HeroUI / React Aria date components). Returns
-// null on invalid input so the picker can render an empty state cleanly.
-const toCalendarDateTime = (value) => {
+// Convert a Date or `YYYY-MM-DD ...`/ISO-ish string into a CalendarDate
+// (the value type expected by HeroUI / React Aria date components when
+// `granularity="day"`). Returns null on invalid input so the picker can
+// render an empty state cleanly. The time portion of the input string is
+// intentionally discarded — this picker is date-only.
+const toCalendarDate = (value) => {
   if (value === null || value === undefined || value === '') {
     return null;
   }
@@ -41,35 +43,31 @@ const toCalendarDateTime = (value) => {
     if (Number.isNaN(value.getTime())) {
       return null;
     }
-    return new CalendarDateTime(
+    return new CalendarDate(
       value.getFullYear(),
       value.getMonth() + 1,
       value.getDate(),
-      value.getHours(),
-      value.getMinutes(),
-      value.getSeconds(),
     );
   }
 
   try {
-    // Accept both space- and `T`-separated forms; trim sub-second parts.
-    const normalized = String(value).replace(' ', 'T').slice(0, 19);
-    return parseDateTime(normalized);
+    // Accept both space- and `T`-separated forms; we only need the date part.
+    const datePart = String(value).slice(0, 10);
+    return parseDate(datePart);
   } catch (error) {
     return null;
   }
 };
 
-// Convert a CalendarDateTime back into the `YYYY-MM-DD HH:mm:ss` string the
-// rest of the app (filter state, API requests) already speaks.
-const fromCalendarDateTime = (value) => {
+// Convert a CalendarDate into the `YYYY-MM-DD HH:mm:ss` string the rest of
+// the app (filter state, API requests) speaks. `endOfDay = true` snaps to
+// 23:59:59 so a single-day range still covers the full day on the API side.
+const fromCalendarDate = (value, { endOfDay = false } = {}) => {
   if (!value) {
     return '';
   }
-  return (
-    `${value.year}-${pad2(value.month)}-${pad2(value.day)} ` +
-    `${pad2(value.hour)}:${pad2(value.minute)}:${pad2(value.second ?? 0)}`
-  );
+  const time = endOfDay ? '23:59:59' : '00:00:00';
+  return `${value.year}-${pad2(value.month)}-${pad2(value.day)} ${time}`;
 };
 
 export function useTableFilterForm({ initValues = {}, setFormApi, onSubmit }) {
@@ -179,8 +177,8 @@ export function FilterDateRange({
 }) {
   const [startRaw = '', endRaw = ''] = value || [];
 
-  const startValue = toCalendarDateTime(startRaw);
-  const endValue = toCalendarDateTime(endRaw);
+  const startValue = toCalendarDate(startRaw);
+  const endValue = toCalendarDate(endRaw);
   const rangeValue =
     startValue && endValue ? { start: startValue, end: endValue } : null;
 
@@ -193,13 +191,16 @@ export function FilterDateRange({
       onChange(['', '']);
       return;
     }
-    onChange([fromCalendarDateTime(next.start), fromCalendarDateTime(next.end)]);
+    onChange([
+      fromCalendarDate(next.start),
+      fromCalendarDate(next.end, { endOfDay: true }),
+    ]);
   };
 
   const handlePreset = (preset) => {
     onChange([
-      fromCalendarDateTime(toCalendarDateTime(preset.start)),
-      fromCalendarDateTime(toCalendarDateTime(preset.end)),
+      fromCalendarDate(toCalendarDate(preset.start)),
+      fromCalendarDate(toCalendarDate(preset.end), { endOfDay: true }),
     ]);
     setIsOpen(false);
   };
@@ -210,12 +211,10 @@ export function FilterDateRange({
       onChange={handleChange}
       isOpen={isOpen}
       onOpenChange={setIsOpen}
-      granularity='minute'
-      hourCycle={24}
-      hideTimeZone
+      granularity='day'
       shouldForceLeadingZeros
       aria-label={ariaLabel}
-      className={`flex flex-col gap-1 ${className}`}
+      className={`w-full max-w-72 ${className}`}
     >
       <DateField.Group fullWidth variant='primary'>
         <DateField.InputContainer>
@@ -233,15 +232,16 @@ export function FilterDateRange({
           </DateRangePicker.Trigger>
         </DateField.Suffix>
       </DateField.Group>
-      <DateRangePicker.Popover>
+      <DateRangePicker.Popover className='w-(--trigger-width) p-2'>
         {presets.length > 0 ? (
-          <div className='flex flex-wrap gap-1 p-2 pb-0'>
+          <div className='mb-2 flex flex-wrap gap-1'>
             {presets.map((preset) => (
               <HeroButton
                 key={preset.text}
                 size='sm'
                 variant='ghost'
                 type='button'
+                className='h-7 px-2 text-xs md:h-7'
                 onPress={() => handlePreset(preset)}
               >
                 {preset.text}
@@ -249,7 +249,7 @@ export function FilterDateRange({
             ))}
           </div>
         ) : null}
-        <RangeCalendar aria-label={ariaLabel}>
+        <RangeCalendar aria-label={ariaLabel} className='w-full'>
           <RangeCalendar.Header>
             <RangeCalendar.YearPickerTrigger>
               <RangeCalendar.YearPickerTriggerHeading />
