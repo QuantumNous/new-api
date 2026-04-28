@@ -64,6 +64,13 @@ type TaskAdaptor interface {
 	// Return 0 to keep the pre-charged amount unchanged.
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 
+	// EstimateBillingTokens returns the estimated token count for pre-charge when
+	// the model uses tiered_expr billing (BillingModeTieredExpr). The estimate
+	// should be a conservative upper-bound (多锁不少锁) since settlement will
+	// correct it with actual tokens from the upstream response.
+	// Return 0 to fall back to ratio-based billing.
+	EstimateBillingTokens(c *gin.Context, info *relaycommon.RelayInfo) int64
+
 	// ── Request / Response ───────────────────────────────────────────
 
 	BuildRequestURL(info *relaycommon.RelayInfo) (string, error)

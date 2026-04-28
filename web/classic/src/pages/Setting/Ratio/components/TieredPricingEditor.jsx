@@ -802,13 +802,13 @@ const PRESET_GROUPS = [
         ],
       },
       {
+        // tiered_expr fires for Volc-native requests only (Option A).
+        // metadata.* rules dropped — OpenAI-format entry stays on ratio billing.
         key: 'doubao-seedance-2-0', label: 'Doubao Seedance 2.0',
         expr: 'tier("base", c * 46)',
         requestRules: [
           { conditions: [{ source: SOURCE_PARAM, path: 'resolution', mode: MATCH_EQ, value: '1080p' }], multiplier: '1.108696' },
-          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.resolution', mode: MATCH_EQ, value: '1080p' }], multiplier: '1.108696' },
           { conditions: [{ source: SOURCE_PARAM, path: 'content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.608696' },
-          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.608696' },
         ],
       },
       {
@@ -816,7 +816,6 @@ const PRESET_GROUPS = [
         expr: 'tier("base", c * 37)',
         requestRules: [
           { conditions: [{ source: SOURCE_PARAM, path: 'content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.594595' },
-          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.594595' },
         ],
       },
       {
@@ -824,7 +823,6 @@ const PRESET_GROUPS = [
         expr: 'tier("base", c * 16)',
         requestRules: [
           { conditions: [{ source: SOURCE_PARAM, path: 'generate_audio', mode: MATCH_EQ, value: 'false' }], multiplier: '0.5' },
-          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.generate_audio', mode: MATCH_EQ, value: 'false' }], multiplier: '0.5' },
         ],
       },
       {
@@ -832,7 +830,6 @@ const PRESET_GROUPS = [
         expr: 'tier("base", c * 15)',
         requestRules: [
           { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
-          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
         ],
       },
       {
@@ -840,7 +837,6 @@ const PRESET_GROUPS = [
         expr: 'tier("base", c * 4.2)',
         requestRules: [
           { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
-          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
         ],
       },
       {
@@ -848,7 +844,6 @@ const PRESET_GROUPS = [
         expr: 'tier("base", c * 10)',
         requestRules: [
           { conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
-          { conditions: [{ source: SOURCE_PARAM, path: 'metadata.service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' },
         ],
       },
     ],

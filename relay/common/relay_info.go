@@ -160,6 +160,11 @@ type RelayInfo struct {
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
 
+	// EstimatedBillingTokens is set by the task adaptor (via EstimateBillingTokens)
+	// before ModelPriceHelperPerCall is called, when BillingMode is tiered_expr.
+	// 0 means no estimation provided (fall back to ratio billing).
+	EstimatedBillingTokens int64
+
 	Request dto.Request
 
 	// RequestConversionChain records request format conversions in order, e.g.

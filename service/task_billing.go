@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
@@ -247,9 +248,33 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。
 // 当任务成功且返回了 totalTokens 时，根据模型倍率和分组倍率重新计算实际扣费额度，
 // 与预扣费的差额进行补扣或退还。支持钱包和订阅计费来源。
+// 对于 tiered_expr 模型，使用冻结的 BillingSnapshot 重新运行表达式以计算实际额度。
 func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTokens int) {
 	if totalTokens <= 0 {
 		return
+	}
+
+	// tiered_expr 路径：使用冻结的计费表达式重新计算实际额度
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.TieredSnapshot != nil {
+		snap := bc.TieredSnapshot
+		requestInput := billingexpr.RequestInput{
+			Body: bc.TieredRequestBody,
+		}
+		params := billingexpr.TokenParams{
+			C:   float64(totalTokens),
+			Len: float64(totalTokens),
+		}
+		cost, _, err := billingexpr.RunExprByHashWithRequest(snap.ExprString, snap.ExprHash, params, requestInput)
+		if err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("tiered_expr 重算失败 task %s: %s，回退到倍率计费", task.TaskID, err.Error()))
+			// Fall through to ratio-based settlement below.
+		} else {
+			quotaBeforeGroup := cost / 1_000_000 * snap.QuotaPerUnit
+			actualQuota := billingexpr.QuotaRound(quotaBeforeGroup * snap.GroupRatio)
+			reason := fmt.Sprintf("tiered_expr重算：tokens=%d, tier=%s", totalTokens, snap.EstimatedTier)
+			RecalculateTaskQuota(ctx, task, actualQuota, reason)
+			return
+		}
 	}
 
 	modelName := taskModelName(task)

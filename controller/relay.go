@@ -598,7 +598,7 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
-		task.PrivateData.BillingContext = &model.TaskBillingContext{
+		bc := &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 			ModelRatio:      relayInfo.PriceData.ModelRatio,
@@ -606,6 +606,14 @@ func RelayTask(c *gin.Context) {
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		}
+		// Persist tiered_expr snapshot for settlement-time re-evaluation.
+		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+			bc.TieredSnapshot = snap
+			if relayInfo.BillingRequestInput != nil {
+				bc.TieredRequestBody = relayInfo.BillingRequestInput.Body
+			}
+		}
+		task.PrivateData.BillingContext = bc
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action

@@ -461,6 +461,24 @@ func (a *TaskAdaptor) GetChannelName() string {
 	return ChannelName
 }
 
+// EstimateBillingTokens returns a conservative upper-bound token count for
+// tiered_expr pre-charge, using the Volc token formula.
+// Only fires for Volc-native requests (RelayFormatVolc); returns 0 otherwise.
+func (a *TaskAdaptor) EstimateBillingTokens(c *gin.Context, info *relaycommon.RelayInfo) int64 {
+	if info.RelayFormat != types.RelayFormatVolc {
+		return 0
+	}
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return 0
+	}
+	rawBytes, err := storage.Bytes()
+	if err != nil {
+		return 0
+	}
+	return EstimateSeedanceTokens(info.OriginModelName, rawBytes)
+}
+
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*requestPayload, error) {
 	r := requestPayload{
 		Model:   req.Model,

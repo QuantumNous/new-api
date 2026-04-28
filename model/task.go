@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
 )
 
@@ -115,6 +116,15 @@ type TaskBillingContext struct {
 	OtherRatios     map[string]float64 `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
 	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
+
+	// TieredSnapshot captures the frozen billing expression state for tiered_expr
+	// models. Present only when BillingMode == tiered_expr at submit time.
+	// Used by RecalculateTaskQuotaByTokens to re-run the expression with actual
+	// token counts returned by the upstream at task completion.
+	TieredSnapshot *billingexpr.BillingSnapshot `json:"tiered_snapshot,omitempty"`
+	// TieredRequestBody is the original request body bytes, serialized as base64
+	// JSON string. Required so param() calls in the expression work at settlement.
+	TieredRequestBody []byte `json:"tiered_request_body,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
