@@ -104,8 +104,8 @@ export const getTrendSpec = (data, color) => ({
   data: [{ id: 'trend', values: data.map((val, idx) => ({ x: idx, y: val })) }],
   xField: 'x',
   yField: 'y',
-  height: 40,
-  width: 100,
+  height: 50,
+  width: 130,
   axes: [
     {
       orient: 'bottom',
@@ -121,10 +121,13 @@ export const getTrendSpec = (data, color) => ({
   legends: { visible: false },
   tooltip: { visible: false },
   crosshair: { visible: false },
+  hover: false,
+  select: false,
   line: {
     style: {
       stroke: color,
       lineWidth: 2,
+      curveType: 'monotone',
     },
   },
   point: {

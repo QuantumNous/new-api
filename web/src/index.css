@@ -1378,12 +1378,12 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-metric-item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 14px 0;
-  cursor: pointer;
 }
 
 .dashboard-metric-item + .dashboard-metric-item {
@@ -1395,6 +1395,7 @@ html.dark .with-pastel-balls::before {
   align-items: center;
   min-width: 0;
   gap: 14px;
+  z-index: 10;
 }
 
 .dashboard-metric-avatar.semi-avatar {
@@ -1433,11 +1434,18 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-metric-trend {
-  width: 112px;
-  height: 44px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #fbf7ff 0%, #f2f8ff 100%);
+  position: absolute;
+  z-index: 0;
+  top: 14px;
+  right: 0;
+  width: 130px;
+  height: 54px;
+  pointer-events: none;
+}
+
+.dashboard-metric-trend,
+.dashboard-metric-trend * {
+  pointer-events: none !important;
 }
 
 .dashboard-metric-action-tag.semi-tag,
