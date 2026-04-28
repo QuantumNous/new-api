@@ -25,8 +25,8 @@ body.sidebar-collapsed {
 }
 
 body {
-  font-family:
-    Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei', sans-serif;
+  font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
+    sans-serif;
   color: var(--semi-color-text-0);
   background-color: var(--semi-color-bg-0);
 }
@@ -54,8 +54,8 @@ body {
 }
 
 code {
-  font-family:
-    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
 }
 
 /* ==================== 布局相关样式 ==================== */
@@ -1047,8 +1047,11 @@ html:not(.dark) .blur-ball-teal {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background:
-    radial-gradient(circle at -5% -10%, var(--pb1) 0%, transparent 60%),
+  background: radial-gradient(
+      circle at -5% -10%,
+      var(--pb1) 0%,
+      transparent 60%
+    ),
     radial-gradient(circle at 105% -10%, var(--pb2) 0%, transparent 55%),
     radial-gradient(circle at 5% 110%, var(--pb3) 0%, transparent 55%),
     radial-gradient(circle at 105% 110%, var(--pb4) 0%, transparent 50%);
@@ -1173,9 +1176,8 @@ html.dark .with-pastel-balls::before {
   max-width: 1600px;
   margin: 0 auto;
   padding: clamp(16px, 2vw, 28px);
-  font-family:
-    Inter, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
-    sans-serif;
+  font-family: Inter, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
 }
 
 .dashboard-header-panel {
@@ -1188,8 +1190,7 @@ html.dark .with-pastel-balls::before {
   padding: clamp(24px, 4vw, 40px);
   border: 1px solid rgba(200, 209, 224, 0.9);
   border-radius: 32px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(193, 97, 255, 0.18),
       transparent 28%
@@ -1244,8 +1245,7 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-header-title {
   margin: 0;
-  font-family:
-    CoinbaseDisplay, 'SF Pro Display', 'Segoe UI', 'PingFang SC',
+  font-family: CoinbaseDisplay, 'SF Pro Display', 'Segoe UI', 'PingFang SC',
     'Microsoft YaHei', sans-serif;
   font-size: clamp(36px, 5vw, 60px);
   font-weight: 400;
@@ -1418,9 +1418,8 @@ html.dark .with-pastel-balls::before {
 .dashboard-metric-value {
   margin-top: 6px;
   color: #0a0b0d;
-  font-family:
-    CoinbaseSans, Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
+  font-family: CoinbaseSans, Inter, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
   font-size: clamp(22px, 2.3vw, 28px);
   font-weight: 700;
   line-height: 1.1;
@@ -1624,8 +1623,7 @@ html.dark .with-pastel-balls::before {
   overflow: hidden;
   border: 1px solid rgba(217, 223, 233, 0.92);
   border-radius: 32px !important;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(196, 84, 245, 0.12),
       transparent 26%
@@ -1729,8 +1727,7 @@ html.dark .with-pastel-balls::before {
   min-height: 420px;
   border: 1px solid rgba(226, 231, 240, 0.95);
   border-radius: 28px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top right,
       rgba(46, 168, 255, 0.06),
       transparent 22%
@@ -1751,8 +1748,7 @@ html.dark .with-pastel-balls::before {
   overflow: hidden;
   border: 1px solid rgba(217, 223, 233, 0.92);
   border-radius: 28px !important;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(196, 84, 245, 0.08),
       transparent 24%
@@ -2008,8 +2004,7 @@ html.dark .with-pastel-balls::before {
 
 html.dark .dashboard-header-panel {
   border-color: rgba(58, 66, 82, 0.9);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(177, 77, 241, 0.16),
       transparent 24%
@@ -2155,8 +2150,7 @@ html.dark .dashboard-promo-button-secondary.semi-button {
 
 html.dark .dashboard-chart-panel.semi-card,
 html.dark .dashboard-uptime-panel.semi-card {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(177, 77, 241, 0.1),
       transparent 24%
@@ -2179,8 +2173,7 @@ html.dark .dashboard-uptime-tabs .semi-tabs-tab-button {
 
 html.dark .dashboard-chart-canvas {
   border-color: rgba(49, 58, 74, 0.96);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top right,
       rgba(46, 168, 255, 0.08),
       transparent 22%
@@ -2194,8 +2187,7 @@ html.dark .dashboard-chart-canvas {
 html.dark .dashboard-api-panel.semi-card,
 html.dark .dashboard-announcements-panel.semi-card,
 html.dark .dashboard-faq-panel.semi-card {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(177, 77, 241, 0.08),
       transparent 22%
@@ -2924,6 +2916,171 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
   background: #ffffff;
 }
 
+.personal-settings-modal .semi-modal-content {
+  overflow: hidden;
+  border: 1px solid rgba(91, 97, 110, 0.2);
+  border-radius: 34px !important;
+  background: #ffffff;
+  box-shadow: 0 28px 60px rgba(10, 11, 13, 0.14);
+}
+
+.personal-settings-modal .semi-modal-header {
+  padding: 28px 28px 0 !important;
+}
+
+.personal-settings-modal .semi-modal-body {
+  padding: 18px 28px 28px !important;
+}
+
+.personal-settings-modal .semi-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 0 28px 28px !important;
+  border-top: none !important;
+}
+
+.personal-settings-modal .semi-modal-footer .semi-button {
+  min-width: 120px;
+}
+
+.personal-settings-modal-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.personal-settings-modal-title-icon {
+  margin-top: 2px;
+  color: #0052ff;
+}
+
+.personal-settings-modal-title-icon-danger {
+  color: #b42318;
+}
+
+.personal-settings-modal-title {
+  color: #0a0b0d;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.12;
+}
+
+.personal-settings-modal-subtitle {
+  margin-top: 6px;
+  color: #5b616e;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.personal-settings-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.personal-settings-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.personal-settings-modal-label {
+  display: block;
+  color: #0a0b0d;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.personal-settings-modal-helper {
+  color: #5b616e;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.personal-settings-modal-danger-text {
+  color: #b42318;
+}
+
+.personal-settings-modal-captcha {
+  display: flex;
+  justify-content: center;
+}
+
+.personal-settings-modal-image-card {
+  padding: 14px;
+  border: 1px solid rgba(91, 97, 110, 0.12);
+  border-radius: 24px;
+  background: #f7f8fa;
+}
+
+.personal-settings-modal-image-card .semi-image {
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.personal-settings-modal-banner.semi-banner {
+  border-radius: 18px !important;
+}
+
+.personal-settings-modal .personal-settings-modal-input.semi-input-wrapper,
+.personal-settings-modal .personal-settings-modal-input .semi-input-wrapper,
+.personal-settings-modal .semi-input-wrapper,
+.personal-settings-modal .semi-select,
+.personal-settings-modal .semi-input-number,
+.personal-settings-modal .semi-input-textarea-wrapper {
+  min-height: 56px;
+  border-color: rgba(91, 97, 110, 0.16) !important;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.personal-settings-modal .semi-input-prefix-text,
+.personal-settings-modal .semi-input-prefix,
+.personal-settings-modal .semi-select-selection-placeholder,
+.personal-settings-modal .semi-input::placeholder,
+.personal-settings-modal .semi-input-textarea::placeholder {
+  color: #98a2b3 !important;
+}
+
+.personal-settings-modal .semi-input,
+.personal-settings-modal .semi-input-textarea,
+.personal-settings-modal .semi-select-selection-text {
+  color: #0a0b0d !important;
+  font-size: 16px;
+}
+
+.personal-settings-modal .semi-input-wrapper:hover,
+.personal-settings-modal .semi-select:hover,
+.personal-settings-modal .semi-input-number:hover,
+.personal-settings-modal .semi-input-textarea-wrapper:hover {
+  border-color: rgba(0, 82, 255, 0.22) !important;
+}
+
+.personal-settings-modal .semi-input-wrapper-focus,
+.personal-settings-modal .semi-select-focus,
+.personal-settings-modal .semi-input-number-focus,
+.personal-settings-modal .semi-input-textarea-focus {
+  border-color: rgba(0, 82, 255, 0.44) !important;
+  box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.1) !important;
+}
+
+.personal-settings-modal
+  .semi-modal-footer
+  .semi-button:not(.semi-button-primary):not(.semi-button-danger) {
+  border-color: transparent;
+  background: transparent;
+  color: #0a0b0d;
+  box-shadow: none;
+}
+
+.personal-settings-modal .semi-modal-footer .semi-button-primary,
+.personal-settings-modal .semi-modal-footer .semi-button-danger {
+  border-radius: 999px !important;
+}
+
 html.dark .personal-settings-page-title,
 html.dark .personal-settings-card-title,
 html.dark .personal-settings-profile-name,
@@ -3079,6 +3236,78 @@ html.dark .personal-settings-link {
   color: #7ca2ff;
 }
 
+html.dark .personal-settings-modal .semi-modal-content {
+  border-color: rgba(58, 66, 82, 0.9);
+  background: #17191f;
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.36);
+}
+
+html.dark .personal-settings-modal-title {
+  color: #f8fafc;
+}
+
+html.dark .personal-settings-modal-subtitle,
+html.dark .personal-settings-modal-helper {
+  color: #98a2b3;
+}
+
+html.dark .personal-settings-modal-label {
+  color: #f8fafc;
+}
+
+html.dark .personal-settings-modal-image-card {
+  border-color: rgba(58, 66, 82, 0.9);
+  background: #111318;
+}
+
+html.dark .personal-settings-modal-banner.semi-banner {
+  border-color: rgba(58, 66, 82, 0.9);
+}
+
+html.dark
+  .personal-settings-modal
+  .personal-settings-modal-input.semi-input-wrapper,
+html.dark
+  .personal-settings-modal
+  .personal-settings-modal-input
+  .semi-input-wrapper,
+html.dark .personal-settings-modal .semi-input-wrapper,
+html.dark .personal-settings-modal .semi-select,
+html.dark .personal-settings-modal .semi-input-number,
+html.dark .personal-settings-modal .semi-input-textarea-wrapper {
+  border-color: rgba(58, 66, 82, 0.9) !important;
+  background: #101217 !important;
+}
+
+html.dark .personal-settings-modal .semi-input,
+html.dark .personal-settings-modal .semi-input-textarea,
+html.dark .personal-settings-modal .semi-select-selection-text {
+  color: #f8fafc !important;
+}
+
+html.dark .personal-settings-modal .semi-input-prefix-text,
+html.dark .personal-settings-modal .semi-input-prefix,
+html.dark .personal-settings-modal .semi-select-selection-placeholder,
+html.dark .personal-settings-modal .semi-input::placeholder,
+html.dark .personal-settings-modal .semi-input-textarea::placeholder {
+  color: #7c8595 !important;
+}
+
+html.dark .personal-settings-modal .semi-input-wrapper-focus,
+html.dark .personal-settings-modal .semi-select-focus,
+html.dark .personal-settings-modal .semi-input-number-focus,
+html.dark .personal-settings-modal .semi-input-textarea-focus {
+  border-color: rgba(87, 139, 250, 0.38) !important;
+  box-shadow: 0 0 0 3px rgba(87, 139, 250, 0.14) !important;
+}
+
+html.dark
+  .personal-settings-modal
+  .semi-modal-footer
+  .semi-button:not(.semi-button-primary):not(.semi-button-danger) {
+  color: #f8fafc;
+}
+
 @media (max-width: 767px) {
   .personal-settings-shell {
     padding: 16px 0 28px;
@@ -3119,5 +3348,25 @@ html.dark .personal-settings-link {
 
   .personal-settings-detail-value {
     text-align: left;
+  }
+
+  .personal-settings-modal .semi-modal-content {
+    border-radius: 28px !important;
+  }
+
+  .personal-settings-modal .semi-modal-header {
+    padding: 22px 20px 0 !important;
+  }
+
+  .personal-settings-modal .semi-modal-body {
+    padding: 16px 20px 20px !important;
+  }
+
+  .personal-settings-modal .semi-modal-footer {
+    padding: 0 20px 20px !important;
+  }
+
+  .personal-settings-modal .semi-modal-footer .semi-button {
+    min-width: 0;
   }
 }

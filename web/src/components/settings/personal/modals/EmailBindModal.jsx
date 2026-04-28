@@ -40,58 +40,75 @@ const EmailBindModal = ({
   return (
     <Modal
       title={
-        <div className='flex items-center'>
-          <IconMail className='mr-2 text-blue-500' />
-          {t('绑定邮箱地址')}
+        <div className='personal-settings-modal-title-row'>
+          <IconMail className='personal-settings-modal-title-icon' />
+          <div>
+            <div className='personal-settings-modal-title'>
+              {t('绑定邮箱地址')}
+            </div>
+            <div className='personal-settings-modal-subtitle'>
+              {t('通过邮箱验证码完成账号绑定')}
+            </div>
+          </div>
         </div>
       }
       visible={showEmailBindModal}
       onCancel={() => setShowEmailBindModal(false)}
       onOk={bindEmail}
+      okText={t('确认绑定')}
+      cancelText={t('取消')}
+      okButtonProps={{ className: 'personal-settings-primary-button' }}
+      cancelButtonProps={{ className: 'personal-settings-outline-button' }}
       size={'small'}
       centered={true}
       maskClosable={false}
-      className='modern-modal'
+      className='personal-settings-modal'
     >
-      <div className='space-y-4 py-4'>
-        <div className='flex gap-3'>
-          <Input
-            placeholder={t('输入邮箱地址')}
-            onChange={(value) => handleInputChange('email', value)}
-            name='email'
-            type='email'
-            size='large'
-            className='!rounded-lg flex-1'
-            prefix={<IconMail />}
-          />
-          <Button
-            onClick={sendVerificationCode}
-            disabled={disableButton || loading}
-            className='!rounded-lg'
-            type='primary'
-            theme='outline'
-            size='large'
-          >
-            {disableButton
-              ? `${t('重新发送')} (${countdown})`
-              : t('获取验证码')}
-          </Button>
+      <div className='personal-settings-modal-body'>
+        <div className='personal-settings-modal-field'>
+          <div className='personal-settings-modal-label'>{t('邮箱地址')}</div>
+          <div className='flex gap-3'>
+            <Input
+              placeholder={t('输入邮箱地址')}
+              onChange={(value) => handleInputChange('email', value)}
+              name='email'
+              type='email'
+              size='large'
+              className='personal-settings-modal-input flex-1'
+              prefix={<IconMail />}
+            />
+            <Button
+              onClick={sendVerificationCode}
+              disabled={disableButton || loading}
+              className='personal-settings-outline-button'
+              type='primary'
+              theme='outline'
+              size='large'
+            >
+              {disableButton
+                ? `${t('重新发送')} (${countdown})`
+                : t('获取验证码')}
+            </Button>
+          </div>
         </div>
 
-        <Input
-          placeholder={t('验证码')}
-          name='email_verification_code'
-          value={inputs.email_verification_code}
-          onChange={(value) =>
-            handleInputChange('email_verification_code', value)
-          }
-          size='large'
-          className='!rounded-lg'
-          prefix={<IconKey />}
-        />
+        <div className='personal-settings-modal-field'>
+          <div className='personal-settings-modal-label'>{t('验证码')}</div>
+          <Input
+            placeholder={t('输入收到的验证码')}
+            name='email_verification_code'
+            value={inputs.email_verification_code}
+            onChange={(value) =>
+              handleInputChange('email_verification_code', value)
+            }
+            size='large'
+            className='personal-settings-modal-input'
+            prefix={<IconKey />}
+          />
+        </div>
 
         {turnstileEnabled && (
-          <div className='flex justify-center'>
+          <div className='personal-settings-modal-captcha'>
             <Turnstile
               sitekey={turnstileSiteKey}
               onVerify={(token) => {

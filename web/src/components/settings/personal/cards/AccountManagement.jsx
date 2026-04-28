@@ -459,20 +459,38 @@ const AccountManagement = ({
                 </div>
               </Card>
               <Modal
-                title={t('绑定 Telegram')}
+                title={
+                  <div className='personal-settings-modal-title-row'>
+                    <SiTelegram
+                      className='personal-settings-modal-title-icon'
+                      size={18}
+                    />
+                    <div>
+                      <div className='personal-settings-modal-title'>
+                        {t('绑定 Telegram')}
+                      </div>
+                      <div className='personal-settings-modal-subtitle'>
+                        {t('通过 Telegram 授权完成账号绑定')}
+                      </div>
+                    </div>
+                  </div>
+                }
                 visible={showTelegramBindModal}
                 onCancel={() => setShowTelegramBindModal(false)}
                 footer={null}
+                className='personal-settings-modal'
               >
-                <div className='my-3 text-sm personal-settings-item-text'>
-                  {t('点击下方按钮通过 Telegram 完成绑定')}
-                </div>
-                <div className='flex justify-center'>
-                  <div className='scale-90'>
-                    <TelegramLoginButton
-                      dataAuthUrl='/api/oauth/telegram/bind'
-                      botName={status.telegram_bot_name}
-                    />
+                <div className='personal-settings-modal-body'>
+                  <div className='text-sm personal-settings-modal-helper'>
+                    {t('点击下方按钮通过 Telegram 完成绑定')}
+                  </div>
+                  <div className='flex justify-center'>
+                    <div className='scale-90'>
+                      <TelegramLoginButton
+                        dataAuthUrl='/api/oauth/telegram/bind'
+                        botName={status.telegram_bot_name}
+                      />
+                    </div>
                   </div>
                 </div>
               </Modal>

@@ -453,9 +453,16 @@ const TwoFASetting = ({ t }) => {
       {/* 2FA设置模态框 */}
       <Modal
         title={
-          <div className='flex items-center'>
-            <IconShield className='mr-2 text-slate-600' />
-            {t('设置两步验证')}
+          <div className='personal-settings-modal-title-row'>
+            <IconShield className='personal-settings-modal-title-icon' />
+            <div>
+              <div className='personal-settings-modal-title'>
+                {t('设置两步验证')}
+              </div>
+              <div className='personal-settings-modal-subtitle'>
+                {t('扫描二维码并保存备用码后完成验证')}
+              </div>
+            </div>
           </div>
         }
         visible={setupModalVisible}
@@ -468,6 +475,7 @@ const TwoFASetting = ({ t }) => {
         footer={renderSetupModalFooter()}
         width={650}
         style={{ maxWidth: '90vw' }}
+        className='personal-settings-modal'
       >
         {setupData && (
           <div className='space-y-6'>
@@ -544,9 +552,16 @@ const TwoFASetting = ({ t }) => {
       {/* 禁用2FA模态框 */}
       <Modal
         title={
-          <div className='flex items-center'>
-            <IconAlertTriangle className='mr-2 text-red-500' />
-            {t('禁用两步验证')}
+          <div className='personal-settings-modal-title-row'>
+            <IconAlertTriangle className='personal-settings-modal-title-icon personal-settings-modal-title-icon-danger' />
+            <div>
+              <div className='personal-settings-modal-title'>
+                {t('禁用两步验证')}
+              </div>
+              <div className='personal-settings-modal-subtitle'>
+                {t('禁用后将清除当前 2FA 设置和备用码')}
+              </div>
+            </div>
           </div>
         }
         visible={disableModalVisible}
@@ -558,6 +573,7 @@ const TwoFASetting = ({ t }) => {
         footer={renderDisableModalFooter()}
         width={550}
         style={{ maxWidth: '90vw' }}
+        className='personal-settings-modal personal-settings-modal-danger'
       >
         <div className='space-y-6'>
           {/* 警告提示 */}
@@ -638,9 +654,16 @@ const TwoFASetting = ({ t }) => {
       {/* 重新生成备用码模态框 */}
       <Modal
         title={
-          <div className='flex items-center'>
-            <IconRefresh className='mr-2 text-slate-600' />
-            {t('重新生成备用码')}
+          <div className='personal-settings-modal-title-row'>
+            <IconRefresh className='personal-settings-modal-title-icon' />
+            <div>
+              <div className='personal-settings-modal-title'>
+                {t('重新生成备用码')}
+              </div>
+              <div className='personal-settings-modal-subtitle'>
+                {t('生成后旧备用码会立即失效')}
+              </div>
+            </div>
           </div>
         }
         visible={backupModalVisible}
@@ -652,6 +675,7 @@ const TwoFASetting = ({ t }) => {
         footer={renderRegenerateModalFooter()}
         width={500}
         style={{ maxWidth: '90vw' }}
+        className='personal-settings-modal'
       >
         <div className='space-y-6'>
           {backupCodes.length === 0 ? (
