@@ -190,4 +190,3 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 
 	return nil
 }
-

@@ -182,4 +182,3 @@ func (a *Adaptor) GetModelList() (models []string) {
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
 }
-

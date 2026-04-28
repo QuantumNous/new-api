@@ -28,21 +28,16 @@ import (
 // ============================
 
 type ContentItem struct {
-	Type      string     `json:"type,omitempty"`
-	Text      string     `json:"text,omitempty"`
-	ImageURL  *MediaURL  `json:"image_url,omitempty"`
-	VideoURL  *MediaURL  `json:"video_url,omitempty"`
-	AudioURL  *MediaURL  `json:"audio_url,omitempty"`
-	DraftTask *DraftTask `json:"draft_task,omitempty"`
-	Role      string     `json:"role,omitempty"`
+	Type     string    `json:"type,omitempty"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *MediaURL `json:"image_url,omitempty"`
+	VideoURL *MediaURL `json:"video_url,omitempty"`
+	AudioURL *MediaURL `json:"audio_url,omitempty"`
+	Role     string    `json:"role,omitempty"`
 }
 
 type MediaURL struct {
 	URL string `json:"url,omitempty"`
-}
-
-type DraftTask struct {
-	ID string `json:"id,omitempty"`
 }
 
 type requestPayload struct {
@@ -371,4 +366,3 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 
 	return common.Marshal(openAIVideo)
 }
-

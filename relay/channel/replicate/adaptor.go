@@ -529,4 +529,3 @@ func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	return nil, errors.New("replicate adaptor: ConvertGeminiRequest is not implemented")
 }
-

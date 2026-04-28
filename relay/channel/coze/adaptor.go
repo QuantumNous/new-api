@@ -137,4 +137,3 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *com
 	req.Set("Authorization", "Bearer "+info.ApiKey)
 	return nil
 }
-

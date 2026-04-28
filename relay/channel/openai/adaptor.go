@@ -677,4 +677,3 @@ func (a *Adaptor) GetChannelName() string {
 		return ChannelName
 	}
 }
-
