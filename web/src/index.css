@@ -25,8 +25,8 @@ body.sidebar-collapsed {
 }
 
 body {
-  font-family:
-    Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei', sans-serif;
+  font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
+    sans-serif;
   color: var(--semi-color-text-0);
   background-color: var(--semi-color-bg-0);
 }
@@ -54,8 +54,8 @@ body {
 }
 
 code {
-  font-family:
-    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
 }
 
 /* ==================== 布局相关样式 ==================== */
@@ -265,7 +265,7 @@ code {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 64px;
+  height: 64.6px;
   padding: 0 16px;
   border-bottom: 1px solid rgba(219, 224, 234, 0.9);
   text-decoration: none;
@@ -282,13 +282,14 @@ code {
   border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #c454f5 0%, #ec4899 52%, #2ea8ff 100%);
-  box-shadow: 0 10px 22px rgba(196, 84, 245, 0.18);
+  /* background: linear-gradient(135deg, #c454f5 0%, #ec4899 52%, #2ea8ff 100%); */
+  /* box-shadow: 0 10px 22px rgba(196, 84, 245, 0.18); */
 }
 
 .sidebar-brand-logo {
   width: 100%;
   height: 100%;
+  padding: 4px;
   object-fit: cover;
 }
 
@@ -298,13 +299,19 @@ code {
 
 .sidebar-brand-title {
   display: block;
-  color: #101828 !important;
-  font-size: 15px;
+  font-size: 20px;
   font-weight: 700 !important;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: rgba(0, 0, 0, 0);
+  background-clip: text;
+  background-image: linear-gradient(
+    to right,
+    hsl(280 85% 65%),
+    hsl(200 90% 55%)
+  );
 }
 
 .sidebar-user-card {
@@ -1047,8 +1054,11 @@ html:not(.dark) .blur-ball-teal {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background:
-    radial-gradient(circle at -5% -10%, var(--pb1) 0%, transparent 60%),
+  background: radial-gradient(
+      circle at -5% -10%,
+      var(--pb1) 0%,
+      transparent 60%
+    ),
     radial-gradient(circle at 105% -10%, var(--pb2) 0%, transparent 55%),
     radial-gradient(circle at 5% 110%, var(--pb3) 0%, transparent 55%),
     radial-gradient(circle at 105% 110%, var(--pb4) 0%, transparent 50%);
@@ -1173,9 +1183,8 @@ html.dark .with-pastel-balls::before {
   max-width: 1600px;
   margin: 0 auto;
   padding: clamp(16px, 2vw, 28px);
-  font-family:
-    Inter, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
-    sans-serif;
+  font-family: Inter, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
 }
 
 .dashboard-header-panel {
@@ -1188,8 +1197,7 @@ html.dark .with-pastel-balls::before {
   padding: clamp(24px, 4vw, 40px);
   border: 1px solid rgba(200, 209, 224, 0.9);
   border-radius: 32px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(193, 97, 255, 0.18),
       transparent 28%
@@ -1244,8 +1252,7 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-header-title {
   margin: 0;
-  font-family:
-    CoinbaseDisplay, 'SF Pro Display', 'Segoe UI', 'PingFang SC',
+  font-family: CoinbaseDisplay, 'SF Pro Display', 'Segoe UI', 'PingFang SC',
     'Microsoft YaHei', sans-serif;
   font-size: clamp(36px, 5vw, 60px);
   font-weight: 400;
@@ -1418,9 +1425,8 @@ html.dark .with-pastel-balls::before {
 .dashboard-metric-value {
   margin-top: 6px;
   color: #0a0b0d;
-  font-family:
-    CoinbaseSans, Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
+  font-family: CoinbaseSans, Inter, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
   font-size: clamp(22px, 2.3vw, 28px);
   font-weight: 700;
   line-height: 1.1;
@@ -1624,8 +1630,7 @@ html.dark .with-pastel-balls::before {
   overflow: hidden;
   border: 1px solid rgba(217, 223, 233, 0.92);
   border-radius: 32px !important;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(196, 84, 245, 0.12),
       transparent 26%
@@ -1729,8 +1734,7 @@ html.dark .with-pastel-balls::before {
   min-height: 420px;
   border: 1px solid rgba(226, 231, 240, 0.95);
   border-radius: 28px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top right,
       rgba(46, 168, 255, 0.06),
       transparent 22%
@@ -1751,8 +1755,7 @@ html.dark .with-pastel-balls::before {
   overflow: hidden;
   border: 1px solid rgba(217, 223, 233, 0.92);
   border-radius: 28px !important;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(196, 84, 245, 0.08),
       transparent 24%
@@ -2008,8 +2011,7 @@ html.dark .with-pastel-balls::before {
 
 html.dark .dashboard-header-panel {
   border-color: rgba(58, 66, 82, 0.9);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(177, 77, 241, 0.16),
       transparent 24%
@@ -2155,8 +2157,7 @@ html.dark .dashboard-promo-button-secondary.semi-button {
 
 html.dark .dashboard-chart-panel.semi-card,
 html.dark .dashboard-uptime-panel.semi-card {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(177, 77, 241, 0.1),
       transparent 24%
@@ -2179,8 +2180,7 @@ html.dark .dashboard-uptime-tabs .semi-tabs-tab-button {
 
 html.dark .dashboard-chart-canvas {
   border-color: rgba(49, 58, 74, 0.96);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top right,
       rgba(46, 168, 255, 0.08),
       transparent 22%
@@ -2194,8 +2194,7 @@ html.dark .dashboard-chart-canvas {
 html.dark .dashboard-api-panel.semi-card,
 html.dark .dashboard-announcements-panel.semi-card,
 html.dark .dashboard-faq-panel.semi-card {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at top left,
       rgba(177, 77, 241, 0.08),
       transparent 22%

@@ -390,6 +390,21 @@ const SiderBar = ({
         width: 'var(--sidebar-current-width)',
       }}
     >
+      <Link to='/' className='sidebar-brand' onClick={onNavigate}>
+        <div className='sidebar-brand-mark'>
+          {logo ? (
+            <img src={logo} alt='logo' className='sidebar-brand-logo' />
+          ) : null}
+        </div>
+        {!collapsed && (
+          <div className='sidebar-brand-copy'>
+            <Typography.Text className='sidebar-brand-title'>
+              {systemName}
+            </Typography.Text>
+          </div>
+        )}
+      </Link>
+
       <SkeletonWrapper
         loading={showSkeleton}
         type='sidebar'
@@ -397,21 +412,6 @@ const SiderBar = ({
         collapsed={collapsed}
         showAdmin={isAdmin()}
       >
-        <Link to='/' className='sidebar-brand' onClick={onNavigate}>
-          <div className='sidebar-brand-mark'>
-            {logo ? (
-              <img src={logo} alt='logo' className='sidebar-brand-logo' />
-            ) : null}
-          </div>
-          {!collapsed && (
-            <div className='sidebar-brand-copy'>
-              <Typography.Text className='sidebar-brand-title'>
-                {systemName}
-              </Typography.Text>
-            </div>
-          )}
-        </Link>
-
         <Nav
           className='sidebar-nav'
           defaultIsCollapsed={collapsed}
