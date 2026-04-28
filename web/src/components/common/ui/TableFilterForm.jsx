@@ -253,10 +253,18 @@ export function FilterDateRange({
           <RangeCalendar.Header>
             <RangeCalendar.YearPickerTrigger>
               <RangeCalendar.YearPickerTriggerHeading />
-              <RangeCalendar.YearPickerTriggerIndicator />
+              {/* Override the default `text-accent` chevron + nav arrows
+                  with a softer muted tone to match the rest of the picker. */}
+              <RangeCalendar.YearPickerTriggerIndicator className='text-muted!' />
             </RangeCalendar.YearPickerTrigger>
-            <RangeCalendar.NavButton slot='previous' />
-            <RangeCalendar.NavButton slot='next' />
+            <RangeCalendar.NavButton
+              slot='previous'
+              className='text-muted! hover:text-foreground!'
+            />
+            <RangeCalendar.NavButton
+              slot='next'
+              className='text-muted! hover:text-foreground!'
+            />
           </RangeCalendar.Header>
           <RangeCalendar.Grid>
             <RangeCalendar.GridHeader>
