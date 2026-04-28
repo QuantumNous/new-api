@@ -46,17 +46,34 @@ export const CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS = [
   'X-Stainless-Timeout',
   'User-Agent',
   'X-App',
+  'X-Claude-Code-Session-Id',
   'Anthropic-Beta',
   'Anthropic-Dangerous-Direct-Browser-Access',
   'Anthropic-Version',
 ];
 
+export const CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE = {
+  operations: [
+    {
+      mode: 'pass_headers',
+      value: [...CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS],
+      keep_origin: true,
+    },
+    {
+      mode: 'sync_fields',
+      from: 'context:channel_affinity.key',
+      to: 'header:session_id',
+    },
+    {
+      mode: 'sync_fields',
+      from: 'context:channel_affinity.key',
+      to: 'json:prompt_cache_key',
+    },
+  ],
+};
+
 export const CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE = buildPassHeadersTemplate(
   CODEX_CLI_HEADER_PASSTHROUGH_HEADERS,
-);
-
-export const CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE = buildPassHeadersTemplate(
-  CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS,
 );
 
 export const CHANNEL_AFFINITY_RULE_TEMPLATES = {
@@ -74,9 +91,12 @@ export const CHANNEL_AFFINITY_RULE_TEMPLATES = {
   },
   claudeCli: {
     name: 'claude cli trace',
-    model_regex: ['^claude-.*$'],
+    model_regex: ['^claude-.*$', '^gpt-.*$'],
     path_regex: ['/v1/messages'],
-    key_sources: [{ type: 'gjson', path: 'metadata.user_id' }],
+    key_sources: [
+      { type: 'request_header', key: 'X-Claude-Code-Session-Id' },
+      { type: 'gjson', path: 'metadata.user_id', nested_path: 'session_id' },
+    ],
     param_override_template: CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
     value_regex: '',
     ttl_seconds: 0,

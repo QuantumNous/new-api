@@ -1506,6 +1506,43 @@ func TestApplyParamOverrideSyncFieldsJSONToHeader(t *testing.T) {
 	}
 }
 
+func TestApplyParamOverrideSyncFieldsContextToJSONAndHeader(t *testing.T) {
+	input := []byte(`{"model":"gpt-4"}`)
+	override := map[string]interface{}{
+		"operations": []interface{}{
+			map[string]interface{}{
+				"mode": "sync_fields",
+				"from": "context:channel_affinity.key",
+				"to":   "json:prompt_cache_key",
+			},
+			map[string]interface{}{
+				"mode": "sync_fields",
+				"from": "context:channel_affinity.key",
+				"to":   "header:session_id",
+			},
+		},
+	}
+	ctx := map[string]interface{}{
+		"channel_affinity": map[string]interface{}{
+			"key": "affinity-session",
+		},
+	}
+
+	out, err := ApplyParamOverride(input, override, ctx)
+	if err != nil {
+		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"model":"gpt-4","prompt_cache_key":"affinity-session"}`, string(out))
+
+	headers, ok := ctx["header_override"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected header_override context map")
+	}
+	if headers["session_id"] != "affinity-session" {
+		t.Fatalf("expected session_id to be synced from context, got: %v", headers["session_id"])
+	}
+}
+
 func TestApplyParamOverrideSyncFieldsNoChangeWhenBothExist(t *testing.T) {
 	input := []byte(`{"model":"gpt-4","prompt_cache_key":"cache-body"}`)
 	override := map[string]interface{}{

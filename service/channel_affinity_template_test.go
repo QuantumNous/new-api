@@ -245,3 +245,81 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	_, exists = info.RuntimeHeadersOverride["x-codex-turn-metadata"]
 	require.False(t, exists)
 }
+
+func TestClaudeTemplateSyncsClaudeSessionToPromptCacheKeyAndSessionHeader(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+
+	var claudeRule *operation_setting.ChannelAffinityRule
+	for i := range setting.Rules {
+		rule := &setting.Rules[i]
+		if strings.EqualFold(strings.TrimSpace(rule.Name), "claude cli trace") {
+			claudeRule = rule
+			break
+		}
+	}
+	require.NotNil(t, claudeRule)
+
+	meta := channelAffinityMeta{
+		RuleName:      claudeRule.Name,
+		ParamTemplate: claudeRule.ParamOverrideTemplate,
+		KeyValue:      "claude-session-123",
+	}
+	ctx := buildChannelAffinityTemplateContextForTest(meta)
+
+	mergedOverride, applied := ApplyChannelAffinityOverrideTemplate(ctx, map[string]interface{}{})
+	require.True(t, applied)
+
+	info := &relaycommon.RelayInfo{
+		RequestHeaders: map[string]string{
+			"X-Claude-Code-Session-Id": "claude-session-123",
+			"User-Agent":               "claude-cli-test",
+			"X-App":                    "cli",
+		},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ParamOverride:        mergedOverride,
+			ParamOverrideContext: buildChannelAffinityParamOverrideContext(meta),
+		},
+	}
+
+	out, err := relaycommon.ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-5.4"}`), info)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-5.4","prompt_cache_key":"claude-session-123"}`, string(out))
+
+	require.True(t, info.UseRuntimeHeadersOverride)
+	require.Equal(t, "claude-session-123", info.RuntimeHeadersOverride["x-claude-code-session-id"])
+	require.Equal(t, "claude-session-123", info.RuntimeHeadersOverride["session_id"])
+	require.Equal(t, "claude-cli-test", info.RuntimeHeadersOverride["user-agent"])
+	require.Equal(t, "cli", info.RuntimeHeadersOverride["x-app"])
+}
+
+func TestExtractChannelAffinityValueFromRequestHeader(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	ctx.Request.Header.Set("X-Claude-Code-Session-Id", "header-session")
+
+	value := extractChannelAffinityValue(ctx, operation_setting.ChannelAffinityKeySource{
+		Type: "request_header",
+		Key:  "X-Claude-Code-Session-Id",
+	})
+	require.Equal(t, "header-session", value)
+}
+
+func TestExtractChannelAffinityValueFromNestedJSONString(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"metadata":{"user_id":"{\"device_id\":\"dev-1\",\"session_id\":\"nested-session\"}"}}`),
+	)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	value := extractChannelAffinityValue(ctx, operation_setting.ChannelAffinityKeySource{
+		Type:       "gjson",
+		Path:       "metadata.user_id",
+		NestedPath: "session_id",
+	})
+	require.Equal(t, "nested-session", value)
+}
