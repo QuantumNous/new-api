@@ -192,11 +192,7 @@ const AccountManagement = ({
         </div>
       </div>
 
-      <Tabs
-        type='card'
-        defaultActiveKey='binding'
-        className='personal-settings-tabs'
-      >
+      <Tabs defaultActiveKey='binding' className='personal-settings-tabs'>
         {/* 账户绑定 Tab */}
         <TabPane
           tab={
