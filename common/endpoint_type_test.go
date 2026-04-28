@@ -22,55 +22,32 @@ func TestGetEndpointTypesByChannelType(t *testing.T) {
 	}
 
 	cases := []testCase{
-		// --- VolcAdapter: seedream image ---
+		// --- VolcAdapter (ch 58): EndpointTypeVolcImage/Video are commented out;
+		//     ch 58 falls through to the default case (EndpointTypeOpenAI),
+		//     matching upstream's treatment of task-style channels (Kling/Jimeng/Suno).
+		// EndpointTypeVolcImage and EndpointTypeVolcVideo are commented out (matching upstream
+		// pattern for task-style channels). Use string literals in absence assertions below.
 		{
-			name:        "VolcAdapter + seedream model → volc-image first, then image-generation, then openai",
+			name:        "VolcAdapter + seedream model → falls through to default (image-generation prepend applies)",
 			channelType: constant.ChannelTypeVolcAdapter,
 			modelName:   "doubao-seedream-5-0-260128",
-			exactSlice: []constant.EndpointType{
-				constant.EndpointTypeVolcImage,
-				constant.EndpointTypeImageGeneration,
-				constant.EndpointTypeOpenAI,
-			},
+			// Seedream is an image model, so EndpointTypeImageGeneration is prepended by the default path.
+			wantFirst:  constant.EndpointTypeImageGeneration,
+			wantAbsent: []constant.EndpointType{"volc-image", "volc-video"},
 		},
 		{
-			name:        "VolcAdapter + bare seedream alias → volc-image first",
-			channelType: constant.ChannelTypeVolcAdapter,
-			modelName:   "seedream-4-0-250828",
-			exactSlice: []constant.EndpointType{
-				constant.EndpointTypeVolcImage,
-				constant.EndpointTypeImageGeneration,
-				constant.EndpointTypeOpenAI,
-			},
-		},
-		// --- VolcAdapter: seedance video ---
-		{
-			name:        "VolcAdapter + seedance model → volc-video first, then openai-video",
+			name:        "VolcAdapter + seedance model → falls through to default (openai)",
 			channelType: constant.ChannelTypeVolcAdapter,
 			modelName:   "doubao-seedance-2-0-260128",
-			exactSlice: []constant.EndpointType{
-				constant.EndpointTypeVolcVideo,
-				constant.EndpointTypeOpenAIVideo,
-			},
+			wantFirst:   constant.EndpointTypeOpenAI,
+			wantAbsent:  []constant.EndpointType{"volc-image", "volc-video"},
 		},
 		{
-			name:        "VolcAdapter + bare seedance alias → volc-video first",
-			channelType: constant.ChannelTypeVolcAdapter,
-			modelName:   "seedance-1-5-pro-251215",
-			exactSlice: []constant.EndpointType{
-				constant.EndpointTypeVolcVideo,
-				constant.EndpointTypeOpenAIVideo,
-			},
-		},
-		// --- VolcAdapter: arbitrary non-matching model falls to video (seedance branch is the default for VolcAdapter) ---
-		{
-			name:        "VolcAdapter + arbitrary LLM model → volc-video / openai-video (default VolcAdapter path)",
+			name:        "VolcAdapter + arbitrary model → falls through to default (openai)",
 			channelType: constant.ChannelTypeVolcAdapter,
 			modelName:   "gpt-4o",
-			exactSlice: []constant.EndpointType{
-				constant.EndpointTypeVolcVideo,
-				constant.EndpointTypeOpenAIVideo,
-			},
+			wantFirst:   constant.EndpointTypeOpenAI,
+			wantAbsent:  []constant.EndpointType{"volc-image", "volc-video"},
 		},
 		// --- Regression: VolcEngine (45) with seedream must NOT include volc-image ---
 		{
@@ -79,7 +56,7 @@ func TestGetEndpointTypesByChannelType(t *testing.T) {
 			modelName:   "doubao-seedream-5-0-260128",
 			// After revert, VolcEngine falls to default; seedream triggers image-generation prepend.
 			wantContains: []constant.EndpointType{constant.EndpointTypeImageGeneration},
-			wantAbsent:   []constant.EndpointType{constant.EndpointTypeVolcImage},
+			wantAbsent:   []constant.EndpointType{"volc-image"},
 		},
 		// --- Regression: VolcEngine (45) + LLM → default openai ---
 		{
@@ -87,7 +64,7 @@ func TestGetEndpointTypesByChannelType(t *testing.T) {
 			channelType: constant.ChannelTypeVolcEngine,
 			modelName:   "Doubao-pro-32k",
 			wantFirst:   constant.EndpointTypeOpenAI,
-			wantAbsent:  []constant.EndpointType{constant.EndpointTypeVolcImage, constant.EndpointTypeVolcVideo},
+			wantAbsent:  []constant.EndpointType{"volc-image", "volc-video"},
 		},
 		// --- Regression: DoubaoVideo (54) + seedance must NOT include volc-video ---
 		{
@@ -95,7 +72,7 @@ func TestGetEndpointTypesByChannelType(t *testing.T) {
 			channelType: constant.ChannelTypeDoubaoVideo,
 			modelName:   "doubao-seedance-2-0-260128",
 			// After revert, DoubaoVideo falls to default; seedance is not an image model so no special casing.
-			wantAbsent: []constant.EndpointType{constant.EndpointTypeVolcVideo},
+			wantAbsent: []constant.EndpointType{"volc-video"},
 		},
 		// --- DoubaoVideo (54) + arbitrary → default openai ---
 		{
@@ -103,7 +80,7 @@ func TestGetEndpointTypesByChannelType(t *testing.T) {
 			channelType: constant.ChannelTypeDoubaoVideo,
 			modelName:   "some-video-model",
 			wantFirst:   constant.EndpointTypeOpenAI,
-			wantAbsent:  []constant.EndpointType{constant.EndpointTypeVolcVideo, constant.EndpointTypeVolcImage},
+			wantAbsent:  []constant.EndpointType{"volc-video", "volc-image"},
 		},
 	}
 

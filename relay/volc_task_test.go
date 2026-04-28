@@ -10,16 +10,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// TestVolcTaskDelete_Returns501 verifies that the RelayTaskVolcDelete controller
+// TestVolcTaskDelete_Returns501 verifies that the DELETE route for volc tasks
 // returns 501 Not Implemented with a recognizable message.
-// We test this through the handler logic directly (not through the full gin router)
-// by checking the response the controller would write.
+// The route uses an inline handler (no dedicated controller function).
 func TestVolcTaskDelete_Returns501(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	router := gin.New()
 
-	// Simulate what the route does: just calls RelayTaskVolcDelete
+	// Mirror the inline handler registered in router/video-router.go.
 	router.DELETE("/api/v3/contents/generations/tasks/:id", func(c *gin.Context) {
 		c.JSON(http.StatusNotImplemented, gin.H{
 			"code":        "not_implemented",

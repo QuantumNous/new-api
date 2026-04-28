@@ -1,9 +1,13 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/QuantumNous/new-api/controller"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -44,29 +48,42 @@ func SetVideoRouter(router *gin.Engine) {
 
 	// Volc Ark compatible task routes — native pass-through (no body rewriting).
 	// Body bytes flow byte-identical to upstream without any normalization.
+	// relay_format = "volc" signals RelayTask / RelayTaskFetch to use RelayFormatVolc
+	// so the downstream adaptor forwards the body byte-identical to upstream.
 	volcV3Router := router.Group("/api/v3")
 	volcV3Router.Use(middleware.RouteTag("relay"))
 	volcV3Router.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
 		// Task submit: native Volc body forwarded to upstream unchanged.
-		volcV3Router.POST("/contents/generations/tasks", controller.RelayTaskVolcSubmit)
-
-		// Task list: set relay_mode so RelayTaskFetchVolc routes to the list builder.
-		volcV3Router.GET("/contents/generations/tasks", func(c *gin.Context) {
-			c.Set("relay_mode", relayconstant.RelayModeVideoFetchList)
-			controller.RelayTaskFetchVolc(c)
+		volcV3Router.POST("/contents/generations/tasks", func(c *gin.Context) {
+			c.Set("relay_format", string(types.RelayFormatVolc))
+			controller.RelayTask(c)
 		})
 
-		// Task fetch by ID: set task_id and relay_mode for the fetch builder.
+		// Task list: set relay_mode and relay_format for the list builder.
+		volcV3Router.GET("/contents/generations/tasks", func(c *gin.Context) {
+			c.Set("relay_format", string(types.RelayFormatVolc))
+			c.Set("relay_mode", relayconstant.RelayModeVideoFetchList)
+			controller.RelayTaskFetch(c)
+		})
+
+		// Task fetch by ID: set task_id, relay_mode, and relay_format.
 		volcV3Router.GET("/contents/generations/tasks/:id", func(c *gin.Context) {
+			c.Set("relay_format", string(types.RelayFormatVolc))
 			taskID := c.Param("id")
 			c.Set("task_id", taskID)
 			c.Set("relay_mode", relayconstant.RelayModeVideoFetchByID)
-			controller.RelayTaskFetchVolc(c)
+			controller.RelayTaskFetch(c)
 		})
 
 		// Task delete: not yet implemented.
-		volcV3Router.DELETE("/contents/generations/tasks/:id", controller.RelayTaskVolcDelete)
+		volcV3Router.DELETE("/contents/generations/tasks/:id", func(c *gin.Context) {
+			c.JSON(http.StatusNotImplemented, &dto.TaskError{
+				Code:       "not_implemented",
+				Message:    "DELETE /api/v3/contents/generations/tasks/:id is not supported yet",
+				StatusCode: http.StatusNotImplemented,
+			})
+		})
 	}
 
 	// Jimeng official API routes - direct mapping to official API format

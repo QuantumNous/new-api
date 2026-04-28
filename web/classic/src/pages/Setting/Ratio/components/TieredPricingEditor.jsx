@@ -1025,14 +1025,7 @@ function evalExprLocally(exprStr, p, c, extraTokenValues) {
     const cacheCreateTokens = extraTokenValues.cacheCreateTokens || 0;
     const cacheCreate1hTokens = extraTokenValues.cacheCreate1hTokens || 0;
     const len = p + cacheReadTokens + cacheCreateTokens + cacheCreate1hTokens;
-    // param() and header() are stubs for local preview — always return null/empty.
-    // nil is the expr-lang null sentinel; map to JS null so comparisons work.
-    // eslint-disable-next-line no-unused-vars
-    const nil = null;
-    const param = () => null;
-    const header = () => '';
-    const has = (source, substr) => source != null && String(source).includes(substr);
-    const env = { p, c, len, nil, param, header, has, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
+    const env = { p, c, len, tier: tierFn, max: Math.max, min: Math.min, abs: Math.abs, ceil: Math.ceil, floor: Math.floor };
     for (const field of EXTRA_ESTIMATOR_FIELDS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0;
     }

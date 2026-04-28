@@ -192,7 +192,7 @@ export const CHANNEL_OPTIONS = [
   {
     value: 58,
     color: 'blue',
-    label: 'VolcAdapter (Seedream + Seedance)',
+    label: '火山方舟兼容 (Seedream + Seedance)',
   },
 ];
 
