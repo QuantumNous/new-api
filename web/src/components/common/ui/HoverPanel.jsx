@@ -6,86 +6,53 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useRef, useState } from 'react';
+// Hover-triggered tooltip used by table cells that need a quick on-hover
+// breakdown (quota usage, vendor model lists, IP whitelist overflow, etc.).
+// The public API matches the original hand-rolled HoverPanel so the 5
+// existing call sites keep working without any changes.
+//
+// Internals: HeroUI `Tooltip` (React Aria's `TooltipTrigger`). This swaps
+// the previous custom div for HeroUI's tooltip styling — proper enter/exit
+// animations, automatic flip / shift, accessible `role="tooltip"`, focus
+// trigger fallback, and design-token-aligned bg/shadow.
+//
+// Note on interactivity: React Aria Tooltips are explicitly designed for
+// non-interactive content (text, icons). The tooltip auto-dismisses when
+// the user moves the cursor away from the trigger. If a caller's `content`
+// includes click-targets (e.g. copy buttons), those won't be reachable
+// once the cursor leaves the trigger element. Callers that need
+// interactive content should switch to a click-triggered Popover.
 
-const PLACEMENT_CLASSES = {
-  top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
-  bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
-  left: 'right-full top-0 mr-2',
-  right: 'left-full top-0 ml-2',
-  bottomLeft: 'top-full left-0 mt-1.5',
-  bottomRight: 'top-full right-0 mt-1.5',
-  topLeft: 'bottom-full left-0 mb-1.5',
-  topRight: 'bottom-full right-0 mb-1.5',
-};
+import React from 'react';
+import { Tooltip } from '@heroui/react';
 
-/**
- * HoverPanel — drop-in replacement for Semi UI's Popover with hover trigger.
- * - Renders inline next to children (relative wrapper).
- * - Opens on mouseenter/focusin, closes 100ms after mouseleave/focusout.
- * - `placement` accepts top/bottom/left/right + their corner variants.
- * - `panelClassName` is appended to the panel wrapper for sizing/styling.
- */
 const HoverPanel = ({
   children,
   content,
   placement = 'top',
   panelClassName = '',
-  delay = 100,
+  delay = 200,
+  closeDelay = 100,
   disabled = false,
 }) => {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const timer = useRef(null);
-
-  const show = () => {
-    if (disabled) return;
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    setOpen(true);
-  };
-
-  const hide = () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setOpen(false), delay);
-  };
-
-  useEffect(() => () => timer.current && clearTimeout(timer.current), []);
-
-  const place = PLACEMENT_CLASSES[placement] || PLACEMENT_CLASSES.top;
+  if (disabled) return children;
 
   return (
-    <span
-      ref={ref}
-      className='relative inline-flex'
-      onMouseEnter={show}
-      onMouseLeave={hide}
-      onFocusCapture={show}
-      onBlurCapture={hide}
-    >
-      {children}
-      {open ? (
-        <div
-          role='tooltip'
-          className={`absolute z-30 rounded-lg border border-border bg-background p-3 text-xs shadow-lg ${place} ${panelClassName}`}
-        >
-          {content}
-        </div>
-      ) : null}
-    </span>
+    <Tooltip delay={delay} closeDelay={closeDelay}>
+      <Tooltip.Trigger>{children}</Tooltip.Trigger>
+      <Tooltip.Content
+        placement={placement}
+        className={`!max-w-xs !p-3 ${panelClassName}`}
+      >
+        {content}
+      </Tooltip.Content>
+    </Tooltip>
   );
 };
 

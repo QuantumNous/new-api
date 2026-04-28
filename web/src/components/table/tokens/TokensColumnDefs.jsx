@@ -18,18 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Button, Tooltip } from '@heroui/react';
+import { Button, Meter, Tooltip } from '@heroui/react';
 import { ChevronDown, Copy as CopyIcon, Eye, EyeOff } from 'lucide-react';
 import HoverPanel from '@/components/common/ui/HoverPanel';
 import ClickMenu from '@/components/common/ui/ClickMenu';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 import {
-  copy,
   getModelCategories,
   renderGroup,
   renderQuota,
   showError,
-  showSuccess,
   timestamp2string,
 } from '../../../helpers';
 
@@ -49,51 +47,15 @@ const TONE_CLASSES = {
 
 function Chip({ tone = 'white', className = '', children }) {
   const cls = TONE_CLASSES[tone] || TONE_CLASSES.white;
+  // `whitespace-nowrap shrink-0` keeps short CJK labels (已启用 / 无限额度 /
+  // 永不过期 / 用户分组) on a single line even when the host cell or flex row
+  // is narrow — without it, narrow columns wrap CJK character-by-character.
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls} ${className}`}
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${cls} ${className}`}
     >
       {children}
     </span>
-  );
-}
-
-function CopyableLine({ value, children }) {
-  const handleCopy = async (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (await copy(value)) {
-      showSuccess('已复制');
-    }
-  };
-  return (
-    <div className='group flex items-center gap-1.5'>
-      <span className='min-w-0 truncate'>{children}</span>
-      <button
-        type='button'
-        onClick={handleCopy}
-        aria-label='copy'
-        className='inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted opacity-0 transition group-hover:opacity-100 hover:bg-surface-secondary hover:text-foreground'
-      >
-        <CopyIcon size={11} />
-      </button>
-    </div>
-  );
-}
-
-function ProgressBar({ percent }) {
-  const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
-  let barClass = 'bg-emerald-500';
-  if (clamped === 100) barClass = 'bg-emerald-500';
-  else if (clamped <= 10) barClass = 'bg-red-500';
-  else if (clamped <= 30) barClass = 'bg-amber-500';
-  return (
-    <div className='h-1 w-full overflow-hidden rounded-full bg-surface-secondary'>
-      <div
-        className={`h-full rounded-full ${barClass} transition-all`}
-        style={{ width: `${clamped}%` }}
-      />
-    </div>
   );
 }
 
@@ -182,9 +144,20 @@ function TokenKeyCell({
       : record.key || '';
   const displayedKey = keyValue ? `sk-${keyValue}` : '';
 
+  // `ghost` keeps both icon-only buttons transparent at rest and only paints a
+  // subtle hover background — matches the rest of the inline row controls and
+  // avoids the chip-sized "tertiary" pills that filled the full input height.
+  // The size override (`h-6 w-6`) shrinks them from 32px (size='sm' icon-only
+  // default) to 24px so they sit centered inside the 32px input row with a bit
+  // of breathing room on top/bottom.
+  // `[&_svg]:!size-3` overrides HeroUI's `.button--sm svg { size-4 }` rule so
+  // the inner Lucide glyph renders at 12px instead of the chunky 16px default.
+  const inlineIconBtn =
+    '!h-6 !w-6 !min-w-6 !rounded-md text-muted hover:!text-foreground [&_svg]:!size-3';
+
   return (
     <div className='w-[200px]'>
-      <div className='flex h-8 items-center gap-1 overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-background pl-2 text-xs'>
+      <div className='flex h-8 items-center gap-0.5 overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-background pl-2 pr-1 text-xs'>
         <input
           readOnly
           value={displayedKey}
@@ -193,15 +166,16 @@ function TokenKeyCell({
         />
         <Button
           isIconOnly
-          variant='tertiary'
+          variant='ghost'
           size='sm'
-          aria-label='toggle token visibility'
+          className={inlineIconBtn}
+          aria-label={revealed ? t('隐藏密钥') : t('显示密钥')}
           isPending={loading}
           onPress={async () => {
             await toggleTokenVisibility(record);
           }}
         >
-          {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
+          {revealed ? <EyeOff size={13} /> : <Eye size={13} />}
         </Button>
         <ClickMenu
           placement='bottomRight'
@@ -218,12 +192,13 @@ function TokenKeyCell({
           trigger={
             <Button
               isIconOnly
-              variant='tertiary'
+              variant='ghost'
               size='sm'
-              aria-label='copy token key'
+              className={inlineIconBtn}
+              aria-label={t('复制密钥')}
               isPending={loading}
             >
-              <CopyIcon size={14} />
+              <CopyIcon size={13} />
             </Button>
           }
         />
@@ -327,12 +302,21 @@ const renderQuotaUsage = (text, record, t) => {
   const remain = parseInt(record.remain_quota) || 0;
   const total = used + remain;
 
+  // Plain key/value row helper. CopyableLine isn't usable here anymore
+  // because HoverPanel now wraps a (non-interactive) HeroUI Tooltip — the
+  // popup dismisses as soon as the cursor leaves the trigger, so click
+  // targets inside the popup are unreachable.
+  const StatRow = ({ label, value }) => (
+    <div className='flex items-center justify-between gap-3'>
+      <span className='text-muted'>{label}</span>
+      <span className='tabular-nums text-foreground'>{value}</span>
+    </div>
+  );
+
   if (record.unlimited_quota) {
     const popoverContent = (
       <div className='space-y-1'>
-        <CopyableLine value={renderQuota(used)}>
-          {t('已用额度')}: {renderQuota(used)}
-        </CopyableLine>
+        <StatRow label={t('已用额度')} value={renderQuota(used)} />
       </div>
     );
     return (
@@ -343,26 +327,44 @@ const renderQuotaUsage = (text, record, t) => {
   }
 
   const percent = total > 0 ? (remain / total) * 100 : 0;
+  // Map remaining-quota percentage to a Meter color: low remaining = warn/danger.
+  // Same thresholds as the previous local ProgressBar (≤10% danger, ≤30% warning,
+  // otherwise success).
+  const meterColor =
+    percent <= 10 ? 'danger' : percent <= 30 ? 'warning' : 'success';
+
   const popoverContent = (
     <div className='space-y-1'>
-      <CopyableLine value={renderQuota(used)}>
-        {t('已用额度')}: {renderQuota(used)}
-      </CopyableLine>
-      <CopyableLine value={renderQuota(remain)}>
-        {t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}%)
-      </CopyableLine>
-      <CopyableLine value={renderQuota(total)}>
-        {t('总额度')}: {renderQuota(total)}
-      </CopyableLine>
+      <StatRow label={t('已用额度')} value={renderQuota(used)} />
+      <StatRow
+        label={t('剩余额度')}
+        value={`${renderQuota(remain)} (${percent.toFixed(0)}%)`}
+      />
+      <StatRow label={t('总额度')} value={renderQuota(total)} />
     </div>
   );
 
+  // HeroUI Meter — semantic React Aria primitive for "value-in-range".
+  // Default `.meter` class lays out as a grid (label | output / track-track),
+  // but in this table cell we want value text on top, bar below, both
+  // centered, so we override the root display with a flex column.
   return (
     <HoverPanel content={popoverContent} placement='top'>
-      <span className='inline-flex flex-col items-stretch gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs text-foreground'>
-        <span className='leading-none'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
-        <ProgressBar percent={percent} />
-      </span>
+      <Meter
+        aria-label={t('额度使用')}
+        value={remain}
+        maxValue={Math.max(total, 1)}
+        color={meterColor}
+        size='sm'
+        className='!flex w-32 cursor-help flex-col items-stretch gap-1'
+      >
+        <Meter.Output className='!text-xs !font-normal text-foreground text-center leading-none tabular-nums'>
+          {`${renderQuota(remain)} / ${renderQuota(total)}`}
+        </Meter.Output>
+        <Meter.Track>
+          <Meter.Fill />
+        </Meter.Track>
+      </Meter>
     </HoverPanel>
   );
 };
@@ -404,12 +406,20 @@ function OperationsCell({
   }));
 
   return (
-    <div className='flex flex-wrap items-center gap-1.5'>
-      <div className='inline-flex items-stretch overflow-hidden rounded-md border border-[color:var(--app-border)]'>
-        <button
-          type='button'
-          className='px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-[color:var(--app-background)]'
-          onClick={() => {
+    <div className='inline-flex items-center gap-1.5 whitespace-nowrap'>
+      {/* Split button: primary "聊天" action + chevron that opens the chat-app
+          chooser. Both are HeroUI Buttons with matching height (!h-7) so this
+          row aligns with the 禁用/编辑/删除 buttons. ButtonGroup can't be used
+          here because ClickMenu wraps its trigger in <span>s, which breaks the
+          `:first-child/:last-child` CSS selectors ButtonGroup relies on — so
+          the two corners are zeroed manually with `!rounded-r-none` /
+          `!rounded-l-none`, and a `border-l` divider visually splits them. */}
+      <div className='inline-flex items-stretch'>
+        <Button
+          variant='tertiary'
+          size='sm'
+          className='!h-7 !rounded-r-none !px-2.5 !text-xs'
+          onPress={() => {
             if (chatsArray.length === 0) {
               showError(t('请联系管理员配置聊天链接'));
             } else {
@@ -419,26 +429,32 @@ function OperationsCell({
           }}
         >
           {t('聊天')}
-        </button>
+        </Button>
         <ClickMenu
           placement='bottomRight'
           items={chatMenuItems}
           trigger={
-            <button
-              type='button'
+            <Button
+              isIconOnly
+              variant='tertiary'
+              size='sm'
               aria-label={t('选择聊天链接')}
-              className='flex items-center justify-center border-l border-[color:var(--app-border)] px-1.5 text-xs text-foreground transition hover:bg-[color:var(--app-background)]'
+              className='!h-7 !w-6 !min-w-6 !rounded-l-none !border-l !border-[color:var(--app-border)]'
             >
               <ChevronDown size={12} />
-            </button>
+            </Button>
           }
         />
       </div>
 
+      {/* `text-xs` shrinks the label from 14px to 12px to match the inline
+          "聊天" button at the start of this cell; `h-7 px-2.5` keeps the
+          buttons compact and visually aligned with that smaller height. */}
       {record.status === 1 ? (
         <Button
           variant='danger-soft'
           size='sm'
+          className='!h-7 !px-2.5 !text-xs'
           onPress={async () => {
             await manageToken(record.id, 'disable', record);
             await refresh();
@@ -450,6 +466,7 @@ function OperationsCell({
         <Button
           variant='tertiary'
           size='sm'
+          className='!h-7 !px-2.5 !text-xs'
           onPress={async () => {
             await manageToken(record.id, 'enable', record);
             await refresh();
@@ -462,6 +479,7 @@ function OperationsCell({
       <Button
         variant='tertiary'
         size='sm'
+        className='!h-7 !px-2.5 !text-xs'
         onPress={() => {
           setEditingToken(record);
           setShowEdit(true);
@@ -473,6 +491,7 @@ function OperationsCell({
       <Button
         variant='danger-soft'
         size='sm'
+        className='!h-7 !px-2.5 !text-xs'
         onPress={() => setConfirmDelete(true)}
       >
         {t('删除')}
@@ -578,6 +597,7 @@ export const getTokensColumns = ({
       title: '',
       dataIndex: 'operate',
       fixed: 'right',
+      width: 220,
       render: (text, record) => (
         <OperationsCell
           record={record}
