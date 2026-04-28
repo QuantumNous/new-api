@@ -1732,7 +1732,7 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-chart-canvas {
   min-height: 420px;
-  border: 1px solid rgba(226, 231, 240, 0.95);
+  /* border: 1px solid rgba(226, 231, 240, 0.95);
   border-radius: 28px;
   background: radial-gradient(
       circle at top right,
@@ -1742,7 +1742,7 @@ html.dark .with-pastel-balls::before {
     linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    0 12px 24px rgba(114, 128, 168, 0.05);
+    0 12px 24px rgba(114, 128, 168, 0.05); */
 }
 
 .dashboard-chart-canvas > div {
@@ -2178,7 +2178,7 @@ html.dark .dashboard-uptime-tabs .semi-tabs-tab-button {
   color: #98a2b3;
 }
 
-html.dark .dashboard-chart-canvas {
+/* html.dark .dashboard-chart-canvas {
   border-color: rgba(49, 58, 74, 0.96);
   background: radial-gradient(
       circle at top right,
@@ -2189,7 +2189,7 @@ html.dark .dashboard-chart-canvas {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.02),
     0 12px 24px rgba(0, 0, 0, 0.18);
-}
+} */
 
 html.dark .dashboard-api-panel.semi-card,
 html.dark .dashboard-announcements-panel.semi-card,
