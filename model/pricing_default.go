@@ -19,6 +19,7 @@ var defaultVendorRules = map[string]string{
 	"glm-":     "智谱",
 	"qwen":     "阿里巴巴",
 	"deepseek": "DeepSeek",
+	"mimo":     "小米",
 	"abab":     "MiniMax",
 	"ernie":    "百度",
 	"spark":    "讯飞",

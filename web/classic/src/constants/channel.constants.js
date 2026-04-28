@@ -58,6 +58,7 @@ export const CHANNEL_OPTIONS = [
   },
   { value: 39, color: 'grey', label: 'Cloudflare' },
   { value: 43, color: 'blue', label: 'DeepSeek' },
+  { value: 58, color: 'orange', label: 'Xiaomi MiMo' },
   {
     value: 15,
     color: 'blue',
