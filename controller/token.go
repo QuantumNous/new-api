@@ -177,7 +177,7 @@ func AddToken(c *gin.Context) {
 	}
 	// 非无限额度时，检查额度值是否超出有效范围
 	if !token.UnlimitedQuota {
-		if token.RemainQuota < 0 {
+		if token.RemainQuota <= 0 {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
 			return
 		}
@@ -261,7 +261,7 @@ func UpdateToken(c *gin.Context) {
 		return
 	}
 	if !token.UnlimitedQuota {
-		if token.RemainQuota < 0 {
+		if token.RemainQuota <= 0 {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
 			return
 		}
