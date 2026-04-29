@@ -1,10 +1,12 @@
 package common
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 )
 
@@ -17,6 +19,8 @@ const (
 	EmailVerificationPurpose = "v"
 	PasswordResetPurpose     = "r"
 )
+
+const verificationRedisPrefix = "verify_code:"
 
 var verificationMutex sync.Mutex
 var verificationMap map[string]verificationValue
@@ -32,7 +36,18 @@ func GenerateVerificationCode(length int) string {
 	return code[:length]
 }
 
+func verificationRedisKey(key, purpose string) string {
+	return verificationRedisPrefix + purpose + ":" + key
+}
+
 func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
+	if RedisEnabled {
+		ttl := time.Duration(VerificationValidMinutes) * time.Minute
+		if err := RedisSet(verificationRedisKey(key, purpose), code, ttl); err != nil {
+			SysError("RegisterVerificationCodeWithKey: redis set failed: " + err.Error())
+		}
+		return
+	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	verificationMap[purpose+key] = verificationValue{
@@ -45,6 +60,16 @@ func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
 }
 
 func VerifyCodeWithKey(key string, code string, purpose string) bool {
+	if RedisEnabled {
+		stored, err := RedisGet(verificationRedisKey(key, purpose))
+		if err != nil {
+			if err != redis.Nil {
+				SysError("VerifyCodeWithKey: redis get failed: " + err.Error())
+			}
+			return false
+		}
+		return stored == code
+	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	value, okay := verificationMap[purpose+key]
@@ -56,6 +81,12 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 }
 
 func DeleteKey(key string, purpose string) {
+	if RedisEnabled {
+		if err := RDB.Del(context.Background(), verificationRedisKey(key, purpose)).Err(); err != nil {
+			SysError("DeleteKey: redis del failed: " + err.Error())
+		}
+		return
+	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	delete(verificationMap, purpose+key)
