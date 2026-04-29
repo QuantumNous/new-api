@@ -1,0 +1,251 @@
+import { useState } from 'react'
+import { z } from 'zod'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { testDeploymentConnectionWithKey } from '@/features/models/api'
+import { SettingsSection } from '../components/settings-section'
+import { useUpdateOption } from '../hooks/use-update-option'
+
+const schema = z.object({
+  enabled: z.boolean(),
+  apiKey: z.string().optional(),
+})
+
+// NOTE: react-hook-form resolver uses the schema input type
+type Values = z.input<typeof schema>
+
+export function IoNetDeploymentSettingsSection({
+  defaultValues,
+}: {
+  defaultValues: {
+    enabled: boolean
+    apiKey: string
+  }
+}) {
+  const { t } = useTranslation()
+  const updateOption = useUpdateOption()
+
+  const form = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      enabled: defaultValues.enabled,
+      apiKey: defaultValues.apiKey ?? '',
+    },
+  })
+
+  const { isDirty, isSubmitting } = form.formState
+  const enabled = form.watch('enabled')
+
+  const [testState, setTestState] = useState<{
+    loading: boolean
+    ok: boolean | null
+    error: string | null
+  }>({ loading: false, ok: null, error: null })
+
+  async function onSubmit(values: Values) {
+    const updates: Array<{ key: string; value: string }> = []
+
+    if (values.enabled !== defaultValues.enabled) {
+      updates.push({
+        key: 'model_deployment.ionet.enabled',
+        value: String(values.enabled),
+      })
+    }
+
+    if ((values.apiKey || '') !== (defaultValues.apiKey || '')) {
+      updates.push({
+        key: 'model_deployment.ionet.api_key',
+        value: String(values.apiKey || ''),
+      })
+    }
+
+    if (updates.length === 0) {
+      toast.info(t('No changes to save'))
+      return
+    }
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
+
+    form.reset(values)
+  }
+
+  const handleTestConnection = async () => {
+    setTestState({ loading: true, ok: null, error: null })
+    try {
+      const apiKey = form.getValues('apiKey')
+      const res = await testDeploymentConnectionWithKey(apiKey)
+      if (res?.success) {
+        setTestState({ loading: false, ok: true, error: null })
+        return
+      }
+      setTestState({
+        loading: false,
+        ok: false,
+        error: res?.message || t('Connection failed'),
+      })
+    } catch (err) {
+      setTestState({
+        loading: false,
+        ok: false,
+        error: err instanceof Error ? err.message : t('Connection failed'),
+      })
+    }
+  }
+
+  return (
+    <SettingsSection
+      title={t('io.net Deployments')}
+      description={t('Configure io.net API key for model deployments')}
+    >
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          autoComplete='off'
+          className='space-y-6'
+        >
+          <FormField
+            control={form.control}
+            name='enabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    {t('Enable io.net deployments')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t('Enable io.net model deployment service in console')}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={(v) => field.onChange(v)}
+                    disabled={updateOption.isPending || isSubmitting}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          {enabled ? (
+            <>
+              <FormField
+                control={form.control}
+                name='apiKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('io.net API Key')}</FormLabel>
+                    <div className='flex gap-2'>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('Enter API Key')}
+                          autoComplete='off'
+                          {...field}
+                        />
+                      </FormControl>
+                      <Button
+                        type='button'
+                        variant='secondary'
+                        onClick={handleTestConnection}
+                        disabled={testState.loading || updateOption.isPending}
+                        className='shrink-0'
+                      >
+                        {testState.loading ? (
+                          <Loader2 className='me-2 size-4 animate-spin' />
+                        ) : null}
+                        {t('Test Connection')}
+                      </Button>
+                    </div>
+                    <FormDescription>
+                      {t('Used to authenticate with io.net deployment API')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Alert variant='default'>
+                <AlertTitle>{t('How to get an io.net API Key')}</AlertTitle>
+                <AlertDescription>
+                  <div className='space-y-2'>
+                    <ul className='list-disc space-y-1 pl-5'>
+                      <li>{t('Open the io.net console API Keys page')}</li>
+                      <li>
+                        {t(
+                          'Set Project to io.cloud when creating/selecting key'
+                        )}
+                      </li>
+                      <li>{t('Copy the key and paste it here')}</li>
+                    </ul>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={() =>
+                        window.open('https://ai.io.net/ai/api-keys', '_blank')
+                      }
+                    >
+                      {t('Go to io.net API Keys')}
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+
+              {testState.ok === true ? (
+                <Alert variant='default' className='flex items-center gap-2'>
+                  <CheckCircle2 className='size-4 text-green-600' />
+                  <div>
+                    <AlertTitle>{t('Connection successful')}</AlertTitle>
+                    <AlertDescription>
+                      {t('Connected to io.net service normally.')}
+                    </AlertDescription>
+                  </div>
+                </Alert>
+              ) : null}
+
+              {testState.ok === false && testState.error ? (
+                <Alert
+                  variant='destructive'
+                  className='flex items-center gap-2'
+                >
+                  <XCircle className='size-4' />
+                  <div>
+                    <AlertTitle>{t('Connection failed')}</AlertTitle>
+                    <AlertDescription>{t(testState.error)}</AlertDescription>
+                  </div>
+                </Alert>
+              ) : null}
+            </>
+          ) : null}
+
+          <Button
+            type='submit'
+            disabled={!isDirty || updateOption.isPending || isSubmitting}
+          >
+            {updateOption.isPending || isSubmitting
+              ? t('Saving...')
+              : t('Save io.net settings')}
+          </Button>
+        </form>
+      </Form>
+    </SettingsSection>
+  )
+}
