@@ -302,7 +302,7 @@ export function ApiKeysMutateDrawer({
               <FormField
                 control={form.control}
                 name='group'
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>{t('Group')}</FormLabel>
                     <FormControl>
@@ -311,9 +311,10 @@ export function ApiKeysMutateDrawer({
                         value={field.value}
                         onValueChange={field.onChange}
                         placeholder={t('Select a group')}
+                        error={!!fieldState.error}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className='rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm font-medium' />
                   </FormItem>
                 )}
               />

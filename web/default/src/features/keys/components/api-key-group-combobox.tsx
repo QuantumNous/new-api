@@ -31,6 +31,7 @@ type ApiKeyGroupComboboxProps = {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  error?: boolean
 }
 
 function formatGroupRatio(ratio: ApiKeyGroupOption['ratio'], ratioLabel: string) {
@@ -74,6 +75,7 @@ export function ApiKeyGroupCombobox({
   onValueChange,
   placeholder,
   disabled,
+  error,
 }: ApiKeyGroupComboboxProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -109,12 +111,22 @@ export function ApiKeyGroupCombobox({
           variant='outline'
           role='combobox'
           aria-expanded={open}
+          aria-invalid={error}
           disabled={disabled}
-          className='border-input bg-muted/40 h-auto min-h-20 w-full justify-between gap-3 rounded-lg px-4 py-3 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 hover:bg-muted/55 hover:text-foreground active:bg-background data-[state=open]:border-ring data-[state=open]:bg-background data-[state=open]:ring-ring/20 data-[state=open]:ring-[3px]'
+          className={cn(
+            'border-input bg-muted/40 h-auto min-h-20 w-full justify-between gap-3 rounded-lg px-4 py-3 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 hover:bg-muted/55 hover:text-foreground active:bg-background data-[state=open]:border-ring data-[state=open]:bg-background data-[state=open]:ring-ring/20 data-[state=open]:ring-[3px]',
+            error &&
+              'border-destructive bg-destructive/5 ring-destructive/20 hover:bg-destructive/10 data-[state=open]:border-destructive data-[state=open]:ring-destructive/25'
+          )}
         >
           <span className='flex min-w-0 flex-1 items-center justify-between gap-3'>
             <span className='min-w-0'>
-              <span className='block truncate font-medium'>
+              <span
+                className={cn(
+                  'block truncate font-medium',
+                  error && !selectedOption && 'text-destructive'
+                )}
+              >
                 {selectedOption?.value || placeholder || t('Select a group')}
               </span>
               {selectedOption?.desc && (
