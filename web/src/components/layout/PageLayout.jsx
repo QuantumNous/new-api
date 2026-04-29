@@ -51,21 +51,24 @@ const PageLayout = () => {
   const location = useLocation();
 
   const cardProPages = [
-    '/console',
-    '/console/channel',
-    '/console/log',
-    '/console/redemption',
-    '/console/user',
-    '/console/token',
-    '/console/midjourney',
-    '/console/task',
-    '/console/models',
-    '/console/topup',
-    '/console/personal',
-    '/pricing',
+    '/',
+    // '/console',
+    // '/console/channel',
+    // '/console/log',
+    // '/console/redemption',
+    // '/console/user',
+    // '/console/token',
+    // '/console/midjourney',
+    // '/console/task',
+    // '/console/models',
+    // '/console/topup',
+    // '/console/personal',
+    // '/pricing',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const shouldHideFooter = cardProPages.some(
+    (path) => path === location.pathname,
+  );
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -242,7 +245,7 @@ const PageLayout = () => {
               <App />
             </ErrorBoundary>
           </Content>
-          {!shouldHideFooter && (
+          {shouldHideFooter && (
             <Layout.Footer
               style={{
                 flex: '0 0 auto',
