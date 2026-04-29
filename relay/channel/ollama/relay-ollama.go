@@ -19,6 +19,22 @@ import (
 	"github.com/samber/lo"
 )
 
+func getOllamaHTTPClient(timeout time.Duration) *http.Client {
+	baseClient := service.GetHttpClient(service.WithTrustedRedirects())
+	if baseClient == nil {
+		if timeout > 0 {
+			return &http.Client{Timeout: timeout}
+		}
+		return http.DefaultClient
+	}
+	if timeout <= 0 {
+		return baseClient
+	}
+	clientCopy := *baseClient
+	clientCopy.Timeout = timeout
+	return &clientCopy
+}
+
 func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*OllamaChatRequest, error) {
 	chatReq := &OllamaChatRequest{
 		Model:   r.Model,
@@ -281,7 +297,7 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 	url := fmt.Sprintf("%s/api/tags", baseURL)
 
-	client := &http.Client{}
+	client := getOllamaHTTPClient(0)
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %v", err)
@@ -331,9 +347,7 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 		return fmt.Errorf("序列化请求失败: %v", err)
 	}
 
-	client := &http.Client{
-		Timeout: 30 * 60 * 1000 * time.Millisecond, // 30分钟超时，支持大模型
-	}
+	client := getOllamaHTTPClient(30 * time.Minute)
 	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
 		return fmt.Errorf("创建请求失败: %v", err)
@@ -372,9 +386,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 		return fmt.Errorf("序列化请求失败: %v", err)
 	}
 
-	client := &http.Client{
-		Timeout: 60 * 60 * 1000 * time.Millisecond, // 1小时超时，支持超大模型
-	}
+	client := getOllamaHTTPClient(time.Hour)
 	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
 		return fmt.Errorf("创建请求失败: %v", err)
@@ -448,7 +460,7 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 		return fmt.Errorf("序列化请求失败: %v", err)
 	}
 
-	client := &http.Client{}
+	client := getOllamaHTTPClient(0)
 	request, err := http.NewRequest("DELETE", url, strings.NewReader(string(requestBody)))
 	if err != nil {
 		return fmt.Errorf("创建请求失败: %v", err)
@@ -481,7 +493,7 @@ func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
 
 	url := fmt.Sprintf("%s/api/version", trimmedBase)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := getOllamaHTTPClient(10 * time.Second)
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", fmt.Errorf("创建请求失败: %v", err)

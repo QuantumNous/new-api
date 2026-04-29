@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
@@ -89,6 +89,13 @@ type upstreamResult struct {
 	Name string         `json:"name"`
 	Data map[string]any `json:"data,omitempty"`
 	Err  string         `json:"err,omitempty"`
+}
+
+func getRatioSyncHTTPClient() *http.Client {
+	if client := service.GetHttpClient(service.WithTrustedRedirects()); client != nil {
+		return client
+	}
+	return http.DefaultClient
 }
 
 func valueMap(value any) map[string]any {
@@ -196,27 +203,6 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 	sem := make(chan struct{}, maxConcurrentFetches)
 
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	transport := &http.Transport{MaxIdleConns: 100, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ExpectContinueTimeout: 1 * time.Second, ResponseHeaderTimeout: 10 * time.Second}
-	if common.TLSInsecureSkipVerify {
-		transport.TLSClientConfig = common.InsecureTLSConfig
-	}
-	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		host, _, err := net.SplitHostPort(addr)
-		if err != nil {
-			host = addr
-		}
-		// 对 github.io 优先尝试 IPv4，失败则回退 IPv6
-		if strings.HasSuffix(host, "github.io") {
-			if conn, err := dialer.DialContext(ctx, "tcp4", addr); err == nil {
-				return conn, nil
-			}
-			return dialer.DialContext(ctx, "tcp6", addr)
-		}
-		return dialer.DialContext(ctx, network, addr)
-	}
-	client := &http.Client{Transport: transport}
-
 	for _, chn := range upstreams {
 		wg.Add(1)
 		go func(chItem dto.UpstreamDTO) {
@@ -281,6 +267,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 
 			// 简单重试：最多 3 次，指数退避
+			client := getRatioSyncHTTPClient()
 			var resp *http.Response
 			var lastErr error
 			for attempt := 0; attempt < 3; attempt++ {

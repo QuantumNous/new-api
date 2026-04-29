@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -89,45 +89,11 @@ type syncRequest struct {
 	Locale    string           `json:"locale"`
 }
 
-func newHTTPClient() *http.Client {
-	timeoutSec := common.GetEnvOrDefault("SYNC_HTTP_TIMEOUT_SECONDS", 10)
-	dialer := &net.Dialer{Timeout: time.Duration(timeoutSec) * time.Second}
-	transport := &http.Transport{
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   time.Duration(timeoutSec) * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		ResponseHeaderTimeout: time.Duration(timeoutSec) * time.Second,
-	}
-	if common.TLSInsecureSkipVerify {
-		transport.TLSClientConfig = common.InsecureTLSConfig
-	}
-	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		host, _, err := net.SplitHostPort(addr)
-		if err != nil {
-			host = addr
-		}
-		if strings.HasSuffix(host, "github.io") {
-			if conn, err := dialer.DialContext(ctx, "tcp4", addr); err == nil {
-				return conn, nil
-			}
-			return dialer.DialContext(ctx, "tcp6", addr)
-		}
-		return dialer.DialContext(ctx, network, addr)
-	}
-	return &http.Client{Transport: transport}
-}
-
-var (
-	httpClientOnce sync.Once
-	httpClient     *http.Client
-)
-
 func getHTTPClient() *http.Client {
-	httpClientOnce.Do(func() {
-		httpClient = newHTTPClient()
-	})
-	return httpClient
+	if client := service.GetHttpClient(service.WithTrustedRedirects()); client != nil {
+		return client
+	}
+	return http.DefaultClient
 }
 
 func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T]) error {
@@ -180,10 +146,10 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 				cacheMutex.Unlock()
 
 				// Try decode as envelope first
-				if err := json.Unmarshal(buf, out); err != nil {
+				if err := common.Unmarshal(buf, out); err != nil {
 					// Try decode as pure array
 					var arr []T
-					if err2 := json.Unmarshal(buf, &arr); err2 != nil {
+					if err2 := common.Unmarshal(buf, &arr); err2 != nil {
 						lastErr = err
 						return
 					}
@@ -205,9 +171,9 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 					lastErr = errors.New("cache miss for 304 response")
 					return
 				}
-				if err := json.Unmarshal(buf, out); err != nil {
+				if err := common.Unmarshal(buf, out); err != nil {
 					var arr []T
-					if err2 := json.Unmarshal(buf, &arr); err2 != nil {
+					if err2 := common.Unmarshal(buf, &arr); err2 != nil {
 						lastErr = err
 						return
 					}
