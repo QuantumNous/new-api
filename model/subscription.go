@@ -966,8 +966,29 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	return tx.Save(sub).Error
 }
 
+func subscriptionMatchesModelGroup(sub *UserSubscription, modelName string, usingGroup string) bool {
+	if sub == nil {
+		return false
+	}
+	upgradeGroup := strings.TrimSpace(sub.UpgradeGroup)
+	if upgradeGroup == "" {
+		return true
+	}
+	usingGroup = strings.TrimSpace(usingGroup)
+	if usingGroup != "" && usingGroup != "auto" {
+		return usingGroup == upgradeGroup
+	}
+	modelGroups := GetModelEnableGroups(modelName)
+	for _, group := range modelGroups {
+		if strings.TrimSpace(group) == upgradeGroup {
+			return true
+		}
+	}
+	return false
+}
+
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+func PreConsumeUserSubscription(requestId string, userId int, modelName string, usingGroup string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1013,8 +1034,13 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		hasMatchedSubscription := false
 		for _, candidate := range subs {
 			sub := candidate
+			if !subscriptionMatchesModelGroup(&sub, modelName, usingGroup) {
+				continue
+			}
+			hasMatchedSubscription = true
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 			if err != nil {
 				return err
@@ -1061,6 +1087,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
 			return nil
+		}
+		if !hasMatchedSubscription {
+			return errors.New("no active subscription")
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})
