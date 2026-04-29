@@ -1114,6 +1114,9 @@ func getTopUpLock(userID int) *topUpTryLock {
 }
 
 func TopUp(c *gin.Context) {
+	if blockEnterpriseTopupForNonOwner(c) {
+		return
+	}
 	id := c.GetInt("id")
 	lock := getTopUpLock(id)
 	if !lock.TryLock() {
