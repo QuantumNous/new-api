@@ -173,10 +173,20 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.IsClaudeUsageSemantic = summary.UsageSemantic == "anthropic"
 
 	if usage == nil {
-		usage = &dto.Usage{
-			PromptTokens:     relayInfo.GetEstimatePromptTokens(),
-			CompletionTokens: 0,
-			TotalTokens:      relayInfo.GetEstimatePromptTokens(),
+		// When a stream ends abnormally (client disconnect, upstream timeout, etc.)
+		// before any completion tokens are produced, do not charge prompt tokens.
+		// The user received no output; billing with estimated prompt tokens is
+		// incorrect. The zero-TotalTokens guard below will set Quota=0.
+		// For non-stream requests (or normally-ended streams) with missing usage,
+		// fall back to estimated prompt tokens as before.
+		if relayInfo.IsStream && !relayInfo.StreamStatus.IsNormalEnd() && relayInfo.SendResponseCount == 0 {
+			usage = &dto.Usage{}
+		} else {
+			usage = &dto.Usage{
+				PromptTokens:     relayInfo.GetEstimatePromptTokens(),
+				CompletionTokens: 0,
+				TotalTokens:      relayInfo.GetEstimatePromptTokens(),
+			}
 		}
 	}
 
