@@ -104,6 +104,7 @@ const TokensTable = (tokensData) => {
       columns={tableColumns}
       dataSource={tokens}
       scroll={compactMode ? undefined : { x: 'max-content' }}
+      rowClassName={() => 'token-data-row'}
       pagination={{
         currentPage: activePage,
         pageSize: pageSize,
@@ -127,7 +128,7 @@ const TokensTable = (tokensData) => {
           style={{ padding: 30 }}
         />
       }
-      className='rounded-xl overflow-hidden'
+      className='token-data-table'
       size='middle'
     />
   );

@@ -26,6 +26,7 @@ import {
   Typography,
   Select,
 } from '@douyinfe/semi-ui';
+import { KeyRound, Plus, RefreshCw } from 'lucide-react';
 import {
   API,
   showError,
@@ -42,6 +43,8 @@ import CCSwitchModal from './modals/CCSwitchModal';
 import { useTokensData } from '../../../hooks/tokens/useTokensData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+
+const { Title } = Typography;
 
 function TokensPage() {
   // Define the function first, then pass it into the hook to avoid TDZ errors
@@ -374,9 +377,10 @@ function TokensPage() {
     // Translation
     t,
   } = tokensData;
+  const selectedCount = selectedKeys.length;
 
   return (
-    <>
+    <div className='token-console-shell'>
       <EditTokenModal
         refresh={refresh}
         editingToken={editingToken}
@@ -391,27 +395,74 @@ function TokensPage() {
         modelOptions={modelOptions}
       />
 
+      <div className='token-console-header'>
+        <div className='token-console-copy'>
+          <Title heading={2} className='token-console-title'>
+            {t('API 令牌')}
+          </Title>
+          <p className='token-console-subtitle'>
+            {t('创建、管理并安全分发您的 API 访问令牌')}
+          </p>
+        </div>
+
+        <div className='token-console-header-actions'>
+          <Button
+            theme='outline'
+            className='token-header-button'
+            icon={<RefreshCw size={15} />}
+            onClick={refresh}
+          >
+            {t('刷新')}
+          </Button>
+          <Button
+            type='primary'
+            className='token-header-button token-header-button-primary'
+            icon={<Plus size={15} />}
+            onClick={() => {
+              setEditingToken({
+                id: undefined,
+              });
+              setShowEdit(true);
+            }}
+          >
+            {t('创建令牌')}
+          </Button>
+        </div>
+      </div>
+
+      <div className='token-guide-card'>
+        <div className='token-guide-icon'>
+          <KeyRound size={20} strokeWidth={2.1} />
+        </div>
+        <div className='token-guide-copy'>
+          <h3>{t('如何使用 API 令牌')}</h3>
+          <p>{t('将 API 令牌添加到请求头即可调用接口')}</p>
+          <code>Authorization: Bearer sk-xxxxxxxxxxxxxxxxxxxx</code>
+        </div>
+      </div>
+
       <CardPro
         type='type1'
+        className='token-table-card'
         descriptionArea={
           <TokensDescription
             compactMode={compactMode}
             setCompactMode={setCompactMode}
+            tokenCount={tokensData.tokenCount}
+            selectedCount={selectedCount}
             t={t}
           />
         }
         actionsArea={
-          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
+          <div className='token-toolbar'>
             <TokensActions
               selectedKeys={selectedKeys}
-              setEditingToken={setEditingToken}
-              setShowEdit={setShowEdit}
               batchCopyTokens={batchCopyTokens}
               batchDeleteTokens={batchDeleteTokens}
               t={t}
             />
 
-            <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
+            <div className='token-toolbar-filters'>
               <TokensFilters
                 formInitValues={formInitValues}
                 setFormApi={setFormApi}
@@ -434,9 +485,9 @@ function TokensPage() {
         })}
         t={tokensData.t}
       >
-        <TokensTable {...tokensData} />
+          <TokensTable {...tokensData} />
       </CardPro>
-    </>
+    </div>
   );
 }
 
