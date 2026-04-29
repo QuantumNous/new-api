@@ -189,6 +189,9 @@ func getMinTopup() int64 {
 }
 
 func RequestEpay(c *gin.Context) {
+	if blockEnterpriseTopupForNonOwner(c) {
+		return
+	}
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {

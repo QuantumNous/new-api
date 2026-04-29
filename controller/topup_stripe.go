@@ -135,6 +135,9 @@ func RequestStripeAmount(c *gin.Context) {
 }
 
 func RequestStripePay(c *gin.Context) {
+	if blockEnterpriseTopupForNonOwner(c) {
+		return
+	}
 	var req StripePayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
