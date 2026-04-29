@@ -333,6 +333,7 @@ var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 var modelDisplayNameMap = types.NewRWMap[string, string]()
 var modelModalitiesMap = types.NewRWMap[string, string]()
+var modelImgMap = types.NewRWMap[string, string]()
 
 var defaultCompletionRatio = map[string]float64{
 	"gpt-4-gizmo-*":  2,
@@ -728,6 +729,22 @@ func GetModelModalities(name string) string {
 	return ""
 }
 
+func ModelImg2JSONString() string {
+	return modelImgMap.MarshalJSONString()
+}
+
+func UpdateModelImgByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(modelImgMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetModelImg(name string) string {
+	name = FormatMatchingModelName(name)
+	if img, ok := modelImgMap.Get(name); ok {
+		return img
+	}
+	return ""
+}
+
 func GetModelDisplayNameCopy() map[string]string {
 	return modelDisplayNameMap.ReadAll()
 }
@@ -746,6 +763,9 @@ func GetModelPriceCopy() map[string]float64 {
 
 func GetCompletionRatioCopy() map[string]float64 {
 	return completionRatioMap.ReadAll()
+}
+func GetModelImgCopy() map[string]string {
+	return modelImgMap.ReadAll()
 }
 
 // 转换模型名，减少渠道必须配置各种带参数模型

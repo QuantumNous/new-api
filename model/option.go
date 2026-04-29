@@ -154,6 +154,7 @@ func InitOptionMap() {
 	common.OptionMap["AudioCompletionRatio"] = ratio_setting.AudioCompletionRatio2JSONString()
 	common.OptionMap["ModelDisplayName"] = ratio_setting.ModelDisplayName2JSONString()
 	common.OptionMap["ModelModalities"] = ratio_setting.ModelModalities2JSONString()
+	common.OptionMap["ModelImg"] = ratio_setting.ModelImg2JSONString()
 	common.OptionMap["TopUpLink"] = common.TopUpLink
 	//common.OptionMap["ChatLink"] = common.ChatLink
 	//common.OptionMap["ChatLink2"] = common.ChatLink2
@@ -527,6 +528,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateModelDisplayNameByJSONString(value)
 	case "ModelModalities":
 		err = ratio_setting.UpdateModelModalitiesByJSONString(value)
+	case "ModelImg":
+		err = ratio_setting.UpdateModelImgByJSONString(value)
 	case "TopUpLink":
 		common.TopUpLink = value
 	//case "ChatLink":

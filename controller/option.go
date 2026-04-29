@@ -322,6 +322,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "ModelImg":
+		if err = ratio_setting.UpdateModelImgByJSONString(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型图片设置失败: " + err.Error(),
+			})
+			return
+		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

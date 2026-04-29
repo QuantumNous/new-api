@@ -159,6 +159,12 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	if setting.CheckSensitiveEnabled {
+		if ok, _ := service.CheckSensitiveText(user.Username); ok {
+			common.ApiErrorMsg(c, "用户名包含敏感词，请修改后重试")
+			return
+		}
+	}
 	if common.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)

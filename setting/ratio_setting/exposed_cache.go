@@ -49,6 +49,7 @@ func GetExposedData() gin.H {
 		"model_price":        GetModelPriceCopy(),
 		"model_display_name": GetModelDisplayNameCopy(),
 		"model_modalities":   GetModelModalitiesCopy(),
+		"model_img":          GetModelImgCopy(),
 	}
 	exposedData.Store(&exposedCache{
 		data:      newData,
