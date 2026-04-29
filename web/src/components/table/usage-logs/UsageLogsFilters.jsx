@@ -44,14 +44,15 @@ const LogsFilters = ({
       layout='vertical'
       trigger='change'
       stopValidateWithError={false}
+      className='log-filter-form'
     >
-      <div className='flex flex-col gap-2'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
+      <div className='log-filter-layout'>
+        <div className='log-filter-grid'>
           {/* 时间选择器 */}
-          <div className='col-span-1 lg:col-span-2'>
+          <div className='log-filter-range'>
             <Form.DatePicker
               field='dateRange'
-              className='w-full'
+              className='log-filter-control log-filter-date'
               type='dateTimeRange'
               placeholder={[t('开始时间'), t('结束时间')]}
               showClear
@@ -73,6 +74,7 @@ const LogsFilters = ({
             showClear
             pure
             size='small'
+            className='log-filter-control'
           />
 
           <Form.Input
@@ -82,6 +84,7 @@ const LogsFilters = ({
             showClear
             pure
             size='small'
+            className='log-filter-control'
           />
 
           <Form.Input
@@ -91,6 +94,7 @@ const LogsFilters = ({
             showClear
             pure
             size='small'
+            className='log-filter-control'
           />
 
           <Form.Input
@@ -100,6 +104,7 @@ const LogsFilters = ({
             showClear
             pure
             size='small'
+            className='log-filter-control'
           />
 
           {isAdminUser && (
@@ -111,6 +116,7 @@ const LogsFilters = ({
                 showClear
                 pure
                 size='small'
+                className='log-filter-control'
               />
               <Form.Input
                 field='username'
@@ -119,19 +125,20 @@ const LogsFilters = ({
                 showClear
                 pure
                 size='small'
+                className='log-filter-control'
               />
             </>
           )}
         </div>
 
         {/* 操作按钮区域 */}
-        <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
+        <div className='log-filter-footer'>
           {/* 日志类型选择器 */}
-          <div className='w-full sm:w-auto'>
+          <div className='log-filter-select-wrap'>
             <Form.Select
               field='logType'
               placeholder={t('日志类型')}
-              className='w-full sm:w-auto min-w-[120px]'
+              className='log-filter-control log-filter-select'
               showClear
               pure
               onChange={() => {
@@ -152,12 +159,13 @@ const LogsFilters = ({
             </Form.Select>
           </div>
 
-          <div className='flex gap-2 w-full sm:w-auto justify-end'>
+          <div className='log-filter-actions'>
             <Button
               type='tertiary'
               htmlType='submit'
               loading={loading}
-              size='small'
+              size='default'
+              className='log-filter-button'
             >
               {t('查询')}
             </Button>
@@ -172,14 +180,16 @@ const LogsFilters = ({
                   }, 100);
                 }
               }}
-              size='small'
+              size='default'
+              className='log-filter-button'
             >
               {t('重置')}
             </Button>
             <Button
               type='tertiary'
               onClick={() => setShowColumnSelector(true)}
-              size='small'
+              size='default'
+              className='log-filter-button'
             >
               {t('列设置')}
             </Button>

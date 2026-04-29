@@ -1,0 +1,430 @@
+/* ==================== Log page ==================== */
+.log-page-shell {
+  /* max-width: 1180px; */
+  /* margin: 0 auto; */
+  padding: 8px 4px 28px;
+}
+
+.log-console-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.log-console-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.log-console-title.semi-typography {
+  margin-bottom: 8px !important;
+  color: #111827;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.log-console-subtitle {
+  margin: 0;
+  color: #667085;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.log-table-card.table-scroll-card {
+  height: auto;
+  max-height: none;
+  overflow: hidden;
+  border: 1px solid rgba(224, 229, 237, 0.95);
+  border-radius: 30px !important;
+  background: radial-gradient(
+      circle at top left,
+      rgba(236, 72, 153, 0.06),
+      transparent 28%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(248, 250, 252, 0.98)
+    );
+  box-shadow: 0 26px 56px rgba(15, 23, 42, 0.08);
+}
+
+.log-table-card .semi-card-header {
+  padding: 28px 28px 16px !important;
+  border-bottom: none !important;
+}
+
+.log-table-card .semi-card-body {
+  padding: 0 24px 20px !important;
+  overflow: visible !important;
+}
+
+.log-table-card .semi-card-footer {
+  padding: 18px 24px 24px !important;
+  background: linear-gradient(
+    180deg,
+    rgba(250, 250, 252, 0),
+    rgba(248, 250, 252, 0.9)
+  );
+}
+
+.log-table-overview {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.log-table-overview-copy {
+  max-width: 640px;
+}
+
+.log-table-overview-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid rgba(225, 141, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #b423c7;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.log-table-overview-title.semi-typography {
+  display: block;
+  margin: 16px 0 8px !important;
+  color: #111827;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.log-table-overview-subtitle {
+  margin: 0;
+  color: #8a94a6;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.log-table-overview-side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.log-table-overview-skeleton {
+  display: flex;
+  gap: 12px;
+}
+
+.log-table-metric-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.log-table-metric-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 152px;
+  padding: 12px 14px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.log-table-metric-chip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #8a94a6;
+  font-size: 13px;
+}
+
+.log-table-metric-chip strong {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.log-table-metric-chip-muted {
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.log-compact-toggle.semi-button {
+  height: 46px;
+  padding: 0 16px;
+  border-radius: 16px !important;
+  border-color: rgba(226, 232, 240, 0.96) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #111827 !important;
+  font-weight: 700;
+}
+
+.log-filter-form {
+  width: 100%;
+}
+
+.log-filter-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.log-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.log-filter-range {
+  grid-column: span 2;
+}
+
+.log-filter-control .semi-input-wrapper,
+.log-filter-control.semi-input-wrapper,
+.log-filter-control .semi-select,
+.log-filter-control.semi-select,
+.log-filter-date .semi-input-wrapper,
+.log-filter-date.semi-input-wrapper,
+.log-filter-select .semi-select-selection {
+  min-height: 42px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 14px !important;
+  background: rgba(248, 250, 252, 0.95) !important;
+}
+
+.log-filter-control .semi-input,
+.log-filter-date .semi-input,
+.log-filter-select .semi-select-selection-text,
+.log-filter-select .semi-select-selection-placeholder {
+  color: #0f172a !important;
+}
+
+.log-filter-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.log-filter-select-wrap {
+  min-width: 140px;
+}
+
+.log-filter-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.log-filter-button.semi-button {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 14px !important;
+  border-color: rgba(226, 232, 240, 0.95) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 700;
+}
+
+.log-data-table {
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.log-data-table .semi-table-container {
+  background: transparent !important;
+}
+
+.log-data-table table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.log-data-table .semi-table-thead > tr > th,
+.log-data-table .semi-table-thead > tr > .semi-table-row-head {
+  padding: 16px 18px !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96) !important;
+  background: rgba(248, 250, 252, 0.96) !important;
+  color: #8a94a6 !important;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.log-data-table .semi-table-tbody > tr > td,
+.log-data-table .semi-table-tbody > tr > .semi-table-row-cell {
+  padding: 18px !important;
+  border-bottom: 1px solid rgba(238, 242, 247, 0.96) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  transition: background-color 0.2s ease;
+  vertical-align: middle;
+}
+
+.log-data-table .semi-table-tbody > tr:last-child > td,
+.log-data-table .semi-table-tbody > tr:last-child > .semi-table-row-cell {
+  border-bottom: none !important;
+}
+
+.log-data-table .semi-table-tbody > tr:hover > td,
+.log-data-table .semi-table-tbody > tr:hover > .semi-table-row-cell {
+  background: #ffffff !important;
+}
+
+.log-data-table .semi-tag {
+  border-radius: 999px !important;
+  font-weight: 700;
+}
+
+.log-data-table .semi-avatar {
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+html.dark .log-console-title.semi-typography,
+html.dark .log-table-overview-title.semi-typography,
+html.dark .log-table-metric-chip strong,
+html.dark .log-compact-toggle.semi-button {
+  color: #f8fafc !important;
+}
+
+html.dark .log-console-subtitle,
+html.dark .log-table-overview-subtitle,
+html.dark .log-table-metric-chip span,
+html.dark .log-data-table .semi-table-thead > tr > th,
+html.dark .log-data-table .semi-table-thead > tr > .semi-table-row-head,
+html.dark .log-filter-control .semi-input,
+html.dark .log-filter-date .semi-input,
+html.dark .log-filter-select .semi-select-selection-text,
+html.dark .log-filter-select .semi-select-selection-placeholder {
+  color: #98a2b3 !important;
+}
+
+html.dark .log-table-card.table-scroll-card {
+  border-color: rgba(53, 61, 76, 0.96) !important;
+  background: radial-gradient(
+      circle at top left,
+      rgba(192, 38, 211, 0.12),
+      transparent 30%
+    ),
+    linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98)) !important;
+  box-shadow: none !important;
+}
+
+html.dark .log-table-card .semi-card-footer {
+  background: linear-gradient(
+    180deg,
+    rgba(17, 19, 24, 0),
+    rgba(16, 19, 24, 0.9)
+  );
+}
+
+html.dark .log-table-overview-eyebrow,
+html.dark .log-table-metric-chip,
+html.dark .log-compact-toggle.semi-button,
+html.dark .log-filter-control .semi-input-wrapper,
+html.dark .log-filter-control.semi-input-wrapper,
+html.dark .log-filter-control .semi-select,
+html.dark .log-filter-control.semi-select,
+html.dark .log-filter-date .semi-input-wrapper,
+html.dark .log-filter-date.semi-input-wrapper,
+html.dark .log-filter-select .semi-select-selection,
+html.dark .log-filter-button.semi-button,
+html.dark .log-data-table {
+  border-color: rgba(58, 66, 82, 0.95) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+}
+
+html.dark .log-table-overview-eyebrow {
+  color: #f472b6;
+}
+
+html.dark .log-data-table .semi-table-thead > tr > th,
+html.dark .log-data-table .semi-table-thead > tr > .semi-table-row-head {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(24, 28, 35, 0.98) !important;
+}
+
+html.dark .log-data-table .semi-table-tbody > tr > td,
+html.dark .log-data-table .semi-table-tbody > tr > .semi-table-row-cell {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(18, 21, 27, 0.94) !important;
+}
+
+html.dark .log-data-table .semi-table-tbody > tr:hover > td,
+html.dark .log-data-table .semi-table-tbody > tr:hover > .semi-table-row-cell {
+  background: rgba(22, 26, 33, 0.98) !important;
+}
+
+@media (max-width: 1024px) {
+  .log-table-overview,
+  .log-filter-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .log-table-overview-side {
+    justify-content: flex-start;
+  }
+
+  .log-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .log-filter-range {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 767px) {
+  .log-page-shell {
+    padding: 76px 0 24px;
+  }
+
+  .log-console-title.semi-typography {
+    font-size: 28px;
+  }
+
+  .log-table-card .semi-card-header {
+    padding: 20px 20px 12px !important;
+  }
+
+  .log-table-card .semi-card-body {
+    padding: 0 16px 16px !important;
+  }
+
+  .log-table-card .semi-card-footer {
+    padding: 16px !important;
+  }
+
+  .log-table-overview-side,
+  .log-table-metric-group,
+  .log-filter-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .log-compact-toggle.semi-button,
+  .log-filter-button.semi-button {
+    width: 100%;
+  }
+
+  .log-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .log-filter-range {
+    grid-column: span 1;
+  }
+}
