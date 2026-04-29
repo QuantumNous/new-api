@@ -37,6 +37,7 @@ type Log struct {
 	Ip               string `json:"ip" gorm:"index;default:''"`
 	RequestId        string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	Other            string `json:"other"`
+	Balance          int    `json:"balance" gorm:"-"`
 }
 
 // don't use iota, avoid change log type value
@@ -63,6 +64,56 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = startIdx + i + 1
+	}
+}
+
+func logBalanceDelta(log *Log) int {
+	if log == nil {
+		return 0
+	}
+	switch log.Type {
+	case LogTypeConsume:
+		return -log.Quota
+	case LogTypeRefund, LogTypeTopup:
+		return log.Quota
+	default:
+		return 0
+	}
+}
+
+func AttachLogBalances(logs []*Log) {
+	if len(logs) == 0 {
+		return
+	}
+	balances := make(map[int]int)
+	for _, log := range logs {
+		if log == nil || log.UserId == 0 {
+			continue
+		}
+		if _, ok := balances[log.UserId]; ok {
+			continue
+		}
+		quota, err := GetUserQuota(log.UserId, false)
+		if err != nil {
+			continue
+		}
+		var newerDelta int
+		_ = LOG_DB.Model(&Log{}).
+			Select("COALESCE(SUM(CASE WHEN type = ? THEN -quota WHEN type IN (?, ?) THEN quota ELSE 0 END), 0)", LogTypeConsume, LogTypeTopup, LogTypeRefund).
+			Where("user_id = ? AND id > ?", log.UserId, log.Id).
+			Scan(&newerDelta).Error
+		balances[log.UserId] = quota - newerDelta
+	}
+	for _, log := range logs {
+		if log == nil || log.UserId == 0 {
+			continue
+		}
+		balance, ok := balances[log.UserId]
+		if !ok {
+			continue
+		}
+		log.Balance = balance
+		balances[log.UserId] = balance - logBalanceDelta(log)
 	}
 }
 
@@ -376,6 +427,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		}
 	}
 
+	AttachLogBalances(logs)
 	return logs, total, err
 }
 
@@ -422,6 +474,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		return nil, 0, errors.New("查询日志失败")
 	}
 
+	AttachLogBalances(logs)
 	formatUserLogs(logs, startIdx)
 	return logs, total, err
 }
