@@ -1,4 +1,15 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FocusEvent,
+  type InputHTMLAttributes,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import { Copy, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -285,6 +296,93 @@ function formatTokenHint(n: number | string | null | undefined): string {
   return `= ${v.toLocaleString()} tokens`
 }
 
+function formatNumberDraft(value: number | string): string {
+  if (value === '') return ''
+  if (typeof value === 'number')
+    return Number.isFinite(value) ? String(value) : '0'
+  return value
+}
+
+function parseNumberDraft(value: string): number {
+  if (value.trim() === '') return 0
+  const next = Number(value)
+  return Number.isFinite(next) ? next : 0
+}
+
+function isZeroDraft(value: string): boolean {
+  return value.trim() !== '' && parseNumberDraft(value) === 0
+}
+
+type DraftNumberInputProps = Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'type' | 'value' | 'onChange'
+> & {
+  value: number | string
+  onValueChange: (next: number) => void
+  selectZeroOnFocus?: boolean
+}
+
+function DraftNumberInput({
+  value,
+  onValueChange,
+  selectZeroOnFocus = true,
+  onBlur,
+  onFocus,
+  onMouseUp,
+  ...props
+}: DraftNumberInputProps) {
+  const [draft, setDraft] = useState(() => formatNumberDraft(value))
+  const [focused, setFocused] = useState(false)
+
+  useEffect(() => {
+    if (!focused) {
+      setDraft(formatNumberDraft(value))
+    }
+  }, [focused, value])
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextDraft = event.target.value
+    setDraft(nextDraft)
+    onValueChange(parseNumberDraft(nextDraft))
+  }
+
+  const handleFocus = (event: FocusEvent<HTMLInputElement>) => {
+    setFocused(true)
+    onFocus?.(event)
+    if (selectZeroOnFocus && isZeroDraft(event.currentTarget.value)) {
+      event.currentTarget.select()
+    }
+  }
+
+  const handleMouseUp = (event: ReactMouseEvent<HTMLInputElement>) => {
+    onMouseUp?.(event)
+    if (selectZeroOnFocus && isZeroDraft(event.currentTarget.value)) {
+      event.preventDefault()
+      event.currentTarget.select()
+    }
+  }
+
+  const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+    const normalized = parseNumberDraft(event.currentTarget.value)
+    setFocused(false)
+    setDraft(String(normalized))
+    onValueChange(normalized)
+    onBlur?.(event)
+  }
+
+  return (
+    <Input
+      {...props}
+      type='number'
+      value={draft}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onMouseUp={handleMouseUp}
+      onBlur={handleBlur}
+    />
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Tier condition row
 // ---------------------------------------------------------------------------
@@ -332,13 +430,10 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
           ))}
         </SelectContent>
       </Select>
-      <Input
-        type='number'
+      <DraftNumberInput
         min={0}
-        value={condition.value === '' ? '' : Number(condition.value)}
-        onChange={(event) =>
-          onChange({ ...condition, value: event.target.value })
-        }
+        value={condition.value}
+        onValueChange={(value) => onChange({ ...condition, value })}
         placeholder='tokens'
         className='w-32'
       />
@@ -381,12 +476,11 @@ function PriceField({
     <div className='space-y-1'>
       <Label className='text-xs'>{label}</Label>
       <div className='flex items-center gap-2'>
-        <Input
-          type='number'
+        <DraftNumberInput
           min={0}
           step={0.01}
           value={Number.isFinite(value) ? value : 0}
-          onChange={(event) => onChange(Number(event.target.value) || 0)}
+          onValueChange={onChange}
           className='w-32'
         />
         {showSuffix && (
@@ -802,32 +896,29 @@ function RuleConditionRow({
       </Select>
       {timeCond.mode === MATCH_RANGE ? (
         <>
-          <Input
-            type='number'
+          <DraftNumberInput
             value={timeCond.rangeStart}
-            onChange={(event) =>
-              onChange({ ...timeCond, rangeStart: event.target.value })
+            onValueChange={(value) =>
+              onChange({ ...timeCond, rangeStart: String(value) })
             }
             placeholder='start'
             className='w-20'
           />
           <span className='text-muted-foreground text-xs'>~</span>
-          <Input
-            type='number'
+          <DraftNumberInput
             value={timeCond.rangeEnd}
-            onChange={(event) =>
-              onChange({ ...timeCond, rangeEnd: event.target.value })
+            onValueChange={(value) =>
+              onChange({ ...timeCond, rangeEnd: String(value) })
             }
             placeholder='end'
             className='w-20'
           />
         </>
       ) : (
-        <Input
-          type='number'
+        <DraftNumberInput
           value={timeCond.value}
-          onChange={(event) =>
-            onChange({ ...timeCond, value: event.target.value })
+          onValueChange={(value) =>
+            onChange({ ...timeCond, value: String(value) })
           }
           placeholder='value'
           className='w-24'
@@ -991,13 +1082,12 @@ function RuleGroupCard({
 
       <div className='flex items-center gap-2'>
         <Label className='text-xs'>{t('Multiplier')}</Label>
-        <Input
-          type='number'
+        <DraftNumberInput
           min={0}
           step={0.01}
           value={group.multiplier}
-          onChange={(event) =>
-            onChange({ ...group, multiplier: event.target.value })
+          onValueChange={(value) =>
+            onChange({ ...group, multiplier: String(value) })
           }
           className='w-32'
           placeholder='1.0'
@@ -1114,24 +1204,18 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
       <div className='grid grid-cols-2 gap-3'>
         <div className='space-y-1'>
           <Label className='text-xs'>{t('Input tokens')} (p)</Label>
-          <Input
-            type='number'
+          <DraftNumberInput
             min={0}
             value={promptTokens}
-            onChange={(event) =>
-              setPromptTokens(Number(event.target.value) || 0)
-            }
+            onValueChange={setPromptTokens}
           />
         </div>
         <div className='space-y-1'>
           <Label className='text-xs'>{t('Output tokens')} (c)</Label>
-          <Input
-            type='number'
+          <DraftNumberInput
             min={0}
             value={completionTokens}
-            onChange={(event) =>
-              setCompletionTokens(Number(event.target.value) || 0)
-            }
+            onValueChange={setCompletionTokens}
           />
         </div>
       </div>
@@ -1151,14 +1235,13 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
                 <Label className='text-xs'>
                   {variable.shortLabel} ({variable.key})
                 </Label>
-                <Input
-                  type='number'
+                <DraftNumberInput
                   min={0}
                   value={extras[stateKey]}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     setExtras((prev) => ({
                       ...prev,
-                      [stateKey]: Number(event.target.value) || 0,
+                      [stateKey]: value,
                     }))
                   }
                 />
