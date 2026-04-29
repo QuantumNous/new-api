@@ -8,6 +8,9 @@ upload
 build
 *.db-journal
 logs
+web/default/dist
+web/classic/dist
+web/node_modules
 web/dist
 web/node_modules
 VERSION
@@ -21,9 +24,9 @@ tiktoken_cache
 .gocache
 .gomodcache/
 .cache
-web/bun.lock
 plans
 .claude
+.cursor
 
 electron/node_modules
 electron/dist
