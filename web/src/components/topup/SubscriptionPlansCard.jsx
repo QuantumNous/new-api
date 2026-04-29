@@ -145,30 +145,6 @@ const SubscriptionPlansCard = ({
     });
   };
 
-  const deleteSubscription = (subId) => {
-    Modal.confirm({
-      title: t('确认删除订阅'),
-      content: t('删除后该订阅记录将不可恢复，确认继续？'),
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          const res = await API.delete(`/api/subscription/self/${subId}`);
-          if (res.data?.success) {
-            showSuccess(t('已删除'));
-            await reloadSubscriptionSelf?.();
-          } else {
-            const errorMsg =
-              typeof res.data?.data === 'string'
-                ? res.data.data
-                : res.data?.message || t('操作失败');
-            showError(errorMsg);
-          }
-        } catch (e) {
-          showError(t('请求失败'));
-        }
-      },
-    });
-  };
 
   const payStripe = async () => {
     if (!selectedPlan?.plan?.stripe_price_id) {
@@ -440,9 +416,20 @@ const SubscriptionPlansCard = ({
               <>
                 <Divider margin={8} />
                 <div className='max-h-64 overflow-y-auto pr-1 semi-table-body'>
-                  {allSubscriptions.map((sub, subIndex) => {
-                    const isLast = subIndex === allSubscriptions.length - 1;
+                  {allSubscriptions.filter((sub) => {
                     const subscription = sub.subscription;
+                    const now = Date.now() / 1000;
+                    const endTime = subscription?.end_time || 0;
+                    const isExpired = endTime > 0 && endTime < now;
+                    const isCancelled = subscription?.status === 'cancelled';
+                    return !((isExpired || isCancelled) && endTime > 0 && now - endTime > 7 * 86400);
+                  }).map((sub, subIndex, visibleList) => {
+                    const isLast = subIndex === visibleList.length - 1;
+                    const subscription = sub.subscription;
+                    const now = Date.now() / 1000;
+                    const endTime = subscription?.end_time || 0;
+                    const isExpired = endTime > 0 && endTime < now;
+                    const isCancelled = subscription?.status === 'cancelled';
                     const totalAmount = Number(subscription?.amount_total || 0);
                     const usedAmount = Number(subscription?.amount_used || 0);
                     const remainAmount =
@@ -453,9 +440,6 @@ const SubscriptionPlansCard = ({
                       planTitleMap.get(subscription?.plan_id) || '';
                     const remainDays = getRemainingDays(sub);
                     const usagePercent = getUsagePercent(sub);
-                    const now = Date.now() / 1000;
-                    const isExpired = (subscription?.end_time || 0) < now;
-                    const isCancelled = subscription?.status === 'cancelled';
                     const isActive =
                       subscription?.status === 'active' && !isExpired;
 
@@ -505,18 +489,6 @@ const SubscriptionPlansCard = ({
                                 {t('作废')}
                               </Button>
                             </div>
-                          )}
-                          {!isActive && (
-                            <Button
-                              size='small'
-                              type='danger'
-                              theme='light'
-                              onClick={() =>
-                                deleteSubscription(subscription?.id)
-                              }
-                            >
-                              {t('删除')}
-                            </Button>
                           )}
                         </div>
                         <div className='text-xs text-gray-500 mb-2'>

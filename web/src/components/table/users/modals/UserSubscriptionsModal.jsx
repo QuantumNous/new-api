@@ -96,11 +96,25 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     return map;
   }, [plans]);
 
+  const filteredSubs = useMemo(() => {
+    const now = Date.now() / 1000;
+    return (subs || []).filter((item) => {
+      const sub = item?.subscription;
+      const endTime = sub?.end_time || 0;
+      const isExpired = endTime > 0 && endTime < now;
+      const isCancelled = sub?.status === 'cancelled';
+      if ((isExpired || isCancelled) && endTime > 0 && now - endTime > 7 * 86400) {
+        return false;
+      }
+      return true;
+    });
+  }, [subs]);
+
   const pagedSubs = useMemo(() => {
     const start = Math.max(0, (Number(currentPage || 1) - 1) * pageSize);
     const end = start + pageSize;
-    return (subs || []).slice(start, end);
-  }, [subs, currentPage]);
+    return filteredSubs.slice(start, end);
+  }, [filteredSubs, currentPage]);
 
   const planOptions = useMemo(() => {
     return (plans || []).map((p) => ({
@@ -219,31 +233,6 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     });
   };
 
-  const deleteSubscription = (subId) => {
-    Modal.confirm({
-      title: t('确认删除'),
-      content: t('删除会彻底移除该订阅记录（含权益明细）。是否继续？'),
-      centered: true,
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          const res = await API.delete(
-            `/api/subscription/admin/user_subscriptions/${subId}`,
-          );
-          if (res.data?.success) {
-            const msg = res.data?.data?.message;
-            showSuccess(msg ? msg : t('已删除'));
-            await loadUserSubscriptions();
-            onSuccess?.();
-          } else {
-            showError(res.data?.message || t('删除失败'));
-          }
-        } catch (e) {
-          showError(t('请求失败'));
-        }
-      },
-    });
-  };
 
   const columns = useMemo(() => {
     return [
@@ -324,8 +313,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           const isActive = sub?.status === 'active' && !isExpired;
           const isCancelled = sub?.status === 'cancelled';
           return (
-            <Space>
-              <Button
+            <Button
                 size='small'
                 type='warning'
                 theme='light'
@@ -334,15 +322,6 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
               >
                 {t('作废')}
               </Button>
-              <Button
-                size='small'
-                type='danger'
-                theme='light'
-                onClick={() => deleteSubscription(sub?.id)}
-              >
-                {t('删除')}
-              </Button>
-            </Space>
           );
         },
       },
@@ -406,7 +385,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           pagination={{
             currentPage,
             pageSize,
-            total: subs.length,
+            total: filteredSubs.length,
             pageSizeOpts: [10, 20, 50],
             showSizeChanger: false,
             onPageChange: handlePageChange,
