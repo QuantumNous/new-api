@@ -203,6 +203,13 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 		}
 	}
 
+	// Opus 4.7 (bare, no effort/thinking suffix) rejects non-default temperature/top_p/top_k
+	if strings.HasPrefix(claudeRequest.Model, "claude-opus-4-7") {
+		claudeRequest.Temperature = nil
+		claudeRequest.TopP = nil
+		claudeRequest.TopK = nil
+	}
+
 	if textRequest.ReasoningEffort != "" {
 		switch textRequest.ReasoningEffort {
 		case "low":
@@ -236,6 +243,15 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 				Type:         "enabled",
 				BudgetTokens: &budgetTokens,
 			}
+		}
+	}
+
+	// Opus 4.7 rejects thinking.type="enabled"; convert to adaptive
+	if strings.HasPrefix(claudeRequest.Model, "claude-opus-4-7") && claudeRequest.Thinking != nil && claudeRequest.Thinking.Type == "enabled" {
+		claudeRequest.Thinking.Type = "adaptive"
+		claudeRequest.Thinking.BudgetTokens = nil
+		if claudeRequest.Thinking.Display == "" {
+			claudeRequest.Thinking.Display = "summarized"
 		}
 	}
 
