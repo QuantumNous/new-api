@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -509,11 +510,6 @@ func TestStreamScannerHandler_StreamStatus_HandlerDone(t *testing.T) {
 }
 
 func TestStreamScannerHandler_StreamStatus_Timeout(t *testing.T) {
-	// Not parallel: modifies global constant.StreamingTimeout
-	oldTimeout := constant.StreamingTimeout
-	constant.StreamingTimeout = 2
-	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
-
 	pr, pw := io.Pipe()
 	go func() {
 		fmt.Fprint(pw, "data: {\"id\":1}\n")
@@ -526,7 +522,16 @@ func TestStreamScannerHandler_StreamStatus_Timeout(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
 	resp := &http.Response{Body: pr}
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	enabled := true
+	seconds := 2
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{
+				StreamIdleTimeoutEnabled: &enabled,
+				StreamIdleTimeoutSeconds: &seconds,
+			},
+		},
+	}
 
 	done := make(chan struct{})
 	go func() {
@@ -543,6 +548,92 @@ func TestStreamScannerHandler_StreamStatus_Timeout(t *testing.T) {
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonTimeout, info.StreamStatus.EndReason)
 	assert.False(t, info.StreamStatus.IsNormalEnd())
+}
+
+func TestStreamScannerHandler_StreamStatus_ChannelTimeoutOverride(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	pr, pw := io.Pipe()
+	go func() {
+		fmt.Fprint(pw, "data: {\"id\":1}\n")
+		time.Sleep(2 * time.Second)
+		pw.Close()
+	}()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	resp := &http.Response{Body: pr}
+	enabled := true
+	seconds := 1
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{
+				StreamIdleTimeoutEnabled: &enabled,
+				StreamIdleTimeoutSeconds: &seconds,
+			},
+		},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for channel override timeout")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonTimeout, info.StreamStatus.EndReason)
+}
+
+func TestStreamScannerHandler_StreamStatus_ChannelTimeoutDisabled(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 1
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	pr, pw := io.Pipe()
+	go func() {
+		fmt.Fprint(pw, "data: {\"id\":1}\n")
+		time.Sleep(2 * time.Second)
+		pw.Close()
+	}()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	resp := &http.Response{Body: pr}
+	enabled := false
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{
+				StreamIdleTimeoutEnabled: &enabled,
+			},
+		},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for disabled timeout stream")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonEOF, info.StreamStatus.EndReason)
 }
 
 func TestStreamScannerHandler_StreamStatus_SoftErrors(t *testing.T) {

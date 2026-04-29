@@ -85,12 +85,14 @@ export const updateChartSpec = (
   subtitle,
   newColors,
   dataId,
+  titleText,
 ) => {
   setterFunc((prev) => ({
     ...prev,
     data: [{ id: dataId, values: newData }],
     title: {
       ...prev.title,
+      ...(titleText ? { text: titleText } : {}),
       subtext: subtitle,
     },
     color: {

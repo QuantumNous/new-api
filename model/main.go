@@ -263,6 +263,7 @@ func migrateDB() error {
 		&Option{},
 		&Redemption{},
 		&Ability{},
+		&ProviderKey{},
 		&Log{},
 		&Midjourney{},
 		&TopUp{},
@@ -311,6 +312,7 @@ func migrateDBFast() error {
 		{&Option{}, "Option"},
 		{&Redemption{}, "Redemption"},
 		{&Ability{}, "Ability"},
+		{&ProviderKey{}, "ProviderKey"},
 		{&Log{}, "Log"},
 		{&Midjourney{}, "Midjourney"},
 		{&TopUp{}, "TopUp"},
@@ -367,6 +369,9 @@ func migrateDBFast() error {
 
 func migrateLOGDB() error {
 	var err error
+	if err = LOG_DB.AutoMigrate(&ProviderKey{}); err != nil {
+		return err
+	}
 	if err = LOG_DB.AutoMigrate(&Log{}); err != nil {
 		return err
 	}

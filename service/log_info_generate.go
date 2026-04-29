@@ -79,6 +79,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
+	appendTraceInfo(relayInfo, other)
 	return other
 }
 
@@ -207,6 +208,17 @@ func appendFinalRequestFormat(relayInfo *relaycommon.RelayInfo, other map[string
 		// Frontend log rendering uses this to keep the original Claude input display.
 		other["claude"] = true
 	}
+}
+
+func appendTraceInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil || relayInfo.TracePayload == nil {
+		return
+	}
+	other["trace"] = relayInfo.TracePayload
+}
+
+func AppendTraceOtherInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	appendTraceInfo(relayInfo, other)
 }
 
 func GenerateWssOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage, modelRatio, groupRatio, completionRatio, audioRatio, audioCompletionRatio, modelPrice, userGroupRatio float64) map[string]interface{} {

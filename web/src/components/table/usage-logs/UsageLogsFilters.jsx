@@ -113,6 +113,14 @@ const LogsFilters = ({
                 size='small'
               />
               <Form.Input
+                field='provider_key_id'
+                prefix={<IconSearch />}
+                placeholder={t('上游 Key ID')}
+                showClear
+                pure
+                size='small'
+              />
+              <Form.Input
                 field='username'
                 prefix={<IconSearch />}
                 placeholder={t('用户名称')}

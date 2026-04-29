@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
@@ -69,6 +70,14 @@ func buildCompletionRatioMetaValue(optionValues map[string]string) string {
 	return string(jsonBytes)
 }
 
+func buildChannelTimeoutDefaultsValue() string {
+	jsonBytes, err := common.Marshal(dto.GetChannelTimeoutDefaults())
+	if err != nil {
+		return "{}"
+	}
+	return string(jsonBytes)
+}
+
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
 	optionValues := make(map[string]string)
@@ -98,6 +107,10 @@ func GetOptions(c *gin.Context) {
 	options = append(options, &model.Option{
 		Key:   "CompletionRatioMeta",
 		Value: buildCompletionRatioMetaValue(optionValues),
+	})
+	options = append(options, &model.Option{
+		Key:   "ChannelTimeoutDefaults",
+		Value: buildChannelTimeoutDefaultsValue(),
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

@@ -32,3 +32,5 @@ data/
 .test
 token_estimator_test.go
 skills-lock.json
+web/node_modules.bak.1775730744/
+.tmp-bun/

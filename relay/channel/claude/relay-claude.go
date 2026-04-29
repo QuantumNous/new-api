@@ -1,11 +1,14 @@
 package claude
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -42,6 +45,72 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	if strings.EqualFold(stopReason, "refusal") {
 		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
 	}
+}
+
+func inferOpenAIFileMimeType(fileName string) string {
+	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(fileName)), ".")
+	if ext == "" {
+		return ""
+	}
+	mimeType := service.GetMimeTypeByExtension(ext)
+	if mimeType == "application/octet-stream" {
+		return ""
+	}
+	return mimeType
+}
+
+func decodeClaudeTextFile(base64Data string) (*dto.ClaudeMediaMessage, error) {
+	decoded, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return nil, err
+	}
+	if !utf8.Valid(decoded) {
+		return nil, nil
+	}
+	return &dto.ClaudeMediaMessage{
+		Type: "text",
+		Text: common.GetPointer(string(decoded)),
+	}, nil
+}
+
+func buildClaudeFileMediaMessage(c *gin.Context, mediaMessage dto.MediaContent) (*dto.ClaudeMediaMessage, error) {
+	source := mediaMessage.ToFileSource()
+	if mediaMessage.Type == dto.ContentTypeFile {
+		file := mediaMessage.GetFile()
+		if file == nil || file.FileData == "" {
+			return nil, nil
+		}
+		source = types.NewFileSourceFromData(file.FileData, inferOpenAIFileMimeType(file.FileName))
+	}
+	if source == nil {
+		return nil, nil
+	}
+
+	base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting file for Claude")
+	if err != nil {
+		return nil, fmt.Errorf("get file data failed: %s", err.Error())
+	}
+
+	if strings.HasPrefix(mimeType, "text/") {
+		return decodeClaudeTextFile(base64Data)
+	}
+
+	claudeMediaMessage := dto.ClaudeMediaMessage{
+		Source: &dto.ClaudeMessageSource{
+			Type:      "base64",
+			MediaType: mimeType,
+			Data:      base64Data,
+		},
+	}
+	if strings.HasPrefix(mimeType, "application/pdf") {
+		claudeMediaMessage.Type = "document"
+		return &claudeMediaMessage, nil
+	}
+	if strings.HasPrefix(mimeType, "image/") {
+		claudeMediaMessage.Type = "image"
+		return &claudeMediaMessage, nil
+	}
+	return nil, nil
 }
 
 func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
@@ -377,28 +446,14 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 							})
 						}
 					default:
-						source := mediaMessage.ToFileSource()
-						if source == nil {
+						claudeMediaMessage, err := buildClaudeFileMediaMessage(c, mediaMessage)
+						if err != nil {
+							return nil, err
+						}
+						if claudeMediaMessage == nil {
 							continue
 						}
-						base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Claude")
-						if err != nil {
-							return nil, fmt.Errorf("get file data failed: %s", err.Error())
-						}
-						claudeMediaMessage := dto.ClaudeMediaMessage{
-							Source: &dto.ClaudeMessageSource{
-								Type: "base64",
-							},
-						}
-						if strings.HasPrefix(mimeType, "application/pdf") {
-							claudeMediaMessage.Type = "document"
-						} else {
-							claudeMediaMessage.Type = "image"
-						}
-
-						claudeMediaMessage.Source.MediaType = mimeType
-						claudeMediaMessage.Source.Data = base64Data
-						claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
+						claudeMediaMessages = append(claudeMediaMessages, *claudeMediaMessage)
 						continue
 					}
 				}
@@ -802,7 +857,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 
 		if claudeResponse.Type == "message_start" {
 			// message_start, 获取usage
-			if claudeResponse.Message != nil {
+			if claudeResponse.Message != nil && claudeResponse.Message.Model != "" && !info.IsModelMapped {
 				info.UpstreamModelName = claudeResponse.Message.Model
 			}
 		} else if claudeResponse.Type == "message_delta" {
@@ -947,6 +1002,7 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
+	service.CaptureTraceResponseFromBytes(info, resp, responseBody)
 	if common.DebugEnabled {
 		println("responseBody: ", string(responseBody))
 	}

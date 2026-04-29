@@ -30,6 +30,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
+import { mergeAdminConfig } from '../../../hooks/common/useSidebar';
 
 const { Text } = Typography;
 
@@ -61,6 +62,7 @@ export default function SettingsSidebarModulesAdmin(props) {
     admin: {
       enabled: true,
       channel: true,
+      credential: true,
       models: true,
       deployment: true,
       redemption: true,
@@ -122,6 +124,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       admin: {
         enabled: true,
         channel: true,
+        credential: true,
         models: true,
         deployment: true,
         redemption: true,
@@ -174,7 +177,7 @@ export default function SettingsSidebarModulesAdmin(props) {
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
-        setSidebarModulesAdmin(modules);
+        setSidebarModulesAdmin(mergeAdminConfig(modules));
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -191,6 +194,7 @@ export default function SettingsSidebarModulesAdmin(props) {
           admin: {
             enabled: true,
             channel: true,
+            credential: true,
             models: true,
             deployment: true,
             redemption: true,
@@ -199,7 +203,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             setting: true,
           },
         };
-        setSidebarModulesAdmin(defaultModules);
+        setSidebarModulesAdmin(mergeAdminConfig(defaultModules));
       }
     }
   }, [props.options]);
@@ -254,6 +258,11 @@ export default function SettingsSidebarModulesAdmin(props) {
       description: t('系统管理功能'),
       modules: [
         { key: 'channel', title: t('渠道管理'), description: t('API渠道配置') },
+        {
+          key: 'credential',
+          title: t('凭证管理'),
+          description: t('按稳定 Key ID 查看上游凭证使用情况'),
+        },
         { key: 'models', title: t('模型管理'), description: t('AI模型配置') },
         {
           key: 'deployment',

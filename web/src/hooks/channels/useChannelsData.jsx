@@ -40,6 +40,52 @@ import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 
+const CHANNEL_TIMEOUT_DEFAULTS_OPTION_KEY = 'ChannelTimeoutDefaults';
+
+const parseChannelTimeoutDefaults = (rawValue) => {
+  if (typeof rawValue !== 'string' || rawValue.trim() === '') {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+
+    const normalized = {
+      request_timeout_enabled: parsed.request_timeout_enabled === true,
+      request_timeout_seconds: Number(parsed.request_timeout_seconds),
+      response_header_timeout_enabled:
+        parsed.response_header_timeout_enabled === true,
+      response_header_timeout_seconds: Number(
+        parsed.response_header_timeout_seconds,
+      ),
+      stream_idle_timeout_enabled: parsed.stream_idle_timeout_enabled === true,
+      stream_idle_timeout_seconds: Number(parsed.stream_idle_timeout_seconds),
+      stream_response_header_timeout_enabled:
+        parsed.stream_response_header_timeout_enabled === true,
+      stream_response_header_timeout_seconds: Number(
+        parsed.stream_response_header_timeout_seconds,
+      ),
+    };
+
+    const numberFields = [
+      normalized.request_timeout_seconds,
+      normalized.response_header_timeout_seconds,
+      normalized.stream_idle_timeout_seconds,
+      normalized.stream_response_header_timeout_seconds,
+    ];
+    if (numberFields.some((value) => !Number.isFinite(value) || value <= 0)) {
+      return null;
+    }
+
+    return normalized;
+  } catch (error) {
+    return null;
+  }
+};
+
 export const useChannelsData = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -92,12 +138,14 @@ export const useChannelsData = () => {
   const [isStreamTest, setIsStreamTest] = useState(false);
   const [globalPassThroughEnabled, setGlobalPassThroughEnabled] =
     useState(false);
+  const [channelTimeoutDefaults, setChannelTimeoutDefaults] = useState(null);
 
-  const fetchGlobalPassThroughEnabled = async () => {
+  const fetchChannelPageOptions = async () => {
     try {
       const res = await API.get('/api/option/');
       const { success, data } = res?.data || {};
       if (!success || !Array.isArray(data)) {
+        setChannelTimeoutDefaults(null);
         return;
       }
       const option = data.find(
@@ -105,9 +153,18 @@ export const useChannelsData = () => {
       );
       if (option) {
         setGlobalPassThroughEnabled(toBoolean(option.value));
+      } else {
+        setGlobalPassThroughEnabled(false);
       }
+      const timeoutDefaultsOption = data.find(
+        (item) => item?.key === CHANNEL_TIMEOUT_DEFAULTS_OPTION_KEY,
+      );
+      setChannelTimeoutDefaults(
+        parseChannelTimeoutDefaults(timeoutDefaultsOption?.value),
+      );
     } catch (error) {
       setGlobalPassThroughEnabled(false);
+      setChannelTimeoutDefaults(null);
     }
   };
 
@@ -165,7 +222,7 @@ export const useChannelsData = () => {
       });
     fetchGroups().then();
     loadChannelModels().then();
-    fetchGlobalPassThroughEnabled().then();
+    fetchChannelPageOptions().then();
   }, []);
 
   // Column visibility management
@@ -1148,6 +1205,7 @@ export const useChannelsData = () => {
     statusFilter,
     compactMode,
     globalPassThroughEnabled,
+    channelTimeoutDefaults,
 
     // UI states
     showEdit,

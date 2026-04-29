@@ -2,10 +2,14 @@ package claude
 
 import (
 	"encoding/base64"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +50,29 @@ func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
 	if claudeInfo.Model != "claude-3-5-sonnet" {
 		t.Errorf("Model = %s, want claude-3-5-sonnet", claudeInfo.Model)
 	}
+}
+
+func TestHandleStreamResponseDataPreservesMappedUpstreamModelName(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			IsModelMapped:     true,
+			UpstreamModelName: "anthropic.claude-3-5-sonnet-20240620-v1:0",
+		},
+	}
+	claudeInfo := &ClaudeResponseInfo{
+		Usage: &dto.Usage{},
+	}
+	data := `{"type":"message_start","message":{"id":"msg_123","model":"claude-3-haiku-20240307","usage":{"input_tokens":100,"output_tokens":1}}}`
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	err := HandleStreamResponseData(c, info, claudeInfo, data)
+
+	require.Nil(t, err)
+	require.Equal(t, "anthropic.claude-3-5-sonnet-20240620-v1:0", info.UpstreamModelName)
+	require.Equal(t, "claude-3-haiku-20240307", claudeInfo.Model)
+	require.Equal(t, 100, claudeInfo.Usage.PromptTokens)
 }
 
 func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {

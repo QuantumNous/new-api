@@ -412,6 +412,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			}
 		}
 	}
+	service.CaptureTraceRequestFromBytes(info, "application/json", jsonData)
 
 	requestBody := bytes.NewBuffer(jsonData)
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
@@ -427,7 +428,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
+			err := service.RelayErrorHandler(c.Request.Context(), info, httpResp, true)
 			common.SysError(fmt.Sprintf(
 				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
 				channel.Id,
@@ -470,6 +471,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			newAPIError: types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError),
 		}
 	}
+	service.EnsureTraceResponseBodyFromBytes(info, result.Header.Get("Content-Type"), respBody)
 	if bodyErr := validateTestResponseBody(respBody, isStream); bodyErr != nil {
 		return testResult{
 			context:     c,
@@ -497,7 +499,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		Group:            info.UsingGroup,
 		Other:            other,
 	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	upstreamRequestId := ""
+	if info.TracePayload != nil {
+		upstreamRequestId = info.TracePayload.UpstreamRequestId
+	}
+	common.SysLog(fmt.Sprintf("testing channel #%d completed, response_bytes=%d, upstream_request_id=%s", channel.Id, len(respBody), upstreamRequestId))
 	return testResult{
 		context:     c,
 		localErr:    nil,
@@ -924,7 +930,7 @@ func testAllChannels(notify bool) error {
 
 			// disable channel
 			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
-				processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+				processChannelError(result.context, nil, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 			}
 
 			// enable channel

@@ -84,6 +84,7 @@
     "i18next-cli": "^1.10.3",
     "postcss": "^8.5.3",
     "prettier": "^3.0.0",
+    "sass": "^1.89.1",
     "tailwindcss": "^3",
     "typescript": "4.4.2",
     "vite": "^5.2.0"

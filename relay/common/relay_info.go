@@ -170,6 +170,7 @@ type RelayInfo struct {
 	FinalRequestRelayFormat types.RelayFormat
 
 	StreamStatus *StreamStatus
+	TracePayload *TracePayload
 
 	ThinkingContentInfo
 	TokenCountMeta

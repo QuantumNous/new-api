@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -36,6 +39,8 @@ type Log struct {
 	Group            string `json:"group" gorm:"index"`
 	Ip               string `json:"ip" gorm:"index;default:''"`
 	RequestId        string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
+	ProviderKeyId    int    `json:"provider_key_id,omitempty" gorm:"index;default:0"`
+	CostQuota        *int   `json:"cost_quota,omitempty"`
 	Other            string `json:"other"`
 }
 
@@ -60,8 +65,10 @@ func formatUserLogs(logs []*Log, startIdx int) {
 			delete(otherMap, "admin_info")
 			// delete(otherMap, "reject_reason")
 			delete(otherMap, "stream_status")
+			delete(otherMap, "trace")
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
+		logs[i].ProviderKeyId = 0
 		logs[i].Id = startIdx + i + 1
 	}
 }
@@ -147,6 +154,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
+	other, providerKeyId := appendProviderKeyInfo(c, other)
 	otherStr := common.MapToJsonStr(other)
 	// 判断是否需要记录 IP
 	needRecordIp := false
@@ -177,13 +185,103 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 			}
 			return ""
 		}(),
-		RequestId: requestId,
-		Other:     otherStr,
+		RequestId:     requestId,
+		ProviderKeyId: providerKeyId,
+		Other:         otherStr,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
+}
+
+func sanitizeOtherForConsoleLog(other map[string]interface{}) map[string]interface{} {
+	if other == nil {
+		return nil
+	}
+	sanitized := make(map[string]interface{}, len(other))
+	for key, value := range other {
+		sanitized[key] = value
+	}
+	if _, ok := sanitized["trace"]; ok {
+		sanitized["trace"] = map[string]interface{}{
+			"stored_in_log": true,
+			"omitted":       true,
+		}
+	}
+	if rawAdminInfo, ok := sanitized["admin_info"].(map[string]interface{}); ok {
+		adminInfo := make(map[string]interface{}, len(rawAdminInfo))
+		for key, value := range rawAdminInfo {
+			adminInfo[key] = value
+		}
+		if _, ok := adminInfo["provider_key"]; ok {
+			adminInfo["provider_key"] = "***stored_in_log***"
+		}
+		sanitized["admin_info"] = adminInfo
+	}
+	return sanitized
+}
+
+func appendProviderKeyInfo(c *gin.Context, other map[string]interface{}) (map[string]interface{}, int) {
+	if c == nil {
+		return other, 0
+	}
+	rawKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+	if rawKey == "" {
+		return other, 0
+	}
+	providerKey, err := GetOrCreateProviderKey(rawKey)
+	if err != nil {
+		common.SysLog("failed to resolve provider key: " + err.Error())
+		return other, 0
+	}
+	if other == nil {
+		other = make(map[string]interface{})
+	}
+	adminInfo, _ := other["admin_info"].(map[string]interface{})
+	if adminInfo == nil {
+		adminInfo = make(map[string]interface{})
+	}
+	adminInfo["provider_key_id"] = providerKey.Id
+	adminInfo["provider_key"] = rawKey
+	if providerKey.KeyPreview != "" {
+		adminInfo["provider_key_preview"] = providerKey.KeyPreview
+	}
+	other["admin_info"] = adminInfo
+	return other, providerKey.Id
+}
+
+func normalizeCostRatio(costRatio float64) float64 {
+	if math.IsNaN(costRatio) || math.IsInf(costRatio, 0) || costRatio < 0 {
+		return 1
+	}
+	return costRatio
+}
+
+func getChannelCostRatioByID(channelID int) float64 {
+	if channelID <= 0 {
+		return 1
+	}
+	channel, err := CacheGetChannel(channelID)
+	if err != nil {
+		return 1
+	}
+	return normalizeCostRatio(channel.GetSetting().GetCostRatio())
+}
+
+func resolveChannelCostRatio(c *gin.Context, channelID int) float64 {
+	if c != nil {
+		channelSetting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+		if ok {
+			return normalizeCostRatio(channelSetting.GetCostRatio())
+		}
+	}
+	return getChannelCostRatioByID(channelID)
+}
+
+func calculateCostQuota(quota int, costRatio float64) *int {
+	costQuota := int(math.Round(float64(quota) * normalizeCostRatio(costRatio)))
+	return &costQuota
 }
 
 type RecordConsumeLogParams struct {
@@ -205,7 +303,17 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	if !common.LogConsumeEnabled {
 		return
 	}
-	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
+	costRatio := resolveChannelCostRatio(c, params.ChannelId)
+	costQuota := calculateCostQuota(params.Quota, costRatio)
+	var providerKeyId int
+	params.Other, providerKeyId = appendProviderKeyInfo(c, params.Other)
+	if params.Other == nil {
+		params.Other = make(map[string]interface{})
+	}
+	params.Other["cost_ratio"] = costRatio
+	loggedParams := params
+	loggedParams.Other = sanitizeOtherForConsoleLog(params.Other)
+	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(loggedParams)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
@@ -238,8 +346,10 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			}
 			return ""
 		}(),
-		RequestId: requestId,
-		Other:     otherStr,
+		RequestId:     requestId,
+		ProviderKeyId: providerKeyId,
+		CostQuota:     costQuota,
+		Other:         otherStr,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
@@ -275,6 +385,12 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 			tokenName = token.Name
 		}
 	}
+	costRatio := getChannelCostRatioByID(params.ChannelId)
+	costQuota := calculateCostQuota(params.Quota, costRatio)
+	if params.Other == nil {
+		params.Other = make(map[string]interface{})
+	}
+	params.Other["cost_ratio"] = costRatio
 	log := &Log{
 		UserId:    params.UserId,
 		Username:  username,
@@ -287,6 +403,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		ChannelId: params.ChannelId,
 		TokenId:   params.TokenId,
 		Group:     params.Group,
+		CostQuota: costQuota,
 		Other:     common.MapToJsonStr(params.Other),
 	}
 	err := LOG_DB.Create(log).Error
@@ -295,7 +412,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string) (logs []*Log, total int64, err error) {
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, providerKeyId int) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
@@ -314,6 +431,9 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)
+	}
+	if providerKeyId != 0 {
+		tx = tx.Where("logs.provider_key_id = ?", providerKeyId)
 	}
 	if startTimestamp != 0 {
 		tx = tx.Where("logs.created_at >= ?", startTimestamp)
@@ -381,7 +501,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, providerKeyId int) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
@@ -401,6 +521,9 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)
+	}
+	if providerKeyId != 0 {
+		tx = tx.Where("logs.provider_key_id = ?", providerKeyId)
 	}
 	if startTimestamp != 0 {
 		tx = tx.Where("logs.created_at >= ?", startTimestamp)
@@ -432,7 +555,7 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, providerKeyId int) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
@@ -463,6 +586,10 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if channel != 0 {
 		tx = tx.Where("channel_id = ?", channel)
 		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
+	}
+	if providerKeyId != 0 {
+		tx = tx.Where("provider_key_id = ?", providerKeyId)
+		rpmTpmQuery = rpmTpmQuery.Where("provider_key_id = ?", providerKeyId)
 	}
 	if group != "" {
 		tx = tx.Where(logGroupCol+" = ?", group)

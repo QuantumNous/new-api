@@ -39,6 +39,7 @@ export const useDashboardStats = (
   times,
   trendData,
   performanceMetrics,
+  analysisMetricLabel,
   navigate,
   t,
 ) => {
@@ -93,7 +94,7 @@ export const useDashboardStats = (
         color: 'bg-yellow-50',
         items: [
           {
-            title: t('统计额度'),
+            title: `${analysisMetricLabel}${t('统计额度')}`,
             value: renderQuota(consumeQuota),
             icon: <IconCoinMoneyStroked />,
             avatarColor: 'yellow',
@@ -142,6 +143,7 @@ export const useDashboardStats = (
       consumeTokens,
       trendData,
       performanceMetrics,
+      analysisMetricLabel,
       navigate,
       t,
     ],

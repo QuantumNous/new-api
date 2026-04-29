@@ -23,13 +23,13 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 
 import DashboardHeader from './DashboardHeader';
+import DashboardFilters from './DashboardFilters';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
 import ApiInfoPanel from './ApiInfoPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
 import FaqPanel from './FaqPanel';
 import UptimePanel from './UptimePanel';
-import SearchModal from './modals/SearchModal';
 
 import { useDashboardData } from '../../hooks/dashboard/useDashboardData';
 import { useDashboardStats } from '../../hooks/dashboard/useDashboardStats';
@@ -63,6 +63,7 @@ const Dashboard = () => {
   // ========== 图表管理 ==========
   const dashboardCharts = useDashboardCharts(
     dashboardData.dataExportDefaultTime,
+    dashboardData.analysisDimensionLabel,
     dashboardData.setTrendData,
     dashboardData.setConsumeQuota,
     dashboardData.setTimes,
@@ -81,14 +82,15 @@ const Dashboard = () => {
     dashboardData.times,
     dashboardData.trendData,
     dashboardData.performanceMetrics,
+    dashboardData.analysisMetricLabel,
     dashboardData.navigate,
     dashboardData.t,
   );
 
   // ========== 数据处理 ==========
-  const loadUserData = async () => {
+  const loadUserData = async (overrideInputs) => {
     if (dashboardData.isAdminUser) {
-      const userData = await dashboardData.loadUserQuotaData();
+      const userData = await dashboardData.loadUserQuotaData(overrideInputs);
       if (userData && userData.length > 0) {
         dashboardCharts.updateUserChartData(userData);
       }
@@ -116,6 +118,16 @@ const Dashboard = () => {
   const handleSearchConfirm = async () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
     await loadUserData();
+  };
+
+  const handleResetFilters = async () => {
+    const nextState = dashboardData.resetFilters();
+    await dashboardData.handleSearchConfirm(
+      dashboardCharts.updateChartData,
+      nextState.inputs,
+      nextState.dataExportDefaultTime,
+    );
+    await loadUserData(nextState.inputs);
   };
 
   // ========== 数据准备 ==========
@@ -155,22 +167,21 @@ const Dashboard = () => {
       <DashboardHeader
         getGreeting={dashboardData.getGreeting}
         greetingVisible={dashboardData.greetingVisible}
-        showSearchModal={dashboardData.showSearchModal}
         refresh={handleRefresh}
         loading={dashboardData.loading}
-        t={dashboardData.t}
       />
 
-      <SearchModal
-        searchModalVisible={dashboardData.searchModalVisible}
-        handleSearchConfirm={handleSearchConfirm}
-        handleCloseModal={dashboardData.handleCloseModal}
-        isMobile={dashboardData.isMobile}
+      <DashboardFilters
         isAdminUser={dashboardData.isAdminUser}
         inputs={dashboardData.inputs}
         dataExportDefaultTime={dashboardData.dataExportDefaultTime}
         timeOptions={dashboardData.timeOptions}
+        dimensionOptions={dashboardData.dimensionOptions}
+        metricOptions={dashboardData.metricOptions}
         handleInputChange={dashboardData.handleInputChange}
+        handleSearch={handleSearchConfirm}
+        handleReset={handleResetFilters}
+        loading={dashboardData.loading}
         t={dashboardData.t}
       />
 
@@ -197,6 +208,8 @@ const Dashboard = () => {
             spec_user_rank={dashboardCharts.spec_user_rank}
             spec_user_trend={dashboardCharts.spec_user_trend}
             isAdminUser={dashboardData.isAdminUser}
+            analysisDimensionLabel={dashboardData.analysisDimensionLabel}
+            analysisMetricLabel={dashboardData.analysisMetricLabel}
             CARD_PROPS={CARD_PROPS}
             CHART_CONFIG={CHART_CONFIG}
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}

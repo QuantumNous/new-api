@@ -250,6 +250,12 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/upstream_updates/detect", controller.DetectChannelUpstreamModelUpdates)
 			channelRoute.POST("/upstream_updates/detect_all", controller.DetectAllChannelUpstreamModelUpdates)
 		}
+		providerKeyRoute := apiRouter.Group("/provider_key")
+		providerKeyRoute.Use(middleware.AdminAuth())
+		{
+			providerKeyRoute.GET("", controller.GetAllProviderKeys)
+			providerKeyRoute.GET("/", controller.GetAllProviderKeys)
+		}
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())
 		{

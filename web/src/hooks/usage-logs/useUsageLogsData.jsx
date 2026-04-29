@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal } from '@douyinfe/semi-ui';
+import { Collapse, Modal } from '@douyinfe/semi-ui';
+import { useLocation } from 'react-router-dom';
 import {
   API,
   getTodayStartTimestamp,
@@ -42,9 +43,116 @@ import {
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
+import CodeViewer from '../../components/playground/CodeViewer';
 
 export const useLogsData = () => {
   const { t } = useTranslation();
+  const location = useLocation();
+
+  const getTraceBodyText = (part) => {
+    if (!part) {
+      return '';
+    }
+    if (part.body) {
+      return part.body;
+    }
+    switch (part.storage_kind) {
+      case 'omitted_multipart':
+        return t('multipart 内容未内联展示');
+      case 'omitted_binary':
+        return t('二进制内容未内联展示');
+      case 'empty':
+        return t('空内容');
+      default:
+        return '';
+    }
+  };
+
+  const getTraceLanguage = (part) => {
+    const contentType = part?.content_type || '';
+    const body = part?.body || '';
+    if (
+      contentType.includes('json') ||
+      body.trim().startsWith('{') ||
+      body.trim().startsWith('[')
+    ) {
+      return 'json';
+    }
+    return 'text';
+  };
+
+  const getTraceHeadersText = (part) => {
+    if (!part?.headers || Object.keys(part.headers).length === 0) {
+      return '';
+    }
+    try {
+      return JSON.stringify(part.headers, null, 2);
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const renderTraceSectionTitle = (label, marginTop = 0) => (
+    <div
+      style={{
+        marginTop,
+        marginBottom: 8,
+        color: 'var(--semi-color-text-1)',
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      {label}
+    </div>
+  );
+
+  const renderTraceViewer = (part, title, labels) => {
+    if (!part) {
+      return null;
+    }
+    const bodyText = getTraceBodyText(part);
+    const headersText = getTraceHeadersText(part);
+    const meta = [
+      part?.content_type || '',
+      part?.body_size >= 0 ? `${t('大小')} ${part.body_size} B` : '',
+      part?.truncated ? t('已截断') : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    return (
+      <div style={{ minWidth: 0, width: '100%', maxWidth: 900 }}>
+        {meta ? (
+          <div
+            style={{
+              marginBottom: 8,
+              color: 'var(--semi-color-text-2)',
+              fontSize: 12,
+            }}
+          >
+            {meta}
+          </div>
+        ) : null}
+        {headersText ? (
+          <Collapse keepDOM style={{ marginBottom: 12 }}>
+            <Collapse.Panel header={labels.headers} itemKey='headers'>
+              <CodeViewer
+                content={headersText}
+                title='preview'
+                language='json'
+              />
+            </Collapse.Panel>
+          </Collapse>
+        ) : null}
+        {renderTraceSectionTitle(labels.body, headersText ? 12 : 0)}
+        <CodeViewer
+          content={bodyText}
+          title={title}
+          language={getTraceLanguage(part)}
+        />
+      </div>
+    );
+  };
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -94,13 +202,23 @@ export const useLogsData = () => {
   // Form state
   const [formApi, setFormApi] = useState(null);
   let now = new Date();
+  const queryPrefill = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return {
+      provider_key_id: searchParams.get('provider_key_id') || '',
+      request_id: searchParams.get('request_id') || '',
+      channel: searchParams.get('channel') || '',
+      model_name: searchParams.get('model_name') || '',
+    };
+  }, [location.search]);
   const formInitValues = {
     username: '',
     token_name: '',
-    model_name: '',
-    channel: '',
+    model_name: queryPrefill.model_name,
+    channel: queryPrefill.channel,
+    provider_key_id: queryPrefill.provider_key_id,
     group: '',
-    request_id: '',
+    request_id: queryPrefill.request_id,
     dateRange: [
       timestamp2string(getTodayStartTimestamp()),
       timestamp2string(now.getTime() / 1000 + 3600),
@@ -164,7 +282,9 @@ export const useLogsData = () => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -234,7 +354,7 @@ export const useLogsData = () => {
 
   // 获取表单值的辅助函数，确保所有值都是字符串
   const getFormValues = () => {
-    const formValues = formApi ? formApi.getValues() : {};
+    const formValues = formApi ? formApi.getValues() : formInitValues;
 
     let start_timestamp = timestamp2string(getTodayStartTimestamp());
     let end_timestamp = timestamp2string(now.getTime() / 1000 + 3600);
@@ -255,6 +375,7 @@ export const useLogsData = () => {
       start_timestamp,
       end_timestamp,
       channel: formValues.channel || '',
+      provider_key_id: formValues.provider_key_id || '',
       group: formValues.group || '',
       request_id: formValues.request_id || '',
       logType: formValues.logType ? parseInt(formValues.logType) : 0,
@@ -293,13 +414,14 @@ export const useLogsData = () => {
       start_timestamp,
       end_timestamp,
       channel,
+      provider_key_id,
       group,
       logType: formLogType,
     } = getFormValues();
     const currentLogType = formLogType !== undefined ? formLogType : logType;
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
+    let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&provider_key_id=${provider_key_id}&group=${group}`;
     url = encodeURI(url);
     let res = await API.get(url);
     const { success, message, data } = res.data;
@@ -383,7 +505,10 @@ export const useLogsData = () => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (
+        isAdminUser &&
+        (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
+      ) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -393,6 +518,31 @@ export const useLogsData = () => {
         expandDataLocal.push({
           key: t('Request ID'),
           value: logs[i].request_id,
+        });
+      }
+      const providerKeyId =
+        logs[i].provider_key_id || other?.admin_info?.provider_key_id || 0;
+      if (isAdminUser && providerKeyId) {
+        expandDataLocal.push({
+          key: t('上游 Key ID'),
+          value: String(providerKeyId),
+        });
+      }
+      if (isAdminUser && other?.admin_info?.provider_key) {
+        expandDataLocal.push({
+          key: t('最终请求 Key'),
+          value: (
+            <div
+              style={{
+                maxWidth: 600,
+                whiteSpace: 'normal',
+                wordBreak: 'break-all',
+                lineHeight: 1.6,
+              }}
+            >
+              {other.admin_info.provider_key}
+            </div>
+          ),
         });
       }
       if (other?.ws || other?.audio) {
@@ -520,7 +670,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),
@@ -537,7 +694,8 @@ export const useLogsData = () => {
         const ss = other.stream_status;
         const isOk = ss.status === 'ok';
         const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
-        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        let streamValue =
+          statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
         if (ss.error_count > 0) {
           streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
         }
@@ -552,7 +710,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('流错误详情'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {ss.errors.join('\n')}
               </div>
             ),
@@ -718,6 +883,34 @@ export const useLogsData = () => {
           });
         }
       }
+      if (isAdminUser && other?.trace?.upstream_request_id) {
+        expandDataLocal.push({
+          key: t('上游请求 ID'),
+          value: other.trace.upstream_request_id,
+        });
+      }
+      if (isAdminUser && other?.trace?.status_code) {
+        expandDataLocal.push({
+          key: t('上游状态码'),
+          value: other.trace.status_code,
+        });
+      }
+      if (isAdminUser && (other?.trace?.request || other?.trace?.response)) {
+        expandDataLocal.push({
+          key: t('完整请求'),
+          value: renderTraceViewer(other?.trace?.request, 'request', {
+            headers: t('请求头'),
+            body: t('请求体'),
+          }),
+        });
+        expandDataLocal.push({
+          key: t('完整返回'),
+          value: renderTraceViewer(other?.trace?.response, 'response', {
+            headers: t('响应头'),
+            body: t('响应体'),
+          }),
+        });
+      }
       expandDatesLocal[logs[i].key] = expandDataLocal;
     }
 
@@ -737,6 +930,7 @@ export const useLogsData = () => {
       start_timestamp,
       end_timestamp,
       channel,
+      provider_key_id,
       group,
       request_id,
       logType: formLogType,
@@ -752,7 +946,7 @@ export const useLogsData = () => {
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
     if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&provider_key_id=${provider_key_id}&group=${group}&request_id=${request_id}`;
     } else {
       url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
     }
