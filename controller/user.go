@@ -117,6 +117,42 @@ func setupLogin(user *model.User, c *gin.Context) {
 	})
 }
 
+var (
+	errGenerateDefaultTokenKey = errors.New("failed to generate default token key")
+	errCreateDefaultToken      = errors.New("failed to create default token")
+)
+
+func createDefaultTokenForUser(userId int, username string) error {
+	if !constant.GenerateDefaultToken {
+		return nil
+	}
+	key, err := common.GenerateKey()
+	if err != nil {
+		common.SysLog("failed to generate token key: " + err.Error())
+		return errGenerateDefaultTokenKey
+	}
+	now := common.GetTimestamp()
+	token := model.Token{
+		UserId:             userId,
+		Name:               username + "的初始令牌",
+		Key:                key,
+		CreatedTime:        now,
+		AccessedTime:       now,
+		ExpiredTime:        -1,
+		RemainQuota:        500000,
+		UnlimitedQuota:     true,
+		ModelLimitsEnabled: false,
+	}
+	if setting.DefaultUseAutoGroup {
+		token.Group = "auto"
+	}
+	if err := token.Insert(); err != nil {
+		common.SysLog(fmt.Sprintf("failed to insert default token for user %d: %s", userId, err.Error()))
+		return fmt.Errorf("insert default token: %w", errCreateDefaultToken)
+	}
+	return nil
+}
+
 func Logout(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
@@ -196,33 +232,16 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
 		return
 	}
-	// 生成默认令牌
-	if constant.GenerateDefaultToken {
-		key, err := common.GenerateKey()
-		if err != nil {
+	if err := createDefaultTokenForUser(insertedUser.Id, cleanUser.Username); err != nil {
+		switch {
+		case errors.Is(err, errGenerateDefaultTokenKey):
 			common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenFailed)
-			common.SysLog("failed to generate token key: " + err.Error())
-			return
-		}
-		// 生成默认令牌
-		token := model.Token{
-			UserId:             insertedUser.Id, // 使用插入后的用户ID
-			Name:               cleanUser.Username + "的初始令牌",
-			Key:                key,
-			CreatedTime:        common.GetTimestamp(),
-			AccessedTime:       common.GetTimestamp(),
-			ExpiredTime:        -1,     // 永不过期
-			RemainQuota:        500000, // 示例额度
-			UnlimitedQuota:     true,
-			ModelLimitsEnabled: false,
-		}
-		if setting.DefaultUseAutoGroup {
-			token.Group = "auto"
-		}
-		if err := token.Insert(); err != nil {
+		case errors.Is(err, errCreateDefaultToken):
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
-			return
+		default:
+			common.ApiError(c, err)
 		}
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
