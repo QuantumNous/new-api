@@ -50,6 +50,7 @@ const routerMap = {
   playground: '/console/playground',
   personal: '/console/personal',
   'image-studio': '/console/image-studio',
+  commission: '/console/commission',
 };
 
 // 需要在新标签页打开的外部路径
@@ -142,6 +143,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('生图工具'),
         itemKey: 'image-studio',
         to: '/console/image-studio',
+      },
+      {
+        text: t('返佣管理'),
+        itemKey: 'commission',
+        to: '/console/commission',
       },
     ];
 

@@ -135,6 +135,14 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	common.OptionMap["CommissionEnabled"] = strconv.FormatBool(common.CommissionEnabled)
+	common.OptionMap["CommissionTopUpRatio1"] = strconv.FormatFloat(common.CommissionTopUpRatio1, 'f', -1, 64)
+	common.OptionMap["CommissionTopUpRatio2"] = strconv.FormatFloat(common.CommissionTopUpRatio2, 'f', -1, 64)
+	common.OptionMap["CommissionTopUpRatio3"] = strconv.FormatFloat(common.CommissionTopUpRatio3, 'f', -1, 64)
+	common.OptionMap["CommissionHighValueThreshold"] = strconv.Itoa(common.CommissionHighValueThreshold)
+	common.OptionMap["CommissionHighValueBonus"] = strconv.Itoa(common.CommissionHighValueBonus)
+	common.OptionMap["CommissionMinWithdraw"] = strconv.Itoa(common.CommissionMinWithdraw)
+	common.OptionMap["CommissionNotice"] = common.CommissionNotice
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -479,8 +487,27 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":
 		common.QuotaForInviter, _ = strconv.Atoi(value)
+		if common.QuotaForInviter > 0 {
+			common.SysLog("QuotaForInviter 已废弃，邀请奖励请使用返佣系统（CommissionEnabled）配置")
+		}
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	case "CommissionEnabled":
+		common.CommissionEnabled = value == "true"
+	case "CommissionTopUpRatio1":
+		common.CommissionTopUpRatio1, _ = strconv.ParseFloat(value, 64)
+	case "CommissionTopUpRatio2":
+		common.CommissionTopUpRatio2, _ = strconv.ParseFloat(value, 64)
+	case "CommissionTopUpRatio3":
+		common.CommissionTopUpRatio3, _ = strconv.ParseFloat(value, 64)
+	case "CommissionHighValueThreshold":
+		common.CommissionHighValueThreshold, _ = strconv.Atoi(value)
+	case "CommissionHighValueBonus":
+		common.CommissionHighValueBonus, _ = strconv.Atoi(value)
+	case "CommissionMinWithdraw":
+		common.CommissionMinWithdraw, _ = strconv.Atoi(value)
+	case "CommissionNotice":
+		common.CommissionNotice = value
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

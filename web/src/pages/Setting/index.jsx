@@ -32,6 +32,7 @@ import {
   MessageSquare,
   Palette,
   CreditCard,
+  Coins,
   Server,
   Activity,
 } from 'lucide-react';
@@ -47,6 +48,7 @@ import RatioSetting from '../../components/settings/RatioSetting';
 import ChatsSetting from '../../components/settings/ChatsSetting';
 import DrawingSetting from '../../components/settings/DrawingSetting';
 import PaymentSetting from '../../components/settings/PaymentSetting';
+import CommissionSetting from '../../components/settings/CommissionSetting';
 import ModelDeploymentSetting from '../../components/settings/ModelDeploymentSetting';
 import PerformanceSetting from '../../components/settings/PerformanceSetting';
 
@@ -107,6 +109,16 @@ const Setting = () => {
       ),
       content: <PaymentSetting />,
       itemKey: 'payment',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Coins size={18} />
+          {t('返佣设置')}
+        </span>
+      ),
+      content: <CommissionSetting />,
+      itemKey: 'commission',
     });
     panes.push({
       tab: (

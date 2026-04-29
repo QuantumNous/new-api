@@ -55,6 +55,7 @@ import {
   Server,
   CalendarClock,
   Palette,
+  Coins,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -129,6 +130,8 @@ export function getLucideIcon(key, selected = false) {
       return <Settings {...commonProps} color={iconColor} />;
     case 'image-studio':
       return <Palette {...commonProps} color={iconColor} />;
+    case 'commission':
+      return <Coins {...commonProps} color={iconColor} />;
     default:
       return <CircleUser {...commonProps} color={iconColor} />;
   }

@@ -104,7 +104,6 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
 				//selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				//selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
-				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 				selfRoute.PATCH("/setting", controller.UpdateUserSettingPartial)
 				selfRoute.POST("/upgrade-vip", controller.UpgradeVIP)
@@ -122,6 +121,12 @@ func SetApiRouter(router *gin.Engine) {
 
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
+
+				// Commission routes
+				selfRoute.GET("/commission/summary", controller.GetCommissionSummary)
+				selfRoute.GET("/commission/records", controller.GetCommissionRecords)
+				selfRoute.GET("/commission/withdrawals", controller.GetWithdrawalRecords)
+				selfRoute.POST("/commission/withdraw", middleware.CriticalRateLimit(), controller.RequestWithdrawal)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
 			}
 
@@ -146,6 +151,12 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+
+				// Admin commission routes
+				adminRoute.GET("/commission/all_withdrawals", controller.AdminGetAllWithdrawals)
+				adminRoute.POST("/commission/withdrawal/approve", controller.AdminApproveWithdrawal)
+				adminRoute.POST("/commission/withdrawal/reject", controller.AdminRejectWithdrawal)
+				adminRoute.POST("/commission/issue", controller.AdminManualIssueCommission)
 			}
 		}
 

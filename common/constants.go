@@ -104,6 +104,16 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+
+// Commission system
+var CommissionEnabled = false
+var CommissionTopUpRatio1 float64 = 0  // 第1次充值返佣比例（百分比）
+var CommissionTopUpRatio2 float64 = 0  // 第2次充值返佣比例（百分比）
+var CommissionTopUpRatio3 float64 = 0  // 第3次充值返佣比例（百分比）
+var CommissionHighValueThreshold = 0   // 高价值用户充值门槛（元）
+var CommissionHighValueBonus = 0       // 高价值用户奖励金额（分）
+var CommissionMinWithdraw = 10         // 最低提现金额（元）
+var CommissionNotice = ""              // 返佣页面公告内容（支持HTML/Markdown）
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
