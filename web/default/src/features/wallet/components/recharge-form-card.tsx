@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Gift, ExternalLink, Loader2, Receipt } from 'lucide-react'
+import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -119,12 +125,12 @@ export function RechargeFormCard({
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className='overflow-hidden'>
+        <CardHeader className='border-b'>
           <Skeleton className='h-6 w-32' />
           <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
-        <CardContent className='space-y-8'>
+        <CardContent className='space-y-6 pt-6'>
           <div className='space-y-6'>
             {/* Preset Amounts Skeleton */}
             <div className='space-y-3'>
@@ -167,31 +173,36 @@ export function RechargeFormCard({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className='flex items-center justify-between'>
-          <div>
-            <h3 className='text-xl font-semibold tracking-tight'>
-              {t('Add Funds')}
-            </h3>
-            <p className='text-muted-foreground mt-2 text-sm'>
-              {t('Choose an amount and payment method')}
-            </p>
+    <Card className='overflow-hidden'>
+      <CardHeader className='border-b'>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div className='flex min-w-0 items-center gap-3'>
+            <div className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'>
+              <WalletCards className='h-4 w-4' />
+            </div>
+            <div className='min-w-0'>
+              <CardTitle className='text-xl tracking-tight'>
+                {t('Add Funds')}
+              </CardTitle>
+              <CardDescription>
+                {t('Choose an amount and payment method')}
+              </CardDescription>
+            </div>
           </div>
           {onOpenBilling && (
             <Button
               variant='outline'
               size='sm'
               onClick={onOpenBilling}
-              className='gap-2'
+              className='w-full gap-2 sm:w-auto'
             >
               <Receipt className='h-4 w-4' />
-              {t('Billing')}
+              {t('Order History')}
             </Button>
           )}
         </div>
       </CardHeader>
-      <CardContent className='space-y-8'>
+      <CardContent className='space-y-6 pt-6'>
         {/* Online Topup Section */}
         {hasAnyTopup ? (
           <div className='space-y-6'>
@@ -202,7 +213,7 @@ export function RechargeFormCard({
                     <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                       {t('Amount')}
                     </Label>
-                    <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+                    <div className='grid grid-cols-2 gap-3 md:grid-cols-4'>
                       {presetAmounts.map((preset, index) => {
                         const discount =
                           preset.discount ||
@@ -224,7 +235,7 @@ export function RechargeFormCard({
                             key={index}
                             variant='outline'
                             className={cn(
-                              'hover:border-foreground h-auto rounded-lg p-4 text-left whitespace-normal',
+                              'hover:border-foreground flex h-auto flex-col items-start rounded-lg p-4 text-left whitespace-normal',
                               selectedPreset === preset.value
                                 ? 'border-foreground bg-foreground/5'
                                 : 'border-muted'
@@ -264,7 +275,7 @@ export function RechargeFormCard({
                   >
                     {t('Custom Amount')}
                   </Label>
-                  <div className='relative'>
+                  <div className='grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'>
                     <Input
                       id='topup-amount'
                       type='number'
@@ -272,9 +283,9 @@ export function RechargeFormCard({
                       onChange={(e) => handleAmountChange(e.target.value)}
                       min={minTopup}
                       placeholder={`Minimum ${minTopup}`}
-                      className='pr-32 text-lg'
+                      className='text-lg'
                     />
-                    <div className='absolute end-3 top-1/2 flex -translate-y-1/2 items-center gap-2'>
+                    <div className='bg-muted/30 flex min-h-10 items-center justify-between gap-3 rounded-md border px-3 lg:min-w-52'>
                       <span className='text-muted-foreground text-xs'>
                         {t('Amount to pay:')}
                       </span>
@@ -294,7 +305,7 @@ export function RechargeFormCard({
                     {t('Payment Method')}
                   </Label>
                   {hasStandardPaymentMethods ? (
-                    <div className='flex flex-wrap gap-3'>
+                    <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3'>
                       {topupInfo?.pay_methods?.map((method) => {
                         const minTopup = method.min_topup || 0
                         const disabled = minTopup > topupAmount
@@ -305,7 +316,7 @@ export function RechargeFormCard({
                             variant='outline'
                             onClick={() => onPaymentMethodSelect(method)}
                             disabled={disabled || !!paymentLoading}
-                            className='gap-2 rounded-lg'
+                            className='justify-start gap-2 rounded-lg'
                           >
                             {paymentLoading === method.type ? (
                               <Loader2 className='h-4 w-4 animate-spin' />
@@ -355,7 +366,7 @@ export function RechargeFormCard({
                       <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                         {t('Waffo Payment')}
                       </Label>
-                      <div className='flex flex-wrap gap-3'>
+                      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3'>
                         {waffoPayMethods?.map((method, index) => {
                           const loadingKey = `waffo-${index}`
                           const waffoMin = waffoMinTopup || 0
@@ -367,7 +378,7 @@ export function RechargeFormCard({
                               variant='outline'
                               onClick={() => onWaffoMethodSelect(method, index)}
                               disabled={belowMin || !!paymentLoading}
-                              className='gap-2 rounded-lg'
+                              className='justify-start gap-2 rounded-lg'
                             >
                               {paymentLoading === loadingKey ? (
                                 <Loader2 className='h-4 w-4 animate-spin' />
@@ -434,7 +445,7 @@ export function RechargeFormCard({
           )}
 
         {/* Redemption Code Section */}
-        <div className='space-y-3 border-t pt-8'>
+        <div className='space-y-3 border-t pt-6'>
           <div className='flex items-center gap-2'>
             <Gift className='text-muted-foreground h-4 w-4' />
             <Label
@@ -444,7 +455,7 @@ export function RechargeFormCard({
               {t('Have a Code?')}
             </Label>
           </div>
-          <div className='flex gap-2'>
+          <div className='flex flex-col gap-2 sm:flex-row'>
             <Input
               id='redemption-code'
               value={redemptionCode}
@@ -452,7 +463,12 @@ export function RechargeFormCard({
               placeholder={t('Enter your redemption code')}
               className='flex-1'
             />
-            <Button onClick={onRedeem} disabled={redeeming} variant='outline'>
+            <Button
+              onClick={onRedeem}
+              disabled={redeeming}
+              variant='outline'
+              className='sm:w-auto'
+            >
               {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               {t('Redeem')}
             </Button>

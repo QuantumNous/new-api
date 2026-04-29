@@ -239,54 +239,56 @@ export function Wallet(props: WalletProps) {
           {t('Manage your balance and payment methods')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Content>
-          <div className='grid gap-6 lg:grid-cols-3'>
-            {/* Left Column - Stats & Recharge */}
-            <div className='space-y-6 lg:col-span-2'>
-              <WalletStatsCard user={user} loading={userLoading} />
-              <RechargeFormCard
-                topupInfo={topupInfo}
-                presetAmounts={presetAmounts}
-                selectedPreset={selectedPreset}
-                onSelectPreset={handleSelectPreset}
-                topupAmount={topupAmount}
-                onTopupAmountChange={handleTopupAmountChange}
-                paymentAmount={paymentAmount}
-                calculating={calculating}
-                onPaymentMethodSelect={handlePaymentMethodSelect}
-                paymentLoading={paymentLoading}
-                redemptionCode={redemptionCode}
-                onRedemptionCodeChange={setRedemptionCode}
-                onRedeem={handleRedeem}
-                redeeming={redeeming}
-                topupLink={topupInfo?.topup_link}
-                loading={topupLoading}
-                priceRatio={(status?.price as number) || 1}
-                usdExchangeRate={effectiveUsdExchangeRate}
-                onOpenBilling={() => setBillingDialogOpen(true)}
-                creemProducts={topupInfo?.creem_products}
-                enableCreemTopup={topupInfo?.enable_creem_topup}
-                onCreemProductSelect={handleCreemProductSelect}
-                enableWaffoTopup={topupInfo?.enable_waffo_topup}
-                waffoPayMethods={topupInfo?.waffo_pay_methods}
-                waffoMinTopup={topupInfo?.waffo_min_topup}
-                onWaffoMethodSelect={handleWaffoMethodSelect}
-                enableWaffoPancakeTopup={topupInfo?.enable_waffo_pancake_topup}
-              />
-            </div>
+          <div className='mx-auto flex w-full max-w-7xl flex-col gap-4'>
+            <WalletStatsCard user={user} loading={userLoading} />
 
-            {/* Right Column - Affiliate & Subscriptions */}
-            <div className='space-y-6 lg:col-span-1'>
-              <AffiliateRewardsCard
-                user={user}
-                affiliateLink={affiliateLink}
-                onTransfer={() => setTransferDialogOpen(true)}
-                loading={affiliateLoading}
-              />
+            <SubscriptionPlansCard topupInfo={topupInfo} />
+
+            <div className='grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.4fr)] xl:items-start'>
+              <div className='min-w-0'>
+                <RechargeFormCard
+                  topupInfo={topupInfo}
+                  presetAmounts={presetAmounts}
+                  selectedPreset={selectedPreset}
+                  onSelectPreset={handleSelectPreset}
+                  topupAmount={topupAmount}
+                  onTopupAmountChange={handleTopupAmountChange}
+                  paymentAmount={paymentAmount}
+                  calculating={calculating}
+                  onPaymentMethodSelect={handlePaymentMethodSelect}
+                  paymentLoading={paymentLoading}
+                  redemptionCode={redemptionCode}
+                  onRedemptionCodeChange={setRedemptionCode}
+                  onRedeem={handleRedeem}
+                  redeeming={redeeming}
+                  topupLink={topupInfo?.topup_link}
+                  loading={topupLoading}
+                  priceRatio={(status?.price as number) || 1}
+                  usdExchangeRate={effectiveUsdExchangeRate}
+                  onOpenBilling={() => setBillingDialogOpen(true)}
+                  creemProducts={topupInfo?.creem_products}
+                  enableCreemTopup={topupInfo?.enable_creem_topup}
+                  onCreemProductSelect={handleCreemProductSelect}
+                  enableWaffoTopup={topupInfo?.enable_waffo_topup}
+                  waffoPayMethods={topupInfo?.waffo_pay_methods}
+                  waffoMinTopup={topupInfo?.waffo_min_topup}
+                  onWaffoMethodSelect={handleWaffoMethodSelect}
+                  enableWaffoPancakeTopup={
+                    topupInfo?.enable_waffo_pancake_topup
+                  }
+                />
+              </div>
+
+              <div className='xl:sticky xl:top-6'>
+                <AffiliateRewardsCard
+                  user={user}
+                  affiliateLink={affiliateLink}
+                  onTransfer={() => setTransferDialogOpen(true)}
+                  loading={affiliateLoading}
+                />
+              </div>
             </div>
           </div>
-
-          {/* Subscription Plans */}
-          <SubscriptionPlansCard topupInfo={topupInfo} />
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

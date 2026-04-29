@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { Link2, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { UserProfile } from '../types'
@@ -28,12 +34,12 @@ export function ProfileSettingsCard({
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className='overflow-hidden'>
+        <CardHeader className='border-b'>
           <Skeleton className='h-6 w-32' />
           <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
-        <CardContent className='space-y-4'>
+        <CardContent className='space-y-4 pt-6'>
           <Skeleton className='h-10 w-full' />
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className='h-20 w-full' />
@@ -44,25 +50,38 @@ export function ProfileSettingsCard({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <h3 className='text-xl font-semibold tracking-tight'>
-          {t('Settings')}
-        </h3>
-        <p className='text-muted-foreground mt-2 text-sm'>
-          {t('Configure your account preferences and integrations')}
-        </p>
+    <Card className='overflow-hidden'>
+      <CardHeader className='border-b'>
+        <div className='flex items-center gap-3'>
+          <div className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'>
+            <Settings className='h-4 w-4' />
+          </div>
+          <div className='min-w-0'>
+            <CardTitle className='text-xl tracking-tight'>
+              {t('Settings')}
+            </CardTitle>
+            <CardDescription>
+              {t('Configure your account preferences and integrations')}
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className='pt-6'>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='bindings' className='gap-2'>
+          <TabsList className='grid h-auto w-full grid-cols-2 gap-1 rounded-xl p-1'>
+            <TabsTrigger
+              value='bindings'
+              className='h-auto gap-2 rounded-lg px-3 py-2.5'
+            >
               <Link2 className='h-4 w-4' />
               <span className='hidden sm:inline'>{t('Account Bindings')}</span>
               <span className='sm:hidden'>{t('Bindings')}</span>
             </TabsTrigger>
-            <TabsTrigger value='settings' className='gap-2'>
+            <TabsTrigger
+              value='settings'
+              className='h-auto gap-2 rounded-lg px-3 py-2.5'
+            >
               <Settings className='h-4 w-4' />
               <span className='hidden sm:inline'>
                 {t('Settings & Preferences')}

@@ -55,7 +55,9 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/dashboard': { section: 'console', module: 'detail' },
   '/dashboard/overview': { section: 'console', module: 'detail' },
   '/dashboard/models': { section: 'console', module: 'detail' },
+  '/dashboard/users': { section: 'console', module: 'detail' },
   '/keys': { section: 'console', module: 'token' },
+  '/usage-logs': { section: 'console', module: 'log' },
   '/usage-logs/common': { section: 'console', module: 'log' },
   '/usage-logs/drawing': { section: 'console', module: 'midjourney' },
   '/usage-logs/task': { section: 'console', module: 'task' },
@@ -173,7 +175,10 @@ function isNavItemVisible(
 
   // Handle direct link type
   if ('url' in item && item.url) {
-    return isModuleEnabled(item.url as string, adminConfig, userConfig)
+    const configUrls = item.configUrls ?? [item.url]
+    return configUrls.some((url) =>
+      isModuleEnabled(url as string, adminConfig, userConfig)
+    )
   }
 
   // Handle collapsible type (with sub-items)

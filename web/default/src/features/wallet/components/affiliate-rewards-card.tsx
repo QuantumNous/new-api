@@ -1,7 +1,14 @@
+import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -24,18 +31,18 @@ export function AffiliateRewardsCard({
   const { t } = useTranslation()
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className='overflow-hidden'>
+        <CardHeader className='border-b'>
           <Skeleton className='h-6 w-32' />
           <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
-        <CardContent className='space-y-8'>
+        <CardContent className='space-y-6 pt-6'>
           {/* Statistics Skeleton */}
-          <div className='grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6'>
+          <div className='grid grid-cols-1 gap-3'>
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className='space-y-2'>
+              <div key={i} className='rounded-lg border p-3'>
                 <Skeleton className='h-3 w-16' />
-                <Skeleton className='h-8 w-24' />
+                <Skeleton className='mt-2 h-8 w-24' />
               </div>
             ))}
           </div>
@@ -59,41 +66,50 @@ export function AffiliateRewardsCard({
   const hasRewards = (user?.aff_quota ?? 0) > 0
 
   return (
-    <Card>
-      <CardHeader>
-        <h3 className='text-xl font-semibold tracking-tight'>
-          {t('Referral Program')}
-        </h3>
-        <p className='text-muted-foreground mt-2 text-sm'>
-          {t('Share your link and earn rewards')}
-        </p>
+    <Card className='overflow-hidden'>
+      <CardHeader className='border-b'>
+        <div className='flex items-center gap-3'>
+          <div className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'>
+            <Share2 className='h-4 w-4' />
+          </div>
+          <div className='min-w-0'>
+            <CardTitle className='text-xl tracking-tight'>
+              {t('Referral Program')}
+            </CardTitle>
+            <CardDescription>
+              {t('Share your link and earn rewards')}
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className='space-y-8'>
+      <CardContent className='space-y-6 pt-6'>
         {/* Statistics */}
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6'>
-          <div className='space-y-2'>
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1'>
+          <div className='rounded-lg border p-3'>
             <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
               {t('Pending')}
             </div>
-            <div className='text-2xl font-semibold'>
+            <div className='mt-2 text-2xl font-semibold break-all'>
               {formatQuota(user?.aff_quota ?? 0)}
             </div>
           </div>
 
-          <div className='space-y-2'>
+          <div className='rounded-lg border p-3'>
             <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
               {t('Total Earned')}
             </div>
-            <div className='text-2xl font-semibold'>
+            <div className='mt-2 text-2xl font-semibold break-all'>
               {formatQuota(user?.aff_history_quota ?? 0)}
             </div>
           </div>
 
-          <div className='space-y-2'>
+          <div className='rounded-lg border p-3'>
             <div className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
               {t('Invites')}
             </div>
-            <div className='text-2xl font-semibold'>{user?.aff_count ?? 0}</div>
+            <div className='mt-2 text-2xl font-semibold'>
+              {user?.aff_count ?? 0}
+            </div>
           </div>
         </div>
 

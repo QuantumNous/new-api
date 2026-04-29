@@ -249,9 +249,9 @@ export function AccountBindingsTab({
         {bindings.map((binding) => (
           <div
             key={binding.id}
-            className='flex items-center justify-between rounded-lg border p-3'
+            className='flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'
           >
-            <div className='flex items-center gap-3'>
+            <div className='flex min-w-0 items-center gap-3'>
               <div className='bg-muted shrink-0 rounded-md p-2'>
                 <binding.icon className='h-4 w-4' />
               </div>
@@ -274,7 +274,7 @@ export function AccountBindingsTab({
             <Button
               variant='outline'
               size='sm'
-              className='ml-2 h-7 shrink-0 px-2.5 text-xs'
+              className='h-7 shrink-0 self-start px-2.5 text-xs sm:self-auto'
               onClick={binding.onBind}
               disabled={binding.isBound && binding.id !== 'email'}
             >
@@ -304,9 +304,9 @@ export function AccountBindingsTab({
               return (
                 <div
                   key={provider.id}
-                  className='flex items-center justify-between rounded-lg border p-3'
+                  className='flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'
                 >
-                  <div className='flex items-center gap-3'>
+                  <div className='flex min-w-0 items-center gap-3'>
                     <div className='bg-muted shrink-0 rounded-md p-2'>
                       <Link2 className='h-4 w-4' />
                     </div>
@@ -332,7 +332,7 @@ export function AccountBindingsTab({
                     <Button
                       variant='ghost'
                       size='sm'
-                      className='text-destructive hover:text-destructive ml-2 h-7 shrink-0 px-2.5 text-xs'
+                      className='text-destructive hover:text-destructive h-7 shrink-0 self-start px-2.5 text-xs sm:self-auto'
                       onClick={() => setUnbindTarget(binding)}
                     >
                       <Unlink className='mr-1 h-3 w-3' />
@@ -342,7 +342,7 @@ export function AccountBindingsTab({
                     <Button
                       variant='outline'
                       size='sm'
-                      className='ml-2 h-7 shrink-0 px-2.5 text-xs'
+                      className='h-7 shrink-0 self-start px-2.5 text-xs sm:self-auto'
                       onClick={() => handleBindCustomOAuth(provider)}
                     >
                       {t('Bind')}

@@ -2,7 +2,13 @@ import { Shield, AlertTriangle, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useDialogs } from '@/hooks/use-dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/status-badge'
 import { useTwoFA } from '../hooks'
@@ -27,7 +33,7 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
 
   if (pageLoading || loading) {
     return (
-      <Card>
+      <Card className='overflow-hidden'>
         <CardHeader>
           <Skeleton className='h-6 w-48' />
           <Skeleton className='mt-2 h-4 w-64' />
@@ -41,20 +47,20 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
 
   return (
     <>
-      <Card>
+      <Card className='overflow-hidden'>
         <CardHeader>
-          <h3 className='text-xl font-semibold tracking-tight'>
+          <CardTitle className='text-xl tracking-tight'>
             {t('Two-Factor Authentication')}
-          </h3>
-          <p className='text-muted-foreground mt-2 text-sm'>
+          </CardTitle>
+          <CardDescription>
             {t('Add an extra layer of security to your account')}
-          </p>
+          </CardDescription>
         </CardHeader>
 
         <CardContent>
           <div className='space-y-6'>
             {/* Status Section */}
-            <div className='flex items-start justify-between'>
+            <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row'>
               <div className='flex items-start gap-4'>
                 <div className='bg-muted rounded-md p-2'>
                   <Shield className='h-5 w-5' />
@@ -97,7 +103,10 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
               </div>
 
               {!status.enabled && (
-                <Button onClick={() => dialogs.open('setup')}>
+                <Button
+                  className='w-full sm:w-auto xl:w-full 2xl:w-auto'
+                  onClick={() => dialogs.open('setup')}
+                >
                   {t('Enable')}
                 </Button>
               )}
@@ -105,7 +114,7 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
 
             {/* Actions Section - Only show when enabled */}
             {status.enabled && (
-              <div className='flex flex-col gap-3 border-t pt-6 sm:flex-row'>
+              <div className='flex flex-col gap-3 border-t pt-6 sm:flex-row xl:flex-col 2xl:flex-row'>
                 <Button
                   variant='outline'
                   className='flex-1'

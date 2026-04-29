@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Route, CircleAlert, Sparkles, KeyRound } from 'lucide-react'
+import { CircleAlert, Sparkles, KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import {
@@ -11,11 +11,6 @@ import {
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -25,8 +20,6 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import {
   StatusBadge,
   type StatusBadgeProps,
-  dotColorMap,
-  textColorMap,
 } from '@/components/status-badge'
 import type { UsageLog } from '../../data/schema'
 import {
@@ -47,6 +40,7 @@ import {
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
+import { ModelBadge } from '../model-badge'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
 interface DetailSegment {
@@ -445,10 +439,20 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       const tokenName = log.token_name
       if (!tokenName) return null
 
+      const other = parseLogOther(log.other)
       const displayName = sensitiveVisible ? tokenName : '••••'
+      let group = log.group
+      if (!group) group = other?.group || ''
+
+      const metaParts: string[] = []
+      const groupRatioText = getGroupRatioText(other)
+      if (group) {
+        metaParts.push(sensitiveVisible ? group : '••••')
+      }
+      if (groupRatioText) metaParts.push(groupRatioText)
 
       return (
-        <div className='max-w-[120px]'>
+        <div className='flex max-w-[150px] flex-col gap-0.5'>
           <StatusBadge
             label={displayName}
             icon={KeyRound}
@@ -457,6 +461,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             showDot={false}
             className='max-w-full overflow-hidden rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-foreground'
           />
+          {metaParts.length > 0 && (
+            <span className='text-muted-foreground/60 truncate text-[11px]'>
+              {metaParts.join(' · ')}
+            </span>
+          )}
         </div>
       )
     },
@@ -471,81 +480,17 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         <DataTableColumnHeader column={column} title={t('Model')} />
       ),
       cell: function ModelCell({ row }) {
-        const { sensitiveVisible } = useUsageLogsContext()
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
 
         const modelInfo = formatModelName(log)
-        const other = parseLogOther(log.other)
-        let group = log.group
-        if (!group) group = other?.group || ''
-
-        const badgeClass =
-          'truncate rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono'
-
-        const modelBadge = modelInfo.isMapped ? (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type='button'
-                className='inline-flex items-center gap-1'
-              >
-                <StatusBadge
-                  label={modelInfo.name}
-                  autoColor={modelInfo.name}
-                  copyText={modelInfo.name}
-                  size='sm'
-                  className={badgeClass}
-                />
-                <Route className='text-muted-foreground size-3 shrink-0' />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className='w-72'>
-              <div className='space-y-2'>
-                <div className='flex items-start justify-between gap-3'>
-                  <span className='text-muted-foreground text-xs'>
-                    {t('Request Model:')}
-                  </span>
-                  <span className='truncate font-mono text-xs font-medium'>
-                    {modelInfo.name}
-                  </span>
-                </div>
-                <div className='flex items-start justify-between gap-3'>
-                  <span className='text-muted-foreground text-xs'>
-                    {t('Actual Model:')}
-                  </span>
-                  <span className='truncate font-mono text-xs font-medium'>
-                    {modelInfo.actualModel}
-                  </span>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        ) : (
-          <StatusBadge
-            label={modelInfo.name}
-            autoColor={modelInfo.name}
-            copyText={modelInfo.name}
-            size='sm'
-            className={badgeClass}
-          />
-        )
-
-        const metaParts: string[] = []
-        const groupRatioText = getGroupRatioText(other)
-        if (group) {
-          metaParts.push(sensitiveVisible ? group : '••••')
-        }
-        if (groupRatioText) metaParts.push(groupRatioText)
 
         return (
           <div className='flex max-w-[220px] flex-col gap-0.5'>
-            {modelBadge}
-            {metaParts.length > 0 && (
-              <span className='text-muted-foreground/60 truncate text-[11px]'>
-                {metaParts.join(' · ')}
-              </span>
-            )}
+            <ModelBadge
+              modelName={modelInfo.name}
+              actualModel={modelInfo.actualModel}
+            />
           </div>
         )
       },
@@ -576,11 +521,21 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         const pillBg: Record<string, string> = {
           success:
-            'border border-emerald-200/60 bg-emerald-50/50 dark:border-emerald-800/50 dark:bg-emerald-950/20',
+            'border border-emerald-200/40 bg-emerald-50/35 dark:border-emerald-900/40 dark:bg-emerald-950/15',
           warning:
-            'border border-amber-200/60 bg-amber-50/50 dark:border-amber-800/50 dark:bg-amber-950/20',
+            'border border-amber-200/45 bg-amber-50/35 dark:border-amber-900/40 dark:bg-amber-950/15',
           danger:
-            'border border-rose-200/70 bg-rose-50/60 dark:border-rose-800/50 dark:bg-rose-950/25',
+            'border border-rose-200/50 bg-rose-50/35 dark:border-rose-900/40 dark:bg-rose-950/15',
+        }
+        const pillText: Record<string, string> = {
+          success: 'text-emerald-700/85 dark:text-emerald-400/85',
+          warning: 'text-amber-700/85 dark:text-amber-400/85',
+          danger: 'text-rose-700/85 dark:text-rose-400/85',
+        }
+        const pillDot: Record<string, string> = {
+          success: 'bg-emerald-500/80',
+          warning: 'bg-amber-500/80',
+          danger: 'bg-rose-500/80',
         }
 
         return (
@@ -590,13 +545,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 className={cn(
                   'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-xs font-medium',
                   pillBg[timeVariant],
-                  textColorMap[timeVariant]
+                  pillText[timeVariant]
                 )}
               >
                 <span
                   className={cn(
                     'size-1.5 shrink-0 rounded-full',
-                    dotColorMap[timeVariant]
+                    pillDot[timeVariant]
                   )}
                   aria-hidden='true'
                 />
@@ -607,7 +562,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   className={cn(
                     'inline-flex items-center rounded-md px-1.5 py-0.5 font-mono text-xs font-medium',
                     pillBg[frtVariant!],
-                    textColorMap[frtVariant!]
+                    pillText[frtVariant!]
                   )}
                 >
                   {formatUseTime(frt / 1000)}
