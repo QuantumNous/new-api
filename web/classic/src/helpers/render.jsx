@@ -2325,7 +2325,11 @@ export function renderTieredModelPrice(opts) {
         const l1 = normalizeLabel(t.label);
         const l2 = normalizeLabel(matchedTier);
         return l1 === l2 && l1 !== '';
-      }) || tiers[0];
+      });
+
+  if (!tier) {
+    return i18next.t('阶梯计费（未匹配到对应阶梯）');
+  }
   const { symbol, rate } = getCurrencyConfig();
   const gr = groupRatio || 1;
 
@@ -2369,7 +2373,7 @@ export function renderTieredModelPriceSimple(opts) {
         const l1 = normalizeLabel(t.label);
         const l2 = normalizeLabel(matchedTier);
         return l1 === l2 && l1 !== '';
-      }) || tiers[0];
+      });
 
   if (outputMode === 'segments') {
     const segments = [

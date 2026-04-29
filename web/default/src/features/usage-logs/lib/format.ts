@@ -192,23 +192,21 @@ export function normalizeTierLabel(label: string | undefined): string {
 
 /**
  * Resolve which parsed tier corresponds to the matched_tier label in a log
- * entry. Falls back to the first tier when the label is missing or unknown,
- * which mirrors the behaviour of the classic frontend renderer.
+ * entry. Missing or unknown labels do not fall back to another tier because
+ * that would display guessed unit prices.
  */
 export function resolveMatchedTier(
     tiers: ParsedTier[],
     matchedLabel: string | undefined
 ): ParsedTier | null {
   if (tiers.length === 0) return null
-  if (matchedLabel) {
-    const found = tiers.find((tier) => {
-      const l1 = normalizeTierLabel(tier.label)
-      const l2 = normalizeTierLabel(matchedLabel)
-      return l1 === l2 && l1 !== ''
-    })
-    if (found) return found
-  }
-  return tiers[0]
+  if (!matchedLabel) return null
+  const found = tiers.find((tier) => {
+    const l1 = normalizeTierLabel(tier.label)
+    const l2 = normalizeTierLabel(matchedLabel)
+    return l1 === l2 && l1 !== ''
+  })
+  return found || null
 }
 
 /**
