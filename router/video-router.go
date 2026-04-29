@@ -1,10 +1,8 @@
 package router
 
 import (
-	"net/http"
-
 	"github.com/QuantumNous/new-api/controller"
-	"github.com/QuantumNous/new-api/dto"
+	controllergray "github.com/QuantumNous/new-api/controller/graylight"
 	"github.com/QuantumNous/new-api/middleware"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
@@ -76,14 +74,8 @@ func SetVideoRouter(router *gin.Engine) {
 			controller.RelayTaskFetch(c)
 		})
 
-		// Task delete: not yet implemented.
-		volcV3Router.DELETE("/contents/generations/tasks/:id", func(c *gin.Context) {
-			c.JSON(http.StatusNotImplemented, &dto.TaskError{
-				Code:       "not_implemented",
-				Message:    "DELETE /api/v3/contents/generations/tasks/:id is not supported yet",
-				StatusCode: http.StatusNotImplemented,
-			})
-		})
+		// Task delete: cancel task upstream and refund quota.
+		volcV3Router.DELETE("/contents/generations/tasks/:id", controllergray.VolcTaskDelete)
 	}
 
 	// Jimeng official API routes - direct mapping to official API format
