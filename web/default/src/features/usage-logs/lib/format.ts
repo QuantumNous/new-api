@@ -157,10 +157,37 @@ export function formatModelName(log: UsageLog): {
 export function decodeBillingExprB64(exprB64: string | undefined): string {
   if (!exprB64) return ''
   try {
-    return atob(exprB64)
+    const binaryString =
+      typeof window !== 'undefined'
+        ? window.atob(exprB64)
+        : Buffer.from(exprB64, 'base64').toString('binary')
+    const bytes = new Uint8Array(binaryString.length)
+
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    if (typeof TextDecoder !== 'undefined') {
+      return new TextDecoder().decode(bytes)
+    }
+
+    return decodeURIComponent(
+      Array.prototype.map
+        .call(bytes, (byte: any) => '%' + byte.toString(16).padStart(2, '0'))
+        .join('')
+    )
   } catch {
     return ''
   }
+}
+
+export function normalizeTierLabel(label: string | undefined): string {
+  if (!label) return ''
+  return label
+    .replace(/<|≤|<=/g, '<')
+    .replace(/>|≥|>=/g, '>')
+    .replace(/\s/g, '')
+    .toLowerCase()
 }
 
 /**
@@ -174,7 +201,11 @@ export function resolveMatchedTier(
 ): ParsedTier | null {
   if (tiers.length === 0) return null
   if (matchedLabel) {
-    const found = tiers.find((tier) => tier.label === matchedLabel)
+    const found = tiers.find((tier) => {
+      const l1 = normalizeTierLabel(tier.label)
+      const l2 = normalizeTierLabel(matchedLabel)
+      return l1 === l2 && l1 !== ''
+    })
     if (found) return found
   }
   return tiers[0]

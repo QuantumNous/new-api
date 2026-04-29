@@ -2270,6 +2270,37 @@ export function parseTiersFromExpr(exprStr) {
   }
 }
 
+export const decodeFromBase64 = (base64) => {
+  if (!base64) return '';
+
+  const binaryString =
+    typeof window !== 'undefined' ? window.atob(base64) : Buffer.from(base64, 'base64').toString('binary');
+  const bytes = new Uint8Array(binaryString.length);
+
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  if (typeof TextDecoder !== 'undefined') {
+    return new TextDecoder().decode(bytes);
+  }
+
+  return decodeURIComponent(
+    Array.prototype.map
+      .call(bytes, (byte) => '%' + byte.toString(16).padStart(2, '0'))
+      .join(''),
+  );
+};
+
+export const normalizeLabel = (label) => {
+  if (!label) return '';
+  return label
+    .replace(/<|≤|<=/g, '<')
+    .replace(/>|≥|>=/g, '>')
+    .replace(/\s/g, '')
+    .toLowerCase();
+};
+
 export function renderTieredModelPrice(opts) {
   const {
     prompt_tokens: inputTokens = 0,
@@ -2283,13 +2314,18 @@ export function renderTieredModelPrice(opts) {
     cache_creation_tokens_1h: cacheCreationTokens1h = 0,
   } = opts;
   let exprStr = '';
-  try { exprStr = atob(exprB64); } catch { /* ignore */ }
+  try { exprStr = decodeFromBase64(exprB64); } catch { /* ignore */ }
   const tiers = parseTiersFromExpr(exprStr);
   if (tiers.length === 0) {
     return i18next.t('阶梯计费（表达式解析失败）');
   }
 
-  const tier = tiers.find((t) => t.label === matchedTier) || tiers[0];
+  const tier =
+    tiers.find((t) => {
+      const l1 = normalizeLabel(t.label);
+      const l2 = normalizeLabel(matchedTier);
+      return l1 === l2 && l1 !== '';
+    }) || tiers[0];
   const { symbol, rate } = getCurrencyConfig();
   const gr = groupRatio || 1;
 
@@ -2326,9 +2362,14 @@ export function renderTieredModelPriceSimple(opts) {
     outputMode = 'segments',
   } = opts;
   let exprStr = '';
-  try { exprStr = atob(exprB64); } catch { /* ignore */ }
+  try { exprStr = decodeFromBase64(exprB64); } catch { /* ignore */ }
   const tiers = parseTiersFromExpr(exprStr);
-  const tier = tiers.find((t) => t.label === matchedTier) || tiers[0];
+  const tier =
+    tiers.find((t) => {
+      const l1 = normalizeLabel(t.label);
+      const l2 = normalizeLabel(matchedTier);
+      return l1 === l2 && l1 !== '';
+    }) || tiers[0];
 
   if (outputMode === 'segments') {
     const segments = [
