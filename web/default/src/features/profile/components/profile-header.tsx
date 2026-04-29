@@ -1,3 +1,6 @@
+import { Activity, BarChart3, WalletCards } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { formatCompactNumber, formatQuota } from '@/lib/format'
 import { getRoleLabel } from '@/lib/roles'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -15,21 +18,36 @@ interface ProfileHeaderProps {
 }
 
 export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
+  const { t } = useTranslation()
+
   if (loading) {
     return (
-      <div className='space-y-6'>
-        <div className='flex flex-col items-center gap-4 text-center lg:flex-row lg:items-center lg:gap-6 lg:text-left'>
-          <Skeleton className='h-20 w-20 rounded-full' />
-          <div className='flex-1 space-y-3 lg:space-y-2'>
-            <div className='flex flex-col items-center gap-2 sm:flex-row sm:justify-center lg:justify-start'>
-              <Skeleton className='h-8 w-48' />
-              <Skeleton className='h-5 w-16' />
+      <div className='bg-card overflow-hidden rounded-lg border'>
+        <div className='p-4 sm:p-5'>
+          <div className='flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left'>
+            <Skeleton className='h-16 w-16 rounded-2xl' />
+            <div className='space-y-3'>
+              <div className='flex flex-col items-center gap-2 sm:flex-row sm:justify-start'>
+                <Skeleton className='h-8 w-48' />
+                <Skeleton className='h-5 w-16' />
+              </div>
+              <div className='flex flex-col items-center gap-1 sm:flex-row sm:justify-start sm:gap-4'>
+                <Skeleton className='h-4 w-24' />
+                <Skeleton className='h-4 w-40' />
+                <Skeleton className='h-4 w-20' />
+              </div>
             </div>
-            <div className='flex flex-col items-center gap-1 sm:flex-row sm:justify-center sm:gap-4 lg:justify-start'>
-              <Skeleton className='h-4 w-24' />
-              <Skeleton className='h-4 w-40' />
-              <Skeleton className='h-4 w-20' />
-            </div>
+          </div>
+        </div>
+        <div className='border-t'>
+          <div className='divide-border/60 grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0'>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className='px-4 py-3.5 sm:px-5 sm:py-4'>
+                <Skeleton className='h-3.5 w-20' />
+                <Skeleton className='mt-2 h-7 w-28' />
+                <Skeleton className='mt-1.5 h-3.5 w-24' />
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -41,39 +59,86 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   const displayName = getDisplayName(profile)
   const initials = getUserInitials(profile)
   const roleLabel = getRoleLabel(profile.role)
+  const stats = [
+    {
+      label: t('Current Balance'),
+      value: formatQuota(profile.quota),
+      description: t('Remaining quota'),
+      icon: WalletCards,
+    },
+    {
+      label: t('Total Usage'),
+      value: formatQuota(profile.used_quota),
+      description: t('Total consumed quota'),
+      icon: BarChart3,
+    },
+    {
+      label: t('API Requests'),
+      value: formatCompactNumber(profile.request_count),
+      description: t('Total requests made'),
+      icon: Activity,
+    },
+  ]
 
   return (
-    <div className='space-y-6'>
-      <div className='flex flex-col items-center gap-4 text-center lg:flex-row lg:items-center lg:gap-6 lg:text-left'>
-        <Avatar className='h-20 w-20 text-xl'>
-          <AvatarFallback className='bg-primary/10 text-primary'>
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+    <div className='bg-card overflow-hidden rounded-lg border'>
+      <div className='p-4 sm:p-5'>
+        <div className='flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left'>
+          <Avatar className='ring-background h-16 w-16 rounded-2xl text-lg ring-4'>
+            <AvatarFallback className='bg-primary/10 text-primary rounded-2xl'>
+              {initials}
+            </AvatarFallback>
+          </Avatar>
 
-        <div className='flex-1 space-y-3 lg:space-y-2'>
-          <div className='flex flex-col items-center gap-2 sm:flex-row sm:justify-center lg:justify-start'>
-            <h1 className='text-3xl font-semibold tracking-tight'>
-              {displayName}
-            </h1>
-            <StatusBadge label={roleLabel} variant='neutral' copyable={false} />
-          </div>
+          <div className='min-w-0 flex-1 space-y-3'>
+            <div className='flex flex-col items-center gap-2 sm:flex-row sm:justify-start'>
+              <h1 className='text-2xl font-semibold tracking-tight'>
+                {displayName}
+              </h1>
+              <StatusBadge
+                label={roleLabel}
+                variant='neutral'
+                copyable={false}
+              />
+            </div>
 
-          <div className='text-muted-foreground flex flex-col gap-1 text-sm sm:flex-row sm:flex-wrap sm:justify-center sm:gap-4 lg:justify-start'>
-            <span>@{profile.username}</span>
-            {profile.email && (
-              <>
-                <span className='hidden sm:inline'>•</span>
-                <span>{profile.email}</span>
-              </>
-            )}
-            {profile.group && (
-              <>
-                <span className='hidden sm:inline'>•</span>
-                <span>{profile.group}</span>
-              </>
-            )}
+            <div className='text-muted-foreground flex flex-col gap-1 text-sm sm:flex-row sm:flex-wrap sm:justify-start sm:gap-4'>
+              <span>@{profile.username}</span>
+              {profile.email && (
+                <>
+                  <span className='hidden sm:inline'>•</span>
+                  <span>{profile.email}</span>
+                </>
+              )}
+              {profile.group && (
+                <>
+                  <span className='hidden sm:inline'>•</span>
+                  <span>{profile.group}</span>
+                </>
+              )}
+            </div>
           </div>
+        </div>
+      </div>
+      <div className='border-t'>
+        <div className='divide-border/60 grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0'>
+          {stats.map((item) => (
+            <div key={item.label} className='px-4 py-3.5 sm:px-5 sm:py-4'>
+              <div className='flex items-center gap-2'>
+                <item.icon className='text-muted-foreground/60 size-3.5 shrink-0' />
+                <div className='text-muted-foreground truncate text-xs font-medium tracking-wider uppercase'>
+                  {item.label}
+                </div>
+              </div>
+
+              <div className='text-foreground mt-2 font-mono text-2xl font-bold tracking-tight break-all tabular-nums'>
+                {item.value}
+              </div>
+              <div className='text-muted-foreground/60 mt-1 hidden text-xs md:block'>
+                {item.description}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

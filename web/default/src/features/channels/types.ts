@@ -78,6 +78,15 @@ export interface ChannelOtherSettings {
   allow_service_tier?: boolean
   disable_store?: boolean
   allow_safety_identifier?: boolean
+  allow_include_obfuscation?: boolean
+  allow_inference_geo?: boolean
+  allow_speed?: boolean
+  claude_beta_query?: boolean
+  upstream_model_update_check_enabled?: boolean
+  upstream_model_update_auto_sync_enabled?: boolean
+  upstream_model_update_ignored_models?: string[]
+  upstream_model_update_last_check_time?: number
+  upstream_model_update_last_detected_models?: string[]
 }
 
 // ============================================================================

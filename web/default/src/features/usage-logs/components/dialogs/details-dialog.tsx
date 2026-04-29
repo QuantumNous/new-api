@@ -38,7 +38,8 @@ import {
   getTieredBillingSummary,
   hasAnyCacheTokens,
   isViolationFeeLog,
-  getTimeColor,
+  getFirstResponseTimeColor,
+  getResponseTimeColor,
 } from '../../lib/format'
 import {
   getLogTypeConfig,
@@ -46,6 +47,14 @@ import {
   isTimingLogType,
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
+
+function timingTextColorClass(
+  variant: 'success' | 'warning' | 'danger'
+): string {
+  if (variant === 'success') return 'text-emerald-600'
+  if (variant === 'warning') return 'text-amber-600'
+  return 'text-rose-600'
+}
 
 function DetailRow(props: {
   label: React.ReactNode
@@ -545,18 +554,26 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     <span
                       className={cn(
                         'font-medium',
-                        getTimeColor(props.log.use_time) === 'success'
-                          ? 'text-emerald-600'
-                          : getTimeColor(props.log.use_time) === 'info'
-                            ? 'text-sky-600'
-                            : 'text-amber-600'
+                        timingTextColorClass(
+                          getResponseTimeColor(
+                            props.log.use_time,
+                            props.log.completion_tokens
+                          )
+                        )
                       )}
                     >
                       {formatUseTime(props.log.use_time)}
                       {props.log.is_stream &&
                         other?.frt != null &&
                         other.frt > 0 && (
-                          <span className='text-muted-foreground font-normal'>
+                          <span
+                            className={cn(
+                              'font-normal',
+                              timingTextColorClass(
+                                getFirstResponseTimeColor(other.frt / 1000)
+                              )
+                            )}
+                          >
                             {' '}
                             (FRT: {formatUseTime(other.frt / 1000)})
                           </span>

@@ -1,7 +1,13 @@
 import { Shield, Key, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useDialogs } from '@/hooks/use-dialog'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { UserProfile } from '../types'
 import { AccessTokenDialog } from './dialogs/access-token-dialog'
@@ -28,12 +34,12 @@ export function ProfileSecurityCard({
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className='overflow-hidden'>
+        <CardHeader className='border-b'>
           <Skeleton className='h-6 w-32' />
           <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
-        <CardContent className='space-y-3'>
+        <CardContent className='space-y-3 pt-6'>
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className='h-16 w-full' />
           ))}
@@ -70,18 +76,25 @@ export function ProfileSecurityCard({
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <h3 className='text-xl font-semibold tracking-tight'>
-            {t('Security')}
-          </h3>
-          <p className='text-muted-foreground mt-2 text-sm'>
-            {t('Manage your security settings and account access')}
-          </p>
+      <Card className='overflow-hidden'>
+        <CardHeader className='border-b'>
+          <div className='flex items-center gap-3'>
+            <div className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'>
+              <Shield className='h-4 w-4' />
+            </div>
+            <div className='min-w-0'>
+              <CardTitle className='text-xl tracking-tight'>
+                {t('Security')}
+              </CardTitle>
+              <CardDescription>
+                {t('Manage your security settings and account access')}
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
 
-        <CardContent>
-          <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+        <CardContent className='pt-6'>
+          <div className='grid grid-cols-1 gap-3 md:grid-cols-3'>
             {securityActions.map((item) => (
               <button
                 key={item.title}

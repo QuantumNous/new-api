@@ -19,6 +19,8 @@ type BaseNavItem = {
   badge?: string
   icon?: React.ElementType
   newTab?: boolean
+  activeUrls?: (LinkProps['to'] | (string & {}))[]
+  configUrls?: (LinkProps['to'] | (string & {}))[]
 }
 
 /**

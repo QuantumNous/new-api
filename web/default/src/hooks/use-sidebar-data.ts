@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Activity,
   Key,
   FileText,
   Wallet,
@@ -12,20 +13,16 @@ import {
   FlaskConical,
   MessageSquare,
   CreditCard,
+  ListTodo,
+  Settings,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
 import { customSidebarLinks } from '@/custom/site'
-import { getDashboardSectionNavItems } from '@/features/dashboard/section-registry'
-import { getModelsSectionNavItems } from '@/features/models/section-registry'
-import { getUsageLogsSectionNavItems } from '@/features/usage-logs/section-registry'
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
-  const user = useAuthStore((s) => s.auth.user)
-  const isAdmin = Boolean(user?.role && user.role >= 10)
 
   return {
     workspaces: [
@@ -58,9 +55,14 @@ export function useSidebarData(): SidebarData {
         title: t('General'),
         items: [
           {
+            title: t('Overview'),
+            url: '/dashboard/overview',
+            icon: Activity,
+          },
+          {
             title: t('Dashboard'),
+            url: '/dashboard/models',
             icon: LayoutDashboard,
-            items: getDashboardSectionNavItems(t, { isAdmin }),
           },
           {
             title: t('API Keys'),
@@ -69,8 +71,15 @@ export function useSidebarData(): SidebarData {
           },
           {
             title: t('Usage Logs'),
+            url: '/usage-logs/common',
             icon: FileText,
-            items: getUsageLogsSectionNavItems(t),
+          },
+          {
+            title: t('Task Logs'),
+            url: '/usage-logs/task',
+            activeUrls: ['/usage-logs/drawing'],
+            configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
+            icon: ListTodo,
           },
           {
             title: t('Wallet'),
@@ -101,8 +110,8 @@ export function useSidebarData(): SidebarData {
           },
           {
             title: t('Models'),
+            url: '/models/metadata',
             icon: Box,
-            items: getModelsSectionNavItems(t),
           },
           {
             title: t('Users'),
@@ -118,6 +127,12 @@ export function useSidebarData(): SidebarData {
             title: t('Subscription Management'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('System Settings'),
+            url: '/system-settings/general',
+            activeUrls: ['/system-settings'],
+            icon: Settings,
           },
         ],
       },

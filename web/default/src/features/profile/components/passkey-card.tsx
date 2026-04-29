@@ -15,7 +15,13 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/status-badge'
 import { usePasskeyManagement } from '@/features/auth/passkey'
@@ -163,7 +169,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   if (pageLoading || loading) {
     return (
-      <Card>
+      <Card className='overflow-hidden'>
         <CardHeader>
           <Skeleton className='h-6 w-48' />
           <Skeleton className='mt-2 h-4 w-64' />
@@ -185,18 +191,18 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   return (
     <>
-      <Card>
+      <Card className='overflow-hidden'>
         <CardHeader>
-          <h3 className='text-xl font-semibold tracking-tight'>
+          <CardTitle className='text-xl tracking-tight'>
             {t('Passkey Login')}
-          </h3>
-          <p className='text-muted-foreground mt-2 text-sm'>
+          </CardTitle>
+          <CardDescription>
             {t('Use Passkey to sign in without entering your password.')}
-          </p>
+          </CardDescription>
         </CardHeader>
 
         <CardContent className='space-y-6'>
-          <div className='flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between xl:flex-col xl:items-stretch 2xl:flex-row 2xl:items-center'>
             <div className='flex items-start gap-3'>
               <div className='bg-muted rounded-md p-2'>
                 <KeyRound className='h-5 w-5' />
@@ -239,7 +245,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
             {!enabled ? (
               <Button
-                className='w-full sm:w-auto'
+                className='w-full sm:w-auto xl:w-full 2xl:w-auto'
                 onClick={handleRegister}
                 disabled={!supported || registering}
               >
@@ -253,7 +259,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                 <AlertDialogTrigger asChild>
                   <Button
                     variant='outline'
-                    className='w-full sm:w-auto'
+                    className='w-full sm:w-auto xl:w-full 2xl:w-auto'
                     disabled={removing}
                   >
                     {t('Remove Passkey')}

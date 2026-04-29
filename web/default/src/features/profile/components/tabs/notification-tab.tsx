@@ -132,7 +132,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
                   className='sr-only'
                 />
                 <Icon className='h-5 w-5' />
-                <span className='text-sm font-medium'>{method.label}</span>
+                <span className='text-sm font-medium'>{t(method.label)}</span>
               </Label>
             )
           })}
@@ -297,7 +297,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
         {/* Receive Upstream Model Update Notifications (admin only) */}
         {isAdmin && (
-          <div className='flex items-center justify-between rounded-lg border p-4'>
+          <div className='flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between'>
             <div className='space-y-0.5'>
               <Label htmlFor='upstreamModelUpdateNotify'>
                 {t('Receive Upstream Model Update Notifications')}
@@ -310,6 +310,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             </div>
             <Switch
               id='upstreamModelUpdateNotify'
+              className='shrink-0'
               checked={settings.upstream_model_update_notify_enabled}
               onCheckedChange={(checked) =>
                 updateField('upstream_model_update_notify_enabled', checked)
@@ -319,7 +320,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         )}
 
         {/* Accept Unset Model Price */}
-        <div className='flex items-center justify-between rounded-lg border p-4'>
+        <div className='flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between'>
           <div className='space-y-0.5'>
             <Label htmlFor='acceptUnsetPrice'>
               {t('Accept Unpriced Models')}
@@ -330,6 +331,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           </div>
           <Switch
             id='acceptUnsetPrice'
+            className='shrink-0'
             checked={settings.accept_unset_model_ratio_model}
             onCheckedChange={(checked) =>
               updateField('accept_unset_model_ratio_model', checked)
@@ -338,7 +340,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         </div>
 
         {/* Record IP Log */}
-        <div className='flex items-center justify-between rounded-lg border p-4'>
+        <div className='flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between'>
           <div className='space-y-0.5'>
             <Label htmlFor='recordIp'>{t('Record IP Address')}</Label>
             <p className='text-muted-foreground text-sm'>
@@ -347,6 +349,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           </div>
           <Switch
             id='recordIp'
+            className='shrink-0'
             checked={settings.record_ip_log}
             onCheckedChange={(checked) => updateField('record_ip_log', checked)}
           />

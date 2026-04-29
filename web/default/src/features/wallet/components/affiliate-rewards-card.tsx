@@ -1,6 +1,12 @@
-import { useTranslation } from 'react-i18next'
 import { BadgePercent, ArrowRightLeft } from 'lucide-react'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { useTranslation } from 'react-i18next'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCnyAmount } from '../lib'
 import type { TopupInfo } from '../types'
@@ -44,12 +50,12 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
 
   if (props.loading) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className='overflow-hidden'>
+        <CardHeader className='border-b'>
           <Skeleton className='h-6 w-32' />
           <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
-        <CardContent className='space-y-6'>
+        <CardContent className='space-y-6 pt-6'>
           <Skeleton className='h-20 w-full rounded-lg' />
           <Skeleton className='h-32 w-full rounded-lg' />
         </CardContent>
@@ -60,17 +66,24 @@ export function AffiliateRewardsCard(props: AffiliateRewardsCardProps) {
   const discountTiers = getDiscountTiers(props.topupInfo, priceRatio)
 
   return (
-    <Card>
-      <CardHeader>
-        <h3 className='text-xl font-semibold tracking-tight'>
-          {t('Pricing Information')}
-        </h3>
-        <p className='text-muted-foreground mt-2 text-sm'>
-          {t('Recharge rate and discount tiers')}
-        </p>
+    <Card className='overflow-hidden'>
+      <CardHeader className='border-b'>
+        <div className='flex items-center gap-3'>
+          <div className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'>
+            <ArrowRightLeft className='h-4 w-4' />
+          </div>
+          <div className='min-w-0'>
+            <CardTitle className='text-xl tracking-tight'>
+              {t('Pricing Information')}
+            </CardTitle>
+            <CardDescription>
+              {t('Recharge rate and discount tiers')}
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className='space-y-6'>
-        <div className='bg-muted/30 rounded-lg p-4'>
+      <CardContent className='space-y-6 pt-6'>
+        <div className='rounded-lg border p-4'>
           <div className='mb-2 flex items-center gap-2'>
             <ArrowRightLeft className='text-muted-foreground h-4 w-4' />
             <span className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>

@@ -40,11 +40,16 @@ export function checkIsActive(
   item: NavItem,
   mainNav = false
 ): boolean {
+  const hrefWithoutQuery = href.split('?')[0]
+
+  if (item.activeUrls?.some((url) => urlToString(url) === hrefWithoutQuery)) {
+    return true
+  }
+
   // For collapsible items (NavCollapsible), check sub-items first
   if ('items' in item && item.items) {
     const collapsibleItem = item as NavCollapsible
     const items = collapsibleItem.items
-    const hrefWithoutQuery = href.split('?')[0]
 
     // Check if any sub-item matches
     if (
@@ -76,7 +81,6 @@ export function checkIsActive(
   // Exact match
   if (href === itemUrl) return true
 
-  const hrefWithoutQuery = href.split('?')[0]
   const itemUrlWithoutQuery = itemUrl.split('?')[0]
   const itemUrlHasQuery = itemUrl.includes('?')
 

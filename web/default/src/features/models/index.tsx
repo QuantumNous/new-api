@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { getRouteApi } from '@tanstack/react-router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { listDeployments } from './api'
 import { DeploymentAccessGuard } from './components/deployment-access-guard'
@@ -18,12 +19,28 @@ import { deploymentsQueryKeys } from './lib'
 import {
   type ModelsSectionId,
   MODELS_DEFAULT_SECTION,
+  MODELS_SECTION_IDS,
 } from './section-registry'
 
 const route = getRouteApi('/_authenticated/models/$section')
 
+const SECTION_META: Record<
+  ModelsSectionId,
+  { titleKey: string; descriptionKey: string }
+> = {
+  metadata: {
+    titleKey: 'Metadata',
+    descriptionKey: 'Manage model metadata and configuration',
+  },
+  deployments: {
+    titleKey: 'Deployments',
+    descriptionKey: 'Manage model deployments',
+  },
+}
+
 function ModelsContent() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { tabCategory, setTabCategory } = useModels()
   const params = route.useParams()
@@ -75,16 +92,26 @@ function ModelsContent() {
     }
   }, [activeSection, isIoNetEnabled, loadingPhase, queryClient])
 
+  const handleSectionChange = useCallback(
+    (section: string) => {
+      void navigate({
+        to: '/models/$section',
+        params: { section: section as ModelsSectionId },
+      })
+    },
+    [navigate]
+  )
+
+  const meta = SECTION_META[activeSection] ?? SECTION_META.metadata
+
   return (
     <>
       <SectionPageLayout>
         <SectionPageLayout.Title>
-          {activeSection === 'metadata' ? t('Metadata') : t('Deployments')}
+          {t(meta.titleKey)}
         </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {activeSection === 'metadata'
-            ? t('Manage model metadata and configuration')
-            : t('Manage model deployments')}
+          {t(meta.descriptionKey)}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           {activeSection === 'metadata' ? (
@@ -97,21 +124,32 @@ function ModelsContent() {
           )}
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          {activeSection === 'metadata' ? (
-            <ModelsTable />
-          ) : (
-            <DeploymentAccessGuard
-              loading={deploymentLoading}
-              loadingPhase={loadingPhase}
-              isEnabled={isIoNetEnabled}
-              connectionLoading={connectionLoading}
-              connectionOk={connectionOk}
-              connectionError={connectionError}
-              onRetry={testConnection}
-            >
-              <DeploymentsTable />
-            </DeploymentAccessGuard>
-          )}
+          <div className='space-y-4'>
+            <Tabs value={activeSection} onValueChange={handleSectionChange}>
+              <TabsList className='h-auto max-w-full flex-wrap justify-start'>
+                {MODELS_SECTION_IDS.map((section) => (
+                  <TabsTrigger key={section} value={section}>
+                    {t(SECTION_META[section].titleKey)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            {activeSection === 'metadata' ? (
+              <ModelsTable />
+            ) : (
+              <DeploymentAccessGuard
+                loading={deploymentLoading}
+                loadingPhase={loadingPhase}
+                isEnabled={isIoNetEnabled}
+                connectionLoading={connectionLoading}
+                connectionOk={connectionOk}
+                connectionError={connectionError}
+                onRetry={testConnection}
+              >
+                <DeploymentsTable />
+              </DeploymentAccessGuard>
+            )}
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

@@ -31,6 +31,16 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
+function getGroupRatioClassName(ratio: number): string {
+  if (ratio > 1) {
+    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300'
+  }
+  if (ratio < 1) {
+    return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-300'
+  }
+  return 'border-border bg-muted text-muted-foreground'
+}
+
 function useGroupRatios(): Record<string, number> {
   const isAdmin = useAuthStore((s) =>
     Boolean(s.auth.user?.role && s.auth.user.role >= 10)
@@ -242,15 +252,18 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
           )
         }
         return (
-          <span className='inline-flex items-center gap-1.5 text-xs'>
+          <span className='inline-flex items-center gap-2 text-xs'>
             <span className='font-medium'>{group || t('Default')}</span>
             {ratio != null && (
-              <>
-                <span className='text-muted-foreground/30'>·</span>
-                <span className='text-muted-foreground/60 font-mono tabular-nums'>
-                  {ratio}x
-                </span>
-              </>
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[11px] leading-none tabular-nums',
+                  getGroupRatioClassName(ratio)
+                )}
+              >
+                <span className='size-1 rounded-full bg-current opacity-60' />
+                <span>{ratio}x</span>
+              </span>
             )}
           </span>
         )

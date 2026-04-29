@@ -87,10 +87,45 @@ export function parseLogOther(other: string): LogOtherData | null {
 /**
  * Get time color based on duration (in seconds)
  */
-export function getTimeColor(seconds: number): 'success' | 'info' | 'warning' {
-  if (seconds < 3) return 'success'
-  if (seconds < 10) return 'info'
-  return 'warning'
+export function getTimeColor(
+  seconds: number
+): 'success' | 'warning' | 'danger' {
+  if (seconds < 10) return 'success'
+  if (seconds < 30) return 'warning'
+  return 'danger'
+}
+
+/**
+ * Get first-response-token color based on latency (in seconds)
+ */
+export function getFirstResponseTimeColor(
+  seconds: number
+): 'success' | 'warning' | 'danger' {
+  if (seconds < 5) return 'success'
+  if (seconds < 10) return 'warning'
+  return 'danger'
+}
+
+/**
+ * Get throughput color based on generated tokens per second
+ */
+export function getThroughputColor(
+  tokensPerSecond: number
+): 'success' | 'warning' | 'danger' {
+  if (tokensPerSecond >= 30) return 'success'
+  if (tokensPerSecond >= 15) return 'warning'
+  return 'danger'
+}
+
+/**
+ * Get response color using throughput only when enough output tokens exist.
+ */
+export function getResponseTimeColor(
+  seconds: number,
+  completionTokens: number
+): 'success' | 'warning' | 'danger' {
+  if (completionTokens < 100 || seconds <= 0) return getTimeColor(seconds)
+  return getThroughputColor(completionTokens / seconds)
 }
 
 /**
