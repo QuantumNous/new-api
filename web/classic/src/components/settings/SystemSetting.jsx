@@ -367,6 +367,17 @@ const SystemSetting = () => {
 
   const submitSMS = async () => {
     const options = [];
+    // 凭证字段：后端 GetOptions 会隐藏这些字段，前端拿到的是空值
+    // 只有用户填写了新值才提交，避免用空串覆盖已有凭证
+    const secretKeys = new Set([
+      'SMSAliyunAccessKeyId',
+      'SMSAliyunAccessKeySecret',
+      'SMSSendCloudSmsUser',
+      'SMSSendCloudSmsKey',
+      'SMSTencentSecretId',
+      'SMSTencentSecretKey',
+      'SMSTencentSmsSdkAppId',
+    ]);
     const smsKeys = [
       'SMSProvider',
       'SMSAliyunAccessKeyId',
@@ -386,18 +397,12 @@ const SystemSetting = () => {
       'SMSCustomTemplate',
     ];
     for (const key of smsKeys) {
-      if (
-        originInputs[key] !== inputs[key] &&
-        inputs[key] !== ''
-      ) {
+      if (originInputs[key] !== inputs[key]) {
+        // 凭证字段仅在有新值时提交，非凭证字段允许清空
+        if (secretKeys.has(key) && inputs[key] === '') {
+          continue;
+        }
         options.push({ key, value: inputs[key] });
-      }
-    }
-    // 允许清空 SMSProvider
-    if (originInputs['SMSProvider'] !== inputs['SMSProvider']) {
-      const exists = options.find((o) => o.key === 'SMSProvider');
-      if (!exists) {
-        options.push({ key: 'SMSProvider', value: inputs['SMSProvider'] || '' });
       }
     }
     if (options.length > 0) {

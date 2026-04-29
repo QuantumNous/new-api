@@ -353,7 +353,11 @@ func sendTencentSms(secretId, secretKey, smsSdkAppId, signName, templateId, phon
 		return fmt.Errorf("tencent sms failed: %s - %s", result.Response.Error.Code, result.Response.Error.Message)
 	}
 
-	if len(result.Response.SendStatusSet) > 0 && result.Response.SendStatusSet[0].Code != "Ok" {
+	if len(result.Response.SendStatusSet) == 0 {
+		return fmt.Errorf("tencent sms failed: empty SendStatusSet, no delivery result returned")
+	}
+
+	if result.Response.SendStatusSet[0].Code != "Ok" {
 		return fmt.Errorf("tencent sms failed: %s - %s", result.Response.SendStatusSet[0].Code, result.Response.SendStatusSet[0].Message)
 	}
 
@@ -389,7 +393,8 @@ func sendCustomSms(smsUrl, method, template, phoneNumber, title, content string)
 	var resp *http.Response
 	var err error
 
-	if system_setting.EnableWorker() {
+	useWorker := system_setting.EnableWorker() && strings.HasPrefix(strings.ToLower(finalURL), "https://")
+	if useWorker {
 		workerReq := &WorkerRequest{
 			URL:    finalURL,
 			Key:    system_setting.WorkerValidKey,
