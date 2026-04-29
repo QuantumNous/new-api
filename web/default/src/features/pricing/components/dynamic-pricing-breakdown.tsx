@@ -3,6 +3,7 @@ import { Tag as TagIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 import { cn } from '@/lib/utils'
+import { normalizeTierLabel } from '@/features/usage-logs/lib/format'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -244,7 +245,8 @@ export function DynamicPricingBreakdown({
                   const isMatched =
                     matchedTierLabel != null &&
                     matchedTierLabel !== '' &&
-                    tier.label === matchedTierLabel
+                    normalizeTierLabel(tier.label) === normalizeTierLabel(matchedTierLabel) &&
+                    normalizeTierLabel(matchedTierLabel) !== ''
                   return (
                     <TableRow
                       key={`tier-${i}`}
