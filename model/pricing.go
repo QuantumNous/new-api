@@ -18,6 +18,7 @@ type Pricing struct {
 	ModelName              string                  `json:"model_name"`
 	DisplayName            string                  `json:"display_name,omitempty"`
 	Modalities             string                  `json:"modalities,omitempty"`
+	ModelImg               string                  `json:"model_img"`
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
@@ -296,6 +297,7 @@ func updatePricing() {
 		}
 		pricing.DisplayName = ratio_setting.GetModelDisplayName(model)
 		pricing.Modalities = ratio_setting.GetModelModalities(model)
+		pricing.ModelImg = ratio_setting.GetModelImg(model)
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
 			pricing.ModelPrice = modelPrice
