@@ -34,7 +34,13 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	case types.RelayFormatClaude:
 		request, err = GetAndValidateClaudeRequest(c)
 	case types.RelayFormatOpenAIResponses:
-		request, err = GetAndValidateResponsesRequest(c)
+		if strings.EqualFold(c.Request.Method, "GET") && strings.EqualFold(c.GetHeader("Upgrade"), "websocket") {
+			request = &dto.OpenAIResponsesRequest{
+				Model: c.Query("model"),
+			}
+		} else {
+			request, err = GetAndValidateResponsesRequest(c)
+		}
 	case types.RelayFormatOpenAIResponsesCompaction:
 		request, err = GetAndValidateResponsesCompactionRequest(c)
 
