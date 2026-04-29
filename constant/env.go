@@ -1,5 +1,14 @@
 package constant
 
+const DefaultMaxRequestBodyMB = 128
+
+func EffectiveMaxRequestBodyMB() int {
+	if MaxRequestBodyMB <= 0 {
+		return DefaultMaxRequestBodyMB
+	}
+	return MaxRequestBodyMB
+}
+
 var StreamingTimeout int
 var DifyDebug bool
 var MaxFileDownloadMB int
