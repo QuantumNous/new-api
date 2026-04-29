@@ -1,0 +1,106 @@
+import { useMemo } from 'react'
+import { Loader2, Send, Shield, UserRound, type LucideIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { SiGithub, SiLinux, SiWechat } from 'react-icons/si'
+import { AuthLayout } from '../auth-layout'
+
+type OAuthCallbackScreenProps = {
+  provider: string
+  mode: 'login' | 'bind'
+}
+
+type ProviderMeta = {
+  label: string
+  Icon: LucideIcon | ((props: { className?: string }) => React.JSX.Element)
+}
+
+const providerDictionary: Record<string, ProviderMeta> = {
+  github: {
+    label: 'GitHub',
+    Icon: (props: { className?: string }) => (
+      <SiGithub className={props.className} focusable='false' />
+    ),
+  },
+  oidc: { label: 'OIDC', Icon: Shield },
+  linuxdo: {
+    label: 'LinuxDO',
+    Icon: (props: { className?: string }) => (
+      <SiLinux className={props.className} focusable='false' />
+    ),
+  },
+  telegram: { label: 'Telegram', Icon: Send },
+  wechat: {
+    label: 'WeChat',
+    Icon: (props: { className?: string }) => (
+      <SiWechat className={props.className} focusable='false' />
+    ),
+  },
+}
+
+export function OAuthCallbackScreen({
+  provider,
+  mode,
+}: OAuthCallbackScreenProps) {
+  const { t } = useTranslation()
+  const { label, Icon } = useMemo(() => {
+    const normalized = provider?.toLowerCase() ?? ''
+    return (
+      providerDictionary[normalized] || {
+        label: 'account',
+        Icon: UserRound,
+      }
+    )
+  }, [provider])
+
+  const providerLabel = t(label)
+  const isBindMode = mode === 'bind'
+
+  const headline = isBindMode
+    ? t('Binding your {{provider}} account', { provider: providerLabel })
+    : t('Signing you in with {{provider}}', { provider: providerLabel })
+
+  const description = isBindMode
+    ? t('Hang tight while we securely link this account to your profile.')
+    : t('Hang tight while we finish connecting your account.')
+
+  const secondaryNote = isBindMode
+    ? t(
+        'You can close this tab once the binding completes or a success message appears in the original window.'
+      )
+    : t(
+        "You'll be redirected automatically. You can return to the previous page if nothing happens after a few seconds."
+      )
+
+  return (
+    <AuthLayout>
+      <div className='w-full space-y-8'>
+        <div className='flex flex-col items-center space-y-4 text-center'>
+          <div className='bg-muted flex h-16 w-16 items-center justify-center rounded-full'>
+            <Icon className='h-8 w-8' />
+          </div>
+          <div className='space-y-2'>
+            <h2 className='text-center text-2xl font-semibold tracking-tight'>
+              {headline}
+            </h2>
+            <p className='text-muted-foreground text-sm sm:text-base'>
+              {description}
+            </p>
+          </div>
+        </div>
+
+        <div className='space-y-4 text-center'>
+          <div className='flex items-center justify-center gap-2 text-sm font-medium'>
+            <Loader2 className='h-4 w-4 animate-spin' />
+            <span>{t('Processing OAuth response...')}</span>
+          </div>
+          <p className='text-muted-foreground text-sm'>{secondaryNote}</p>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'This may take a few moments while we validate the request and update your session.'
+            )}
+          </p>
+        </div>
+      </div>
+    </AuthLayout>
+  )
+}
