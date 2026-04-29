@@ -40,6 +40,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)
 	}
 
+	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
+
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
@@ -51,12 +53,23 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		includeUsage = request.StreamOptions.IncludeUsage
 	}
 
+	convertNonStreamUpstreamStream := info.RelayMode == relayconstant.RelayModeChatCompletions &&
+		!lo.FromPtrOr(request.Stream, false) &&
+		info.ChannelSetting.NonStreamUpstreamStream &&
+		!passThroughGlobal &&
+		!info.ChannelSetting.PassThroughBodyEnabled
+	if convertNonStreamUpstreamStream {
+		stream := true
+		request.Stream = &stream
+		info.UpstreamStreamForNonStream = true
+	}
+
 	// 如果不支持StreamOptions，将StreamOptions设置为nil
 	if !info.SupportStreamOptions || !lo.FromPtrOr(request.Stream, false) {
 		request.StreamOptions = nil
 	} else {
 		// 如果支持StreamOptions，且请求中没有设置StreamOptions，根据配置文件设置StreamOptions
-		if constant.ForceStreamOption {
+		if constant.ForceStreamOption || convertNonStreamUpstreamStream {
 			request.StreamOptions = &dto.StreamOptions{
 				IncludeUsage: true,
 			}
@@ -71,7 +84,6 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	}
 	adaptor.Init(info)
 
-	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
 	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
 		!passThroughGlobal &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&

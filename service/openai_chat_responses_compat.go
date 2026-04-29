@@ -13,6 +13,10 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	return openaicompat.ResponsesResponseToChatCompletionsResponse(resp, id)
 }
 
+func MapResponsesTerminalStatusToFinishReason(status string, incompleteReason string, hasToolCalls bool) string {
+	return openaicompat.MapResponsesTerminalStatusToFinishReason(status, incompleteReason, hasToolCalls)
+}
+
 func ExtractOutputTextFromResponses(resp *dto.OpenAIResponsesResponse) string {
 	return openaicompat.ExtractOutputTextFromResponses(resp)
 }

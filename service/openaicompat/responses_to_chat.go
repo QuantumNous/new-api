@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 )
 
@@ -66,10 +68,7 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 		}
 	}
 
-	finishReason := "stop"
-	if len(toolCalls) > 0 {
-		finishReason = "tool_calls"
-	}
+	finishReason := ResponsesResponseFinishReason(resp, len(toolCalls) > 0)
 
 	msg := dto.Message{
 		Role:    "assistant",
@@ -96,6 +95,47 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	}
 
 	return out, usage, nil
+}
+
+func ResponsesResponseFinishReason(resp *dto.OpenAIResponsesResponse, hasToolCalls bool) string {
+	status := ""
+	incompleteReason := ""
+	if resp != nil {
+		status = common.JsonRawMessageToString(resp.Status)
+		if resp.IncompleteDetails != nil {
+			incompleteReason = resp.IncompleteDetails.Reason
+			if incompleteReason == "" {
+				incompleteReason = resp.IncompleteDetails.Reasoning
+			}
+		}
+	}
+	return MapResponsesTerminalStatusToFinishReason(status, incompleteReason, hasToolCalls)
+}
+
+func MapResponsesTerminalStatusToFinishReason(status string, incompleteReason string, hasToolCalls bool) string {
+	normalizedStatus := strings.ToLower(strings.TrimSpace(status))
+	normalizedReason := strings.ToLower(strings.TrimSpace(incompleteReason))
+
+	switch normalizedStatus {
+	case "incomplete":
+		switch normalizedReason {
+		case "content_filter", "safety", "safety_filter":
+			return constant.FinishReasonContentFilter
+		case "max_output_tokens", "max_tokens", "length":
+			return constant.FinishReasonLength
+		default:
+			if strings.Contains(normalizedReason, "filter") || strings.Contains(normalizedReason, "safety") {
+				return constant.FinishReasonContentFilter
+			}
+			return constant.FinishReasonLength
+		}
+	case "", "completed":
+		if hasToolCalls {
+			return constant.FinishReasonToolCalls
+		}
+	}
+
+	return constant.FinishReasonStop
 }
 
 func ExtractOutputTextFromResponses(resp *dto.OpenAIResponsesResponse) string {
