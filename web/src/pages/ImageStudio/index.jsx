@@ -21,7 +21,7 @@ const ASPECT_PREFIX_KEYS = {
   '1024x1536': '竖版 2:3，',
 };
 const MODEL = 'gpt-image-2';
-const TIMEOUT_MS = 300000;
+const TIMEOUT_MS = 600000;
 const DB_NAME = 'image_studio_db';
 const STORE_NAME = 'history';
 const DB_VERSION = 1;
@@ -90,6 +90,7 @@ async function withRetry(fn, retries = 3, base = 2000, onRetry) {
   for (let i = 0; ; i++) {
     try { return await fn(); } catch (err) {
       if (i >= retries) throw err;
+      if (!err.status) throw err;
       if (err.status >= 400 && err.status < 500 && err.status !== 429) throw err;
       if (onRetry) onRetry(i + 1);
       await new Promise(r => setTimeout(r, base * 2 ** i));
