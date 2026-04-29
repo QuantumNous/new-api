@@ -173,7 +173,7 @@ export function decodeBillingExprB64(exprB64: string | undefined): string {
 
     return decodeURIComponent(
         Array.prototype.map
-            .call(bytes, (byte: any) => '%' + byte.toString(16).padStart(2, '0'))
+            .call(bytes, (byte: number) => '%' + byte.toString(16).padStart(2, '0'))
             .join('')
     )
   } catch {
