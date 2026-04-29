@@ -5,10 +5,15 @@ import { API } from '../../helpers';
 import './style.css';
 
 const SIZES = [
-  { value: '1024x1024', label: '1:1' },
-  { value: '1536x1024', label: '3:2' },
-  { value: '1024x1536', label: '2:3' },
   { value: 'auto', label: 'Auto' },
+  { value: '1024x1024', label: '1024×1024 (1K)' },
+  { value: '1536x1024', label: '1536×1024 (1K)' },
+  { value: '1024x1536', label: '1024×1536 (1K)' },
+  { value: '2048x2048', label: '2048×2048 (2K)' },
+  { value: '2048x1152', label: '2048×1152 (2K)' },
+  { value: '1152x2048', label: '1152×2048 (2K)' },
+  { value: '3840x2160', label: '3840×2160 (4K)' },
+  { value: '2160x3840', label: '2160×3840 (4K)' },
 ];
 const QUALITY_KEYS = {
   low: '快速',
@@ -19,6 +24,11 @@ const ASPECT_PREFIX_KEYS = {
   '1024x1024': '方版 1:1，',
   '1536x1024': '横版 3:2，',
   '1024x1536': '竖版 2:3，',
+  '2048x2048': '方版 1:1，',
+  '2048x1152': '横版 16:9，',
+  '1152x2048': '竖版 9:16，',
+  '3840x2160': '横版 16:9，',
+  '2160x3840': '竖版 9:16，',
 };
 const MODEL = 'gpt-image-2';
 const TIMEOUT_MS = 600000;
@@ -232,19 +242,24 @@ export default function ImageStudio() {
     '1024x1024': t('方版 1:1，'),
     '1536x1024': t('横版 3:2，'),
     '1024x1536': t('竖版 2:3，'),
+    '2048x2048': t('方版 1:1，'),
+    '2048x1152': t('横版 16:9，'),
+    '1152x2048': t('竖版 9:16，'),
+    '3840x2160': t('横版 16:9，'),
+    '2160x3840': t('竖版 9:16，'),
   }), [t]);
   const [mode, setMode] = useState('generate');
   const [tasks, setTasks] = useState([]);
   const retryMap = useRef({});
   // generate form
   const [prompt, setPrompt] = useState('');
-  const [size, setSize] = useState('1024x1024');
+  const [size, setSize] = useState('auto');
   const [quality, setQuality] = useState('medium');
   const [fmt, setFmt] = useState('png');
   const [count, setCount] = useState(1);
   // edit form
   const [ePrompt, setEPrompt] = useState('');
-  const [eSize, setESize] = useState('1024x1024');
+  const [eSize, setESize] = useState('auto');
   const [eQuality, setEQuality] = useState('medium');
   const [eFmt, setEFmt] = useState('png');
   const [eImages, setEImages] = useState([]);
@@ -441,9 +456,13 @@ export default function ImageStudio() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 14, color: 'var(--semi-color-text-1)', marginBottom: 8, fontWeight: 500 }}>{t('画面比例')}</label>
-                  <div className="is-opt-group">
-                    {SIZES.map(s => <button key={s.value} onClick={() => setSize(s.value)} className={`is-opt-item ${size === s.value ? 'active' : ''}`}>{s.label}</button>)}
-                  </div>
+                  <select
+                    value={size}
+                    onChange={e => setSize(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)', color: 'var(--semi-color-text-0)', fontSize: 14, cursor: 'pointer', appearance: 'auto' }}
+                  >
+                    {SIZES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 14, color: 'var(--semi-color-text-1)', marginBottom: 8, fontWeight: 500 }}>{t('生成质量')}</label>
@@ -503,9 +522,13 @@ export default function ImageStudio() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 14, color: 'var(--semi-color-text-1)', marginBottom: 8, fontWeight: 500 }}>{t('画面比例')}</label>
-                  <div className="is-opt-group">
-                    {SIZES.map(s => <button key={s.value} onClick={() => setESize(s.value)} className={`is-opt-item ${eSize === s.value ? 'active' : ''}`}>{s.label}</button>)}
-                  </div>
+                  <select
+                    value={eSize}
+                    onChange={e => setESize(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--semi-color-border)', background: 'var(--semi-color-fill-0)', color: 'var(--semi-color-text-0)', fontSize: 14, cursor: 'pointer', appearance: 'auto' }}
+                  >
+                    {SIZES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 14, color: 'var(--semi-color-text-1)', marginBottom: 8, fontWeight: 500 }}>{t('生成质量')}</label>
