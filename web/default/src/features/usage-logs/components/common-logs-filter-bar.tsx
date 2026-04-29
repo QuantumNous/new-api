@@ -22,6 +22,13 @@ import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
+const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
+
+type LogTypeValue = (typeof logTypeValues)[number]
+
+function isLogTypeValue(value: string): value is LogTypeValue {
+  return (logTypeValues as readonly string[]).includes(value)
+}
 
 interface CommonLogsFilterBarProps {
   stats?: ReactNode
@@ -45,7 +52,7 @@ export function CommonLogsFilterBar({
     const { start, end } = getDefaultTimeRange()
     return { startTime: start, endTime: end }
   })
-  const [logType, setLogType] = useState<string>('')
+  const [logType, setLogType] = useState<LogTypeValue | ''>('')
 
   useEffect(() => {
     const next: Partial<CommonLogFilters> = {}
@@ -163,7 +170,9 @@ export function CommonLogsFilterBar({
         />
         <Select
           value={logType}
-          onValueChange={(v) => setLogType(v === 'all' ? '' : v)}
+          onValueChange={(value) => {
+            setLogType(isLogTypeValue(value) ? value : '')
+          }}
         >
           <SelectTrigger className='h-9'>
             <SelectValue placeholder={t('All Types')} />

@@ -8,8 +8,8 @@ import {
   formatLogQuota,
   formatTimestampToDate,
 } from '@/lib/format'
-import { getAvatarColorClass } from '@/lib/colors'
 import { cn } from '@/lib/utils'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   Popover,
   PopoverContent,
@@ -30,13 +30,15 @@ import {
 } from '@/components/status-badge'
 import type { UsageLog } from '../../data/schema'
 import {
-  getTimeColor,
   formatModelName,
+  getFirstResponseTimeColor,
+  getResponseTimeColor,
   getTieredBillingSummary,
   hasAnyCacheTokens,
   parseLogOther,
   isViolationFeeLog,
 } from '../../lib/format'
+import { getLogAvatarStyle } from '../../lib/avatar-color'
 import {
   isDisplayableLogType,
   isTimingLogType,
@@ -55,7 +57,27 @@ interface DetailSegment {
 
 function formatRatioCompact(ratio: number | undefined): string {
   if (ratio == null || !Number.isFinite(ratio)) return '-'
-  return ratio % 1 === 0 ? String(ratio) : ratio.toFixed(4)
+  return ratio % 1 === 0
+    ? String(ratio)
+    : ratio.toFixed(4).replace(/\.?0+$/, '')
+}
+
+function getGroupRatioText(other: LogOtherData | null): string | null {
+  const userGroupRatio = other?.user_group_ratio
+  if (
+    userGroupRatio != null &&
+    userGroupRatio !== -1 &&
+    Number.isFinite(userGroupRatio)
+  ) {
+    return `${formatRatioCompact(userGroupRatio)}x`
+  }
+
+  const groupRatio = other?.group_ratio
+  if (groupRatio != null && groupRatio !== 1 && Number.isFinite(groupRatio)) {
+    return `${formatRatioCompact(groupRatio)}x`
+  }
+
+  return null
 }
 
 function buildDetailSegments(
@@ -382,16 +404,23 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 setUserInfoDialogOpen(true)
               }}
             >
-              <span
-                className={cn(
-                  'flex size-6 items-center justify-center rounded-full text-xs font-bold ring-1 ring-border/60 saturate-[1.2] brightness-95 dark:brightness-110',
-                  sensitiveVisible
-                    ? getAvatarColorClass(log.username)
-                    : 'bg-muted text-muted-foreground'
-                )}
-              >
-                {sensitiveVisible ? log.username.charAt(0).toUpperCase() : '•'}
-              </span>
+              <Avatar className='size-6 ring-1 ring-border/60'>
+                <AvatarFallback
+                  className={cn(
+                    'text-[11px] font-semibold',
+                    !sensitiveVisible && 'bg-muted text-muted-foreground'
+                  )}
+                  style={
+                    sensitiveVisible
+                      ? getLogAvatarStyle(log.username)
+                      : undefined
+                  }
+                >
+                  {sensitiveVisible
+                    ? log.username.charAt(0).toUpperCase()
+                    : '•'}
+                </AvatarFallback>
+              </Avatar>
               <span className='text-muted-foreground truncate text-sm hover:underline'>
                 {sensitiveVisible ? log.username : '••••'}
               </span>
@@ -423,11 +452,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           <StatusBadge
             label={displayName}
             icon={KeyRound}
-            autoColor={tokenName}
             copyText={sensitiveVisible ? tokenName : undefined}
             size='sm'
             showDot={false}
-            className='max-w-full overflow-hidden rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono'
+            className='max-w-full overflow-hidden rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-foreground'
           />
         </div>
       )
@@ -504,7 +532,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         )
 
         const metaParts: string[] = []
-        if (group) metaParts.push(sensitiveVisible ? group : '••••')
+        const groupRatioText = getGroupRatioText(other)
+        if (group) {
+          metaParts.push(sensitiveVisible ? group : '••••')
+        }
+        if (groupRatioText) metaParts.push(groupRatioText)
 
         return (
           <div className='flex max-w-[220px] flex-col gap-0.5'>
@@ -532,15 +564,23 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const useTime = row.getValue('use_time') as number
         const other = parseLogOther(log.other)
         const frt = other?.frt
-        const timeVariant = getTimeColor(useTime)
-        const frtVariant = frt ? getTimeColor(frt / 1000) : null
+        const tokensPerSecond =
+          useTime > 0 && log.completion_tokens > 0
+            ? log.completion_tokens / useTime
+            : null
+        const timeVariant = getResponseTimeColor(
+          useTime,
+          log.completion_tokens
+        )
+        const frtVariant = frt ? getFirstResponseTimeColor(frt / 1000) : null
 
         const pillBg: Record<string, string> = {
           success:
             'border border-emerald-200/60 bg-emerald-50/50 dark:border-emerald-800/50 dark:bg-emerald-950/20',
-          info: 'border border-sky-200/60 bg-sky-50/50 dark:border-sky-800/50 dark:bg-sky-950/20',
           warning:
             'border border-amber-200/60 bg-amber-50/50 dark:border-amber-800/50 dark:bg-amber-950/20',
+          danger:
+            'border border-rose-200/70 bg-rose-50/60 dark:border-rose-800/50 dark:bg-rose-950/25',
         }
 
         return (
@@ -581,15 +621,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             <div className='flex items-center gap-1 text-[11px]'>
               <span className='text-muted-foreground/60'>
                 {log.is_stream ? t('Stream') : t('Non-stream')}
-                {useTime > 0 && (log.prompt_tokens + log.completion_tokens) > 0 && (
+                {tokensPerSecond != null && (
                   <>
                     {' · '}
                     <span className='font-mono tabular-nums'>
-                      {Math.round(
-                        (log.is_stream
-                          ? log.completion_tokens
-                          : log.prompt_tokens + log.completion_tokens) / useTime
-                      )}
+                      {Math.round(tokensPerSecond)}
                     </span>
                     {' t/s'}
                   </>
@@ -717,29 +753,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             <span className='border-border/80 inline-flex w-fit items-center rounded-md border bg-muted/60 px-1.5 py-0.5 font-mono text-xs font-semibold tabular-nums'>
               {quotaStr}
             </span>
-            {(() => {
-              const userGroupRatio = other?.user_group_ratio
-              if (
-                userGroupRatio != null &&
-                userGroupRatio !== -1 &&
-                Number.isFinite(userGroupRatio)
-              ) {
-                return (
-                  <span className='text-muted-foreground/60 text-[11px]'>
-                    {t('User Group: {{ratio}}x', { ratio: userGroupRatio })}
-                  </span>
-                )
-              }
-              const groupRatio = other?.group_ratio
-              if (groupRatio != null && groupRatio !== 1) {
-                return (
-                  <span className='text-muted-foreground/60 text-[11px]'>
-                    {t('Group: {{ratio}}x', { ratio: groupRatio })}
-                  </span>
-                )
-              }
-              return null
-            })()}
           </div>
         )
       },
