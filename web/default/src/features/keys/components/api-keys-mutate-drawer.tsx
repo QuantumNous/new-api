@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
+import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -48,7 +49,7 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   apiKeyFormSchema,
   type ApiKeyFormValues,
-  API_KEY_FORM_DEFAULT_VALUES,
+  getApiKeyFormDefaultValues,
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
@@ -103,8 +104,10 @@ export function ApiKeysMutateDrawer({
   const { t } = useTranslation()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useApiKeys()
+  const { status } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const defaultUseAutoGroup = status?.default_use_auto_group === true
 
   // Fetch models
   const { data: modelsData } = useQuery({
@@ -142,7 +145,7 @@ export function ApiKeysMutateDrawer({
 
   const form = useForm<ApiKeyFormValues>({
     resolver: zodResolver(apiKeyFormSchema),
-    defaultValues: API_KEY_FORM_DEFAULT_VALUES,
+    defaultValues: getApiKeyFormDefaultValues(defaultUseAutoGroup),
   })
 
   // Load existing data when updating
@@ -156,9 +159,9 @@ export function ApiKeysMutateDrawer({
       })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
-      form.reset(API_KEY_FORM_DEFAULT_VALUES)
+      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup))
     }
-  }, [open, isUpdate, currentRow, form])
+  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
