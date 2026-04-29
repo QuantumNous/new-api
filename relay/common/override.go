@@ -17,6 +17,7 @@ import (
 )
 
 var negativeIndexRegexp = regexp.MustCompile(`\.(-\d+)`)
+var simpleLegacyOverrideKeyRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 const (
 	paramOverrideContextRequestHeaders = "request_headers"
@@ -657,6 +658,19 @@ func compareNumeric(jsonValue, targetValue gjson.Result, operator string) (bool,
 
 // applyOperationsLegacy 原参数覆盖方法
 func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}, auditRecorder *paramOverrideAuditRecorder) ([]byte, error) {
+	if canApplyLegacyOverridesDirectly(paramOverride) {
+		workingJSON := jsonData
+		for key, value := range paramOverride {
+			var err error
+			workingJSON, err = sjson.SetBytes(workingJSON, key, value)
+			if err != nil {
+				return nil, err
+			}
+			auditRecorder.recordOperation("set", key, "", "", value)
+		}
+		return workingJSON, nil
+	}
+
 	reqMap := make(map[string]interface{})
 	err := common.Unmarshal(jsonData, &reqMap)
 	if err != nil {
@@ -669,6 +683,18 @@ func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}
 	}
 
 	return common.Marshal(reqMap)
+}
+
+func canApplyLegacyOverridesDirectly(paramOverride map[string]interface{}) bool {
+	if len(paramOverride) == 0 {
+		return false
+	}
+	for key := range paramOverride {
+		if !simpleLegacyOverrideKeyRegexp.MatchString(strings.TrimSpace(key)) {
+			return false
+		}
+	}
+	return true
 }
 
 func applyOperations(jsonStr string, operations []ParamOperation, conditionContext map[string]interface{}) (string, error) {

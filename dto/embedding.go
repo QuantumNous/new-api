@@ -1,8 +1,6 @@
 package dto
 
 import (
-	"strings"
-
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -33,15 +31,15 @@ type EmbeddingRequest struct {
 }
 
 func (r *EmbeddingRequest) GetTokenCountMeta() *types.TokenCountMeta {
-	var texts = make([]string, 0)
+	var textBuilder tokenTextBuilder
 
 	inputs := r.ParseInput()
 	for _, input := range inputs {
-		texts = append(texts, input)
+		textBuilder.Add(input)
 	}
 
 	return &types.TokenCountMeta{
-		CombineText: strings.Join(texts, "\n"),
+		CombineText: textBuilder.String(),
 	}
 }
 
