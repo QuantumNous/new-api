@@ -184,8 +184,8 @@ export function decodeBillingExprB64(exprB64: string | undefined): string {
 export function normalizeTierLabel(label: string | undefined): string {
   if (!label) return ''
   return label
-      .replace(/<|≤|<=/g, '<')
-      .replace(/>|≥|>=/g, '>')
+      .replace(/<=|≤|</g, '<')
+      .replace(/>=|≥|>/g, '>')
       .replace(/\s/g, '')
       .toLowerCase()
 }

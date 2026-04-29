@@ -2295,8 +2295,8 @@ export const decodeFromBase64 = (base64) => {
 export const normalizeLabel = (label) => {
   if (!label) return '';
   return label
-      .replace(/<|≤|<=/g, '<')
-      .replace(/>|≥|>=/g, '>')
+      .replace(/<=|≤|</g, '<')
+      .replace(/>=|≥|>/g, '>')
       .replace(/\s/g, '')
       .toLowerCase();
 };
