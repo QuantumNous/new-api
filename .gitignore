@@ -7,6 +7,9 @@ upload
 *.db
 build
 *.db-journal
+*.lock
+*.out
+*.err
 logs
 web/dist
 .env

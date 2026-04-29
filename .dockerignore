@@ -1,6 +1,12 @@
 .github
 .git
 *.md
+*.exe
+*.db
+*.db-journal
+*.lock
+*.out
+*.err
 .vscode
 .gitignore
 Makefile
@@ -8,3 +14,8 @@ docs
 .eslintcache
 .gocache
 /web/node_modules
+logs
+data
+upload
+electron/node_modules
+electron/dist
