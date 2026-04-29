@@ -1,7 +1,7 @@
 package common
 
 import (
-	"context"
+	"crypto/subtle"
 	"strings"
 	"sync"
 	"time"
@@ -68,7 +68,7 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 			}
 			return false
 		}
-		return stored == code
+		return subtle.ConstantTimeCompare([]byte(stored), []byte(code)) == 1
 	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
@@ -82,7 +82,7 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 
 func DeleteKey(key string, purpose string) {
 	if RedisEnabled {
-		if err := RDB.Del(context.Background(), verificationRedisKey(key, purpose)).Err(); err != nil {
+		if err := RedisDelKey(verificationRedisKey(key, purpose)); err != nil {
 			SysError("DeleteKey: redis del failed: " + err.Error())
 		}
 		return
