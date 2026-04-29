@@ -55,6 +55,7 @@ import {
 } from '@douyinfe/semi-ui';
 import {
   getChannelModels,
+  getAllChannelModels,
   copy,
   getChannelIcon,
   getModelCategories,
@@ -133,6 +134,197 @@ const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
 ]);
 
+const AWS_CHANNEL_TYPE = 33;
+const AWS_KEY_TYPE_API_KEY = 'api_key';
+const AWS_CLAUDE_REGIONS = [
+  'ap-northeast-1',
+  'ap-northeast-2',
+  'ap-northeast-3',
+  'ap-south-1',
+  'ap-southeast-1',
+  'ap-southeast-2',
+  'ap-southeast-3',
+  'ap-southeast-7',
+  'ca-central-1',
+  'eu-central-1',
+  'eu-north-1',
+  'eu-west-1',
+  'eu-west-2',
+  'eu-west-3',
+  'sa-east-1',
+  'us-east-1',
+  'us-east-2',
+  'us-west-1',
+  'us-west-2',
+];
+
+const maskAwsSecretPart = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (text.length <= 5) return `${text.slice(0, 1)}***${text.slice(-1)}`;
+  if (text.length <= 10) return `${text.slice(0, 3)}***${text.slice(-2)}`;
+  return `${text.slice(0, 5)}***${text.slice(-3)}`;
+};
+
+const parseAwsCredentialLine = (line, awsKeyType = 'ak_sk') => {
+  const trimmed = String(line || '').trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split('|').map((part) => part.trim());
+  if (awsKeyType === AWS_KEY_TYPE_API_KEY) {
+    const apiKey = parts[0] || '';
+    const region = parts[1] || '';
+    return {
+      line: trimmed,
+      region,
+      display: `${maskAwsSecretPart(apiKey)}|${region}`,
+    };
+  }
+  const accessKey = parts[0] || '';
+  const secretKey = parts[1] || '';
+  const region = parts[2] || '';
+  return {
+    line: trimmed,
+    region,
+    display: `${maskAwsSecretPart(accessKey)}|${maskAwsSecretPart(secretKey)}|${region}`,
+  };
+};
+
+const getAwsCredentialEntries = (keyText, awsKeyType = 'ak_sk') =>
+  String(keyText || '')
+    .split(/\r?\n/)
+    .map((line) => parseAwsCredentialLine(line, awsKeyType))
+    .filter(Boolean);
+
+const buildAwsAllRegionKeyLines = (keyText, awsKeyType = 'ak_sk') => {
+  const lines = String(keyText || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const generated = [];
+  const seen = new Set();
+  lines.forEach((line) => {
+    const parts = line.split('|').map((part) => part.trim());
+    const base =
+      awsKeyType === AWS_KEY_TYPE_API_KEY
+        ? parts[0]
+          ? `${parts[0]}|`
+          : ''
+        : parts[0] && parts[1]
+          ? `${parts[0]}|${parts[1]}|`
+          : '';
+    if (!base) return;
+    AWS_CLAUDE_REGIONS.forEach((region) => {
+      const nextLine = `${base}${region}`;
+      if (!seen.has(nextLine)) {
+        seen.add(nextLine);
+        generated.push(nextLine);
+      }
+    });
+  });
+  return generated;
+};
+
+const parsePlainObjectJson = (value) => {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const buildAwsBatchModelMappingsByKey = (
+  keyText,
+  awsKeyType,
+  baseModelMapping,
+  modelMappingValues,
+) => {
+  if (
+    !baseModelMapping ||
+    typeof baseModelMapping !== 'object' ||
+    Array.isArray(baseModelMapping)
+  ) {
+    return undefined;
+  }
+  const sourceModels = Object.keys(baseModelMapping).filter((model) =>
+    model.trim(),
+  );
+  if (sourceModels.length === 0) return undefined;
+
+  const result = {};
+  getAwsCredentialEntries(keyText, awsKeyType).forEach((entry) => {
+    if (!entry.region) return;
+    const rowValues = modelMappingValues[entry.line] || {};
+    const nextMapping = { ...baseModelMapping };
+    let hasOverride = false;
+    sourceModels.forEach((sourceModel) => {
+      const overrideValue = String(rowValues[sourceModel] || '').trim();
+      if (overrideValue) {
+        nextMapping[sourceModel] = overrideValue;
+        hasOverride = true;
+      }
+    });
+    if (hasOverride) {
+      result[entry.line] = JSON.stringify(nextMapping);
+    }
+  });
+
+  return Object.keys(result).length > 0 ? result : undefined;
+};
+
+const getChannelModelId = (model) => {
+  if (typeof model === 'string') {
+    return model.trim();
+  }
+  if (!model || typeof model !== 'object') {
+    return '';
+  }
+  return String(model.id || model.model_name || model.name || '').trim();
+};
+
+const normalizeChannelModelIds = (models) =>
+  Array.from(
+    new Set(
+      (Array.isArray(models) ? models : [])
+        .map(getChannelModelId)
+        .filter(Boolean),
+    ),
+  );
+
+const flattenChannelModelMap = (modelMap) => {
+  if (!modelMap || typeof modelMap !== 'object' || Array.isArray(modelMap)) {
+    return [];
+  }
+  return normalizeChannelModelIds(
+    Object.values(modelMap).flatMap((models) =>
+      Array.isArray(models) ? models : [],
+    ),
+  );
+};
+
+const getModelCategoryIcon = (modelName, categories) => {
+  for (const [key, category] of Object.entries(categories)) {
+    if (key !== 'all' && category.filter({ model_name: modelName })) {
+      return category.icon;
+    }
+  }
+  return null;
+};
+
+const renderModelLabelWithIcon = (modelName, categories) => {
+  const icon = getModelCategoryIcon(modelName, categories);
+  return (
+    <span className='flex items-center gap-1'>
+      {icon}
+      {modelName}
+    </span>
+  );
+};
+
 function type2secretPrompt(type) {
   // inputs.type === 15 ? '按照如下格式输入：APIKey|SecretKey' : (inputs.type === 18 ? '按照如下格式输入：APPID|APISecret|APIKey' : '请输入渠道对应的鉴权密钥')
   switch (type) {
@@ -182,6 +374,72 @@ const getDefaultChannelTimeoutSettings = (timeoutDefaults = {}) => ({
   stream_response_header_timeout_seconds:
     timeoutDefaults.stream_response_header_timeout_seconds,
 });
+
+const hasOwnField = (values, field) =>
+  Object.prototype.hasOwnProperty.call(values || {}, field);
+
+const readSettingField = (values, fallbackValues, field) =>
+  hasOwnField(values, field) ? values[field] : fallbackValues?.[field];
+
+const normalizeNumberField = (value) => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : undefined;
+  }
+  return undefined;
+};
+
+const buildChannelSettingPayload = (values, fallbackValues = {}) => {
+  const numberValue = (field) =>
+    normalizeNumberField(readSettingField(values, fallbackValues, field));
+  const boolValue = (field, defaultValue = false) => {
+    const value = readSettingField(values, fallbackValues, field);
+    return typeof value === 'boolean' ? value : defaultValue;
+  };
+  const stringValue = (field) => {
+    const value = readSettingField(values, fallbackValues, field);
+    return typeof value === 'string' ? value : '';
+  };
+
+  const payload = {
+    force_format: boolValue('force_format'),
+    thinking_to_content: boolValue('thinking_to_content'),
+    proxy: stringValue('proxy'),
+    pass_through_body_enabled: boolValue('pass_through_body_enabled'),
+    system_prompt: stringValue('system_prompt'),
+    system_prompt_override: boolValue('system_prompt_override'),
+    cost_ratio: numberValue('cost_ratio') ?? 1,
+  };
+
+  [
+    'request_timeout_enabled',
+    'response_header_timeout_enabled',
+    'stream_idle_timeout_enabled',
+    'stream_response_header_timeout_enabled',
+  ].forEach((field) => {
+    const value = readSettingField(values, fallbackValues, field);
+    if (typeof value === 'boolean') {
+      payload[field] = value;
+    }
+  });
+
+  [
+    'request_timeout_seconds',
+    'response_header_timeout_seconds',
+    'stream_idle_timeout_seconds',
+    'stream_response_header_timeout_seconds',
+  ].forEach((field) => {
+    const value = normalizeOptionalTimeoutSeconds(numberValue(field));
+    if (typeof value === 'number') {
+      payload[field] = value;
+    }
+  });
+
+  return payload;
+};
 
 const EditChannelModal = (props) => {
   const { t } = useTranslation();
@@ -247,6 +505,11 @@ const EditChannelModal = (props) => {
   };
   const [batch, setBatch] = useState(false);
   const [multiToSingle, setMultiToSingle] = useState(false);
+  const [awsBatchAppendRegionSuffix, setAwsBatchAppendRegionSuffix] =
+    useState(false);
+  const [awsBatchModelMappingValues, setAwsBatchModelMappingValues] = useState(
+    {},
+  );
   const [multiKeyMode, setMultiKeyMode] = useState('random');
   const [autoBan, setAutoBan] = useState(true);
   const [inputs, setInputs] = useState(originInputs);
@@ -316,6 +579,26 @@ const EditChannelModal = (props) => {
       return [];
     }
   }, [inputs.model_mapping]);
+  const isAwsBatchCreate =
+    !isEdit && batch && inputs.type === AWS_CHANNEL_TYPE && !multiToSingle;
+  const awsBatchKeyEntries = useMemo(
+    () => getAwsCredentialEntries(inputs.key, inputs.aws_key_type || 'ak_sk'),
+    [inputs.key, inputs.aws_key_type],
+  );
+  const awsBatchRegionEntries = useMemo(
+    () => awsBatchKeyEntries.filter((entry) => entry.region),
+    [awsBatchKeyEntries],
+  );
+  const awsBatchModelMappingObject = useMemo(
+    () => parsePlainObjectJson(inputs.model_mapping),
+    [inputs.model_mapping],
+  );
+  const awsBatchModelMappingSourceModels = useMemo(() => {
+    if (!awsBatchModelMappingObject) return [];
+    return Object.keys(awsBatchModelMappingObject)
+      .map((model) => model.trim())
+      .filter(Boolean);
+  }, [awsBatchModelMappingObject]);
   const upstreamDetectedModels = useMemo(
     () =>
       Array.from(
@@ -334,16 +617,31 @@ const EditChannelModal = (props) => {
   );
   const upstreamDetectedModelsOmittedCount =
     upstreamDetectedModels.length - upstreamDetectedModelsPreview.length;
+  const modelSearchSourceOptions = useMemo(() => {
+    if (modelOptions.length > 0) {
+      return modelOptions;
+    }
+    return normalizeChannelModelIds([
+      ...fullModels,
+      ...getAllChannelModels(),
+      ...originModelOptions.map((option) => option.value),
+      ...inputs.models,
+    ]).map((modelName) => ({
+      key: modelName,
+      label: modelName,
+      value: modelName,
+    }));
+  }, [fullModels, inputs.models, modelOptions, originModelOptions]);
   const modelSearchMatchedCount = useMemo(() => {
     const keyword = modelSearchValue.trim();
     if (!keyword) {
-      return modelOptions.length;
+      return modelSearchSourceOptions.length;
     }
-    return modelOptions.reduce(
+    return modelSearchSourceOptions.reduce(
       (count, option) => count + (selectFilter(keyword, option) ? 1 : 0),
       0,
     );
-  }, [modelOptions, modelSearchValue]);
+  }, [modelSearchSourceOptions, modelSearchValue]);
   const modelSearchHintText = useMemo(() => {
     const keyword = modelSearchValue.trim();
     if (!keyword || modelSearchMatchedCount !== 0) {
@@ -599,6 +897,10 @@ const EditChannelModal = (props) => {
     }
     setInputs((inputs) => ({ ...inputs, [name]: value }));
     if (name === 'type') {
+      if (value !== AWS_CHANNEL_TYPE) {
+        setAwsBatchAppendRegionSuffix(false);
+        setAwsBatchModelMappingValues({});
+      }
       let localModels = [];
       switch (value) {
         case 2:
@@ -1218,28 +1520,54 @@ const EditChannelModal = (props) => {
   };
 
   const fetchModels = async () => {
+    let modelIds = [];
+
     try {
-      let res = await API.get(`/api/channel/models`);
-      const localModelOptions = res.data.data.map((model) => {
-        const id = (model.id || '').trim();
-        return {
-          key: id,
-          label: id,
-          value: id,
-        };
+      const res = await API.get(`/api/channel/models`, {
+        disableDuplicate: true,
+        skipErrorHandler: true,
       });
-      setOriginModelOptions(localModelOptions);
-      setFullModels(res.data.data.map((model) => model.id));
-      setBasicModels(
-        res.data.data
-          .filter((model) => {
-            return model.id.startsWith('gpt-') || model.id.startsWith('text-');
-          })
-          .map((model) => model.id),
-      );
-    } catch (error) {
-      showError(error.message);
+      if (res?.data?.success) {
+        modelIds = normalizeChannelModelIds(res.data.data);
+      }
+    } catch {
+      // Fall through to the broader /api/models source below.
     }
+
+    if (modelIds.length === 0) {
+      try {
+        const fallbackRes = await API.get('/api/models', {
+          disableDuplicate: true,
+          skipErrorHandler: true,
+        });
+        if (fallbackRes?.data?.success) {
+          modelIds = flattenChannelModelMap(fallbackRes.data.data);
+        }
+      } catch {
+        // Fall through to local cache below.
+      }
+    }
+
+    if (modelIds.length === 0) {
+      modelIds = normalizeChannelModelIds(getAllChannelModels());
+    }
+
+    if (modelIds.length === 0) {
+      modelIds = normalizeChannelModelIds(getChannelModels(inputs.type));
+    }
+
+    const localModelOptions = modelIds.map((id) => ({
+      key: id,
+      label: id,
+      value: id,
+    }));
+    setOriginModelOptions(localModelOptions);
+    setFullModels(modelIds);
+    setBasicModels(
+      modelIds.filter((model) => {
+        return model.startsWith('gpt-') || model.startsWith('text-');
+      }),
+    );
   };
 
   const fetchGroups = async () => {
@@ -1325,28 +1653,43 @@ const EditChannelModal = (props) => {
     });
 
     const categories = getModelCategories(t);
-    const optionsWithIcon = Array.from(modelMap.values()).map((opt) => {
-      const modelName = opt.value;
-      let icon = null;
-      for (const [key, category] of Object.entries(categories)) {
-        if (key !== 'all' && category.filter({ model_name: modelName })) {
-          icon = category.icon;
-          break;
+    const optionsWithIcon = Array.from(modelMap.values())
+      .map((opt) => {
+        const modelName = String(opt.value || '').trim();
+        if (!modelName) {
+          return null;
         }
-      }
-      return {
-        ...opt,
-        label: (
-          <span className='flex items-center gap-1'>
-            {icon}
-            {modelName}
-          </span>
-        ),
-      };
-    });
+        return {
+          ...opt,
+          key: modelName,
+          label: renderModelLabelWithIcon(modelName, categories),
+          value: modelName,
+        };
+      })
+      .filter(Boolean);
 
     setModelOptions(optionsWithIcon);
   }, [originModelOptions, inputs.models, t]);
+
+  const modelSelectOptions = useMemo(() => {
+    if (modelOptions.length > 0) {
+      return modelOptions;
+    }
+
+    const categories = getModelCategories(t);
+    return normalizeChannelModelIds([
+      ...fullModels,
+      ...getAllChannelModels(),
+      ...originModelOptions.map((option) => option.value),
+      ...inputs.models,
+    ]).map((modelName) => {
+      return {
+        key: modelName,
+        label: renderModelLabelWithIcon(modelName, categories),
+        value: modelName,
+      };
+    });
+  }, [fullModels, inputs.models, modelOptions, originModelOptions, t]);
 
   useEffect(() => {
     fetchModels().then();
@@ -1372,6 +1715,12 @@ const EditChannelModal = (props) => {
   useEffect(() => {
     setModelSearchValue('');
     if (props.visible) {
+      if (originModelOptions.length === 0) {
+        fetchModels().then();
+      }
+      if (groupOptions.length === 0) {
+        fetchGroups().then();
+      }
       if (isEdit) {
         loadChannel();
       } else {
@@ -1588,6 +1937,16 @@ const EditChannelModal = (props) => {
     return normalizedMapping !== initialMapping;
   };
 
+  const updateAwsBatchModelMappingValue = (entryLine, sourceModel, value) => {
+    setAwsBatchModelMappingValues((prev) => ({
+      ...prev,
+      [entryLine]: {
+        ...(prev[entryLine] || {}),
+        [sourceModel]: value,
+      },
+    }));
+  };
+
   const submit = async () => {
     const formValues = formApiRef.current ? formApiRef.current.getValues() : {};
     let localInputs = { ...formValues };
@@ -1793,57 +2152,11 @@ const EditChannelModal = (props) => {
       localInputs.other = 'v2.1';
     }
 
-    // 生成渠道额外设置JSON
-    const channelExtraSettings = {
-      force_format: channelSettings.force_format || false,
-      thinking_to_content: channelSettings.thinking_to_content || false,
-      proxy: channelSettings.proxy || '',
-      pass_through_body_enabled:
-        channelSettings.pass_through_body_enabled || false,
-      system_prompt: channelSettings.system_prompt || '',
-      system_prompt_override: channelSettings.system_prompt_override || false,
-      cost_ratio:
-        typeof channelSettings.cost_ratio === 'number'
-          ? channelSettings.cost_ratio
-          : 1,
-    };
-    if (typeof channelSettings.request_timeout_enabled === 'boolean') {
-      channelExtraSettings.request_timeout_enabled =
-        channelSettings.request_timeout_enabled;
-    }
-    if (typeof channelSettings.request_timeout_seconds === 'number') {
-      channelExtraSettings.request_timeout_seconds =
-        channelSettings.request_timeout_seconds;
-    }
-    if (typeof channelSettings.response_header_timeout_enabled === 'boolean') {
-      channelExtraSettings.response_header_timeout_enabled =
-        channelSettings.response_header_timeout_enabled;
-    }
-    if (typeof channelSettings.response_header_timeout_seconds === 'number') {
-      channelExtraSettings.response_header_timeout_seconds =
-        channelSettings.response_header_timeout_seconds;
-    }
-    if (typeof channelSettings.stream_idle_timeout_enabled === 'boolean') {
-      channelExtraSettings.stream_idle_timeout_enabled =
-        channelSettings.stream_idle_timeout_enabled;
-    }
-    if (typeof channelSettings.stream_idle_timeout_seconds === 'number') {
-      channelExtraSettings.stream_idle_timeout_seconds =
-        channelSettings.stream_idle_timeout_seconds;
-    }
-    if (
-      typeof channelSettings.stream_response_header_timeout_enabled ===
-      'boolean'
-    ) {
-      channelExtraSettings.stream_response_header_timeout_enabled =
-        channelSettings.stream_response_header_timeout_enabled;
-    }
-    if (
-      typeof channelSettings.stream_response_header_timeout_seconds === 'number'
-    ) {
-      channelExtraSettings.stream_response_header_timeout_seconds =
-        channelSettings.stream_response_header_timeout_seconds;
-    }
+    // 生成渠道额外设置JSON。提交时以 Form 当前值为准，避免批量创建时使用到滞后的 React state。
+    const channelExtraSettings = buildChannelSettingPayload(
+      localInputs,
+      channelSettings,
+    );
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
     // 处理 settings 字段（包括企业账户设置和字段透传控制）
@@ -1917,6 +2230,8 @@ const EditChannelModal = (props) => {
 
     localInputs.settings = JSON.stringify(settings);
 
+    const awsKeyTypeForBatch = localInputs.aws_key_type || 'ak_sk';
+
     // 清理不需要发送到后端的字段
     delete localInputs.force_format;
     delete localInputs.thinking_to_content;
@@ -1961,6 +2276,20 @@ const EditChannelModal = (props) => {
     if (batch) {
       mode = multiToSingle ? 'multi_to_single' : 'batch';
     }
+    const batchModelMappingsByKey =
+      !isEdit && mode === 'batch' && localInputs.type === AWS_CHANNEL_TYPE
+        ? buildAwsBatchModelMappingsByKey(
+            localInputs.key,
+            awsKeyTypeForBatch,
+            parsedModelMapping,
+            awsBatchModelMappingValues,
+          )
+        : undefined;
+    const batchAddAwsRegionSuffix2Name =
+      !isEdit &&
+      mode === 'batch' &&
+      localInputs.type === AWS_CHANNEL_TYPE &&
+      awsBatchAppendRegionSuffix;
 
     if (isEdit) {
       res = await API.put(`/api/channel/`, {
@@ -1972,6 +2301,8 @@ const EditChannelModal = (props) => {
       res = await API.post(`/api/channel/`, {
         mode: mode,
         multi_key_mode: mode === 'multi_to_single' ? multiKeyMode : undefined,
+        batch_add_aws_region_suffix_2_name: batchAddAwsRegionSuffix2Name,
+        batch_model_mappings_by_key: batchModelMappingsByKey,
         channel: localInputs,
       });
     }
@@ -1982,6 +2313,8 @@ const EditChannelModal = (props) => {
       } else {
         showSuccess(t('渠道创建成功！'));
         setInputs(originInputs);
+        setAwsBatchAppendRegionSuffix(false);
+        setAwsBatchModelMappingValues({});
       }
       props.refresh();
       props.handleClose();
@@ -2038,6 +2371,30 @@ const EditChannelModal = (props) => {
     } else {
       showSuccess(message);
     }
+  };
+
+  const fillAwsAllRegions = () => {
+    const currentKey = formApiRef.current?.getValue('key') || inputs.key || '';
+    const keyLines = buildAwsAllRegionKeyLines(
+      currentKey,
+      inputs.aws_key_type || 'ak_sk',
+    );
+    if (keyLines.length === 0) {
+      showInfo(
+        inputs.aws_key_type === AWS_KEY_TYPE_API_KEY
+          ? t('请先输入 APIKey| 作为区域填充前缀')
+          : t('请先输入 AccessKey|SecretAccessKey| 作为区域填充前缀'),
+      );
+      return;
+    }
+    const nextKey = keyLines.join('\n');
+    if (formApiRef.current) {
+      formApiRef.current.setValue('key', nextKey);
+    }
+    handleInputChange('key', nextKey);
+    showSuccess(
+      t('已生成 {{count}} 条 AWS 区域密钥', { count: keyLines.length }),
+    );
   };
 
   const addCustomModels = () => {
@@ -2118,6 +2475,8 @@ const EditChannelModal = (props) => {
             if (!checked) {
               setMultiToSingle(false);
               setMultiKeyMode('random');
+              setAwsBatchAppendRegionSuffix(false);
+              setAwsBatchModelMappingValues({});
             } else {
               // 批量模式下禁用手动输入，并清空手动输入的内容
               setUseManualInput(false);
@@ -2146,6 +2505,7 @@ const EditChannelModal = (props) => {
                   const newInputs = { ...prevInputs };
                   if (nextValue) {
                     newInputs.multi_key_mode = multiKeyMode;
+                    setAwsBatchAppendRegionSuffix(false);
                   } else {
                     delete newInputs.multi_key_mode;
                   }
@@ -2157,6 +2517,28 @@ const EditChannelModal = (props) => {
           >
             {t('密钥聚合模式')}
           </Checkbox>
+
+          {inputs.type === AWS_CHANNEL_TYPE && !multiToSingle && (
+            <Checkbox
+              disabled={isEdit}
+              checked={awsBatchAppendRegionSuffix}
+              onChange={(e) => setAwsBatchAppendRegionSuffix(e.target.checked)}
+            >
+              {t('渠道名追加 region 后缀')}
+            </Checkbox>
+          )}
+
+          {inputs.type === AWS_CHANNEL_TYPE && (
+            <Button
+              size='small'
+              type='tertiary'
+              theme='outline'
+              onClick={fillAwsAllRegions}
+              style={{ textDecoration: 'underline' }}
+            >
+              {t('添加所有区')}
+            </Button>
+          )}
 
           {inputs.type !== 41 && (
             <Button
@@ -2740,10 +3122,7 @@ const EditChannelModal = (props) => {
                         checkedText={t('开')}
                         uncheckedText={t('关')}
                         onChange={(value) =>
-                          handleChannelOtherSettingsChange(
-                            'allow_speed',
-                            value,
-                          )
+                          handleChannelOtherSettingsChange('allow_speed', value)
                         }
                         extraText={t(
                           'speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式',
@@ -3939,7 +4318,7 @@ const EditChannelModal = (props) => {
                         allowCreate
                         autoClearSearchValue={false}
                         searchPosition='dropdown'
-                        optionList={modelOptions}
+                        optionList={modelSelectOptions}
                         onSearch={(value) => setModelSearchValue(value)}
                         innerBottomSlot={
                           modelSearchHintText ? (
@@ -3952,6 +4331,10 @@ const EditChannelModal = (props) => {
                         onChange={(value) => handleInputChange('models', value)}
                         renderSelectedItem={(optionNode) => {
                           const modelName = String(optionNode?.value ?? '');
+                          const selectedLabel = renderModelLabelWithIcon(
+                            modelName,
+                            getModelCategories(t),
+                          );
                           return {
                             isRenderInTag: true,
                             content: (
@@ -3974,7 +4357,7 @@ const EditChannelModal = (props) => {
                                   }
                                 }}
                               >
-                                {optionNode.label || modelName}
+                                {selectedLabel || optionNode.label || modelName}
                               </span>
                             ),
                           };
@@ -4173,6 +4556,102 @@ const EditChannelModal = (props) => {
                           '键为请求中的模型名称，值为要替换的模型名称',
                         )}
                       />
+
+                      {isAwsBatchCreate && (
+                        <div
+                          className='rounded-lg border p-3 space-y-3'
+                          style={{
+                            borderColor: 'var(--semi-color-border)',
+                            backgroundColor: 'var(--semi-color-fill-0)',
+                          }}
+                        >
+                          <div className='flex items-center justify-between gap-2 flex-wrap'>
+                            <Text className='font-medium'>
+                              {t('AWS 按 region 覆盖模型重定向')}
+                            </Text>
+                            <Tag color='blue' shape='circle'>
+                              {t('批量创建')}
+                            </Tag>
+                          </div>
+                          <Text type='tertiary' size='small'>
+                            {t(
+                              '先在上方模型重定向中填写统一请求模型，再为每个 AK/SK 和 region 填写对应的上游模型或 ARN；未填写的行会沿用上方默认值。',
+                            )}
+                          </Text>
+
+                          {awsBatchRegionEntries.length === 0 ? (
+                            <Text type='warning' size='small'>
+                              {t(
+                                '请先在密钥中填写带 region 的 AWS 密钥行，例如 AccessKey|SecretAccessKey|us-east-1',
+                              )}
+                            </Text>
+                          ) : awsBatchModelMappingSourceModels.length === 0 ? (
+                            <Text type='warning' size='small'>
+                              {t(
+                                '请先在模型重定向中添加统一请求模型，例如 claude-sonnet-4.5',
+                              )}
+                            </Text>
+                          ) : (
+                            <div className='space-y-3'>
+                              {awsBatchRegionEntries.map((entry) => (
+                                <div
+                                  key={entry.line}
+                                  className='rounded-md border p-3 space-y-2'
+                                  style={{
+                                    borderColor: 'var(--semi-color-border)',
+                                    backgroundColor: 'var(--semi-color-bg-0)',
+                                  }}
+                                >
+                                  <div className='flex items-center gap-2 flex-wrap'>
+                                    <Tag color='green'>{entry.region}</Tag>
+                                    <Text
+                                      code
+                                      size='small'
+                                      ellipsis={{ showTooltip: true }}
+                                    >
+                                      {entry.display}
+                                    </Text>
+                                  </div>
+                                  {awsBatchModelMappingSourceModels.map(
+                                    (sourceModel) => (
+                                      <div
+                                        key={`${entry.line}-${sourceModel}`}
+                                        className='flex flex-col gap-1'
+                                      >
+                                        <Text type='tertiary' size='small'>
+                                          {sourceModel}
+                                        </Text>
+                                        <Input
+                                          value={
+                                            awsBatchModelMappingValues[
+                                              entry.line
+                                            ]?.[sourceModel] || ''
+                                          }
+                                          placeholder={
+                                            String(
+                                              awsBatchModelMappingObject?.[
+                                                sourceModel
+                                              ] || '',
+                                            ) ||
+                                            'arn:aws:bedrock:region:account:inference-profile/...'
+                                          }
+                                          onChange={(value) =>
+                                            updateAwsBatchModelMappingValue(
+                                              entry.line,
+                                              sourceModel,
+                                              value,
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Auto Ban - Core Config */}
                       <Form.Switch

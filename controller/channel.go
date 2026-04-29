@@ -525,10 +525,83 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 }
 
 type AddChannelRequest struct {
-	Mode                      string                `json:"mode"`
-	MultiKeyMode              constant.MultiKeyMode `json:"multi_key_mode"`
-	BatchAddSetKeyPrefix2Name bool                  `json:"batch_add_set_key_prefix_2_name"`
-	Channel                   *model.Channel        `json:"channel"`
+	Mode                         string                `json:"mode"`
+	MultiKeyMode                 constant.MultiKeyMode `json:"multi_key_mode"`
+	BatchAddSetKeyPrefix2Name    bool                  `json:"batch_add_set_key_prefix_2_name"`
+	BatchAddAwsRegionSuffix2Name bool                  `json:"batch_add_aws_region_suffix_2_name"`
+	BatchModelMappingsByKey      map[string]string     `json:"batch_model_mappings_by_key"`
+	Channel                      *model.Channel        `json:"channel"`
+}
+
+func getAwsBatchKeyRegion(key string, keyType dto.AwsKeyType) string {
+	parts := strings.Split(key, "|")
+	if keyType == dto.AwsKeyTypeApiKey {
+		if len(parts) < 2 {
+			return ""
+		}
+		return strings.TrimSpace(parts[1])
+	}
+	if len(parts) < 3 {
+		return ""
+	}
+	return strings.TrimSpace(parts[2])
+}
+
+func getBatchModelMappingOverride(overrides map[string]string, key string) (string, bool) {
+	if len(overrides) == 0 {
+		return "", false
+	}
+	if value, ok := overrides[key]; ok {
+		return value, true
+	}
+	trimmedKey := strings.TrimSpace(key)
+	for overrideKey, value := range overrides {
+		if strings.TrimSpace(overrideKey) == trimmedKey {
+			return value, true
+		}
+	}
+	return "", false
+}
+
+func buildBatchAddChannels(addChannelRequest AddChannelRequest, keys []string) []model.Channel {
+	channels := make([]model.Channel, 0, len(keys))
+	if addChannelRequest.Channel == nil {
+		return channels
+	}
+	awsKeyType := addChannelRequest.Channel.GetOtherSettings().AwsKeyType
+	for _, rawKey := range keys {
+		key := strings.TrimSpace(rawKey)
+		if key == "" {
+			continue
+		}
+		localChannel := *addChannelRequest.Channel
+		localChannel.Key = key
+		if addChannelRequest.BatchAddSetKeyPrefix2Name && len(keys) > 1 {
+			keyPrefix := localChannel.Key
+			if len(localChannel.Key) > 8 {
+				keyPrefix = localChannel.Key[:8]
+			}
+			localChannel.Name = fmt.Sprintf("%s %s", localChannel.Name, keyPrefix)
+		}
+		if addChannelRequest.BatchAddAwsRegionSuffix2Name &&
+			localChannel.Type == constant.ChannelTypeAws &&
+			len(keys) > 1 {
+			region := getAwsBatchKeyRegion(localChannel.Key, awsKeyType)
+			if region != "" {
+				localChannel.Name = fmt.Sprintf("%s-%s", addChannelRequest.Channel.Name, region)
+			}
+		}
+		if mapping, ok := getBatchModelMappingOverride(addChannelRequest.BatchModelMappingsByKey, localChannel.Key); ok {
+			mapping = strings.TrimSpace(mapping)
+			if mapping == "" {
+				localChannel.ModelMapping = nil
+			} else {
+				localChannel.ModelMapping = common.GetPointer(mapping)
+			}
+		}
+		channels = append(channels, localChannel)
+	}
+	return channels
 }
 
 func getVertexArrayKeys(keys string) ([]string, error) {
@@ -634,22 +707,7 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 
-	channels := make([]model.Channel, 0, len(keys))
-	for _, key := range keys {
-		if key == "" {
-			continue
-		}
-		localChannel := addChannelRequest.Channel
-		localChannel.Key = key
-		if addChannelRequest.BatchAddSetKeyPrefix2Name && len(keys) > 1 {
-			keyPrefix := localChannel.Key
-			if len(localChannel.Key) > 8 {
-				keyPrefix = localChannel.Key[:8]
-			}
-			localChannel.Name = fmt.Sprintf("%s %s", localChannel.Name, keyPrefix)
-		}
-		channels = append(channels, *localChannel)
-	}
+	channels := buildBatchAddChannels(addChannelRequest, keys)
 	err = model.BatchInsertChannels(channels)
 	if err != nil {
 		common.ApiError(c, err)

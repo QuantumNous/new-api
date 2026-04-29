@@ -36,7 +36,6 @@ export let API = axios.create({
   },
 });
 
-
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
@@ -48,7 +47,6 @@ function redirectToOAuthUrl(url, options = {}) {
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -394,4 +392,33 @@ export function getChannelModels(type) {
     return channelModels[type];
   }
   return [];
+}
+
+export function getAllChannelModels() {
+  let models = channelModels;
+  if (models === undefined) {
+    const rawModels = localStorage.getItem('channel_models');
+    if (!rawModels) {
+      return [];
+    }
+    try {
+      models = JSON.parse(rawModels);
+      channelModels = models;
+    } catch {
+      return [];
+    }
+  }
+
+  if (!models || typeof models !== 'object' || Array.isArray(models)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      Object.values(models)
+        .flatMap((items) => (Array.isArray(items) ? items : []))
+        .map((model) => String(model || '').trim())
+        .filter(Boolean),
+    ),
+  );
 }
