@@ -9,7 +9,9 @@
 /coverage
 
 # production
-/build
+/build/*
+!/build/
+!/build/vite-plugin-semi-compat.js
 
 # misc
 .DS_Store
