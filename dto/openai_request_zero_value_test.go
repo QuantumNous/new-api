@@ -71,3 +71,17 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "stream").Exists())
 	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
 }
+
+func TestOpenAIMessagePreserveReasoningContentRaw(t *testing.T) {
+	raw := []byte(`{"role":"assistant","content":"","reasoning_content":" "}`)
+
+	var message Message
+	err := common.Unmarshal(raw, &message)
+	require.NoError(t, err)
+	require.Equal(t, " ", message.GetReasoningContent())
+	require.JSONEq(t, `" "`, string(message.ReasoningContent))
+
+	encoded, err := common.Marshal(message)
+	require.NoError(t, err)
+	require.Equal(t, " ", gjson.GetBytes(encoded, "reasoning_content").String())
+}

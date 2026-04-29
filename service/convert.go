@@ -134,6 +134,9 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		openAIMessage := dto.Message{
 			Role: claudeMessage.Role,
 		}
+		if len(claudeMessage.ReasoningContent) > 0 {
+			openAIMessage.ReasoningContent = claudeMessage.ReasoningContent
+		}
 
 		//log.Printf("claudeMessage.Content: %v", claudeMessage.Content)
 		if claudeMessage.IsStringContent() {

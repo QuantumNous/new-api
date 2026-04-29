@@ -120,8 +120,9 @@ type ClaudeMessageSource struct {
 }
 
 type ClaudeMessage struct {
-	Role    string `json:"role"`
-	Content any    `json:"content"`
+	Role             string          `json:"role"`
+	Content          any             `json:"content"`
+	ReasoningContent json.RawMessage `json:"reasoning_content,omitempty"`
 }
 
 func (c *ClaudeMessage) IsStringContent() bool {
