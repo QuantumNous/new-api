@@ -3704,3 +3704,616 @@ html.dark
     font-size: 13px;
   }
 }
+
+/* ==================== Wallet / TopUp page ==================== */
+.billing-wallet-shell {
+  width: 100%;
+  max-width: 1080px;
+  min-height: calc(100vh - 96px);
+  margin: 0 auto;
+  padding: 28px 16px 44px;
+}
+
+.billing-wallet-page {
+  width: 100%;
+}
+
+.billing-wallet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.billing-wallet-title.semi-typography {
+  margin: 0 !important;
+  color: #0a0b0d;
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 680;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+}
+
+.billing-wallet-subtitle {
+  margin: 8px 0 0;
+  color: #5b616e;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.billing-history-button.semi-button,
+.billing-primary-action.semi-button,
+.billing-redeem-action.semi-button {
+  border-radius: 999px !important;
+  font-weight: 650;
+}
+
+.billing-history-button.semi-button {
+  min-width: 126px;
+  height: 42px;
+  border-color: rgba(91, 97, 110, 0.2);
+  background: #ffffff;
+}
+
+.billing-wallet-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.billing-balance-card.semi-card,
+.billing-wallet-panel.semi-card {
+  overflow: hidden;
+  border: 1px solid rgba(91, 97, 110, 0.2) !important;
+  border-radius: 24px !important;
+  background: #ffffff !important;
+  box-shadow: 0 18px 52px rgba(15, 23, 42, 0.04) !important;
+}
+
+.billing-balance-card .semi-card-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px !important;
+  background: radial-gradient(
+      circle at 8% 20%,
+      rgba(194, 94, 255, 0.18),
+      transparent 28%
+    ),
+    linear-gradient(90deg, rgba(188, 72, 255, 0.1), rgba(255, 255, 255, 0) 58%);
+}
+
+.billing-balance-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.billing-balance-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: 18px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #b72bff 0%, #e4a6ff 100%);
+  box-shadow: 0 18px 34px rgba(183, 43, 255, 0.26);
+}
+
+.billing-balance-label,
+.billing-balance-side span {
+  color: #5b616e;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.billing-balance-value {
+  margin-top: 4px;
+  color: #0a0b0d;
+  font-size: clamp(30px, 5vw, 42px);
+  font-weight: 760;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.billing-balance-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 180px;
+}
+
+.billing-balance-side div {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.billing-balance-side strong {
+  color: #a020f0;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.billing-balance-side .billing-used {
+  color: #f05a00;
+}
+
+.billing-wallet-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+  gap: 24px;
+}
+
+.billing-wallet-panel .semi-card-body {
+  padding: 24px !important;
+}
+
+.billing-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.billing-panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: #0a0b0d;
+  background: #f6f7f9;
+}
+
+.billing-panel-icon-warm {
+  color: #f58b00;
+  background: #fff5e3;
+}
+
+.billing-panel-head h2 {
+  margin: 0;
+  color: #0a0b0d;
+  font-size: 19px;
+  font-weight: 720;
+  letter-spacing: -0.025em;
+}
+
+.billing-panel-head p {
+  margin: 4px 0 0;
+  color: #697386;
+  font-size: 13px;
+}
+
+.billing-loading {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.billing-wallet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.billing-wallet-form .semi-form-field {
+  padding: 0;
+}
+
+.billing-wallet-form .semi-form-field-label {
+  padding: 0 0 10px !important;
+}
+
+.billing-wallet-form .semi-form-field-label-text {
+  color: #0a0b0d;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.billing-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.billing-label-row span:last-child {
+  color: #697386;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.billing-pay-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.billing-pay-method,
+.billing-amount-option,
+.billing-creem-card {
+  appearance: none;
+  border: 1px solid #d9dee8;
+  background: #ffffff;
+  color: #0a0b0d;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    background 0.18s ease;
+}
+
+.billing-pay-method {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.billing-pay-method:hover,
+.billing-amount-option:hover,
+.billing-creem-card:hover {
+  border-color: rgba(183, 43, 255, 0.55);
+  box-shadow: 0 12px 30px rgba(183, 43, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.billing-pay-method.is-active,
+.billing-amount-option.is-active {
+  border-color: #b72bff;
+  box-shadow: 0 0 0 2px rgba(183, 43, 255, 0.14);
+  background: rgba(183, 43, 255, 0.045);
+}
+
+.billing-pay-method:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+  transform: none;
+  box-shadow: none;
+}
+
+.billing-pay-method-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.billing-amount-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.billing-amount-option {
+  position: relative;
+  display: flex;
+  min-height: 74px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.billing-amount-main {
+  font-size: 16px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+}
+
+.billing-amount-meta,
+.billing-amount-save {
+  margin-top: 4px;
+  color: #697386;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.billing-amount-save {
+  color: #178b49;
+}
+
+.billing-amount-tag.semi-tag {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  border-radius: 999px;
+}
+
+.billing-custom-amount.semi-input-number,
+.billing-wallet-form .semi-input-wrapper,
+.billing-wallet-form .semi-input-number {
+  min-height: 46px;
+  border-color: #d9dee8 !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+}
+
+.billing-custom-amount.semi-input-number-size-large
+  .semi-input-number-button.semi-input-number-button-up,
+.semi-input-number-button.semi-input-number-button-down {
+  width: 28px;
+}
+
+.billing-custom-amount.semi-input-number-size-large
+  .semi-input-number-suffix-btns {
+  height: 46px;
+}
+
+.billing-custom-amount.semi-input-number-size-large .semi-icon-extra-small {
+  font-size: 12px;
+}
+
+.billing-wallet-form .semi-input,
+.billing-wallet-form .semi-input-number .semi-input {
+  color: #0a0b0d !important;
+  font-size: 15px;
+}
+
+.billing-payable-text {
+  color: #697386 !important;
+  font-size: 13px;
+}
+
+.billing-payable-text span {
+  color: #f05a00;
+  font-weight: 700;
+}
+
+.billing-primary-action.semi-button,
+.billing-redeem-action.semi-button {
+  display: inline-flex;
+  width: 100%;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(90deg, #d47aff 0%, #c061f2 100%) !important;
+  box-shadow: 0 18px 34px rgba(183, 43, 255, 0.22);
+}
+
+.billing-creem-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.billing-creem-card {
+  display: flex;
+  min-height: 92px;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.billing-creem-card span {
+  font-weight: 680;
+}
+
+.billing-creem-card strong {
+  margin-top: 6px;
+  color: #0052ff;
+  font-size: 18px;
+}
+
+.billing-creem-card small {
+  margin-top: 4px;
+  color: #697386;
+}
+
+.billing-redeem-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 18px;
+  border: 1px solid rgba(245, 139, 0, 0.28);
+  border-radius: 18px;
+  color: #f58b00;
+  background: #fff6e8;
+}
+
+.billing-redeem-callout strong,
+.billing-redeem-callout span {
+  display: block;
+}
+
+.billing-redeem-callout strong {
+  color: #f05a00;
+  font-size: 15px;
+}
+
+.billing-redeem-callout span {
+  margin-top: 4px;
+  color: #697386;
+  font-size: 13px;
+}
+
+.billing-banner.semi-banner {
+  border-radius: 18px !important;
+}
+
+.billing-wallet-tabs .semi-tabs-bar {
+  margin-bottom: 18px;
+}
+
+.billing-subscription-pane {
+  padding-top: 4px;
+}
+
+/* ==================== Referral page ==================== */
+.referral-page-shell {
+  max-width: 920px;
+}
+
+.referral-overview-grid {
+  align-items: stretch;
+}
+
+.referral-accent-value {
+  color: #b72bff !important;
+}
+
+.referral-count-card {
+  margin-top: 16px;
+}
+
+.referral-link-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.referral-link-input.semi-input-wrapper {
+  min-height: 48px;
+  border-radius: 18px !important;
+}
+
+.referral-copy-button.semi-button {
+  min-width: 120px;
+}
+
+.referral-rules-list {
+  display: grid;
+  gap: 12px;
+}
+
+.referral-rule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #5b616e;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+html.dark .billing-wallet-title.semi-typography,
+html.dark .billing-balance-value,
+html.dark .billing-panel-head h2,
+html.dark .billing-wallet-form .semi-form-field-label-text,
+html.dark .billing-pay-method,
+html.dark .billing-amount-option,
+html.dark .billing-wallet-form .semi-input,
+html.dark .billing-wallet-form .semi-input-number .semi-input {
+  color: #f8fafc !important;
+}
+
+html.dark .billing-wallet-subtitle,
+html.dark .billing-balance-label,
+html.dark .billing-balance-side span,
+html.dark .billing-panel-head p,
+html.dark .billing-amount-meta,
+html.dark .billing-creem-card small,
+html.dark .billing-payable-text,
+html.dark .billing-redeem-callout span,
+html.dark .referral-rule-item {
+  color: #98a2b3 !important;
+}
+
+html.dark .billing-balance-card.semi-card,
+html.dark .billing-wallet-panel.semi-card {
+  border-color: rgba(58, 66, 82, 0.9) !important;
+  background: #15181e !important;
+  box-shadow: none !important;
+}
+
+html.dark .billing-balance-card .semi-card-body {
+  background: radial-gradient(
+      circle at 8% 20%,
+      rgba(194, 94, 255, 0.18),
+      transparent 32%
+    ),
+    linear-gradient(90deg, rgba(188, 72, 255, 0.1), rgba(10, 11, 13, 0) 62%);
+}
+
+html.dark .billing-history-button.semi-button,
+html.dark .billing-panel-icon,
+html.dark .billing-pay-method,
+html.dark .billing-amount-option,
+html.dark .billing-creem-card,
+html.dark .billing-custom-amount.semi-input-number,
+html.dark .billing-wallet-form .semi-input-wrapper,
+html.dark .billing-wallet-form .semi-input-number {
+  border-color: rgba(58, 66, 82, 0.95) !important;
+  background: #101318 !important;
+}
+
+html.dark .billing-pay-method.is-active,
+html.dark .billing-amount-option.is-active {
+  border-color: rgba(194, 94, 255, 0.85) !important;
+  background: rgba(194, 94, 255, 0.1) !important;
+}
+
+html.dark .billing-panel-icon-warm,
+html.dark .billing-redeem-callout {
+  border-color: rgba(245, 139, 0, 0.25);
+  background: rgba(245, 139, 0, 0.12) !important;
+}
+
+html.dark .billing-redeem-callout strong {
+  color: #ffb454;
+}
+
+html.dark .billing-creem-card strong {
+  color: #7ca2ff;
+}
+
+html.dark .referral-link-input.semi-input-wrapper {
+  border-color: rgba(58, 66, 82, 0.95) !important;
+  background: #101318 !important;
+}
+
+@media (max-width: 1024px) {
+  .billing-wallet-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .billing-wallet-shell {
+    padding: 76px 8px 28px;
+  }
+
+  .billing-wallet-header,
+  .billing-balance-card .semi-card-body {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .billing-balance-side {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .billing-balance-side div {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .billing-pay-grid,
+  .billing-amount-grid,
+  .billing-creem-grid,
+  .referral-link-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .billing-wallet-panel .semi-card-body,
+  .billing-balance-card .semi-card-body {
+    padding: 18px !important;
+  }
+}

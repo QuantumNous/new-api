@@ -132,6 +132,8 @@ export function getLucideIcon(key, selected = false) {
       return <CheckSquare {...commonProps} color={iconColor} />;
     case 'topup':
       return <CreditCard {...commonProps} color={iconColor} />;
+    case 'referral':
+      return <Gift {...commonProps} color={iconColor} />;
     case 'channel':
       return <Layers {...commonProps} color={iconColor} />;
     case 'redemption':
@@ -1622,10 +1624,9 @@ function renderPriceSimpleCore({
 
 export function renderTaskBillingProcess(other, content) {
   if (other?.task_id != null) {
-    return renderBillingArticle(
-      [content].filter(Boolean),
-      { showReferenceNote: false },
-    );
+    return renderBillingArticle([content].filter(Boolean), {
+      showReferenceNote: false,
+    });
   }
   return renderBillingArticle([
     buildBillingText('任务预扣费（将在任务完成后按实际token重算）'),

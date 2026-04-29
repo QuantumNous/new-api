@@ -56,6 +56,11 @@ const PAYMENT_METHOD_MAP = {
   wxpay: '微信',
 };
 
+function maskMiddle(str, keepStart = 8, keepEnd = 4, mask = '****') {
+  if (str.length <= keepStart + keepEnd) return str;
+  return str.slice(0, keepStart) + mask + str.slice(-keepEnd);
+}
+
 const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [loading, setLoading] = useState(false);
   const [topups, setTopups] = useState([]);
@@ -76,7 +81,12 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       const res = await API.get(endpoint);
       const { success, message, data } = res.data;
       if (success) {
-        setTopups(data.items || []);
+        setTopups(
+          (data.items || []).map((e) => ({
+            ...e,
+            trade_no_show: maskMiddle(e.trade_no),
+          })),
+        );
         setTotal(data.total || 0);
       } else {
         Toast.error({ content: message || t('加载失败') });
@@ -165,7 +175,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('订单号'),
         dataIndex: 'trade_no',
         key: 'trade_no',
-        render: (text) => <Text copyable>{text}</Text>,
+        render: (text, record) => (
+          <Text copyable={{ content: text }}>{record.trade_no_show}</Text>
+        ),
       },
       {
         title: t('支付方式'),
@@ -217,14 +229,14 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           if (record.status === 'pending') {
             actions.push(
               <Button
-                key="complete"
+                key='complete'
                 size='small'
                 type='primary'
                 theme='outline'
                 onClick={() => confirmAdminComplete(record.trade_no)}
               >
                 {t('补单')}
-              </Button>
+              </Button>,
             );
           }
           return actions.length > 0 ? <>{actions}</> : null;
