@@ -14,7 +14,7 @@ export const apiKeyFormSchema = z.object({
   unlimited_quota: z.boolean(),
   model_limits: z.array(z.string()),
   allow_ips: z.string().optional(),
-  group: z.string().optional(),
+  group: z.string().min(1, 'Group is required'),
   cross_group_retry: z.boolean().optional(),
   tokenCount: z.number().min(1).optional(),
 })

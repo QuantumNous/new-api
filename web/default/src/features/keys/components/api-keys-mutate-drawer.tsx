@@ -125,17 +125,21 @@ export function ApiKeysMutateDrawer({
 
   const models = modelsData?.data || []
   const groupsRaw = groupsData?.data || {}
-  const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw).map(
-    ([key, info]) => ({
+  const groups: ApiKeyGroupOption[] = Object.entries(groupsRaw)
+    .filter(([key, info]) => {
+      if (key === 'auto') {
+        return defaultUseAutoGroup
+      }
+      return info.desc !== '用户分组'
+    })
+    .map(([key, info]) => ({
       value: key,
       label: key,
       desc: info.desc || key,
       ratio: info.ratio,
-    })
-  )
+    }))
 
-  // Add auto group if configured
-  if (!groups.some((g) => g.value === 'auto')) {
+  if (defaultUseAutoGroup && !groups.some((g) => g.value === 'auto')) {
     groups.unshift({
       value: 'auto',
       label: 'auto',
