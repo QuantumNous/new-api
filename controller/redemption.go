@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"unicode/utf8"
@@ -84,9 +85,13 @@ func AddRedemption(c *gin.Context) {
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
+		name := redemption.Name
+		if redemption.Count > 1 {
+			name = fmt.Sprintf("%s_%d", redemption.Name, i+1)
+		}
 		cleanRedemption := model.Redemption{
 			UserId:      c.GetInt("id"),
-			Name:        redemption.Name,
+			Name:        name,
 			Key:         key,
 			CreatedTime: common.GetTimestamp(),
 			Quota:       redemption.Quota,
