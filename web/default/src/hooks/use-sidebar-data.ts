@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
+import { customSidebarLinks } from '@/custom/site'
 import { getDashboardSectionNavItems } from '@/features/dashboard/section-registry'
 import { getModelsSectionNavItems } from '@/features/models/section-registry'
 import { getUsageLogsSectionNavItems } from '@/features/usage-logs/section-registry'
@@ -76,6 +77,12 @@ export function useSidebarData(): SidebarData {
             url: '/wallet',
             icon: Wallet,
           },
+          ...customSidebarLinks.map((link) => ({
+            title: t(link.titleKey),
+            url: link.url,
+            icon: link.icon,
+            newTab: link.newTab,
+          })),
           {
             title: t('Profile'),
             url: '/profile',

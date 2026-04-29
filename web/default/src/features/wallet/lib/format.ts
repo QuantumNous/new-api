@@ -1,4 +1,5 @@
 import { formatLocalCurrencyAmount } from '@/lib/currency'
+import { formatCustomPaymentAmount } from '@/custom/site'
 import { DEFAULT_DISCOUNT_RATE } from '../constants'
 
 // ============================================================================
@@ -41,6 +42,13 @@ export function formatCurrency(amount: number | string): string {
     digitsSmall: 2,
     abbreviate: false,
   })
+}
+
+/**
+ * Format payment amounts charged in Chinese Yuan.
+ */
+export function formatCnyAmount(amount: number | string): string {
+  return formatCustomPaymentAmount(amount)
 }
 
 /**

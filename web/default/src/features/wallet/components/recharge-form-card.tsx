@@ -16,8 +16,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  formatCurrency,
-  getDiscountLabel,
+  formatCnyAmount,
   getPaymentIcon,
   getMinTopupAmount,
   calculatePresetPricing,
@@ -231,23 +230,30 @@ export function RechargeFormCard({
                             )}
                             onClick={() => onSelectPreset(preset)}
                           >
-                            <div className='flex w-full items-center justify-between'>
-                              <div className='text-lg font-semibold'>
-                                {formatNumber(displayValue)}
-                              </div>
-                              {hasDiscount && (
-                                <div className='text-xs font-medium text-green-600'>
-                                  {getDiscountLabel(discount)}
+                            <div className='flex w-full flex-col gap-3'>
+                              <div className='flex items-start justify-between gap-3'>
+                                <div className='text-lg font-semibold'>
+                                  {formatNumber(displayValue)}
                                 </div>
-                              )}
-                            </div>
-                            <div className='text-muted-foreground mt-2 w-full text-xs'>
-                              Pay {formatCurrency(actualPrice)}
-                              {hasDiscount && savedAmount > 0 && (
-                                <span className='text-green-600'>
-                                  {' '}
-                                  • Save {formatCurrency(savedAmount)}
+                                {hasDiscount && savedAmount > 0 && (
+                                  <div className='rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-green-600'>
+                                    {t('Discount')} {formatCnyAmount(savedAmount)}
+                                  </div>
+                                )}
+                              </div>
+                              <div className='text-muted-foreground flex items-baseline justify-between gap-3 text-xs'>
+                                <span>{t('Pay')}</span>
+                                <span className='text-foreground text-sm font-semibold'>
+                                  {formatCnyAmount(actualPrice)}
                                 </span>
+                              </div>
+                              {hasDiscount && savedAmount > 0 && (
+                                <div className='text-muted-foreground flex items-baseline justify-between gap-3 text-xs'>
+                                  <span>{t('Original price')}</span>
+                                  <span className='line-through'>
+                                    {formatCnyAmount(actualPrice + savedAmount)}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </Button>
@@ -282,7 +288,7 @@ export function RechargeFormCard({
                         <Skeleton className='h-5 w-16' />
                       ) : (
                         <span className='text-sm font-semibold'>
-                          {formatCurrency(paymentAmount)}
+                          {formatCnyAmount(paymentAmount)}
                         </span>
                       )}
                     </div>

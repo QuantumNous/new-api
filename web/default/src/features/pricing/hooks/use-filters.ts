@@ -12,40 +12,82 @@ import {
 import { filterAndSortModels, extractAllTags } from '../lib/filters'
 import type { PricingModel, TokenUnit } from '../types'
 
-export function useFilters(models: PricingModel[]) {
-  const search = useSearch({ from: '/pricing/' })
-  const navigate = useNavigate({ from: '/pricing/' })
+type PricingNavigatePath = '/pricing'
 
-  const searchInput = search.search || ''
-  const sortBy = search.sort || SORT_OPTIONS.NAME
-  const vendorFilter = search.vendor || FILTER_ALL
-  const groupFilter = search.group || FILTER_ALL
-  const quotaTypeFilter = search.quotaType || QUOTA_TYPES.ALL
-  const endpointTypeFilter = search.endpointType || ENDPOINT_TYPES.ALL
-  const tagFilter = search.tag || FILTER_ALL
+function firstString(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0]
+  return undefined
+}
+
+export function useFilters(
+  models: PricingModel[],
+  routeTo: PricingNavigatePath = '/pricing'
+) {
+  const search = useSearch({ strict: false })
+  const navigate = useNavigate()
+
+  const searchInput = firstString(search.search) || ''
+  const sortBy = firstString(search.sort) || SORT_OPTIONS.NAME
+  const vendorFilter = firstString(search.vendor) || FILTER_ALL
+  const groupFilter = firstString(search.group) || FILTER_ALL
+  const quotaTypeFilter = firstString(search.quotaType) || QUOTA_TYPES.ALL
+  const endpointTypeFilter =
+    firstString(search.endpointType) || ENDPOINT_TYPES.ALL
+  const tagFilter = firstString(search.tag) || FILTER_ALL
   const tokenUnit: TokenUnit =
-    search.tokenUnit === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
+    firstString(search.tokenUnit) === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
   const viewMode: ViewMode =
-    search.view === 'table' ? VIEW_MODES.TABLE : VIEW_MODES.LIST
+    firstString(search.view) === 'table' ? VIEW_MODES.TABLE : VIEW_MODES.LIST
   const showRechargePrice = search.rechargePrice === true
 
   const updateSearch = useCallback(
     (updates: Record<string, unknown>) => {
       navigate({
-        to: '/pricing' as const,
-        search: (prev) => {
-          const next: Record<string, unknown> = { ...prev, ...updates }
-          for (const key of Object.keys(next)) {
-            if (next[key] === undefined || next[key] === null) {
-              delete next[key]
-            }
+        to: routeTo,
+        search: () => {
+          const next = {
+            search: searchInput || undefined,
+            sort: sortBy === SORT_OPTIONS.NAME ? undefined : sortBy,
+            vendor: vendorFilter === FILTER_ALL ? undefined : vendorFilter,
+            group: groupFilter === FILTER_ALL ? undefined : groupFilter,
+            quotaType:
+              quotaTypeFilter === QUOTA_TYPES.ALL ? undefined : quotaTypeFilter,
+            endpointType:
+              endpointTypeFilter === ENDPOINT_TYPES.ALL
+                ? undefined
+                : endpointTypeFilter,
+            tag: tagFilter === FILTER_ALL ? undefined : tagFilter,
+            tokenUnit: tokenUnit === DEFAULT_TOKEN_UNIT ? undefined : tokenUnit,
+            view: viewMode === VIEW_MODES.LIST ? undefined : viewMode,
+            rechargePrice: showRechargePrice || undefined,
+            ...updates,
           }
+          Object.keys(next).forEach((key) => {
+            const typedKey = key as keyof typeof next
+            if (next[typedKey] === undefined || next[typedKey] === null) {
+              delete next[typedKey]
+            }
+          })
           return next
         },
         replace: true,
       })
     },
-    [navigate]
+    [
+      endpointTypeFilter,
+      groupFilter,
+      navigate,
+      quotaTypeFilter,
+      routeTo,
+      searchInput,
+      showRechargePrice,
+      sortBy,
+      tagFilter,
+      tokenUnit,
+      vendorFilter,
+      viewMode,
+    ]
   )
 
   const setSearchInput = useCallback(

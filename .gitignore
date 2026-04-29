@@ -35,3 +35,6 @@ data/
 .test
 token_estimator_test.go
 skills-lock.json
+.omx/
+.playwright-mcp/
+web/default/.omc/

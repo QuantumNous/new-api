@@ -463,10 +463,18 @@ function GroupPricingSection(props: {
   )
 }
 
-export function ModelDetails() {
+type ModelDetailsProps = {
+  embedded?: boolean
+  routeFrom?: '/pricing/$modelId/'
+  backPath?: '/pricing'
+}
+
+export function ModelDetails(props: ModelDetailsProps) {
   const { t } = useTranslation()
-  const { modelId } = useParams({ from: '/pricing/$modelId/' })
-  const search = useSearch({ from: '/pricing/$modelId/' })
+  const routeFrom = props.routeFrom ?? '/pricing/$modelId/'
+  const backPath = props.backPath ?? '/pricing'
+  const { modelId } = useParams({ from: routeFrom })
+  const search = useSearch({ from: routeFrom })
   const navigate = useNavigate()
 
   const {
@@ -489,53 +497,56 @@ export function ModelDetails() {
   }, [models, modelId])
 
   const handleBack = () => {
-    navigate({ to: '/pricing', search })
+    navigate({ to: backPath, search })
+  }
+
+  const wrapContent = (children: React.ReactNode) => {
+    if (props.embedded) {
+      return children
+    }
+
+    return <PublicLayout>{children}</PublicLayout>
   }
 
   if (isLoading) {
-    return (
-      <PublicLayout>
-        <div className='mx-auto max-w-2xl px-4 sm:px-6'>
-          <Skeleton className='mb-4 h-5 w-16' />
-          <div className='space-y-2'>
-            <Skeleton className='h-7 w-64' />
-            <Skeleton className='h-4 w-40' />
-            <Skeleton className='h-4 w-full max-w-md' />
-          </div>
-          <div className='mt-6 space-y-3'>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className='flex justify-between'>
-                <Skeleton className='h-5 w-24' />
-                <Skeleton className='h-5 w-20' />
-              </div>
-            ))}
-          </div>
+    return wrapContent(
+      <div className='mx-auto max-w-2xl px-4 sm:px-6'>
+        <Skeleton className='mb-4 h-5 w-16' />
+        <div className='space-y-2'>
+          <Skeleton className='h-7 w-64' />
+          <Skeleton className='h-4 w-40' />
+          <Skeleton className='h-4 w-full max-w-md' />
         </div>
-      </PublicLayout>
+        <div className='mt-6 space-y-3'>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className='flex justify-between'>
+              <Skeleton className='h-5 w-24' />
+              <Skeleton className='h-5 w-20' />
+            </div>
+          ))}
+        </div>
+      </div>
     )
   }
 
   if (!model) {
-    return (
-      <PublicLayout>
-        <div className='mx-auto max-w-2xl px-4 text-center sm:px-6'>
-          <h2 className='mb-1 text-base font-semibold'>
-            {t('Model not found')}
-          </h2>
-          <p className='text-muted-foreground mb-4 text-sm'>
-            {t("The model you're looking for doesn't exist.")}
-          </p>
-          <Button onClick={handleBack} variant='outline' size='sm'>
-            {t('Back to Models')}
-          </Button>
-        </div>
-      </PublicLayout>
+    return wrapContent(
+      <div className='mx-auto max-w-2xl px-4 text-center sm:px-6'>
+        <h2 className='mb-1 text-base font-semibold'>
+          {t('Model not found')}
+        </h2>
+        <p className='text-muted-foreground mb-4 text-sm'>
+          {t("The model you're looking for doesn't exist.")}
+        </p>
+        <Button onClick={handleBack} variant='outline' size='sm'>
+          {t('Back to Models')}
+        </Button>
+      </div>
     )
   }
 
-  return (
-    <PublicLayout>
-      <div className='mx-auto max-w-2xl px-4 sm:px-6'>
+  return wrapContent(
+    <div className='mx-auto max-w-2xl px-4 sm:px-6'>
         <Button
           variant='ghost'
           size='sm'
@@ -583,7 +594,6 @@ export function ModelDetails() {
           tokenUnit={tokenUnit}
           showRechargePrice={search.rechargePrice ?? false}
         />
-      </div>
-    </PublicLayout>
+    </div>
   )
 }
