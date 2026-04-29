@@ -17,13 +17,13 @@ type CustomTopNavLink = {
 export const customSidebarLinks: CustomSidebarLink[] = [
   {
     titleKey: 'Model Square',
-    url: '/pricing',
+    url: '/pricing?view=table',
     icon: Store,
     newTab: true,
   },
   {
     titleKey: 'Status Monitor',
-    url: 'https://status.tcp.red',
+    url: 'https://status.tcp.red?sort=serviceType_desc',
     icon: Activity,
     newTab: true,
   },
@@ -32,7 +32,7 @@ export const customSidebarLinks: CustomSidebarLink[] = [
 export const customTopNavLinks: CustomTopNavLink[] = [
   {
     titleKey: 'Status Monitor',
-    href: 'https://status.tcp.red',
+    href: 'https://status.tcp.red?sort=serviceType_desc',
     external: true,
     moduleKey: 'statusMonitor',
   },

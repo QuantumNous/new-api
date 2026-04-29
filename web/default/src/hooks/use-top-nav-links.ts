@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
+import { customHeaderNavModuleDefaults, customTopNavLinks } from '@/custom/site'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { useStatus } from '@/hooks/use-status'
-import { customHeaderNavModuleDefaults, customTopNavLinks } from '@/custom/site'
 
 export type TopNavLink = {
   title: string
@@ -73,7 +73,7 @@ export function useTopNavLinks(): TopNavLink[] {
   const pricing = modules?.pricing
   if (pricing && typeof pricing === 'object' && pricing.enabled) {
     const disabled = pricing.requireAuth && !isAuthed
-    links.push({ title: t('Pricing'), href: '/pricing', disabled })
+    links.push({ title: t('Pricing'), href: '/pricing?view=table', disabled })
   }
 
   customTopNavLinks.forEach((link) => {

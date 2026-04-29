@@ -15,6 +15,15 @@ type TopNavProps = React.HTMLAttributes<HTMLElement> & {
   links: TopNavLink[]
 }
 
+function splitHref(href: string) {
+  const [pathname, search = ''] = href.split('?')
+
+  return {
+    pathname,
+    search,
+  }
+}
+
 /**
  * 顶部导航栏组件
  * 在大屏幕显示水平导航，在小屏幕显示下拉菜单
@@ -56,13 +65,24 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
                       {title}
                     </a>
                   ) : (
-                    <Link
-                      to={href}
-                      className={!isActive ? 'text-muted-foreground' : ''}
-                      disabled={disabled}
-                    >
-                      {title}
-                    </Link>
+                    (() => {
+                      const { pathname, search } = splitHref(href)
+
+                      return (
+                        <Link
+                          to={pathname}
+                          search={
+                            search
+                              ? Object.fromEntries(new URLSearchParams(search))
+                              : undefined
+                          }
+                          className={!isActive ? 'text-muted-foreground' : ''}
+                          disabled={disabled}
+                        >
+                          {title}
+                        </Link>
+                      )
+                    })()
                   )}
                 </DropdownMenuItem>
               )
@@ -91,14 +111,25 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
               {title}
             </a>
           ) : (
-            <Link
-              key={`${title}-${href}`}
-              to={href}
-              disabled={disabled}
-              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
-            >
-              {title}
-            </Link>
+            (() => {
+              const { pathname, search } = splitHref(href)
+
+              return (
+                <Link
+                  key={`${title}-${href}`}
+                  to={pathname}
+                  search={
+                    search
+                      ? Object.fromEntries(new URLSearchParams(search))
+                      : undefined
+                  }
+                  disabled={disabled}
+                  className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
+                >
+                  {title}
+                </Link>
+              )
+            })()
           )
         )}
       </nav>
