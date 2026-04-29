@@ -310,8 +310,14 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 		return 0, errors.New("affCode 为空！")
 	}
 	var user User
-	err := DB.Select("id").First(&user, "aff_code = ?", affCode).Error
-	return user.Id, err
+	err := DB.Select("id, status").First(&user, "aff_code = ?", affCode).Error
+	if err != nil {
+		return 0, err
+	}
+	if user.Status != common.UserStatusEnabled {
+		return 0, errors.New("邀请码无效")
+	}
+	return user.Id, nil
 }
 
 func DeleteUserById(id int) (err error) {

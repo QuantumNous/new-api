@@ -266,7 +266,11 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	affCode := session.Get("aff")
 	inviterId := 0
 	if affCode != nil {
-		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
+		var affErr error
+		inviterId, affErr = model.GetUserIdByAffCode(affCode.(string))
+		if affErr != nil {
+			return nil, affErr
+		}
 	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
