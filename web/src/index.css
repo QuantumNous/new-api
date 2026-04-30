@@ -438,7 +438,7 @@ html.dark .sidebar-brand {
   border-bottom-color: rgba(43, 48, 59, 0.95);
 }
 
-html.dark .sidebar-brand-title,
+/* html.dark .sidebar-brand-title, */
 html.dark .sidebar-user-name {
   color: #f8fafc !important;
 }
