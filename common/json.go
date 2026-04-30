@@ -43,3 +43,19 @@ func GetJsonType(data json.RawMessage) string {
 		return "number"
 	}
 }
+
+// JsonRawMessageToString returns JSON strings as their decoded value and other JSON values as raw text.
+func JsonRawMessageToString(data json.RawMessage) string {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return ""
+	}
+	if trimmed[0] != '"' {
+		return string(trimmed)
+	}
+	var value string
+	if err := Unmarshal(trimmed, &value); err != nil {
+		return string(trimmed)
+	}
+	return value
+}

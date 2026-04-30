@@ -5,6 +5,7 @@ import (
 	//"os"
 	//"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,24 @@ var Footer = ""
 var Logo = ""
 var TopUpLink = ""
 
+var themeValue atomic.Value // stores string; safe for concurrent read/write
+
+func init() {
+	themeValue.Store("classic")
+}
+
+func GetTheme() string {
+	return themeValue.Load().(string)
+}
+
+// SetTheme updates the frontend theme atomically.
+// Only "default" and "classic" are accepted; other values are silently ignored.
+func SetTheme(t string) {
+	if t == "default" || t == "classic" {
+		themeValue.Store(t)
+	}
+}
+
 // var ChatLink = ""
 // var ChatLink2 = ""
 var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
@@ -27,9 +46,9 @@ var DrawingEnabled = true
 var TaskEnabled = true
 var DataExportEnabled = true
 var DataExportInterval = 5         // unit: minute
-var DataExportDefaultTime = "hour"   // unit: minute
-var DataDashboardChartTabs = ""      // comma-separated visible tab keys, empty = all
-var DefaultCollapseSidebar = false   // default value of collapse sidebar
+var DataExportDefaultTime = "hour" // unit: minute
+var DataDashboardChartTabs = ""    // comma-separated visible tab keys, empty = all
+var DefaultCollapseSidebar = false // default value of collapse sidebar
 
 // Any options with "Secret", "Token" in its key won't be return by GetOptions
 
