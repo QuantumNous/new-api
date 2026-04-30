@@ -960,6 +960,24 @@ func UpdateUserUsedQuotaAndRequestCount(id int, quota int) {
 	updateUserUsedQuotaAndRequestCount(id, quota, 1)
 }
 
+// UpdateUserUsedQuotaDelta 仅调整 used_quota（不动 request_count），支持负值。
+// 用于异步任务的退款 / 补扣场景，避免 request_count 被错误累加：
+//   - 退款：传入负值，used_quota 回退；
+//   - 补扣：传入正值，used_quota 增加。
+//
+// 与 UpdateUserUsedQuotaAndRequestCount 走同一批量通道（BatchUpdateTypeUsedQuota），
+// 底层 SQL 是 `used_quota + ?`，天然支持正负。
+func UpdateUserUsedQuotaDelta(id int, delta int) {
+	if delta == 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUsedQuota, id, delta)
+		return
+	}
+	updateUserUsedQuota(id, delta)
+}
+
 func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
 		map[string]interface{}{

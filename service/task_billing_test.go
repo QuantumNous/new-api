@@ -44,6 +44,7 @@ func TestMain(m *testing.M) {
 		&model.Channel{},
 		&model.TopUp{},
 		&model.UserSubscription{},
+		&model.QuotaData{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -65,12 +66,32 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM channels")
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		model.DB.Exec("DELETE FROM quota_data")
+		// 把内存里残留的 cache 也清掉，避免上一用例的统计污染下一用例
+		model.CacheQuotaDataLock.Lock()
+		model.CacheQuotaData = make(map[string]*model.QuotaData)
+		model.CacheQuotaDataLock.Unlock()
 	})
 }
 
 func seedUser(t *testing.T, id int, quota int) {
 	t.Helper()
 	user := &model.User{Id: id, Username: "test_user", Quota: quota, Status: common.UserStatusEnabled}
+	require.NoError(t, model.DB.Create(user).Error)
+}
+
+// seedUserWithUsed 同 seedUser，但允许设置 used_quota / request_count 初值，
+// 用于验证退款/补扣时 used_quota 守恒、request_count 不被污染。
+func seedUserWithUsed(t *testing.T, id int, quota int, used int, requestCount int) {
+	t.Helper()
+	user := &model.User{
+		Id:           id,
+		Username:     "test_user",
+		Quota:        quota,
+		UsedQuota:    used,
+		RequestCount: requestCount,
+		Status:       common.UserStatusEnabled,
+	}
 	require.NoError(t, model.DB.Create(user).Error)
 }
 
@@ -105,6 +126,19 @@ func seedSubscription(t *testing.T, id int, userId int, amountTotal int64, amoun
 func seedChannel(t *testing.T, id int) {
 	t.Helper()
 	ch := &model.Channel{Id: id, Name: "test_channel", Key: "sk-test", Status: common.ChannelStatusEnabled}
+	require.NoError(t, model.DB.Create(ch).Error)
+}
+
+// seedChannelWithUsed 在创建渠道的同时写入 used_quota，用于验证渠道用量统计同步守恒。
+func seedChannelWithUsed(t *testing.T, id int, usedQuota int64) {
+	t.Helper()
+	ch := &model.Channel{
+		Id:        id,
+		Name:      "test_channel",
+		Key:       "sk-test",
+		Status:    common.ChannelStatusEnabled,
+		UsedQuota: usedQuota,
+	}
 	require.NoError(t, model.DB.Create(ch).Error)
 }
 
@@ -144,6 +178,27 @@ func getUserQuota(t *testing.T, id int) int {
 	var user model.User
 	require.NoError(t, model.DB.Select("quota").Where("id = ?", id).First(&user).Error)
 	return user.Quota
+}
+
+func getUserUsedQuota(t *testing.T, id int) int {
+	t.Helper()
+	var user model.User
+	require.NoError(t, model.DB.Select("used_quota").Where("id = ?", id).First(&user).Error)
+	return user.UsedQuota
+}
+
+func getUserRequestCount(t *testing.T, id int) int {
+	t.Helper()
+	var user model.User
+	require.NoError(t, model.DB.Select("request_count").Where("id = ?", id).First(&user).Error)
+	return user.RequestCount
+}
+
+func getChannelUsedQuota(t *testing.T, id int) int64 {
+	t.Helper()
+	var ch model.Channel
+	require.NoError(t, model.DB.Select("used_quota").Where("id = ?", id).First(&ch).Error)
+	return ch.UsedQuota
 }
 
 func getTokenRemainQuota(t *testing.T, id int) int {
@@ -193,25 +248,42 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	ctx := context.Background()
 
 	const userID, tokenID, channelID = 1, 1, 1
-	const initQuota, preConsumed = 10000, 3000
+	// 模拟「LogTaskConsumption 已记账后任务失败」的真实状态：
+	// - 钱包预扣了 preConsumed → User.Quota=initQuota（已减完）/ UsedQuota=preConsumed
+	// - request_count 已 +1
+	// - 渠道 used_quota 已 +preConsumed
+	const walletAfterPre, preConsumed = 7000, 3000
+	const userInitTotal = walletAfterPre + preConsumed // 总额度（守恒目标）
 	const tokenRemain = 5000
+	const tokenUsedAfterPre = preConsumed
+	const requestCountBefore = 1
 
-	seedUser(t, userID, initQuota)
+	seedUserWithUsed(t, userID, walletAfterPre, preConsumed, requestCountBefore)
 	seedToken(t, tokenID, userID, "sk-test-key", tokenRemain)
-	seedChannel(t, channelID)
+	seedChannelWithUsed(t, channelID, int64(preConsumed))
+
+	// 把 token 的 used_quota 也对齐到 preConsumed（模拟 DecreaseTokenQuota 的副作用）
+	require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", tokenID).Update("used_quota", tokenUsedAfterPre).Error)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
 
 	RefundTaskQuota(ctx, task, "task failed: upstream error")
 
-	// User quota should increase by preConsumed
-	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+	// 用户表：Quota 回退 + UsedQuota 回退 → 总额度守恒
+	assert.Equal(t, walletAfterPre+preConsumed, getUserQuota(t, userID))
+	assert.Equal(t, 0, getUserUsedQuota(t, userID))
+	assert.Equal(t, userInitTotal, getUserQuota(t, userID)+getUserUsedQuota(t, userID))
+	// request_count 不应被退款污染
+	assert.Equal(t, requestCountBefore, getUserRequestCount(t, userID))
 
-	// Token remain_quota should increase, used_quota should decrease
+	// 令牌：剩余额度回涨；已用额度回到 0
 	assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
-	assert.Equal(t, -preConsumed, getTokenUsedQuota(t, tokenID))
+	assert.Equal(t, 0, getTokenUsedQuota(t, tokenID))
 
-	// A refund log should be created
+	// 渠道用量：回退到预扣前
+	assert.Equal(t, int64(0), getChannelUsedQuota(t, channelID))
+
+	// 退款日志
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
@@ -298,32 +370,44 @@ func TestRecalculate_PositiveDelta(t *testing.T) {
 	ctx := context.Background()
 
 	const userID, tokenID, channelID = 10, 10, 10
-	const initQuota, preConsumed = 10000, 2000
-	const actualQuota = 3000 // under-charged by 1000
+	// 模拟预扣后的真实状态
+	const walletAfterPre, preConsumed = 8000, 2000
+	const actualQuota = 3000 // under-charged by 1000 (need to charge an extra 1000)
+	const userInitTotal = walletAfterPre + preConsumed
 	const tokenRemain = 5000
+	const requestCountBefore = 1
 
-	seedUser(t, userID, initQuota)
+	seedUserWithUsed(t, userID, walletAfterPre, preConsumed, requestCountBefore)
 	seedToken(t, tokenID, userID, "sk-recalc-pos", tokenRemain)
-	seedChannel(t, channelID)
+	seedChannelWithUsed(t, channelID, int64(preConsumed))
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
 
-	RecalculateTaskQuota(ctx, task, actualQuota, "adaptor adjustment")
+	RecalculateTaskQuota(ctx, task, actualQuota, 0, "adaptor adjustment")
 
-	// User quota should decrease by the delta (1000 additional charge)
-	assert.Equal(t, initQuota-(actualQuota-preConsumed), getUserQuota(t, userID))
+	delta := actualQuota - preConsumed
 
-	// Token should also be charged the delta
-	assert.Equal(t, tokenRemain-(actualQuota-preConsumed), getTokenRemainQuota(t, tokenID))
+	// 用户表：Quota -delta、UsedQuota +delta，总额度守恒
+	assert.Equal(t, walletAfterPre-delta, getUserQuota(t, userID))
+	assert.Equal(t, preConsumed+delta, getUserUsedQuota(t, userID))
+	assert.Equal(t, userInitTotal, getUserQuota(t, userID)+getUserUsedQuota(t, userID))
+	// request_count 不被结算污染
+	assert.Equal(t, requestCountBefore, getUserRequestCount(t, userID))
 
-	// task.Quota should be updated to actualQuota
+	// 令牌
+	assert.Equal(t, tokenRemain-delta, getTokenRemainQuota(t, tokenID))
+
+	// 渠道用量随补扣同向变化
+	assert.Equal(t, int64(actualQuota), getChannelUsedQuota(t, channelID))
+
+	// task.Quota 落到 actualQuota
 	assert.Equal(t, actualQuota, task.Quota)
 
-	// Log type should be Consume (additional charge)
+	// 日志记 Consume + delta
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeConsume, log.Type)
-	assert.Equal(t, actualQuota-preConsumed, log.Quota)
+	assert.Equal(t, delta, log.Quota)
 }
 
 func TestRecalculate_NegativeDelta(t *testing.T) {
@@ -331,32 +415,42 @@ func TestRecalculate_NegativeDelta(t *testing.T) {
 	ctx := context.Background()
 
 	const userID, tokenID, channelID = 11, 11, 11
-	const initQuota, preConsumed = 10000, 5000
+	const walletAfterPre, preConsumed = 5000, 5000
 	const actualQuota = 3000 // over-charged by 2000
+	const userInitTotal = walletAfterPre + preConsumed
 	const tokenRemain = 5000
+	const requestCountBefore = 1
 
-	seedUser(t, userID, initQuota)
+	seedUserWithUsed(t, userID, walletAfterPre, preConsumed, requestCountBefore)
 	seedToken(t, tokenID, userID, "sk-recalc-neg", tokenRemain)
-	seedChannel(t, channelID)
+	seedChannelWithUsed(t, channelID, int64(preConsumed))
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
 
-	RecalculateTaskQuota(ctx, task, actualQuota, "adaptor adjustment")
+	RecalculateTaskQuota(ctx, task, actualQuota, 0, "adaptor adjustment")
 
-	// User quota should increase by abs(delta) = 2000 (refund overpayment)
-	assert.Equal(t, initQuota+(preConsumed-actualQuota), getUserQuota(t, userID))
+	refund := preConsumed - actualQuota
 
-	// Token should be refunded the difference
-	assert.Equal(t, tokenRemain+(preConsumed-actualQuota), getTokenRemainQuota(t, tokenID))
+	// 用户表：Quota +refund、UsedQuota -refund，总额度守恒
+	assert.Equal(t, walletAfterPre+refund, getUserQuota(t, userID))
+	assert.Equal(t, preConsumed-refund, getUserUsedQuota(t, userID))
+	assert.Equal(t, userInitTotal, getUserQuota(t, userID)+getUserUsedQuota(t, userID))
+	assert.Equal(t, requestCountBefore, getUserRequestCount(t, userID))
 
-	// task.Quota updated
+	// 令牌：剩余额度增加
+	assert.Equal(t, tokenRemain+refund, getTokenRemainQuota(t, tokenID))
+
+	// 渠道用量同步退还
+	assert.Equal(t, int64(actualQuota), getChannelUsedQuota(t, channelID))
+
+	// task.Quota 落到 actualQuota
 	assert.Equal(t, actualQuota, task.Quota)
 
-	// Log type should be Refund
+	// 日志记 Refund + refund
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
-	assert.Equal(t, preConsumed-actualQuota, log.Quota)
+	assert.Equal(t, refund, log.Quota)
 }
 
 func TestRecalculate_ZeroDelta(t *testing.T) {
@@ -370,7 +464,7 @@ func TestRecalculate_ZeroDelta(t *testing.T) {
 
 	task := makeTask(userID, 0, preConsumed, 0, BillingSourceWallet, 0)
 
-	RecalculateTaskQuota(ctx, task, preConsumed, "exact match")
+	RecalculateTaskQuota(ctx, task, preConsumed, 0, "exact match")
 
 	// No change to user quota
 	assert.Equal(t, initQuota, getUserQuota(t, userID))
@@ -390,11 +484,214 @@ func TestRecalculate_ActualQuotaZero(t *testing.T) {
 
 	task := makeTask(userID, 0, 5000, 0, BillingSourceWallet, 0)
 
-	RecalculateTaskQuota(ctx, task, 0, "zero actual")
+	RecalculateTaskQuota(ctx, task, 0, 0, "zero actual")
 
 	// No change (early return)
 	assert.Equal(t, initQuota, getUserQuota(t, userID))
 	assert.Equal(t, int64(0), countLogs(t))
+}
+
+// TestQuotaData_RefundFullyReverts 端到端验证：
+//  1. LogTaskConsumption 的 quota_data 进入 cache (+pre, count=1, tokens=0)；
+//  2. 任务失败触发 RefundTaskQuota → 反向 adjust 写入 cache；
+//  3. 落库后该 hour bucket 的 quota / count / tokens 全部归零（守恒）。
+func TestQuotaData_RefundFullyReverts(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	prevDataExport := common.DataExportEnabled
+	prevLogConsume := common.LogConsumeEnabled
+	common.DataExportEnabled = true
+	common.LogConsumeEnabled = true
+	t.Cleanup(func() {
+		common.DataExportEnabled = prevDataExport
+		common.LogConsumeEnabled = prevLogConsume
+	})
+
+	const userID, tokenID, channelID = 40, 40, 40
+	const walletAfterPre, preConsumed = 7000, 3000
+
+	seedUserWithUsed(t, userID, walletAfterPre, preConsumed, 1)
+	seedToken(t, tokenID, userID, "sk-qdata-refund", 5000)
+	seedChannelWithUsed(t, channelID, int64(preConsumed))
+
+	// 模拟 LogTaskConsumption 已经为本任务写过一笔正向 quota_data（count=1, quota=preConsumed）
+	username, err := model.GetUsernameById(userID, false)
+	require.NoError(t, err)
+	model.LogQuotaData(userID, username, "test-model", preConsumed, time.Now().Unix(), 0)
+
+	// 任务失败 → 退款（内部应同步反向 adjust quota_data）
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	RefundTaskQuota(ctx, task, "task failed")
+
+	// RefundTaskQuota 内部 RecordTaskBillingLog 走 gopool.Go 异步刷 quota_data，
+	// 等待最多 1 秒让 goroutine 把 cache 写完再 flush。
+	require.Eventually(t, func() bool {
+		model.CacheQuotaDataLock.Lock()
+		defer model.CacheQuotaDataLock.Unlock()
+		// 反向 adjust 落入 cache 后，quota / token_used 净值应当为 0
+		for _, qd := range model.CacheQuotaData {
+			if qd.UserID != userID || qd.ModelName != "test-model" {
+				continue
+			}
+			return qd.Quota == 0 && qd.TokenUsed == 0
+		}
+		return false
+	}, time.Second, 20*time.Millisecond)
+
+	model.SaveQuotaDataCache()
+
+	// 落库后断言：该 user/model 维度下 sum(quota) 和 sum(token_used) 都应为 0（守恒）
+	var sumQuota, sumTokens int64
+	require.NoError(t, model.DB.Table("quota_data").
+		Select("COALESCE(SUM(quota), 0)").
+		Where("user_id = ? and model_name = ?", userID, "test-model").
+		Scan(&sumQuota).Error)
+	require.NoError(t, model.DB.Table("quota_data").
+		Select("COALESCE(SUM(token_used), 0)").
+		Where("user_id = ? and model_name = ?", userID, "test-model").
+		Scan(&sumTokens).Error)
+	assert.Equal(t, int64(0), sumQuota, "quota_data.quota 应在退款后净值归零")
+	assert.Equal(t, int64(0), sumTokens, "quota_data.token_used 应在退款后净值归零")
+}
+
+// TestQuotaData_NegativeDeltaStillRecordsTokens 防回归用例：
+// 当上游实际花费 < 预扣（部分退款），但仍然返回了 totalTokens 时，
+// quota_data 必须做到「钱往负方向走，token 仍向正方向加到 totalTokens」。
+// 这是历史 sign bug 的高发场景：金额 delta 是负的，token 却必须是正的。
+func TestQuotaData_NegativeDeltaStillRecordsTokens(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	prevDataExport := common.DataExportEnabled
+	prevLogConsume := common.LogConsumeEnabled
+	common.DataExportEnabled = true
+	common.LogConsumeEnabled = true
+	t.Cleanup(func() {
+		common.DataExportEnabled = prevDataExport
+		common.LogConsumeEnabled = prevLogConsume
+	})
+
+	const userID, tokenID, channelID = 42, 42, 42
+	const walletAfterPre, preConsumed = 5000, 5000
+	const actualQuota = 3000 // delta = -2000，部分退款
+	const totalTokens = 1234
+
+	seedUserWithUsed(t, userID, walletAfterPre, preConsumed, 1)
+	seedToken(t, tokenID, userID, "sk-qdata-neg-tokens", 5000)
+	seedChannelWithUsed(t, channelID, int64(preConsumed))
+
+	username, err := model.GetUsernameById(userID, false)
+	require.NoError(t, err)
+	model.LogQuotaData(userID, username, "test-model", preConsumed, time.Now().Unix(), 0)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	RecalculateTaskQuota(ctx, task, actualQuota, totalTokens, "token重算-负delta")
+
+	require.Eventually(t, func() bool {
+		model.CacheQuotaDataLock.Lock()
+		defer model.CacheQuotaDataLock.Unlock()
+		for _, qd := range model.CacheQuotaData {
+			if qd.UserID != userID || qd.ModelName != "test-model" {
+				continue
+			}
+			// quota: preConsumed + (actualQuota - preConsumed) = actualQuota
+			// token_used: 0 + totalTokens = totalTokens（关键：不是 -totalTokens）
+			return qd.Quota == actualQuota && qd.TokenUsed == totalTokens
+		}
+		return false
+	}, time.Second, 20*time.Millisecond)
+
+	model.SaveQuotaDataCache()
+
+	var sumQuota, sumTokens int64
+	require.NoError(t, model.DB.Table("quota_data").
+		Select("COALESCE(SUM(quota), 0)").
+		Where("user_id = ? and model_name = ?", userID, "test-model").
+		Scan(&sumQuota).Error)
+	require.NoError(t, model.DB.Table("quota_data").
+		Select("COALESCE(SUM(token_used), 0)").
+		Where("user_id = ? and model_name = ?", userID, "test-model").
+		Scan(&sumTokens).Error)
+	assert.Equal(t, int64(actualQuota), sumQuota, "quota 应当落在 actualQuota")
+	assert.Equal(t, int64(totalTokens), sumTokens, "token_used 应当向正方向加到 totalTokens")
+
+	// Log 表的 token 字段也应正确填到 CompletionTokens（即便日志类型是 Refund）
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeRefund, log.Type)
+	assert.Equal(t, 0, log.PromptTokens)
+	assert.Equal(t, totalTokens, log.CompletionTokens)
+}
+
+// TestQuotaData_RecalcByTokensRecordsTokens 验证 token 重算路径下：
+//  1. quota_data.quota 净值 = actualQuota（pre + delta）
+//  2. quota_data.token_used 由 0 增加到 totalTokens（视频任务 input=0 全部记 completion）
+//  3. Log 的 prompt_tokens=0 / completion_tokens=totalTokens
+func TestQuotaData_RecalcByTokensRecordsTokens(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	prevDataExport := common.DataExportEnabled
+	prevLogConsume := common.LogConsumeEnabled
+	common.DataExportEnabled = true
+	common.LogConsumeEnabled = true
+	t.Cleanup(func() {
+		common.DataExportEnabled = prevDataExport
+		common.LogConsumeEnabled = prevLogConsume
+	})
+
+	const userID, tokenID, channelID = 41, 41, 41
+	const walletAfterPre, preConsumed = 8000, 2000
+	const actualQuota = 3000 // delta = +1000
+	const totalTokens = 1234
+
+	seedUserWithUsed(t, userID, walletAfterPre, preConsumed, 1)
+	seedToken(t, tokenID, userID, "sk-qdata-tokens", 5000)
+	seedChannelWithUsed(t, channelID, int64(preConsumed))
+
+	username, err := model.GetUsernameById(userID, false)
+	require.NoError(t, err)
+	model.LogQuotaData(userID, username, "test-model", preConsumed, time.Now().Unix(), 0)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	RecalculateTaskQuota(ctx, task, actualQuota, totalTokens, "token重算")
+
+	// 等异步 LogQuotaDataAdjust 刷进 cache
+	require.Eventually(t, func() bool {
+		model.CacheQuotaDataLock.Lock()
+		defer model.CacheQuotaDataLock.Unlock()
+		for _, qd := range model.CacheQuotaData {
+			if qd.UserID != userID || qd.ModelName != "test-model" {
+				continue
+			}
+			// cache 里此时 quota = preConsumed + (actualQuota - preConsumed) = actualQuota
+			//             token_used = 0 + totalTokens = totalTokens
+			return qd.Quota == actualQuota && qd.TokenUsed == totalTokens
+		}
+		return false
+	}, time.Second, 20*time.Millisecond)
+
+	model.SaveQuotaDataCache()
+
+	var sumQuota, sumTokens int64
+	require.NoError(t, model.DB.Table("quota_data").
+		Select("COALESCE(SUM(quota), 0)").
+		Where("user_id = ? and model_name = ?", userID, "test-model").
+		Scan(&sumQuota).Error)
+	require.NoError(t, model.DB.Table("quota_data").
+		Select("COALESCE(SUM(token_used), 0)").
+		Where("user_id = ? and model_name = ?", userID, "test-model").
+		Scan(&sumTokens).Error)
+	assert.Equal(t, int64(actualQuota), sumQuota)
+	assert.Equal(t, int64(totalTokens), sumTokens)
+
+	// Log 的 token 字段被正确填写
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeConsume, log.Type)
+	assert.Equal(t, 0, log.PromptTokens)
+	assert.Equal(t, totalTokens, log.CompletionTokens)
 }
 
 func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
@@ -414,7 +711,7 @@ func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceSubscription, subID)
 
-	RecalculateTaskQuota(ctx, task, actualQuota, "subscription over-charge")
+	RecalculateTaskQuota(ctx, task, actualQuota, 0, "subscription over-charge")
 
 	// Subscription used should decrease by delta (refund 3000)
 	assert.Equal(t, subUsed-int64(preConsumed-actualQuota), getSubscriptionUsed(t, subID))
@@ -476,7 +773,7 @@ func simulatePollBilling(ctx context.Context, task *model.Task, newStatus model.
 	}
 
 	if shouldSettle && actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "test settle")
+		RecalculateTaskQuota(ctx, task, actualQuota, 0, "test settle")
 	}
 	if shouldRefund {
 		RefundTaskQuota(ctx, task, task.FailReason)
