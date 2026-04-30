@@ -34,11 +34,11 @@ func UpdateQuotaData() {
 var CacheQuotaData = make(map[string]*QuotaData)
 var CacheQuotaDataLock = sync.Mutex{}
 
-func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int, countDelta int) {
 	key := fmt.Sprintf("%d-%s-%s-%d", userId, username, modelName, createdAt)
 	quotaData, ok := CacheQuotaData[key]
 	if ok {
-		quotaData.Count += 1
+		quotaData.Count += countDelta
 		quotaData.Quota += quota
 		quotaData.TokenUsed += tokenUsed
 	} else {
@@ -47,7 +47,7 @@ func logQuotaDataCache(userId int, username string, modelName string, quota int,
 			Username:  username,
 			ModelName: modelName,
 			CreatedAt: createdAt,
-			Count:     1,
+			Count:     countDelta,
 			Quota:     quota,
 			TokenUsed: tokenUsed,
 		}
@@ -61,7 +61,22 @@ func LogQuotaData(userId int, username string, modelName string, quota int, crea
 
 	CacheQuotaDataLock.Lock()
 	defer CacheQuotaDataLock.Unlock()
-	logQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed)
+	logQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed, 1)
+}
+
+// LogQuotaDataAdjust 用于异步任务的退款/补扣场景：仅调整 quota / token_used，不变化 count。
+// quotaDelta、tokenDelta 支持正负：退款传负值，补扣传正值。
+//   - 钱不动只补 token 统计（如 token 重算 delta=0 但 totalTokens>0）也可以直接调用。
+//   - 调用前置开关由调用方负责（一般为 common.DataExportEnabled）。
+func LogQuotaDataAdjust(userId int, username string, modelName string, quotaDelta int, createdAt int64, tokenDelta int) {
+	if quotaDelta == 0 && tokenDelta == 0 {
+		return
+	}
+	createdAt = createdAt - (createdAt % 3600)
+
+	CacheQuotaDataLock.Lock()
+	defer CacheQuotaDataLock.Unlock()
+	logQuotaDataCache(userId, username, modelName, quotaDelta, createdAt, tokenDelta, 0)
 }
 
 func SaveQuotaDataCache() {
