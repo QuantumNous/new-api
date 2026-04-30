@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
@@ -68,4 +70,26 @@ func TestBuildTestLogOtherInjectsTieredInfo(t *testing.T) {
 	require.Equal(t, "tiered_expr", other["billing_mode"])
 	require.Equal(t, "base", other["matched_tier"])
 	require.NotEmpty(t, other["expr_b64"])
+}
+
+func TestResolveAutomaticChannelTestModelAppliesModelMapping(t *testing.T) {
+	modelMapping := `{"gpt-5.3-codex":"deepseek-v4-pro"}`
+	channel := &model.Channel{
+		Type:         constant.ChannelTypeDeepSeek,
+		ModelMapping: &modelMapping,
+	}
+
+	resolvedModel := resolveAutomaticChannelTestModel(channel, "gpt-5.3-codex")
+	requestPath := detectAutomaticChannelTestRequestPath(channel, resolvedModel)
+
+	require.Equal(t, "deepseek-v4-pro", resolvedModel)
+	require.Equal(t, "/v1/chat/completions", requestPath)
+}
+
+func TestNormalizeChannelTestEndpointKeepsCodexChannelOnResponses(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeCodex}
+
+	endpointType := normalizeChannelTestEndpoint(channel, "gpt-5.3-codex", "")
+
+	require.Equal(t, string(constant.EndpointTypeOpenAIResponse), endpointType)
 }
