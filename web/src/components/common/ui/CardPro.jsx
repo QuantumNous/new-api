@@ -139,13 +139,20 @@ const CardPro = ({
 
   const headerContent = renderHeader();
 
-  // 渲染分页区域
+  // Footer pagination row.
+  // Previously rendered with a `border-t` divider above the pagination
+  // strip — that line read as a hard horizontal rule slicing the card
+  // in two and sat awkwardly close to the last table row's bottom
+  // border. The card already has its own rounded shadowed surface, the
+  // table has its own bottom border, and the pagination labels live on
+  // their own visual baseline — so the explicit rule was redundant
+  // chrome. Keep the spacing breath via `mt-2`/`pt-3`.
   const renderFooter = () => {
     if (!paginationArea) return null;
 
     return (
       <div
-        className={`flex w-full border-t border-border pt-4 ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
+        className={`flex w-full pt-3 ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
       >
         {paginationArea}
       </div>

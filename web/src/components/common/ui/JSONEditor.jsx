@@ -649,11 +649,16 @@ const JSONEditor = ({
             }}
           >
             <Tabs.List aria-label={t('编辑模式')}>
-              <Tabs.Tab id='visual'>
+              {/* `whitespace-nowrap` on each tab prevents longer
+                  English labels (e.g. "Manual editing") from wrapping
+                  to two lines inside a narrow side-sheet container —
+                  the CN labels (3–4 chars) never wrap so the bug only
+                  showed in non-CN locales. */}
+              <Tabs.Tab id='visual' className='whitespace-nowrap'>
                 {t('可视化')}
                 <Tabs.Indicator />
               </Tabs.Tab>
-              <Tabs.Tab id='manual'>
+              <Tabs.Tab id='manual' className='whitespace-nowrap'>
                 {t('手动编辑')}
                 <Tabs.Indicator />
               </Tabs.Tab>

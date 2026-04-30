@@ -22,7 +22,10 @@ import {
   Button as HeroButton,
   DateField,
   DateRangePicker,
+  Input,
+  ListBox,
   RangeCalendar,
+  Select,
 } from '@heroui/react';
 import { CalendarDate, parseDate } from '@internationalized/date';
 
@@ -124,6 +127,18 @@ export function useTableFilterForm({ initValues = {}, setFormApi, onSubmit }) {
   return { values, setFieldValue, handleSubmit, api };
 }
 
+// FilterInput / FilterSelect / FilterDateRange all live inside `CardPro`
+// (a Surface). The HeroUI `secondary` variant the in-Surface docs
+// recommends paints the trigger with `--color-default`, which in this
+// theme resolves to a slightly cyan-tinted oklch grey rather than the
+// pure-white `--field-background` shown in the official Select examples
+// — so the trigger ended up reading as a different colour than the
+// surrounding `<Input>` placeholders that consumers compare it to.
+// Default (`primary`) variant uses `--field-background` (our theme:
+// `oklch(100% 0 0)`, i.e. pure white in light mode, the matching dark
+// neutral in dark mode) and matches the HeroUI Select docs page
+// pixel-for-pixel. Sharing the variant across all three filter
+// primitives keeps the row visually homogeneous.
 export function FilterInput({
   value,
   onChange,
@@ -132,38 +147,85 @@ export function FilterInput({
   className = '',
 }) {
   return (
-    <input
+    <Input
       type={type}
       value={value ?? ''}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className={`h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary ${className}`}
+      aria-label={placeholder}
+      className={`w-full ${className}`}
     />
   );
 }
+
+// HeroUI v3 `Select` doesn't accept `''`/`null` as a valid `selectedKey` (those
+// mean "nothing selected" → render placeholder). Many of our filter dropdowns
+// however ship an explicit "全部" option whose underlying value is `''`. Map
+// that through a sentinel so HeroUI keeps the option highlighted and we can
+// round-trip back to the empty string the consumer expects.
+const FILTER_SELECT_EMPTY_KEY = '__filter_select_empty__';
+
+const toSelectKey = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return FILTER_SELECT_EMPTY_KEY;
+  }
+  return String(value);
+};
+
+const fromSelectKey = (key) => {
+  if (key === null || key === undefined || key === FILTER_SELECT_EMPTY_KEY) {
+    return '';
+  }
+  return String(key);
+};
 
 export function FilterSelect({
   value,
   onChange,
   placeholder,
   options = [],
-  children,
   className = '',
 }) {
+  const selectedKey = toSelectKey(value);
+  const ariaLabel = placeholder || 'Filter';
+
+  // No className overrides on `Select.Trigger` / `Select.Indicator` — let
+  // HeroUI paint the field with its built-in `--field-background` /
+  // `--color-field-border` tokens so it matches `<Input variant='secondary'>`
+  // in the same row pixel-for-pixel. We previously hand-rolled
+  // `bg-background border-border rounded-xl` overrides which fought the
+  // BEM styles and produced the slight blue-tinted trigger reported by
+  // the user.
   return (
-    <select
-      value={value ?? ''}
-      onChange={(event) => onChange(event.target.value)}
-      className={`h-9 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-primary ${className}`}
+    <Select
+      aria-label={ariaLabel}
+      placeholder={placeholder}
+      selectedKey={selectedKey}
+      onSelectionChange={(key) => onChange(fromSelectKey(key))}
+      className={`w-full ${className}`}
     >
-      {placeholder ? <option value=''>{placeholder}</option> : null}
-      {options.map((option) => (
-        <option key={String(option.value ?? '')} value={option.value ?? ''}>
-          {option.label}
-        </option>
-      ))}
-      {children}
-    </select>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover className='min-w-(--trigger-width)'>
+        <ListBox>
+          {options.map((option) => {
+            const id = toSelectKey(option.value);
+            return (
+              <ListBox.Item
+                key={id}
+                id={id}
+                textValue={String(option.label ?? '')}
+              >
+                {option.label}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            );
+          })}
+        </ListBox>
+      </Select.Popover>
+    </Select>
   );
 }
 
@@ -214,7 +276,11 @@ export function FilterDateRange({
       granularity='day'
       shouldForceLeadingZeros
       aria-label={ariaLabel}
-      className={`w-full max-w-72 ${className}`}
+      // Width is intentionally driven by the parent grid cell — capping with
+      // `max-w-72` here was clipping the start/end date fields on wide
+      // screens (e.g. /console/log on lg+ where this picker spans 2 cols).
+      // Consumers that want a hard cap can pass `max-w-*` via `className`.
+      className={`w-full ${className}`}
     >
       <DateField.Group fullWidth variant='primary'>
         <DateField.InputContainer>

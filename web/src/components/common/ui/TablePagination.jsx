@@ -98,7 +98,7 @@ export default function TablePagination({
             `&:has(.select__indicator)` so the absolutely-positioned
             chevron has its own slot. We only tighten height + left padding
             and shrink the inner value text to fit a pagination chip. */}
-        <Select.Trigger className='!min-h-8 !rounded-lg !pl-2.5 [&_.select__value]:!text-xs [&_.select__value]:!sm:text-xs'>
+        <Select.Trigger className='!min-h-8 !rounded-lg !pl-2.5 ct-compact-select'>
           <Select.Value />
           <Select.Indicator>
             <ChevronDown size={12} className='text-muted' />

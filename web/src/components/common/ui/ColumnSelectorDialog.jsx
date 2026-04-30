@@ -21,6 +21,7 @@ import React from 'react';
 import {
   Button,
   Checkbox,
+  Label,
   Modal,
   ModalBackdrop,
   ModalBody,
@@ -28,8 +29,39 @@ import {
   ModalDialog,
   ModalFooter,
   ModalHeader,
+  ModalHeading,
   useOverlayState,
 } from '@heroui/react';
+
+// HeroUI v3 Checkbox renders nothing visual unless you spell out the
+// full anatomy below — `<Checkbox>{label}</Checkbox>` produces a label
+// with no visible box. Wrap once here so the dialog stays readable.
+// Per HeroUI docs we also pass `variant='secondary'` because these live
+// inside a Modal (a Surface).
+function CheckboxRow({
+  isSelected,
+  isIndeterminate,
+  isDisabled,
+  onValueChange,
+  children,
+}) {
+  return (
+    <Checkbox
+      variant='secondary'
+      isSelected={isSelected}
+      isIndeterminate={isIndeterminate}
+      isDisabled={isDisabled}
+      onValueChange={onValueChange}
+    >
+      <Checkbox.Control>
+        <Checkbox.Indicator />
+      </Checkbox.Control>
+      <Checkbox.Content>
+        <Label>{children}</Label>
+      </Checkbox.Content>
+    </Checkbox>
+  );
+}
 
 const ColumnSelectorDialog = ({
   title,
@@ -63,43 +95,60 @@ const ColumnSelectorDialog = ({
   return (
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
-        <ModalContainer size='2xl' scroll='inside' placement='center'>
+        {/* `2xl` (~ 42rem) was twice as wide as the actual content — a
+            ~11-checkbox 2-column grid plus a "Select all" row. `md`
+            (~ 28rem) hugs the content while still giving the secondary
+            grid breath at the `sm:grid-cols-2` breakpoint. */}
+        <ModalContainer size='md' scroll='inside' placement='center'>
           <ModalDialog className='bg-background/95 backdrop-blur'>
-            <ModalHeader className='border-b border-border'>
-              {title}
+            {/* No `border-b` / `border-t` on header / footer — HeroUI's
+                Modal anatomy doesn't ship dividers and adding them by
+                hand drifts from the rest of the console (see
+                EditVendorModal / ConfirmDialog refactors). Title text
+                wrapped in `ModalHeading` so it picks up the proper
+                `text-base + font-medium` heading style — bare children
+                of `ModalHeader` fall through to body font-size. */}
+            <ModalHeader>
+              <ModalHeading>{title}</ModalHeading>
             </ModalHeader>
-            <ModalBody className='px-4 py-4 md:px-6'>
-              <div className='space-y-4'>
-                {children}
-                <Checkbox
-                  isSelected={allSelected}
-                  isIndeterminate={someSelected && !allSelected}
-                  onValueChange={onSelectAll}
-                >
-                  {allText}
-                </Checkbox>
-                <div className='grid max-h-96 grid-cols-1 gap-3 overflow-y-auto rounded-2xl border border-border bg-surface-secondary/70 p-4 sm:grid-cols-2'>
-                  {columns.map((column) => (
-                    <Checkbox
-                      key={column.key}
-                      isSelected={!!visibleColumns[column.key]}
-                      isDisabled={column.disabled}
-                      onValueChange={(checked) => onColumnChange(column.key, checked)}
-                    >
-                      {column.title}
-                    </Checkbox>
-                  ))}
-                </div>
+            <ModalBody className='space-y-4'>
+              {children}
+
+              <CheckboxRow
+                isSelected={allSelected}
+                isIndeterminate={someSelected && !allSelected}
+                onValueChange={onSelectAll}
+              >
+                {allText}
+              </CheckboxRow>
+
+              <div className='grid max-h-96 grid-cols-1 gap-3 overflow-y-auto rounded-2xl border border-border bg-surface-secondary/70 p-4 sm:grid-cols-2'>
+                {columns.map((column) => (
+                  <CheckboxRow
+                    key={column.key}
+                    isSelected={!!visibleColumns[column.key]}
+                    isDisabled={column.disabled}
+                    onValueChange={(checked) =>
+                      onColumnChange(column.key, checked)
+                    }
+                  >
+                    {column.title}
+                  </CheckboxRow>
+                ))}
               </div>
             </ModalBody>
-            <ModalFooter className='border-t border-border'>
+            <ModalFooter>
               <Button variant='tertiary' onPress={onReset}>
                 {resetText}
               </Button>
               <Button variant='tertiary' onPress={onClose}>
                 {cancelText}
               </Button>
-              <Button color='primary' onPress={onClose}>
+              {/* `color='primary'` is a HeroUI v2 holdover that v3 silently
+                  drops — use `variant='primary'` to actually paint the
+                  cyan + black-text primary CTA seen on every other
+                  console modal footer. */}
+              <Button variant='primary' onPress={onClose}>
                 {confirmText}
               </Button>
             </ModalFooter>

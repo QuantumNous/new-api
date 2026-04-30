@@ -96,13 +96,22 @@
 [data-theme='dark'] {
   color-scheme: dark;
   --background: oklch(12% 0.0015 196.96);
+  /* Without this, `--foreground` stays at its `:root` light-mode value
+     (`var(--eclipse)` ≈ near-black), which makes plain text cells (ID,
+     username, etc.) invisible on the dark `--background`. HeroUI's own
+     dark theme block sets `--foreground: var(--snow)` but our project's
+     `.dark` overrides ran *after* HeroUI's and dropped this var, so we
+     need to re-establish it here. */
+  --foreground: var(--snow);
+  --default-foreground: var(--snow);
+  --field-foreground: var(--snow);
   --muted: oklch(70.5% 0.003 196.96);
   --scrollbar: oklch(70.5% 0.0015 196.96);
   --surface: oklch(21.03% 0.003 196.96);
   --surface-secondary: oklch(25.7% 0.0023 196.96);
-  --surface-secondary-foreground: oklch(25.7% 0 196.96);
+  --surface-secondary-foreground: var(--snow);
   --surface-tertiary: oklch(27.21% 0.0023 196.96);
-  --surface-tertiary-foreground: oklch(27.21% 0 196.96);
+  --surface-tertiary-foreground: var(--snow);
   --overlay: oklch(21.03% 0.003 196.96);
   --default: oklch(27.4% 0.0015 196.96);
   --accent: oklch(88.32% 0.1488 196.96);
@@ -152,6 +161,15 @@ body,
 body {
   margin: 0;
   font-family: var(--app-font-sans);
+  /* System default text size — was inheriting the browser's 16px default.
+     Lowered to 12px (= Tailwind `text-xs`) so all generic text in the
+     console reads at the same density the table cells, alerts, and form
+     hints were already targeting via per-component overrides. HeroUI's
+     own component styles (`.button`, `.alert`, `.modal__heading`, ...)
+     ship explicit `text-sm` / `text-base` / etc. so they keep their
+     intended sizes — this only affects bare prose / labels / divs that
+     inherit the body font-size. */
+  font-size: 12px;
   color: var(--app-foreground);
   /* Match template-dashboard: flat solid background sourced from --background. */
   background-color: var(--app-background);
@@ -181,6 +199,88 @@ body {
 code,
 pre {
   font-family: 'SFMono-Regular', 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* HeroUI BEM overrides
+   --------------------
+   Tailwind v4 mangles BEM `__` separators inside arbitrary selectors
+   (`[&_.alert__description]:...`) — the underscores get treated as space
+   collapsers and/or `\_` escapes get over-escaped during CSS generation,
+   leaving the rule pointed at a non-existent selector like `.alert
+   description`. Instead of fighting the JIT, we publish these overrides
+   as plain utility classes that JSX can opt into.
+
+   Apply ct-compact-table on the table root, ct-compact-alert on Alert
+   wrappers, ct-compact-select on the surrounding container of a Select
+   trigger. */
+.ct-compact-table .table__row {
+  height: auto !important;
+}
+.ct-compact-table .table__cell {
+  height: auto !important;
+  padding-block: calc(var(--spacing) * 1) !important;
+  padding-inline: calc(var(--spacing) * 3) !important;
+}
+.ct-compact-table .table__column {
+  padding-block: calc(var(--spacing) * 2) !important;
+  padding-inline: calc(var(--spacing) * 3) !important;
+  vertical-align: middle !important;
+}
+
+.ct-compact-alert .alert__description {
+  font-size: var(--text-xs) !important;
+  line-height: var(--text-xs--line-height) !important;
+}
+
+/* HeroUI's `.alert__content` ships `flex-direction: column;
+   align-items: flex-start; height: 100%` — that's right when there's
+   both a title and a description (top-align them inside the row), but
+   when only the description is present the description sits glued to
+   the top of the content box and reads as misaligned with the icon
+   on the left. `!items-center` on the alert root only centers the
+   ICON ↔ CONTENT pair (siblings of the root flex), not the
+   description inside content. Force the content's own main-axis to
+   centre so single-child Alerts read properly centered. */
+.ct-compact-alert .alert__content {
+  justify-content: center !important;
+}
+
+.ct-compact-select .select__value {
+  font-size: var(--text-xs) !important;
+  line-height: var(--text-xs--line-height) !important;
+}
+
+/* HeroUI's Switch flips the thumb colour when checked from
+   `var(--color-white)` (off) to `var(--accent-foreground)` (on). With
+   our light-blue accent that resolves to a dark, almost-black thumb on
+   a cyan track — visually inverts the off-state and looks like a
+   different control. Lock the thumb to white in both states so the
+   only thing that changes on toggle is the track colour, matching the
+   look every other admin product uses (and what the user expects). */
+.switch[aria-checked='true'] .switch__thumb,
+.switch[data-selected='true'] .switch__thumb {
+  background-color: var(--color-white);
+  color: var(--color-black);
+}
+
+/* HeroUI's `.button` / `.toggle-button` ship `font-size: var(--text-sm)`
+   (14px) and `--sm` only shrinks the box, not the type. With the body
+   lowered to 12px, sm buttons now read visibly larger than the
+   surrounding prose they sit beside in toolbar / filter / tab rows.
+   Match the body density so the action pills (添加模型 / Sync / Test
+   ...) and the sm tab toggles (运营设置 / 仪表盘 / Channel vendor
+   tabs ...) feel like part of the same surface. Rule scoped to `--sm`
+   so:
+     - default `--md` (modal footer "Save", confirm dialogs, ...) stays
+       at 14px for primary calls-to-action;
+     - per-cell overrides like `!text-[11px]` on table operation
+       buttons still win because they carry `!important`. */
+.button--sm,
+.button--sm .button__label,
+.toggle-button--sm,
+.toggle-button--sm .toggle-button__label {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
 }
 
 .app-layout {

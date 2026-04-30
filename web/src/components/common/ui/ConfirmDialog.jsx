@@ -17,6 +17,35 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+// Shared confirmation dialog used across the console (~40 callers, see
+// the grep in the Models / Channels / Tokens / Settings / Redemption
+// pages). One refactor here sweeps the whole admin in one shot.
+//
+// Anatomy mirrors HeroUI v3 Modal docs:
+//   <Modal>
+//     <ModalBackdrop>
+//       <ModalContainer>
+//         <ModalDialog>
+//           <ModalHeader />
+//           <ModalBody />
+//           <ModalFooter />
+//         </ModalDialog>
+//       </ModalContainer>
+//     </ModalBackdrop>
+//   </Modal>
+//
+// Visual decisions (matched to EditVendorModal / ColumnSelectorDialog):
+//   - No `border-b` / `border-t` on header / footer — HeroUI Modal
+//     anatomy doesn't ship dividers and adding them by hand drifts
+//     from the rest of the console.
+//   - `size='sm'` — confirm dialogs are short, focused decisions; `lg`
+//     was twice as wide as the prompt text needed.
+//   - No icon next to title — destructive intent is conveyed entirely
+//     by the red `variant='danger'` confirm button. The `TriangleAlert`
+//     glyph this component used to render was redundant signalling.
+//   - `variant='danger' | 'primary'` for the confirm CTA, NOT the v2
+//     `color='danger' | 'warning'` props HeroUI v3 silently drops.
+
 import React from 'react';
 import {
   Button,
@@ -27,9 +56,9 @@ import {
   ModalDialog,
   ModalFooter,
   ModalHeader,
+  ModalHeading,
   useOverlayState,
 } from '@heroui/react';
-import { TriangleAlert } from 'lucide-react';
 
 const ConfirmDialog = ({
   visible,
@@ -51,25 +80,25 @@ const ConfirmDialog = ({
   return (
     <Modal state={modalState}>
       <ModalBackdrop variant='blur'>
-        <ModalContainer size='lg' placement='center'>
+        <ModalContainer size='sm' placement='center'>
           <ModalDialog className='bg-background/95 backdrop-blur'>
-            <ModalHeader className='border-b border-border'>
-              <div className='flex items-center gap-2'>
-                <TriangleAlert
-                  size={18}
-                  className={danger ? 'text-danger' : 'text-warning'}
-                />
-                <span>{title}</span>
-              </div>
+            {/* `ModalHeader` is a layout container (flex-col + gap), the
+                title text itself MUST live inside `ModalHeading` to
+                pick up the `text-base + font-medium` heading styles
+                HeroUI ships — bare children fall through to the body
+                font-size and read smaller than the description. */}
+            <ModalHeader>
+              <ModalHeading>{title}</ModalHeading>
             </ModalHeader>
-            <ModalBody className='px-6 py-5 text-sm text-muted'>
-              {children}
-            </ModalBody>
-            <ModalFooter className='border-t border-border'>
+            <ModalBody className='text-sm text-muted'>{children}</ModalBody>
+            <ModalFooter>
               <Button variant='tertiary' onPress={onCancel}>
                 {cancelText}
               </Button>
-              <Button color={danger ? 'danger' : 'warning'} onPress={onConfirm}>
+              <Button
+                variant={danger ? 'danger' : 'primary'}
+                onPress={onConfirm}
+              >
                 {confirmText}
               </Button>
             </ModalFooter>
