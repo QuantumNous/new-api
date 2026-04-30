@@ -63,12 +63,14 @@ func InitRedisClient() (err error) {
 
 		SysLog("Redis is enabled [Sentinel Mode], SentinelAddrs: " + sentinelAddrs + ", MasterName: " + masterName)
 
+		db := GetEnvOrDefault("REDIS_DB", 0)
 		RDB = redis.NewFailoverClient(&redis.FailoverOptions{
 			MasterName:       masterName,
 			SentinelAddrs:    addrs,
 			SentinelUsername: sentinelUsername,
 			SentinelPassword: sentinelPassword,
 			Password:         password,
+			DB:               db,
 			PoolSize:         poolSize,
 		})
 	} else {
