@@ -39,6 +39,7 @@ export const useHeaderBar = ({
   const [statusState] = useContext(StatusContext);
   const isMobile = useIsMobile();
   const [logoLoaded, setLogoLoaded] = useState(false);
+  const [isSiteHeaderScrolled, setIsSiteHeaderScrolled] = useState(false);
   const navigate = useNavigate();
   const [currentLang, setCurrentLang] = useState(
     normalizeLanguage(i18n.language),
@@ -107,6 +108,32 @@ export const useHeaderBar = ({
     img.src = logo;
     img.onload = () => setLogoLoaded(true);
   }, [logo]);
+
+  useEffect(() => {
+    if (isConsoleRoute) {
+      setIsSiteHeaderScrolled(false);
+      return;
+    }
+
+    const scrollContainer = document.getElementById('app-scroll-shell');
+    const syncScrollState = () => {
+      const containerY = scrollContainer?.scrollTop || 0;
+      const viewportY = window.scrollY || window.pageYOffset || 0;
+      setIsSiteHeaderScrolled(Math.max(containerY, viewportY) > 16);
+    };
+
+    syncScrollState();
+
+    scrollContainer?.addEventListener('scroll', syncScrollState, {
+      passive: true,
+    });
+    window.addEventListener('scroll', syncScrollState, { passive: true });
+
+    return () => {
+      scrollContainer?.removeEventListener('scroll', syncScrollState);
+      window.removeEventListener('scroll', syncScrollState);
+    };
+  }, [isConsoleRoute]);
 
   // Send theme to iframe
   useEffect(() => {
@@ -239,6 +266,7 @@ export const useHeaderBar = ({
     docsLink,
     isDemoSiteMode,
     isConsoleRoute,
+    isSiteHeaderScrolled,
     theme,
     drawerOpen,
     headerNavModules,

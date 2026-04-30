@@ -1,0 +1,252 @@
+.app-header {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    backdrop-filter 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.app-header-console {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(219, 224, 234, 0.9);
+}
+
+.app-header-site {
+  background: transparent;
+  backdrop-filter: none;
+  border-bottom: 1px solid transparent;
+}
+
+.app-header-site-scrolled {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px);
+  border-bottom-color: rgba(219, 224, 234, 0.86);
+}
+
+.app-header-shell {
+  position: relative;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.app-header-inner {
+  gap: 16px;
+}
+
+.app-header-left,
+.app-header-actions {
+  flex-shrink: 0;
+}
+
+.app-header-left {
+  gap: 8px;
+}
+
+.app-header-brand {
+  text-decoration: none;
+}
+
+/* .app-header-brand-mark {
+  border-radius: 999px;
+  box-shadow: 0 12px 28px rgba(0, 82, 255, 0.14);
+} */
+
+.app-header-brand-logo {
+  object-fit: cover;
+  background-color: transparent;
+}
+
+.app-header-brand-copy {
+  gap: 10px;
+}
+
+.app-header-brand-title.semi-typography {
+  /* color: #20314d !important;
+  letter-spacing: -0.03em; */
+
+  color: rgba(0, 0, 0, 0);
+  background-clip: text;
+  background-image: linear-gradient(
+    to right,
+    hsl(280 85% 65%),
+    hsl(200 90% 55%)
+  );
+}
+
+.app-header-brand-tag.semi-tag {
+  border-radius: 999px !important;
+}
+
+.app-header-nav {
+  justify-content: flex-start;
+}
+
+.app-header-nav a {
+  text-decoration: none;
+}
+
+.app-header-nav-link {
+  position: relative;
+  color: #667085;
+}
+
+.app-header-nav-link:hover {
+  color: #1c2536;
+}
+
+.app-header-nav-link::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #d946ef, #60a5fa);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.18s ease;
+}
+
+.app-header-nav-link:hover::after {
+  transform: scaleX(1);
+}
+
+.app-header-nav-link-text {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.app-header-action-row {
+  gap: 10px;
+}
+
+.app-header-menu-button.semi-button,
+.app-header-icon-button.semi-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px !important;
+  color: #516074 !important;
+}
+
+.app-header-menu-button.semi-button:hover,
+.app-header-icon-button.semi-button:hover {
+  background: hsl(220 15% 96%);
+  color: #1c2536 !important;
+}
+
+.app-header-user-button.semi-button {
+  border: 1px solid rgba(196, 207, 226, 0.7) !important;
+  background: rgba(255, 255, 255, 0.84) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.app-header-user-button.semi-button:hover {
+  background: rgba(255, 255, 255, 0.96) !important;
+}
+
+.app-header-user-name.semi-typography {
+  color: #334155 !important;
+}
+
+.app-header-user-chevron {
+  color: #8a94a6;
+}
+
+.app-header-auth-button.semi-button {
+  border-radius: 999px !important;
+}
+
+.app-header-auth-login.semi-button {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border: 1px solid rgba(196, 207, 226, 0.7) !important;
+}
+
+.app-header-auth-register.semi-button {
+  background: linear-gradient(90deg, #d946ef, #60a5fa) !important;
+  border: none !important;
+  box-shadow: 0 16px 30px rgba(96, 165, 250, 0.16);
+}
+
+.app-header-auth-text {
+  font-weight: 600;
+}
+
+html.dark .app-header-console {
+  background: rgba(17, 19, 24, 0.88);
+  border-bottom-color: rgba(43, 48, 59, 0.95);
+}
+
+html.dark .app-header-site {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+
+html.dark .app-header-site-scrolled {
+  background: rgba(10, 13, 19, 0.68);
+  border-bottom-color: rgba(43, 48, 59, 0.92);
+}
+
+html.dark .app-header-brand-title.semi-typography {
+  color: #f8fafc !important;
+}
+
+html.dark .app-header-nav-link {
+  color: #98a2b3;
+}
+
+html.dark .app-header-nav-link:hover {
+  color: #f8fafc;
+}
+
+html.dark .app-header-menu-button.semi-button,
+html.dark .app-header-icon-button.semi-button {
+  background: rgba(18, 24, 35, 0.8) !important;
+  color: #98a2b3 !important;
+  box-shadow: none;
+}
+
+html.dark .app-header-menu-button.semi-button:hover,
+html.dark .app-header-icon-button.semi-button:hover {
+  background: rgba(24, 31, 43, 0.96) !important;
+  color: #f8fafc !important;
+}
+
+html.dark .app-header-user-button.semi-button {
+  border-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(18, 24, 35, 0.82) !important;
+  box-shadow: none;
+}
+
+html.dark .app-header-user-button.semi-button:hover {
+  background: rgba(24, 31, 43, 0.96) !important;
+}
+
+html.dark .app-header-user-name.semi-typography,
+html.dark .app-header-user-chevron {
+  color: #c7d0de !important;
+}
+
+html.dark .app-header-auth-login.semi-button {
+  background: rgba(18, 24, 35, 0.82) !important;
+  border-color: rgba(43, 48, 59, 0.95) !important;
+}
+
+html.dark .app-header-auth-register.semi-button {
+  box-shadow: none;
+}
+
+@media (max-width: 767px) {
+  .app-header-nav {
+    justify-content: flex-start;
+  }
+}
+@media (min-width: 1400px) {
+  .app-header-shell {
+    max-width: 1400px;
+  }
+}

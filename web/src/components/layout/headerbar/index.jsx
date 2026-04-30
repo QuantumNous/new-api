@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import './HeaderBar.css';
 import { useHeaderBar } from '../../../hooks/common/useHeaderBar';
 import { useNotifications } from '../../../hooks/common/useNotifications';
 import { useNavigation } from '../../../hooks/common/useNavigation';
@@ -47,6 +48,7 @@ const HeaderBar = ({
     docsLink,
     isDemoSiteMode,
     isConsoleRoute,
+    isSiteHeaderScrolled,
     theme,
     headerNavModules,
     pricingRequireAuth,
@@ -75,7 +77,7 @@ const HeaderBar = ({
 
   return (
     <header
-      className={`app-header text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 ${isConsoleRoute ? 'app-header-console' : 'app-header-site'}`}
+      className={`app-header text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 ${isConsoleRoute ? 'app-header-console' : 'app-header-site'} ${!isConsoleRoute && isSiteHeaderScrolled ? 'app-header-site-scrolled' : ''}`}
     >
       <NoticeModal
         visible={noticeVisible}
@@ -85,7 +87,7 @@ const HeaderBar = ({
         unreadKeys={getUnreadKeys()}
       />
 
-      <div className='w-full px-2 md:px-4'>
+      <div className='app-header-shell w-full px-2 md:px-4'>
         <div className='app-header-inner flex items-center justify-between h-16'>
           <div className='app-header-left flex items-center'>
             <MobileMenuButton

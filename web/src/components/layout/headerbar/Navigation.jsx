@@ -35,14 +35,14 @@ const Navigation = ({
 
   const renderNavLinks = () => {
     const baseClasses =
-      'flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
-    const hoverClasses = 'hover:text-semi-color-primary';
-    const spacingClasses = isMobile ? 'p-1' : 'p-2';
+      'app-header-nav-link flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
+    const hoverClasses = '';
+    const spacingClasses = isMobile ? 'p-1' : 'px-2 py-3';
 
     const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
 
     return mainNavLinks.map((link) => {
-      const linkContent = <span>{link.text}</span>;
+      const linkContent = <span className='app-header-nav-link-text'>{link.text}</span>;
 
       if (link.isExternal) {
         return (

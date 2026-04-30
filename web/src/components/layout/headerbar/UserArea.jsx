@@ -119,7 +119,8 @@ const UserArea = ({
           <Button
             theme='borderless'
             type='tertiary'
-            className='flex items-center gap-1.5 !p-1 !rounded-full hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2'
+            className='app-header-user-button flex items-center gap-1.5 !p-2 !rounded-full'
+            size='large'
           >
             <Avatar
               size='extra-small'
@@ -129,13 +130,13 @@ const UserArea = ({
               {userState.user.username[0].toUpperCase()}
             </Avatar>
             <span className='hidden md:inline'>
-              <Typography.Text className='!text-xs !font-medium !text-semi-color-text-1 dark:!text-gray-300 mr-1'>
+              <Typography.Text className='app-header-user-name !text-xs !font-medium mr-1'>
                 {userState.user.username}
               </Typography.Text>
             </span>
             <ChevronDown
               size={14}
-              className='text-xs text-semi-color-text-2 dark:text-gray-400'
+              className='app-header-user-chevron text-xs'
             />
           </Button>
         </Dropdown>
@@ -174,9 +175,13 @@ const UserArea = ({
           <Button
             theme='borderless'
             type='tertiary'
-            className={loginButtonClasses}
+            className={`app-header-auth-button app-header-auth-login ${loginButtonClasses}`}
           >
-            <span className={loginButtonTextSpanClass}>{t('登录')}</span>
+            <span
+              className={`app-header-auth-text ${loginButtonTextSpanClass}`}
+            >
+              {t('登录')}
+            </span>
           </Button>
         </Link>
         {showRegisterButton && (
@@ -185,9 +190,13 @@ const UserArea = ({
               <Button
                 theme='solid'
                 type='primary'
-                className={registerButtonClasses}
+                className={`app-header-auth-button app-header-auth-register ${registerButtonClasses}`}
               >
-                <span className={registerButtonTextSpanClass}>{t('注册')}</span>
+                <span
+                  className={`app-header-auth-text ${registerButtonTextSpanClass}`}
+                >
+                  {t('注册')}
+                </span>
               </Button>
             </Link>
           </div>
