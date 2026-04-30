@@ -18,6 +18,7 @@
     "i18next-browser-languagedetector": "^7.2.0",
     "katex": "^0.16.22",
     "lucide-react": "^0.511.0",
+    "framer-motion": "^11.16.1",
     "marked": "^4.1.1",
     "mermaid": "^11.6.0",
     "qrcode.react": "^4.2.0",
