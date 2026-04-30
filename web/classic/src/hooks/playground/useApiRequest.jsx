@@ -174,9 +174,14 @@ export const useApiRequest = (
   // 非流式请求
   const handleNonStreamRequest = useCallback(
     async (payload) => {
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        'New-Api-User': getUserIdFromLocalStorage(),
+      };
       setDebugData((prev) => ({
         ...prev,
         request: payload,
+        headers: requestHeaders,
         timestamp: new Date().toISOString(),
         response: null,
         sseMessages: null, // 非流式请求清除 SSE 消息
@@ -187,10 +192,7 @@ export const useApiRequest = (
       try {
         const response = await fetch(API_ENDPOINTS.CHAT_COMPLETIONS, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'New-Api-User': getUserIdFromLocalStorage(),
-          },
+          headers: requestHeaders,
           body: JSON.stringify(payload),
         });
 
@@ -303,9 +305,14 @@ export const useApiRequest = (
   // SSE请求
   const handleSSE = useCallback(
     (payload) => {
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        'New-Api-User': getUserIdFromLocalStorage(),
+      };
       setDebugData((prev) => ({
         ...prev,
         request: payload,
+        headers: requestHeaders,
         timestamp: new Date().toISOString(),
         response: null,
         sseMessages: [], // 新增：存储 SSE 消息数组
@@ -314,10 +321,7 @@ export const useApiRequest = (
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
       const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
-        headers: {
-          'Content-Type': 'application/json',
-          'New-Api-User': getUserIdFromLocalStorage(),
-        },
+        headers: requestHeaders,
         method: 'POST',
         payload: JSON.stringify(payload),
       });

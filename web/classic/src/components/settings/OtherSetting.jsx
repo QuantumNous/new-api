@@ -37,6 +37,8 @@ import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
 
+const UPDATE_REPO = import.meta.env.VITE_UPDATE_REPO || 'Calcium-Ion/new-api';
+
 const OtherSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
@@ -51,6 +53,8 @@ const OtherSetting = () => {
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [upgradeElapsed, setUpgradeElapsed] = useState(0);
   const [statusState, statusDispatch] = useContext(StatusContext);
   const [updateData, setUpdateData] = useState({
     tag_name: '',
@@ -235,16 +239,8 @@ const OtherSetting = () => {
         ...loadingInput,
         CheckUpdate: true,
       }));
-      // Use a CORS proxy to avoid direct cross-origin requests to GitHub API
-      // Option 1: Use a public CORS proxy service
-      // const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-      // const res = await API.get(
-      //   `${proxyUrl}https://api.github.com/repos/Calcium-Ion/new-api/releases/latest`,
-      // );
-
-      // Option 2: Use the JSON proxy approach which often works better with GitHub API
       const res = await fetch(
-        'https://api.github.com/repos/Calcium-Ion/new-api/releases/latest',
+        `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`,
         {
           headers: {
             Accept: 'application/json',
@@ -254,10 +250,6 @@ const OtherSetting = () => {
           },
         },
       ).then((response) => response.json());
-
-      // Option 3: Use a local proxy endpoint
-      // Create a cached version of the response to avoid frequent GitHub API calls
-      // const res = await API.get('/api/status/github-latest-release');
 
       const { tag_name, body } = res;
       if (tag_name === statusState?.status?.version) {
@@ -340,12 +332,64 @@ const OtherSetting = () => {
     getOptions();
   }, []);
 
+  useEffect(() => {
+    if (!isUpdating) {
+      setUpgradeElapsed(0);
+      return;
+    }
+    const timer = setInterval(() => setUpgradeElapsed((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [isUpdating]);
+
   // Function to open GitHub release page
   const openGitHubRelease = () => {
     window.open(
-      `https://github.com/Calcium-Ion/new-api/releases/tag/${updateData.tag_name}`,
+      `https://github.com/${UPDATE_REPO}/releases/tag/${updateData.tag_name}`,
       '_blank',
     );
+  };
+
+  const pollUntilAlive = async (maxAttempts = 90, intervalMs = 3000) => {
+    const previousVersion = statusState?.status?.version;
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      try {
+        const res = await API.get('/api/status', { skipErrorHandler: true });
+        if (res?.data?.success) {
+          const newVersion = res?.data?.data?.version;
+          if (newVersion && newVersion !== previousVersion) {
+            showSuccess(t('升级成功，页面即将刷新'));
+            setIsUpdating(false);
+            setTimeout(() => window.location.reload(), 1500);
+            return;
+          }
+          // 版本未变，新容器可能还未完全就绪，继续轮询
+        }
+      } catch {
+        // 服务重启中，继续轮询
+      }
+    }
+    showError(t('服务未能在预期时间内恢复，请手动刷新页面'));
+    setIsUpdating(false);
+  };
+
+  const handleUpdate = async () => {
+    setIsUpdating(true);
+    setShowUpdateModal(false);
+    try {
+      const res = await API.post('/api/system/update');
+      const { success, message } = res.data;
+      if (!success) {
+        showError(message);
+        setIsUpdating(false);
+        return;
+      }
+      showSuccess(t('升级指令已发送，等待服务重启...'));
+      pollUntilAlive();
+    } catch (error) {
+      showError(t('升级请求失败，请检查 Watchtower 是否已配置'));
+      setIsUpdating(false);
+    }
   };
 
   const getStartTimeString = () => {
@@ -378,9 +422,10 @@ const OtherSetting = () => {
                     <Button
                       type='primary'
                       onClick={checkUpdate}
-                      loading={loadingInput['CheckUpdate']}
+                      loading={loadingInput['CheckUpdate'] || isUpdating}
+                      disabled={isUpdating}
                     >
-                      {t('检查更新')}
+                      {isUpdating ? t('升级中...') : t('检查更新')}
                     </Button>
                     <Button
                       onClick={switchToDefaultFrontend}
@@ -389,6 +434,15 @@ const OtherSetting = () => {
                       {t('切换到新版前端')}
                     </Button>
                   </Space>
+                  {isUpdating && (
+                    <Banner
+                      type='warning'
+                      fullMode={false}
+                      description={t('服务升级中，请勿关闭页面，已等待 {{elapsed}} 秒', { elapsed: upgradeElapsed })}
+                      closeIcon={null}
+                      style={{ marginTop: 8 }}
+                    />
+                  )}
                 </Col>
               </Row>
               <Row>
@@ -551,13 +605,21 @@ const OtherSetting = () => {
         footer={[
           <Button
             key='details'
-            type='primary'
             onClick={() => {
               setShowUpdateModal(false);
               openGitHubRelease();
             }}
           >
             {t('详情')}
+          </Button>,
+          <Button
+            key='update'
+            type='primary'
+            loading={isUpdating}
+            disabled={isUpdating}
+            onClick={handleUpdate}
+          >
+            {t('立即安装')}
           </Button>,
         ]}
       >

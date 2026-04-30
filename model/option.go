@@ -118,6 +118,18 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeCurrency"] = setting.WaffoPancakeCurrency
 	common.OptionMap["WaffoPancakeUnitPrice"] = strconv.FormatFloat(setting.WaffoPancakeUnitPrice, 'f', -1, 64)
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
+	common.OptionMap["AlipayAppId"] = setting.AlipayAppId
+	common.OptionMap["AlipayPrivateKey"] = setting.AlipayPrivateKey
+	common.OptionMap["AlipayPublicKey"] = setting.AlipayPublicKey
+	common.OptionMap["AlipayMinTopUp"] = strconv.Itoa(setting.AlipayMinTopUp)
+	common.OptionMap["WxpayAppId"] = setting.WxpayAppId
+	common.OptionMap["WxpayMchId"] = setting.WxpayMchId
+	common.OptionMap["WxpayPrivateKey"] = setting.WxpayPrivateKey
+	common.OptionMap["WxpayApiV3Key"] = setting.WxpayApiV3Key
+	common.OptionMap["WxpayCertSerial"] = setting.WxpayCertSerial
+	common.OptionMap["WxpayPublicKey"] = setting.WxpayPublicKey
+	common.OptionMap["WxpayPublicKeyId"] = setting.WxpayPublicKeyId
+	common.OptionMap["WxpayMinTopUp"] = strconv.Itoa(setting.WxpayMinTopUp)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -443,6 +455,30 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "AlipayAppId":
+		setting.AlipayAppId = value
+	case "AlipayPrivateKey":
+		setting.AlipayPrivateKey = value
+	case "AlipayPublicKey":
+		setting.AlipayPublicKey = value
+	case "AlipayMinTopUp":
+		setting.AlipayMinTopUp, _ = strconv.Atoi(value)
+	case "WxpayAppId":
+		setting.WxpayAppId = value
+	case "WxpayMchId":
+		setting.WxpayMchId = value
+	case "WxpayPrivateKey":
+		setting.WxpayPrivateKey = value
+	case "WxpayApiV3Key":
+		setting.WxpayApiV3Key = value
+	case "WxpayCertSerial":
+		setting.WxpayCertSerial = value
+	case "WxpayPublicKey":
+		setting.WxpayPublicKey = value
+	case "WxpayPublicKeyId":
+		setting.WxpayPublicKeyId = value
+	case "WxpayMinTopUp":
+		setting.WxpayMinTopUp, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

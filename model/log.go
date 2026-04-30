@@ -376,6 +376,9 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		}
 	}
 
+	if logs == nil {
+		logs = make([]*Log, 0)
+	}
 	return logs, total, err
 }
 
@@ -423,6 +426,9 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 
 	formatUserLogs(logs, startIdx)
+	if logs == nil {
+		logs = make([]*Log, 0)
+	}
 	return logs, total, err
 }
 

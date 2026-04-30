@@ -1,0 +1,278 @@
+name: Publish Docker image (ovaijisuan)
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '!*-alpha*'
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "reason"
+        required: false
+
+jobs:
+  prepare:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine ovaijisuan version
+        id: version
+        run: |
+          UPSTREAM=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          [ -z "$UPSTREAM" ] && UPSTREAM="custom"
+          SHA=$(git rev-parse --short=8 HEAD)
+          VERSION="${UPSTREAM}-ovaijisuan-$(date -u +'%Y%m%d')-${SHA}"
+          echo "value=$VERSION" >> $GITHUB_OUTPUT
+          echo "Computed version: $VERSION"
+
+  build_single_arch:
+    name: Build & push (${{ matrix.arch }}) [native]
+    needs: [prepare]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Check out (shallow)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Write VERSION file
+        run: |
+          echo "$VERSION" > VERSION
+          echo "Publishing version: $VERSION for ${{ matrix.arch }}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to ACR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ secrets.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build & push single-arch
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            arronlee/new-api:latest-${{ matrix.arch }}
+            arronlee/new-api:ovaijisuan-${{ matrix.arch }}
+            arronlee/new-api:${{ needs.prepare.outputs.version }}-${{ matrix.arch }}
+            ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:latest-${{ matrix.arch }}
+            ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:ovaijisuan-${{ matrix.arch }}
+            ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:${{ needs.prepare.outputs.version }}-${{ matrix.arch }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      - name: Output digest
+        run: |
+          echo "### Docker Image Digest (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "arronlee/new-api:ovaijisuan-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  create_manifests:
+    name: Create multi-arch manifests
+    needs: [prepare, build_single_arch]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to ACR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ secrets.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Create & push manifest (Docker Hub - latest)
+        run: |
+          docker buildx imagetools create \
+            -t arronlee/new-api:latest \
+            arronlee/new-api:latest-amd64 \
+            arronlee/new-api:latest-arm64
+
+      - name: Create & push manifest (Docker Hub - ovaijisuan)
+        run: |
+          docker buildx imagetools create \
+            -t arronlee/new-api:ovaijisuan \
+            arronlee/new-api:ovaijisuan-amd64 \
+            arronlee/new-api:ovaijisuan-arm64
+
+      - name: Create & push manifest (Docker Hub - versioned)
+        run: |
+          docker buildx imagetools create \
+            -t arronlee/new-api:${VERSION} \
+            arronlee/new-api:${VERSION}-amd64 \
+            arronlee/new-api:${VERSION}-arm64
+
+      - name: Create & push manifest (ACR - latest)
+        run: |
+          docker buildx imagetools create \
+            -t ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:latest \
+            ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:latest-amd64 \
+            ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:latest-arm64
+
+      - name: Create & push manifest (ACR - ovaijisuan)
+        run: |
+          docker buildx imagetools create \
+            -t ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:ovaijisuan \
+            ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:ovaijisuan-amd64 \
+            ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:ovaijisuan-arm64
+
+      - name: Create & push manifest (ACR - versioned)
+        run: |
+          docker buildx imagetools create \
+            -t ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:${VERSION} \
+            ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:${VERSION}-amd64 \
+            ${{ secrets.ACR_REGISTRY }}/reputationly/new-api:${VERSION}-arm64
+
+      - name: Output manifest digest
+        run: |
+          echo "### Multi-arch Manifest Digests" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect arronlee/new-api:ovaijisuan >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  build_binaries:
+    name: Build binaries
+    needs: [prepare]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Build Frontend
+        env:
+          CI: ""
+        run: |
+          cd web
+          bun install
+          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION VITE_UPDATE_REPO=reputationly/new-api bun run build
+          cd ..
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '>=1.25.1'
+
+      - name: Build all platforms
+        env:
+          CGO_ENABLED: '0'
+          LDFLAGS: "-s -w -X 'github.com/QuantumNous/new-api/common.Version=${{ env.VERSION }}'"
+        run: |
+          go mod download
+
+          GOOS=linux  GOARCH=amd64 go build -ldflags "$LDFLAGS" -o new-api-$VERSION
+          GOOS=linux  GOARCH=arm64 go build -ldflags "$LDFLAGS" -o new-api-arm64-$VERSION
+          GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o new-api-macos-$VERSION
+          GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o new-api-$VERSION.exe
+
+      - name: Generate checksums
+        run: |
+          sha256sum new-api-$VERSION new-api-arm64-$VERSION > checksums-linux.txt
+          sha256sum new-api-macos-$VERSION > checksums-macos.txt
+          sha256sum new-api-$VERSION.exe > checksums-windows.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: binaries
+          path: |
+            new-api-*
+            checksums-*.txt
+
+  create_release:
+    name: Create GitHub Release
+    needs: [prepare, create_manifests, build_binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download binaries
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: binaries
+          path: ./release-assets
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          cat > notes.md << EOF
+          ## Docker 镜像
+
+          **固定 tag（始终最新）：**
+          \`\`\`
+          docker pull arronlee/new-api:ovaijisuan
+          \`\`\`
+
+          **本次版本 tag：**
+          \`\`\`
+          docker pull arronlee/new-api:${VERSION}
+          \`\`\`
+
+          > ACR 镜像同步推送，国内服务器建议使用 ACR 地址拉取。
+
+          ## 二进制文件
+
+          | 平台 | 文件 |
+          |------|------|
+          | Linux amd64 | new-api-${VERSION} |
+          | Linux arm64 | new-api-arm64-${VERSION} |
+          | macOS | new-api-macos-${VERSION} |
+          | Windows | new-api-${VERSION}.exe |
+          EOF
+
+          gh release create "${VERSION}" \
+            --repo "${{ github.repository }}" \
+            --title "${VERSION}" \
+            --notes-file notes.md \
+            ./release-assets/*

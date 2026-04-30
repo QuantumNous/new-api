@@ -26,7 +26,7 @@ import {
   Button,
   Dropdown,
 } from '@douyinfe/semi-ui';
-import { Code, Zap, Clock, X, Eye, Send } from 'lucide-react';
+import { Code, Zap, Clock, X, Eye, Send, ListTree } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CodeViewer from './CodeViewer';
 import SSEViewer from './SSEViewer';
@@ -156,6 +156,22 @@ const DebugPanel = ({
             <CodeViewer
               content={debugData.previewRequest}
               title='preview'
+              language='json'
+            />
+          </TabPane>
+
+          <TabPane
+            tab={
+              <div className='flex items-center gap-2'>
+                <ListTree size={16} />
+                {t('请求头')}
+              </div>
+            }
+            itemKey='headers'
+          >
+            <CodeViewer
+              content={debugData.headers}
+              title='headers'
               language='json'
             />
           </TabPane>

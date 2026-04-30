@@ -1,0 +1,31 @@
+{
+  "translation": {
+    "共 {{total}} 条日志，导出可能耗时较久，确定继续吗？": "{{total}} enregistrements trouvés. L'export peut prendre du temps. Continuer ?",
+    "升级中...": "Mise à jour en cours...",
+    "升级成功，页面即将刷新": "Mise à jour réussie, la page va se rafraîchir",
+    "升级指令已发送，等待服务重启...": "Commande de mise à jour envoyée, attente du redémarrage...",
+    "升级请求失败，请检查 Watchtower 是否已配置": "Échec de la mise à jour, vérifiez si Watchtower est configuré",
+    "启用后可上传图片进行多模态对话": "Activez pour télécharger des images pour les conversations multimodales",
+    "图片": "Image",
+    "图片读取失败": "Échec de la lecture de l'image",
+    "导出中 ({{current}}/{{total}})": "Exportation ({{current}}/{{total}})",
+    "导出失败": "Échec de l'export",
+    "导出成功，共 {{count}} 条": "Export réussi, {{count}} enregistrements",
+    "拖拽图片到此处，或点击选择文件": "Faites glisser les images ici, ou cliquez pour sélectionner des fichiers",
+    "数据量较大": "Grand volume de données",
+    "服务升级中，请勿关闭页面，已等待 {{elapsed}} 秒": "Mise à jour en cours, ne fermez pas la page. Temps écoulé : {{elapsed}}s",
+    "服务未能在预期时间内恢复，请手动刷新页面": "Le service n'a pas récupéré à temps, veuillez rafraîchir la page manuellement",
+    "松开以添加图片": "Relâchez pour ajouter des images",
+    "没有符合条件的日志": "Aucun journal ne correspond aux filtres",
+    "渠道ID": "ID du canal",
+    "用时(s)": "Durée (s)",
+    "立即安装": "Installer maintenant",
+    "请求ID": "ID de la requête",
+    "请求头": "En-têtes de requête",
+    "输入tokens": "Tokens d'entrée",
+    "输出tokens": "Tokens de sortie",
+    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Actuellement, seule l'interface Epay est prise en charge, l'adresse du serveur ci-dessus est utilisée par défaut comme adresse de rappel !)",
+    "聊天记录过大，无法保存": "L'historique des messages est trop volumineux pour être sauvegardé",
+    "清空对话": "Effacer la conversation"
+  }
+}

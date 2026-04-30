@@ -28,7 +28,18 @@ import zhTWTranslation from './locales/zh-TW.json';
 import ruTranslation from './locales/ru.json';
 import jaTranslation from './locales/ja.json';
 import viTranslation from './locales/vi.json';
+import enCustom from './locales/custom/en.json';
+import frCustom from './locales/custom/fr.json';
+import zhCNCustom from './locales/custom/zh-CN.json';
+import zhTWCustom from './locales/custom/zh-TW.json';
+import ruCustom from './locales/custom/ru.json';
+import jaCustom from './locales/custom/ja.json';
+import viCustom from './locales/custom/vi.json';
 import { supportedLanguages } from './language';
+
+const merge = (base, custom) => ({
+  translation: { ...base.translation, ...custom.translation },
+});
 
 i18n
   .use(LanguageDetector)
@@ -37,13 +48,13 @@ i18n
     load: 'currentOnly',
     supportedLngs: supportedLanguages,
     resources: {
-      en: enTranslation,
-      'zh-CN': zhCNTranslation,
-      'zh-TW': zhTWTranslation,
-      fr: frTranslation,
-      ru: ruTranslation,
-      ja: jaTranslation,
-      vi: viTranslation,
+      en: merge(enTranslation, enCustom),
+      'zh-CN': merge(zhCNTranslation, zhCNCustom),
+      'zh-TW': merge(zhTWTranslation, zhTWCustom),
+      fr: merge(frTranslation, frCustom),
+      ru: merge(ruTranslation, ruCustom),
+      ja: merge(jaTranslation, jaCustom),
+      vi: merge(viTranslation, viCustom),
     },
     fallbackLng: 'zh-CN',
     nsSeparator: false,

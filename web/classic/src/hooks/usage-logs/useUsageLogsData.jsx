@@ -75,6 +75,10 @@ export const useLogsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [logType, setLogType] = useState(0);
 
+  // Export state
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+
   // User and admin
   const isAdminUser = isAdmin();
   // Role-specific storage key to prevent different roles from overwriting each other
@@ -725,11 +729,8 @@ export const useLogsData = () => {
     setLogs(logs);
   };
 
-  // Load logs function
-  const loadLogs = async (startIdx, pageSize, customLogType = null) => {
-    setLoading(true);
-
-    let url = '';
+  // Build logs query URL (shared by loadLogs and exportLogs)
+  const buildLogsUrl = (startIdx, size, customLogType = null) => {
     const {
       username,
       token_name,
@@ -749,14 +750,22 @@ export const useLogsData = () => {
           ? formLogType
           : logType;
 
-    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+    const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+    const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+
+    let url;
     if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/?p=${startIdx}&page_size=${size}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
     } else {
-      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/self/?p=${startIdx}&page_size=${size}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
     }
-    url = encodeURI(url);
+    return encodeURI(url);
+  };
+
+  // Load logs function
+  const loadLogs = async (startIdx, pageSize, customLogType = null) => {
+    setLoading(true);
+    const url = buildLogsUrl(startIdx, pageSize, customLogType);
     const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
@@ -770,6 +779,145 @@ export const useLogsData = () => {
       showError(message);
     }
     setLoading(false);
+  };
+
+  // Export logs to CSV (loops through all pages matching current filters)
+  const exportLogs = async () => {
+    const LOG_TYPE_MAP = {
+      1: t('充值'),
+      2: t('消费'),
+      3: t('管理'),
+      4: t('系统'),
+      5: t('错误'),
+      6: t('退款'),
+    };
+
+    const csvEscape = (value) => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      if (/[",\n\r]/.test(str)) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    setExporting(true);
+    setExportProgress({ current: 0, total: 0 });
+
+    try {
+      const EXPORT_PAGE_SIZE = 100;
+      const firstRes = await API.get(buildLogsUrl(1, EXPORT_PAGE_SIZE));
+      const first = firstRes.data;
+      if (!first.success) {
+        showError(first.message);
+        return;
+      }
+
+      const total = first.data.total;
+      if (total === 0) {
+        showError(t('没有符合条件的日志'));
+        return;
+      }
+
+      // Confirm if dataset is large
+      const LARGE_THRESHOLD = 50000;
+      if (total > LARGE_THRESHOLD) {
+        const confirmed = await new Promise((resolve) => {
+          Modal.confirm({
+            title: t('数据量较大'),
+            content: t('共 {{total}} 条日志，导出可能耗时较久，确定继续吗？', { total }),
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+          });
+        });
+        if (!confirmed) return;
+      }
+
+      let allItems = [...(first.data.items ?? [])];
+      setExportProgress({ current: allItems.length, total });
+
+      const totalPages = Math.ceil(total / EXPORT_PAGE_SIZE);
+      for (let p = 2; p <= totalPages; p++) {
+        const res = await API.get(buildLogsUrl(p, EXPORT_PAGE_SIZE));
+        if (!res.data.success) {
+          showError(res.data.message);
+          return;
+        }
+        allItems = allItems.concat(res.data.items ?? []);
+        setExportProgress({ current: allItems.length, total });
+      }
+
+      // Build CSV header
+      const headers = [
+        t('时间'),
+        t('日志类型'),
+      ];
+      if (isAdminUser) {
+        headers.push(t('渠道ID'), t('用户'));
+      }
+      headers.push(
+        t('令牌'),
+        t('分组'),
+        t('模型'),
+        t('用时(s)'),
+        t('输入tokens'),
+        t('输出tokens'),
+        t('费用'),
+        'IP',
+        t('请求ID'),
+        t('详情'),
+      );
+
+      const rows = allItems.map((log) => {
+        const row = [
+          timestamp2string(log.created_at),
+          LOG_TYPE_MAP[log.type] || String(log.type),
+        ];
+        if (isAdminUser) {
+          row.push(log.channel || '', log.username || '');
+        }
+        row.push(
+          log.token_name || '',
+          log.group || '',
+          log.model_name || '',
+          log.use_time ?? '',
+          log.prompt_tokens ?? '',
+          log.completion_tokens ?? '',
+          renderQuota(log.quota || 0, 6),
+          log.ip || '',
+          log.request_id || '',
+          (log.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+        );
+        return row;
+      });
+
+      const csv =
+        '﻿' +
+        [headers, ...rows]
+          .map((r) => r.map(csvEscape).join(','))
+          .join('\r\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const filename = `logs_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.csv`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showSuccess(t('导出成功，共 {{count}} 条', { count: allItems.length }));
+    } catch (err) {
+      console.error('Export logs failed:', err);
+      showError(t('导出失败') + ': ' + (err?.message || String(err)));
+    } finally {
+      setExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+    }
   };
 
   // Page handlers
@@ -882,8 +1030,13 @@ export const useLogsData = () => {
     setShowParamOverrideModal,
     paramOverrideTarget,
 
+    // Export state
+    exporting,
+    exportProgress,
+
     // Functions
     loadLogs,
+    exportLogs,
     handlePageChange,
     handlePageSizeChange,
     refresh,

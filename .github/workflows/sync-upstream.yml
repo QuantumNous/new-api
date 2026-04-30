@@ -1,0 +1,117 @@
+name: Sync Upstream & Auto Release
+
+# 每天 UTC 03:00 自动运行，也可手动触发
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+# 防止同一时间多个实例并发运行（如 schedule 与手动触发重叠）
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Check & sync upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 (Node.js 22)
+        with:
+          fetch-depth: 0
+          # 必须使用 PAT，GITHUB_TOKEN 推送的 tag 不会触发其他 workflow（如 release.yml）
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote & fetch
+        run: |
+          git remote add upstream https://github.com/Calcium-Ion/new-api.git
+          git fetch upstream --tags --force
+
+      - name: Detect new upstream release tag
+        id: tag
+        run: |
+          # 获取上游最新正式版 tag（排除 alpha/beta/rc）
+          LATEST=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          echo "Upstream latest tag: $LATEST"
+
+          if [ -z "$LATEST" ]; then
+            echo "No upstream release tag found, skipping."
+            echo "new_tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 检查 fork 中是否已存在该 tag
+          if git ls-remote --tags origin "refs/tags/$LATEST" | grep -q "$LATEST"; then
+            echo "Tag $LATEST already exists in fork, nothing to do."
+            echo "new_tag=" >> "$GITHUB_OUTPUT"
+          else
+            echo "New upstream tag detected: $LATEST"
+            echo "new_tag=$LATEST" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream/main into main
+        if: steps.tag.outputs.new_tag != ''
+        id: merge
+        continue-on-error: true
+        run: |
+          git checkout main
+          # 先同步 fork 上任何非上游提交（如 workflow 修改等），避免 push 时 non-fast-forward
+          git pull origin main --no-rebase
+          git merge upstream/main \
+            --no-edit \
+            -m "chore: sync upstream ${{ steps.tag.outputs.new_tag }}"
+
+      - name: Abort failed merge
+        if: steps.tag.outputs.new_tag != '' && steps.merge.outcome == 'failure'
+        run: git merge --abort 2>/dev/null || true
+
+      # 合并冲突时自动开 Issue 提醒
+      - name: Open conflict issue
+        if: steps.tag.outputs.new_tag != '' && steps.merge.outcome == 'failure'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const tag = '${{ steps.tag.outputs.new_tag }}';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[Sync] 上游合并冲突：${tag}`,
+              body: [
+                `## 上游同步冲突`,
+                ``,
+                `上游发布了 **${tag}**，但自动合并到 \`main\` 分支时发生冲突，需要手动解决：`,
+                ``,
+                '```bash',
+                'git fetch upstream',
+                'git checkout main',
+                'git merge upstream/main',
+                '# 解决冲突后：',
+                'git add .',
+                'git commit',
+                'git push origin main',
+                `git tag ${tag}`,
+                `git push origin ${tag}`,
+                '```',
+              ].join('\n')
+            });
+
+      # 合并成功：推送 main 并创建同名 tag → 自动触发 release.yml 构建
+      - name: Push main & create release tag
+        if: steps.tag.outputs.new_tag != '' && steps.merge.outcome == 'success'
+        run: |
+          # --force-with-lease: 仅当 origin/main 与预期一致时才强推，防止意外覆盖他人提交
+          git push origin main --force-with-lease
+          # -f: 覆盖 fetch upstream 时已拉取到本地的同名 tag，使其指向 merge 后的 HEAD
+          git tag -f ${{ steps.tag.outputs.new_tag }}
+          git push origin ${{ steps.tag.outputs.new_tag }}
+          echo "✅ Tag ${{ steps.tag.outputs.new_tag }} pushed — release workflow will start automatically."

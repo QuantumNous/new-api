@@ -51,8 +51,17 @@ export const saveMessages = (messages) => {
       timestamp: new Date().toISOString(),
     };
     localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messagesToSave));
+    return 'ok';
   } catch (error) {
+    if (
+      error instanceof DOMException &&
+      (error.name === 'QuotaExceededError' ||
+        error.name === 'NS_ERROR_DOM_QUOTA_REACHED')
+    ) {
+      return 'quota';
+    }
     console.error('保存消息失败:', error);
+    return 'error';
   }
 };
 
@@ -74,6 +83,8 @@ export const loadConfig = () => {
           max_tokens: Number.isNaN(parsedMaxTokens)
             ? parsedConfig?.inputs?.max_tokens
             : parsedMaxTokens,
+          imageUrls: [],
+          imageEnabled: false,
         },
         parameterEnabled: {
           ...DEFAULT_CONFIG.parameterEnabled,

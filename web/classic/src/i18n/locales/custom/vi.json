@@ -1,0 +1,29 @@
+{
+  "translation": {
+    "共 {{total}} 条日志，导出可能耗时较久，确定继续吗？": "Có {{total}} bản ghi. Việc xuất có thể mất thời gian. Tiếp tục?",
+    "升级中...": "Đang nâng cấp...",
+    "升级成功，页面即将刷新": "Nâng cấp thành công, trang sẽ tải lại",
+    "升级指令已发送，等待服务重启...": "Lệnh nâng cấp đã được gửi, đang chờ dịch vụ khởi động lại...",
+    "升级请求失败，请检查 Watchtower 是否已配置": "Yêu cầu nâng cấp thất bại, kiểm tra xem Watchtower đã được cấu hình chưa",
+    "启用后可上传图片进行多模态对话": "Bật để tải ảnh cho hội thoại đa phương thức",
+    "图片": "Ảnh",
+    "图片读取失败": "Đọc ảnh thất bại",
+    "导出中 ({{current}}/{{total}})": "Đang xuất ({{current}}/{{total}})",
+    "导出失败": "Xuất thất bại",
+    "导出成功，共 {{count}} 条": "Xuất thành công, {{count}} bản ghi",
+    "拖拽图片到此处，或点击选择文件": "Kéo ảnh vào đây, hoặc nhấp để chọn tệp",
+    "数据量较大": "Dữ liệu lớn",
+    "服务升级中，请勿关闭页面，已等待 {{elapsed}} 秒": "Đang nâng cấp dịch vụ, đừng đóng trang. Đã chờ: {{elapsed}}s",
+    "服务未能在预期时间内恢复，请手动刷新页面": "Dịch vụ không phục hồi kịp thời, vui lòng tải lại trang thủ công",
+    "松开以添加图片": "Thả để thêm ảnh",
+    "没有符合条件的日志": "Không có nhật ký phù hợp với bộ lọc",
+    "用时(s)": "Thời gian (giây)",
+    "立即安装": "Cài đặt ngay",
+    "请求ID": "ID yêu cầu",
+    "输入tokens": "Tokens đầu vào",
+    "输出tokens": "Tokens đầu ra",
+    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Hiện tại chỉ hỗ trợ giao diện Epay, địa chỉ máy chủ phía trên được sử dụng làm địa chỉ gọi lại theo mặc định!)",
+    "聊天记录过大，无法保存": "Lịch sử trò chuyện quá lớn để lưu",
+    "清空对话": "Xóa cuộc trò chuyện"
+  }
+}

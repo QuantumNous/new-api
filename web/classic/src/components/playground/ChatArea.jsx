@@ -23,6 +23,12 @@ import { MessageSquare, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CustomInputRender from './CustomInputRender';
 
+// 提取模型显示名称（如果是路径，只取最后一部分）
+const getModelDisplayName = (model) => {
+  if (!model) return '';
+  return model.includes('/') ? model.split('/').pop() : model;
+};
+
 const ChatArea = ({
   chatRef,
   message,
@@ -73,7 +79,7 @@ const ChatArea = ({
                   {t('AI 对话')}
                 </Typography.Title>
                 <Typography.Text className='!text-white/80 text-sm hidden sm:inline'>
-                  {inputs.model || t('选择模型开始对话')}
+                  {getModelDisplayName(inputs.model) || t('选择模型开始对话')}
                 </Typography.Text>
               </div>
             </div>

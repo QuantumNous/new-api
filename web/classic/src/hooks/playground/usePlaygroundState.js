@@ -101,6 +101,7 @@ export const usePlaygroundState = () => {
   // 调试状态
   const [debugData, setDebugData] = useState({
     request: null,
+    headers: null,
     response: null,
     timestamp: null,
     previewRequest: null,
@@ -112,6 +113,15 @@ export const usePlaygroundState = () => {
   // 编辑状态
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editValue, setEditValue] = useState('');
+
+  // Quota exceeded state
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const quotaToastShownRef = useRef(false);
+
+  const resetQuotaExceeded = useCallback(() => {
+    quotaToastShownRef.current = false;
+    setQuotaExceeded(false);
+  }, []);
 
   // Refs
   const sseSourceRef = useRef(null);
@@ -134,8 +144,11 @@ export const usePlaygroundState = () => {
   // 消息保存函数 - 改为立即保存，可以接受参数
   const saveMessagesImmediately = useCallback(
     (messagesToSave) => {
-      // 如果提供了参数，使用参数；否则使用当前状态
-      saveMessages(messagesToSave || message);
+      const result = saveMessages(messagesToSave || message);
+      if (result === 'quota' && !quotaToastShownRef.current) {
+        quotaToastShownRef.current = true;
+        setQuotaExceeded(true);
+      }
     },
     [message],
   );
@@ -256,6 +269,8 @@ export const usePlaygroundState = () => {
 
   return {
     // 配置状态
+    quotaExceeded,
+    resetQuotaExceeded,
     inputs,
     parameterEnabled,
     showDebugPanel,

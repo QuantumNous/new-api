@@ -1,0 +1,31 @@
+{
+  "translation": {
+    "共 {{total}} 条日志，导出可能耗时较久，确定继续吗？": "{{total}} log records found. Export may take a while. Continue?",
+    "升级中...": "Upgrading...",
+    "升级成功，页面即将刷新": "Upgrade successful, page will refresh shortly",
+    "升级指令已发送，等待服务重启...": "Upgrade command sent, waiting for service to restart...",
+    "升级请求失败，请检查 Watchtower 是否已配置": "Upgrade request failed, please check if Watchtower is configured",
+    "启用后可上传图片进行多模态对话": "Enable to upload images for multimodal conversations",
+    "图片": "Image",
+    "图片读取失败": "Failed to read image",
+    "导出中 ({{current}}/{{total}})": "Exporting ({{current}}/{{total}})",
+    "导出失败": "Export failed",
+    "导出成功，共 {{count}} 条": "Export successful, {{count}} records",
+    "拖拽图片到此处，或点击选择文件": "Drag images here, or click to select files",
+    "数据量较大": "Large dataset",
+    "服务升级中，请勿关闭页面，已等待 {{elapsed}} 秒": "Upgrading service, do not close the page. Elapsed: {{elapsed}}s",
+    "服务未能在预期时间内恢复，请手动刷新页面": "Service did not recover in time, please refresh the page manually",
+    "松开以添加图片": "Release to add images",
+    "没有符合条件的日志": "No logs match the filters",
+    "渠道ID": "Channel ID",
+    "用时(s)": "Duration (s)",
+    "立即安装": "Install Now",
+    "请求ID": "Request ID",
+    "请求头": "Request headers",
+    "输入tokens": "Input tokens",
+    "输出tokens": "Output tokens",
+    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)",
+    "聊天记录过大，无法保存": "Chat history is too large to save",
+    "清空对话": "Clear conversation"
+  }
+}

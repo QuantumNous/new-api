@@ -86,6 +86,8 @@ const Playground = () => {
 
   const state = usePlaygroundState();
   const {
+    quotaExceeded,
+    resetQuotaExceeded,
     inputs,
     parameterEnabled,
     showDebugPanel,
@@ -436,6 +438,49 @@ const Playground = () => {
     // 清空对话后保存，传入空数组
     setTimeout(() => saveMessagesImmediately([]), 0);
   }, [setMessage, saveMessagesImmediately]);
+
+  // localStorage quota exceeded — show persistent toast once
+  const quotaToastIdRef = useRef(null);
+  useEffect(() => {
+    if (!quotaExceeded) {
+      if (quotaToastIdRef.current !== null) {
+        Toast.close(quotaToastIdRef.current);
+        quotaToastIdRef.current = null;
+      }
+      return;
+    }
+    if (quotaToastIdRef.current !== null) return;
+    quotaToastIdRef.current = Toast.warning({
+      content: (
+        <span>
+          {t('聊天记录过大，无法保存')}
+          <span
+            role='button'
+            tabIndex={0}
+            style={{
+              marginLeft: 12,
+              cursor: 'pointer',
+              fontWeight: 600,
+              textDecoration: 'underline',
+            }}
+            onClick={() => {
+              handleClearMessages();
+              resetQuotaExceeded();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                handleClearMessages();
+                resetQuotaExceeded();
+              }
+            }}
+          >
+            {t('清空对话')}
+          </span>
+        </span>
+      ),
+      duration: 0,
+    });
+  }, [quotaExceeded, t, handleClearMessages, resetQuotaExceeded]);
 
   // 处理粘贴图片
   const handlePasteImage = useCallback(

@@ -1,0 +1,40 @@
+name: Sync base images to ACR
+
+# 手动触发，只需要跑一次（或需要更新基础镜像版本时再跑）
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to ACR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ secrets.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Sync postgres:15
+        run: |
+          docker pull postgres:15
+          docker tag postgres:15 ${{ secrets.ACR_REGISTRY }}/reputationly/postgres:15
+          docker push ${{ secrets.ACR_REGISTRY }}/reputationly/postgres:15
+
+      - name: Sync redis:latest
+        run: |
+          docker pull redis:latest
+          docker tag redis:latest ${{ secrets.ACR_REGISTRY }}/reputationly/redis:latest
+          docker push ${{ secrets.ACR_REGISTRY }}/reputationly/redis:latest
+
+      - name: Sync containrrr/watchtower:latest
+        run: |
+          docker pull containrrr/watchtower:latest
+          docker tag containrrr/watchtower:latest ${{ secrets.ACR_REGISTRY }}/reputationly/watchtower:latest
+          docker push ${{ secrets.ACR_REGISTRY }}/reputationly/watchtower:latest

@@ -32,6 +32,9 @@ const LogsFilters = ({
   setLogType,
   loading,
   isAdminUser,
+  exportLogs,
+  exporting,
+  exportProgress,
   t,
 }) => {
   return (
@@ -183,6 +186,19 @@ const LogsFilters = ({
             >
               {t('列设置')}
             </Button>
+            {exportLogs && (
+              <Button
+                type='tertiary'
+                onClick={exportLogs}
+                loading={exporting}
+                disabled={exporting}
+                size='small'
+              >
+                {exporting && exportProgress?.total
+                  ? t('导出中 ({{current}}/{{total}})', exportProgress)
+                  : t('导出')}
+              </Button>
+            )}
           </div>
         </div>
       </div>
