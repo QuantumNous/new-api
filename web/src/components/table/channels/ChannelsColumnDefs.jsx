@@ -458,6 +458,26 @@ export const getChannelsColumns = ({
       },
     },
     {
+      key: COLUMN_KEYS.TAG,
+      title: t('渠道标签'),
+      dataIndex: 'tag',
+      render: (text, record) => {
+        const tag = String(text || '').trim();
+        if (!tag) {
+          return (
+            <Tag color='grey' shape='circle' type='light'>
+              {t('无标签')}
+            </Tag>
+          );
+        }
+        return (
+          <Tag color='light-blue' shape='circle' type='light'>
+            {tag}
+          </Tag>
+        );
+      },
+    },
+    {
       key: COLUMN_KEYS.GROUP,
       title: t('分组'),
       dataIndex: 'group',

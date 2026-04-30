@@ -190,6 +190,7 @@ export const useChannelsData = () => {
   const COLUMN_KEYS = {
     ID: 'id',
     NAME: 'name',
+    TAG: 'tag',
     GROUP: 'group',
     TYPE: 'type',
     STATUS: 'status',
@@ -230,6 +231,7 @@ export const useChannelsData = () => {
     return {
       [COLUMN_KEYS.ID]: true,
       [COLUMN_KEYS.NAME]: true,
+      [COLUMN_KEYS.TAG]: true,
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
       [COLUMN_KEYS.STATUS]: true,
@@ -713,15 +715,27 @@ export const useChannelsData = () => {
 
   // Row style
   const handleRow = (record, index) => {
+    const rowProps = {};
     if (record.status !== 1) {
-      return {
-        style: {
-          background: 'var(--semi-color-disabled-border)',
-        },
+      rowProps.style = {
+        background: 'var(--semi-color-disabled-border)',
       };
-    } else {
-      return {};
     }
+    if (record?.children === undefined && record?.id !== undefined) {
+      rowProps.onDoubleClick = (event) => {
+        const target = event?.target;
+        if (
+          target?.closest?.(
+            'button,a,input,textarea,select,[role="button"],.semi-button,.semi-checkbox,.semi-dropdown-trigger',
+          )
+        ) {
+          return;
+        }
+        setEditingChannel(record);
+        setShowEdit(true);
+      };
+    }
+    return rowProps;
   };
 
   // Batch operations

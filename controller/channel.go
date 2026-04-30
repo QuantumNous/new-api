@@ -604,6 +604,23 @@ func buildBatchAddChannels(addChannelRequest AddChannelRequest, keys []string) [
 	return channels
 }
 
+func applyDefaultBatchChannelTag(addChannelRequest *AddChannelRequest) {
+	if addChannelRequest == nil || addChannelRequest.Channel == nil {
+		return
+	}
+	if addChannelRequest.Mode != "batch" && addChannelRequest.Mode != "multi_to_single" {
+		return
+	}
+	if addChannelRequest.Channel.Tag != nil && strings.TrimSpace(*addChannelRequest.Channel.Tag) != "" {
+		return
+	}
+	name := strings.TrimSpace(addChannelRequest.Channel.Name)
+	if name == "" {
+		return
+	}
+	addChannelRequest.Channel.Tag = common.GetPointer(name)
+}
+
 func getVertexArrayKeys(keys string) ([]string, error) {
 	if keys == "" {
 		return nil, nil
@@ -707,6 +724,7 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 
+	applyDefaultBatchChannelTag(&addChannelRequest)
 	channels := buildBatchAddChannels(addChannelRequest, keys)
 	err = model.BatchInsertChannels(channels)
 	if err != nil {

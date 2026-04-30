@@ -43,3 +43,32 @@ func TestGetAwsBatchKeyRegionSupportsApiKeyMode(t *testing.T) {
 	region := getAwsBatchKeyRegion("API_KEY_VALUE|eu-west-1", "api_key")
 	require.Equal(t, "eu-west-1", region)
 }
+
+func TestApplyDefaultBatchChannelTagUsesChannelNameWhenEmpty(t *testing.T) {
+	request := &AddChannelRequest{
+		Mode: "batch",
+		Channel: &model.Channel{
+			Name: "AWS1",
+		},
+	}
+
+	applyDefaultBatchChannelTag(request)
+
+	require.NotNil(t, request.Channel.Tag)
+	require.Equal(t, "AWS1", *request.Channel.Tag)
+}
+
+func TestApplyDefaultBatchChannelTagPreservesManualTag(t *testing.T) {
+	request := &AddChannelRequest{
+		Mode: "batch",
+		Channel: &model.Channel{
+			Name: "AWS1",
+			Tag:  common.GetPointer("manual-tag"),
+		},
+	}
+
+	applyDefaultBatchChannelTag(request)
+
+	require.NotNil(t, request.Channel.Tag)
+	require.Equal(t, "manual-tag", *request.Channel.Tag)
+}

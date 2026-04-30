@@ -2276,6 +2276,9 @@ const EditChannelModal = (props) => {
     if (batch) {
       mode = multiToSingle ? 'multi_to_single' : 'batch';
     }
+    if (!isEdit && batch && !String(localInputs.tag || '').trim()) {
+      localInputs.tag = String(localInputs.name || '').trim();
+    }
     const batchModelMappingsByKey =
       !isEdit && mode === 'batch' && localInputs.type === AWS_CHANNEL_TYPE
         ? buildAwsBatchModelMappingsByKey(
