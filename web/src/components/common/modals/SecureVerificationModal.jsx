@@ -27,6 +27,7 @@ import {
   ModalDialog,
   ModalFooter,
   ModalHeader,
+  ModalHeading,
   Button,
   Input,
   Tabs,
@@ -97,7 +98,9 @@ const SecureVerificationModal = ({
         <ModalBackdrop variant='blur'>
           <ModalContainer size='md' placement='center'>
             <ModalDialog className='bg-background/95 backdrop-blur'>
-              <ModalHeader>{title || t('安全验证')}</ModalHeader>
+              <ModalHeader>
+                <ModalHeading>{title || t('安全验证')}</ModalHeading>
+              </ModalHeader>
               <ModalBody>
                 <div className='py-6 text-center'>
                   <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-warning/10 text-warning'>
@@ -128,7 +131,9 @@ const SecureVerificationModal = ({
       <ModalBackdrop variant='blur'>
         <ModalContainer size='md' placement='center'>
           <ModalDialog className='bg-background/95 backdrop-blur'>
-            <ModalHeader>{title || t('安全验证')}</ModalHeader>
+            <ModalHeader>
+              <ModalHeading>{title || t('安全验证')}</ModalHeading>
+            </ModalHeader>
             <ModalBody className='px-5 py-5'>
               <div className='w-full'>
                 {/* 描述信息 */}

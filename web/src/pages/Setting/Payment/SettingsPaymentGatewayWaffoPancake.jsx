@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Button, Input, Switch } from '@heroui/react';
+import { Alert, Button, Input, Switch } from '@heroui/react';
 import { BookOpen, TriangleAlert } from 'lucide-react';
 import {
   API,
@@ -310,12 +310,19 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
           </div>
         </div>
 
-        <div className='flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100'>
-          <TriangleAlert size={16} className='mt-0.5 shrink-0' />
-          <div>
-            {t('请确认 Merchant、Store、Product 和所选环境密钥一致。')}
-          </div>
-        </div>
+        <Alert
+          status='warning'
+          className='!items-center ct-compact-alert'
+        >
+          <Alert.Indicator>
+            <TriangleAlert size={14} />
+          </Alert.Indicator>
+          <Alert.Content>
+            <Alert.Description>
+              {t('请确认 Merchant、Store、Product 和所选环境密钥一致。')}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
       </div>
 
       <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>

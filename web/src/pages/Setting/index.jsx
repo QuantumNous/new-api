@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import {
   Settings,
   Calculator,
@@ -58,122 +59,74 @@ const Setting = () => {
 
   if (isRoot()) {
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Settings size={18} />
-          {t('运营设置')}
-        </span>
-      ),
+      icon: <Settings size={14} />,
+      label: t('运营设置'),
       content: <OperationSetting />,
       itemKey: 'operation',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <LayoutDashboard size={18} />
-          {t('仪表盘设置')}
-        </span>
-      ),
+      icon: <LayoutDashboard size={14} />,
+      label: t('仪表盘设置'),
       content: <DashboardSetting />,
       itemKey: 'dashboard',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <MessageSquare size={18} />
-          {t('聊天设置')}
-        </span>
-      ),
+      icon: <MessageSquare size={14} />,
+      label: t('聊天设置'),
       content: <ChatsSetting />,
       itemKey: 'chats',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Palette size={18} />
-          {t('绘图设置')}
-        </span>
-      ),
+      icon: <Palette size={14} />,
+      label: t('绘图设置'),
       content: <DrawingSetting />,
       itemKey: 'drawing',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <CreditCard size={18} />
-          {t('支付设置')}
-        </span>
-      ),
+      icon: <CreditCard size={14} />,
+      label: t('支付设置'),
       content: <PaymentSetting />,
       itemKey: 'payment',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Calculator size={18} />
-          {t('分组与模型定价设置')}
-        </span>
-      ),
+      icon: <Calculator size={14} />,
+      label: t('分组与模型定价设置'),
       content: <RatioSetting />,
       itemKey: 'ratio',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Gauge size={18} />
-          {t('速率限制设置')}
-        </span>
-      ),
+      icon: <Gauge size={14} />,
+      label: t('速率限制设置'),
       content: <RateLimitSetting />,
       itemKey: 'ratelimit',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Shapes size={18} />
-          {t('模型相关设置')}
-        </span>
-      ),
+      icon: <Shapes size={14} />,
+      label: t('模型相关设置'),
       content: <ModelSetting />,
       itemKey: 'models',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Server size={18} />
-          {t('模型部署设置')}
-        </span>
-      ),
+      icon: <Server size={14} />,
+      label: t('模型部署设置'),
       content: <ModelDeploymentSetting />,
       itemKey: 'model-deployment',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Activity size={18} />
-          {t('性能设置')}
-        </span>
-      ),
+      icon: <Activity size={14} />,
+      label: t('性能设置'),
       content: <PerformanceSetting />,
       itemKey: 'performance',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Cog size={18} />
-          {t('系统设置')}
-        </span>
-      ),
+      icon: <Cog size={14} />,
+      label: t('系统设置'),
       content: <SystemSetting />,
       itemKey: 'system',
     });
     panes.push({
-      tab: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <MoreHorizontal size={18} />
-          {t('其他设置')}
-        </span>
-      ),
+      icon: <MoreHorizontal size={14} />,
+      label: t('其他设置'),
       content: <OtherSetting />,
       itemKey: 'other',
     });
@@ -200,26 +153,31 @@ const Setting = () => {
 
   return (
     <div className='min-w-0'>
-      <div className='mb-4 flex flex-wrap items-center gap-2'>
-        {panes.map((pane) => {
-          const selected = pane.itemKey === tabActiveKey;
-          return (
-            <button
-              key={pane.itemKey}
-              type='button'
-              className={`rounded-full px-4 py-2 text-sm transition ${
-                selected
-                  ? 'bg-foreground text-background'
-                  : 'bg-surface-secondary text-muted'
-              }`}
-              aria-current={selected ? 'page' : undefined}
-              onClick={() => onChangeTab(pane.itemKey)}
-            >
-              {pane.tab}
-            </button>
-          );
-        })}
-      </div>
+      {/* Settings tabs — HeroUI ToggleButtonGroup, same anatomy as
+          ChannelsTabs / ModelsTabs (rounded-3xl pills, accent-soft on
+          select). HeroUI's ToggleButton ships `cursor: pointer` and
+          full keyboard / radiogroup semantics out of the box, replacing
+          the hand-rolled `<button>` list which had no pointer cursor
+          and a black-pill selected state that drifted from the rest of
+          the admin UI. */}
+      <ToggleButtonGroup
+        aria-label={t('设置分类')}
+        selectionMode='single'
+        selectedKeys={[tabActiveKey]}
+        onSelectionChange={(keys) => {
+          const next = Array.from(keys || [])[0];
+          if (!next || next === tabActiveKey) return;
+          onChangeTab(String(next));
+        }}
+        className='!flex !flex-wrap !justify-start mb-4 gap-2'
+      >
+        {panes.map((pane) => (
+          <ToggleButton key={pane.itemKey} id={pane.itemKey} size='sm'>
+            {pane.icon}
+            <span className='whitespace-nowrap'>{pane.label}</span>
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
       <div key={activePane?.itemKey}>{activePane?.content}</div>
     </div>
   );

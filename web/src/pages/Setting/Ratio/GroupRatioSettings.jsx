@@ -34,6 +34,7 @@ import GroupTable from './components/GroupTable';
 import AutoGroupList from './components/AutoGroupList';
 import GroupGroupRatioRules from './components/GroupGroupRatioRules';
 import GroupSpecialUsableRules from './components/GroupSpecialUsableRules';
+import SideSheet from '../../../components/common/ui/SideSheet';
 
 // ----------------------------- helpers -----------------------------
 
@@ -507,23 +508,12 @@ export default function GroupRatioSettings(props) {
   ];
 
   const renderGuide = () => (
-    <>
-      <div
-        aria-hidden={!showGuide}
-        onClick={() => setShowGuide(false)}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          showGuide ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!showGuide}
-        style={{ width: 560 }}
-        className={`fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-full flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          showGuide ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
+    <SideSheet
+      visible={showGuide}
+      onClose={() => setShowGuide(false)}
+      placement='right'
+      width={560}
+    >
         <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
           <h4 className='m-0 text-lg font-semibold text-foreground'>
             {t('分组设置使用说明')}
@@ -890,8 +880,7 @@ export default function GroupRatioSettings(props) {
             </div>
           )}
         </div>
-      </aside>
-    </>
+    </SideSheet>
   );
 
   return (
