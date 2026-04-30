@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Button } from '@heroui/react';
+import { Alert, Button } from '@heroui/react';
 import { TriangleAlert, X } from 'lucide-react';
 import CardPro from '../../common/ui/CardPro';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
@@ -120,22 +120,46 @@ const ModelsPage = () => {
       />
 
       {showMarketplaceDisplayNotice ? (
-        <div className='relative mb-3 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 pr-12 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100'>
-          <TriangleAlert size={18} className='mt-0.5 shrink-0' />
-          <div className='min-w-0 flex-1'>
-            {t(
-              '提示：此处配置仅用于控制「模型广场」对用户的展示效果，不会影响模型的实际调用与路由。若需配置真实调用行为，请前往「渠道管理」进行设置。',
-            )}
-          </div>
-          <button
-            type='button'
-            onClick={() => setShowCloseConfirm(true)}
+        // HeroUI v3 `Alert` (compound) — `status='warning'` paints the
+        // amber surface tone HeroUI ships out of the box, so we don't
+        // have to hand-roll bg-amber-50 / dark:bg-amber-950 etc.
+        //
+        // Two visual tweaks via overrides:
+        //   • `!items-center` overrides `.alert`'s default `items-start`
+        //     so icon + description vertically center on a single-line
+        //     notice (the default top-align looks off when there's no
+        //     Alert.Title).
+        //   • `ct-compact-alert` shrinks description
+        //     text from `text-sm` (14px) → `text-xs` (12px) for a more
+        //     subdued banner that doesn't compete with the page header.
+        //
+        // `relative mb-3 pr-10` carves out room on the right for the
+        // absolutely-positioned close affordance.
+        <Alert
+          status='warning'
+          className='relative mb-3 pr-10 !items-center ct-compact-alert'
+        >
+          <Alert.Indicator>
+            <TriangleAlert size={14} />
+          </Alert.Indicator>
+          <Alert.Content>
+            <Alert.Description>
+              {t(
+                '提示：此处配置仅用于控制「模型广场」对用户的展示效果，不会影响模型的实际调用与路由。若需配置真实调用行为，请前往「渠道管理」进行设置。',
+              )}
+            </Alert.Description>
+          </Alert.Content>
+          <Button
+            isIconOnly
+            variant='ghost'
+            size='sm'
             aria-label={t('关闭')}
-            className='absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-amber-700/70 transition hover:bg-amber-100 hover:text-amber-700 dark:text-amber-100/70 dark:hover:bg-amber-900/50 dark:hover:text-amber-100'
+            onPress={() => setShowCloseConfirm(true)}
+            className='!absolute !right-2 !top-1/2 !-translate-y-1/2 !h-6 !w-6 !min-w-6 !rounded-md text-current/70 hover:!text-current [&_svg]:!size-3'
           >
-            <X size={14} />
-          </button>
-        </div>
+            <X size={12} />
+          </Button>
+        </Alert>
       ) : null}
 
       <ConfirmDialog
@@ -155,35 +179,40 @@ const ModelsPage = () => {
       <CardPro
         type='type3'
         tabsArea={<ModelsTabs {...modelsData} />}
+        // ModelsActions (5 buttons) and ModelsFilters (2 inputs +
+        // Query/Reset) used to share a single `flex-row` row inside
+        // `actionsArea`. At medium widths neither half could fit so
+        // ModelsActions wrapped to 5 vertical lines while ModelsFilters
+        // floated centred at the right — visually misaligned.
+        // CardPro already has separate `actionsArea` / `searchArea`
+        // slots that stack vertically with their own divider, which
+        // matches the layout the other admin tables use.
         actionsArea={
-          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
-            <ModelsActions
-              selectedKeys={selectedKeys}
-              setSelectedKeys={setSelectedKeys}
-              setEditingModel={setEditingModel}
-              setShowEdit={setShowEdit}
-              batchDeleteModels={batchDeleteModels}
-              syncing={modelsData.syncing}
-              syncUpstream={modelsData.syncUpstream}
-              previewing={modelsData.previewing}
-              previewUpstreamDiff={modelsData.previewUpstreamDiff}
-              applyUpstreamOverwrite={modelsData.applyUpstreamOverwrite}
-              compactMode={compactMode}
-              setCompactMode={setCompactMode}
-              t={t}
-            />
-
-            <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
-              <ModelsFilters
-                formInitValues={formInitValues}
-                setFormApi={setFormApi}
-                searchModels={searchModels}
-                loading={loading}
-                searching={searching}
-                t={t}
-              />
-            </div>
-          </div>
+          <ModelsActions
+            selectedKeys={selectedKeys}
+            setSelectedKeys={setSelectedKeys}
+            setEditingModel={setEditingModel}
+            setShowEdit={setShowEdit}
+            batchDeleteModels={batchDeleteModels}
+            syncing={modelsData.syncing}
+            syncUpstream={modelsData.syncUpstream}
+            previewing={modelsData.previewing}
+            previewUpstreamDiff={modelsData.previewUpstreamDiff}
+            applyUpstreamOverwrite={modelsData.applyUpstreamOverwrite}
+            compactMode={compactMode}
+            setCompactMode={setCompactMode}
+            t={t}
+          />
+        }
+        searchArea={
+          <ModelsFilters
+            formInitValues={formInitValues}
+            setFormApi={setFormApi}
+            searchModels={searchModels}
+            loading={loading}
+            searching={searching}
+            t={t}
+          />
         }
         paginationArea={createCardProPagination({
           currentPage: modelsData.activePage,

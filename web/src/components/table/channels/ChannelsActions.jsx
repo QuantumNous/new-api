@@ -17,11 +17,48 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Button, Switch } from '@heroui/react';
+import React, { useState } from 'react';
+import { Button, ListBox, Select, Spinner, Switch } from '@heroui/react';
 import { ChevronDown } from 'lucide-react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
+import ClickMenu from '@/components/common/ui/ClickMenu';
+
+// Compact inline status filter — HeroUI v3 `Select` sized to match the
+// 32px row of the toggle switches sitting next to it. We trade the
+// native `<select>` for the HeroUI compound surface so the popover
+// chrome (border, shadow, item highlight) lines up with the rest of
+// the console (e.g. /console/log filter dropdowns, the page-size picker).
+function StatusFilterSelect({ value, onChange, options, ariaLabel }) {
+  return (
+    <Select
+      aria-label={ariaLabel}
+      selectedKey={value}
+      onSelectionChange={(key) => {
+        if (key == null) return;
+        onChange(String(key));
+      }}
+      className='w-32'
+    >
+      <Select.Trigger className='!min-h-8 h-8 rounded-lg border border-[color:var(--app-border)] bg-background px-2 text-sm text-foreground outline-none transition focus:border-primary flex items-center justify-between gap-1 cursor-pointer text-left'>
+        <Select.Value className='truncate' />
+        <Select.Indicator>
+          <ChevronDown size={12} className='text-muted shrink-0' />
+        </Select.Indicator>
+      </Select.Trigger>
+      <Select.Popover className='min-w-(--trigger-width)'>
+        <ListBox>
+          {options.map((opt) => (
+            <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label}>
+              {opt.label}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+    </Select>
+  );
+}
 
 function ToggleSwitch({ value, onChange }) {
   return (
@@ -35,65 +72,6 @@ function ToggleSwitch({ value, onChange }) {
         <Switch.Thumb />
       </Switch.Control>
     </Switch>
-  );
-}
-
-function ClickDropdown({ label, items }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (event) => {
-      if (ref.current && !ref.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
-
-  return (
-    <span ref={ref} className='relative inline-flex w-full md:w-auto'>
-      <Button
-        variant='tertiary'
-        size='sm'
-        className='w-full md:w-auto'
-        onPress={() => setOpen((prev) => !prev)}
-      >
-        {label}
-        <ChevronDown size={14} />
-      </Button>
-      {open ? (
-        <div
-          role='menu'
-          className='absolute left-0 top-full z-30 mt-1 min-w-[14rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-background shadow-lg'
-        >
-          {items.map((item, idx) => (
-            <button
-              key={idx}
-              type='button'
-              role='menuitem'
-              disabled={item.disabled}
-              className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                item.danger
-                  ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40'
-                  : 'text-foreground hover:bg-[color:var(--app-background)]'
-              }`}
-              onClick={() => {
-                setOpen(false);
-                item.onClick?.();
-              }}
-            >
-              <span>{item.label}</span>
-              {item.pending ? (
-                <span className='h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent' />
-              ) : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </span>
   );
 }
 
@@ -202,7 +180,7 @@ const ChannelsActions = ({
         <div className='order-2 flex w-full flex-wrap items-center gap-2 md:order-1 md:w-auto md:flex-nowrap'>
           <Button
             size='sm'
-            color='danger'
+            variant='danger-soft'
             isDisabled={!enableBatchDelete}
             className='w-full md:w-auto'
             onPress={() =>
@@ -227,7 +205,32 @@ const ChannelsActions = ({
             {t('批量设置标签')}
           </Button>
 
-          <ClickDropdown label={t('批量操作')} items={dropdownItems} />
+          {/* Bulk-ops menu: the shared ClickMenu (popover-positioned, click
+              outside to dismiss) so the open / item-hover / divider chrome
+              matches the rest of the console (token row "..." menu, channel
+              "更多操作" cell). The trigger is a plain HeroUI Button — no more
+              hand-rolled positioning, click-outside listener, or pending
+              spinner glyph. */}
+          <ClickMenu
+            placement='bottomLeft'
+            menuClassName='!min-w-[14rem]'
+            items={dropdownItems.map((item) => ({
+              ...item,
+              suffix: item.pending ? (
+                <Spinner size='sm' className='!size-3' />
+              ) : undefined,
+            }))}
+            trigger={
+              <Button
+                variant='tertiary'
+                size='sm'
+                className='w-full md:w-auto'
+              >
+                {t('批量操作')}
+                <ChevronDown size={14} />
+              </Button>
+            }
+          />
 
           <CompactModeToggle
             compactMode={compactMode}
@@ -300,11 +303,15 @@ const ChannelsActions = ({
             <span className='mr-2 text-sm font-semibold text-foreground'>
               {t('状态筛选')}
             </span>
-            <select
-              className='h-8 rounded-lg border border-[color:var(--app-border)] bg-background px-2 text-sm text-foreground outline-none transition focus:border-primary'
+            <StatusFilterSelect
+              ariaLabel={t('状态筛选')}
               value={statusFilter}
-              onChange={(event) => {
-                const v = event.target.value;
+              options={[
+                { value: 'all', label: t('全部') },
+                { value: 'enabled', label: t('已启用') },
+                { value: 'disabled', label: t('已禁用') },
+              ]}
+              onChange={(v) => {
                 localStorage.setItem('channel-status-filter', v);
                 setStatusFilter(v);
                 setActivePage(1);
@@ -317,11 +324,7 @@ const ChannelsActions = ({
                   v,
                 );
               }}
-            >
-              <option value='all'>{t('全部')}</option>
-              <option value='enabled'>{t('已启用')}</option>
-              <option value='disabled'>{t('已禁用')}</option>
-            </select>
+            />
           </div>
         </div>
       </div>

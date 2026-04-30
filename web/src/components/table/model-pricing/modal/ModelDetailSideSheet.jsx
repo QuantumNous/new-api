@@ -17,11 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Button } from '@heroui/react';
 import { X } from 'lucide-react';
 
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import SideSheet from '../../../common/ui/SideSheet';
 import ModelHeader from './components/ModelHeader';
 import ModelBasicInfo from './components/ModelBasicInfo';
 import ModelEndpoints from './components/ModelEndpoints';
@@ -44,35 +44,13 @@ const ModelDetailSideSheet = ({
   autoGroups,
   t,
 }) => {
-  const isMobile = useIsMobile();
-
-  useEffect(() => {
-    if (!visible) return;
-    const onKey = (event) => {
-      if (event.key === 'Escape') onClose?.();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [visible, onClose]);
-
   return (
-    <>
-      <div
-        aria-hidden={!visible}
-        onClick={onClose}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!visible}
-        style={{ width: isMobile ? '100%' : 600 }}
-        className={`fixed bottom-0 right-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          visible ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
+    <SideSheet
+      visible={visible}
+      onClose={onClose}
+      placement='right'
+      width={600}
+    >
         <header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
           <div className='min-w-0 flex-1'>
             {modelData ? (
@@ -136,8 +114,7 @@ const ModelDetailSideSheet = ({
             </>
           )}
         </div>
-      </aside>
-    </>
+    </SideSheet>
   );
 };
 

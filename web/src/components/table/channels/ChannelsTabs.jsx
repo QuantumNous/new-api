@@ -17,16 +17,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+// Channel-type filter strip — single-select pill bar that sits above the
+// channels table and narrows the visible channels by upstream type.
+//
+// Renderer is HeroUI v3 `ToggleButtonGroup` + `ToggleButton` so each
+// pill picks up the design-system focus ring, pressed transform,
+// selected `--toggle-button-fg-selected` accent, and React Aria
+// keyboard navigation (arrow keys to move, space/enter to activate).
+// Previously this was a hand-rolled `<button role='tab'>` + custom
+// border palette; that worked but didn't match the rest of the console.
+
 import React from 'react';
+import { ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { CHANNEL_OPTIONS } from '../../../constants';
 import { getChannelIcon } from '../../../helpers';
 
+// Count badge that lives inside each pill. Selected pills paint the
+// badge bg with the toggle's foreground accent (so it pops against
+// `--toggle-button-bg-selected`); unselected pills get the muted
+// surface chip.
 function CountChip({ active, count }) {
   return (
     <span
       className={`inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
         active
-          ? 'bg-red-500 text-white'
+          ? 'bg-[color:var(--toggle-button-fg-selected)]/15 text-[color:var(--toggle-button-fg-selected)]'
           : 'bg-surface-secondary text-muted'
       }`}
     >
@@ -42,7 +57,6 @@ const ChannelsTabs = ({
   channelTypeCounts,
   availableTypeKeys,
   loadChannels,
-  activePage,
   pageSize,
   idSort,
   setActivePage,
@@ -74,33 +88,42 @@ const ChannelsTabs = ({
   ];
 
   return (
-    <div
-      role='tablist'
+    <ToggleButtonGroup
+      isDetached
+      size='sm'
+      // React Aria's ToggleButtonGroup is multi-select by default; this
+      // strip is a single-select filter so we accept both 'single' and
+      // re-derive the picked key inside `onSelectionChange`.
+      selectionMode='single'
+      selectedKeys={[activeTypeKey]}
+      // Re-affirm the current key when the user re-clicks the active
+      // pill (default behaviour empties the set, which would leave the
+      // strip with no visible "active" filter and silently revert the
+      // backend query). Empty selection => keep current `activeTypeKey`.
+      onSelectionChange={(keys) => {
+        const next = Array.from(keys || [])[0];
+        if (!next || next === activeTypeKey) return;
+        handleTabChange(String(next));
+      }}
       aria-label={t('渠道类型')}
-      className='mb-3 flex flex-wrap items-center gap-2'
+      // The HeroUI base is `inline-flex w-fit justify-center`; channels
+      // has 30+ types so we need to wrap to multiple rows AND align them
+      // to the leading edge (otherwise the second row gets visually
+      // centered, which reads as accidental). `mb-3` keeps the spacing
+      // the previous flex container used.
+      className='mb-3 !flex !w-full flex-wrap items-center !justify-start'
     >
       {tabs.map((tab) => {
         const active = activeTypeKey === tab.key;
         return (
-          <button
-            key={tab.key}
-            role='tab'
-            aria-selected={active}
-            type='button'
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
-              active
-                ? 'border-transparent bg-foreground text-background shadow-sm'
-                : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-surface-secondary'
-            }`}
-            onClick={() => handleTabChange(tab.key)}
-          >
+          <ToggleButton key={tab.key} id={tab.key}>
             {tab.icon}
             <span className='whitespace-nowrap'>{tab.label}</span>
             <CountChip active={active} count={tab.count} />
-          </button>
+          </ToggleButton>
         );
       })}
-    </div>
+    </ToggleButtonGroup>
   );
 };
 

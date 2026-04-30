@@ -13,21 +13,22 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Button, Card, Spinner, Switch } from '@heroui/react';
 import {
-  CalendarClock,
-  Clock,
-  CreditCard,
-  RefreshCw,
-  Save,
-  X,
-} from 'lucide-react';
+  Button,
+  Card,
+  Input,
+  ListBox,
+  Select,
+  Spinner,
+  Switch,
+} from '@heroui/react';
+import { ChevronDown, X } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import {
   quotaToDisplayAmount,
   displayAmountToQuota,
 } from '../../../../helpers/quota';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import SideSheet from '../../../common/ui/SideSheet';
 
 const TAG_TONE = {
   green: 'bg-success/15 text-success',
@@ -46,26 +47,69 @@ function StatusChip({ tone, children }) {
   );
 }
 
-function IconTile({ tone, children }) {
-  const cls =
-    {
-      blue: 'bg-primary/10 text-primary',
-      green: 'bg-success/10 text-success',
-      orange: 'bg-warning/10 text-warning',
-      purple:
-        'bg-[color-mix(in_oklab,var(--app-primary)_8%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_82%,var(--app-foreground))]',
-    }[tone] || 'bg-primary/10 text-primary';
+const inputClass =
+  '!h-10 w-full !rounded-xl !border !border-border !bg-background !px-3 !text-sm !text-foreground outline-none transition focus:!border-primary disabled:opacity-50';
+
+// HeroUI Select treats empty / null `selectedKey` as "no selection"
+// (renders the placeholder). Round-trip optional values through a
+// sentinel so we keep state-shape parity.
+const SELECT_EMPTY_KEY = '__plan_select_empty__';
+const toSelectKey = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return SELECT_EMPTY_KEY;
+  }
+  return String(value);
+};
+const fromSelectKey = (key) => {
+  if (key === null || key === undefined || key === SELECT_EMPTY_KEY) {
+    return '';
+  }
+  return String(key);
+};
+
+// Reusable Select trigger styled to match `Input` exactly so all form
+// fields sit on the same baseline.
+function FormSelect({
+  ariaLabel,
+  placeholder,
+  selectedKey,
+  onSelectionChange,
+  isDisabled,
+  options,
+}) {
   return (
-    <div
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${cls}`}
+    <Select
+      aria-label={ariaLabel}
+      placeholder={placeholder}
+      selectedKey={selectedKey}
+      onSelectionChange={onSelectionChange}
+      isDisabled={isDisabled}
     >
-      {children}
-    </div>
+      <Select.Trigger
+        className={`${inputClass} flex items-center justify-between gap-2 cursor-pointer text-left`}
+      >
+        <Select.Value className='truncate' />
+        <Select.Indicator>
+          <ChevronDown size={14} className='text-muted' />
+        </Select.Indicator>
+      </Select.Trigger>
+      <Select.Popover className='min-w-(--trigger-width)'>
+        <ListBox>
+          {options.map((o) => (
+            <ListBox.Item
+              key={String(o.value)}
+              id={String(o.value)}
+              textValue={o.label}
+            >
+              {o.label}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+    </Select>
   );
 }
-
-const inputClass =
-  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
 
 function FieldLabel({ children, required }) {
   return (
@@ -132,7 +176,6 @@ const AddEditSubscriptionModal = ({
   const [loading, setLoading] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
   const [groupLoading, setGroupLoading] = useState(false);
-  const isMobile = useIsMobile();
   const isEdit = editingPlan?.plan?.id !== undefined;
   const [values, setValues] = useState(INIT_VALUES);
   const [errors, setErrors] = useState({});
@@ -295,31 +338,13 @@ const AddEditSubscriptionModal = ({
     }
   };
 
-  const slideClose =
-    placement === 'right' ? 'translate-x-full' : '-translate-x-full';
-  const positionClass =
-    placement === 'right'
-      ? 'fixed bottom-0 right-0 top-0'
-      : 'fixed bottom-0 left-0 top-0';
-
   return (
-    <>
-      <div
-        aria-hidden={!visible}
-        onClick={handleClose}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!visible}
-        style={{ width: isMobile ? '100%' : 600 }}
-        className={`${positionClass} z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          visible ? 'translate-x-0' : slideClose
-        }`}
-      >
+    <SideSheet
+      visible={visible}
+      onClose={handleClose}
+      placement={placement}
+      width={600}
+    >
         <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
           <div className='flex items-center gap-2'>
             <StatusChip tone={isEdit ? 'blue' : 'green'}>
@@ -347,31 +372,29 @@ const AddEditSubscriptionModal = ({
             </div>
           )}
 
-          {/* 基本信息 */}
+          {/* 基本信息 — section header has no icon tile (per UX
+              spec); title + subtitle alone gives enough hierarchy
+              inside a single-card side sheet layout. */}
           <Card className='mb-3 !rounded-2xl border-0 shadow-sm'>
             <Card.Content className='space-y-4 p-5'>
-              <div className='flex items-center gap-2'>
-                <IconTile tone='blue'>
-                  <CalendarClock size={16} />
-                </IconTile>
-                <div>
-                  <div className='text-base font-semibold text-foreground'>
-                    {t('基本信息')}
-                  </div>
-                  <div className='text-xs text-muted'>
-                    {t('套餐的基本信息和定价')}
-                  </div>
+              <div>
+                <div className='text-base font-semibold text-foreground'>
+                  {t('基本信息')}
+                </div>
+                <div className='text-xs text-muted'>
+                  {t('套餐的基本信息和定价')}
                 </div>
               </div>
 
               <div className='space-y-3'>
                 <div className='space-y-2'>
                   <FieldLabel required>{t('套餐标题')}</FieldLabel>
-                  <input
+                  <Input
                     type='text'
                     value={values.title}
                     onChange={(event) => setField('title')(event.target.value)}
                     placeholder={t('例如：基础套餐')}
+                    aria-label={t('套餐标题')}
                     className={inputClass}
                   />
                   <FieldError>{errors.title}</FieldError>
@@ -379,13 +402,14 @@ const AddEditSubscriptionModal = ({
 
                 <div className='space-y-2'>
                   <FieldLabel>{t('套餐副标题')}</FieldLabel>
-                  <input
+                  <Input
                     type='text'
                     value={values.subtitle}
                     onChange={(event) =>
                       setField('subtitle')(event.target.value)
                     }
                     placeholder={t('例如：适合轻度使用')}
+                    aria-label={t('套餐副标题')}
                     className={inputClass}
                   />
                 </div>
@@ -393,7 +417,7 @@ const AddEditSubscriptionModal = ({
                 <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                   <div className='space-y-2'>
                     <FieldLabel required>{t('实付金额')}</FieldLabel>
-                    <input
+                    <Input
                       type='number'
                       min={0}
                       step={0.01}
@@ -401,13 +425,14 @@ const AddEditSubscriptionModal = ({
                       onChange={(event) =>
                         setNumberField('price_amount')(event.target.value)
                       }
+                      aria-label={t('实付金额')}
                       className={inputClass}
                     />
                     <FieldError>{errors.price_amount}</FieldError>
                   </div>
                   <div className='space-y-2'>
                     <FieldLabel required>{t('总额度')}</FieldLabel>
-                    <input
+                    <Input
                       type='number'
                       min={0}
                       step={0.01}
@@ -415,6 +440,7 @@ const AddEditSubscriptionModal = ({
                       onChange={(event) =>
                         setNumberField('total_amount')(event.target.value)
                       }
+                      aria-label={t('总额度')}
                       className={inputClass}
                     />
                     <FieldHint>
@@ -429,21 +455,22 @@ const AddEditSubscriptionModal = ({
                 <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                   <div className='space-y-2'>
                     <FieldLabel>{t('升级分组')}</FieldLabel>
-                    <select
-                      value={values.upgrade_group || ''}
-                      onChange={(event) =>
-                        setField('upgrade_group')(event.target.value)
+                    <FormSelect
+                      ariaLabel={t('升级分组')}
+                      placeholder={t('不升级')}
+                      selectedKey={toSelectKey(values.upgrade_group)}
+                      onSelectionChange={(key) =>
+                        setField('upgrade_group')(fromSelectKey(key))
                       }
-                      disabled={groupLoading}
-                      className={inputClass}
-                    >
-                      <option value=''>{t('不升级')}</option>
-                      {(groupOptions || []).map((g) => (
-                        <option key={g} value={g}>
-                          {g}
-                        </option>
-                      ))}
-                    </select>
+                      isDisabled={groupLoading}
+                      options={[
+                        { value: '', label: t('不升级') },
+                        ...(groupOptions || []).map((g) => ({
+                          value: g,
+                          label: g,
+                        })),
+                      ]}
+                    />
                     <FieldHint>
                       {t(
                         '购买或手动新增订阅会升级到该分组；当套餐失效/过期或手动作废/删除后，将回退到升级前分组。回退不会立即生效，通常会有几分钟延迟。',
@@ -452,10 +479,11 @@ const AddEditSubscriptionModal = ({
                   </div>
                   <div className='space-y-2'>
                     <FieldLabel>{t('币种')}</FieldLabel>
-                    <input
+                    <Input
                       type='text'
                       value={values.currency}
-                      disabled
+                      isDisabled
+                      aria-label={t('币种')}
                       className={inputClass}
                     />
                     <FieldHint>{t('由全站货币展示设置统一控制')}</FieldHint>
@@ -465,19 +493,20 @@ const AddEditSubscriptionModal = ({
                 <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
                   <div className='space-y-2'>
                     <FieldLabel>{t('排序')}</FieldLabel>
-                    <input
+                    <Input
                       type='number'
                       step={1}
                       value={values.sort_order}
                       onChange={(event) =>
                         setNumberField('sort_order')(event.target.value)
                       }
+                      aria-label={t('排序')}
                       className={inputClass}
                     />
                   </div>
                   <div className='space-y-2'>
                     <FieldLabel>{t('购买上限')}</FieldLabel>
-                    <input
+                    <Input
                       type='number'
                       min={0}
                       step={1}
@@ -487,6 +516,7 @@ const AddEditSubscriptionModal = ({
                           event.target.value,
                         )
                       }
+                      aria-label={t('购买上限')}
                       className={inputClass}
                     />
                     <FieldHint>{t('0 表示不限')}</FieldHint>
@@ -496,7 +526,7 @@ const AddEditSubscriptionModal = ({
                     <div className='flex h-10 items-center'>
                       <Switch
                         isSelected={values.enabled}
-                        onValueChange={setField('enabled')}
+                        onChange={setField('enabled')}
                         size='md'
                         aria-label={t('启用状态')}
                       >
@@ -514,42 +544,36 @@ const AddEditSubscriptionModal = ({
           {/* 有效期设置 */}
           <Card className='mb-3 !rounded-2xl border-0 shadow-sm'>
             <Card.Content className='space-y-4 p-5'>
-              <div className='flex items-center gap-2'>
-                <IconTile tone='green'>
-                  <Clock size={16} />
-                </IconTile>
-                <div>
-                  <div className='text-base font-semibold text-foreground'>
-                    {t('有效期设置')}
-                  </div>
-                  <div className='text-xs text-muted'>
-                    {t('配置套餐的有效时长')}
-                  </div>
+              <div>
+                <div className='text-base font-semibold text-foreground'>
+                  {t('有效期设置')}
+                </div>
+                <div className='text-xs text-muted'>
+                  {t('配置套餐的有效时长')}
                 </div>
               </div>
 
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <div className='space-y-2'>
                   <FieldLabel required>{t('有效期单位')}</FieldLabel>
-                  <select
-                    value={values.duration_unit}
-                    onChange={(event) =>
-                      setField('duration_unit')(event.target.value)
+                  <FormSelect
+                    ariaLabel={t('有效期单位')}
+                    placeholder={t('请选择有效期单位')}
+                    selectedKey={toSelectKey(values.duration_unit)}
+                    onSelectionChange={(key) =>
+                      setField('duration_unit')(fromSelectKey(key))
                     }
-                    className={inputClass}
-                  >
-                    {durationUnitOptions.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={durationUnitOptions.map((o) => ({
+                      value: o.value,
+                      label: t(o.label),
+                    }))}
+                  />
                 </div>
                 <div className='space-y-2'>
                   {values.duration_unit === 'custom' ? (
                     <>
                       <FieldLabel required>{t('自定义秒数')}</FieldLabel>
-                      <input
+                      <Input
                         type='number'
                         min={1}
                         step={1}
@@ -557,6 +581,7 @@ const AddEditSubscriptionModal = ({
                         onChange={(event) =>
                           setNumberField('custom_seconds')(event.target.value)
                         }
+                        aria-label={t('自定义秒数')}
                         className={inputClass}
                       />
                       <FieldError>{errors.custom_seconds}</FieldError>
@@ -564,7 +589,7 @@ const AddEditSubscriptionModal = ({
                   ) : (
                     <>
                       <FieldLabel required>{t('有效期数值')}</FieldLabel>
-                      <input
+                      <Input
                         type='number'
                         min={1}
                         step={1}
@@ -572,6 +597,7 @@ const AddEditSubscriptionModal = ({
                         onChange={(event) =>
                           setNumberField('duration_value')(event.target.value)
                         }
+                        aria-label={t('有效期数值')}
                         className={inputClass}
                       />
                       <FieldError>{errors.duration_value}</FieldError>
@@ -585,42 +611,36 @@ const AddEditSubscriptionModal = ({
           {/* 额度重置 */}
           <Card className='mb-3 !rounded-2xl border-0 shadow-sm'>
             <Card.Content className='space-y-4 p-5'>
-              <div className='flex items-center gap-2'>
-                <IconTile tone='orange'>
-                  <RefreshCw size={16} />
-                </IconTile>
-                <div>
-                  <div className='text-base font-semibold text-foreground'>
-                    {t('额度重置')}
-                  </div>
-                  <div className='text-xs text-muted'>
-                    {t('支持周期性重置套餐权益额度')}
-                  </div>
+              <div>
+                <div className='text-base font-semibold text-foreground'>
+                  {t('额度重置')}
+                </div>
+                <div className='text-xs text-muted'>
+                  {t('支持周期性重置套餐权益额度')}
                 </div>
               </div>
 
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <div className='space-y-2'>
                   <FieldLabel>{t('重置周期')}</FieldLabel>
-                  <select
-                    value={values.quota_reset_period}
-                    onChange={(event) =>
-                      setField('quota_reset_period')(event.target.value)
+                  <FormSelect
+                    ariaLabel={t('重置周期')}
+                    placeholder={t('选择重置周期')}
+                    selectedKey={toSelectKey(values.quota_reset_period)}
+                    onSelectionChange={(key) =>
+                      setField('quota_reset_period')(fromSelectKey(key))
                     }
-                    className={inputClass}
-                  >
-                    {resetPeriodOptions.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={resetPeriodOptions.map((o) => ({
+                      value: o.value,
+                      label: t(o.label),
+                    }))}
+                  />
                 </div>
                 <div className='space-y-2'>
                   <FieldLabel required={values.quota_reset_period === 'custom'}>
                     {t('自定义秒数')}
                   </FieldLabel>
-                  <input
+                  <Input
                     type='number'
                     min={values.quota_reset_period === 'custom' ? 60 : 0}
                     step={1}
@@ -630,7 +650,8 @@ const AddEditSubscriptionModal = ({
                         event.target.value,
                       )
                     }
-                    disabled={values.quota_reset_period !== 'custom'}
+                    isDisabled={values.quota_reset_period !== 'custom'}
+                    aria-label={t('自定义秒数')}
                     className={inputClass}
                   />
                   <FieldError>{errors.quota_reset_custom_seconds}</FieldError>
@@ -642,42 +663,39 @@ const AddEditSubscriptionModal = ({
           {/* 第三方支付配置 */}
           <Card className='!rounded-2xl border-0 shadow-sm'>
             <Card.Content className='space-y-4 p-5'>
-              <div className='flex items-center gap-2'>
-                <IconTile tone='purple'>
-                  <CreditCard size={16} />
-                </IconTile>
-                <div>
-                  <div className='text-base font-semibold text-foreground'>
-                    {t('第三方支付配置')}
-                  </div>
-                  <div className='text-xs text-muted'>
-                    {t('Stripe/Creem 商品ID（可选）')}
-                  </div>
+              <div>
+                <div className='text-base font-semibold text-foreground'>
+                  {t('第三方支付配置')}
+                </div>
+                <div className='text-xs text-muted'>
+                  {t('Stripe/Creem 商品ID（可选）')}
                 </div>
               </div>
 
               <div className='space-y-3'>
                 <div className='space-y-2'>
                   <FieldLabel>Stripe PriceId</FieldLabel>
-                  <input
+                  <Input
                     type='text'
                     value={values.stripe_price_id}
                     onChange={(event) =>
                       setField('stripe_price_id')(event.target.value)
                     }
                     placeholder='price_...'
+                    aria-label='Stripe PriceId'
                     className={inputClass}
                   />
                 </div>
                 <div className='space-y-2'>
                   <FieldLabel>Creem ProductId</FieldLabel>
-                  <input
+                  <Input
                     type='text'
                     value={values.creem_product_id}
                     onChange={(event) =>
                       setField('creem_product_id')(event.target.value)
                     }
                     placeholder='prod_...'
+                    aria-label='Creem ProductId'
                     className={inputClass}
                   />
                 </div>
@@ -688,16 +706,13 @@ const AddEditSubscriptionModal = ({
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
           <Button variant='tertiary' onPress={handleClose}>
-            <X size={14} />
             {t('取消')}
           </Button>
           <Button color='primary' isPending={loading} onPress={submit}>
-            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>
-      </aside>
-    </>
+    </SideSheet>
   );
 };
 

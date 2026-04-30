@@ -21,9 +21,9 @@ import React, { useEffect, useState } from 'react';
 import { Button, Card, Input } from '@heroui/react';
 import { Layers, Save, X } from 'lucide-react';
 import JSONEditor from '../../../common/ui/JSONEditor';
+import SideSheet from '../../../common/ui/SideSheet';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const ENDPOINT_TEMPLATE = {
   openai: { path: '/v1/chat/completions', method: 'POST' },
@@ -111,7 +111,6 @@ const EditPrefillGroupModal = ({
   onSuccess,
 }) => {
   const { t } = useTranslation();
-  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
 
   const isEdit = editingGroup && editingGroup.id !== undefined;
@@ -211,23 +210,12 @@ const EditPrefillGroupModal = ({
   };
 
   return (
-    <>
-      <div
-        aria-hidden={!visible}
-        onClick={onClose}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!visible}
-        style={{ width: isMobile ? '100%' : 600 }}
-        className={`fixed bottom-0 left-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          visible ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
+    <SideSheet
+      visible={visible}
+      onClose={onClose}
+      placement='left'
+      width={600}
+    >
         <header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
           <div className='flex items-center gap-2'>
             <span
@@ -372,8 +360,7 @@ const EditPrefillGroupModal = ({
             {t('提交')}
           </Button>
         </footer>
-      </aside>
-    </>
+    </SideSheet>
   );
 };
 

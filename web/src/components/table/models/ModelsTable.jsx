@@ -17,23 +17,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+// /console/models table — thin glue around the shared HeroTable wrapper
+// so the models view inherits the same row rhythm, sticky-right
+// operations column, hover bg, empty state and loading spinner as
+// /console/token, /console/channel, /console/user, /console/redemption
+// and /console/subscription.
+//
+// Previously this used the legacy `CardTable` wrapper which is built on
+// a hand-rolled `<table>` and renders its empty state as a separate
+// surface card outside the table. HeroTable (HeroUI Table + React Aria)
+// renders the empty state inline via `renderEmptyState`, paints rows
+// with the design-system surface tokens, and routes `fixed: 'right'`
+// columns through the wrapper's sticky-right glue.
+
 import React, { useMemo } from 'react';
-import CardTable from '../../common/ui/CardTable';
-import TableEmptyState from '../../common/ui/TableEmptyState';
+import HeroTable from '../../common/ui/HeroTable';
 import { getModelsColumns } from './ModelsColumnDefs';
 
 const ModelsTable = (modelsData) => {
   const {
     models,
     loading,
-    activePage,
-    pageSize,
-    modelCount,
     compactMode,
-    handlePageChange,
-    handlePageSizeChange,
     rowSelection,
-    handleRow,
+    setSelectedKeys,
     manageModel,
     setEditingModel,
     setShowEdit,
@@ -42,7 +49,6 @@ const ModelsTable = (modelsData) => {
     t,
   } = modelsData;
 
-  // Get all columns
   const columns = useMemo(() => {
     return getModelsColumns({
       t,
@@ -54,7 +60,9 @@ const ModelsTable = (modelsData) => {
     });
   }, [t, manageModel, setEditingModel, setShowEdit, refresh, vendorMap]);
 
-  // Handle compact mode by removing fixed positioning
+  // Compact mode strips `fixed` from the operations column so it joins
+  // the natural horizontal flow instead of being pinned right (matches
+  // the same trick the other 4 admin tables use).
   const tableColumns = useMemo(() => {
     return compactMode
       ? columns.map((col) => {
@@ -67,29 +75,46 @@ const ModelsTable = (modelsData) => {
       : columns;
   }, [compactMode, columns]);
 
+  // Adapt the legacy `useModelsData` rowSelection shape (Antd-style
+  // `selectedRowKeys` / `onChange(keys, rows)`) into the
+  // selection contract HeroTable expects (`selectionMode`,
+  // `selectedRows`, `onSelectionChange(rows)`). Keep the original
+  // hook contract untouched so the rest of the page (selection
+  // notification, batch actions, prefill management) keeps working.
+  const heroRowSelection = useMemo(
+    () =>
+      rowSelection
+        ? {
+            selectionMode: 'multiple',
+            selectedRows: rowSelection.selectedRowKeys
+              ? (models || []).filter((row) =>
+                  rowSelection.selectedRowKeys.includes(row.id),
+                )
+              : [],
+            onSelectionChange: (rows) => {
+              setSelectedKeys?.(rows);
+              rowSelection.onChange?.(
+                rows.map((r) => r.id),
+                rows,
+              );
+            },
+          }
+        : undefined,
+    [rowSelection, models, setSelectedKeys],
+  );
+
   return (
-    <CardTable
+    <HeroTable
+      ariaLabel={t('模型列表')}
       columns={tableColumns}
-      dataSource={models}
-      scroll={compactMode ? undefined : { x: 'max-content' }}
-      pagination={{
-        currentPage: activePage,
-        pageSize: pageSize,
-        total: modelCount,
-        showSizeChanger: true,
-        pageSizeOptions: [10, 20, 50, 100],
-        onPageSizeChange: handlePageSizeChange,
-        onPageChange: handlePageChange,
-      }}
-      hidePagination={true}
+      dataSource={models || []}
+      rowKey='id'
       loading={loading}
-      rowSelection={rowSelection}
-      onRow={handleRow}
-      empty={
-        <TableEmptyState description={t('搜索无结果')} />
-      }
-      className='rounded-xl overflow-hidden'
-      size='middle'
+      emptyDescription={t('搜索无结果')}
+      rowSelection={heroRowSelection}
+      // Disabled models (status !== 1) are dimmed — same opacity
+      // treatment Subscriptions / Channels use for soft-disabled rows.
+      rowClassName={(record) => (record?.status !== 1 ? 'opacity-60' : '')}
     />
   );
 };

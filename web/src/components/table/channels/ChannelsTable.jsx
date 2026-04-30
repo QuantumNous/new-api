@@ -6,20 +6,26 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
 
+// /console/channel table — thin glue around the shared HeroTable
+// wrapper so the channels view inherits the same row rhythm and
+// selection ergonomics as /console/token.
+//
+// Selection: only enabled when the parent toggles `enableBatchDelete`.
+// `useChannelsData` tracks the picked rows in `selectedChannels` (an
+// array of full row objects).
+//
+// Disabled rows (status !== 1) and parent "tag rows" (children !==
+// undefined) inherit `opacity-60` so the visual disabled-state cue
+// matches the tokens view.
+
 import React, { useMemo } from 'react';
-import CardTable from '../../common/ui/CardTable';
-import TableEmptyState from '../../common/ui/TableEmptyState';
+import HeroTable from '../../common/ui/HeroTable';
 import { getChannelsColumns } from './ChannelsColumnDefs';
 
 const ChannelsTable = (channelsData) => {
@@ -28,15 +34,11 @@ const ChannelsTable = (channelsData) => {
     loading,
     searching,
     activePage,
-    pageSize,
-    channelCount,
     enableBatchDelete,
     compactMode,
     visibleColumns,
+    selectedChannels,
     setSelectedChannels,
-    handlePageChange,
-    handlePageSizeChange,
-    handleRow,
     t,
     COLUMN_KEYS,
     // Column functions and data
@@ -61,7 +63,6 @@ const ChannelsTable = (channelsData) => {
     detectChannelUpstreamUpdates,
   } = channelsData;
 
-  // Get all columns
   const allColumns = useMemo(() => {
     return getChannelsColumns({
       t,
@@ -112,14 +113,10 @@ const ChannelsTable = (channelsData) => {
     detectChannelUpstreamUpdates,
   ]);
 
-  // Filter columns based on visibility settings
-  const getVisibleColumns = () => {
-    return allColumns.filter((column) => visibleColumns[column.key]);
-  };
-
-  const visibleColumnsList = useMemo(() => {
-    return getVisibleColumns();
-  }, [visibleColumns, allColumns]);
+  const visibleColumnsList = useMemo(
+    () => allColumns.filter((column) => visibleColumns[column.key]),
+    [visibleColumns, allColumns],
+  );
 
   const tableColumns = useMemo(() => {
     return compactMode
@@ -128,37 +125,24 @@ const ChannelsTable = (channelsData) => {
   }, [compactMode, visibleColumnsList]);
 
   return (
-    <CardTable
+    <HeroTable
+      ariaLabel={t('渠道列表')}
       columns={tableColumns}
-      dataSource={channels}
-      scroll={compactMode ? undefined : { x: 'max-content' }}
-      pagination={{
-        currentPage: activePage,
-        pageSize: pageSize,
-        total: channelCount,
-        pageSizeOpts: [10, 20, 50, 100],
-        showSizeChanger: true,
-        onPageSizeChange: handlePageSizeChange,
-        onPageChange: handlePageChange,
-      }}
-      hidePagination={true}
-      expandAllRows={false}
-      onRow={handleRow}
+      dataSource={channels || []}
+      loading={loading || searching}
+      emptyDescription={t('搜索无结果')}
+      rowClassName={(record) =>
+        record.status !== 1 ? 'opacity-60' : ''
+      }
       rowSelection={
         enableBatchDelete
           ? {
-              onChange: (selectedRowKeys, selectedRows) => {
-                setSelectedChannels(selectedRows);
-              },
+              selectionMode: 'multiple',
+              selectedRows: selectedChannels || [],
+              onSelectionChange: (rows) => setSelectedChannels?.(rows),
             }
-          : null
+          : undefined
       }
-      empty={
-        <TableEmptyState description={t('搜索无结果')} />
-      }
-      className='rounded-xl overflow-hidden'
-      size='middle'
-      loading={loading || searching}
     />
   );
 };

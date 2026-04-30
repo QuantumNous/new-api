@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext } from 'react';
-import { Info } from 'lucide-react';
+import { Alert } from '@heroui/react';
+import { AlertTriangle } from 'lucide-react';
 import CardPro from '../../common/ui/CardPro';
 import SubscriptionsTable from './SubscriptionsTable';
 import SubscriptionsActions from './SubscriptionsActions';
@@ -69,18 +70,29 @@ const SubscriptionsPage = () => {
         }
         actionsArea={
           <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-            {/* Mobile: actions first; Desktop: actions left */}
-            <div className='order-1 md:order-0 w-full md:w-auto'>
+            <div className='order-1 w-full md:w-auto'>
               <SubscriptionsActions openCreate={openCreate} t={t} />
             </div>
-            <div
-              className='order-2 flex w-full items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-700 md:order-1 md:w-auto dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200'
+            {/* `status='warning'` paints the amber soft surface that
+                matches the other "this needs config to work" notices
+                in the console (see EditModelModal warning Alert,
+                /console/models page banner). Density tweaks:
+                `!items-center` vertically centers the icon with the
+                wrapping description text, and `ct-compact-alert`
+                drops the description to 12px to fit the row. */}
+            <Alert
+              status='warning'
+              className='order-2 w-full md:w-auto !items-center ct-compact-alert'
             >
-              <Info size={16} className='mt-0.5 shrink-0' />
-              <span>
-                {t('Stripe/Creem 需在第三方平台创建商品并填入 ID')}
-              </span>
-            </div>
+              <Alert.Indicator>
+                <AlertTriangle size={14} />
+              </Alert.Indicator>
+              <Alert.Content>
+                <Alert.Description>
+                  {t('Stripe/Creem 需在第三方平台创建商品并填入 ID')}
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
           </div>
         }
         paginationArea={createCardProPagination({

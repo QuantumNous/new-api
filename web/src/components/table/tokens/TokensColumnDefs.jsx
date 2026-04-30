@@ -418,7 +418,7 @@ function OperationsCell({
         <Button
           variant='tertiary'
           size='sm'
-          className='!h-7 !rounded-r-none !px-2.5 !text-xs'
+          className='!h-7 !rounded-r-none !px-2.5 !text-[11px]'
           onPress={() => {
             if (chatsArray.length === 0) {
               showError(t('请联系管理员配置聊天链接'));
@@ -454,7 +454,7 @@ function OperationsCell({
         <Button
           variant='danger-soft'
           size='sm'
-          className='!h-7 !px-2.5 !text-xs'
+          className='!h-7 !px-2.5 !text-[11px]'
           onPress={async () => {
             await manageToken(record.id, 'disable', record);
             await refresh();
@@ -466,7 +466,7 @@ function OperationsCell({
         <Button
           variant='tertiary'
           size='sm'
-          className='!h-7 !px-2.5 !text-xs'
+          className='!h-7 !px-2.5 !text-[11px]'
           onPress={async () => {
             await manageToken(record.id, 'enable', record);
             await refresh();
@@ -479,7 +479,7 @@ function OperationsCell({
       <Button
         variant='tertiary'
         size='sm'
-        className='!h-7 !px-2.5 !text-xs'
+        className='!h-7 !px-2.5 !text-[11px]'
         onPress={() => {
           setEditingToken(record);
           setShowEdit(true);
@@ -491,7 +491,7 @@ function OperationsCell({
       <Button
         variant='danger-soft'
         size='sm'
-        className='!h-7 !px-2.5 !text-xs'
+        className='!h-7 !px-2.5 !text-[11px]'
         onPress={() => setConfirmDelete(true)}
       >
         {t('删除')}

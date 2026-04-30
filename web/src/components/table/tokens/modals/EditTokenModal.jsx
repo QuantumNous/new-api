@@ -45,9 +45,9 @@ import {
   quotaToDisplayAmount,
   displayAmountToQuota,
 } from '../../../../helpers/quota';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { StatusContext } from '../../../../context/Status';
 import DateTimePicker from '../../../common/ui/DateTimePicker';
+import SideSheet from '../../../common/ui/SideSheet';
 
 const TAG_TONE = {
   green: 'bg-success/15 text-success',
@@ -130,7 +130,6 @@ const EditTokenModal = (props) => {
   const { t } = useTranslation();
   const [statusState] = useContext(StatusContext);
   const [loading, setLoading] = useState(false);
-  const isMobile = useIsMobile();
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
@@ -455,33 +454,14 @@ const EditTokenModal = (props) => {
   };
 
   const sidePlacement = isEdit ? 'right' : 'left';
-  const slideOpen =
-    sidePlacement === 'right' ? 'translate-x-0' : 'translate-x-0';
-  const slideClose =
-    sidePlacement === 'right' ? 'translate-x-full' : '-translate-x-full';
-  const positionClass =
-    sidePlacement === 'right'
-      ? 'fixed bottom-0 right-0 top-0'
-      : 'fixed bottom-0 left-0 top-0';
 
   return (
-    <>
-      <div
-        aria-hidden={!props.visiable}
-        onClick={props.handleClose}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          props.visiable ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!props.visiable}
-        style={{ width: isMobile ? '100%' : 600 }}
-        className={`${positionClass} z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          props.visiable ? slideOpen : slideClose
-        }`}
-      >
+    <SideSheet
+      visible={props.visiable}
+      onClose={props.handleClose}
+      placement={sidePlacement}
+      width={600}
+    >
         <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
           <div className='flex items-center gap-2'>
             <StatusChip tone={isEdit ? 'blue' : 'green'}>
@@ -901,8 +881,7 @@ const EditTokenModal = (props) => {
             {t('提交')}
           </Button>
         </footer>
-      </aside>
-    </>
+    </SideSheet>
   );
 };
 

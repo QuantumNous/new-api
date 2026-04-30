@@ -9,7 +9,7 @@ License, or (at your option) any later version.
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affore General Public License for more details.
+GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
@@ -17,9 +17,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+// User subscriptions side drawer.
+//
+// Uses HeroUI v3 `Drawer` (compound) — which renders its overlay through
+// React Aria's `Modal` portal into `document.body`. The previous version
+// hand-rolled a `<aside class="fixed right-0 ...">` directly inside the
+// table page; CardPro's outer `Surface` carries `backdrop-blur`, which
+// (per spec) creates a new containing block for `position: fixed`
+// descendants — so the hand-rolled drawer's `right-0` was pinned to the
+// Surface card's right edge, not the viewport, and `translate-x-full`
+// only pushed it just outside the card edge, leaving a visible vertical
+// strip in the page layout.
+
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button } from '@heroui/react';
-import { Inbox, PlusCircle, X } from 'lucide-react';
+import {
+  Button,
+  Drawer,
+  ListBox,
+  Select,
+  useOverlayState,
+} from '@heroui/react';
+import { ChevronDown, Inbox, PlusCircle, X } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { convertUSDToCurrency } from '../../../../helpers/render';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -28,9 +46,6 @@ import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 import { warningGhostButtonClass } from '@/components/common/ui/buttonTones';
 
 const PAGE_SIZE = 10;
-
-const selectClass =
-  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
 
 function formatTs(ts) {
   if (!ts) return '-';
@@ -75,6 +90,16 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   const [subs, setSubs] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingConfirm, setPendingConfirm] = useState(null);
+
+  // Bridge our `visible` / `onCancel` API to React Aria's overlay state.
+  // Calling `onOpenChange(false)` here triggers `onCancel`, but only when
+  // the user dismisses outside an in-flight network call we care about.
+  const drawerState = useOverlayState({
+    isOpen: visible,
+    onOpenChange: (isOpen) => {
+      if (!isOpen) onCancel?.();
+    },
+  });
 
   const planTitleMap = useMemo(() => {
     const map = new Map();
@@ -147,15 +172,6 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     loadUserSubscriptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
-
-  useEffect(() => {
-    if (!visible) return;
-    const onKey = (event) => {
-      if (event.key === 'Escape') onCancel?.();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [visible, onCancel]);
 
   const createSubscription = async () => {
     if (!user?.id) {
@@ -309,11 +325,11 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           const isActive = sub?.status === 'active' && !isExpired;
           const isCancelled = sub?.status === 'cancelled';
           return (
-            <div className='flex flex-wrap items-center gap-1.5'>
+            <div className='inline-flex items-center gap-1.5 whitespace-nowrap'>
               <Button
                 size='sm'
                 variant='tertiary'
-                className={warningGhostButtonClass}
+                className={`!h-7 !px-2.5 !text-[11px] ${warningGhostButtonClass}`}
                 isDisabled={!isActive || isCancelled}
                 onPress={() =>
                   setPendingConfirm({
@@ -331,6 +347,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
               <Button
                 size='sm'
                 variant='danger-soft'
+                className='!h-7 !px-2.5 !text-[11px]'
                 onPress={() =>
                   setPendingConfirm({
                     title: t('确认删除'),
@@ -354,103 +371,113 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
 
   return (
     <>
-      <div
-        aria-hidden={!visible}
-        onClick={onCancel}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!visible}
-        style={{ width: isMobile ? '100%' : 920 }}
-        className={`fixed bottom-0 right-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          visible ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        <header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <span className='inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'>
-              {t('管理')}
-            </span>
-            <h4 className='m-0 text-lg font-semibold text-foreground'>
-              {t('用户订阅管理')}
-            </h4>
-            <span className='text-sm text-muted'>
-              {user?.username || '-'} (ID: {user?.id || '-'})
-            </span>
-          </div>
-          <Button
-            isIconOnly
-            variant='tertiary'
-            size='sm'
-            aria-label={t('关闭')}
-            onPress={onCancel}
+      <Drawer state={drawerState}>
+        <Drawer.Backdrop variant='blur'>
+          {/* `placement='right'` slides in from the right viewport edge.
+              Width is capped on desktop so the drawer doesn't eat the
+              entire screen on wide displays. */}
+          <Drawer.Content
+            placement='right'
+            className={isMobile ? '!w-full' : '!w-[920px] !max-w-[92vw]'}
           >
-            <X size={16} />
-          </Button>
-        </header>
-
-        <div className='flex-1 overflow-y-auto p-4'>
-          <div className='mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <div className='flex flex-1 gap-2'>
-              <select
-                value={selectedPlanId}
-                onChange={(event) => setSelectedPlanId(event.target.value)}
-                disabled={plansLoading}
-                aria-label={t('选择订阅套餐')}
-                className={selectClass}
-                style={{ minWidth: isMobile ? undefined : 300, flex: 1 }}
-              >
-                <option value=''>
-                  {plansLoading ? t('加载中...') : t('选择订阅套餐')}
-                </option>
-                {planOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <Button
-                color='primary'
-                isPending={creating}
-                onPress={createSubscription}
-              >
-                <PlusCircle size={14} />
-                {t('新增订阅')}
-              </Button>
-            </div>
-          </div>
-
-          <CardTable
-            columns={columns}
-            dataSource={pagedSubs}
-            rowKey={(row) => row?.subscription?.id}
-            loading={loading}
-            scroll={{ x: 'max-content' }}
-            hidePagination={false}
-            pagination={{
-              currentPage,
-              pageSize: PAGE_SIZE,
-              total: subs.length,
-              pageSizeOpts: [10, 20, 50],
-              showSizeChanger: false,
-              onPageChange: setCurrentPage,
-            }}
-            empty={
-              <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
-                <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
-                  <Inbox size={28} />
+            <Drawer.Dialog className='flex h-full flex-col bg-background'>
+              <Drawer.Header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <span className='inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'>
+                    {t('管理')}
+                  </span>
+                  <Drawer.Heading className='m-0 text-lg font-semibold text-foreground'>
+                    {t('用户订阅管理')}
+                  </Drawer.Heading>
+                  <span className='text-sm text-muted'>
+                    {user?.username || '-'} (ID: {user?.id || '-'})
+                  </span>
                 </div>
-                <div>{t('暂无订阅记录')}</div>
-              </div>
-            }
-            size='middle'
-          />
-        </div>
-      </aside>
+                <Drawer.CloseTrigger className='inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-surface-secondary hover:text-foreground'>
+                  <X size={16} />
+                </Drawer.CloseTrigger>
+              </Drawer.Header>
+
+              <Drawer.Body className='flex-1 overflow-y-auto p-4'>
+                <div className='mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+                  <div className='flex flex-1 items-center gap-2'>
+                    <Select
+                      aria-label={t('选择订阅套餐')}
+                      isDisabled={plansLoading}
+                      selectedKey={selectedPlanId || null}
+                      onSelectionChange={(key) =>
+                        setSelectedPlanId(key ? String(key) : '')
+                      }
+                      placeholder={
+                        plansLoading ? t('加载中...') : t('选择订阅套餐')
+                      }
+                      className='flex-1'
+                    >
+                      <Select.Trigger className='!min-h-10 h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50 flex items-center justify-between gap-2 cursor-pointer text-left'>
+                        <Select.Value className='truncate' />
+                        <Select.Indicator>
+                          <ChevronDown
+                            size={14}
+                            className='text-muted shrink-0'
+                          />
+                        </Select.Indicator>
+                      </Select.Trigger>
+                      <Select.Popover className='min-w-(--trigger-width)'>
+                        <ListBox>
+                          {planOptions.map((opt) => (
+                            <ListBox.Item
+                              key={opt.value}
+                              id={opt.value}
+                              textValue={opt.label}
+                            >
+                              {opt.label}
+                              <ListBox.ItemIndicator />
+                            </ListBox.Item>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                    <Button
+                      color='primary'
+                      isPending={creating}
+                      onPress={createSubscription}
+                    >
+                      <PlusCircle size={14} />
+                      {t('新增订阅')}
+                    </Button>
+                  </div>
+                </div>
+
+                <CardTable
+                  columns={columns}
+                  dataSource={pagedSubs}
+                  rowKey={(row) => row?.subscription?.id}
+                  loading={loading}
+                  scroll={{ x: 'max-content' }}
+                  hidePagination={false}
+                  pagination={{
+                    currentPage,
+                    pageSize: PAGE_SIZE,
+                    total: subs.length,
+                    pageSizeOpts: [10, 20, 50],
+                    showSizeChanger: false,
+                    onPageChange: setCurrentPage,
+                  }}
+                  empty={
+                    <div className='flex flex-col items-center gap-3 py-10 text-center text-sm text-muted'>
+                      <div className='flex h-16 w-16 items-center justify-center rounded-full bg-surface-secondary text-muted'>
+                        <Inbox size={28} />
+                      </div>
+                      <div>{t('暂无订阅记录')}</div>
+                    </div>
+                  }
+                  size='middle'
+                />
+              </Drawer.Body>
+            </Drawer.Dialog>
+          </Drawer.Content>
+        </Drawer.Backdrop>
+      </Drawer>
 
       <ConfirmDialog
         visible={!!pendingConfirm}

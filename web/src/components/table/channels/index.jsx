@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { Alert } from '@heroui/react';
 import { TriangleAlert } from 'lucide-react';
 import CardPro from '../../common/ui/CardPro';
 import ChannelsTable from './ChannelsTable';
@@ -82,14 +83,21 @@ const ChannelsPage = () => {
       />
 
       {channelsData.globalPassThroughEnabled ? (
-        <div className='mb-3 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100'>
-          <TriangleAlert size={16} className='mt-0.5 shrink-0' />
-          <div>
-            {channelsData.t(
-              '已开启全局请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
-            )}
-          </div>
-        </div>
+        <Alert
+          status='warning'
+          className='mb-3 !items-center ct-compact-alert'
+        >
+          <Alert.Indicator>
+            <TriangleAlert size={14} />
+          </Alert.Indicator>
+          <Alert.Content>
+            <Alert.Description>
+              {channelsData.t(
+                '已开启全局请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
+              )}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
       ) : null}
       <CardPro
         type='type3'

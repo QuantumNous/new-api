@@ -6,20 +6,22 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
 
+// /console/user table — thin glue around the shared HeroTable wrapper.
+//
+// No row selection here (the users page has no batch operations);
+// HeroTable falls back to display-only mode in that case.
+//
+// Disabled / soft-deleted users are dimmed with `opacity-60` so the
+// visual disabled cue matches the rest of the console.
+
 import React, { useMemo, useState } from 'react';
-import CardTable from '../../common/ui/CardTable';
-import TableEmptyState from '../../common/ui/TableEmptyState';
+import HeroTable from '../../common/ui/HeroTable';
 import { getUsersColumns } from './UsersColumnDefs';
 import PromoteUserModal from './modals/PromoteUserModal';
 import DemoteUserModal from './modals/DemoteUserModal';
@@ -34,12 +36,7 @@ const UsersTable = (usersData) => {
     users,
     loading,
     activePage,
-    pageSize,
-    userCount,
     compactMode,
-    handlePageChange,
-    handlePageSizeChange,
-    handleRow,
     setEditingUser,
     setShowEditUser,
     manageUser,
@@ -124,7 +121,6 @@ const UsersTable = (usersData) => {
     setShowResetTwoFAModal(false);
   };
 
-  // Get all columns
   const columns = useMemo(() => {
     return getUsersColumns({
       t,
@@ -151,7 +147,8 @@ const UsersTable = (usersData) => {
     showUserSubscriptionsUserModal,
   ]);
 
-  // Handle compact mode by removing fixed positioning
+  // Compact mode strips `fixed` from the operations column so it
+  // joins the natural horizontal flow instead of being pinned right.
   const tableColumns = useMemo(() => {
     return compactMode
       ? columns.map((col) => {
@@ -166,27 +163,17 @@ const UsersTable = (usersData) => {
 
   return (
     <>
-      <CardTable
+      <HeroTable
+        ariaLabel={t('用户列表')}
         columns={tableColumns}
-        dataSource={users}
-        scroll={compactMode ? undefined : { x: 'max-content' }}
-        pagination={{
-          currentPage: activePage,
-          pageSize: pageSize,
-          total: userCount,
-          pageSizeOpts: [10, 20, 50, 100],
-          showSizeChanger: true,
-          onPageSizeChange: handlePageSizeChange,
-          onPageChange: handlePageChange,
-        }}
-        hidePagination={true}
+        dataSource={users || []}
         loading={loading}
-        onRow={handleRow}
-        empty={
-          <TableEmptyState description={t('搜索无结果')} />
+        emptyDescription={t('搜索无结果')}
+        rowClassName={(record) =>
+          record.DeletedAt !== null || record.status !== 1
+            ? 'opacity-60'
+            : ''
         }
-        className='overflow-hidden'
-        size='middle'
       />
 
       {/* Modal components */}

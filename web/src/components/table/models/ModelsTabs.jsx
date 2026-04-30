@@ -17,89 +17,41 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Button } from '@heroui/react';
-import { Pencil, Trash2, MoreHorizontal } from 'lucide-react';
-import { getLobeHubIcon, showError, showSuccess, API } from '../../../helpers';
-import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
+// /console/models vendor-filter strip — single-select pill bar that
+// narrows the visible models by the upstream vendor.
+//
+// Mirrors the visual + interaction grammar of /console/channel's tab
+// strip: HeroUI v3 `ToggleButton` (one per vendor) with React Aria's
+// design-system focus ring, pressed transform, and the accent-soft
+// selected state. For vendor tabs (i.e. anything except "全部"), an
+// adjacent icon-only `Button` + shared `ClickMenu` exposes
+// edit/delete on the vendor itself. The menu is rendered OUTSIDE the
+// toggle (not nested inside) so we don't have to fight `<button>` in
+// `<button>` — instead each toggle and its action menu sit side-by-
+// side inside a flex pair, separated by a 1px-gap that visually reads
+// as a split pill.
 
+import React, { useState } from 'react';
+import { Button, ToggleButton } from '@heroui/react';
+import { Pencil, Trash2, MoreHorizontal } from 'lucide-react';
+import ClickMenu from '@/components/common/ui/ClickMenu';
+import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
+import { getLobeHubIcon, showError, showSuccess, API } from '../../../helpers';
+
+// Count badge tucked inside each pill. Uses the toggle's selected
+// foreground color (a soft accent in HeroUI) so the chip pops against
+// the toggle's own selected bg without falling out of the design
+// system. Unselected pills get the muted surface chip.
 function CountChip({ active, count }) {
   return (
     <span
       className={`inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
         active
-          ? 'bg-red-500 text-white'
+          ? 'bg-[color:var(--toggle-button-fg-selected)]/15 text-[color:var(--toggle-button-fg-selected)]'
           : 'bg-surface-secondary text-muted'
       }`}
     >
       {count}
-    </span>
-  );
-}
-
-function VendorActions({ vendor, onEdit, onDelete, t }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (event) => {
-      if (ref.current && !ref.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
-
-  return (
-    <span ref={ref} className='relative inline-flex items-center'>
-      <button
-        type='button'
-        aria-label={t('操作')}
-        title={t('操作')}
-        className='inline-flex h-6 w-6 items-center justify-center rounded-md text-muted transition hover:bg-[color:var(--app-background)] hover:text-foreground'
-        onClick={(event) => {
-          event.stopPropagation();
-          setOpen((prev) => !prev);
-        }}
-      >
-        <MoreHorizontal size={14} />
-      </button>
-      {open ? (
-        <div
-          role='menu'
-          className='absolute right-0 top-full z-30 mt-1 min-w-[8rem] overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-background shadow-lg'
-          onClick={(event) => event.stopPropagation()}
-        >
-          <button
-            type='button'
-            role='menuitem'
-            className='flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition hover:bg-[color:var(--app-background)]'
-            onClick={(event) => {
-              event.stopPropagation();
-              setOpen(false);
-              onEdit(vendor);
-            }}
-          >
-            <Pencil size={14} />
-            {t('编辑')}
-          </button>
-          <button
-            type='button'
-            role='menuitem'
-            className='flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40'
-            onClick={(event) => {
-              event.stopPropagation();
-              setOpen(false);
-              onDelete(vendor);
-            }}
-          >
-            <Trash2 size={14} />
-            {t('删除')}
-          </button>
-        </div>
-      ) : null}
     </span>
   );
 }
@@ -172,35 +124,71 @@ const ModelsTabs = ({
   return (
     <>
       <div className='mb-3 flex flex-wrap items-center gap-2'>
-        <div role='tablist' className='flex flex-1 flex-wrap items-center gap-2'>
+        <div
+          role='radiogroup'
+          aria-label={t('供应商')}
+          className='flex flex-1 flex-wrap items-center gap-2'
+        >
           {tabs.map((tab) => {
             const active = activeVendorKey === tab.key;
+            // Vendor tabs render a paired (toggle + menu) split-pill;
+            // "全部" renders just the toggle.
+            const items = tab.vendor
+              ? [
+                  {
+                    label: t('编辑'),
+                    icon: <Pencil size={14} />,
+                    onClick: () => handleEditVendor(tab.vendor),
+                  },
+                  {
+                    label: t('删除'),
+                    icon: <Trash2 size={14} />,
+                    danger: true,
+                    onClick: () => setPendingDelete(tab.vendor),
+                  },
+                ]
+              : null;
             return (
               <div
                 key={tab.key}
-                role='tab'
-                aria-selected={active}
-                className={`group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
-                  active
-                    ? 'border-transparent bg-foreground text-background shadow-sm'
-                    : 'border-[color:var(--app-border)] bg-[color:var(--app-background)] text-foreground hover:bg-surface-secondary'
-                }`}
+                className='inline-flex items-center gap-0.5'
               >
-                <button
-                  type='button'
-                  className='inline-flex items-center gap-2 outline-none'
-                  onClick={() => handleTabChange(tab.key)}
+                <ToggleButton
+                  size='sm'
+                  isSelected={active}
+                  onChange={() => {
+                    if (!active) handleTabChange(tab.key);
+                  }}
+                  aria-label={tab.label}
+                  // ToggleButton defaults to `rounded-3xl`. When paired
+                  // with an action menu we square the right edge so the
+                  // two halves read as one connected split-pill.
+                  className={items ? '!rounded-r-none' : ''}
                 >
                   {tab.icon}
                   <span className='whitespace-nowrap'>{tab.label}</span>
                   <CountChip active={active} count={tab.count} />
-                </button>
-                {tab.vendor ? (
-                  <VendorActions
-                    vendor={tab.vendor}
-                    onEdit={handleEditVendor}
-                    onDelete={(vendor) => setPendingDelete(vendor)}
-                    t={t}
+                </ToggleButton>
+                {items ? (
+                  <ClickMenu
+                    placement='bottomRight'
+                    items={items}
+                    trigger={
+                      <Button
+                        isIconOnly
+                        variant='tertiary'
+                        size='sm'
+                        aria-label={t('操作')}
+                        // Match the ToggleButton's `h-9 md:h-8` rhythm
+                        // (`size='sm'`) so the two halves of the split
+                        // pill sit on the same baseline; square the
+                        // left edge so it joins the toggle's squared
+                        // right edge.
+                        className='!h-9 md:!h-8 !w-8 !min-w-8 !rounded-l-none !rounded-r-3xl !px-0 [&_svg]:!size-3.5'
+                      >
+                        <MoreHorizontal size={14} />
+                      </Button>
+                    }
                   />
                 ) : null}
               </div>

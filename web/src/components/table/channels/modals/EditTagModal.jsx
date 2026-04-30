@@ -16,6 +16,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, Spinner } from '@heroui/react';
 import { Bookmark, Code2, Save, Settings, User, X } from 'lucide-react';
+import SideSheet from '@/components/common/ui/SideSheet';
 import {
   API,
   showError,
@@ -484,23 +485,12 @@ const EditTagModal = ({ visible, tag, handleClose, refresh }) => {
   };
 
   return (
-    <>
-      <div
-        aria-hidden={!visible}
-        onClick={handleClose}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!visible}
-        style={{ width: 600 }}
-        className={`fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-full flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          visible ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
+    <SideSheet
+      visible={visible}
+      onClose={handleClose}
+      placement='right'
+      width={600}
+    >
         <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
           <div className='flex items-center gap-2'>
             <StatusChip tone='blue'>{t('编辑')}</StatusChip>
@@ -857,8 +847,7 @@ const EditTagModal = ({ visible, tag, handleClose, refresh }) => {
             {t('保存')}
           </Button>
         </footer>
-      </aside>
-    </>
+    </SideSheet>
   );
 };
 

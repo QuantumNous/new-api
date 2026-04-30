@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Button, Tooltip } from '@heroui/react';
 import { renderQuota } from '../../../helpers';
 import { convertUSDToCurrency } from '../../../helpers/render';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
+import HoverPanel from '@/components/common/ui/HoverPanel';
 
 const TONE_CLASSES = {
   white: 'border border-border bg-background text-foreground',
@@ -67,49 +68,6 @@ function Strong({ children, className = '', style }) {
       style={style}
     >
       {children}
-    </span>
-  );
-}
-
-function HoverPanel({ children, content, position = 'right' }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const timer = useRef(null);
-
-  const show = () => {
-    if (timer.current) clearTimeout(timer.current);
-    setOpen(true);
-  };
-  const hide = () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setOpen(false), 100);
-  };
-
-  useEffect(() => () => timer.current && clearTimeout(timer.current), []);
-
-  const placeClasses =
-    position === 'right'
-      ? 'left-full top-0 ml-2'
-      : position === 'top'
-        ? 'bottom-full left-1/2 -translate-x-1/2 mb-2'
-        : 'top-full left-0 mt-2';
-
-  return (
-    <span
-      ref={ref}
-      className='relative inline-flex'
-      onMouseEnter={show}
-      onMouseLeave={hide}
-    >
-      {children}
-      {open ? (
-        <div
-          role='tooltip'
-          className={`absolute ${placeClasses} z-30 rounded-lg border border-border bg-background p-3 text-xs shadow-lg`}
-        >
-          {content}
-        </div>
-      ) : null}
     </span>
   );
 }
@@ -190,7 +148,7 @@ const renderPlanTitle = (text, record, t) => {
   );
 
   return (
-    <HoverPanel content={popoverContent} position='right'>
+    <HoverPanel content={popoverContent} placement='right'>
       <div className='cursor-pointer max-w-[180px]'>
         <Strong className='block truncate'>{text}</Strong>
         {subtitle && (
@@ -306,11 +264,18 @@ function OperationsCell({ record, openEdit, setPlanEnabled, t }) {
     }
   };
 
+  // Match the other admin tables (tokens / channels / users /
+  // redemptions): inline + nowrap row controls with compact
+  // `!h-7 !px-2.5 !text-[11px]` chips so the row stays at ~44px and
+  // the buttons don't wrap on narrow viewports.
+  const compactBtn = '!h-7 !px-2.5 !text-[11px]';
+
   return (
-    <div className='flex items-center gap-1.5'>
+    <div className='inline-flex items-center gap-1.5 whitespace-nowrap'>
       <Button
         variant='tertiary'
         size='sm'
+        className={compactBtn}
         onPress={() => openEdit(record)}
       >
         {t('编辑')}
@@ -319,6 +284,7 @@ function OperationsCell({ record, openEdit, setPlanEnabled, t }) {
         <Button
           variant='danger-soft'
           size='sm'
+          className={compactBtn}
           onPress={handleToggle}
         >
           {t('禁用')}
@@ -327,6 +293,7 @@ function OperationsCell({ record, openEdit, setPlanEnabled, t }) {
         <Button
           variant='tertiary'
           size='sm'
+          className={compactBtn}
           onPress={handleToggle}
         >
           {t('启用')}

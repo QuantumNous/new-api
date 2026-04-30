@@ -244,6 +244,13 @@ const renderBoundChannels = (channels) => {
   });
 };
 
+// Compact button styling shared with TokensColumnDefs / UsersColumnDefs /
+// ChannelsColumnDefs / RedemptionsColumnDefs / SubscriptionsColumnDefs
+// — keeps the sticky-right operations cell to a single nowrap row at
+// 11px so rows stay ~44px tall instead of stretching when buttons would
+// otherwise wrap.
+const compactBtn = '!h-7 !px-2.5 !text-[11px]';
+
 function OperationsCell({
   record,
   setEditingModel,
@@ -255,11 +262,12 @@ function OperationsCell({
   const [showDelete, setShowDelete] = useState(false);
 
   return (
-    <div className='flex flex-wrap items-center gap-1.5'>
+    <div className='inline-flex items-center gap-1.5 whitespace-nowrap'>
       {record.status === 1 ? (
         <Button
           variant='danger-soft'
           size='sm'
+          className={compactBtn}
           onPress={() => manageModel(record.id, 'disable', record)}
         >
           {t('禁用')}
@@ -268,6 +276,7 @@ function OperationsCell({
         <Button
           variant='tertiary'
           size='sm'
+          className={compactBtn}
           onPress={() => manageModel(record.id, 'enable', record)}
         >
           {t('启用')}
@@ -277,6 +286,7 @@ function OperationsCell({
       <Button
         variant='tertiary'
         size='sm'
+        className={compactBtn}
         onPress={() => {
           setEditingModel(record);
           setShowEdit(true);
@@ -288,6 +298,7 @@ function OperationsCell({
       <Button
         variant='danger-soft'
         size='sm'
+        className={compactBtn}
         onPress={() => setShowDelete(true)}
       >
         {t('删除')}

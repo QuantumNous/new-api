@@ -14,11 +14,21 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState, useMemo } from 'react';
 import JSONEditor from '../../../common/ui/JSONEditor';
-import { Button, Card, Spinner, Switch } from '@heroui/react';
-import { AlertTriangle, ExternalLink, FileText, Save, X } from 'lucide-react';
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  ListBox,
+  Select,
+  Spinner,
+  Switch,
+  TextArea,
+} from '@heroui/react';
+import { AlertTriangle, ChevronDown, ExternalLink, X } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import SideSheet from '../../../common/ui/SideSheet';
 
 const TAG_TONE = {
   green: 'bg-success/15 text-success',
@@ -37,26 +47,31 @@ function StatusChip({ tone, children }) {
   );
 }
 
-function IconTile({ tone, children }) {
-  const cls =
-    {
-      blue: 'bg-primary/10 text-primary',
-      green: 'bg-success/10 text-success',
-    }[tone] || 'bg-success/10 text-success';
-  return (
-    <div
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${cls}`}
-    >
-      {children}
-    </div>
-  );
-}
-
+// Visual baseline shared by every form field inside the side sheet so
+// HeroUI Input / TextArea / Select.Trigger all sit on the same 40px
+// rounded-xl bordered surface.
 const inputClass =
-  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+  '!h-10 w-full !rounded-xl !border !border-border !bg-background !px-3 !text-sm !text-foreground outline-none transition focus:!border-primary disabled:opacity-50';
 
 const textareaClass =
-  'w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary';
+  '!w-full !rounded-xl !border !border-border !bg-background !px-3 !py-2 !text-sm !text-foreground outline-none transition focus:!border-primary';
+
+// Sentinel matching FilterSelect — HeroUI Select treats empty / null
+// `selectedKey` as "no selection" and renders the placeholder. Map our
+// optional empty-state through a sentinel so we can keep state in sync.
+const SELECT_EMPTY_KEY = '__edit_model_empty__';
+const toSelectKey = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return SELECT_EMPTY_KEY;
+  }
+  return String(value);
+};
+const fromSelectKey = (key) => {
+  if (key === null || key === undefined || key === SELECT_EMPTY_KEY) {
+    return '';
+  }
+  return String(key);
+};
 
 function FieldLabel({ children, required }) {
   return (
@@ -110,8 +125,11 @@ const buildInitValues = (editingModel) => ({
   sync_official: true,
 });
 
-// Replaces Semi `<Form.TagInput>` with a controlled tag input that
-// commits on Enter / `,` / blur.
+// Controlled tag input. The chip-removal buttons are HeroUI Buttons
+// (icon-only, ghost) so they pick up the design system's focus ring;
+// the inner editor is a bare `<input>` because nesting an `<Input>`
+// element inside this composite container would inherit Input's own
+// padding/border and break the wrapper's 40px-tall pill rhythm.
 function TagInput({ value = [], onChange, placeholder }) {
   const [draft, setDraft] = useState('');
   const tags = Array.isArray(value) ? value : [];
@@ -133,21 +151,23 @@ function TagInput({ value = [], onChange, placeholder }) {
   };
 
   return (
-    <div className='flex min-h-[40px] flex-wrap items-center gap-1.5 rounded-xl border border-border bg-background px-2 py-1.5 text-sm focus-within:border-primary'>
+    <div className='flex min-h-10 flex-wrap items-center gap-1.5 rounded-xl border border-border bg-background px-2 py-1.5 text-sm focus-within:border-primary'>
       {tags.map((tag, idx) => (
         <span
           key={`${tag}-${idx}`}
           className='inline-flex items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs'
         >
           <span>{tag}</span>
-          <button
-            type='button'
-            onClick={() => removeAt(idx)}
+          <Button
+            isIconOnly
+            variant='ghost'
+            size='sm'
             aria-label='remove'
-            className='text-muted hover:text-foreground'
+            onPress={() => removeAt(idx)}
+            className='!h-4 !w-4 !min-w-4 !rounded-full text-muted hover:!text-foreground [&_svg]:!size-3'
           >
-            <X size={12} />
-          </button>
+            <X size={10} />
+          </Button>
         </span>
       ))}
       <input
@@ -185,7 +205,6 @@ function TagInput({ value = [], onChange, placeholder }) {
 
 const EditModelModal = (props) => {
   const { t } = useTranslation();
-  const isMobile = useIsMobile();
   const isEdit = props.editingModel && props.editingModel.id !== undefined;
   const placement = useMemo(() => (isEdit ? 'right' : 'left'), [isEdit]);
   const [loading, setLoading] = useState(false);
@@ -350,31 +369,13 @@ const EditModelModal = (props) => {
     reset();
   };
 
-  const slideClose =
-    placement === 'right' ? 'translate-x-full' : '-translate-x-full';
-  const positionClass =
-    placement === 'right'
-      ? 'fixed bottom-0 right-0 top-0'
-      : 'fixed bottom-0 left-0 top-0';
-
   return (
-    <>
-      <div
-        aria-hidden={!props.visiable}
-        onClick={props.handleClose}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          props.visiable ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!props.visiable}
-        style={{ width: isMobile ? '100%' : 600 }}
-        className={`${positionClass} z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          props.visiable ? 'translate-x-0' : slideClose
-        }`}
-      >
+    <SideSheet
+      visible={props.visiable}
+      onClose={props.handleClose}
+      placement={placement}
+      width={480}
+    >
         <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
           <div className='flex items-center gap-2'>
             <StatusChip tone={isEdit ? 'blue' : 'green'}>
@@ -404,30 +405,29 @@ const EditModelModal = (props) => {
 
           <Card className='!rounded-2xl border-0 shadow-sm'>
             <Card.Content className='space-y-4 p-5'>
-              <div className='flex items-center gap-2'>
-                <IconTile tone='green'>
-                  <FileText size={16} />
-                </IconTile>
-                <div>
-                  <div className='text-base font-semibold text-foreground'>
-                    {t('基本信息')}
-                  </div>
-                  <div className='text-xs text-muted'>
-                    {t('设置模型的基本信息')}
-                  </div>
+              {/* Section header — icon tile removed per UX request; the
+                  title + subtitle alone gives enough visual hierarchy
+                  inside the side sheet's single-card layout. */}
+              <div>
+                <div className='text-base font-semibold text-foreground'>
+                  {t('基本信息')}
+                </div>
+                <div className='text-xs text-muted'>
+                  {t('设置模型的基本信息')}
                 </div>
               </div>
 
               <div className='space-y-3'>
                 <div className='space-y-2'>
                   <FieldLabel required>{t('模型名称')}</FieldLabel>
-                  <input
+                  <Input
                     type='text'
                     value={values.model_name || ''}
                     onChange={(event) =>
                       setField('model_name')(event.target.value)
                     }
                     placeholder={t('请输入模型名称，如：gpt-4')}
+                    aria-label={t('模型名称')}
                     className={inputClass}
                   />
                   <FieldError>{errors.model_name}</FieldError>
@@ -435,34 +435,50 @@ const EditModelModal = (props) => {
 
                 <div className='space-y-2'>
                   <FieldLabel>{t('名称匹配类型')}</FieldLabel>
-                  <select
-                    value={
-                      values.name_rule === undefined
-                        ? ''
-                        : String(values.name_rule)
-                    }
-                    onChange={(event) => {
-                      const v = event.target.value;
-                      setField('name_rule')(v === '' ? undefined : Number(v));
+                  <Select
+                    aria-label={t('名称匹配类型')}
+                    placeholder={t('请选择名称匹配类型')}
+                    selectedKey={toSelectKey(values.name_rule)}
+                    onSelectionChange={(key) => {
+                      const raw = fromSelectKey(key);
+                      setField('name_rule')(
+                        raw === '' ? undefined : Number(raw),
+                      );
                     }}
-                    className={inputClass}
                   >
-                    <option value=''>{t('请选择名称匹配类型')}</option>
-                    {NAME_RULE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {t(o.label)}
-                      </option>
-                    ))}
-                  </select>
+                    <Select.Trigger
+                      className={`${inputClass} flex items-center justify-between gap-2 cursor-pointer text-left`}
+                    >
+                      <Select.Value className='truncate' />
+                      <Select.Indicator>
+                        <ChevronDown size={14} className='text-muted' />
+                      </Select.Indicator>
+                    </Select.Trigger>
+                    <Select.Popover className='min-w-(--trigger-width)'>
+                      <ListBox>
+                        {NAME_RULE_OPTIONS.map((o) => (
+                          <ListBox.Item
+                            key={String(o.value)}
+                            id={String(o.value)}
+                            textValue={t(o.label)}
+                          >
+                            {t(o.label)}
+                            <ListBox.ItemIndicator />
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
                 </div>
 
                 <div className='space-y-2'>
                   <FieldLabel>{t('模型图标')}</FieldLabel>
-                  <input
+                  <Input
                     type='text'
                     value={values.icon || ''}
                     onChange={(event) => setField('icon')(event.target.value)}
                     placeholder={t('请输入图标名称')}
+                    aria-label={t('模型图标')}
                     className={inputClass}
                   />
                   <div className='mt-1.5 text-xs text-muted'>
@@ -483,13 +499,14 @@ const EditModelModal = (props) => {
 
                 <div className='space-y-2'>
                   <FieldLabel>{t('描述')}</FieldLabel>
-                  <textarea
+                  <TextArea
                     value={values.description || ''}
                     onChange={(event) =>
                       setField('description')(event.target.value)
                     }
                     placeholder={t('请输入模型描述')}
                     rows={3}
+                    aria-label={t('描述')}
                     className={textareaClass}
                   />
                 </div>
@@ -527,10 +544,12 @@ const EditModelModal = (props) => {
 
                 <div className='space-y-2'>
                   <FieldLabel>{t('供应商')}</FieldLabel>
-                  <select
-                    value={values.vendor_id ?? ''}
-                    onChange={(event) => {
-                      const raw = event.target.value;
+                  <Select
+                    aria-label={t('供应商')}
+                    placeholder={t('选择模型供应商')}
+                    selectedKey={toSelectKey(values.vendor_id)}
+                    onSelectionChange={(key) => {
+                      const raw = fromSelectKey(key);
                       const id = raw === '' ? undefined : Number(raw);
                       const vendorInfo = vendors.find((v) => v.id === id);
                       setValues((prev) => ({
@@ -539,29 +558,51 @@ const EditModelModal = (props) => {
                         vendor: vendorInfo?.name ?? '',
                       }));
                     }}
-                    className={inputClass}
                   >
-                    <option value=''>{t('选择模型供应商')}</option>
-                    {vendors.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
+                    <Select.Trigger
+                      className={`${inputClass} flex items-center justify-between gap-2 cursor-pointer text-left`}
+                    >
+                      <Select.Value className='truncate' />
+                      <Select.Indicator>
+                        <ChevronDown size={14} className='text-muted' />
+                      </Select.Indicator>
+                    </Select.Trigger>
+                    <Select.Popover className='min-w-(--trigger-width)'>
+                      <ListBox>
+                        {vendors.map((v) => (
+                          <ListBox.Item
+                            key={String(v.id)}
+                            id={String(v.id)}
+                            textValue={v.name}
+                          >
+                            {v.name}
+                            <ListBox.ItemIndicator />
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
                 </div>
 
-                {/* Endpoints showcase warning */}
-                <div className='flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-foreground'>
-                  <AlertTriangle
-                    size={16}
-                    className='mt-0.5 shrink-0 text-warning'
-                  />
-                  <span>
-                    {t(
-                      '提示：此处配置仅用于控制「模型广场」对用户的展示效果，不会影响模型的实际调用与路由。若需配置真实调用行为，请前往「渠道管理」进行设置。',
-                    )}
-                  </span>
-                </div>
+                {/* Endpoints showcase warning — HeroUI Alert keeps the
+                    color tone consistent with the page-level notice on
+                    /console/models. Same density tweaks: vertical
+                    centering + 12px description text. */}
+                <Alert
+                  status='warning'
+                  className='!items-center ct-compact-alert'
+                >
+                  <Alert.Indicator>
+                    <AlertTriangle size={14} />
+                  </Alert.Indicator>
+                  <Alert.Content>
+                    <Alert.Description>
+                      {t(
+                        '提示：此处配置仅用于控制「模型广场」对用户的展示效果，不会影响模型的实际调用与路由。若需配置真实调用行为，请前往「渠道管理」进行设置。',
+                      )}
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
 
                 <JSONEditor
                   field='endpoints'
@@ -662,16 +703,13 @@ const EditModelModal = (props) => {
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
           <Button variant='tertiary' onPress={props.handleClose}>
-            <X size={14} />
             {t('取消')}
           </Button>
           <Button color='primary' isPending={loading} onPress={submit}>
-            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>
-      </aside>
-    </>
+    </SideSheet>
   );
 };
 

@@ -31,14 +31,39 @@ import {
   quotaToDisplayAmount,
   displayAmountToQuota,
 } from '../../../../helpers/quota';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { Button, Card, Input, Spinner } from '@heroui/react';
-import { CreditCard, Gift, Save, X } from 'lucide-react';
+import { Button, Card, Input, InputGroup, Spinner } from '@heroui/react';
+import { X } from 'lucide-react';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
+import DateTimePicker from '@/components/common/ui/DateTimePicker';
+import SideSheet from '@/components/common/ui/SideSheet';
 
+// Visual baseline shared with the rest of the side-sheet forms — see
+// EditModelModal / AddUserModal. Locks every Input / Select.Trigger to
+// a single 40px-tall rounded-xl bordered surface so the column reads as
+// one stack instead of a patchwork of HeroUI defaults.
 const inputClass =
-  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+  '!h-10 w-full !rounded-xl !border !border-border !bg-background !px-3 !text-sm !text-foreground outline-none transition focus:!border-primary disabled:opacity-50';
 
+function StatusChip({ tone, children }) {
+  const cls =
+    {
+      blue: 'bg-primary/15 text-primary',
+      green: 'bg-success/15 text-success',
+    }[tone] || 'bg-primary/15 text-primary';
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+// Number field built on HeroUI `InputGroup` so the prefix slot
+// (currency symbol, etc.) and the input share one bordered surface
+// owned by the design system. Replaces a hand-rolled
+// `<div><span><input type='number'/></div>` that drifted from the
+// rest of the form fields' rhythm.
 function NumberField({
   label,
   value,
@@ -53,11 +78,26 @@ function NumberField({
   return (
     <div className='space-y-2'>
       <div className='text-sm font-medium text-foreground'>{label}</div>
-      <div className='flex h-10 items-center overflow-hidden rounded-lg border border-[color:var(--app-border)] bg-background text-sm transition focus-within:border-primary'>
-        {prefix ? (
-          <span className='whitespace-nowrap pl-3 text-muted'>{prefix}</span>
-        ) : null}
-        <input
+      {prefix ? (
+        <InputGroup variant='primary' className='!h-10 !rounded-xl'>
+          <InputGroup.Prefix className='whitespace-nowrap text-muted'>
+            {prefix}
+          </InputGroup.Prefix>
+          <InputGroup.Input
+            type='number'
+            value={value === '' || value == null ? '' : String(value)}
+            onChange={(event) => {
+              const v = event.target.value;
+              onChange(v === '' ? '' : Number(v));
+            }}
+            min={min}
+            step={step}
+            placeholder={placeholder}
+            aria-label={label}
+          />
+        </InputGroup>
+      ) : (
+        <Input
           type='number'
           value={value === '' || value == null ? '' : String(value)}
           onChange={(event) => {
@@ -68,9 +108,9 @@ function NumberField({
           step={step}
           placeholder={placeholder}
           aria-label={label}
-          className='h-full min-w-0 flex-1 bg-transparent px-3 text-foreground outline-none'
+          className={inputClass}
         />
-      </div>
+      )}
       {error ? (
         <div className='text-xs text-red-600 dark:text-red-400'>{error}</div>
       ) : helper ? (
@@ -80,21 +120,21 @@ function NumberField({
   );
 }
 
-function toLocalDateTimeInputValue(date) {
-  if (!date) return '';
-  const pad = (n) => String(n).padStart(2, '0');
-  const y = date.getFullYear();
-  const m = pad(date.getMonth() + 1);
-  const d = pad(date.getDate());
-  const hh = pad(date.getHours());
-  const mm = pad(date.getMinutes());
-  return `${y}-${m}-${d}T${hh}:${mm}`;
+// Parse "YYYY-MM-DD HH:mm:ss" (the format DateTimePicker round-trips
+// through onChange) into a local-timezone Date. We keep `expired_time`
+// as a Date inside this modal because the submit pipeline at line ~220
+// converts to unix-seconds via `.getTime() / 1000`.
+function parseLocalDateTime(value) {
+  if (!value) return null;
+  const isoLike = String(value).replace(' ', 'T');
+  const date = new Date(isoLike);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 const EditRedemptionModal = (props) => {
   const { t } = useTranslation();
   const isEdit = props.editingRedemption.id !== undefined;
-  const isMobile = useIsMobile();
+
 
   const [loading, setLoading] = useState(isEdit);
   const [submitting, setSubmitting] = useState(false);
@@ -262,39 +302,17 @@ const EditRedemptionModal = (props) => {
 
   return (
     <>
-      <div
-        aria-hidden={!props.visiable}
-        onClick={handleCancel}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          props.visiable ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!props.visiable}
-        style={{ width: isMobile ? '100%' : 600 }}
-        className={`fixed bottom-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          placement === 'right' ? 'right-0' : 'left-0'
-        } ${
-          props.visiable
-            ? 'translate-x-0'
-            : placement === 'right'
-              ? 'translate-x-full'
-              : '-translate-x-full'
-        }`}
+      <SideSheet
+        visible={props.visiable}
+        onClose={handleCancel}
+        placement={placement}
+        width={480}
       >
-        <header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
+        <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
           <div className='flex items-center gap-2'>
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                isEdit
-                  ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300'
-                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-              }`}
-            >
+            <StatusChip tone={isEdit ? 'blue' : 'green'}>
               {isEdit ? t('更新') : t('新建')}
-            </span>
+            </StatusChip>
             <h4 className='m-0 text-lg font-semibold text-foreground'>
               {isEdit ? t('更新兑换码信息') : t('创建新的兑换码')}
             </h4>
@@ -317,19 +335,17 @@ const EditRedemptionModal = (props) => {
             </div>
           ) : (
             <>
-              <Card className='!rounded-2xl mb-6 border-0 shadow-sm'>
+              <Card className='!rounded-2xl mb-3 border-0 shadow-sm'>
                 <Card.Content className='space-y-4 p-5'>
-                  <div className='flex items-center gap-2'>
-                    <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 shadow-md dark:bg-sky-950/40 dark:text-sky-300'>
-                      <Gift size={16} />
+                  {/* Section header — icon tile removed per UX request;
+                      title + subtitle alone gives enough hierarchy
+                      inside the side sheet's stacked-card layout. */}
+                  <div>
+                    <div className='text-base font-semibold text-foreground'>
+                      {t('基本信息')}
                     </div>
-                    <div>
-                      <div className='text-base font-semibold text-foreground'>
-                        {t('基本信息')}
-                      </div>
-                      <div className='text-xs text-muted'>
-                        {t('设置兑换码的基本信息')}
-                      </div>
+                    <div className='text-xs text-muted'>
+                      {t('设置兑换码的基本信息')}
                     </div>
                   </div>
 
@@ -357,15 +373,12 @@ const EditRedemptionModal = (props) => {
                     <div className='text-sm font-medium text-foreground'>
                       {t('过期时间')}
                     </div>
-                    <input
-                      type='datetime-local'
-                      value={toLocalDateTimeInputValue(values.expired_time)}
-                      onChange={(event) => {
-                        const v = event.target.value;
-                        setField('expired_time', v ? new Date(v) : null);
-                      }}
-                      aria-label={t('过期时间')}
-                      className={inputClass}
+                    <DateTimePicker
+                      value={values.expired_time}
+                      onChange={(next) =>
+                        setField('expired_time', parseLocalDateTime(next))
+                      }
+                      placeholder={t('过期时间')}
                     />
                     <div className='text-xs leading-snug text-muted'>
                       {t('选择过期时间（可选，留空为永久）')}
@@ -376,17 +389,12 @@ const EditRedemptionModal = (props) => {
 
               <Card className='!rounded-2xl border-0 shadow-sm'>
                 <Card.Content className='space-y-4 p-5'>
-                  <div className='flex items-center gap-2'>
-                    <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 shadow-md dark:bg-emerald-950/40 dark:text-emerald-300'>
-                      <CreditCard size={16} />
+                  <div>
+                    <div className='text-base font-semibold text-foreground'>
+                      {t('额度设置')}
                     </div>
-                    <div>
-                      <div className='text-base font-semibold text-foreground'>
-                        {t('额度设置')}
-                      </div>
-                      <div className='text-xs text-muted'>
-                        {t('设置兑换码的额度和数量')}
-                      </div>
+                    <div className='text-xs text-muted'>
+                      {t('设置兑换码的额度和数量')}
                     </div>
                   </div>
 
@@ -455,9 +463,8 @@ const EditRedemptionModal = (props) => {
           )}
         </div>
 
-        <footer className='flex justify-end gap-2 border-t border-[color:var(--app-border)] bg-[color:var(--app-background)] px-5 py-3'>
+        <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
           <Button variant='tertiary' onPress={handleCancel}>
-            <X size={14} />
             {t('取消')}
           </Button>
           <Button
@@ -465,11 +472,10 @@ const EditRedemptionModal = (props) => {
             onPress={submit}
             isPending={submitting || loading}
           >
-            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>
-      </aside>
+      </SideSheet>
 
       <ConfirmDialog
         visible={!!postCreateConfirm}

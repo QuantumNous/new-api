@@ -159,19 +159,23 @@ export const getRedemptionsColumns = ({
         const canToggle = !isExpired(record);
         const isUnused = record.status === REDEMPTION_STATUS.UNUSED;
 
+        // `inline-flex whitespace-nowrap` + compact `!h-7 !px-2.5 !text-[11px]`
+        // buttons to mirror /console/token's row rhythm. Without this the
+        // 5 action buttons wrapped to 2-3 rows on narrow viewports and
+        // inflated row height to ~120px.
+        const compactBtn = '!h-7 !px-2.5 !text-[11px]';
+
         return (
-          <div className='flex flex-wrap items-center gap-1.5'>
-            <Tooltip
-              content={record.key}
-              placement='top'
-            >
-              <Button variant='tertiary' size='sm'>
+          <div className='inline-flex items-center gap-1.5 whitespace-nowrap'>
+            <Tooltip content={record.key} placement='top'>
+              <Button variant='tertiary' size='sm' className={compactBtn}>
                 {t('查看')}
               </Button>
             </Tooltip>
             <Button
               size='sm'
               variant='tertiary'
+              className={compactBtn}
               onPress={async () => {
                 await copyText(record.key);
               }}
@@ -181,6 +185,7 @@ export const getRedemptionsColumns = ({
             <Button
               variant='tertiary'
               size='sm'
+              className={compactBtn}
               onPress={() => {
                 setEditingRedemption(record);
                 setShowEdit(true);
@@ -192,8 +197,8 @@ export const getRedemptionsColumns = ({
             {canToggle ? (
               <Button
                 size='sm'
-                variant='tertiary'
-                color={isUnused ? 'warning' : 'primary'}
+                variant={isUnused ? 'danger-soft' : 'tertiary'}
+                className={compactBtn}
                 onPress={() =>
                   manageRedemption(
                     record.id,
@@ -211,6 +216,7 @@ export const getRedemptionsColumns = ({
             <Button
               size='sm'
               variant='danger-soft'
+              className={compactBtn}
               onPress={() => showDeleteRedemptionModal(record)}
             >
               {t('删除')}

@@ -19,17 +19,49 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState } from 'react';
 import { Button, Card, Input } from '@heroui/react';
-import { Save, X, UserPlus } from 'lucide-react';
+import { X } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import SideSheet from '../../../common/ui/SideSheet';
 import { useTranslation } from 'react-i18next';
 
+// Visual baseline shared with the rest of the side-sheet forms — see
+// EditModelModal / EditRedemptionModal. Locks every Input / Select.Trigger
+// to a single 40px-tall rounded-xl bordered surface so the column reads
+// as one stack instead of a patchwork of HeroUI defaults.
 const inputClass =
-  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+  '!h-10 w-full !rounded-xl !border !border-border !bg-background !px-3 !text-sm !text-foreground outline-none transition focus:!border-primary disabled:opacity-50';
+
+function StatusChip({ tone, children }) {
+  const cls =
+    {
+      blue: 'bg-primary/15 text-primary',
+      green: 'bg-success/15 text-success',
+    }[tone] || 'bg-primary/15 text-primary';
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function FieldLabel({ children, required }) {
+  return (
+    <label className='block text-sm font-medium text-foreground'>
+      {children}
+      {required ? <span className='ml-0.5 text-danger'>*</span> : null}
+    </label>
+  );
+}
+
+function FieldError({ children }) {
+  if (!children) return null;
+  return <div className='mt-1 text-xs text-danger'>{children}</div>;
+}
 
 const AddUserModal = (props) => {
   const { t } = useTranslation();
-  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
   const [values, setValues] = useState({
     username: '',
@@ -92,151 +124,115 @@ const AddUserModal = (props) => {
   };
 
   return (
-    <>
-      <div
-        aria-hidden={!props.visible}
-        onClick={props.handleClose}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          props.visible ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!props.visible}
-        style={{ width: isMobile ? '100%' : 600 }}
-        className={`fixed bottom-0 left-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          props.visible ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
-          <div className='flex items-center gap-2'>
-            <span className='inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'>
-              {t('新建')}
-            </span>
-            <h4 className='m-0 text-lg font-semibold text-foreground'>
-              {t('添加用户')}
-            </h4>
-          </div>
-          <Button
-            isIconOnly
-            variant='tertiary'
-            size='sm'
-            aria-label={t('关闭')}
-            onPress={props.handleClose}
-          >
-            <X size={16} />
-          </Button>
-        </header>
-
-        <div className='flex-1 overflow-y-auto p-3'>
-          <Card className='!rounded-2xl border-0 shadow-sm'>
-            <Card.Content className='space-y-4 p-5'>
-              <div className='flex items-center gap-2'>
-                <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600 dark:bg-sky-950/40 dark:text-sky-300'>
-                  <UserPlus size={16} />
-                </div>
-                <div>
-                  <div className='text-base font-semibold text-foreground'>
-                    {t('用户信息')}
-                  </div>
-                  <div className='text-xs text-muted'>
-                    {t('创建新用户账户')}
-                  </div>
-                </div>
-              </div>
-
-              <div className='space-y-3'>
-                <div className='space-y-2'>
-                  <div className='text-sm font-medium text-foreground'>
-                    {t('用户名')}
-                    <span className='ml-1 text-red-500'>*</span>
-                  </div>
-                  <Input
-                    type='text'
-                    value={values.username}
-                    onChange={(event) =>
-                      setField('username')(event.target.value)
-                    }
-                    placeholder={t('请输入用户名')}
-                    aria-label={t('用户名')}
-                    className={inputClass}
-                  />
-                  {errors.username ? (
-                    <div className='text-xs text-red-600'>
-                      {errors.username}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className='space-y-2'>
-                  <div className='text-sm font-medium text-foreground'>
-                    {t('显示名称')}
-                  </div>
-                  <Input
-                    type='text'
-                    value={values.display_name}
-                    onChange={(event) =>
-                      setField('display_name')(event.target.value)
-                    }
-                    placeholder={t('请输入显示名称')}
-                    aria-label={t('显示名称')}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div className='space-y-2'>
-                  <div className='text-sm font-medium text-foreground'>
-                    {t('密码')}
-                    <span className='ml-1 text-red-500'>*</span>
-                  </div>
-                  <Input
-                    type='password'
-                    value={values.password}
-                    onChange={(event) =>
-                      setField('password')(event.target.value)
-                    }
-                    placeholder={t('请输入密码')}
-                    aria-label={t('密码')}
-                    className={inputClass}
-                  />
-                  {errors.password ? (
-                    <div className='text-xs text-red-600'>
-                      {errors.password}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className='space-y-2'>
-                  <div className='text-sm font-medium text-foreground'>
-                    {t('备注')}
-                  </div>
-                  <Input
-                    type='text'
-                    value={values.remark}
-                    onChange={(event) => setField('remark')(event.target.value)}
-                    placeholder={t('请输入备注（仅管理员可见）')}
-                    aria-label={t('备注')}
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-            </Card.Content>
-          </Card>
+    <SideSheet
+      visible={props.visible}
+      onClose={props.handleClose}
+      placement='left'
+      width={480}
+    >
+      <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
+        <div className='flex items-center gap-2'>
+          <StatusChip tone='green'>{t('新建')}</StatusChip>
+          <h4 className='m-0 text-lg font-semibold text-foreground'>
+            {t('添加用户')}
+          </h4>
         </div>
+        <Button
+          isIconOnly
+          variant='tertiary'
+          size='sm'
+          aria-label={t('关闭')}
+          onPress={props.handleClose}
+        >
+          <X size={16} />
+        </Button>
+      </header>
 
-        <footer className='flex justify-end gap-2 border-t border-[color:var(--app-border)] bg-[color:var(--app-background)] px-5 py-3'>
-          <Button variant='tertiary' onPress={props.handleClose}>
-            <X size={14} />
-            {t('取消')}
-          </Button>
-          <Button color='primary' onPress={submit} isPending={loading}>
-            <Save size={14} />
-            {t('提交')}
-          </Button>
-        </footer>
-      </aside>
-    </>
+      <div className='flex-1 overflow-y-auto p-3'>
+        <Card className='!rounded-2xl border-0 shadow-sm'>
+          <Card.Content className='space-y-4 p-5'>
+            {/* Section header — icon tile removed per UX request; title +
+                subtitle alone gives enough hierarchy inside a single-card
+                side sheet. */}
+            <div>
+              <div className='text-base font-semibold text-foreground'>
+                {t('用户信息')}
+              </div>
+              <div className='text-xs text-muted'>
+                {t('创建新用户账户')}
+              </div>
+            </div>
+
+            <div className='space-y-3'>
+              <div className='space-y-2'>
+                <FieldLabel required>{t('用户名')}</FieldLabel>
+                <Input
+                  type='text'
+                  value={values.username}
+                  onChange={(event) =>
+                    setField('username')(event.target.value)
+                  }
+                  placeholder={t('请输入用户名')}
+                  aria-label={t('用户名')}
+                  className={inputClass}
+                />
+                <FieldError>{errors.username}</FieldError>
+              </div>
+
+              <div className='space-y-2'>
+                <FieldLabel>{t('显示名称')}</FieldLabel>
+                <Input
+                  type='text'
+                  value={values.display_name}
+                  onChange={(event) =>
+                    setField('display_name')(event.target.value)
+                  }
+                  placeholder={t('请输入显示名称')}
+                  aria-label={t('显示名称')}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className='space-y-2'>
+                <FieldLabel required>{t('密码')}</FieldLabel>
+                <Input
+                  type='password'
+                  value={values.password}
+                  onChange={(event) =>
+                    setField('password')(event.target.value)
+                  }
+                  placeholder={t('请输入密码')}
+                  aria-label={t('密码')}
+                  className={inputClass}
+                />
+                <FieldError>{errors.password}</FieldError>
+              </div>
+
+              <div className='space-y-2'>
+                <FieldLabel>{t('备注')}</FieldLabel>
+                <Input
+                  type='text'
+                  value={values.remark}
+                  onChange={(event) => setField('remark')(event.target.value)}
+                  placeholder={t('请输入备注（仅管理员可见）')}
+                  aria-label={t('备注')}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </Card.Content>
+        </Card>
+      </div>
+
+      <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
+        <Button variant='tertiary' onPress={props.handleClose}>
+          {t('取消')}
+        </Button>
+        <Button color='primary' onPress={submit} isPending={loading}>
+          {t('提交')}
+        </Button>
+      </footer>
+    </SideSheet>
   );
 };
 

@@ -62,9 +62,14 @@ const LogsFilters = ({
   return (
     <form onSubmit={handleSubmit} autoComplete='off'>
       <div className='flex flex-col gap-2'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
+        {/* 4 cols on lg keeps the legacy desktop look. xl bumps to 6 so a
+            non-admin's 5 filters (date×2 + 4 inputs) fit on a single row;
+            2xl bumps to 8 so an admin's 8 cells (date×2 + 6 inputs) line
+            up on one row too — previously every filter inflated to 25% of
+            the card on very wide screens (1920+) which looked broken. */}
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-2'>
           {/* 时间选择器 */}
-          <div className='col-span-1 lg:col-span-2'>
+          <div className='col-span-1 md:col-span-2'>
             <FilterDateRange
               value={values.dateRange}
               onChange={(nextValue) => setFieldValue('dateRange', nextValue)}
@@ -118,7 +123,7 @@ const LogsFilters = ({
         {/* 操作按钮区域 */}
         <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
           {/* 日志类型选择器 */}
-          <div className='w-full sm:w-auto'>
+          <div className='w-full sm:w-40'>
             <FilterSelect
               value={values.logType}
               onChange={(nextValue) => {
@@ -128,7 +133,6 @@ const LogsFilters = ({
                 }, 0);
               }}
               placeholder={t('日志类型')}
-              className='w-full sm:w-auto min-w-[120px]'
               options={logTypeOptions}
             />
           </div>

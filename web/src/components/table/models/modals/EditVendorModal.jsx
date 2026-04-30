@@ -17,29 +17,50 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+// EditVendorModal — refactored against the official HeroUI v3 Modal
+// anatomy (https://heroui.com/docs/react/components/modal):
+//
+//   <Modal>
+//     <Modal.Backdrop variant='blur' isOpen onOpenChange>
+//       <Modal.Container size='md' placement='center'>
+//         <Modal.Dialog>
+//           <Modal.Header>
+//             <Modal.Heading />
+//             <Modal.CloseTrigger />
+//           </Modal.Header>
+//           <Modal.Body />
+//           <Modal.Footer />
+//         </Modal.Dialog>
+//       </Modal.Container>
+//     </Modal.Backdrop>
+//   </Modal>
+//
+// Two notable departures from the previous version:
+//   • Drop `useOverlayState` + `<Modal state>` controlled-shim. The
+//     v3 doc's recommended pattern is to plug `visible` straight into
+//     `<Modal.Backdrop isOpen onOpenChange>`. Less indirection, and
+//     consistent with how Modal.Trigger composes when present.
+//   • Use dot-notation (Modal.Header, Modal.Body, ...) so all
+//     compound parts come from the same import. The previous flat
+//     imports (ModalHeader, ModalBody, ...) still work but the dot
+//     notation is what the official anatomy spells out.
+//
+// Form fields use HeroUI Input / TextArea / Switch and the textarea
+// no longer falls back to a native `<textarea>` (the previous version
+// did, which broke visual rhythm against the HeroUI `Input`s above /
+// below it).
+
 import React, { useState, useEffect } from 'react';
-import {
-  Button,
-  Input,
-  Modal,
-  ModalBackdrop,
-  ModalBody,
-  ModalContainer,
-  ModalDialog,
-  ModalFooter,
-  ModalHeader,
-  Switch,
-  useOverlayState,
-} from '@heroui/react';
+import { Button, Input, Modal, Switch, TextArea } from '@heroui/react';
 import { ExternalLink } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 
 const inputClass =
-  'h-10 w-full rounded-lg border border-[color:var(--app-border)] bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary';
+  '!h-10 w-full !rounded-xl !border !border-border !bg-background !px-3 !text-sm !text-foreground outline-none transition focus:!border-primary';
 
 const textareaClass =
-  'w-full resize-y rounded-lg border border-[color:var(--app-border)] bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary';
+  '!w-full !resize-y !rounded-xl !border !border-border !bg-background !px-3 !py-2 !text-sm !text-foreground outline-none transition focus:!border-primary';
 
 const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
   const { t } = useTranslation();
@@ -142,26 +163,35 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
     }
   };
 
-  const modalState = useOverlayState({
-    isOpen: !!visible,
-    onOpenChange: (isOpen) => {
-      if (!isOpen) handleCancel();
-    },
-  });
-
   return (
-    <Modal state={modalState}>
-      <ModalBackdrop variant='blur'>
-        <ModalContainer size='md' placement='center'>
-          <ModalDialog className='bg-background/95 backdrop-blur'>
-            <ModalHeader className='border-b border-border'>
-              {isEdit ? t('编辑供应商') : t('新增供应商')}
-            </ModalHeader>
-            <ModalBody className='space-y-4 px-6 py-5'>
+    <Modal>
+      <Modal.Backdrop
+        variant='blur'
+        isOpen={!!visible}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) handleCancel();
+        }}
+      >
+        <Modal.Container size='md' placement='center'>
+          {/* HeroUI's `.modal__dialog` ships `p-6` that wraps ALL of
+              header / body / footer. So overriding Body with its own
+              `px-6 py-5` was DOUBLING the horizontal padding and
+              shifting body content 24px to the right of the header
+              and footer (the misalignment you saw). Drop the body's
+              padding override, and drop the manual `border-b` /
+              `border-t` separators on header/footer per UX spec. */}
+          <Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading className='text-base font-semibold'>
+                {isEdit ? t('编辑供应商') : t('新增供应商')}
+              </Modal.Heading>
+              <Modal.CloseTrigger />
+            </Modal.Header>
+            <Modal.Body className='space-y-4'>
               <div className='space-y-2'>
                 <div className='text-sm font-medium text-foreground'>
                   {t('供应商名称')}
-                  <span className='ml-1 text-red-500'>*</span>
+                  <span className='ml-1 text-danger'>*</span>
                 </div>
                 <Input
                   type='text'
@@ -172,7 +202,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
                   className={inputClass}
                 />
                 {errors.name ? (
-                  <div className='text-xs text-red-600'>{errors.name}</div>
+                  <div className='text-xs text-danger'>{errors.name}</div>
                 ) : null}
               </div>
 
@@ -180,9 +210,11 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
                 <div className='text-sm font-medium text-foreground'>
                   {t('描述')}
                 </div>
-                <textarea
+                <TextArea
                   value={values.description}
-                  onChange={(event) => setField('description')(event.target.value)}
+                  onChange={(event) =>
+                    setField('description')(event.target.value)
+                  }
                   placeholder={t('请输入供应商描述')}
                   rows={3}
                   aria-label={t('描述')}
@@ -210,7 +242,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
                     href='https://icons.lobehub.com/components/lobe-hub'
                     target='_blank'
                     rel='noreferrer'
-                    className='inline-flex items-center gap-1 text-primary underline'
+                    className='inline-flex items-center gap-1 font-medium text-primary underline-offset-2 hover:underline'
                   >
                     {t('请点击我')}
                     <ExternalLink size={12} />
@@ -218,7 +250,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
                 </div>
               </div>
 
-              <label className='flex items-center justify-between gap-3 rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-background)] p-4'>
+              <label className='flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-4'>
                 <div className='text-sm font-medium text-foreground'>
                   {t('状态')}
                 </div>
@@ -233,18 +265,22 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
                   </Switch.Control>
                 </Switch>
               </label>
-            </ModalBody>
-            <ModalFooter className='border-t border-border'>
+            </Modal.Body>
+            <Modal.Footer>
               <Button variant='tertiary' onPress={handleCancel}>
                 {t('取消')}
               </Button>
-              <Button color='primary' onPress={submit} isPending={loading}>
+              <Button
+                color='primary'
+                onPress={submit}
+                isPending={loading}
+              >
                 {t('确定')}
               </Button>
-            </ModalFooter>
-          </ModalDialog>
-        </ModalContainer>
-      </ModalBackdrop>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </Modal>
   );
 };

@@ -27,8 +27,8 @@ import {
   stringToColor,
 } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
-import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
+import SideSheet from '../../../common/ui/SideSheet';
 import EditPrefillGroupModal from './EditPrefillGroupModal';
 import ConfirmDialog from '@/components/common/ui/ConfirmDialog';
 import {
@@ -38,7 +38,6 @@ import {
 
 const PrefillGroupManagement = ({ visible, onClose }) => {
   const { t } = useTranslation();
-  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState([]);
   const [showEdit, setShowEdit] = useState(false);
@@ -207,21 +206,11 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
 
   return (
     <>
-      <div
-        aria-hidden={!visible}
-        onClick={onClose}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!visible}
-        style={{ width: isMobile ? '100%' : 800 }}
-        className={`fixed bottom-0 left-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          visible ? 'translate-x-0' : '-translate-x-full'
-        }`}
+      <SideSheet
+        visible={visible}
+        onClose={onClose}
+        placement='left'
+        width={800}
       >
         <header className='flex items-center justify-between gap-3 border-b border-[color:var(--app-border)] px-5 py-3'>
           <div className='flex items-center gap-2'>
@@ -291,7 +280,7 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
             </Card.Content>
           </Card>
         </div>
-      </aside>
+      </SideSheet>
 
       <EditPrefillGroupModal
         visible={showEdit}

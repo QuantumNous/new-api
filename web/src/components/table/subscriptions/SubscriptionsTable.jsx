@@ -17,9 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+// /console/subscription table — thin glue around the shared HeroTable
+// wrapper so the subscriptions view inherits the same row rhythm,
+// sticky-right operations column, hover bg, empty state and loading
+// spinner as /console/token, /console/channel, /console/user and
+// /console/redemption.
+//
+// Previously this used the legacy `CardTable` wrapper which is built
+// on a hand-rolled `<table>` and renders its empty state as a separate
+// surface card outside the table. HeroTable (HeroUI Table + React
+// Aria) renders the empty state inline via `renderEmptyState`, paints
+// rows with the design-system surface tokens, and routes
+// `fixed: 'right'` columns through the wrapper's sticky-right glue.
+
 import React, { useMemo } from 'react';
-import CardTable from '../../common/ui/CardTable';
-import TableEmptyState from '../../common/ui/TableEmptyState';
+import HeroTable from '../../common/ui/HeroTable';
 import { getSubscriptionsColumns } from './SubscriptionsColumnDefs';
 
 const SubscriptionsTable = (subscriptionsData) => {
@@ -42,6 +54,8 @@ const SubscriptionsTable = (subscriptionsData) => {
     });
   }, [t, openEdit, setPlanEnabled, enableEpay]);
 
+  // Compact mode strips `fixed` from the operations column so it
+  // joins the natural horizontal flow instead of being pinned right.
   const tableColumns = useMemo(() => {
     return compactMode
       ? columns.map((col) => {
@@ -55,19 +69,18 @@ const SubscriptionsTable = (subscriptionsData) => {
   }, [compactMode, columns]);
 
   return (
-    <CardTable
+    <HeroTable
+      ariaLabel={t('订阅套餐列表')}
       columns={tableColumns}
-      dataSource={plans}
-      scroll={compactMode ? undefined : { x: 'max-content' }}
-      pagination={false}
-      hidePagination={true}
-      loading={loading}
+      dataSource={plans || []}
       rowKey={(row) => row?.plan?.id}
-      empty={
-        <TableEmptyState description={t('暂无订阅套餐')} />
+      loading={loading}
+      emptyDescription={t('暂无订阅套餐')}
+      // Disabled plans are dimmed — same opacity treatment the other
+      // four admin tables use for soft-disabled rows.
+      rowClassName={(record) =>
+        record?.plan?.enabled === false ? 'opacity-60' : ''
       }
-      className='overflow-hidden'
-      size='middle'
     />
   );
 };

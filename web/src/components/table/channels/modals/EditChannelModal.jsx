@@ -78,6 +78,7 @@ import OllamaModelModal from './OllamaModelModal';
 import CodexOAuthModal from './CodexOAuthModal';
 import ParamOverrideEditorModal from './ParamOverrideEditorModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
+import SharedSideSheet from '../../../common/ui/SideSheet';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
 import StatusCodeRiskGuardModal from './StatusCodeRiskGuardModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
@@ -760,7 +761,11 @@ Modal.confirm = (config) => {
   };
 };
 
-// SideSheet: right/left slide panel.
+// SideSheet — local shim that adapts the EditChannelModal's existing
+// (title, visible, placement, width, bodyStyle, footer, onCancel) API
+// to the shared `SharedSideSheet` (which renders through React Aria's
+// `Modal` portal into `document.body`, bypassing CardPro's
+// `backdrop-filter` containing-block trap).
 function SideSheet({
   title,
   visible,
@@ -775,57 +780,37 @@ function SideSheet({
 }) {
   // eslint-disable-next-line no-unused-vars
   const _closeIcon = closeIcon;
-  const slideClose =
-    placement === 'left' ? '-translate-x-full' : 'translate-x-full';
-  const positionCls =
-    placement === 'left'
-      ? 'fixed bottom-0 left-0 top-0'
-      : 'fixed bottom-0 right-0 top-0';
   return (
-    <>
-      <div
-        aria-hidden={!visible}
-        onClick={onCancel}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          visible ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!visible}
-        style={{ width }}
-        className={`${positionCls} z-50 flex w-full max-w-full flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          visible ? 'translate-x-0' : slideClose
-        } ${className}`}
-      >
-        {title ? (
-          <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
-            <div className='min-w-0 flex-1'>{title}</div>
-            <Button
-              isIconOnly
-              variant='tertiary'
-              size='sm'
-              aria-label='close'
-              onPress={onCancel}
-            >
-              <CloseIcon size={16} />
-            </Button>
-          </header>
-        ) : null}
-        <div
-          style={bodyStyle}
-          className='relative flex-1 overflow-y-auto'
-        >
-          {children}
-        </div>
-        {footer ? (
-          <footer className='border-t border-border bg-background px-5 py-3'>
-            {footer}
-          </footer>
-        ) : null}
-      </aside>
-    </>
+    <SharedSideSheet
+      visible={visible}
+      onClose={onCancel}
+      placement={placement}
+      width={width}
+      className={className}
+    >
+      {title ? (
+        <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
+          <div className='min-w-0 flex-1'>{title}</div>
+          <Button
+            isIconOnly
+            variant='tertiary'
+            size='sm'
+            aria-label='close'
+            onPress={onCancel}
+          >
+            <CloseIcon size={16} />
+          </Button>
+        </header>
+      ) : null}
+      <div style={bodyStyle} className='relative flex-1 overflow-y-auto'>
+        {children}
+      </div>
+      {footer ? (
+        <footer className='border-t border-border bg-background px-5 py-3'>
+          {footer}
+        </footer>
+      ) : null}
+    </SharedSideSheet>
   );
 }
 

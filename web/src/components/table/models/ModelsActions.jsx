@@ -134,7 +134,7 @@ const ModelsActions = ({
 
   return (
     <>
-      <div className='order-2 flex w-full flex-wrap gap-2 md:order-1 md:w-auto'>
+      <div className='flex w-full flex-wrap items-center gap-2'>
         <Button
           color='primary'
           size='sm'

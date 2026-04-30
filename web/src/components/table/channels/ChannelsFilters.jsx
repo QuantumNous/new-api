@@ -50,7 +50,7 @@ const ChannelsFilters = ({
       <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
         <Button
           size='sm'
-          variant='secondary'
+          variant='primary'
           className='w-full md:w-auto'
           onPress={() => {
             setEditingChannel({

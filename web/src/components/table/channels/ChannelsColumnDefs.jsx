@@ -13,7 +13,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Button, Tooltip } from '@heroui/react';
+import { Button, Input, Tooltip } from '@heroui/react';
 import { AlertTriangle, ChevronDown, MoreVertical } from 'lucide-react';
 import { FaRandom } from 'react-icons/fa';
 import {
@@ -263,18 +263,25 @@ const getUpstreamUpdateMeta = (record) => {
   };
 };
 
-// Replaces Semi `<InputNumber innerButtons defaultValue onBlur>` with a
-// native `<input type='number'>`.  Keeps the same uncontrolled-input
-// behaviour (commits on blur, no controlled state).
+// HeroUI v3 `Input` (styled `react-aria-components/Input`) used as a
+// compact uncontrolled number cell. Replaces the bare `<input>` we had
+// while preserving the original UX: commits on blur, no controlled state,
+// no inc/dec buttons (uses native HTML number step affordances).
+//
+// Class overrides:
+//   • `!h-8` clamps height back to 32px (Input ships `py-2` ≈ 36px)
+//   • `!rounded-lg !px-2 !text-sm` keeps the cell compact and visually
+//     aligned with the priority/weight column rhythm
+//   • `tabular-nums` aligns digits across rows
 function PriorityInput({ defaultValue, min = -999, onBlur, ariaLabel }) {
   return (
-    <input
+    <Input
       type='number'
       defaultValue={defaultValue}
       min={min}
       onBlur={onBlur}
       aria-label={ariaLabel}
-      className='h-8 w-[70px] rounded-lg border border-border bg-background px-2 text-sm text-foreground tabular-nums outline-none focus:border-primary'
+      className='!h-8 w-[70px] !rounded-lg !px-2 !text-sm tabular-nums'
     />
   );
 }
@@ -382,14 +389,26 @@ function ChannelOperateCell({
     });
   }
 
+  // Compact + inline + nowrap so the 4-5 action buttons stay on one
+  // line. Mirrors /console/token's operate cell rhythm. The split-button
+  // halves manually drop their inner border-radius so they read as one
+  // pill (ButtonGroup can't wrap a ClickMenu trigger because that breaks
+  // the :first-child / :last-child selectors HeroUI's ButtonGroup uses).
+  const compactBtn = '!h-7 !px-2.5 !text-[11px]';
+  const compactIconBtn =
+    '!h-7 !w-7 !min-w-7 !px-0 [&_svg]:!size-3.5';
+  const splitLeftBtn = '!h-7 !px-2.5 !text-[11px] !rounded-r-none';
+  const splitRightBtn =
+    '!h-7 !w-6 !min-w-6 !px-0 !rounded-l-none !border-l !border-[color:var(--app-border)] [&_svg]:!size-3';
+
   return (
-    <div className='flex flex-wrap items-center gap-1.5'>
+    <div className='inline-flex items-center gap-1.5 whitespace-nowrap'>
       {/* Test split-button */}
-      <span className='inline-flex overflow-hidden rounded-lg border border-border'>
+      <div className='inline-flex items-stretch'>
         <Button
           size='sm'
           variant='tertiary'
-          className='rounded-none'
+          className={splitLeftBtn}
           onPress={() => testChannel(record, '')}
         >
           {t('测试')}
@@ -398,21 +417,22 @@ function ChannelOperateCell({
           isIconOnly
           size='sm'
           variant='tertiary'
-          className='rounded-none border-l border-border'
+          className={splitRightBtn}
           onPress={() => {
             setCurrentTestChannel(record);
             setShowModelTestModal(true);
           }}
           aria-label={t('选择模型测试')}
         >
-          <ChevronDown size={14} />
+          <ChevronDown size={12} />
         </Button>
-      </span>
+      </div>
 
       {record.status === 1 ? (
         <Button
           size='sm'
           variant='danger-soft'
+          className={compactBtn}
           onPress={() => manageChannel(record.id, 'disable', record)}
         >
           {t('禁用')}
@@ -421,6 +441,7 @@ function ChannelOperateCell({
         <Button
           size='sm'
           variant='tertiary'
+          className={compactBtn}
           onPress={() => manageChannel(record.id, 'enable', record)}
         >
           {t('启用')}
@@ -428,11 +449,11 @@ function ChannelOperateCell({
       )}
 
       {record.channel_info?.is_multi_key ? (
-        <span className='inline-flex overflow-hidden rounded-lg border border-border'>
+        <div className='inline-flex items-stretch'>
           <Button
             size='sm'
             variant='tertiary'
-            className='rounded-none'
+            className={splitLeftBtn}
             onPress={() => {
               setEditingChannel(record);
               setShowEdit(true);
@@ -455,18 +476,19 @@ function ChannelOperateCell({
                 isIconOnly
                 size='sm'
                 variant='tertiary'
-                className='rounded-none border-l border-border'
+                className={splitRightBtn}
                 aria-label={t('多密钥操作')}
               >
-                <ChevronDown size={14} />
+                <ChevronDown size={12} />
               </Button>
             }
           />
-        </span>
+        </div>
       ) : (
         <Button
           size='sm'
           variant='tertiary'
+          className={compactBtn}
           onPress={() => {
             setEditingChannel(record);
             setShowEdit(true);
@@ -483,6 +505,7 @@ function ChannelOperateCell({
             isIconOnly
             size='sm'
             variant='tertiary'
+            className={compactIconBtn}
             aria-label={t('更多操作')}
           >
             <MoreVertical size={14} />
@@ -518,11 +541,13 @@ function TagOperateCell({
   setShowEditTag,
   setEditingTag,
 }) {
+  const compactBtn = '!h-7 !px-2.5 !text-[11px]';
   return (
-    <div className='flex flex-wrap items-center gap-1.5'>
+    <div className='inline-flex items-center gap-1.5 whitespace-nowrap'>
       <Button
         size='sm'
         variant='tertiary'
+        className={compactBtn}
         onPress={() => manageTag(record.key, 'enable')}
       >
         {t('启用全部')}
@@ -530,6 +555,7 @@ function TagOperateCell({
       <Button
         size='sm'
         variant='tertiary'
+        className={compactBtn}
         onPress={() => manageTag(record.key, 'disable')}
       >
         {t('禁用全部')}
@@ -537,6 +563,7 @@ function TagOperateCell({
       <Button
         size='sm'
         variant='tertiary'
+        className={compactBtn}
         onPress={() => {
           setShowEditTag(true);
           setEditingTag(record.key);

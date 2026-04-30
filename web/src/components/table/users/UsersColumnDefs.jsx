@@ -17,21 +17,38 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Button, Tooltip } from '@heroui/react';
-import { Copy, MoreHorizontal } from 'lucide-react';
-import { renderGroup, renderNumber, renderQuota, copy, showSuccess } from '../../../helpers';
+// /console/user column defs — mirrors the structure of TokensColumnDefs so
+// the two pages share the same visual + interaction grammar:
+//
+//   • shared `HoverPanel` (= HeroUI Tooltip wrapper) for on-hover quota
+//     breakdowns, instead of a private hand-rolled tooltip with manual
+//     show/hide timers.
+//   • shared `ClickMenu` for the row "more" overflow menu, instead of a
+//     duplicated local copy with its own click-outside listener.
+//   • HeroUI `Meter` for quota progress (semantic value-in-range with
+//     warning/danger thresholds), instead of a hand-rolled `<div>` bar.
+//   • HeroUI `Tooltip` + `Button` for inline interactions.
+//
+// The local `Chip` wrapper is intentionally kept (mirrors the same pattern
+// in TokensColumnDefs) — it maps semantic tone names (green/red/yellow/...)
+// onto Tailwind utility classes that pull from the design tokens, which is
+// strictly richer than HeroUI `<Chip>`'s 6-color palette.
+
+import React from 'react';
+import { Button, Meter, Tooltip } from '@heroui/react';
+import { MoreHorizontal } from 'lucide-react';
+import HoverPanel from '@/components/common/ui/HoverPanel';
+import ClickMenu from '@/components/common/ui/ClickMenu';
+import { renderGroup, renderNumber, renderQuota } from '../../../helpers';
 import { warningGhostButtonClass } from '../../common/ui/buttonTones';
 
 const TONE_CLASSES = {
-  blue:
-    'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
+  blue: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
   yellow:
     'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
   orange:
     'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
-  red:
-    'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+  red: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
   green:
     'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
   grey: 'bg-surface-secondary text-muted',
@@ -41,144 +58,14 @@ const TONE_CLASSES = {
 
 function Chip({ tone = 'white', children, className = '' }) {
   const cls = TONE_CLASSES[tone] || TONE_CLASSES.white;
+  // `whitespace-nowrap shrink-0` matches the tokens-table chip so short
+  // CJK labels (普通用户 / 已启用 / 已禁用 / ...) stay on one line even
+  // inside narrow cells.
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls} ${className}`}
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${cls} ${className}`}
     >
       {children}
-    </span>
-  );
-}
-
-function CopyableLine({ value, children }) {
-  const handleCopy = async (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (await copy(value)) {
-      showSuccess('已复制');
-    }
-  };
-  return (
-    <div className='group flex items-center gap-1.5'>
-      <span className='min-w-0 truncate'>{children}</span>
-      <button
-        type='button'
-        onClick={handleCopy}
-        aria-label='copy'
-        className='inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted opacity-0 transition group-hover:opacity-100 hover:bg-surface-secondary hover:text-foreground'
-      >
-        <Copy size={11} />
-      </button>
-    </div>
-  );
-}
-
-function HoverPanel({ children, content, position = 'top' }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const timer = useRef(null);
-
-  const show = () => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    setOpen(true);
-  };
-  const hide = () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setOpen(false), 100);
-  };
-
-  useEffect(() => () => timer.current && clearTimeout(timer.current), []);
-
-  return (
-    <span
-      ref={ref}
-      className='relative inline-flex'
-      onMouseEnter={show}
-      onMouseLeave={hide}
-    >
-      {children}
-      {open ? (
-        <div
-          role='tooltip'
-          className={`absolute left-1/2 -translate-x-1/2 z-30 min-w-[10rem] rounded-lg border border-border bg-background p-2 text-xs shadow-lg ${
-            position === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-          }`}
-        >
-          {content}
-        </div>
-      ) : null}
-    </span>
-  );
-}
-
-function ProgressBar({ percent }) {
-  const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
-  return (
-    <div className='h-1 w-full overflow-hidden rounded-full bg-surface-secondary'>
-      <div
-        className='h-full rounded-full bg-emerald-500 transition-all'
-        style={{ width: `${clamped}%` }}
-      />
-    </div>
-  );
-}
-
-function ClickMenu({ items, trigger }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (event) => {
-      if (ref.current && !ref.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
-
-  return (
-    <span ref={ref} className='relative inline-flex'>
-      <span onClick={() => setOpen((prev) => !prev)}>{trigger}</span>
-      {open ? (
-        <div
-          role='menu'
-          className='absolute right-0 top-full z-30 mt-1 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-background shadow-lg'
-        >
-          {items.map((item, idx) => {
-            if (item.divider) {
-              return (
-                <div
-                  key={`divider-${idx}`}
-                  className='my-1 h-px bg-border'
-                />
-              );
-            }
-            return (
-              <button
-                key={`item-${idx}`}
-                type='button'
-                role='menuitem'
-                className={`flex w-full items-center px-3 py-2 text-left text-sm transition ${
-                  item.danger
-                    ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40'
-                    : 'text-foreground hover:bg-surface-secondary'
-                }`}
-                onClick={() => {
-                  setOpen(false);
-                  item.onClick?.();
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
     </span>
   );
 }
@@ -199,16 +86,19 @@ const renderRole = (role, t) => {
 const renderUsername = (text, record) => {
   const remark = record.remark;
   if (!remark) {
-    return <span>{text}</span>;
+    return <span className='whitespace-nowrap'>{text}</span>;
   }
   const maxLen = 10;
   const displayRemark =
     remark.length > maxLen ? remark.slice(0, maxLen) + '…' : remark;
   return (
-    <div className='flex items-center gap-1.5'>
+    // `inline-flex whitespace-nowrap` so the username + remark chip stays on
+    // a single line and the row keeps its compact rhythm. Without it the
+    // remark chip would wrap below the username on narrow viewports.
+    <div className='inline-flex items-center gap-1.5 whitespace-nowrap'>
       <span>{text}</span>
       <Tooltip content={remark} placement='top'>
-        <span className='inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-xs text-foreground'>
+        <span className='inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-xs text-foreground'>
           <span
             className='h-2 w-2 shrink-0 rounded-full'
             style={{ backgroundColor: '#10b981' }}
@@ -220,7 +110,7 @@ const renderUsername = (text, record) => {
   );
 };
 
-const renderStatistics = (text, record, showEnableDisableModal, t) => {
+const renderStatistics = (text, record, t) => {
   const isDeleted = record.DeletedAt !== null;
 
   let tone = 'grey';
@@ -258,32 +148,62 @@ const renderQuotaUsage = (text, record, t) => {
   const total = used + remain;
   const percent = total > 0 ? (remain / total) * 100 : 0;
 
-  const popoverContent = (
-    <div className='space-y-1'>
-      <CopyableLine value={renderQuota(used)}>
-        {t('已用额度')}: {renderQuota(used)}
-      </CopyableLine>
-      <CopyableLine value={renderQuota(remain)}>
-        {t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}%)
-      </CopyableLine>
-      <CopyableLine value={renderQuota(total)}>
-        {t('总额度')}: {renderQuota(total)}
-      </CopyableLine>
+  // Shared HoverPanel wraps a HeroUI Tooltip — the popup auto-dismisses
+  // when the cursor leaves the trigger, so click-targets inside cannot be
+  // reached. CopyableLine still renders a clickable copy button, but
+  // mirrors the tokens table's plain key/value treatment for parity.
+  const StatRow = ({ label, value }) => (
+    <div className='flex items-center justify-between gap-3'>
+      <span className='text-muted'>{label}</span>
+      <span className='tabular-nums text-foreground'>{value}</span>
     </div>
   );
 
+  const popoverContent = (
+    <div className='space-y-1'>
+      <StatRow label={t('已用额度')} value={renderQuota(used)} />
+      <StatRow
+        label={t('剩余额度')}
+        value={`${renderQuota(remain)} (${percent.toFixed(0)}%)`}
+      />
+      <StatRow label={t('总额度')} value={renderQuota(total)} />
+    </div>
+  );
+
+  // Same Meter color thresholds as TokensColumnDefs: ≤10% danger,
+  // ≤30% warning, otherwise success. Keeping the two pages aligned so
+  // a 5%-remaining user reads visually the same as a 5%-remaining token.
+  const meterColor =
+    percent <= 10 ? 'danger' : percent <= 30 ? 'warning' : 'success';
+
   return (
-    <HoverPanel content={popoverContent} position='top'>
-      <span className='inline-flex flex-col items-stretch gap-1 rounded-full border border-border bg-background px-2 py-1 text-xs text-foreground'>
-        <span className='leading-none tabular-nums'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
-        <ProgressBar percent={percent} />
-      </span>
+    <HoverPanel content={popoverContent} placement='top'>
+      <Meter
+        aria-label={t('额度使用')}
+        value={remain}
+        maxValue={Math.max(total, 1)}
+        color={meterColor}
+        size='sm'
+        className='!flex w-32 cursor-help flex-col items-stretch gap-1'
+      >
+        <Meter.Output className='!text-xs !font-normal text-foreground text-center leading-none tabular-nums'>
+          {`${renderQuota(remain)} / ${renderQuota(total)}`}
+        </Meter.Output>
+        <Meter.Track>
+          <Meter.Fill />
+        </Meter.Track>
+      </Meter>
     </HoverPanel>
   );
 };
 
 const renderInviteInfo = (text, record, t) => (
-  <div className='flex flex-wrap items-center gap-1'>
+  // `inline-flex whitespace-nowrap` keeps the three meta chips on one line.
+  // The cell already inherits `whitespace-nowrap` from HeroTable, so the
+  // table grows horizontally (and the `Table.ScrollContainer` provides a
+  // scrollbar) instead of inflating the row height to ~3 lines on narrow
+  // viewports. Each Chip carries `shrink-0` so they don't squeeze either.
+  <div className='inline-flex items-center gap-1 whitespace-nowrap'>
     <Chip tone='white'>
       {t('邀请')}: {renderNumber(record.aff_count)}
     </Chip>
@@ -340,21 +260,33 @@ const renderOperations = (
     },
   ];
 
+  // Inline + nowrap so the 5 row controls stay on a single line and the
+  // surrounding `Table.ScrollContainer` provides horizontal scroll if the
+  // viewport can't fit them. `!h-7 !px-2.5 !text-[11px]` mirrors the
+  // tokens table's compact action chips so /console/user and /console/token
+  // share the same row rhythm. Without this the buttons used the default
+  // sm size (32px / 14px text) and wrapped to 2-3 rows on narrow viewports,
+  // blowing up row heights to ~120px.
+  const compactBtn = '!h-7 !px-2.5 !text-[11px]';
+  const compactIconBtn =
+    '!h-7 !w-7 !min-w-7 !px-0 [&_svg]:!size-3.5';
+
   return (
-    <div className='flex flex-wrap items-center gap-1.5'>
+    <div className='inline-flex items-center gap-1.5 whitespace-nowrap'>
       {record.status === 1 ? (
         <Button
-          color='danger'
+          variant='danger-soft'
           size='sm'
-          variant='tertiary'
+          className={compactBtn}
           onPress={() => showEnableDisableModal(record, 'disable')}
         >
           {t('禁用')}
         </Button>
       ) : (
         <Button
-          size='sm'
           variant='tertiary'
+          size='sm'
+          className={compactBtn}
           onPress={() => showEnableDisableModal(record, 'enable')}
         >
           {t('启用')}
@@ -363,6 +295,7 @@ const renderOperations = (
       <Button
         variant='tertiary'
         size='sm'
+        className={compactBtn}
         onPress={() => {
           setEditingUser(record);
           setShowEditUser(true);
@@ -373,7 +306,7 @@ const renderOperations = (
       <Button
         variant='tertiary'
         size='sm'
-        className={warningGhostButtonClass}
+        className={`${compactBtn} ${warningGhostButtonClass}`}
         onPress={() => showPromoteModal(record)}
       >
         {t('提升')}
@@ -381,6 +314,7 @@ const renderOperations = (
       <Button
         variant='tertiary'
         size='sm'
+        className={compactBtn}
         onPress={() => showDemoteModal(record)}
       >
         {t('降级')}
@@ -392,7 +326,8 @@ const renderOperations = (
             isIconOnly
             variant='tertiary'
             size='sm'
-            aria-label='more'
+            className={compactIconBtn}
+            aria-label={t('更多操作')}
           >
             <MoreHorizontal size={14} />
           </Button>
@@ -427,8 +362,7 @@ export const getUsersColumns = ({
     {
       title: t('状态'),
       dataIndex: 'info',
-      render: (text, record) =>
-        renderStatistics(text, record, showEnableDisableModal, t),
+      render: (text, record) => renderStatistics(text, record, t),
     },
     {
       title: t('剩余额度/总额度'),

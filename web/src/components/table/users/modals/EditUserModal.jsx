@@ -17,6 +17,9 @@ import { useTranslation } from 'react-i18next';
 import {
   Button,
   Card,
+  Input,
+  InputGroup,
+  ListBox,
   Modal,
   ModalBackdrop,
   ModalBody,
@@ -24,10 +27,14 @@ import {
   ModalDialog,
   ModalFooter,
   ModalHeader,
+  ModalHeading,
+  Select,
   Spinner,
+  ToggleButton,
+  ToggleButtonGroup,
   useOverlayState,
 } from '@heroui/react';
-import { Edit3, Link as LinkIcon, Save, User, Users, X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import {
   API,
   showError,
@@ -40,6 +47,7 @@ import {
   displayAmountToQuota,
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import SideSheet from '../../../common/ui/SideSheet';
 import UserBindingManagementModal from './UserBindingManagementModal';
 
 const TAG_TONE = {
@@ -59,25 +67,11 @@ function StatusChip({ tone, children }) {
   );
 }
 
-function IconTile({ tone, children }) {
-  const cls =
-    {
-      blue: 'bg-primary/10 text-primary',
-      green: 'bg-success/10 text-success',
-      purple:
-        'bg-[color-mix(in_oklab,var(--app-primary)_8%,transparent)] text-[color-mix(in_oklab,var(--app-primary)_82%,var(--app-foreground))]',
-    }[tone] || 'bg-primary/10 text-primary';
-  return (
-    <div
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${cls}`}
-    >
-      {children}
-    </div>
-  );
-}
-
+// Visual baseline shared with the rest of the side-sheet forms — see
+// EditModelModal / EditRedemptionModal. Locks every Input / Select.Trigger
+// to a single 40px-tall rounded-xl bordered surface.
 const inputClass =
-  'h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary disabled:opacity-50';
+  '!h-10 w-full !rounded-xl !border !border-border !bg-background !px-3 !text-sm !text-foreground outline-none transition focus:!border-primary disabled:opacity-50';
 
 function FieldLabel({ children, required }) {
   return (
@@ -300,21 +294,11 @@ const EditUserModal = (props) => {
 
   return (
     <>
-      <div
-        aria-hidden={!props.visible}
-        onClick={handleCancel}
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ${
-          props.visible ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
-      />
-      <aside
-        role='dialog'
-        aria-modal='true'
-        aria-hidden={!props.visible}
-        style={{ width: isMobile ? '100%' : 600 }}
-        className={`fixed bottom-0 right-0 top-0 z-50 flex flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
-          props.visible ? 'translate-x-0' : 'translate-x-full'
-        }`}
+      <SideSheet
+        visible={props.visible}
+        onClose={handleCancel}
+        placement='right'
+        width={600}
       >
         <header className='flex items-center justify-between gap-3 border-b border-border px-5 py-3'>
           <div className='flex items-center gap-2'>
@@ -345,30 +329,29 @@ const EditUserModal = (props) => {
             {/* 基本信息 */}
             <Card className='!rounded-2xl border-0 shadow-sm'>
               <Card.Content className='space-y-4 p-5'>
-                <div className='flex items-center gap-2'>
-                  <IconTile tone='blue'>
-                    <User size={16} />
-                  </IconTile>
-                  <div>
-                    <div className='text-base font-semibold text-foreground'>
-                      {t('基本信息')}
-                    </div>
-                    <div className='text-xs text-muted'>
-                      {t('用户的基本账户信息')}
-                    </div>
+                {/* Section header — icon tile removed per UX request;
+                    title + subtitle alone gives enough hierarchy inside
+                    a single-card side sheet. */}
+                <div>
+                  <div className='text-base font-semibold text-foreground'>
+                    {t('基本信息')}
+                  </div>
+                  <div className='text-xs text-muted'>
+                    {t('用户的基本账户信息')}
                   </div>
                 </div>
 
                 <div className='space-y-3'>
                   <div className='space-y-2'>
                     <FieldLabel required>{t('用户名')}</FieldLabel>
-                    <input
+                    <Input
                       type='text'
                       value={values.username || ''}
                       onChange={(event) =>
                         setField('username')(event.target.value)
                       }
                       placeholder={t('请输入新的用户名')}
+                      aria-label={t('用户名')}
                       className={inputClass}
                     />
                     <FieldError>{errors.username}</FieldError>
@@ -376,39 +359,42 @@ const EditUserModal = (props) => {
 
                   <div className='space-y-2'>
                     <FieldLabel>{t('密码')}</FieldLabel>
-                    <input
+                    <Input
                       type='password'
                       value={values.password || ''}
                       onChange={(event) =>
                         setField('password')(event.target.value)
                       }
                       placeholder={t('请输入新的密码，最短 8 位')}
+                      aria-label={t('密码')}
                       className={inputClass}
                     />
                   </div>
 
                   <div className='space-y-2'>
                     <FieldLabel>{t('显示名称')}</FieldLabel>
-                    <input
+                    <Input
                       type='text'
                       value={values.display_name || ''}
                       onChange={(event) =>
                         setField('display_name')(event.target.value)
                       }
                       placeholder={t('请输入新的显示名称')}
+                      aria-label={t('显示名称')}
                       className={inputClass}
                     />
                   </div>
 
                   <div className='space-y-2'>
                     <FieldLabel>{t('备注')}</FieldLabel>
-                    <input
+                    <Input
                       type='text'
                       value={values.remark || ''}
                       onChange={(event) =>
                         setField('remark')(event.target.value)
                       }
                       placeholder={t('请输入备注（仅管理员可见）')}
+                      aria-label={t('备注')}
                       className={inputClass}
                     />
                   </div>
@@ -420,54 +406,70 @@ const EditUserModal = (props) => {
             {userId && (
               <Card className='!rounded-2xl border-0 shadow-sm'>
                 <Card.Content className='space-y-4 p-5'>
-                  <div className='flex items-center gap-2'>
-                    <IconTile tone='green'>
-                      <Users size={16} />
-                    </IconTile>
-                    <div>
-                      <div className='text-base font-semibold text-foreground'>
-                        {t('权限设置')}
-                      </div>
-                      <div className='text-xs text-muted'>
-                        {t('用户分组和额度管理')}
-                      </div>
+                  <div>
+                    <div className='text-base font-semibold text-foreground'>
+                      {t('权限设置')}
+                    </div>
+                    <div className='text-xs text-muted'>
+                      {t('用户分组和额度管理')}
                     </div>
                   </div>
 
                   <div className='space-y-3'>
                     <div className='space-y-2'>
                       <FieldLabel required>{t('分组')}</FieldLabel>
-                      <select
-                        value={values.group || ''}
-                        onChange={(event) =>
-                          setField('group')(event.target.value)
+                      <Select
+                        aria-label={t('分组')}
+                        selectedKey={values.group || null}
+                        onSelectionChange={(key) =>
+                          setField('group')(key ? String(key) : '')
                         }
-                        className={inputClass}
+                        placeholder={t('请选择分组')}
                       >
-                        <option value=''>{t('请选择分组')}</option>
-                        {groupOptions.map((g) => (
-                          <option key={g.value} value={g.value}>
-                            {g.label}
-                          </option>
-                        ))}
-                      </select>
+                        <Select.Trigger
+                          className={`${inputClass} flex items-center justify-between gap-2 cursor-pointer text-left`}
+                        >
+                          <Select.Value className='truncate' />
+                          <Select.Indicator>
+                            <ChevronDown size={14} className='text-muted' />
+                          </Select.Indicator>
+                        </Select.Trigger>
+                        <Select.Popover className='min-w-(--trigger-width)'>
+                          <ListBox>
+                            {groupOptions.map((g) => (
+                              <ListBox.Item
+                                key={g.value}
+                                id={g.value}
+                                textValue={g.label}
+                              >
+                                {g.label}
+                                <ListBox.ItemIndicator />
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
                       <FieldError>{errors.group}</FieldError>
                     </div>
 
                     <div className='grid grid-cols-1 gap-3 sm:grid-cols-12'>
                       <div className='space-y-2 sm:col-span-5'>
                         <FieldLabel>{t('金额')}</FieldLabel>
-                        <div className='relative'>
-                          <span className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted'>
+                        <InputGroup
+                          variant='primary'
+                          className='!h-10 !rounded-xl opacity-80'
+                        >
+                          <InputGroup.Prefix className='whitespace-nowrap text-muted'>
                             {getCurrencyConfig().symbol}
-                          </span>
-                          <input
+                          </InputGroup.Prefix>
+                          <InputGroup.Input
                             type='number'
                             value={values.quota_amount ?? 0}
                             readOnly
-                            className={`${inputClass} pl-8 cursor-not-allowed`}
+                            aria-label={t('金额')}
+                            className='cursor-not-allowed'
                           />
-                        </div>
+                        </InputGroup>
                       </div>
                       <div className='space-y-2 sm:col-span-7'>
                         <FieldLabel>{t('调整额度')}</FieldLabel>
@@ -475,30 +477,31 @@ const EditUserModal = (props) => {
                           variant='tertiary'
                           onPress={() => setAdjustModalOpen(true)}
                         >
-                          <Edit3 size={14} />
                           {t('调整额度')}
                         </Button>
                       </div>
                     </div>
 
                     <div>
-                      <button
-                        type='button'
-                        className='cursor-pointer text-xs text-muted hover:text-foreground'
-                        onClick={() => setShowQuotaInput((v) => !v)}
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='!h-auto !min-h-0 !px-1 !py-0 !text-xs text-muted hover:!text-foreground'
+                        onPress={() => setShowQuotaInput((v) => !v)}
                       >
                         {showQuotaInput
                           ? `▾ ${t('收起原生额度输入')}`
                           : `▸ ${t('使用原生额度输入')}`}
-                      </button>
+                      </Button>
                       {showQuotaInput && (
                         <div className='mt-2 space-y-2'>
                           <FieldLabel>{t('额度')}</FieldLabel>
-                          <input
+                          <Input
                             type='number'
                             value={values.quota ?? 0}
                             readOnly
                             placeholder={t('请输入额度')}
+                            aria-label={t('额度')}
                             className={`${inputClass} cursor-not-allowed`}
                           />
                         </div>
@@ -514,17 +517,12 @@ const EditUserModal = (props) => {
               <Card className='!rounded-2xl border-0 shadow-sm'>
                 <Card.Content className='p-5'>
                   <div className='flex items-center justify-between gap-3'>
-                    <div className='flex items-center gap-2 min-w-0'>
-                      <IconTile tone='purple'>
-                        <LinkIcon size={16} />
-                      </IconTile>
-                      <div className='min-w-0'>
-                        <div className='text-base font-semibold text-foreground'>
-                          {t('绑定信息')}
-                        </div>
-                        <div className='text-xs text-muted'>
-                          {t('管理用户已绑定的第三方账户，支持筛选与解绑')}
-                        </div>
+                    <div className='min-w-0'>
+                      <div className='text-base font-semibold text-foreground'>
+                        {t('绑定信息')}
+                      </div>
+                      <div className='text-xs text-muted'>
+                        {t('管理用户已绑定的第三方账户，支持筛选与解绑')}
                       </div>
                     </div>
                     <Button
@@ -542,15 +540,13 @@ const EditUserModal = (props) => {
 
         <footer className='flex justify-end gap-2 border-t border-border bg-background px-5 py-3'>
           <Button variant='tertiary' onPress={handleCancel}>
-            <X size={14} />
             {t('取消')}
           </Button>
           <Button color='primary' isPending={loading} onPress={submit}>
-            <Save size={14} />
             {t('提交')}
           </Button>
         </footer>
-      </aside>
+      </SideSheet>
 
       <UserBindingManagementModal
         visible={bindingModalVisible}
@@ -566,49 +562,47 @@ const EditUserModal = (props) => {
         <ModalBackdrop variant='blur'>
           <ModalContainer size='md' placement='center'>
             <ModalDialog className='bg-background/95 backdrop-blur'>
-              <ModalHeader className='border-b border-border'>
-                <div className='flex items-center gap-2'>
-                  <Edit3 size={16} className='text-primary' />
-                  <span>{t('调整额度')}</span>
-                </div>
+              <ModalHeader>
+                <ModalHeading>{t('调整额度')}</ModalHeading>
               </ModalHeader>
               <ModalBody className='space-y-4 px-6 py-5'>
                 <div className='text-sm text-muted'>{getPreviewText()}</div>
 
                 <div className='space-y-2'>
                   <FieldLabel>{t('操作')}</FieldLabel>
-                  <div className='inline-flex w-full overflow-hidden rounded-xl border border-border'>
-                    {ADJUST_MODES.map((mode) => {
-                      const active = mode.value === adjustMode;
-                      return (
-                        <button
-                          key={mode.value}
-                          type='button'
-                          onClick={() => {
-                            setAdjustMode(mode.value);
-                            setAdjustQuotaLocal('');
-                            setAdjustAmountLocal('');
-                          }}
-                          className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${
-                            active
-                              ? 'bg-foreground text-background'
-                              : 'bg-background text-muted hover:bg-surface-secondary'
-                          }`}
-                        >
-                          {mode.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {/* Single-select segmented control. ToggleButtonGroup default
+                      is multi-select; force `single` and reject empty
+                      selections so the segmented bar always has exactly one
+                      active mode (mirrors the previous hand-rolled buttons). */}
+                  <ToggleButtonGroup
+                    aria-label={t('操作')}
+                    selectionMode='single'
+                    selectedKeys={[adjustMode]}
+                    onSelectionChange={(keys) => {
+                      const next = Array.from(keys || [])[0];
+                      if (!next || next === adjustMode) return;
+                      setAdjustMode(String(next));
+                      setAdjustQuotaLocal('');
+                      setAdjustAmountLocal('');
+                    }}
+                    className='!flex !w-full'
+                    fullWidth
+                  >
+                    {ADJUST_MODES.map((mode) => (
+                      <ToggleButton key={mode.value} id={mode.value} size='sm'>
+                        {mode.label}
+                      </ToggleButton>
+                    ))}
+                  </ToggleButtonGroup>
                 </div>
 
                 <div className='space-y-2'>
                   <FieldLabel>{t('金额')}</FieldLabel>
-                  <div className='relative'>
-                    <span className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted'>
+                  <InputGroup variant='primary' className='!h-10 !rounded-xl'>
+                    <InputGroup.Prefix className='whitespace-nowrap text-muted'>
                       {getCurrencyConfig().symbol}
-                    </span>
-                    <input
+                    </InputGroup.Prefix>
+                    <InputGroup.Input
                       type='number'
                       value={adjustAmountLocal}
                       step={0.000001}
@@ -626,25 +620,26 @@ const EditUserModal = (props) => {
                         );
                       }}
                       placeholder={t('输入金额')}
-                      className={`${inputClass} pl-8`}
+                      aria-label={t('金额')}
                     />
-                  </div>
+                  </InputGroup>
                 </div>
 
                 <div>
-                  <button
-                    type='button'
-                    className='cursor-pointer text-xs text-muted hover:text-foreground'
-                    onClick={() => setShowAdjustQuotaRaw((v) => !v)}
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='!h-auto !min-h-0 !px-1 !py-0 !text-xs text-muted hover:!text-foreground'
+                    onPress={() => setShowAdjustQuotaRaw((v) => !v)}
                   >
                     {showAdjustQuotaRaw
                       ? `▾ ${t('收起原生额度输入')}`
                       : `▸ ${t('使用原生额度输入')}`}
-                  </button>
+                  </Button>
                   {showAdjustQuotaRaw && (
                     <div className='mt-2 space-y-2'>
                       <FieldLabel>{t('额度')}</FieldLabel>
-                      <input
+                      <Input
                         type='number'
                         value={adjustQuotaLocal}
                         step={500000}
@@ -666,13 +661,14 @@ const EditUserModal = (props) => {
                           );
                         }}
                         placeholder={t('输入额度')}
+                        aria-label={t('额度')}
                         className={inputClass}
                       />
                     </div>
                   )}
                 </div>
               </ModalBody>
-              <ModalFooter className='border-t border-border'>
+              <ModalFooter>
                 <Button
                   variant='tertiary'
                   onPress={() => {

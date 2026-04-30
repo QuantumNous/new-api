@@ -6,21 +6,28 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
 
+// /console/redemption table — thin glue around the shared HeroTable
+// wrapper so the redemptions view inherits the same row rhythm as
+// /console/token.
+//
+// Selection: hook stores `selectedKeys` as an array of full row
+// objects; HeroTable round-trips that to HeroUI's Set<key>.
+//
+// Disabled / used / expired redemptions get `opacity-60` so the visual
+// disabled-state cue matches the rest of the console.
+
 import React, { useMemo, useState } from 'react';
-import CardTable from '../../common/ui/CardTable';
-import TableEmptyState from '../../common/ui/TableEmptyState';
+import HeroTable from '../../common/ui/HeroTable';
 import { getRedemptionsColumns, isExpired } from './RedemptionsColumnDefs';
+import {
+  REDEMPTION_STATUS,
+} from '../../../constants/redemption.constants';
 import DeleteRedemptionModal from './modals/DeleteRedemptionModal';
 
 const RedemptionsTable = (redemptionsData) => {
@@ -28,12 +35,9 @@ const RedemptionsTable = (redemptionsData) => {
     redemptions,
     loading,
     activePage,
-    pageSize,
-    tokenCount,
     compactMode,
-    handlePageChange,
-    rowSelection,
-    handleRow,
+    selectedKeys,
+    setSelectedKeys,
     manageRedemption,
     copyText,
     setEditingRedemption,
@@ -46,13 +50,11 @@ const RedemptionsTable = (redemptionsData) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingRecord, setDeletingRecord] = useState(null);
 
-  // Handle show delete modal
   const showDeleteRedemptionModal = (record) => {
     setDeletingRecord(record);
     setShowDeleteModal(true);
   };
 
-  // Get all columns
   const columns = useMemo(() => {
     return getRedemptionsColumns({
       t,
@@ -77,7 +79,8 @@ const RedemptionsTable = (redemptionsData) => {
     showDeleteRedemptionModal,
   ]);
 
-  // Handle compact mode by removing fixed positioning
+  // Compact mode strips `fixed` from the operations column so it
+  // joins the natural horizontal flow instead of being pinned right.
   const tableColumns = useMemo(() => {
     return compactMode
       ? columns.map((col) => {
@@ -92,28 +95,25 @@ const RedemptionsTable = (redemptionsData) => {
 
   return (
     <>
-      <CardTable
+      <HeroTable
+        ariaLabel={t('兑换码列表')}
         columns={tableColumns}
-        dataSource={redemptions}
-        scroll={compactMode ? undefined : { x: 'max-content' }}
-        pagination={{
-          currentPage: activePage,
-          pageSize: pageSize,
-          total: tokenCount,
-          showSizeChanger: true,
-          pageSizeOptions: [10, 20, 50, 100],
-          onPageSizeChange: redemptionsData.handlePageSizeChange,
-          onPageChange: handlePageChange,
-        }}
-        hidePagination={true}
+        dataSource={redemptions || []}
         loading={loading}
-        rowSelection={rowSelection}
-        onRow={handleRow}
-        empty={
-          <TableEmptyState description={t('搜索无结果')} />
-        }
-        className='rounded-xl overflow-hidden'
-        size='middle'
+        emptyDescription={t('搜索无结果')}
+        rowClassName={(record) => {
+          // Used codes and expired/unused codes are dimmed — same
+          // semantics the previous CardTable's `handleRow` carried, just
+          // expressed through opacity to align with /console/token.
+          if (record.status === REDEMPTION_STATUS.USED) return 'opacity-60';
+          if (isExpired(record)) return 'opacity-60';
+          return '';
+        }}
+        rowSelection={{
+          selectionMode: 'multiple',
+          selectedRows: selectedKeys || [],
+          onSelectionChange: (rows) => setSelectedKeys?.(rows),
+        }}
       />
 
       <DeleteRedemptionModal
