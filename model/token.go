@@ -439,6 +439,18 @@ func CountUserTokens(userId int) (int64, error) {
 	return total, err
 }
 
+// SumUserTokensQuota returns the sum of remain_quota for all non-unlimited tokens of a user.
+// If excludeTokenId > 0, that token's remain_quota is excluded from the sum (used for updates).
+func SumUserTokensQuota(userId int, excludeTokenId int) (int, error) {
+	var sum int
+	query := DB.Model(&Token{}).Where("user_id = ? AND unlimited_quota = ?", userId, false)
+	if excludeTokenId > 0 {
+		query = query.Where("id <> ?", excludeTokenId)
+	}
+	err := query.Select("COALESCE(SUM(remain_quota), 0)").Scan(&sum).Error
+	return sum, err
+}
+
 // BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
 func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	if len(ids) == 0 {

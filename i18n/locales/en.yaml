@@ -47,6 +47,7 @@ token.expired: "This token has expired"
 token.exhausted: "This token quota is exhausted TokenStatusExhausted[sk-{{.Prefix}}***{{.Suffix}}]"
 token.status_unavailable: "This token status is unavailable"
 token.db_error: "Invalid token, database query error, please contact administrator"
+token.quota_exceed_user_quota: "Token quota cannot exceed user's remaining quota"
 
 # Redemption messages
 redemption.name_length: "Redemption code name length must be between 1-20"
