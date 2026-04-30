@@ -121,7 +121,8 @@ const PricingTable = ({
           pagination={{
             defaultPageSize: 20,
             pageSize: pageSize,
-            showSizeChanger: true,
+            showSizeChanger: filteredModels.length > pageSize,
+            hideOnSinglePage: filteredModels.length <= pageSize,
             pageSizeOptions: [10, 20, 50, 100],
             onPageSizeChange: (size) => setPageSize(size),
           }}

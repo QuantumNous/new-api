@@ -365,7 +365,8 @@ const PricingCardView = ({
             currentPage={currentPage}
             pageSize={pageSize}
             total={filteredModels.length}
-            showSizeChanger={true}
+            showSizeChanger={filteredModels.length > pageSize}
+            hideOnSinglePage={filteredModels.length <= pageSize}
             pageSizeOptions={[10, 20, 50, 100]}
             size={isMobile ? 'small' : 'default'}
             showQuickJumper={isMobile}

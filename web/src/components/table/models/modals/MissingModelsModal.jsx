@@ -168,6 +168,7 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
                   currentPage: currentPage,
                   pageSize: MODEL_TABLE_PAGE_SIZE,
                   total: filteredModels.length,
+                  hideOnSinglePage: true,
                   showSizeChanger: false,
                   onPageChange: (page) => setCurrentPage(page),
                 }}

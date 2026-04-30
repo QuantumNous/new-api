@@ -383,6 +383,7 @@ const ModelTestModal = ({
               currentPage: modelTablePage,
               pageSize: MODEL_TABLE_PAGE_SIZE,
               total: filteredModels.length,
+              hideOnSinglePage: true,
               showSizeChanger: false,
               onPageChange: (page) => setModelTablePage(page),
             }}

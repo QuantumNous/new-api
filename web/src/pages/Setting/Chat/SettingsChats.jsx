@@ -469,6 +469,7 @@ export default function SettingsChats(props) {
                 rowKey='id'
                 pagination={{
                   pageSize: 10,
+                  hideOnSinglePage: true,
                   showSizeChanger: false,
                   showQuickJumper: true,
                   showTotal: (total, range) =>

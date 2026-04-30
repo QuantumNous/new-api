@@ -254,6 +254,19 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     return baseColumns;
   }, [t, userIsAdmin]);
 
+  const shouldShowPagination = total > pageSize;
+  const paginationConfig = shouldShowPagination
+    ? {
+        currentPage: page,
+        pageSize: pageSize,
+        total: total,
+        showSizeChanger: true,
+        pageSizeOpts: [10, 20, 50, 100],
+        onPageChange: handlePageChange,
+        onPageSizeChange: handlePageSizeChange,
+      }
+    : false;
+
   return (
     <Modal
       title={t('充值账单')}
@@ -276,15 +289,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         dataSource={topups}
         loading={loading}
         rowKey='id'
-        pagination={{
-          currentPage: page,
-          pageSize: pageSize,
-          total: total,
-          showSizeChanger: true,
-          pageSizeOpts: [10, 20, 50, 100],
-          onPageChange: handlePageChange,
-          onPageSizeChange: handlePageSizeChange,
-        }}
+        pagination={paginationConfig}
         size='small'
         empty={
           <Empty

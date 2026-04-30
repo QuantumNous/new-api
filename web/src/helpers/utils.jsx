@@ -906,9 +906,11 @@ export const createCardProPagination = ({
   isMobile = false,
   pageSizeOpts = [10, 20, 50, 100],
   showSizeChanger = true,
+  hideOnSinglePage = true,
   t = (key) => key,
 }) => {
   if (!total || total <= 0) return null;
+  if (hideOnSinglePage && total <= pageSize) return null;
 
   const start = (currentPage - 1) * pageSize + 1;
   const end = Math.min(currentPage * pageSize, total);
