@@ -91,7 +91,7 @@ func sweepTimedOutTasks(ctx context.Context) {
 func TaskPollingLoop() {
 	for {
 		time.Sleep(time.Duration(15) * time.Second)
-		common.SysLog("任务进度轮询开始")
+		start := time.Now()
 		ctx := context.TODO()
 		sweepTimedOutTasks(ctx)
 		allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
@@ -133,7 +133,10 @@ func TaskPollingLoop() {
 
 			DispatchPlatformUpdate(platform, taskChannelM, taskM)
 		}
-		common.SysLog("任务进度轮询完成")
+		if len(allTasks) > 0 {
+			common.SysLog(fmt.Sprintf("task polling: fetched %d tasks in %d platforms, took %s",
+				len(allTasks), len(platformTask), time.Since(start)))
+		}
 	}
 }
 
