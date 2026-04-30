@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -188,6 +189,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
+		retryParam.ExcludeChannelIDs = getUsedChannelIDs(c)
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
@@ -221,6 +223,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			useChannel := c.GetStringSlice("use_channel")
+			if len(useChannel) > 1 {
+				service.ForceUpdateChannelAffinity(c, channel.Id)
+			}
 			return
 		}
 
@@ -252,6 +258,20 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	useChannel := c.GetStringSlice("use_channel")
 	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 	c.Set("use_channel", useChannel)
+}
+
+func getUsedChannelIDs(c *gin.Context) []int {
+	useChannel := c.GetStringSlice("use_channel")
+	if len(useChannel) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(useChannel))
+	for _, s := range useChannel {
+		if id, err := strconv.Atoi(s); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {

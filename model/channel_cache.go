@@ -93,7 +93,7 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int, excludeIDs ...int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
 		return GetChannel(group, model, retry)
@@ -115,7 +115,15 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		return nil, nil
 	}
 
+	excludeSet := make(map[int]bool, len(excludeIDs))
+	for _, id := range excludeIDs {
+		excludeSet[id] = true
+	}
+
 	if len(channels) == 1 {
+		if excludeSet[channels[0]] {
+			return nil, nil
+		}
 		if channel, ok := channelsIDM[channels[0]]; ok {
 			return channel, nil
 		}
@@ -124,11 +132,17 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	uniquePriorities := make(map[int]bool)
 	for _, channelId := range channels {
+		if excludeSet[channelId] {
+			continue
+		}
 		if channel, ok := channelsIDM[channelId]; ok {
 			uniquePriorities[int(channel.GetPriority())] = true
 		} else {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
+	}
+	if len(uniquePriorities) == 0 {
+		return nil, nil
 	}
 	var sortedUniquePriorities []int
 	for priority := range uniquePriorities {
@@ -145,6 +159,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	var sumWeight = 0
 	var targetChannels []*Channel
 	for _, channelId := range channels {
+		if excludeSet[channelId] {
+			continue
+		}
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
 				sumWeight += channel.GetWeight()
@@ -188,6 +205,31 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+// GetGroupModelPriorityCount 返回指定分组和模型的不同优先级数量（用于跨分组重试判断）
+func GetGroupModelPriorityCount(group string, modelName string) int {
+	if !common.MemoryCacheEnabled {
+		return 0
+	}
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	channels := group2model2channels[group][modelName]
+	if len(channels) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
+		channels = group2model2channels[group][normalizedModel]
+	}
+	if len(channels) <= 1 {
+		return len(channels)
+	}
+	uniquePriorities := make(map[int]bool)
+	for _, channelId := range channels {
+		if channel, ok := channelsIDM[channelId]; ok {
+			uniquePriorities[int(channel.GetPriority())] = true
+		}
+	}
+	return len(uniquePriorities)
 }
 
 func CacheGetChannel(id int) (*Channel, error) {
