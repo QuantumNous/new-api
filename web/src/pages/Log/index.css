@@ -99,6 +99,7 @@
   margin: 16px 0 8px !important;
   color: #111827;
   font-size: 24px;
+  line-height: 28px;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
@@ -177,63 +178,178 @@
 .log-filter-layout {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .log-filter-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 12px;
 }
 
-.log-filter-range {
+.log-filter-item {
+  min-width: 0;
   grid-column: span 2;
 }
 
-.log-filter-control .semi-input-wrapper,
-.log-filter-control.semi-input-wrapper,
-.log-filter-control .semi-select,
-.log-filter-control.semi-select,
-.log-filter-date .semi-input-wrapper,
-.log-filter-date.semi-input-wrapper,
-.log-filter-select .semi-select-selection {
-  min-height: 42px;
-  border: 1px solid rgba(226, 232, 240, 0.95) !important;
-  border-radius: 14px !important;
-  background: rgba(248, 250, 252, 0.95) !important;
+.log-filter-range {
+  grid-column: span 4;
 }
 
-.log-filter-control .semi-input,
+.log-filter-control {
+  width: 100%;
+}
+
+.log-filter-date .semi-datepicker-range-input {
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+.log-filter-date .semi-datepicker-range-input-wrapper-active,
+.log-filter-date .semi-datepicker-range-input-wrapper:hover {
+  background-color: transparent !important ;
+  border-color: transparent !important;
+}
+
+.log-filter-date .semi-input-wrapper:hover {
+  background-color: transparent !important ;
+}
+
+.log-filter-control .semi-input-wrapper,
+.log-filter-control.semi-input-wrapper {
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.log-filter-date .semi-datepicker-range-input-prefix,
+.log-filter-date .semi-datepicker-range-input-suffix,
+.log-filter-date .semi-datepicker-range-input-clearbtn,
+.log-filter-date .semi-datepicker-range-input-separator,
+.log-filter-control .semi-input-prefix,
+.log-filter-control .semi-input-suffix,
+.log-filter-select .semi-select-selection-icon {
+  color: #94a3b8 !important;
+}
+
 .log-filter-date .semi-input,
-.log-filter-select .semi-select-selection-text,
-.log-filter-select .semi-select-selection-placeholder {
+.log-filter-control .semi-input,
+.log-filter-select .semi-select-selection-text {
+  color: #0f172a !important;
+  font-weight: 500;
+}
+
+.log-filter-date .semi-datepicker-range-input-separator-active {
   color: #0f172a !important;
 }
 
-.log-filter-footer {
+.log-filter-date .semi-input::placeholder,
+.log-filter-control .semi-input::placeholder,
+.log-filter-select .semi-select-selection-placeholder {
+  color: #98a2b3 !important;
+}
+
+.log-filter-date .semi-datepicker-range-input:hover,
+.log-filter-control .semi-input-wrapper:hover,
+.log-filter-select .semi-select-selection:hover {
+  border-color: rgba(208, 213, 221, 1) !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+}
+
+.log-filter-date .semi-datepicker-range-input:focus-within,
+.log-filter-control .semi-input-wrapper-focus,
+.log-filter-select.semi-select-focus .semi-select-selection,
+.log-filter-select .semi-select-selection:focus-within {
+  border-color: rgba(168, 85, 247, 0.48) !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+}
+
+.log-filter-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
 }
 
-.log-filter-select-wrap {
-  min-width: 140px;
+.log-filter-select {
+  width: min(100%, 220px);
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.log-filter-select .semi-select-selection {
+  width: min(100%, 220px);
+}
+
+.log-filter-select-label {
+  flex-shrink: 0;
+  color: #8a94a6;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .log-filter-actions {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
 }
 
 .log-filter-button.semi-button {
-  height: 42px;
-  padding: 0 16px;
-  border-radius: 14px !important;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 16px !important;
   border-color: rgba(226, 232, 240, 0.95) !important;
-  background: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: none !important;
   font-weight: 700;
+}
+
+.log-filter-button-primary.semi-button {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #d946ef, #a855f7) !important;
+  color: #ffffff !important;
+}
+
+.log-filter-button-primary.semi-button:hover,
+.log-filter-button-primary.semi-button:focus {
+  background: linear-gradient(135deg, #c026d3, #9333ea) !important;
+}
+
+.log-filter-button-secondary.semi-button {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #111827 !important;
+}
+
+.log-filter-button-ghost.semi-button {
+  background: rgba(248, 250, 252, 0.88) !important;
+  color: #667085 !important;
+}
+
+.log-filter-button-secondary.semi-button:hover,
+.log-filter-button-ghost.semi-button:hover {
+  border-color: rgba(208, 213, 221, 1) !important;
+  background: #ffffff !important;
 }
 
 .log-data-table {
@@ -304,11 +420,17 @@ html.dark .log-table-overview-subtitle,
 html.dark .log-table-metric-chip span,
 html.dark .log-data-table .semi-table-thead > tr > th,
 html.dark .log-data-table .semi-table-thead > tr > .semi-table-row-head,
-html.dark .log-filter-control .semi-input,
-html.dark .log-filter-date .semi-input,
-html.dark .log-filter-select .semi-select-selection-text,
+html.dark .log-filter-select-label,
+html.dark .log-filter-date .semi-input::placeholder,
+html.dark .log-filter-control .semi-input::placeholder,
 html.dark .log-filter-select .semi-select-selection-placeholder {
   color: #98a2b3 !important;
+}
+
+html.dark .log-filter-date .semi-input,
+html.dark .log-filter-control .semi-input,
+html.dark .log-filter-select .semi-select-selection-text {
+  color: #f8fafc !important;
 }
 
 html.dark .log-table-card.table-scroll-card {
@@ -333,21 +455,75 @@ html.dark .log-table-card .semi-card-footer {
 html.dark .log-table-overview-eyebrow,
 html.dark .log-table-metric-chip,
 html.dark .log-compact-toggle.semi-button,
+html.dark .log-filter-date .semi-datepicker-range-input,
 html.dark .log-filter-control .semi-input-wrapper,
 html.dark .log-filter-control.semi-input-wrapper,
-html.dark .log-filter-control .semi-select,
-html.dark .log-filter-control.semi-select,
-html.dark .log-filter-date .semi-input-wrapper,
-html.dark .log-filter-date.semi-input-wrapper,
+html.dark .log-filter-select,
 html.dark .log-filter-select .semi-select-selection,
-html.dark .log-filter-button.semi-button,
 html.dark .log-data-table {
   border-color: rgba(58, 66, 82, 0.95) !important;
   background: rgba(16, 19, 24, 0.92) !important;
+  box-shadow: unset !important;
 }
 
 html.dark .log-table-overview-eyebrow {
   color: #f472b6;
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input,
+html.dark .log-filter-control .semi-input-wrapper,
+html.dark .log-filter-select .semi-select-selection {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input-separator-active {
+  color: #f8fafc !important;
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input-prefix,
+html.dark .log-filter-date .semi-datepicker-range-input-suffix,
+html.dark .log-filter-date .semi-datepicker-range-input-clearbtn,
+html.dark .log-filter-date .semi-datepicker-range-input-separator,
+html.dark .log-filter-control .semi-input-prefix,
+html.dark .log-filter-control .semi-input-suffix,
+html.dark .log-filter-select .semi-select-selection-icon {
+  color: #667085 !important;
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input:hover,
+html.dark .log-filter-control .semi-input-wrapper:hover,
+html.dark .log-filter-select .semi-select-selection:hover {
+  border-color: rgba(76, 88, 110, 0.96) !important;
+  background: rgba(21, 24, 31, 0.98) !important;
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input:focus-within,
+html.dark .log-filter-control .semi-input-wrapper-focus,
+html.dark .log-filter-select.semi-select-focus .semi-select-selection,
+html.dark .log-filter-select .semi-select-selection:focus-within {
+  border-color: rgba(168, 85, 247, 0.55) !important;
+  background: rgba(21, 24, 31, 0.98) !important;
+  box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.14) !important;
+}
+
+html.dark .log-filter-button-secondary.semi-button,
+html.dark .log-filter-button-ghost.semi-button {
+  border-color: rgba(58, 66, 82, 0.95) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+}
+
+html.dark .log-filter-button-secondary.semi-button {
+  color: #f8fafc !important;
+}
+
+html.dark .log-filter-button-ghost.semi-button {
+  color: #98a2b3 !important;
+}
+
+html.dark .log-filter-button-secondary.semi-button:hover,
+html.dark .log-filter-button-ghost.semi-button:hover {
+  border-color: rgba(76, 88, 110, 0.96) !important;
+  background: rgba(21, 24, 31, 0.98) !important;
 }
 
 html.dark .log-data-table .semi-table-thead > tr > th,
@@ -369,7 +545,7 @@ html.dark .log-data-table .semi-table-tbody > tr:hover > .semi-table-row-cell {
 
 @media (max-width: 1024px) {
   .log-table-overview,
-  .log-filter-footer {
+  .log-filter-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
@@ -379,11 +555,23 @@ html.dark .log-data-table .semi-table-tbody > tr:hover > .semi-table-row-cell {
   }
 
   .log-filter-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .log-filter-item {
+    grid-column: span 3;
   }
 
   .log-filter-range {
-    grid-column: span 2;
+    grid-column: span 6;
+  }
+
+  .log-filter-select-wrap {
+    justify-content: space-between;
+  }
+
+  .log-filter-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -415,6 +603,11 @@ html.dark .log-data-table .semi-table-tbody > tr:hover > .semi-table-row-cell {
     align-items: stretch;
   }
 
+  .log-filter-toolbar,
+  .log-filter-select-wrap {
+    align-items: stretch;
+  }
+
   .log-compact-toggle.semi-button,
   .log-filter-button.semi-button {
     width: 100%;
@@ -424,6 +617,7 @@ html.dark .log-data-table .semi-table-tbody > tr:hover > .semi-table-row-cell {
     grid-template-columns: 1fr;
   }
 
+  .log-filter-item,
   .log-filter-range {
     grid-column: span 1;
   }

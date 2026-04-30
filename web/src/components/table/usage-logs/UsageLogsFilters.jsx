@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { IconRefresh, IconSearch, IconSetting } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
@@ -34,6 +34,17 @@ const LogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const handleReset = () => {
+    if (!formApi) {
+      return;
+    }
+    formApi.reset();
+    setLogType(0);
+    setTimeout(() => {
+      refresh();
+    }, 100);
+  };
+
   return (
     <Form
       initValues={formInitValues}
@@ -48,16 +59,15 @@ const LogsFilters = ({
     >
       <div className='log-filter-layout'>
         <div className='log-filter-grid'>
-          {/* 时间选择器 */}
-          <div className='log-filter-range'>
+          <div className='log-filter-item log-filter-range'>
             <Form.DatePicker
               field='dateRange'
-              className='log-filter-control log-filter-date'
+              className='log-filter-date'
               type='dateTimeRange'
               placeholder={[t('开始时间'), t('结束时间')]}
               showClear
               pure
-              size='small'
+              size='default'
               presets={DATE_RANGE_PRESETS.map((preset) => ({
                 text: t(preset.text),
                 start: preset.start(),
@@ -66,122 +76,123 @@ const LogsFilters = ({
             />
           </div>
 
-          {/* 其他搜索字段 */}
-          <Form.Input
-            field='token_name'
-            prefix={<IconSearch />}
-            placeholder={t('令牌名称')}
-            showClear
-            pure
-            size='small'
-            className='log-filter-control'
-          />
+          <div className='log-filter-item'>
+            <Form.Input
+              field='token_name'
+              prefix={<IconSearch />}
+              placeholder={t('令牌名称')}
+              showClear
+              pure
+              size='default'
+              className='log-filter-control'
+            />
+          </div>
 
-          <Form.Input
-            field='model_name'
-            prefix={<IconSearch />}
-            placeholder={t('模型名称')}
-            showClear
-            pure
-            size='small'
-            className='log-filter-control'
-          />
+          <div className='log-filter-item'>
+            <Form.Input
+              field='model_name'
+              prefix={<IconSearch />}
+              placeholder={t('模型名称')}
+              showClear
+              pure
+              size='default'
+              className='log-filter-control'
+            />
+          </div>
 
-          <Form.Input
-            field='group'
-            prefix={<IconSearch />}
-            placeholder={t('分组')}
-            showClear
-            pure
-            size='small'
-            className='log-filter-control'
-          />
+          <div className='log-filter-item'>
+            <Form.Input
+              field='group'
+              prefix={<IconSearch />}
+              placeholder={t('分组')}
+              showClear
+              pure
+              size='default'
+              className='log-filter-control'
+            />
+          </div>
 
-          <Form.Input
-            field='request_id'
-            prefix={<IconSearch />}
-            placeholder={t('Request ID')}
-            showClear
-            pure
-            size='small'
-            className='log-filter-control'
-          />
+          <div className='log-filter-item'>
+            <Form.Input
+              field='request_id'
+              prefix={<IconSearch />}
+              placeholder={t('Request ID')}
+              showClear
+              pure
+              size='default'
+              className='log-filter-control'
+            />
+          </div>
 
           {isAdminUser && (
             <>
-              <Form.Input
-                field='channel'
-                prefix={<IconSearch />}
-                placeholder={t('渠道 ID')}
-                showClear
-                pure
-                size='small'
-                className='log-filter-control'
-              />
-              <Form.Input
-                field='username'
-                prefix={<IconSearch />}
-                placeholder={t('用户名称')}
-                showClear
-                pure
-                size='small'
-                className='log-filter-control'
-              />
+              <div className='log-filter-item'>
+                <Form.Input
+                  field='channel'
+                  prefix={<IconSearch />}
+                  placeholder={t('渠道 ID')}
+                  showClear
+                  pure
+                  size='default'
+                  className='log-filter-control'
+                />
+              </div>
+              <div className='log-filter-item'>
+                <Form.Input
+                  field='username'
+                  prefix={<IconSearch />}
+                  placeholder={t('用户名称')}
+                  showClear
+                  pure
+                  size='default'
+                  className='log-filter-control'
+                />
+              </div>
             </>
           )}
         </div>
 
-        {/* 操作按钮区域 */}
-        <div className='log-filter-footer'>
-          {/* 日志类型选择器 */}
-          <div className='log-filter-select-wrap'>
-            <Form.Select
-              field='logType'
-              placeholder={t('日志类型')}
-              className='log-filter-control log-filter-select'
-              showClear
-              pure
-              onChange={() => {
-                // 延迟执行搜索，让表单值先更新
-                setTimeout(() => {
-                  refresh();
-                }, 0);
-              }}
-              size='small'
-            >
-              <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
-              <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
-              <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
-              <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
-              <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
-              <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
-              <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
-            </Form.Select>
-          </div>
+        <div className='log-filter-toolbar'>
+          <Form.Select
+            field='logType'
+            placeholder={t('选择日志类型')}
+            className='log-filter-select'
+            showClear
+            pure
+            onChange={() => {
+              setTimeout(() => {
+                refresh();
+              }, 0);
+            }}
+            size='default'
+          >
+            <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
+            <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
+            <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
+            <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
+            <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
+            <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
+            <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
+          </Form.Select>
 
           <div className='log-filter-actions'>
             <Button
-              type='tertiary'
+              type='primary'
+              theme='solid'
               htmlType='submit'
               loading={loading}
               size='default'
-              className='log-filter-button'
+              icon={<IconSearch />}
+              className='log-filter-button log-filter-button-primary'
             >
               {t('查询')}
             </Button>
             <Button
               type='tertiary'
-              onClick={() => {
-                if (formApi) {
-                  formApi.reset();
-                  setLogType(0);
-                  setTimeout(() => {
-                    refresh();
-                  }, 100);
-                }
-              }}
+              onClick={handleReset}
               size='default'
-              className='log-filter-button'
+              icon={<IconRefresh />}
+              className='log-filter-button log-filter-button-secondary'
             >
               {t('重置')}
             </Button>
@@ -189,7 +200,8 @@ const LogsFilters = ({
               type='tertiary'
               onClick={() => setShowColumnSelector(true)}
               size='default'
-              className='log-filter-button'
+              icon={<IconSetting />}
+              className='log-filter-button log-filter-button-ghost'
             >
               {t('列设置')}
             </Button>
