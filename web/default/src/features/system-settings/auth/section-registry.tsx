@@ -57,6 +57,11 @@ const AUTH_SECTIONS = [
           WeChatServerAddress: settings.WeChatServerAddress,
           WeChatServerToken: settings.WeChatServerToken,
           WeChatAccountQRCodeImageURL: settings.WeChatAccountQRCodeImageURL,
+          'feishu.enabled': settings['feishu.enabled'],
+          'feishu.app_id': settings['feishu.app_id'],
+          'feishu.app_secret': settings['feishu.app_secret'],
+          'feishu.default_group': settings['feishu.default_group'],
+          'feishu.auth_policy': settings['feishu.auth_policy'],
         }}
       />
     ),

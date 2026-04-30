@@ -262,11 +262,19 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 
+	if provider.GetName() == "Feishu" {
+		user.Group = oauth.GetFeishuDefaultGroup()
+	}
+
 	// Handle affiliate code
 	affCode := session.Get("aff")
 	inviterId := 0
 	if affCode != nil {
 		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
+	}
+
+	if provider.GetName() == "Feishu" {
+		inviterId = 0
 	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
@@ -306,14 +314,20 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 			// Set the provider user ID on the user model and update
 			provider.SetProviderUserID(user, oauthUser.ProviderUserID)
-			if err := tx.Model(user).Updates(map[string]interface{}{
+			updates := map[string]interface{}{
 				"github_id":   user.GitHubId,
 				"discord_id":  user.DiscordId,
 				"oidc_id":     user.OidcId,
 				"linux_do_id": user.LinuxDOId,
 				"wechat_id":   user.WeChatId,
 				"telegram_id": user.TelegramId,
-			}).Error; err != nil {
+				"feishu_id":   user.FeishuId,
+			}
+			if provider.GetName() == "Feishu" {
+				updates["quota"] = 0
+				updates["group"] = user.Group
+			}
+			if err := tx.Model(user).Updates(updates).Error; err != nil {
 				return err
 			}
 
@@ -325,6 +339,11 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 		// Perform post-transaction tasks
 		user.FinalizeOAuthUserCreation(inviterId)
+
+		if provider.GetName() == "Feishu" {
+			model.RecordLog(user.Id, model.LogTypeSystem,
+				fmt.Sprintf("飞书OAuth创建用户，分组=%s，额度=0", oauth.GetFeishuDefaultGroup()))
+		}
 	}
 
 	return user, nil

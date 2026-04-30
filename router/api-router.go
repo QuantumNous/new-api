@@ -134,6 +134,12 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+
+				// Admin Feishu binding management
+				adminRoute.GET("/feishu/bindings", controller.GetFeishuBindings)
+				adminRoute.POST("/feishu/bindings/import", controller.ImportFeishuBindings)
+				adminRoute.PUT("/:id/group", controller.AdminSetUserGroup)
+				adminRoute.POST("/group-sync", controller.AdminGroupSync)
 			}
 		}
 

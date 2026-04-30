@@ -27,6 +27,15 @@ export function buildDiscordOAuthUrl(clientId: string, state: string): string {
   return url.toString()
 }
 
+export function buildFeishuOAuthUrl(appId: string, state: string): string {
+  const url = new URL('https://open.feishu.cn/open-apis/authen/v1/authorize')
+  url.searchParams.set('client_id', appId)
+  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/feishu`)
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('state', state)
+  return url.toString()
+}
+
 /**
  * Build OIDC OAuth URL
  */

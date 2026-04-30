@@ -74,6 +74,7 @@ const (
 // User related messages
 const (
 	MsgUserPasswordLoginDisabled     = "user.password_login_disabled"
+	MsgUserFeishuLoginRequired       = "user.feishu_login_required"
 	MsgUserRegisterDisabled          = "user.register_disabled"
 	MsgUserPasswordRegisterDisabled  = "user.password_register_disabled"
 	MsgUserUsernameOrPasswordEmpty   = "user.username_or_password_empty"

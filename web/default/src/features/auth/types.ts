@@ -78,6 +78,8 @@ export interface SystemStatus {
     github_client_id?: string
     discord_oauth?: boolean
     discord_client_id?: string
+    feishu_oauth?: boolean
+    feishu_auth_policy?: string
     oidc_enabled?: boolean
     oidc_authorization_endpoint?: string
     oidc_client_id?: string
@@ -120,6 +122,8 @@ export interface SystemStatus {
   github_client_id?: string
   discord_oauth?: boolean
   discord_client_id?: string
+  feishu_oauth?: boolean
+  feishu_auth_policy?: string
   oidc_enabled?: boolean
   oidc_authorization_endpoint?: string
   oidc_client_id?: string

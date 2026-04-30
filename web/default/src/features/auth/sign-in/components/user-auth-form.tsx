@@ -80,6 +80,9 @@ export function UserAuthForm({
     !passkeySupported ||
     (requiresLegalConsent && !agreedToLegal)
   const hasWeChatLogin = Boolean(status?.wechat_login)
+  const isFeishuOnly = (status?.feishu_auth_policy ?? status?.data?.feishu_auth_policy) === 'feishu_only'
+  const isFeishuEnabled = Boolean(status?.feishu_oauth ?? status?.data?.feishu_oauth)
+  const showPasswordForm = !isFeishuOnly
 
   useEffect(() => {
     if (requiresLegalConsent) {
@@ -264,7 +267,7 @@ export function UserAuthForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
-        {/* Username Field */}
+        {showPasswordForm && (<>
         <FormField
           control={form.control}
           name='username'
@@ -282,7 +285,6 @@ export function UserAuthForm({
           )}
         />
 
-        {/* Password Field */}
         <FormField
           control={form.control}
           name='password'
@@ -303,7 +305,6 @@ export function UserAuthForm({
           )}
         />
 
-        {/* Submit Button */}
         <Button
           className='mt-2 w-full justify-center gap-2'
           disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
@@ -312,7 +313,6 @@ export function UserAuthForm({
           {t('Sign in')}
         </Button>
 
-        {/* Turnstile */}
         {isTurnstileEnabled && (
           <div className='mt-2'>
             <Turnstile
@@ -321,6 +321,7 @@ export function UserAuthForm({
             />
           </div>
         )}
+        </>)}
 
         <LegalConsent
           status={status}
@@ -329,7 +330,7 @@ export function UserAuthForm({
           className='mt-1'
         />
 
-        {passkeyLoginEnabled && (
+        {showPasswordForm && passkeyLoginEnabled && (
           <div className='mt-2 space-y-1'>
             <Button
               type='button'
