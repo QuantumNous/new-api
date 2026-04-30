@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -338,6 +339,32 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses") && modelRequest.Model == "" {
+		// logger.LogInfo(c, "DEBUG: headers: " + fmt.Sprintf("%v", c.Request.Header))
+		modelRequest.Model = c.Query("model")
+		if modelRequest.Model == "" {
+			protocol := c.GetHeader("Sec-WebSocket-Protocol")
+			if protocol != "" {
+				parts := strings.Split(protocol, ",")
+				for _, part := range parts {
+					part = strings.TrimSpace(part)
+					if strings.HasPrefix(part, "openai-model.") {
+						modelRequest.Model = strings.TrimPrefix(part, "openai-model.")
+						break
+					}
+					// Fallback: If it's a common model name pattern but not prefixed
+					if !strings.HasPrefix(part, "openai-") && !strings.Contains(part, "realtime") && strings.Contains(part, "-") {
+						modelRequest.Model = part
+					}
+				}
+			}
+		}
+		// 終極保底：如果真的什麼都找不到，強制使用這個預設值以避免 400 錯誤
+		if modelRequest.Model == "" {
+			modelRequest.Model = "gpt-5.3-codex"
+			logger.LogInfo(c, "WebSocket responses: model completely missing, fallback to gpt-5.3-codex")
+		}
 	}
 	return &modelRequest, shouldSelectChannel, nil
 }

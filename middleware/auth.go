@@ -311,6 +311,12 @@ func TokenAuth() func(c *gin.Context) {
 				c.Request.Header.Set("Authorization", "Bearer "+xGoogKey)
 			}
 		}
+		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses") {
+			apiKey := c.Query("api_key")
+			if apiKey != "" {
+				c.Request.Header.Set("Authorization", "Bearer "+apiKey)
+			}
+		}
 		key := c.Request.Header.Get("Authorization")
 		parts := make([]string, 0)
 		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
