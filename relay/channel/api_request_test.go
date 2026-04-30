@@ -1,14 +1,83 @@
 package channel
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type contextTestAdaptor struct {
+	url string
+}
+
+func (a *contextTestAdaptor) Init(info *relaycommon.RelayInfo) {}
+
+func (a *contextTestAdaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	return a.url, nil
+}
+
+func (a *contextTestAdaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
+	return nil
+}
+
+func (a *contextTestAdaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	return nil, nil
+}
+
+func (a *contextTestAdaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
+	return nil, nil
+}
+
+func (a *contextTestAdaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	return nil, nil
+}
+
+func (a *contextTestAdaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+	return nil, nil
+}
+
+func (a *contextTestAdaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	return nil, nil
+}
+
+func (a *contextTestAdaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	return nil, nil
+}
+
+func (a *contextTestAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	return nil, nil
+}
+
+func (a *contextTestAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	return nil, nil
+}
+
+func (a *contextTestAdaptor) GetModelList() []string {
+	return nil
+}
+
+func (a *contextTestAdaptor) GetChannelName() string {
+	return "context-test"
+}
+
+func (a *contextTestAdaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	return nil, nil
+}
+
+func (a *contextTestAdaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	return nil, nil
+}
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()
@@ -31,6 +100,36 @@ func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)
 	require.Empty(t, headers)
+}
+
+func TestDoApiRequestUsesClientRequestContext(t *testing.T) {
+	service.InitHttpClient()
+
+	var called atomic.Bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{}`))
+	reqCtx, cancel := context.WithCancel(req.Context())
+	cancel()
+	ctx.Request = req.WithContext(reqCtx)
+
+	resp, err := DoApiRequest(
+		&contextTestAdaptor{url: upstream.URL},
+		ctx,
+		&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}},
+		strings.NewReader(`{}`),
+	)
+
+	require.Error(t, err)
+	require.Nil(t, resp)
+	require.False(t, called.Load(), "upstream must not be called after downstream request context is cancelled")
 }
 
 func TestProcessHeaderOverride_ChannelTestSkipsClientHeaderPlaceholder(t *testing.T) {
