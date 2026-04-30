@@ -12,7 +12,7 @@ import {
 import { filterAndSortModels, extractAllTags } from '../lib/filters'
 import type { PricingModel, TokenUnit } from '../types'
 
-type PricingNavigatePath = '/pricing'
+type PricingNavigatePath = '/pricing' | '/model-square'
 
 function firstString(value: unknown): string | undefined {
   if (typeof value === 'string') return value
