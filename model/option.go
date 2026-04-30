@@ -159,6 +159,7 @@ func InitOptionMap() {
 	common.OptionMap["RetryTimes"] = strconv.Itoa(common.RetryTimes)
 	common.OptionMap["DataExportInterval"] = strconv.Itoa(common.DataExportInterval)
 	common.OptionMap["DataExportDefaultTime"] = common.DataExportDefaultTime
+	common.OptionMap["DataDashboardChartTabs"] = common.DataDashboardChartTabs
 	common.OptionMap["DefaultCollapseSidebar"] = strconv.FormatBool(common.DefaultCollapseSidebar)
 	common.OptionMap["MjNotifyEnabled"] = strconv.FormatBool(setting.MjNotifyEnabled)
 	common.OptionMap["MjAccountFilterEnabled"] = strconv.FormatBool(setting.MjAccountFilterEnabled)
@@ -499,6 +500,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.DataExportInterval, _ = strconv.Atoi(value)
 	case "DataExportDefaultTime":
 		common.DataExportDefaultTime = value
+	case "DataDashboardChartTabs":
+		common.DataDashboardChartTabs = value
 	case "ModelRatio":
 		err = ratio_setting.UpdateModelRatioByJSONString(value)
 	case "GroupRatio":
