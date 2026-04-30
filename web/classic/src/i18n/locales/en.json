@@ -3689,6 +3689,8 @@
     "缓存创建-5分钟 (cc5)": "Cache Creation-5min (cc5)",
     "缓存创建-1小时 (cc1h)": "Cache Creation-1hour (cc1h)",
     "阶梯计费": "Tiered Billing",
+    "阶梯计费（表达式解析失败）": "Tiered Billing (expression parse failed)",
+    "阶梯计费（未匹配到对应阶梯）": "Tiered Billing (no matching tier)",
     "输入 Tokens 阶梯": "Input Token Tiers",
     "输出 Tokens 阶梯": "Output Token Tiers",
     "固定阶梯": "Fixed Tier",

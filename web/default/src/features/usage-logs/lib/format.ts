@@ -1,11 +1,14 @@
 import type { StatusBadgeProps } from '@/components/status-badge'
 import {
   BILLING_PRICING_VARS,
+  normalizeTierLabel,
   parseTiersFromExpr,
   type ParsedTier,
 } from '@/features/pricing/lib/billing-expr'
 import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
+
+export { normalizeTierLabel }
 
 const PARAM_OVERRIDE_ACTION_MAP: Record<string, string> = {
   set: 'Set',
@@ -179,15 +182,6 @@ export function decodeBillingExprB64(exprB64: string | undefined): string {
   } catch {
     return ''
   }
-}
-
-export function normalizeTierLabel(label: string | undefined): string {
-  if (!label) return ''
-  return label
-      .replace(/<=|≤|</g, '<')
-      .replace(/>=|≥|>/g, '>')
-      .replace(/\s/g, '')
-      .toLowerCase()
 }
 
 /**

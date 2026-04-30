@@ -126,6 +126,7 @@ function BillingBreakdown(props: {
   const { log, other, isAdmin } = props
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
+  const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
@@ -133,21 +134,28 @@ function BillingBreakdown(props: {
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
 
-  if (tieredSummary) {
+  if (isTieredExpr) {
     rows.push({
       label: t('Billing Mode'),
       value: t('Dynamic Pricing'),
     })
-    if (tieredSummary.tier.label) {
+    if (tieredSummary) {
+      if (tieredSummary.tier.label) {
+        rows.push({
+          label: t('Matched Tier'),
+          value: tieredSummary.tier.label,
+        })
+      }
+      for (const entry of tieredSummary.priceEntries) {
+        rows.push({
+          label: t(entry.shortLabel),
+          value: `${fmtPrice(entry.price)}/M`,
+        })
+      }
+    } else {
       rows.push({
         label: t('Matched Tier'),
-        value: tieredSummary.tier.label,
-      })
-    }
-    for (const entry of tieredSummary.priceEntries) {
-      rows.push({
-        label: t(entry.shortLabel),
-        value: `${fmtPrice(entry.price)}/M`,
+        value: t('No matching results'),
       })
     }
   } else if (isPerCall) {
@@ -184,7 +192,7 @@ function BillingBreakdown(props: {
     })
   }
 
-  if (!tieredSummary && isClaude && hasAnyCacheTokens(other)) {
+  if (!isTieredExpr && isClaude && hasAnyCacheTokens(other)) {
     if (other.cache_ratio != null && other.cache_ratio !== 1) {
       rows.push({
         label: t('Cache Read'),
@@ -220,7 +228,7 @@ function BillingBreakdown(props: {
     }
   }
 
-  if (!tieredSummary) {
+  if (!isTieredExpr) {
     if (other.audio_ratio != null && other.audio_ratio !== 1) {
       rows.push({
         label: t('Audio input'),

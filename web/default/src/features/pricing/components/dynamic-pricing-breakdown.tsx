@@ -3,7 +3,6 @@ import { Tag as TagIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 import { cn } from '@/lib/utils'
-import { normalizeTierLabel } from '@/features/usage-logs/lib/format'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -22,6 +21,7 @@ import {
   MATCH_LT,
   MATCH_RANGE,
   SOURCE_TIME,
+  normalizeTierLabel,
   parseTiersFromExpr,
   splitBillingExprAndRequestRules,
   tryParseRequestRuleExpr,
@@ -172,6 +172,9 @@ export function DynamicPricingBreakdown({
 
   const hasTiers = tiers.length > 0
   const hasRules = ruleGroups.length > 0
+  const normalizedMatchedTierLabel = normalizeTierLabel(
+    matchedTierLabel ?? undefined
+  )
 
   if (!expr) return null
 
@@ -243,10 +246,9 @@ export function DynamicPricingBreakdown({
                 {tiers.map((tier, i) => {
                   const condSummary = formatConditionSummary(tier.conditions, t)
                   const isMatched =
-                    matchedTierLabel != null &&
-                    matchedTierLabel !== '' &&
-                    normalizeTierLabel(tier.label) === normalizeTierLabel(matchedTierLabel) &&
-                    normalizeTierLabel(matchedTierLabel) !== ''
+                    normalizedMatchedTierLabel !== '' &&
+                    normalizeTierLabel(tier.label) ===
+                      normalizedMatchedTierLabel
                   return (
                     <TableRow
                       key={`tier-${i}`}

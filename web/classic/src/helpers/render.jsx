@@ -2295,9 +2295,9 @@ export const decodeFromBase64 = (base64) => {
 export const normalizeLabel = (label) => {
   if (!label) return '';
   return label
-      .replace(/<=|≤|</g, '<')
-      .replace(/>=|≥|>/g, '>')
-      .replace(/\s/g, '')
+      .replace(/<[=＝]?|≤|＜[=＝]?/g, '<')
+      .replace(/>[=＝]?|≥|＞[=＝]?/g, '>')
+      .replace(/\s+/g, '')
       .toLowerCase();
 };
 
@@ -2383,7 +2383,14 @@ export function renderTieredModelPriceSimple(opts) {
       },
     ];
 
-    if (tier && isPriceDisplayMode(displayMode)) {
+    if (!tier) {
+      segments.push({
+        tone: 'secondary',
+        text: tiers.length === 0
+            ? i18next.t('阶梯计费（表达式解析失败）')
+            : i18next.t('阶梯计费（未匹配到对应阶梯）'),
+      });
+    } else if (isPriceDisplayMode(displayMode)) {
       const hasAnyCacheTokens = cacheTokens > 0 || cacheCreationTokens > 0
           || cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
       const priceSegments = BILLING_PRICING_VARS

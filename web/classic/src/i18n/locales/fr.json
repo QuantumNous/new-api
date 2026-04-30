@@ -3642,6 +3642,8 @@
     "默认折叠侧边栏": "Réduire la barre latérale par défaut",
     "默认测试模型": "Modèle de test par défaut",
     "默认用户消息": "Bonjour",
-    "默认补全倍率": "Taux de complétion par défaut"
+    "默认补全倍率": "Taux de complétion par défaut",
+    "阶梯计费（表达式解析失败）": "Facturation par paliers (échec de l'analyse de l'expression)",
+    "阶梯计费（未匹配到对应阶梯）": "Facturation par paliers (aucun palier correspondant)"
   }
 }
