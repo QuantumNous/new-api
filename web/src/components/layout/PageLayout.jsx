@@ -190,6 +190,7 @@ const PageLayout = () => {
         />
       </Header>
       <Layout
+        id='app-scroll-shell'
         style={{
           overflow: isMobile ? 'visible' : 'auto',
           display: 'flex',
