@@ -63,6 +63,22 @@ func InitOptionMap() {
 	common.OptionMap["SMTPToken"] = ""
 	common.OptionMap["SMTPSSLEnabled"] = strconv.FormatBool(common.SMTPSSLEnabled)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["SMSProvider"] = ""
+	common.OptionMap["SMSAliyunAccessKeyId"] = ""
+	common.OptionMap["SMSAliyunAccessKeySecret"] = ""
+	common.OptionMap["SMSAliyunSignName"] = ""
+	common.OptionMap["SMSAliyunTemplateCode"] = ""
+	common.OptionMap["SMSSendCloudSmsUser"] = ""
+	common.OptionMap["SMSSendCloudSmsKey"] = ""
+	common.OptionMap["SMSSendCloudTemplateId"] = ""
+	common.OptionMap["SMSTencentSecretId"] = ""
+	common.OptionMap["SMSTencentSecretKey"] = ""
+	common.OptionMap["SMSTencentSmsSdkAppId"] = ""
+	common.OptionMap["SMSTencentSignName"] = ""
+	common.OptionMap["SMSTencentTemplateId"] = ""
+	common.OptionMap["SMSCustomUrl"] = ""
+	common.OptionMap["SMSCustomMethod"] = "POST"
+	common.OptionMap["SMSCustomTemplate"] = ""
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -345,6 +361,46 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPFrom = value
 	case "SMTPToken":
 		common.SMTPToken = value
+	case "SMSProvider":
+		common.SMSProvider = value
+	case "SMSAliyunAccessKeyId":
+		common.SMSAliyunAccessKeyId = value
+	case "SMSAliyunAccessKeySecret":
+		common.SMSAliyunAccessKeySecret = value
+	case "SMSAliyunSignName":
+		common.SMSAliyunSignName = value
+	case "SMSAliyunTemplateCode":
+		common.SMSAliyunTemplateCode = value
+	case "SMSSendCloudSmsUser":
+		common.SMSSendCloudSmsUser = value
+	case "SMSSendCloudSmsKey":
+		common.SMSSendCloudSmsKey = value
+	case "SMSSendCloudTemplateId":
+		common.SMSSendCloudTemplateId = value
+	case "SMSTencentSecretId":
+		common.SMSTencentSecretId = value
+	case "SMSTencentSecretKey":
+		common.SMSTencentSecretKey = value
+	case "SMSTencentSmsSdkAppId":
+		common.SMSTencentSmsSdkAppId = value
+	case "SMSTencentSignName":
+		common.SMSTencentSignName = value
+	case "SMSTencentTemplateId":
+		common.SMSTencentTemplateId = value
+	case "SMSCustomUrl":
+		common.SMSCustomUrl = value
+	case "SMSCustomMethod":
+		upperMethod := strings.ToUpper(value)
+		switch upperMethod {
+		case "GET", "POST", "PUT", "DELETE", "PATCH":
+			common.SMSCustomMethod = upperMethod
+		case "":
+			// 空值保留默认的 POST
+		default:
+			common.SMSCustomMethod = "POST"
+		}
+	case "SMSCustomTemplate":
+		common.SMSCustomTemplate = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":

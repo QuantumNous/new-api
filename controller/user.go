@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -1120,6 +1121,7 @@ type UpdateUserSettingRequest struct {
 	GotifyUrl                        string  `json:"gotify_url,omitempty"`
 	GotifyToken                      string  `json:"gotify_token,omitempty"`
 	GotifyPriority                   int     `json:"gotify_priority,omitempty"`
+	SmsPhoneNumber                   string  `json:"sms_phone_number,omitempty"`
 	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
 	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                      bool    `json:"record_ip_log"`
@@ -1133,7 +1135,7 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 验证预警类型
-	if req.QuotaWarningType != dto.NotifyTypeEmail && req.QuotaWarningType != dto.NotifyTypeWebhook && req.QuotaWarningType != dto.NotifyTypeBark && req.QuotaWarningType != dto.NotifyTypeGotify {
+	if req.QuotaWarningType != dto.NotifyTypeEmail && req.QuotaWarningType != dto.NotifyTypeWebhook && req.QuotaWarningType != dto.NotifyTypeBark && req.QuotaWarningType != dto.NotifyTypeGotify && req.QuotaWarningType != dto.NotifyTypeSms {
 		common.ApiErrorI18n(c, i18n.MsgSettingInvalidType)
 		return
 	}
@@ -1206,6 +1208,24 @@ func UpdateUserSetting(c *gin.Context) {
 		}
 	}
 
+	// 如果是SMS类型，验证手机号和系统SMS配置
+	if req.QuotaWarningType == dto.NotifyTypeSms {
+		if req.SmsPhoneNumber == "" {
+			common.ApiErrorI18n(c, i18n.MsgSettingSmsPhoneEmpty)
+			return
+		}
+		// 验证手机号格式：允许国际号码格式，7-15位数字，可选+前缀
+		phoneRegex := regexp.MustCompile(`^\+?[0-9]{7,15}$`)
+		if !phoneRegex.MatchString(req.SmsPhoneNumber) {
+			common.ApiErrorI18n(c, i18n.MsgSettingSmsPhoneInvalid)
+			return
+		}
+		if common.SMSProvider == "" {
+			common.ApiErrorI18n(c, i18n.MsgSettingSmsNotConfigured)
+			return
+		}
+	}
+
 	userId := c.GetInt("id")
 	user, err := model.GetUserById(userId, true)
 	if err != nil {
@@ -1255,6 +1275,11 @@ func UpdateUserSetting(c *gin.Context) {
 		} else {
 			settings.GotifyPriority = req.GotifyPriority
 		}
+	}
+
+	// 如果是SMS类型，添加手机号到设置中
+	if req.QuotaWarningType == dto.NotifyTypeSms {
+		settings.SmsPhoneNumber = req.SmsPhoneNumber
 	}
 
 	// 更新用户设置

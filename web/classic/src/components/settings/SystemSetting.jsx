@@ -69,6 +69,22 @@ const SystemSetting = () => {
     SMTPAccount: '',
     SMTPFrom: '',
     SMTPToken: '',
+    SMSProvider: '',
+    SMSAliyunAccessKeyId: '',
+    SMSAliyunAccessKeySecret: '',
+    SMSAliyunSignName: '',
+    SMSAliyunTemplateCode: '',
+    SMSSendCloudSmsUser: '',
+    SMSSendCloudSmsKey: '',
+    SMSSendCloudTemplateId: '',
+    SMSTencentSecretId: '',
+    SMSTencentSecretKey: '',
+    SMSTencentSmsSdkAppId: '',
+    SMSTencentSignName: '',
+    SMSTencentTemplateId: '',
+    SMSCustomUrl: '',
+    SMSCustomMethod: 'POST',
+    SMSCustomTemplate: '',
     WorkerUrl: '',
     WorkerValidKey: '',
     WorkerAllowHttpImageRequestEnabled: '',
@@ -344,6 +360,51 @@ const SystemSetting = () => {
       options.push({ key: 'SMTPToken', value: inputs.SMTPToken });
     }
 
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
+  const submitSMS = async () => {
+    const options = [];
+    // 凭证字段：后端 GetOptions 会隐藏这些字段，前端拿到的是空值
+    // 只有用户填写了新值才提交，避免用空串覆盖已有凭证
+    const secretKeys = new Set([
+      'SMSAliyunAccessKeyId',
+      'SMSAliyunAccessKeySecret',
+      'SMSSendCloudSmsUser',
+      'SMSSendCloudSmsKey',
+      'SMSTencentSecretId',
+      'SMSTencentSecretKey',
+      'SMSTencentSmsSdkAppId',
+    ]);
+    const smsKeys = [
+      'SMSProvider',
+      'SMSAliyunAccessKeyId',
+      'SMSAliyunAccessKeySecret',
+      'SMSAliyunSignName',
+      'SMSAliyunTemplateCode',
+      'SMSSendCloudSmsUser',
+      'SMSSendCloudSmsKey',
+      'SMSSendCloudTemplateId',
+      'SMSTencentSecretId',
+      'SMSTencentSecretKey',
+      'SMSTencentSmsSdkAppId',
+      'SMSTencentSignName',
+      'SMSTencentTemplateId',
+      'SMSCustomUrl',
+      'SMSCustomMethod',
+      'SMSCustomTemplate',
+    ];
+    for (const key of smsKeys) {
+      if (originInputs[key] !== inputs[key]) {
+        // 凭证字段仅在有新值时提交，非凭证字段允许清空
+        if (secretKeys.has(key) && inputs[key] === '') {
+          continue;
+        }
+        options.push({ key, value: inputs[key] });
+      }
+    }
     if (options.length > 0) {
       await updateOptions(options);
     }
@@ -1349,6 +1410,154 @@ const SystemSetting = () => {
                     </Col>
                   </Row>
                   <Button onClick={submitSMTP}>{t('保存 SMTP 设置')}</Button>
+                </Form.Section>
+              </Card>
+              <Card>
+                <Form.Section text={t('配置短信服务')}>
+                  <Text>{t('用以支持短信通知推送，用户可在个人设置中选择短信通知方式')}</Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Select
+                        field='SMSProvider'
+                        label={t('短信服务商')}
+                        placeholder={t('请选择短信服务商')}
+                        optionList={[
+                          { value: '', label: t('未配置') },
+                          { value: 'aliyun', label: t('阿里云短信') },
+                          { value: 'sendcloud', label: 'SendCloud' },
+                          { value: 'tencent', label: t('腾讯云短信') },
+                          { value: 'custom', label: t('通用HTTP接口') },
+                        ]}
+                      />
+                    </Col>
+                  </Row>
+                  {inputs.SMSProvider === 'aliyun' && (
+                    <>
+                      <Row
+                        gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                        style={{ marginTop: 16 }}
+                      >
+                        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                          <Form.Input field='SMSAliyunAccessKeyId' label='AccessKeyId' />
+                        </Col>
+                        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                          <Form.Input
+                            field='SMSAliyunAccessKeySecret'
+                            label='AccessKeySecret'
+                            type='password'
+                            placeholder={t('敏感信息不会发送到前端显示')}
+                          />
+                        </Col>
+                      </Row>
+                      <Row
+                        gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                        style={{ marginTop: 16 }}
+                      >
+                        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                          <Form.Input field='SMSAliyunSignName' label={t('短信签名')} />
+                        </Col>
+                        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                          <Form.Input field='SMSAliyunTemplateCode' label={t('模板Code')} />
+                        </Col>
+                      </Row>
+                    </>
+                  )}
+                  {inputs.SMSProvider === 'sendcloud' && (
+                    <Row
+                      gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                      style={{ marginTop: 16 }}
+                    >
+                      <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                        <Form.Input field='SMSSendCloudSmsUser' label='smsUser' />
+                      </Col>
+                      <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                        <Form.Input
+                          field='SMSSendCloudSmsKey'
+                          label='smsKey'
+                          type='password'
+                          placeholder={t('敏感信息不会发送到前端显示')}
+                        />
+                      </Col>
+                      <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                        <Form.Input field='SMSSendCloudTemplateId' label={t('模板ID')} />
+                      </Col>
+                    </Row>
+                  )}
+                  {inputs.SMSProvider === 'tencent' && (
+                    <>
+                      <Row
+                        gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                        style={{ marginTop: 16 }}
+                      >
+                        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                          <Form.Input field='SMSTencentSecretId' label='SecretId' />
+                        </Col>
+                        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                          <Form.Input
+                            field='SMSTencentSecretKey'
+                            label='SecretKey'
+                            type='password'
+                            placeholder={t('敏感信息不会发送到前端显示')}
+                          />
+                        </Col>
+                      </Row>
+                      <Row
+                        gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                        style={{ marginTop: 16 }}
+                      >
+                        <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                          <Form.Input field='SMSTencentSmsSdkAppId' label='SmsSdkAppId' />
+                        </Col>
+                        <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                          <Form.Input field='SMSTencentSignName' label={t('短信签名')} />
+                        </Col>
+                        <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                          <Form.Input field='SMSTencentTemplateId' label={t('模板ID')} />
+                        </Col>
+                      </Row>
+                    </>
+                  )}
+                  {inputs.SMSProvider === 'custom' && (
+                    <>
+                      <Row
+                        gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                        style={{ marginTop: 16 }}
+                      >
+                        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                          <Form.Input field='SMSCustomUrl' label={t('接口地址')} />
+                        </Col>
+                        <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                          <Form.Select
+                            field='SMSCustomMethod'
+                            label={t('请求方法')}
+                            optionList={[
+                              { value: 'GET', label: 'GET' },
+                              { value: 'POST', label: 'POST' },
+                            ]}
+                          />
+                        </Col>
+                      </Row>
+                      <Row
+                        gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                        style={{ marginTop: 16 }}
+                      >
+                        <Col xs={24}>
+                          <Form.TextArea
+                            field='SMSCustomTemplate'
+                            label={t('请求模板')}
+                            placeholder={t('支持模板变量: {{phone}} (手机号), {{title}} (通知标题), {{content}} (通知内容)')}
+                            autosize={{ minRows: 3, maxRows: 6 }}
+                          />
+                        </Col>
+                      </Row>
+                    </>
+                  )}
+                  <Button onClick={submitSMS} style={{ marginTop: 16 }}>
+                    {t('保存短信设置')}
+                  </Button>
                 </Form.Section>
               </Card>
               <Card>

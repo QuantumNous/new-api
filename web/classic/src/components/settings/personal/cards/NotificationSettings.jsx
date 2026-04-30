@@ -33,7 +33,7 @@ import {
   Col,
 } from '@douyinfe/semi-ui';
 import { IconMail, IconKey, IconBell, IconLink } from '@douyinfe/semi-icons';
-import { ShieldCheck, Bell, DollarSign, Settings } from 'lucide-react';
+import { ShieldCheck, Bell, DollarSign, Settings, Smartphone } from 'lucide-react';
 import {
   renderQuotaWithPrompt,
   API,
@@ -432,6 +432,7 @@ const NotificationSettings = ({
                   <Radio value='webhook'>{t('Webhook通知')}</Radio>
                   <Radio value='bark'>{t('Bark通知')}</Radio>
                   <Radio value='gotify'>{t('Gotify通知')}</Radio>
+                  <Radio value='sms'>{t('短信通知')}</Radio>
                 </Form.RadioGroup>
 
                 <Form.AutoComplete
@@ -743,6 +744,31 @@ const NotificationSettings = ({
                       </div>
                     </div>
                   </>
+                )}
+
+                {/* 短信通知设置 */}
+                {notificationSettings.warningType === 'sms' && (
+                  <Form.Input
+                    field='smsPhoneNumber'
+                    label={t('手机号码')}
+                    placeholder={t('请输入接收短信的手机号码')}
+                    onChange={(val) => handleFormChange('smsPhoneNumber', val)}
+                    prefix={<Smartphone size={14} />}
+                    extraText={t(
+                      '短信服务由管理员统一配置，您只需填写接收通知的手机号码',
+                    )}
+                    showClear
+                    rules={[
+                      {
+                        required: notificationSettings.warningType === 'sms',
+                        message: t('请输入手机号码'),
+                      },
+                      {
+                        pattern: /^\+?[0-9]{7,15}$/,
+                        message: t('手机号码格式不正确'),
+                      },
+                    ]}
+                  />
                 )}
               </div>
             </TabPane>

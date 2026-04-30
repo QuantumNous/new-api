@@ -209,6 +209,9 @@ setting.gotify_url_empty: "Gotify伺服器位址不能為空"
 setting.gotify_token_empty: "Gotify令牌不能為空"
 setting.gotify_url_invalid: "無效的Gotify伺服器位址"
 setting.url_must_http: "URL必須以http://或https://開頭"
+setting.sms_phone_empty: "手機號碼不能為空"
+setting.sms_phone_invalid: "手機號碼格式不正確"
+setting.sms_not_configured: "系統未配置簡訊服務，請聯繫管理員"
 setting.saved: "設定已更新"
 
 # Deployment messages (io.net)

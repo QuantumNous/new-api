@@ -478,6 +478,12 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 				// Bark推送使用简短文本，不支持HTML
 				content = "{{value}}，剩余额度：{{value}}，请及时充值"
 				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota)}
+			} else if notifyType == dto.NotifyTypeSms {
+				// SMS短信使用模板变量：values[0]=当前余额, values[1]=告警阈值
+				// content 保留可读文本供自定义HTTP接口的 {{content}} 占位符使用
+				remainQuota := relayInfo.UserQuota - consumeQuota
+				content = fmt.Sprintf("当前剩余额度 %s，告警阈值 %s，请及时充值", logger.FormatQuota(remainQuota), logger.FormatQuota(threshold))
+				values = []interface{}{logger.FormatQuota(remainQuota), logger.FormatQuota(threshold)}
 			} else if notifyType == dto.NotifyTypeGotify {
 				content = "{{value}}，当前剩余额度为 {{value}}，请及时充值。"
 				values = []interface{}{prompt, logger.FormatQuota(relayInfo.UserQuota)}
@@ -529,6 +535,11 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		if notifyType == dto.NotifyTypeBark {
 			content = "{{value}}，剩余额度：{{value}}，请及时充值"
 			values = []interface{}{prompt, logger.FormatQuota(int(remaining))}
+		} else if notifyType == dto.NotifyTypeSms {
+			// SMS短信使用模板变量：values[0]=当前余额, values[1]=告警阈值
+			// content 保留可读文本供自定义HTTP接口的 {{content}} 占位符使用
+			content = fmt.Sprintf("当前剩余额度 %s，告警阈值 %s，请及时充值", logger.FormatQuota(int(remaining)), logger.FormatQuota(threshold))
+			values = []interface{}{logger.FormatQuota(int(remaining)), logger.FormatQuota(threshold)}
 		} else if notifyType == dto.NotifyTypeGotify {
 			content = "{{value}}，当前剩余额度为 {{value}}，请及时充值。"
 			values = []interface{}{prompt, logger.FormatQuota(int(remaining))}

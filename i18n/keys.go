@@ -246,6 +246,9 @@ const (
 	MsgSettingGotifyTokenEmpty = "setting.gotify_token_empty"
 	MsgSettingGotifyUrlInvalid = "setting.gotify_url_invalid"
 	MsgSettingUrlMustHttp      = "setting.url_must_http"
+	MsgSettingSmsPhoneEmpty    = "setting.sms_phone_empty"
+	MsgSettingSmsPhoneInvalid  = "setting.sms_phone_invalid"
+	MsgSettingSmsNotConfigured = "setting.sms_not_configured"
 	MsgSettingSaved            = "setting.saved"
 )
 
