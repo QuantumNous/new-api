@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconRefresh, IconSearch, IconSetting } from '@douyinfe/semi-icons';
 
@@ -34,6 +35,8 @@ const LogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const { i18n } = useTranslation();
+
   const handleReset = () => {
     if (!formApi) {
       return;
@@ -154,6 +157,7 @@ const LogsFilters = ({
 
         <div className='log-filter-toolbar'>
           <Form.Select
+            key={`usage-log-type-select-${i18n.resolvedLanguage || i18n.language}`}
             field='logType'
             placeholder={t('选择日志类型')}
             className='log-filter-select'
