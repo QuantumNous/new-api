@@ -283,6 +283,11 @@
   border-radius: 14px !important;
   font-weight: 700;
 }
+.token-filter-button-primary.semi-button {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #d946ef, #a855f7) !important;
+  color: #ffffff !important;
+}
 
 .token-toolbar-button.semi-button {
   border-color: rgba(226, 232, 240, 0.95) !important;

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useRef } from 'react';
 import { Form, Button } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { IconRefresh, IconSearch } from '@douyinfe/semi-icons';
 
 const TokensFilters = ({
   formInitValues,
@@ -80,11 +80,13 @@ const TokensFilters = ({
 
         <div className='token-filter-actions'>
           <Button
-            type='tertiary'
+            type='primary'
+            theme='solid'
             htmlType='submit'
             loading={loading || searching}
-            className='token-filter-button'
             size='default'
+            icon={<IconSearch />}
+            className='token-filter-button token-filter-button-primary'
           >
             {t('查询')}
           </Button>
@@ -92,8 +94,9 @@ const TokensFilters = ({
           <Button
             type='tertiary'
             onClick={handleReset}
-            className='token-filter-button'
             size='default'
+            icon={<IconRefresh />}
+            className='token-filter-button'
           >
             {t('重置')}
           </Button>

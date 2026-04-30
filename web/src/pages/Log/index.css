@@ -320,8 +320,6 @@
   height: 44px;
   padding: 0 18px;
   border-radius: 16px !important;
-  border-color: rgba(226, 232, 240, 0.95) !important;
-  box-shadow: none !important;
   font-weight: 700;
 }
 
@@ -334,22 +332,6 @@
 .log-filter-button-primary.semi-button:hover,
 .log-filter-button-primary.semi-button:focus {
   background: linear-gradient(135deg, #c026d3, #9333ea) !important;
-}
-
-.log-filter-button-secondary.semi-button {
-  background: rgba(255, 255, 255, 0.92) !important;
-  color: #111827 !important;
-}
-
-.log-filter-button-ghost.semi-button {
-  background: rgba(248, 250, 252, 0.88) !important;
-  color: #667085 !important;
-}
-
-.log-filter-button-secondary.semi-button:hover,
-.log-filter-button-ghost.semi-button:hover {
-  border-color: rgba(208, 213, 221, 1) !important;
-  background: #ffffff !important;
 }
 
 .log-data-table {
@@ -504,26 +486,6 @@ html.dark .log-filter-select .semi-select-selection:focus-within {
   border-color: rgba(168, 85, 247, 0.55) !important;
   background: rgba(21, 24, 31, 0.98) !important;
   box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.14) !important;
-}
-
-html.dark .log-filter-button-secondary.semi-button,
-html.dark .log-filter-button-ghost.semi-button {
-  border-color: rgba(58, 66, 82, 0.95) !important;
-  background: rgba(16, 19, 24, 0.92) !important;
-}
-
-html.dark .log-filter-button-secondary.semi-button {
-  color: #f8fafc !important;
-}
-
-html.dark .log-filter-button-ghost.semi-button {
-  color: #98a2b3 !important;
-}
-
-html.dark .log-filter-button-secondary.semi-button:hover,
-html.dark .log-filter-button-ghost.semi-button:hover {
-  border-color: rgba(76, 88, 110, 0.96) !important;
-  background: rgba(21, 24, 31, 0.98) !important;
 }
 
 html.dark .log-data-table .semi-table-thead > tr > th,

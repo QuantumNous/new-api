@@ -192,7 +192,7 @@ const LogsFilters = ({
               onClick={handleReset}
               size='default'
               icon={<IconRefresh />}
-              className='log-filter-button log-filter-button-secondary'
+              className='log-filter-button'
             >
               {t('重置')}
             </Button>
@@ -201,7 +201,7 @@ const LogsFilters = ({
               onClick={() => setShowColumnSelector(true)}
               size='default'
               icon={<IconSetting />}
-              className='log-filter-button log-filter-button-ghost'
+              className='log-filter-button'
             >
               {t('列设置')}
             </Button>
