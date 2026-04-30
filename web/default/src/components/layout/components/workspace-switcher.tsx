@@ -38,7 +38,6 @@ type WorkspaceSwitcherProps = {
 export function WorkspaceSwitcher({
   workspaces,
   defaultName = 'New API',
-  defaultVersion,
 }: WorkspaceSwitcherProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -62,7 +61,7 @@ export function WorkspaceSwitcher({
             ? {
                 ...workspace,
                 name: status?.system_name || defaultName,
-                plan: status?.version || defaultVersion || t('Unknown version'),
+                plan: '',
               }
             : workspace
         )
@@ -74,11 +73,8 @@ export function WorkspaceSwitcher({
     [
       workspaces,
       status?.system_name,
-      status?.version,
       defaultName,
-      defaultVersion,
       canAccessSystemSettings,
-      t,
     ]
   )
 
@@ -139,7 +135,9 @@ export function WorkspaceSwitcher({
       )}
       <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
         <span className='truncate font-semibold'>{activeWorkspace.name}</span>
-        <span className='truncate text-xs'>{activeWorkspace.plan}</span>
+        {activeWorkspace.plan && (
+          <span className='truncate text-xs'>{activeWorkspace.plan}</span>
+        )}
       </div>
       {canSwitchWorkspace && (
         <ChevronsUpDown className='ms-auto group-data-[collapsible=icon]:hidden' />
