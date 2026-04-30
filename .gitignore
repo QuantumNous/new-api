@@ -35,3 +35,20 @@ data/
 .test
 token_estimator_test.go
 skills-lock.json
+
+# ========== 本地开发配置（不提交） ==========
+.env.local
+.env.*.local
+*.local.json
+
+# 本地自定义目录（如自定义主题、插件等）
+local-custom/
+
+# IDE 和编辑器本地配置
+*.swp
+*.swo
+*~
+
+# 本地临时文件
+tmp/
+temp/
