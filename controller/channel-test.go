@@ -901,40 +901,131 @@ func testAllChannels(notify bool) error {
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
-			tik := time.Now()
-			result := testChannel(channel, "", "", shouldUseStreamForAutomaticChannelTest(channel))
-			tok := time.Now()
-			milliseconds := tok.Sub(tik).Milliseconds()
 
-			shouldBanChannel := false
-			newAPIError := result.newAPIError
-			// request error disables the channel
-			if newAPIError != nil {
-				shouldBanChannel = service.ShouldDisableChannel(result.newAPIError)
+			models := channel.GetModels()
+			if len(models) == 0 {
+				continue
 			}
 
-			// 当错误检查通过，才检查响应时间
-			if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
-				if milliseconds > disableThreshold {
-					err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
-					newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
-					shouldBanChannel = true
+			var totalMs int64
+			var testedCount int64
+			channelLevelErrorOccurred := false
+
+			for _, testModelName := range models {
+				testModelName = strings.TrimSpace(testModelName)
+				if testModelName == "" {
+					continue
+				}
+
+				lowerModelName := strings.ToLower(testModelName)
+				if strings.Contains(lowerModelName, "seedream") ||
+					strings.Contains(lowerModelName, "image-preview") {
+					model.RecordChannelTestHistory(channel.Id, channel.Name, testModelName, "unsupported", 0, "image generation model test is not supported")
+					continue
+				}
+
+				testTimeout := 120 * time.Second
+				tik := time.Now()
+				resultCh := make(chan testResult, 1)
+				go func() {
+					resultCh <- testChannel(channel, testModelName, "", shouldUseStreamForAutomaticChannelTest(channel))
+				}()
+				var result testResult
+				select {
+				case result = <-resultCh:
+				case <-time.After(testTimeout):
+					result = testResult{
+						localErr:    fmt.Errorf("测试超时（%ds），模型「%s」未在限定时间内响应", int(testTimeout.Seconds()), testModelName),
+						newAPIError: types.NewOpenAIError(fmt.Errorf("test timeout after %ds", int(testTimeout.Seconds())), types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout),
+					}
+				}
+				tok := time.Now()
+				milliseconds := tok.Sub(tik).Milliseconds()
+				totalMs += milliseconds
+				testedCount++
+
+				shouldBanModel := false
+				newAPIError := result.newAPIError
+				errMsg := ""
+				testStatus := "operational"
+
+				if result.localErr != nil {
+					errMsg = result.localErr.Error()
+					if strings.Contains(errMsg, "not supported") ||
+						strings.Contains(errMsg, "invalid image request type") ||
+						strings.Contains(errMsg, "invalid embedding request type") ||
+						strings.Contains(errMsg, "invalid rerank request type") {
+						testStatus = "unsupported"
+					}
+				}
+
+				if newAPIError != nil {
+					shouldBanModel = service.ShouldDisableChannel(newAPIError)
+
+					if shouldBanModel && service.IsChannelLevelError(newAPIError) {
+						// 通道级错误（API key 无效、余额不足等）→ 禁用整个通道，跳过剩余模型
+						if isChannelEnabled && channel.GetAutoBan() {
+							processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+						}
+						channelLevelErrorOccurred = true
+						testStatus = "failed"
+						model.RecordChannelTestHistory(channel.Id, channel.Name, testModelName, testStatus, milliseconds, errMsg)
+						break
+					}
+				}
+
+				// 检查响应时间是否超阈值
+				if common.AutomaticDisableChannelEnabled && !shouldBanModel {
+					if milliseconds > disableThreshold {
+						err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
+						newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
+						shouldBanModel = true
+						testStatus = "timeout"
+						errMsg = err.Error()
+					}
+				}
+
+				if common.AutomaticDisableChannelEnabled && isChannelEnabled && shouldBanModel && channel.GetAutoBan() && testStatus != "unsupported" {
+					reason := "测试失败"
+					if newAPIError != nil {
+						reason = newAPIError.ErrorWithStatusCode()
+					}
+					service.DisableChannelModel(channel.Id, channel.Name, testModelName, reason)
+					testStatus = "failed"
+				}
+
+				if common.AutomaticEnableChannelEnabled && newAPIError == nil && testStatus == "operational" {
+					if !model.IsAbilityModelEnabled(channel.Id, testModelName) {
+						service.EnableChannelModel(channel.Id, channel.Name, testModelName)
+					}
+				}
+
+				model.RecordChannelTestHistory(channel.Id, channel.Name, testModelName, testStatus, milliseconds, errMsg)
+				time.Sleep(common.RequestInterval)
+			}
+
+			// 通道级：如果未发生通道级错误，且通道之前被自动禁用，且本次所有模型都测试通过，则重新启用通道
+			if common.AutomaticEnableChannelEnabled && !channelLevelErrorOccurred && !isChannelEnabled && channel.Status == common.ChannelStatusAutoDisabled {
+				// 检查是否所有模型测试都成功（通过检查是否有任何模型被禁用）
+				allModelsOk := true
+				for _, m := range models {
+					if !model.IsAbilityModelEnabled(channel.Id, strings.TrimSpace(m)) {
+						allModelsOk = false
+						break
+					}
+				}
+				if allModelsOk {
+					service.EnableChannel(channel.Id, "", channel.Name)
 				}
 			}
 
-			// disable channel
-			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
-				processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+			// 使用所有模型的平均响应时间更新通道响应时间
+			if testedCount > 0 {
+				channel.UpdateResponseTime(totalMs / testedCount)
 			}
-
-			// enable channel
-			if !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
-				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
-			}
-
-			channel.UpdateResponseTime(milliseconds)
-			time.Sleep(common.RequestInterval)
 		}
+
+		model.PruneChannelTestHistory(30)
 
 		if notify {
 			service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
