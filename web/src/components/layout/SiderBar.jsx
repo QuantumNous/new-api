@@ -20,6 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { BookOpen, ExternalLink } from 'lucide-react';
+import './SiderBar.css';
 import { getLucideIcon } from '../../helpers/render';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
@@ -72,8 +74,15 @@ const SiderBar = ({
   const [openedKeys, setOpenedKeys] = useState([]);
   const location = useLocation();
   const [routerMapState, setRouterMapState] = useState(routerMap);
+  const [docsLink, setDocsLink] = useState(
+    () => localStorage.getItem('docs_link') || '',
+  );
   const logo = getLogo();
   const systemName = getSystemName();
+
+  useEffect(() => {
+    setDocsLink(localStorage.getItem('docs_link') || '');
+  }, [showSkeleton]);
 
   const workspaceItems = useMemo(() => {
     const items = [
@@ -507,6 +516,27 @@ const SiderBar = ({
           )}
         </Nav>
       </SkeletonWrapper>
+
+      {!collapsed && !showSkeleton && docsLink && (
+        <div className='sidebar-docs-wrap'>
+          <a
+            href={docsLink}
+            target='_blank'
+            rel='noopener noreferrer'
+            className='sidebar-docs-link'
+          >
+            <div className='sidebar-docs-main'>
+              <div className='sidebar-docs-icon'>
+                <BookOpen size={17} strokeWidth={2.1} />
+              </div>
+              <span className='sidebar-docs-text'>{t('API 文档')}</span>
+            </div>
+            <div className='sidebar-docs-external'>
+              <ExternalLink size={15} strokeWidth={2.1} />
+            </div>
+          </a>
+        </div>
+      )}
 
       {userState?.user && !collapsed && !showSkeleton && (
         <div className='sidebar-user-card'>
