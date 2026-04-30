@@ -29,6 +29,12 @@
   width: 100%;
   margin-left: auto;
   margin-right: auto;
+}
+.app-header-shell2 {
+  position: relative;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
   padding-left: 2rem;
   padding-right: 2rem;
 }
@@ -131,6 +137,15 @@
   height: 40px;
   border-radius: 999px !important;
   color: #516074 !important;
+}
+
+.app-header-menu-button2.semi-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  color: #516074 !important;
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.04);
 }
 
 .app-header-menu-button.semi-button:hover,
@@ -246,7 +261,7 @@ html.dark .app-header-auth-register.semi-button {
   }
 }
 @media (min-width: 1400px) {
-  .app-header-shell {
+  .app-header-shell2 {
     max-width: 1400px;
   }
 }

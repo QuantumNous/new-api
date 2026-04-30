@@ -52,7 +52,7 @@ const MobileMenuButton = ({
       onClick={onToggle}
       theme='borderless'
       type='tertiary'
-      className='app-header-menu-button !p-2 !text-current'
+      className='app-header-menu-button2 !p-2 !text-current'
     />
   );
 };

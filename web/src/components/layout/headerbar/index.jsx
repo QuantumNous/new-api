@@ -87,7 +87,9 @@ const HeaderBar = ({
         unreadKeys={getUnreadKeys()}
       />
 
-      <div className='app-header-shell w-full px-2 md:px-4'>
+      <div
+        className={`w-full px-2 md:px-4 ${isConsoleRoute ? 'app-header-shell' : 'app-header-shell2'}`}
+      >
         <div className='app-header-inner flex items-center justify-between h-16'>
           <div className='app-header-left flex items-center'>
             <MobileMenuButton
