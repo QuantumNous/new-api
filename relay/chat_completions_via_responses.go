@@ -139,15 +139,31 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
 	httpResp = resp.(*http.Response)
-	info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+	clientWantsStream := info.IsStream
+	upstreamIsSSE := strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+	info.IsStream = clientWantsStream || upstreamIsSSE
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 		return nil, newApiErr
 	}
 
-	if info.IsStream {
+	if clientWantsStream {
+		// Client requested stream — forward as SSE regardless of upstream format.
 		usage, newApiErr := openaichannel.OaiResponsesToChatStreamHandler(c, info, httpResp)
+		if newApiErr != nil {
+			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			return nil, newApiErr
+		}
+		return usage, nil
+	}
+
+	if upstreamIsSSE {
+		// Client wants non-stream JSON, but upstream returned SSE (common for
+		// reasoning models). Buffer and aggregate the SSE stream into a full
+		// chat.completion JSON before writing to the client.
+		info.IsStream = false
+		usage, newApiErr := openaichannel.OaiResponsesSSEToChatJSON(c, info, httpResp)
 		if newApiErr != nil {
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 			return nil, newApiErr
