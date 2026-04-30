@@ -153,33 +153,39 @@ const LogsFilters = ({
               </div>
             </>
           )}
-        </div>
 
-        <div className='log-filter-toolbar'>
-          <Form.Select
-            key={`usage-log-type-select-${i18n.resolvedLanguage || i18n.language}`}
-            field='logType'
-            placeholder={t('选择日志类型')}
-            className='log-filter-select'
-            showClear
-            pure
-            onChange={() => {
-              setTimeout(() => {
-                refresh();
-              }, 0);
-            }}
-            size='default'
+          <div className='log-filter-item'>
+            <Form.Select
+              key={`usage-log-type-select-${i18n.resolvedLanguage || i18n.language}`}
+              field='logType'
+              placeholder={t('选择日志类型')}
+              className='log-filter-select'
+              showClear
+              pure
+              onChange={() => {
+                setTimeout(() => {
+                  refresh();
+                }, 0);
+              }}
+              size='default'
+            >
+              <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
+              <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
+              <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
+              <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
+              <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
+              <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
+              <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
+            </Form.Select>
+          </div>
+
+          <div
+            className={
+              isAdminUser
+                ? 'log-filter-toolbar-item2'
+                : 'log-filter-toolbar-item'
+            }
           >
-            <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
-            <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
-            <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
-            <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
-            <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
-            <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
-            <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
-          </Form.Select>
-
-          <div className='log-filter-actions'>
             <Button
               type='primary'
               theme='solid'
