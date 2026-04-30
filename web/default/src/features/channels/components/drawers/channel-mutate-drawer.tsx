@@ -393,11 +393,24 @@ export function ChannelMutateDrawer({
     },
   })
 
+  const {
+    unlocked: aliApiEditUnlocked,
+    handleClick: handleAliApiConfigSecretClick,
+    reset: resetAliApiUnlock,
+  } = useHiddenClickUnlock({
+    requiredClicks: 10,
+    disabled: currentType !== 17,
+    onUnlock: () => {
+      toast.info(t('Ali custom API address editing unlocked'))
+    },
+  })
+
   useEffect(() => {
     if (!open) {
       resetDoubaoApiUnlock()
+      resetAliApiUnlock()
     }
-  }, [open, resetDoubaoApiUnlock])
+  }, [open, resetDoubaoApiUnlock, resetAliApiUnlock])
 
   // Helper computed values
   const isBatchMode =
@@ -613,6 +626,14 @@ export function ChannelMutateDrawer({
       const currentBaseUrlValue = form.getValues('base_url')
       if (!currentBaseUrlValue || currentBaseUrlValue === '') {
         form.setValue('base_url', 'https://ark.cn-beijing.volces.com')
+      }
+    }
+
+    // Type 17 (Ali) - set default base_url
+    if (currentType === 17) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue === '') {
+        form.setValue('base_url', 'https://dashscope.aliyuncs.com')
       }
     }
 
@@ -1728,6 +1749,76 @@ export function ChannelMutateDrawer({
                   />
                 )}
 
+                {/* Ali/DashScope (type 17) */}
+                {currentType === 17 && !aliApiEditUnlocked && (
+                  <FormField
+                    control={form.control}
+                    name='base_url'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel
+                          className='cursor-pointer select-none'
+                          onClick={handleAliApiConfigSecretClick}
+                        >
+                          {t('API Base URL *')}
+                        </FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={
+                            field.value || 'https://dashscope.aliyuncs.com'
+                          }
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value='https://dashscope.aliyuncs.com'>
+                              {t('https://dashscope.aliyuncs.com')}
+                            </SelectItem>
+                            <SelectItem value='ali-token-plan'>
+                              {t('Ali Token Plan')}
+                            </SelectItem>
+                            <SelectItem value='ali-coding-plan'>
+                              {t('Ali Coding Plan')}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {t('Select the API endpoint')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Ali/DashScope (type 17) - Custom API URL (unlocked) */}
+                {currentType === 17 && aliApiEditUnlocked && (
+                  <FormField
+                    control={form.control}
+                    name='base_url'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('API Base URL *')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t(
+                              'e.g., https://dashscope.aliyuncs.com'
+                            )}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Enter custom API endpoint URL')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 {/* Coze (type 49) */}
                 {currentType === 49 && (
                   <FormField
@@ -1752,7 +1843,7 @@ export function ChannelMutateDrawer({
                 )}
 
                 {/* General base_url for other types */}
-                {![3, 8, 22, 36, 45].includes(currentType) && (
+                {![3, 8, 17, 22, 36, 45].includes(currentType) && (
                   <FormField
                     control={form.control}
                     name='base_url'

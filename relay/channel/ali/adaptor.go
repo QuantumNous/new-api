@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -71,6 +72,9 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		return req, nil
+	}
 	if supportsAliAnthropicMessages(info.UpstreamModelName) {
 		return req, nil
 	}
@@ -89,49 +93,57 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	var fullRequestURL string
+	baseUrl := info.ChannelBaseUrl
+	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseUrl]
+
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		if supportsAliAnthropicMessages(info.UpstreamModelName) {
-			fullRequestURL = fmt.Sprintf("%s/apps/anthropic/v1/messages", info.ChannelBaseUrl)
-		} else {
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/chat/completions", info.ChannelBaseUrl)
+		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
+			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
+		if supportsAliAnthropicMessages(info.UpstreamModelName) {
+			return fmt.Sprintf("%s/apps/anthropic/v1/messages", baseUrl), nil
+		}
+		return fmt.Sprintf("%s/compatible-mode/v1/chat/completions", baseUrl), nil
 	default:
+		if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
+		}
 		switch info.RelayMode {
 		case constant.RelayModeEmbeddings:
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/embeddings", info.ChannelBaseUrl)
+			return fmt.Sprintf("%s/compatible-mode/v1/embeddings", baseUrl), nil
 		case constant.RelayModeRerank:
-			fullRequestURL = fmt.Sprintf("%s/api/v1/services/rerank/text-rerank/text-rerank", info.ChannelBaseUrl)
+			return fmt.Sprintf("%s/api/v1/services/rerank/text-rerank/text-rerank", baseUrl), nil
 		case constant.RelayModeResponses:
-			fullRequestURL = fmt.Sprintf("%s/api/v2/apps/protocols/compatible-mode/v1/responses", info.ChannelBaseUrl)
+			return fmt.Sprintf("%s/api/v2/apps/protocols/compatible-mode/v1/responses", baseUrl), nil
 		case constant.RelayModeImagesGenerations:
 			if isSyncImageModel(info.OriginModelName) {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+				return fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", baseUrl), nil
 			} else {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/text2image/image-synthesis", info.ChannelBaseUrl)
+				return fmt.Sprintf("%s/api/v1/services/aigc/text2image/image-synthesis", baseUrl), nil
 			}
 		case constant.RelayModeImagesEdits:
 			if isOldWanModel(info.OriginModelName) {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/image2image/image-synthesis", info.ChannelBaseUrl)
+				return fmt.Sprintf("%s/api/v1/services/aigc/image2image/image-synthesis", baseUrl), nil
 			} else if isWanModel(info.OriginModelName) {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/image-generation/generation", info.ChannelBaseUrl)
+				return fmt.Sprintf("%s/api/v1/services/aigc/image-generation/generation", baseUrl), nil
 			} else {
-				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+				return fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", baseUrl), nil
 			}
 		case constant.RelayModeCompletions:
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/completions", info.ChannelBaseUrl)
+			return fmt.Sprintf("%s/compatible-mode/v1/completions", baseUrl), nil
 		default:
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/chat/completions", info.ChannelBaseUrl)
+			return fmt.Sprintf("%s/compatible-mode/v1/chat/completions", baseUrl), nil
 		}
 	}
-
-	return fullRequestURL, nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("Authorization", "Bearer "+info.ApiKey)
+	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		return nil
+	}
 	if info.IsStream {
 		req.Set("X-DashScope-SSE", "enable")
 	}
@@ -158,18 +170,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	// docs: https://bailian.console.aliyun.com/?tab=api#/api/?type=model&url=2712216
-	// fix: InternalError.Algo.InvalidParameter: The value of the enable_thinking parameter is restricted to True.
-	//if strings.Contains(request.Model, "thinking") {
-	//	request.EnableThinking = true
-	//	request.Stream = true
-	//	info.IsStream = true
-	//}
-	//// fix: ali parameter.enable_thinking must be set to false for non-streaming calls
-	//if !info.IsStream {
-	//	request.EnableThinking = false
-	//}
-
+	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		return request, nil
+	}
 	switch info.RelayMode {
 	default:
 		aliReq := requestOpenAI2Ali(*request)
@@ -241,7 +244,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		if supportsAliAnthropicMessages(info.UpstreamModelName) {
+		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok || supportsAliAnthropicMessages(info.UpstreamModelName) {
 			adaptor := claude.Adaptor{}
 			return adaptor.DoResponse(c, resp, info)
 		}
