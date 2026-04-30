@@ -465,8 +465,8 @@ function GroupPricingSection(props: {
 
 type ModelDetailsProps = {
   embedded?: boolean
-  routeFrom?: '/pricing/$modelId/'
-  backPath?: '/pricing'
+  routeFrom?: '/pricing/$modelId/' | '/_authenticated/model-square/$modelId/'
+  backPath?: '/pricing' | '/model-square'
 }
 
 export function ModelDetails(props: ModelDetailsProps) {
@@ -532,9 +532,7 @@ export function ModelDetails(props: ModelDetailsProps) {
   if (!model) {
     return wrapContent(
       <div className='mx-auto max-w-2xl px-4 text-center sm:px-6'>
-        <h2 className='mb-1 text-base font-semibold'>
-          {t('Model not found')}
-        </h2>
+        <h2 className='mb-1 text-base font-semibold'>{t('Model not found')}</h2>
         <p className='text-muted-foreground mb-4 text-sm'>
           {t("The model you're looking for doesn't exist.")}
         </p>
@@ -547,53 +545,51 @@ export function ModelDetails(props: ModelDetailsProps) {
 
   return wrapContent(
     <div className='mx-auto max-w-2xl px-4 sm:px-6'>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={handleBack}
-          className='text-muted-foreground hover:text-foreground mb-4 h-auto gap-1 px-0 py-1 text-xs'
-        >
-          <ArrowLeft className='size-3.5' />
-          {t('Back')}
-        </Button>
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={handleBack}
+        className='text-muted-foreground hover:text-foreground mb-4 h-auto gap-1 px-0 py-1 text-xs'
+      >
+        <ArrowLeft className='size-3.5' />
+        {t('Back')}
+      </Button>
 
-        <ModelHeader model={model} />
+      <ModelHeader model={model} />
 
-        <PriceSection
-          model={model}
-          priceRate={priceRate ?? 1}
-          usdExchangeRate={usdExchangeRate ?? 1}
-          tokenUnit={tokenUnit}
-          showRechargePrice={search.rechargePrice ?? false}
-          groupRatio={groupRatio || {}}
-        />
+      <PriceSection
+        model={model}
+        priceRate={priceRate ?? 1}
+        usdExchangeRate={usdExchangeRate ?? 1}
+        tokenUnit={tokenUnit}
+        showRechargePrice={search.rechargePrice ?? false}
+        groupRatio={groupRatio || {}}
+      />
 
-        <EndpointsSection
-          model={model}
-          endpointMap={
-            (endpointMap as Record<
-              string,
-              { path?: string; method?: string }
-            >) || {}
-          }
-        />
+      <EndpointsSection
+        model={model}
+        endpointMap={
+          (endpointMap as Record<string, { path?: string; method?: string }>) ||
+          {}
+        }
+      />
 
-        {model.billing_mode === 'tiered_expr' && model.billing_expr && (
-          <div className='border-b'>
-            <DynamicPricingBreakdown billingExpr={model.billing_expr} />
-          </div>
-        )}
+      {model.billing_mode === 'tiered_expr' && model.billing_expr && (
+        <div className='border-b'>
+          <DynamicPricingBreakdown billingExpr={model.billing_expr} />
+        </div>
+      )}
 
-        <GroupPricingSection
-          model={model}
-          groupRatio={groupRatio || {}}
-          usableGroup={usableGroup || {}}
-          autoGroups={autoGroups || []}
-          priceRate={priceRate ?? 1}
-          usdExchangeRate={usdExchangeRate ?? 1}
-          tokenUnit={tokenUnit}
-          showRechargePrice={search.rechargePrice ?? false}
-        />
+      <GroupPricingSection
+        model={model}
+        groupRatio={groupRatio || {}}
+        usableGroup={usableGroup || {}}
+        autoGroups={autoGroups || []}
+        priceRate={priceRate ?? 1}
+        usdExchangeRate={usdExchangeRate ?? 1}
+        tokenUnit={tokenUnit}
+        showRechargePrice={search.rechargePrice ?? false}
+      />
     </div>
   )
 }

@@ -18,8 +18,8 @@ import { usePricingData } from './hooks/use-pricing-data'
 
 type PricingProps = {
   embedded?: boolean
-  routeTo?: '/pricing'
-  detailPath?: '/pricing/$modelId'
+  routeTo?: '/pricing' | '/model-square'
+  detailPath?: '/pricing/$modelId' | '/model-square/$modelId'
 }
 
 export function Pricing(props: PricingProps) {
@@ -121,68 +121,68 @@ export function Pricing(props: PricingProps) {
       </header>
 
       <div className='space-y-4'>
-          <SearchBar
-            value={searchInput}
-            onChange={setSearchInput}
-            onClear={clearSearch}
-          />
+        <SearchBar
+          value={searchInput}
+          onChange={setSearchInput}
+          onClear={clearSearch}
+        />
 
-          <FilterBar
-            quotaTypeFilter={quotaTypeFilter}
-            endpointTypeFilter={endpointTypeFilter}
-            vendorFilter={vendorFilter}
-            groupFilter={groupFilter}
-            tagFilter={tagFilter}
-            onQuotaTypeChange={setQuotaTypeFilter}
-            onEndpointTypeChange={setEndpointTypeFilter}
-            onVendorChange={setVendorFilter}
-            onGroupChange={setGroupFilter}
-            onTagChange={setTagFilter}
-            vendors={vendors || []}
-            groups={availableGroups}
-            tags={availableTags}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-            tokenUnit={tokenUnit}
-            onTokenUnitChange={setTokenUnit}
-            showRechargePrice={showRechargePrice}
-            onRechargePriceChange={setShowRechargePrice}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            hasActiveFilters={hasActiveFilters}
-            activeFilterCount={activeFilterCount}
-            onClearFilters={clearFilters}
-            filteredCount={filteredModels.length}
-            totalCount={models?.length}
-          />
+        <FilterBar
+          quotaTypeFilter={quotaTypeFilter}
+          endpointTypeFilter={endpointTypeFilter}
+          vendorFilter={vendorFilter}
+          groupFilter={groupFilter}
+          tagFilter={tagFilter}
+          onQuotaTypeChange={setQuotaTypeFilter}
+          onEndpointTypeChange={setEndpointTypeFilter}
+          onVendorChange={setVendorFilter}
+          onGroupChange={setGroupFilter}
+          onTagChange={setTagFilter}
+          vendors={vendors || []}
+          groups={availableGroups}
+          tags={availableTags}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          tokenUnit={tokenUnit}
+          onTokenUnitChange={setTokenUnit}
+          showRechargePrice={showRechargePrice}
+          onRechargePriceChange={setShowRechargePrice}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          hasActiveFilters={hasActiveFilters}
+          activeFilterCount={activeFilterCount}
+          onClearFilters={clearFilters}
+          filteredCount={filteredModels.length}
+          totalCount={models?.length}
+        />
 
-          {filteredModels.length > 0 ? (
-            isMobile || viewMode === VIEW_MODES.LIST ? (
-              <VirtualModelList
-                models={filteredModels}
-                onModelClick={handleModelClick}
-                priceRate={priceRate}
-                usdExchangeRate={usdExchangeRate}
-                tokenUnit={tokenUnit}
-                showRechargePrice={showRechargePrice}
-              />
-            ) : (
-              <PricingTable
-                models={filteredModels}
-                priceRate={priceRate}
-                usdExchangeRate={usdExchangeRate}
-                tokenUnit={tokenUnit}
-                showRechargePrice={showRechargePrice}
-                onModelClick={handleModelClick}
-              />
-            )
-          ) : (
-            <EmptyState
-              searchQuery={searchInput}
-              hasActiveFilters={hasActiveFilters}
-              onClearFilters={handleClearAll}
+        {filteredModels.length > 0 ? (
+          isMobile || viewMode === VIEW_MODES.LIST ? (
+            <VirtualModelList
+              models={filteredModels}
+              onModelClick={handleModelClick}
+              priceRate={priceRate}
+              usdExchangeRate={usdExchangeRate}
+              tokenUnit={tokenUnit}
+              showRechargePrice={showRechargePrice}
             />
-          )}
+          ) : (
+            <PricingTable
+              models={filteredModels}
+              priceRate={priceRate}
+              usdExchangeRate={usdExchangeRate}
+              tokenUnit={tokenUnit}
+              showRechargePrice={showRechargePrice}
+              onModelClick={handleModelClick}
+            />
+          )
+        ) : (
+          <EmptyState
+            searchQuery={searchInput}
+            hasActiveFilters={hasActiveFilters}
+            onClearFilters={handleClearAll}
+          />
+        )}
       </div>
     </PageTransition>
   )

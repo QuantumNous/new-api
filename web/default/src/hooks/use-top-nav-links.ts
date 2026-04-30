@@ -73,7 +73,11 @@ export function useTopNavLinks(): TopNavLink[] {
   const pricing = modules?.pricing
   if (pricing && typeof pricing === 'object' && pricing.enabled) {
     const disabled = pricing.requireAuth && !isAuthed
-    links.push({ title: t('Pricing'), href: '/pricing?view=table', disabled })
+    links.push({
+      title: t('Pricing'),
+      href: '/model-square?view=table',
+      disabled,
+    })
   }
 
   customTopNavLinks.forEach((link) => {
