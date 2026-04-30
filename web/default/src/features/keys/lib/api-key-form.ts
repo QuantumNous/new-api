@@ -37,6 +37,16 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   tokenCount: 1,
 }
 
+export function getApiKeyFormDefaultValues(
+  defaultUseAutoGroup: boolean
+): ApiKeyFormValues {
+  return {
+    ...API_KEY_FORM_DEFAULT_VALUES,
+    group: defaultUseAutoGroup ? 'auto' : DEFAULT_GROUP,
+    cross_group_retry: defaultUseAutoGroup,
+  }
+}
+
 // ============================================================================
 // Form Data Transformation
 // ============================================================================

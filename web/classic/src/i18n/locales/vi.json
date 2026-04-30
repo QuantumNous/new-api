@@ -914,6 +914,9 @@
     "取消": "Hủy",
     "取消全选": "Bỏ chọn tất cả",
     "取消选择": "Deselect",
+    "切换到新版前端": "Chuyển sang frontend mới",
+    "切换后页面会自动刷新，并进入新版前端。是否继续？": "Trang sẽ được làm mới và mở frontend mới. Tiếp tục?",
+    "切换失败，请稍后重试": "Chuyển đổi thất bại, vui lòng thử lại sau",
     "变换": "Biến đổi",
     "变更": "Thay đổi",
     "变焦": "thu phóng",
@@ -1338,6 +1341,7 @@
     "已发起支付": "Đã khởi tạo thanh toán",
     "已发送到 Fluent": "Đã gửi đến Fluent",
     "已取消 Passkey 注册": "Đã hủy đăng ký Passkey",
+    "已切换到新版前端，正在刷新页面": "Đã chuyển sang frontend mới, đang làm mới trang",
     "已同步到渠道": "Synced to Channel",
     "已启用": "Đã bật",
     "已启用 Passkey，无需密码即可登录": "Đã bật Passkey, đăng nhập không cần mật khẩu",
@@ -2710,6 +2714,7 @@
     "确认删除该规则？": "Confirm delete this rule?",
     "确认取消密码登录": "Xác nhận hủy đăng nhập mật khẩu",
     "确认启用": "Xác nhận bật",
+    "确认切换": "Xác nhận chuyển đổi",
     "确认密码": "Xác nhận mật khẩu",
     "确认导入配置": "Xác nhận nhập cấu hình",
     "确认延长": "Confirm Extension",
@@ -4176,6 +4181,8 @@
     "默认折叠侧边栏": "Mặc định thu gọn thanh bên",
     "默认测试模型": "Mô hình kiểm tra mặc định",
     "默认用户消息": "Xin chào",
-    "默认补全倍率": "Tỷ lệ hoàn thành mặc định"
+    "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
+    "阶梯计费（表达式解析失败）": "Thanh toán theo bậc (không phân tích được biểu thức)",
+    "阶梯计费（未匹配到对应阶梯）": "Thanh toán theo bậc (không tìm thấy bậc phù hợp)"
   }
 }

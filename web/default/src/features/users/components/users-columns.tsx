@@ -10,16 +10,22 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
 import { StatusBadge, dotColorMap } from '@/components/status-badge'
 import {
   USER_STATUSES,
   USER_ROLES,
-  DEFAULT_GROUP,
   isUserDeleted,
 } from '../constants'
 import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
+
+function getQuotaProgressColor(percentage: number): string {
+  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
+  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
+  return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
+}
 
 export function useUsersColumns(): ColumnDef<User>[] {
   const { t } = useTranslation()
@@ -66,44 +72,38 @@ export function useUsersColumns(): ColumnDef<User>[] {
       ),
       cell: ({ row }) => {
         const username = row.getValue('username') as string
+        const displayName = row.original.display_name
         const remark = row.original.remark
 
         return (
-          <div className='flex items-center gap-2'>
-            <LongText className='max-w-[120px] font-medium'>
-              {username}
-            </LongText>
-            {remark && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <StatusBadge variant='success' copyable={false}>
-                    <LongText className='max-w-[80px]'>{remark}</LongText>
-                  </StatusBadge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className='text-xs'>{remark}</p>
-                </TooltipContent>
-              </Tooltip>
+          <div className='flex min-w-[160px] flex-col gap-1'>
+            <div className='flex items-center gap-2'>
+              <LongText className='max-w-[140px] font-medium'>
+                {username}
+              </LongText>
+              {remark && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <StatusBadge variant='success' copyable={false}>
+                      <LongText className='max-w-[80px]'>{remark}</LongText>
+                    </StatusBadge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className='text-xs'>{remark}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+            {displayName && displayName !== username && (
+              <LongText className='text-muted-foreground max-w-[180px] text-xs'>
+                {displayName}
+              </LongText>
             )}
           </div>
         )
       },
       enableHiding: false,
       meta: { label: t('Username'), mobileTitle: true },
-    },
-    {
-      accessorKey: 'display_name',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Display Name')} />
-      ),
-      cell: ({ row }) => {
-        return (
-          <LongText className='max-w-[150px]'>
-            {row.getValue('display_name') || '-'}
-          </LongText>
-        )
-      },
-      meta: { label: t('Display Name'), mobileHidden: true },
     },
     {
       accessorKey: 'status',
@@ -176,12 +176,17 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <TooltipTrigger asChild>
               <div className='w-[150px] cursor-help space-y-1'>
                 <div className='flex justify-between text-xs'>
-                  <span>{formatQuota(remaining)}</span>
-                  <span className='text-muted-foreground'>
+                  <span className='font-medium tabular-nums'>
+                    {formatQuota(remaining)}
+                  </span>
+                  <span className='text-muted-foreground tabular-nums'>
                     {formatQuota(total)}
                   </span>
                 </div>
-                <Progress value={percentage} className='h-2' />
+                <Progress
+                  value={percentage}
+                  className={cn('h-1.5', getQuotaProgressColor(percentage))}
+                />
               </div>
             </TooltipTrigger>
             <TooltipContent>
@@ -212,16 +217,10 @@ export function useUsersColumns(): ColumnDef<User>[] {
       ),
       cell: ({ row }) => {
         const group = row.getValue('group') as string
-        return (
-          <StatusBadge
-            label={group || DEFAULT_GROUP}
-            variant='neutral'
-            copyable={false}
-          />
-        )
+        return <GroupBadge group={group} />
       },
       filterFn: (row, id, value) => {
-        const group = String(row.getValue(id) || DEFAULT_GROUP).toLowerCase()
+        const group = String(row.getValue(id) || t('User Group')).toLowerCase()
         const searchValue = String(value).toLowerCase()
         return group.includes(searchValue)
       },

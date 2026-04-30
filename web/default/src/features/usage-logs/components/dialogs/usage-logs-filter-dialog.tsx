@@ -246,7 +246,7 @@ export function UsageLogsFilterDialog({
           <FilterInput
             id='mjId'
             label={t('Task ID')}
-            placeholder={t('Filter by Midjourney task ID')}
+            placeholder={t('Filter by task ID')}
             value={drawingFilters.mjId || ''}
             onChange={(value) => handleChange('mjId', value)}
           />
@@ -271,7 +271,7 @@ export function UsageLogsFilterDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent className='flex max-h-[calc(100dvh-2rem)] flex-col max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>
             {t('Filter')} {t(getLogCategoryLabel(logCategory))} {t('Logs')}
@@ -281,15 +281,15 @@ export function UsageLogsFilterDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className='max-h-[60vh] pr-4'>
-          <div className='grid gap-4 py-4'>
+        <ScrollArea className='min-h-0 flex-1 pr-3 sm:max-h-[60vh] sm:pr-4'>
+          <div className='grid gap-3 py-3 sm:gap-4 sm:py-4'>
             {/* Quick time range selection */}
             <div className='grid gap-2'>
               <Label className='flex items-center gap-2'>
                 <Calendar className='h-4 w-4' />
                 {t('Quick Range')}
               </Label>
-              <div className='flex gap-2'>
+              <div className='grid grid-cols-2 gap-2 sm:flex'>
                 {TIME_RANGE_PRESETS.map((range) => (
                   <Button
                     key={range.days}
@@ -314,7 +314,7 @@ export function UsageLogsFilterDialog({
             <SectionDivider label={t('Custom Time Range')} />
 
             {/* Custom time range */}
-            <div className='grid gap-4'>
+            <div className='grid gap-3 sm:gap-4'>
               <div className='grid gap-2'>
                 <Label htmlFor='start_time'>{t('Start Time')}</Label>
                 <DateTimePicker
@@ -355,7 +355,7 @@ export function UsageLogsFilterDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter>
+        <DialogFooter className='grid grid-cols-2 gap-2 sm:flex'>
           <Button onClick={handleReset} variant='outline' type='button'>
             <RotateCcw className='mr-2 h-4 w-4' />
             {t('Reset')}

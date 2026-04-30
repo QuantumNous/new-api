@@ -53,14 +53,9 @@ export function SummaryCards() {
 
   return (
     <div className='overflow-hidden rounded-lg border'>
-      <StaggerContainer className='grid sm:grid-cols-2 lg:grid-cols-3'>
-        {items.map((it, idx) => (
-          <StaggerItem
-            key={it.title}
-            className={`px-4 sm:px-5 ${
-              idx > 0 ? 'border-t sm:border-t-0 sm:border-l' : ''
-            }`}
-          >
+      <StaggerContainer className='divide-border/60 grid grid-cols-3 divide-x'>
+        {items.map((it) => (
+          <StaggerItem key={it.title} className='px-3 py-3 sm:px-5 sm:py-4'>
             <StatCard
               title={it.title}
               value={it.value}
@@ -72,7 +67,7 @@ export function SummaryCards() {
                   <Button
                     variant='outline'
                     size='sm'
-                    className='h-6 gap-1 px-2 text-xs'
+                    className='hidden h-6 gap-1 px-2 text-xs sm:inline-flex'
                     asChild
                   >
                     <Link to='/wallet'>

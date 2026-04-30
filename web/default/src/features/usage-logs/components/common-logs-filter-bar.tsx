@@ -22,6 +22,13 @@ import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
+const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
+
+type LogTypeValue = (typeof logTypeValues)[number]
+
+function isLogTypeValue(value: string): value is LogTypeValue {
+  return (logTypeValues as readonly string[]).includes(value)
+}
 
 interface CommonLogsFilterBarProps {
   stats?: ReactNode
@@ -45,7 +52,7 @@ export function CommonLogsFilterBar({
     const { start, end } = getDefaultTimeRange()
     return { startTime: start, endTime: end }
   })
-  const [logType, setLogType] = useState<string>('')
+  const [logType, setLogType] = useState<LogTypeValue | ''>('')
 
   useEffect(() => {
     const next: Partial<CommonLogFilters> = {}
@@ -134,9 +141,9 @@ export function CommonLogsFilterBar({
     !!filters.requestId
 
   return (
-    <div className='space-y-3'>
+    <div className='space-y-2 sm:space-y-3'>
       {/* Primary filter row */}
-      <div className='grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-[minmax(280px,2fr)_minmax(140px,1fr)_minmax(120px,1fr)_minmax(120px,0.8fr)_auto]'>
+      <div className='grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2 lg:grid-cols-[minmax(280px,2fr)_minmax(140px,1fr)_minmax(120px,1fr)_minmax(120px,0.8fr)_auto]'>
         <CompactDateTimeRangePicker
           start={filters.startTime}
           end={filters.endTime}
@@ -163,7 +170,9 @@ export function CommonLogsFilterBar({
         />
         <Select
           value={logType}
-          onValueChange={(v) => setLogType(v === 'all' ? '' : v)}
+          onValueChange={(value) => {
+            setLogType(isLogTypeValue(value) ? value : '')
+          }}
         >
           <SelectTrigger className='h-9'>
             <SelectValue placeholder={t('All Types')} />
@@ -205,7 +214,7 @@ export function CommonLogsFilterBar({
         )}
       >
         <div className='min-h-0 overflow-hidden'>
-          <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+          <div className='grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2'>
             <Input
               placeholder={t('Token Name')}
               type={sensitiveVisible ? 'text' : 'password'}
@@ -248,9 +257,12 @@ export function CommonLogsFilterBar({
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex min-w-0 flex-wrap items-center gap-2 sm:gap-3'>
           {stats && <div className='min-w-0'>{stats}</div>}
+        </div>
+
+        <div className='flex shrink-0 items-center gap-2 self-end sm:self-auto'>
           <button
             type='button'
-            className='text-muted-foreground hover:text-foreground inline-flex h-6 items-center gap-1 rounded px-1 text-xs transition-colors'
+            className='text-muted-foreground hover:text-foreground inline-flex size-8 items-center justify-center rounded-md border transition-colors'
             title={sensitiveVisible ? t('Hide') : t('Show')}
             aria-label={sensitiveVisible ? t('Hide') : t('Show')}
             onClick={() => setSensitiveVisible(!sensitiveVisible)}
@@ -261,9 +273,6 @@ export function CommonLogsFilterBar({
               <EyeOff className='size-3.5' />
             )}
           </button>
-        </div>
-
-        <div className='flex shrink-0 items-center gap-2 self-end sm:self-auto'>
           <Button
             variant='outline'
             size='sm'

@@ -51,7 +51,7 @@ export function Hero(props: HeroProps) {
         >
           {systemName}{' '}
           {t(
-            'aggregates 50+ AI providers behind one unified API. Manage access, track costs, and scale effortlessly.'
+            'is an open-source AI API gateway for self-hosted deployments. Connect multiple upstream services, manage models, keys, quotas, logs, and routing policies in one place.'
           )}
         </p>
         <div

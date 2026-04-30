@@ -133,8 +133,8 @@ export function RedemptionsMutateDrawer({
         }
       }}
     >
-      <SheetContent className='flex w-full flex-col sm:max-w-[600px]'>
-        <SheetHeader className='text-start'>
+      <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'>
+        <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
           <SheetTitle>
             {isUpdate
               ? t('Update Redemption Code')
@@ -153,7 +153,7 @@ export function RedemptionsMutateDrawer({
           <form
             id='redemption-form'
             onSubmit={form.handleSubmit(onSubmit)}
-            className='flex-1 space-y-6 overflow-y-auto px-4'
+            className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
           >
             <FormField
               control={form.control}
@@ -215,7 +215,7 @@ export function RedemptionsMutateDrawer({
                         placeholder={t('Never expires')}
                       />
                     </FormControl>
-                    <div className='flex gap-2'>
+                    <div className='grid grid-cols-4 gap-1.5 sm:flex sm:gap-2'>
                       <Button
                         type='button'
                         variant='outline'
@@ -287,7 +287,7 @@ export function RedemptionsMutateDrawer({
             )}
           </form>
         </Form>
-        <SheetFooter className='gap-2'>
+        <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
           <SheetClose asChild>
             <Button variant='outline'>{t('Close')}</Button>
           </SheetClose>

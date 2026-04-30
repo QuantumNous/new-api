@@ -6,6 +6,7 @@ import {
   CardStaggerItem,
 } from '@/components/page-transition'
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
+import { LanguagePreferencesCard } from './components/language-preferences-card'
 import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
 import { ProfileSecurityCard } from './components/profile-security-card'
@@ -30,21 +31,28 @@ export function Profile() {
     <>
       <AppHeader />
       <Main>
-        <div className='min-h-0 flex-1 overflow-auto px-4 py-6'>
-          <CardStaggerContainer className='space-y-8'>
+        <div className='min-h-0 flex-1 overflow-auto px-3 py-3 sm:px-4 sm:py-6'>
+          <CardStaggerContainer className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-6'>
             <CardStaggerItem>
               <ProfileHeader profile={profile} loading={loading} />
             </CardStaggerItem>
 
             <CardStaggerItem>
-              <div className='grid gap-6 lg:grid-cols-2 lg:items-start'>
-                <div className='space-y-6'>
+              <div className='grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.46fr)] xl:items-start'>
+                <div className='space-y-4 sm:space-y-6'>
+                  <ProfileSettingsCard
+                    profile={profile}
+                    loading={loading}
+                    onProfileUpdate={refreshProfile}
+                  />
+                  <LanguagePreferencesCard
+                    profile={profile}
+                    onProfileUpdate={refreshProfile}
+                  />
                   <ProfileSecurityCard profile={profile} loading={loading} />
-                  <PasskeyCard loading={loading} />
-                  <TwoFACard loading={loading} />
                 </div>
 
-                <div className='space-y-6'>
+                <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
                   {checkinEnabled && (
                     <CheckinCalendarCard
                       checkinEnabled={checkinEnabled}
@@ -52,12 +60,9 @@ export function Profile() {
                       turnstileSiteKey={turnstileSiteKey}
                     />
                   )}
-                  <ProfileSettingsCard
-                    profile={profile}
-                    loading={loading}
-                    onProfileUpdate={refreshProfile}
-                  />
                   {canConfigureSidebar && <SidebarModulesCard />}
+                  <PasskeyCard loading={loading} />
+                  <TwoFACard loading={loading} />
                 </div>
               </div>
             </CardStaggerItem>

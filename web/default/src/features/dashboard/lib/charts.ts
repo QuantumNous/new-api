@@ -9,6 +9,16 @@ import type {
 } from '@/features/dashboard/types'
 
 type TFunction = (key: string) => string
+type TooltipLineItem = {
+  key: string
+  value: string | number
+  datum?: Record<string, unknown>
+  hasShape?: boolean
+  shapeType?: string
+  shapeFill?: string
+  shapeStroke?: string
+  shapeSize?: number
+}
 
 function getVChartDefaultColors(domainLength: number) {
   const scheme =
@@ -17,15 +27,6 @@ function getVChartDefaultColors(domainLength: number) {
     ) ?? vchartDefaultDataScheme[vchartDefaultDataScheme.length - 1]
 
   return scheme.scheme
-}
-
-function buildModelColorSpec(models: string[]) {
-  const domain = Array.from(new Set(models))
-  return {
-    type: 'ordinal',
-    domain,
-    range: getVChartDefaultColors(domain.length),
-  }
 }
 
 function renderQuotaCompat(rawQuota: number, digits = 4): string {
@@ -59,19 +60,24 @@ export function processChartData(
   const formatQuotaTotal = (value: number) => renderQuotaCompat(value, 2)
 
   const MAX_TOOLTIP_MODELS = 15
+  const isOtherTooltipKey = (key: string) =>
+    key === 'Other' || key === otherLabel
 
-  const makeTooltipDimensionUpdateContent = () => {
-    return (
-      array: Array<{
-        key: string
-        value: string | number
-        datum?: Record<string, unknown>
-      }>
-    ) => {
-      array.sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
+  const makeTooltipDimensionUpdateContent = (options?: {
+    collapseOverflow?: boolean
+  }) => {
+    const collapseOverflow = options?.collapseOverflow ?? true
+
+    return (array: TooltipLineItem[]) => {
+      const modelItems = array.filter((item) => !isOtherTooltipKey(item.key))
+      const otherItems = array.filter((item) => isOtherTooltipKey(item.key))
+      modelItems.sort(
+        (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
+      )
+      array = [...modelItems, ...otherItems]
+
       let sum = 0
       for (let i = 0; i < array.length; i++) {
-        if (array[i].key === 'Other' || array[i].key === otherLabel) continue
         const v = Number(array[i].value) || 0
         if (
           array[i].datum &&
@@ -83,20 +89,27 @@ export function processChartData(
         array[i].value = formatQuotaValue(v)
       }
 
-      if (array.length > MAX_TOOLTIP_MODELS) {
-        const visible = array.slice(0, MAX_TOOLTIP_MODELS)
-        let otherSum = 0
-        for (let i = MAX_TOOLTIP_MODELS; i < array.length; i++) {
-          const raw = array[i].datum
-            ? Number((array[i].datum as Record<string, unknown>)?.rawQuota) || 0
-            : 0
-          otherSum += raw
-        }
-        visible.push({
-          key: otherLabel,
-          value: formatQuotaValue(otherSum),
-        })
-        array = visible
+      if (collapseOverflow && array.length > MAX_TOOLTIP_MODELS) {
+        const visible = modelItems.slice(0, MAX_TOOLTIP_MODELS)
+        const otherSum = [...modelItems.slice(MAX_TOOLTIP_MODELS), ...otherItems]
+          .reduce((sum, item) => {
+            const raw = item.datum
+              ? Number((item.datum as Record<string, unknown>)?.rawQuota) || 0
+              : 0
+            return sum + raw
+          }, 0)
+        array = [
+          ...visible,
+          {
+            key: otherLabel,
+            value: formatQuotaValue(otherSum),
+            hasShape: true,
+            shapeType: 'square',
+            shapeFill: otherTooltipColor,
+            shapeStroke: otherTooltipColor,
+            shapeSize: 8,
+          },
+        ]
       }
 
       array.unshift({
@@ -226,7 +239,16 @@ export function processChartData(
   const allModels = Array.from(modelTotalsMap.keys())
   const sortedTimes = Array.from(timeModelMap.keys()).sort()
   const sortedModels = [...allModels].sort()
-  const modelColor = buildModelColorSpec([...sortedModels, otherLabel])
+  const modelColorDomain = Array.from(new Set([...sortedModels, otherLabel]))
+  const modelColorRange = getVChartDefaultColors(modelColorDomain.length)
+  const otherColor = modelColorRange[modelColorDomain.indexOf(otherLabel)]
+  const otherTooltipColor =
+    typeof otherColor === 'string' ? otherColor : '#FF8A00'
+  const modelColor = {
+    type: 'ordinal',
+    domain: modelColorDomain,
+    range: modelColorRange,
+  }
 
   // Pad time points if too few (default 7 points)
   const MAX_TREND_POINTS = MAX_CHART_TREND_POINTS
@@ -508,7 +530,9 @@ export function processChartData(
                 Number(datum?.rawQuota) || 0,
             },
           ],
-          updateContent: makeTooltipDimensionUpdateContent(),
+          updateContent: makeTooltipDimensionUpdateContent({
+            collapseOverflow: false,
+          }),
         },
       },
       area: {
@@ -564,9 +588,17 @@ export function processChartData(
               value: string | number
             }>
           ) => {
-            array.sort(
+            const modelItems = array.filter(
+              (item) => !isOtherTooltipKey(item.key)
+            )
+            const otherItems = array.filter((item) =>
+              isOtherTooltipKey(item.key)
+            )
+            modelItems.sort(
               (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
             )
+            array = [...modelItems, ...otherItems]
+
             let sum = 0
             for (let i = 0; i < array.length; i++) {
               const v = Number(array[i].value) || 0
@@ -878,8 +910,18 @@ export function processUserChartData(
           },
         },
       },
-      area: { style: { fillOpacity: 0.15 } },
-      line: { style: { lineWidth: 2 } },
+      area: {
+        style: {
+          fillOpacity: 0.15,
+          curveType: 'monotone',
+        },
+      },
+      line: {
+        style: {
+          lineWidth: 2,
+          curveType: 'monotone',
+        },
+      },
       point: { visible: false },
       color: { specified: userColorMap },
       background: { fill: 'transparent' },

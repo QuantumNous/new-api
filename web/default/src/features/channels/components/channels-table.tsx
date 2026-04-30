@@ -13,6 +13,7 @@ import {
 } from '@tanstack/react-table'
 import { useDebounce, useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
+import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Input } from '@/components/ui/input'
@@ -25,6 +26,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  DISABLED_ROW_DESKTOP,
+  DISABLED_ROW_MOBILE,
   DataTableToolbar,
   TableSkeleton,
   TableEmpty,
@@ -37,12 +40,13 @@ import {
   DEFAULT_PAGE_SIZE,
   CHANNEL_STATUS,
   CHANNEL_STATUS_OPTIONS,
-  CHANNEL_TYPE_OPTIONS,
 } from '../constants'
 import {
   channelsQueryKeys,
   aggregateChannelsByTag,
   isTagAggregateRow,
+  getChannelTypeIcon,
+  getChannelTypeLabel,
 } from '../lib'
 import type { Channel } from '../types'
 import { useChannelsColumns } from './channels-columns'
@@ -52,7 +56,9 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 const route = getRouteApi('/_authenticated/channels/')
 
 function isDisabledChannelRow(channel: Channel) {
-  return !isTagAggregateRow(channel) && channel.status !== CHANNEL_STATUS.ENABLED
+  return (
+    !isTagAggregateRow(channel) && channel.status !== CHANNEL_STATUS.ENABLED
+  )
 }
 
 export function ChannelsTable() {
@@ -81,7 +87,10 @@ export function ChannelsTable() {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
-    pagination: { defaultPage: 1, defaultPageSize: DEFAULT_PAGE_SIZE },
+    pagination: {
+      defaultPage: 1,
+      defaultPageSize: isMobile ? 10 : DEFAULT_PAGE_SIZE,
+    },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
@@ -264,17 +273,57 @@ export function ChannelsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
-  // Prepare filter options (option.label are i18n keys; faceted-filter uses t(option.label))
-  const typeFilterOptions = [
-    {
-      label: `${t('All Types')}${typeCounts?.all ? ` (${typeCounts.all})` : ''}`,
-      value: 'all',
-    },
-    ...CHANNEL_TYPE_OPTIONS.map((option) => ({
-      label: `${t(option.label)}${typeCounts?.[option.value] ? ` (${typeCounts[option.value]})` : ''}`,
-      value: String(option.value),
-    })),
-  ]
+  // Prepare filter options from existing channel types only.
+  const typeFilterOptions = useMemo(() => {
+    const counts = typeCounts || {}
+    const typeIds = Object.entries(counts)
+      .map(([type, count]) => ({
+        type: Number(type),
+        count: Number(count) || 0,
+      }))
+      .filter((item) => item.type > 0 && item.count > 0)
+      .sort((a, b) => {
+        const labelA = t(getChannelTypeLabel(a.type))
+        const labelB = t(getChannelTypeLabel(b.type))
+        return labelA.localeCompare(labelB)
+      })
+
+    const selectedType = typeFilter.find((value) => value !== 'all')
+    if (selectedType) {
+      const selectedTypeId = Number(selectedType)
+      const alreadyIncluded = typeIds.some(
+        (item) => item.type === selectedTypeId
+      )
+      if (selectedTypeId > 0 && !alreadyIncluded) {
+        typeIds.push({
+          type: selectedTypeId,
+          count: Number(counts[selectedType]) || 0,
+        })
+      }
+    }
+
+    const totalTypes = Object.values(counts).reduce(
+      (sum, count) => sum + (Number(count) || 0),
+      0
+    )
+
+    return [
+      {
+        label: 'All Types',
+        value: 'all',
+        count: totalTypes,
+      },
+      ...typeIds.map((item) => {
+        const iconName = getChannelTypeIcon(item.type)
+        return {
+          label: getChannelTypeLabel(item.type),
+          value: String(item.type),
+          count: item.count,
+          iconNode: getLobeIcon(`${iconName}.Color`, 16),
+        }
+      }),
+    ]
+  }, [t, typeCounts, typeFilter])
 
   const groupFilterOptions = [
     { label: t('All Groups'), value: 'all' },
@@ -283,7 +332,7 @@ export function ChannelsTable() {
 
   return (
     <>
-      <div className='space-y-4'>
+      <div className='space-y-3 sm:space-y-4'>
         <DataTableToolbar
           table={table}
           searchPlaceholder={t('Filter by name, ID, or key...')}
@@ -324,9 +373,7 @@ export function ChannelsTable() {
             emptyTitle='No Channels Found'
             emptyDescription='No channels available. Create your first channel to get started.'
             getRowClassName={(row) =>
-              isDisabledChannelRow(row.original)
-                ? 'border-l-4 border-l-muted-foreground/35 bg-muted/85 dark:border-l-zinc-300/70 dark:bg-zinc-700/55'
-                : undefined
+              isDisabledChannelRow(row.original) ? DISABLED_ROW_MOBILE : undefined
             }
           />
         ) : (
@@ -375,7 +422,7 @@ export function ChannelsTable() {
                         data-state={row.getIsSelected() && 'selected'}
                         className={cn(
                           isDisabledChannelRow(row.original) &&
-                            'bg-muted/85 hover:bg-muted dark:bg-zinc-700/55 dark:hover:bg-zinc-700/70 [&>td:first-child]:border-l-4 [&>td:first-child]:border-l-muted-foreground/35 [&>td:first-child]:pl-1 dark:[&>td:first-child]:border-l-zinc-300/70'
+                            DISABLED_ROW_DESKTOP
                         )}
                       >
                         {row.getVisibleCells().map((cell) => (

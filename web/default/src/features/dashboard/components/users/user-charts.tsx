@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import { Users, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getNormalizedDateRange, type TimeGranularity } from '@/lib/time'
+import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -60,7 +60,7 @@ export function UserCharts() {
   const [topUserLimit, setTopUserLimit] = useState(10)
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
-    const { start, end } = getNormalizedDateRange(days)
+    const { start, end } = getRollingDateRange(days)
     return {
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
@@ -69,7 +69,7 @@ export function UserCharts() {
 
   const handleRangeChange = useCallback((days: number) => {
     setSelectedRange(days)
-    const { start, end } = getNormalizedDateRange(days)
+    const { start, end } = getRollingDateRange(days)
     setTimeRange({
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
@@ -123,10 +123,9 @@ export function UserCharts() {
   )
 
   return (
-    <div className='space-y-4'>
-      {/* Toolbar: time range presets + granularity */}
-      <div className='flex flex-wrap items-center gap-2'>
-        <div className='flex items-center gap-1.5 rounded-md border p-0.5'>
+    <div className='space-y-3'>
+      <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
+        <div className='flex shrink-0 items-center gap-1.5 rounded-md border p-0.5'>
           {TIME_RANGE_PRESETS.map((preset) => (
             <button
               key={preset.days}
@@ -143,7 +142,7 @@ export function UserCharts() {
           ))}
         </div>
 
-        <div className='flex items-center gap-1.5 rounded-md border p-0.5'>
+        <div className='flex shrink-0 items-center gap-1.5 rounded-md border p-0.5'>
           {TIME_GRANULARITY_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -162,7 +161,7 @@ export function UserCharts() {
           ))}
         </div>
 
-        <div className='flex items-center gap-1.5 rounded-md border p-0.5'>
+        <div className='flex shrink-0 items-center gap-1.5 rounded-md border p-0.5'>
           <span className='text-muted-foreground px-2 text-xs font-medium'>
             {t('Top Users')}
           </span>
@@ -187,7 +186,7 @@ export function UserCharts() {
         )}
       </div>
 
-      <div className='grid gap-4'>
+      <div className='grid gap-3'>
         {USER_CHARTS.map((chart) => {
           const spec = chartData[chart.specKey]
 
@@ -196,12 +195,12 @@ export function UserCharts() {
               key={chart.value}
               className='overflow-hidden rounded-lg border'
             >
-              <div className='flex w-full items-center gap-2 border-b px-4 py-3 sm:px-5'>
+              <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
                 <Users className='text-muted-foreground/60 size-4' />
                 <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
               </div>
 
-              <div className='h-96 p-2'>
+              <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
                 {isLoading ? (
                   <Skeleton className='h-full w-full' />
                 ) : (

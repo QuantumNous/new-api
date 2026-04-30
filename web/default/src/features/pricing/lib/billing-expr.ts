@@ -286,6 +286,15 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   }
 }
 
+export function normalizeTierLabel(label: string | undefined): string {
+  if (!label) return ''
+  return label
+    .replace(/<[=＝]?|≤|＜[=＝]?/g, '<')
+    .replace(/>[=＝]?|≥|＞[=＝]?/g, '>')
+    .replace(/\s+/g, '')
+    .toLowerCase()
+}
+
 // ---------------------------------------------------------------------------
 // Request rule parser
 // ---------------------------------------------------------------------------

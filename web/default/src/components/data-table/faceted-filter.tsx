@@ -28,6 +28,8 @@ type DataTableFacetedFilterProps<TData, TValue> = {
     label: string
     value: string
     icon?: React.ComponentType<{ className?: string }>
+    iconNode?: React.ReactNode
+    count?: number
   }[]
   /** Enable single select mode (only one option can be selected at a time) */
   singleSelect?: boolean
@@ -130,15 +132,25 @@ export function DataTableFacetedFilter<TData, TValue>({
                     >
                       <CheckIcon className={cn('text-background h-4 w-4')} />
                     </div>
-                    {option.icon && (
+                    {option.iconNode ? (
+                      <span className='text-muted-foreground flex size-4 items-center justify-center'>
+                        {option.iconNode}
+                      </span>
+                    ) : option.icon ? (
                       <option.icon className='text-muted-foreground size-4' />
-                    )}
-                    <span>{t(option.label)}</span>
-                    {facets?.get(option.value) && (
+                    ) : null}
+                    <span className='min-w-0 flex-1 truncate'>
+                      {t(option.label)}
+                    </span>
+                    {typeof option.count === 'number' ? (
+                      <span className='text-muted-foreground ms-auto flex h-4 min-w-4 items-center justify-center font-mono text-xs'>
+                        {option.count}
+                      </span>
+                    ) : facets?.get(option.value) ? (
                       <span className='ms-auto flex h-4 w-4 items-center justify-center font-mono text-xs'>
                         {facets.get(option.value)}
                       </span>
-                    )}
+                    ) : null}
                   </CommandItem>
                 )
               })}

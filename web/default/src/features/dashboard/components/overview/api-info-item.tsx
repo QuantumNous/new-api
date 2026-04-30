@@ -23,8 +23,8 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
   const status = props.status
 
   return (
-    <div className='group hover:bg-muted/40 flex items-center justify-between gap-3 px-4 py-3 transition-colors sm:px-5'>
-      <div className='flex min-w-0 flex-1 items-center gap-3'>
+    <div className='group hover:bg-muted/40 flex items-center justify-between gap-2 px-3 py-2.5 transition-colors sm:gap-3 sm:px-5 sm:py-3'>
+      <div className='flex min-w-0 flex-1 items-center gap-2 sm:gap-3'>
         <span
           className={cn(
             'inline-block size-2 shrink-0 rounded-full',
@@ -91,7 +91,7 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
             variant='ghost'
             size='sm'
             onClick={() => openExternalSpeedTest(item.url)}
-            className='size-7 p-0'
+            className='hidden size-7 p-0 sm:inline-flex'
             title={t('External Speed Test')}
           >
             <Gauge className='size-3.5' />
@@ -111,7 +111,7 @@ export function ApiInfoItemComponent(props: ApiInfoItemProps) {
             variant='ghost'
             size='sm'
             asChild
-            className='size-7 p-0'
+            className='hidden size-7 p-0 sm:inline-flex'
             title={t('Open in New Tab')}
           >
             <a href={item.url} target='_blank' rel='noreferrer'>

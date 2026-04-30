@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
+import { GroupBadge } from '@/components/group-badge'
 import {
   StatusBadge,
   dotColorMap,
@@ -876,8 +877,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         const group = row.getValue('group') as string
         const groupArray = parseGroupsList(group)
 
-        const groupBadges = groupArray.map((g, idx) => (
-          <StatusBadge key={idx} label={g} autoColor={g} size='sm' />
+        const groupBadges = groupArray.map((g) => (
+          <GroupBadge key={g} group={g} size='sm' />
         ))
 
         return (
@@ -1035,7 +1036,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
 
         return <DataTableRowActions row={row} />
       },
-      size: 100,
+      size: 132,
       enableSorting: false,
       enableHiding: false,
     },

@@ -76,9 +76,7 @@ export function useSummaryCardsConfig(totals: {
   return [
     {
       key: 'balance',
-      title: totals.currencyEnabled
-        ? `${t('Current Balance')} (${totals.currencyLabel})`
-        : t('Current Balance'),
+      title: t('Current Balance'),
       value: totals.remainDisplay,
       description: totals.currencyEnabled
         ? `${t('Remaining quota')} (${totals.currencyLabel})`
@@ -87,9 +85,7 @@ export function useSummaryCardsConfig(totals: {
     },
     {
       key: 'usage',
-      title: totals.currencyEnabled
-        ? `${t('Historical Usage')} (${totals.currencyLabel})`
-        : t('Historical Usage'),
+      title: t('Historical Usage'),
       value: totals.usedDisplay,
       description: totals.currencyEnabled
         ? `${t('Total consumed')} (${totals.currencyLabel})`

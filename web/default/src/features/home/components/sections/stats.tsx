@@ -69,14 +69,21 @@ interface StatsProps {
   className?: string
 }
 
+interface StatItem {
+  end: number
+  suffix: string
+  label: string
+  decimals?: number
+}
+
 export function Stats(_props: StatsProps) {
   const { t } = useTranslation()
 
-  const stats = [
-    { end: 100, suffix: 'M+', label: t('requests served') },
-    { end: 50, suffix: '+', label: t('AI models supported') },
-    { end: 99.9, suffix: '%', label: t('uptime'), decimals: 1 },
-    { end: 10, suffix: 'K+', label: t('active users') },
+  const stats: StatItem[] = [
+    { end: 50, suffix: '+', label: t('upstream services integrated') },
+    { end: 100, suffix: '+', label: t('model billing support') },
+    { end: 50, suffix: '+', label: t('compatible API routes') },
+    { end: 10, suffix: '+', label: t('scheduling controls') },
   ]
 
   return (

@@ -27,9 +27,9 @@ export function FAQPanel() {
       loading={loading}
       empty={!list.length}
       emptyMessage={t('No FAQ entries available')}
-      height='h-80'
+      height='h-64 sm:h-80'
     >
-      <ScrollArea className='h-80'>
+      <ScrollArea className='h-64 sm:h-80'>
         <Accordion type='single' collapsible className='w-full'>
           {list.map((item: FAQItem, idx: number) => {
             const key = item.id ?? `faq-${idx}`

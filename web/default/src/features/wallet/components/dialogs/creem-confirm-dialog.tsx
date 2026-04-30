@@ -34,7 +34,7 @@ export function CreemConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-[425px]'>
+      <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-[425px]'>
         <DialogHeader>
           <DialogTitle>{t('Confirm Creem Purchase')}</DialogTitle>
           <DialogDescription>
@@ -42,7 +42,7 @@ export function CreemConfirmDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className='space-y-4 py-4'>
+        <div className='space-y-3 py-3 sm:space-y-4 sm:py-4'>
           <div className='flex items-center justify-between'>
             <span className='text-muted-foreground'>{t('Product')}</span>
             <span className='font-medium'>{product.name}</span>
@@ -59,7 +59,7 @@ export function CreemConfirmDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className='grid grid-cols-2 gap-2 sm:flex'>
           <Button
             variant='outline'
             onClick={() => onOpenChange(false)}

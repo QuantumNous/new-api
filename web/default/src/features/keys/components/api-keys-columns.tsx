@@ -14,6 +14,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { getSystemOptions } from '@/features/system-settings/api'
 import { API_KEY_STATUSES } from '../constants'
@@ -220,7 +221,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className='inline-flex items-center gap-1.5 text-xs'>
-                  <span className='text-muted-foreground'>{t('Auto')}</span>
+                  <GroupBadge group='auto' />
                   {apiKey.cross_group_retry && (
                     <>
                       <span className='text-muted-foreground/30'>·</span>
@@ -241,19 +242,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
             </Tooltip>
           )
         }
-        return (
-          <span className='inline-flex items-center gap-1.5 text-xs'>
-            <span className='font-medium'>{group || t('Default')}</span>
-            {ratio != null && (
-              <>
-                <span className='text-muted-foreground/30'>·</span>
-                <span className='text-muted-foreground/60 font-mono tabular-nums'>
-                  {ratio}x
-                </span>
-              </>
-            )}
-          </span>
-        )
+        return <GroupBadge group={group} ratio={ratio} />
       },
       meta: { label: t('Group'), mobileHidden: true },
     },
@@ -341,6 +330,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       id: 'actions',
       cell: ({ row }) => <DataTableRowActions row={row} />,
       meta: { label: t('Actions') },
+      size: 88,
     },
   ]
 }
