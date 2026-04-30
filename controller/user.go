@@ -224,6 +224,9 @@ func Register(c *gin.Context) {
 			return
 		}
 	}
+	if common.EmailVerificationEnabled {
+		common.DeleteKey(user.Email, common.EmailVerificationPurpose)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -1028,6 +1031,7 @@ func EmailBind(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	common.DeleteKey(email, common.EmailVerificationPurpose)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
