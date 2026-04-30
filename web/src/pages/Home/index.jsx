@@ -599,7 +599,7 @@ response = client.chat.completions.create(
                 whileHover={{ y: -8, scale: 1.02 }}
                 className='home-provider-card group relative overflow-hidden p-6 transition-all duration-300'
               >
-                <div className='home-provider-icon mb-4 inline-flex rounded-xl p-3 text-white shadow-lg transition-transform duration-300 group-hover:scale-110'>
+                <div className='home-provider-icon mb-4 inline-flex rounded-xl p-3 shadow-lg transition-transform duration-300 group-hover:scale-110'>
                   <provider.icon className='h-6 w-6' />
                 </div>
                 <h3 className='home-provider-name mb-1 text-lg font-semibold'>
@@ -806,9 +806,7 @@ response = client.chat.completions.create(
                   )}
                   <Card
                     className={`home-plan-card h-full p-6 ${
-                      plan.popular
-                        ? 'is-popular pt-8'
-                        : ''
+                      plan.popular ? 'is-popular pt-8' : ''
                     }`}
                   >
                     <div className='mb-4'>
@@ -843,9 +841,7 @@ response = client.chat.completions.create(
                     </ul>
                     <button
                       className={`home-plan-button w-full py-3 text-base font-medium transition-all duration-200 ${
-                        plan.popular
-                          ? 'is-primary'
-                          : 'is-secondary'
+                        plan.popular ? 'is-primary' : 'is-secondary'
                       }`}
                     >
                       {plan.cta} →
@@ -942,9 +938,7 @@ response = client.chat.completions.create(
                   <h3 className='home-why-title mb-2 text-lg font-semibold'>
                     {feature.title}
                   </h3>
-                  <p className='home-why-copy text-sm'>
-                    {feature.description}
-                  </p>
+                  <p className='home-why-copy text-sm'>{feature.description}</p>
                 </Card>
               </motion.div>
             ))}
