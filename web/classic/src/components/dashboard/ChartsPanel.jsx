@@ -111,14 +111,12 @@ const ChartsPanel = ({
     localStorage.removeItem(STORAGE_KEYS.CHART_TABS_USER);
   }, []);
 
-  // 用户偏好设置的可选项（受管理员全局设置和权限限制）
+  // 用户偏好设置的可选项：仅受权限限制，不受管理员全局设置限制。
+  // 优先级：user preference > admin global > show all —— 用户应能覆盖管理员默认，
+  // 否则当 global 为 __none__ 时 Popover 将无任何可选项，形成死锁。
   const availableTabs = useMemo(() => {
-    const globalSetting = localStorage.getItem(STORAGE_KEYS.CHART_TABS_GLOBAL) || '';
-    const globalTabs = parseGlobalChartTabs(globalSetting);
-
     return ALL_CHART_TABS.filter((tab) => {
       if (tab.adminOnly && !isAdminUser) return false;
-      if (globalTabs && !globalTabs.includes(tab.key)) return false;
       return true;
     });
   }, [isAdminUser]);
