@@ -24,7 +24,7 @@ export function ProfileDropdown() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const user = useAuthStore((state) => state.auth.user)
   const { displayName, initials, roleLabel } = useUserDisplay(user)
-  const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
+  const canAccessSystemSettings = (user?.role ?? ROLE.GUEST) >= ROLE.ADMIN
 
   return (
     <>
@@ -97,8 +97,8 @@ export function ProfileDropdown() {
               </Link>
             </SheetClose>
 
-            {/* System Settings - only for super admin */}
-            {isSuperAdmin && (
+            {/* System Settings - only for admins */}
+            {canAccessSystemSettings && (
               <SheetClose asChild>
                 <Link
                   to='/system-settings/general'

@@ -134,7 +134,7 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
           </a>
         ) : (
           (() => {
-            const { pathname, search } = splitUrl(item.url)
+            const { pathname, search } = splitUrl(String(item.url))
 
             return (
               <Link
@@ -205,7 +205,7 @@ function SidebarMenuCollapsible({
                   isActive={checkIsActive(href, subItem)}
                 >
                   {(() => {
-                    const { pathname, search } = splitUrl(subItem.url)
+                    const { pathname, search } = splitUrl(String(subItem.url))
 
                     return (
                       <Link

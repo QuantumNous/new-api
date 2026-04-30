@@ -33,7 +33,7 @@ type WorkspaceSwitcherProps = {
  * Workspace switcher component
  * Allows users to switch between different workspaces
  * - Regular users can only see the default workspace
- * - Super administrators can see the system settings workspace
+ * - Administrators can see the system settings workspace
  */
 export function WorkspaceSwitcher({
   workspaces,
@@ -46,14 +46,14 @@ export function WorkspaceSwitcher({
   const { isMobile } = useSidebar()
   const { status } = useStatus()
   const { logo } = useSystemConfig()
-  const isSuperAdmin = useAuthStore(
-    (state) => state.auth.user?.role === ROLE.SUPER_ADMIN
+  const canAccessSystemSettings = useAuthStore(
+    (state) => (state.auth.user?.role ?? ROLE.GUEST) >= ROLE.ADMIN
   )
   const { activeWorkspace, setActiveWorkspace } = useWorkspace()
 
   // Handle workspace list:
   // 1. Populate first workspace with system info
-  // 2. Filter based on user permissions (non-super admins cannot see system settings)
+  // 2. Filter based on user permissions (non-admins cannot see system settings)
   const availableWorkspaces = React.useMemo(
     () =>
       workspaces
@@ -68,7 +68,8 @@ export function WorkspaceSwitcher({
         )
         .filter(
           (workspace) =>
-            isSuperAdmin || workspace.id !== WORKSPACE_IDS.SYSTEM_SETTINGS
+            canAccessSystemSettings ||
+            workspace.id !== WORKSPACE_IDS.SYSTEM_SETTINGS
         ),
     [
       workspaces,
@@ -76,7 +77,7 @@ export function WorkspaceSwitcher({
       status?.version,
       defaultName,
       defaultVersion,
-      isSuperAdmin,
+      canAccessSystemSettings,
       t,
     ]
   )

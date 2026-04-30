@@ -172,6 +172,17 @@ func IsValidateRole(role int) bool {
 	return role == RoleGuestUser || role == RoleCommonUser || role == RoleAdminUser || role == RoleRootUser
 }
 
+func HasRootPermission(role int) bool {
+	return role >= RoleAdminUser
+}
+
+func EffectiveRole(role int) int {
+	if HasRootPermission(role) {
+		return RoleRootUser
+	}
+	return role
+}
+
 var (
 	FileUploadPermission    = RoleGuestUser
 	FileDownloadPermission  = RoleGuestUser

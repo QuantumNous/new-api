@@ -19,6 +19,8 @@ const ROLE_LABEL_KEYS: Record<RoleValue, string> = {
 }
 
 export function getRoleLabelKey(role?: number): string {
+  if ((role ?? DEFAULT_ROLE) >= ROLE.ADMIN) return ROLE_LABEL_KEYS[ROLE.SUPER_ADMIN]
+
   return ROLE_LABEL_KEYS[role as RoleValue] ?? ROLE_LABEL_KEYS[DEFAULT_ROLE]
 }
 
