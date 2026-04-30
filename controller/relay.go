@@ -6,7 +6,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -114,6 +116,23 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest)
 		}
 		return
+	}
+
+	// 检测请求模型是否为 auto
+	originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	if originalModel == "auto" {
+		// 检测请求内容类型
+		hasImage, hasTools := detectRequestContent(request)
+		// 根据内容类型选择合适的模型
+		selectedModel := selectModelByContent(hasImage, hasTools)
+		// 修改请求中的模型名称
+		switch r := request.(type) {
+		case *dto.GeneralOpenAIRequest:
+			r.Model = selectedModel
+		}
+		// 设置选择的模型到上下文
+		common.SetContextKey(c, constant.ContextKeyOriginalModel, selectedModel)
+		logger.LogInfo(c, fmt.Sprintf("Auto model selected: %s (hasImage: %v, hasTools: %v)", selectedModel, hasImage, hasTools))
 	}
 
 	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
@@ -644,4 +663,168 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 		return false
 	}
 	return true
+}
+
+// detectRequestContent 检测请求内容是否包含图片或工具
+func detectRequestContent(request dto.Request) (hasImage bool, hasTools bool) {
+	switch r := request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		// 检测是否包含工具
+		if len(r.Tools) > 0 {
+			hasTools = true
+		}
+
+		// 检测是否包含图片
+		for _, message := range r.Messages {
+			arrayContent := message.ParseContent()
+			for _, m := range arrayContent {
+				if m.Type == dto.ContentTypeImageURL {
+					hasImage = true
+					break
+				}
+			}
+			if hasImage {
+				break
+			}
+		}
+	}
+
+	return hasImage, hasTools
+}
+
+// 模型能力结构
+type modelCapability struct {
+	supportsVision bool
+	supportsTools  bool
+	priority       int // 优先级，数值越高优先级越高
+}
+
+// 默认模型配置
+var defaultModels = struct {
+	visionModel string
+	toolModel   string
+	textModel   string
+}{
+	visionModel: "qwen-vl-max",
+	toolModel:   "gpt-4o",
+	textModel:   "minimax-2.5",
+}
+
+// 模型能力缓存
+var (
+	modelCapabilityCache sync.Map
+)
+
+// getModelCapability 获取模型能力
+func getModelCapability(modelName string) modelCapability {
+	// 先从缓存中获取
+	if cap, ok := modelCapabilityCache.Load(modelName); ok {
+		return cap.(modelCapability)
+	}
+
+	// 尝试从模型元数据中获取能力信息
+	modelInfo, err := model.GetModelByName(modelName)
+	if err == nil && modelInfo != nil {
+		cap := modelCapability{}
+
+		// 根据模型元数据判断能力
+		lowerModelName := strings.ToLower(modelName)
+		lowerDescription := strings.ToLower(modelInfo.Description)
+		lowerTags := strings.ToLower(modelInfo.Tags)
+
+		// 检查是否支持视觉
+		if strings.Contains(lowerModelName, "vl") || strings.Contains(lowerModelName, "vision") ||
+			strings.Contains(lowerDescription, "vision") || strings.Contains(lowerDescription, "image") ||
+			strings.Contains(lowerTags, "vision") || strings.Contains(lowerTags, "image") {
+			cap.supportsVision = true
+		}
+
+		// 检查是否支持工具
+		if strings.Contains(lowerModelName, "gpt-4") || strings.Contains(lowerModelName, "o") ||
+			strings.Contains(lowerModelName, "claude-3") || strings.Contains(lowerDescription, "tool") ||
+			strings.Contains(lowerTags, "tool") {
+			cap.supportsTools = true
+		}
+
+		// 设置优先级（基于模型能力，而非请求内容）
+		if cap.supportsVision {
+			cap.priority = 80
+		} else if cap.supportsTools {
+			cap.priority = 60
+		} else {
+			cap.priority = 90 // 纯文本模型优先级最高
+		}
+
+		// 缓存结果
+		modelCapabilityCache.Store(modelName, cap)
+		return cap
+	}
+
+	// 当模型元数据不可用时，返回默认能力（纯文本模型）
+	cap := modelCapability{
+		priority: 90, // 默认纯文本模型优先级最高
+	}
+
+	// 缓存结果
+	modelCapabilityCache.Store(modelName, cap)
+	return cap
+}
+
+// selectModelByContent 根据内容类型选择合适的模型
+func selectModelByContent(hasImage bool, hasTools bool) string {
+	// 获取所有启用的模型
+	enabledModels := model.GetEnabledModels()
+
+	// 增强错误处理：如果没有启用的模型，返回默认模型
+	if len(enabledModels) == 0 {
+		if hasImage {
+			return defaultModels.visionModel
+		} else if hasTools {
+			return defaultModels.toolModel
+		} else {
+			return defaultModels.textModel
+		}
+	}
+
+	// 过滤并排序模型
+	var candidateModels []string
+	if hasImage {
+		// 包含图片，选择支持视觉的模型
+		for _, modelName := range enabledModels {
+			if getModelCapability(modelName).supportsVision {
+				candidateModels = append(candidateModels, modelName)
+			}
+		}
+	} else if hasTools {
+		// 包含工具，选择支持工具的模型
+		for _, modelName := range enabledModels {
+			if getModelCapability(modelName).supportsTools {
+				candidateModels = append(candidateModels, modelName)
+			}
+		}
+	} else {
+		// 纯文本，选择所有模型
+		candidateModels = enabledModels
+	}
+
+	// 增强错误处理：如果没有找到匹配的模型，返回默认模型
+	if len(candidateModels) == 0 {
+		if hasImage {
+			return defaultModels.visionModel
+		} else if hasTools {
+			return defaultModels.toolModel
+		} else {
+			return defaultModels.textModel
+		}
+	}
+
+	// 按优先级排序模型
+	sort.Slice(candidateModels, func(i, j int) bool {
+		capI := getModelCapability(candidateModels[i])
+		capJ := getModelCapability(candidateModels[j])
+		return capI.priority > capJ.priority // 降序排序
+	})
+
+	// 返回优先级最高的模型
+	return candidateModels[0]
 }
