@@ -6,7 +6,7 @@
 
 - 私人定制仓库：`https://github.com/Micah-Zheng/new-api`
 - 私人部署基准分支：`private/custom-ui`
-- 协作者：`jkjk02`，已邀请为仓库 `write` 权限协作者。
+- 协作者：`jkjk02`，已邀请为仓库 `write` 权限协作者，可以推工作分支、开 PR、合并无冲突 PR。
 - 上游开源仓库：`https://github.com/QuantumNous/new-api`
 
 约定：
@@ -14,6 +14,7 @@
 - `private/custom-ui` 是唯一生产部署基准分支。
 - 协作者不要直接 push 到 `private/custom-ui`。
 - 协作者从 `private/custom-ui` 新建工作分支，改完后 PR 回 `private/custom-ui`。
+- PR 没有冲突且检查通过时，协作者可以自行合并。
 - 服务器只从 `Micah-Zheng/new-api:private/custom-ui` 部署，不从个人工作分支部署。
 
 ## 1. 铁律
@@ -30,6 +31,7 @@
    - 服务器从 `Micah-Zheng/new-api:private/custom-ui` 拉代码。
    - 服务器本地构建 Docker 镜像。
    - 服务器更新 compose 里的镜像并重启容器。
+   - 合并 PR 后可以部署，但部署源仍然只能是最新 `private/custom-ui`。
 4. **不要推到上游主分支。**
    - 上游 `QuantumNous/new-api` 只用于同步更新或提交通用 bugfix PR。
    - 私人定制不要推给上游。
@@ -163,7 +165,33 @@ git push upstream main
 
 PR 合并后，`private/custom-ui` 才会进入部署候选状态。
 
-## 9. 服务器部署原则
+## 9. PR 合并规则
+
+协作者有 `write` 权限，因此可以合并 PR。合并前必须确认：
+
+- PR 目标分支是 `private/custom-ui`。
+- PR 没有冲突。
+- 改动范围符合本次任务，没有混入无关文件。
+- 前端改动至少通过：
+
+```bash
+cd web/default
+bun run typecheck
+bun run build
+```
+
+如果满足以上条件，协作者可以自行合并 PR。
+
+不要合并的情况：
+
+- 有冲突。
+- 不确定是否覆盖了别人改动。
+- 改动包含密钥、token、私钥、`.env` 等敏感信息。
+- PR 目标不是 `private/custom-ui`。
+
+合并后才能部署服务器，并且只能部署合并后的 `private/custom-ui`。
+
+## 10. 服务器部署原则
 
 服务器生产信息：
 
@@ -180,8 +208,9 @@ compose 目录：/opt/new-api
 - 只从 `private/custom-ui` 部署。
 - 不从 `teammate/*`、`fix/*`、个人 fork 分支部署。
 - 部署前确认 PR 已合并，且 `private/custom-ui` 是最新。
+- 协作者可以部署，但不能从自己的工作分支部署。
 
-## 10. 服务器部署命令
+## 11. 服务器部署命令
 
 在服务器执行：
 
@@ -241,7 +270,7 @@ PY
 sudo docker compose up -d new-api
 ```
 
-## 11. 部署后验证
+## 12. 部署后验证
 
 ```bash
 docker ps --filter name=^new-api$ --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
@@ -258,7 +287,7 @@ wget -qO- http://127.0.0.1:33030/api/status | head -c 500; echo
 - `/api/status` 返回 JSON。
 - 镜像名是本次生成的 `new-api:custom-ui-时间戳`。
 
-## 12. 如果线上需要紧急修复
+## 13. 如果线上需要紧急修复
 
 可以临时热修，但必须按下面流程补回 Git：
 
@@ -283,11 +312,11 @@ git commit -m "backport production hotfix"
 git push -u origin hotfix/short-description
 ```
 
-4. PR 合并后，重新按第 10 节部署一次，让线上回到 Git 可追踪状态。
+4. PR 合并后，重新按第 11 节部署一次，让线上回到 Git 可追踪状态。
 
 如果热修没有补回 Git，下一次部署一定会丢。
 
-## 13. 同步上游更新时怎么做
+## 14. 同步上游更新时怎么做
 
 不要在 `main` 上放私人代码。
 
@@ -316,7 +345,7 @@ git push origin private/custom-ui
 
 同步上游这一步通常由仓库负责人做；协作者不确定时不要自行操作。
 
-## 14. 上游 PR 和私人定制要隔离
+## 15. 上游 PR 和私人定制要隔离
 
 如果要给上游提交 bugfix：
 
@@ -332,7 +361,7 @@ git switch -c fix/some-bug
 - 不要从 `private/custom-ui` 开上游 PR。
 - 不要把私人 logo、私人 UI、私人部署配置提交给上游。
 
-## 15. 最常用命令速查
+## 16. 最常用命令速查
 
 协作者日常改私人定制：
 
@@ -367,7 +396,7 @@ git remote -v
 git ls-remote --heads origin private/custom-ui
 ```
 
-## 16. 最后提醒
+## 17. 最后提醒
 
 生产环境只有一个可信来源：
 
