@@ -201,6 +201,7 @@
 }
 
 .log-filter-date .semi-datepicker-range-input {
+  width: 100%;
   min-height: 44px;
   border: 1px solid rgba(226, 232, 240, 0.95) !important;
   border-radius: 16px !important;
