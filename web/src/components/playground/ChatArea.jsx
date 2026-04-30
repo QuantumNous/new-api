@@ -39,6 +39,7 @@ const ChatArea = ({
   onToggleDebugPanel,
   renderCustomChatContent,
   renderChatBoxAction,
+  isMobile,
 }) => {
   const { t } = useTranslation();
 
@@ -52,7 +53,7 @@ const ChatArea = ({
       bordered={false}
       bodyStyle={{
         padding: 0,
-        height: 'calc(100vh - 66px)',
+        height: isMobile ? 'calc(100vh - 66px)' : 'calc(100vh - 88px)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -107,7 +108,7 @@ const ChatArea = ({
           style={{
             height: '100%',
             maxWidth: '100%',
-            overflow: 'hidden',
+            // overflow: 'hidden',
           }}
           chats={message}
           onMessageSend={onMessageSend}

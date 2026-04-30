@@ -468,7 +468,7 @@ const Playground = () => {
               ${
                 isMobile
                   ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
+                  : 'relative z-[1] w-80 h-[calc(100vh-88px)]'
               }
             `}
               width={isMobile ? '100%' : 320}
@@ -497,7 +497,9 @@ const Playground = () => {
           )}
 
           <Layout.Content className='relative flex-1 overflow-hidden'>
-            <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
+            <div
+              className={`overflow-hidden flex flex-col lg:flex-row ${isMobile ? 'pt-[66px] h-[calc(100vh-0px)]' : 'h-[calc(100vh-88px)]'}`}
+            >
               <div className='flex-1 flex flex-col'>
                 <ChatArea
                   chatRef={chatRef}
@@ -515,6 +517,7 @@ const Playground = () => {
                   onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
                   renderCustomChatContent={renderCustomChatContent}
                   renderChatBoxAction={renderChatBoxAction}
+                  isMobile={isMobile}
                 />
               </div>
 
@@ -534,7 +537,7 @@ const Playground = () => {
 
             {/* 调试面板 - 移动端覆盖层 */}
             {showDebugPanel && isMobile && (
-              <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
+              <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg pt-[66px]'>
                 <OptimizedDebugPanel
                   debugData={debugData}
                   activeDebugTab={activeDebugTab}
