@@ -573,10 +573,19 @@ func GetLogStatisticsTrend(username string, tokenName string, startTimestamp int
 		RequestCount   int64  `gorm:"column:request_count"`
 	}
 
-	// Bucket in SQL using integer math: (created_at / bucketSize) * bucketSize
+	bucketExpr := fmt.Sprintf("(created_at / %d) * %d", bucketSeconds, bucketSeconds)
+	if common.UsingMySQL {
+		bucketExpr = fmt.Sprintf("(created_at DIV %d) * %d", bucketSeconds, bucketSeconds)
+	} else if common.UsingPostgreSQL {
+		bucketExpr = fmt.Sprintf("((created_at / %d)::bigint * %d)", bucketSeconds, bucketSeconds)
+	} else if common.UsingSQLite {
+		bucketExpr = fmt.Sprintf("CAST(created_at / %d AS INTEGER) * %d", bucketSeconds, bucketSeconds)
+	}
+
+	// Bucket in SQL using integer math so scans into int64 stay cross-database safe.
 	var rows []rawRow
-	err := tx.Select(fmt.Sprintf("(created_at / %d) * %d as bucket_start, model_name, COALESCE(SUM(quota),0) as quota_sum, COUNT(*) as request_count", bucketSeconds, bucketSeconds)).
-		Group("bucket_start, model_name").
+	err := tx.Select(fmt.Sprintf("%s as bucket_start, model_name, COALESCE(SUM(quota),0) as quota_sum, COUNT(*) as request_count", bucketExpr)).
+		Group(bucketExpr + ", model_name").
 		Order("bucket_start ASC").
 		Find(&rows).Error
 	if err != nil {
