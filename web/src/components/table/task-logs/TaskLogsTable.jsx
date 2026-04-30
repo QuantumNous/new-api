@@ -83,7 +83,7 @@ const TaskLogsTable = (taskLogsData) => {
       rowKey='key'
       loading={loading}
       scroll={compactMode ? undefined : { x: 'max-content' }}
-      className='rounded-xl overflow-hidden'
+      className='task-data-table'
       size='middle'
       empty={
         <Empty

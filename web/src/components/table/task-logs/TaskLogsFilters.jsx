@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { IconRefresh, IconSearch, IconSetting } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
@@ -33,6 +33,16 @@ const TaskLogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const handleReset = () => {
+    if (!formApi) {
+      return;
+    }
+    formApi.reset();
+    setTimeout(() => {
+      refresh();
+    }, 100);
+  };
+
   return (
     <Form
       initValues={formInitValues}
@@ -43,19 +53,19 @@ const TaskLogsFilters = ({
       layout='vertical'
       trigger='change'
       stopValidateWithError={false}
+      className='task-filter-form'
     >
-      <div className='flex flex-col gap-2'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
-          {/* 时间选择器 */}
-          <div className='col-span-1 lg:col-span-2'>
+      <div className='task-filter-row'>
+        <div className='task-filter-fields'>
+          <div className='task-filter-item task-filter-range'>
             <Form.DatePicker
               field='dateRange'
-              className='w-full'
+              className='task-filter-date'
               type='dateTimeRange'
               placeholder={[t('开始时间'), t('结束时间')]}
               showClear
               pure
-              size='small'
+              size='default'
               presets={DATE_RANGE_PRESETS.map((preset) => ({
                 text: t(preset.text),
                 start: preset.start(),
@@ -64,64 +74,63 @@ const TaskLogsFilters = ({
             />
           </div>
 
-          {/* 任务 ID */}
-          <Form.Input
-            field='task_id'
-            prefix={<IconSearch />}
-            placeholder={t('任务 ID')}
-            showClear
-            pure
-            size='small'
-          />
-
-          {/* 渠道 ID - 仅管理员可见 */}
-          {isAdminUser && (
+          <div className='task-filter-item'>
             <Form.Input
-              field='channel_id'
+              field='task_id'
               prefix={<IconSearch />}
-              placeholder={t('渠道 ID')}
+              placeholder={t('任务 ID')}
               showClear
               pure
-              size='small'
+              size='default'
+              className='task-filter-control'
             />
+          </div>
+
+          {isAdminUser && (
+            <div className='task-filter-item'>
+              <Form.Input
+                field='channel_id'
+                prefix={<IconSearch />}
+                placeholder={t('渠道 ID')}
+                showClear
+                pure
+                size='default'
+                className='task-filter-control'
+              />
+            </div>
           )}
         </div>
 
-        {/* 操作按钮区域 */}
-        <div className='flex justify-between items-center'>
-          <div></div>
-          <div className='flex gap-2'>
-            <Button
-              type='tertiary'
-              htmlType='submit'
-              loading={loading}
-              size='small'
-            >
-              {t('查询')}
-            </Button>
-            <Button
-              type='tertiary'
-              onClick={() => {
-                if (formApi) {
-                  formApi.reset();
-                  // 重置后立即查询，使用setTimeout确保表单重置完成
-                  setTimeout(() => {
-                    refresh();
-                  }, 100);
-                }
-              }}
-              size='small'
-            >
-              {t('重置')}
-            </Button>
-            <Button
-              type='tertiary'
-              onClick={() => setShowColumnSelector(true)}
-              size='small'
-            >
-              {t('列设置')}
-            </Button>
-          </div>
+        <div className='task-filter-actions'>
+          <Button
+            type='primary'
+            theme='solid'
+            htmlType='submit'
+            loading={loading}
+            size='default'
+            icon={<IconSearch />}
+            className='task-filter-button task-filter-button-primary'
+          >
+            {t('查询')}
+          </Button>
+          <Button
+            type='tertiary'
+            onClick={handleReset}
+            size='default'
+            icon={<IconRefresh />}
+            className='task-filter-button'
+          >
+            {t('重置')}
+          </Button>
+          <Button
+            type='tertiary'
+            onClick={() => setShowColumnSelector(true)}
+            size='default'
+            icon={<IconSetting />}
+            className='task-filter-button'
+          >
+            {t('列设置')}
+          </Button>
         </div>
       </div>
     </Form>
