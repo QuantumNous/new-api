@@ -35,6 +35,7 @@ import {
   Image,
 } from 'lucide-react';
 import {
+  TASK_ACTION_ASSET_UPLOAD,
   TASK_ACTION_FIRST_TAIL_GENERATE,
   TASK_ACTION_GENERATE,
   TASK_ACTION_REFERENCE_GENERATE,
@@ -104,7 +105,20 @@ const renderType = (type, t, record) => {
           {t('生成歌词')}
         </Tag>
       );
+    case TASK_ACTION_ASSET_UPLOAD:
+      return (
+        <Tag color='cyan' shape='circle' prefixIcon={<Image size={14} />}>
+          {t('素材上传')}
+        </Tag>
+      );
     case TASK_ACTION_GENERATE:
+      if (record?.upstream_kind === 'asset') {
+        return (
+          <Tag color='cyan' shape='circle' prefixIcon={<Image size={14} />}>
+            {t('素材上传')}
+          </Tag>
+        );
+      }
       if (record?.upstream_kind === 'image') {
         return (
           <Tag color='cyan' shape='circle' prefixIcon={<Image size={14} />}>
@@ -182,10 +196,7 @@ function extractImageUrlFromTaskData(data) {
   if (data == null) return '';
   const walk = (v) => {
     if (v == null || typeof v !== 'object') return '';
-    if (
-      typeof v.url === 'string' &&
-      /^https?:\/\//.test(v.url)
-    ) {
+    if (typeof v.url === 'string' && /^https?:\/\//.test(v.url)) {
       const lower = v.url.toLowerCase();
       if (
         /\.(jpe?g|png|webp|gif)(\?|$)/i.test(v.url) ||
@@ -376,15 +387,10 @@ export const getTaskLogsColumns = ({
         const displayText = String(record.username || userId || '?');
         return (
           <Space>
-            <Avatar
-              size='extra-small'
-              color={stringToColor(displayText)}
-            >
+            <Avatar size='extra-small' color={stringToColor(displayText)}>
               {displayText.slice(0, 1)}
             </Avatar>
-            <Typography.Text>
-              {displayText}
-            </Typography.Text>
+            <Typography.Text>{displayText}</Typography.Text>
           </Space>
         );
       },
@@ -502,14 +508,15 @@ export const getTaskLogsColumns = ({
           );
         }
 
-        // Video preview: same action names as image async; use upstream_kind !== image
+        // Video preview: same action names as image async; exclude image and asset uploads.
         const isVideoTask =
           (record.action === TASK_ACTION_GENERATE ||
             record.action === TASK_ACTION_TEXT_GENERATE ||
             record.action === TASK_ACTION_FIRST_TAIL_GENERATE ||
             record.action === TASK_ACTION_REFERENCE_GENERATE ||
             record.action === TASK_ACTION_REMIX_GENERATE) &&
-          record.upstream_kind !== 'image';
+          record.upstream_kind !== 'image' &&
+          record.upstream_kind !== 'asset';
         if (isSuccess && isVideoTask && hasPreviewUrl) {
           return (
             <a
