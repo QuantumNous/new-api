@@ -41,5 +41,7 @@ export {
   taskPlatformMapper,
 } from './mappers'
 
+export { getTaskActionLabel } from './task-action-label'
+
 // Column utilities
 export { useColumnsByCategory } from './columns'
