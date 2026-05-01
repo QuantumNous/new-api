@@ -399,3 +399,336 @@
 - `Edit` 方法已有 `updateUserCache`，分组变更后缓存自动刷新
 - `AdminSetUserGroup` 已补充 `InvalidateUserCache` 调用
 - 查询侧（`GetSubscriptionSelf`）自动根据新 group 计算 bind_group 订阅
+
+---
+
+## 补充变更记录（2026-05-01 第三轮迭代）
+
+### 变更 E：飞书绑定管理 API 接口文档
+
+所有接口需要管理员权限（`AdminAuth` 中间件），基础路径为 `/api/user/admin`。
+
+---
+
+#### 1. 查询飞书绑定列表
+
+获取已绑定飞书账号的用户列表，支持关键词搜索和分页。
+
+```
+GET /api/user/admin/feishu/bindings
+```
+
+**权限**：管理员
+
+**Query 参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `keyword` | string | 否 | 搜索关键词，匹配 `username`、`display_name`、`feishu_id`（模糊匹配） |
+| `page` | int | 否 | 页码，默认 1 |
+| `page_size` | int | 否 | 每页条数，默认 10 |
+
+**成功响应**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "page": 1,
+    "page_size": 10,
+    "total": 3,
+    "items": [
+      {
+        "id": 1,
+        "username": "admin",
+        "display_name": "管理员",
+        "email": "",
+        "feishu_id": "ou_xxxxxxxxxxxxxxxx",
+        "group": "vip",
+        "quota": 0,
+        "status": 1
+      }
+    ]
+  }
+}
+```
+
+**说明**：
+- 仅返回 `feishu_id` 不为空的用户（即已绑定飞书的用户）
+- 响应中 `password` 字段已脱敏（Omit）
+- 用户对象完整字段与 `/api/user/admin/` 接口一致
+
+---
+
+#### 2. 批量导入飞书绑定
+
+将飞书账号与系统用户建立绑定关系，支持批量操作，幂等。
+
+```
+POST /api/user/admin/feishu/bindings/import
+```
+
+**权限**：管理员
+
+**请求体**：
+
+```json
+{
+  "bindings": [
+    {
+      "user_id": 1,
+      "union_id": "ou_xxxxxxxxxxxxxxxx",
+      "open_id": "oc_yyyyyyyyyyyyyyyy",
+      "group_name": "vip"
+    },
+    {
+      "user_id": 2,
+      "union_id": "ou_zzzzzzzzzzzzzzzz"
+    }
+  ]
+}
+```
+
+**请求字段说明**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `bindings` | array | 是 | 绑定列表，不能为空 |
+| `bindings[].user_id` | int | 是 | 系统用户 ID |
+| `bindings[].union_id` | string | 是 | 飞书 union_id，作为主绑定标识 |
+| `bindings[].open_id` | string | 否 | 飞书 open_id（可选，仅记录） |
+| `bindings[].group_name` | string | 否 | 建议分组（可选，不会自动修改用户分组） |
+
+**成功响应**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "total": 3,
+    "success": 1,
+    "skipped": 1,
+    "failed": 1,
+    "errors": [
+      "user_id=99 not found: record not found"
+    ]
+  }
+}
+```
+
+**响应字段说明**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `total` | int | 总提交条数 |
+| `success` | int | 成功绑定数 |
+| `skipped` | int | 跳过数（用户已绑定相同 union_id） |
+| `failed` | int | 失败数 |
+| `errors` | string[] | 失败原因列表 |
+
+**业务规则**：
+- 用户不存在 → 失败
+- 用户已绑定相同 union_id → 跳过（幂等）
+- 用户已绑定不同 union_id → 失败
+- union_id 已被其他用户绑定 → 失败
+- 成功绑定时写入系统日志：`管理员导入飞书绑定，union_id=xxx`
+
+---
+
+#### 3. 修改用户分组
+
+管理员修改指定用户的分组，并自动同步 bind_group 订阅。
+
+```
+PUT /api/user/admin/:id/group
+```
+
+**权限**：管理员
+
+**路径参数**：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `id` | int | 用户 ID |
+
+**请求体**：
+
+```json
+{
+  "group": "vip"
+}
+```
+
+**请求字段说明**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `group` | string | 是 | 目标分组名称 |
+
+**成功响应**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "username": "admin",
+    "display_name": "管理员",
+    "feishu_id": "ou_xxxxxxxxxxxxxxxx",
+    "group": "vip",
+    "quota": 0,
+    "status": 1
+  }
+}
+```
+
+**副作用**：
+- 如果分组发生变更，自动调用 `SyncUserBindGroupSubscriptions`：
+  - 删除旧分组对应的 bind_group 订阅记录
+  - 创建新分组对应的 bind_group 订阅记录
+- 自动刷新用户缓存（`InvalidateUserCache`）
+- 写入系统日志：`管理员修改分组: {oldGroup} -> {newGroup}`
+
+---
+
+#### 4. 分组订阅全量同步
+
+触发分组与订阅套餐的全量同步，用于一次性补齐数据或修复不一致。
+
+```
+POST /api/user/admin/group-sync
+```
+
+**权限**：管理员
+
+**请求体**：
+
+```json
+{
+  "group_name": "vip",
+  "full": false
+}
+```
+
+**请求字段说明**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `group_name` | string | 否 | 指定分组名称（`full=false` 时必填） |
+| `full` | bool | 否 | 是否全量同步所有分组，默认 false |
+
+**成功响应**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "affected_users": 15,
+    "updated": 10,
+    "errors": []
+  }
+}
+```
+
+**响应字段说明**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `affected_users` | int | 受影响的用户总数 |
+| `updated` | int | 实际更新的用户数（有飞书绑定且非 pending 分组） |
+| `errors` | string[] | 错误列表 |
+
+**使用场景**：
+- `full=true`：扫描所有用户，用于系统初始化或全量修复
+- `group_name="vip"`：仅扫描指定分组的用户，用于定向修复
+
+---
+
+### 变更 F：bind_group 订阅数据修复与永久订阅支持
+
+**问题**：bind_group 订阅的 `end_time=0`（永久有效）在活跃订阅查询中被遗漏。
+
+**根因**：`GetAllActiveUserSubscriptions` 和 `HasActiveUserSubscription` 使用 `end_time > now` 条件，`end_time=0` 的记录不满足此条件。
+
+**修复**：
+
+| 文件 | 变更 |
+|---|---|
+| `model/subscription.go` | `GetAllActiveUserSubscriptions` 条件改为 `end_time > ? OR end_time = 0` |
+| `model/subscription.go` | `HasActiveUserSubscription` 条件同步修复 |
+| `model/subscription.go` | 新增 `RepairBindGroupSubscriptions()` 启动时自动补齐缺失的 bind_group 订阅 |
+| `main.go` | 启动时异步调用 `go model.RepairBindGroupSubscriptions()` |
+| `model/subscription.go` | 新增 `SyncUserBindGroupSubscriptions()` 用户分组变更时同步订阅 |
+| `model/subscription.go` | 新增 `SyncPlanBindGroupChange()` 套餐 bind_group 变更时同步用户订阅 |
+
+**RepairBindGroupSubscriptions 逻辑**：
+1. 查询所有启用了 bind_group 的套餐
+2. 按 bind_group 值分组
+3. 查找每个分组下的所有用户
+4. 对每个用户检查是否已有该套餐的订阅记录（`count > 0` 则跳过）
+5. 缺失的自动创建 bind_group 订阅（`end_time=0`, `source="bind_group"`）
+
+### 变更 G：飞书 OAuth 绑定入口 + 个人订阅查看
+
+**前端变更**：
+
+| 文件 | 变更 |
+|---|---|
+| `web/classic/.../AccountManagement.jsx` | 新增飞书绑定卡片，显示绑定状态，支持一键绑定 |
+| `web/classic/.../MySubscriptions.jsx` | 新增个人订阅概览组件，调用 `GET /api/subscription/self` |
+| `web/classic/.../PersonalSetting.jsx` | 在个人设置页引入 MySubscriptions 组件 |
+
+**MySubscriptions 数据结构**：
+
+API 返回 `SubscriptionSummary` 嵌套结构：
+```json
+{
+  "success": true,
+  "data": {
+    "subscriptions": [
+      {
+        "subscription": {
+          "id": 1,
+          "plan_id": 3,
+          "amount_total": 500000,
+          "amount_used": 10000,
+          "start_time": 1746000000,
+          "end_time": 0,
+          "status": "active",
+          "source": "bind_group"
+        },
+        "plan": {
+          "id": 3,
+          "title": "svip",
+          "price_amount": 9.99,
+          "currency": "USD"
+        }
+      }
+    ],
+    "all_subscriptions": [...],
+    "billing_preference": "deduct_first"
+  }
+}
+```
+
+前端渲染时需通过 `item.subscription` 和 `item.plan` 访问具体字段。
+
+### 变更 H：飞书 Token 交换端点升级
+
+**问题**：飞书 OAuth Token 交换使用 v1 端点失败。
+
+**修复**：
+- Token 端点从 `https://open.feishu.cn/open-apis/authen/v1/oidc/access_token` 升级为 `https://open.feishu.cn/open-apis/authen/v2/oauth/token`
+- v2 端点接受 `client_id` + `client_secret` 在请求体中（不需要 Authorization header）
+- v2 响应格式为扁平结构（`code` 在顶层，而非嵌套在 `data` 中）
+- 前端 Auth URL 使用 `https://accounts.feishu.cn/open-apis/authen/v1/authorize`（不是 `open.feishu.cn`）
+
+### 变更 I：飞书配置字段 Semi Design Form 绑定修复
+
+**问题**：Semi Design Form 的 `field="['feishu.app_id']"` 点号语法与 `initValues` 中的扁平 key 不匹配，导致表单字段不渲染。
+
+**修复**：
+- 飞书配置字段改用简单下划线命名：`feishu_app_id`, `feishu_app_secret`, `feishu_default_group`, `feishu_auth_policy`
+- `getOptions` 加载数据时映射后端 key 到前端 field
+- `submitFeishuSettings` 保存时映射前端 field 回后端 key
+- `feishu.enabled` checkbox 不受影响（使用 `handleCheckboxChange` 即时保存，不走 submitFeishuSettings）
