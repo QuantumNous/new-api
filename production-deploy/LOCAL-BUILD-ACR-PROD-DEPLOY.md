@@ -13,7 +13,7 @@
 适用环境：
 
 - 本地：macOS（Apple Silicon）
-- 生产：Linux/CentOS（x86_64）
+- 生产：Linux/CentOS（x86_64），Docker 需要 `sudo`
 - 编排目录：`/opt/production-deploy`
 
 ---
@@ -38,7 +38,7 @@ crpi-bij57v7e3thiuuod.cn-shenzhen.personal.cr.aliyuncs.com/ccpg_einwin/new-api:<
 
 ---
 
-## 3. 一次性准备
+## 3. 一次性准备（本地 Mac）
 
 ### 3.1 登录 ACR
 
@@ -58,10 +58,11 @@ docker buildx inspect --bootstrap
 - 本地构建必须指定：`--platform linux/amd64`
 - 生产发布必须使用固定 tag（例如 `1.1.0`），不要用 `latest`
 - 发版只改应用镜像，不动数据库和 Redis
+- **生产服务器所有 docker 命令需要 `sudo`**
 
 ---
 
-## 4. 一键构建并推送（推荐）
+## 4. 一键构建并推送（推荐，本地 Mac 执行）
 
 使用 `build.sh` 脚本一键完成前端构建 → Go编译 → 镜像打包 → ACR推送：
 
@@ -91,9 +92,7 @@ chmod +x build.sh
 
 ---
 
-## 5. 手动构建（分步操作）
-
-如果需要手动控制每一步：
+## 5. 手动构建（分步操作，本地 Mac 执行）
 
 ### 5.1 构建 classic 前端
 
@@ -140,44 +139,50 @@ docker push crpi-bij57v7e3thiuuod.cn-shenzhen.personal.cr.aliyuncs.com/ccpg_einw
 
 ---
 
-## 6. 生产发布（无损）
+## 6. 生产发布（无损，生产服务器执行）
+
+> **注意：生产服务器所有 docker/docker compose 命令需要加 `sudo`。**
 
 ### 6.1 发布前备份
 
 ```bash
 cd /opt/production-deploy
 
-cp .env .env.bak.$(date +%F-%H%M%S)
+sudo cp .env .env.bak.$(date +%F-%H%M%S)
 
-docker inspect new-api --format '{{.Config.Image}}' > image-old.txt
+sudo docker inspect new-api --format '{{.Config.Image}}' > image-old.txt
 cat image-old.txt
 
-docker exec postgres pg_dumpall -U root > backup_$(date +%F-%H%M%S).sql
+sudo docker exec postgres pg_dumpall -U root > backup_$(date +%F-%H%M%S).sql
 ```
 
-### 6.2 登录 ACR 并拉取新镜像
+### 6.2 登录 ACR
 
 ```bash
-docker login --username=beacherlin crpi-bij57v7e3thiuuod.cn-shenzhen.personal.cr.aliyuncs.com
+sudo docker login --username=beacherlin crpi-bij57v7e3thiuuod.cn-shenzhen.personal.cr.aliyuncs.com
 ```
 
 ### 6.3 修改 `.env` 镜像版本
 
-编辑 `/opt/production-deploy/.env`：
+```bash
+sudo nano /opt/production-deploy/.env
+```
+
+修改这一行：
 
 ```env
 NEW_API_IMAGE=crpi-bij57v7e3thiuuod.cn-shenzhen.personal.cr.aliyuncs.com/ccpg_einwin/new-api:1.1.0
 ```
 
-> 注意：CLIPROXY_API_IMAGE 保持不变，这次只升级 new-api。
+> CLIPROXY_API_IMAGE 保持不变，这次只升级 new-api。
 
 ### 6.4 拉取并重启（仅 new-api 容器）
 
 ```bash
 cd /opt/production-deploy
 
-docker compose pull new-api
-docker compose up -d new-api --no-deps
+sudo docker compose pull new-api
+sudo docker compose up -d new-api --no-deps
 ```
 
 > `--no-deps` 确保 postgres 和 redis 不会重启。
@@ -185,9 +190,9 @@ docker compose up -d new-api --no-deps
 ### 6.5 发布后验证
 
 ```bash
-docker compose ps
+sudo docker compose ps
 curl -f http://127.0.0.1:3000/api/status
-docker logs --tail=100 new-api
+sudo docker logs --tail=100 new-api
 ```
 
 预期日志中应看到：
@@ -209,12 +214,14 @@ cd /opt/production-deploy
 cat image-old.txt
 
 # 编辑 .env 改回旧镜像
-nano .env
+sudo nano .env
 
 # 拉取旧镜像并重启
-docker compose pull new-api
-docker compose up -d new-api --no-deps
-docker compose ps
+sudo docker compose pull new-api
+sudo docker compose up -d new-api --no-deps
+
+# 验证
+sudo docker compose ps
 curl -f http://127.0.0.1:3000/api/status
 ```
 
@@ -224,13 +231,13 @@ curl -f http://127.0.0.1:3000/api/status
 cd /opt/production-deploy
 
 # 停止应用
-docker compose stop new-api
+sudo docker compose stop new-api
 
 # 恢复数据库
-cat backup_<timestamp>.sql | docker exec -i postgres psql -U root -d postgres
+cat backup_<timestamp>.sql | sudo docker exec -i postgres psql -U root -d postgres
 
 # 重启应用
-docker compose start new-api
+sudo docker compose start new-api
 ```
 
 ---
@@ -239,15 +246,15 @@ docker compose start new-api
 
 以下操作会影响数据，**禁止**在发版流程中执行：
 
-- `docker compose down -v`
+- `sudo docker compose down -v`
 - 删除数据目录：`pg-data`、`redis-data`、`new-api-data`
 - 变更数据库/Redis volume 挂载路径
 
 发版只做：
 
 - 改 `.env` 中的 `NEW_API_IMAGE` tag
-- `docker compose pull new-api`
-- `docker compose up -d new-api --no-deps`
+- `sudo docker compose pull new-api`
+- `sudo docker compose up -d new-api --no-deps`
 
 ---
 
@@ -260,13 +267,33 @@ docker compose start new-api
 
 ### 9.2 `docker login` 密码问题
 
+本地 Mac：
 ```bash
 printf '%s' '<ACR密码>' | docker login --username=beacherlin --password-stdin crpi-bij57v7e3thiuuod.cn-shenzhen.personal.cr.aliyuncs.com
 ```
 
+生产服务器：
+```bash
+printf '%s' '<ACR密码>' | sudo docker login --username=beacherlin --password-stdin crpi-bij57v7e3thiuuod.cn-shenzhen.personal.cr.aliyuncs.com
+```
+
 ### 9.3 生产拉取镜像报 `not found`
 
-确认 ACR 仓库中存在对应 tag。在本地先 `docker push` 推送成功后，生产才能 `docker compose pull`。
+确认 ACR 仓库中存在对应 tag。在本地先 `docker push` 推送成功后，生产才能 `sudo docker compose pull`。
+
+### 9.4 生产 `sudo docker compose` 提示 command not found
+
+安装 Docker Compose 插件：
+```bash
+sudo apt-get install docker-compose-plugin
+# 或 CentOS
+sudo yum install docker-compose-plugin
+```
+
+验证：
+```bash
+sudo docker compose version
+```
 
 ---
 

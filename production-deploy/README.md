@@ -87,13 +87,13 @@ production-deploy/
 详见 [LOCAL-BUILD-ACR-PROD-DEPLOY.md](./LOCAL-BUILD-ACR-PROD-DEPLOY.md)
 
 ```bash
-# 本地一键构建并推送
+# 本地一键构建并推送（Mac 执行）
 cd production-deploy
 ./build.sh 1.1.0
 
-# 生产服务器拉取并重启（仅升级 new-api）
-docker compose pull new-api
-docker compose up -d new-api --no-deps
+# 生产服务器拉取并重启（仅升级 new-api，需要 sudo）
+sudo docker compose pull new-api
+sudo docker compose up -d new-api --no-deps
 ```
 
 ### 方式二：本地打包 + SCP 上传（旧方式）
@@ -125,13 +125,13 @@ chmod +x init-server.sh
 
 ---
 
-## 日常管理
+## 日常管理（生产服务器，需要 sudo）
 
 ```bash
-docker-compose ps              # 查看状态
-docker-compose logs -f         # 查看日志
-docker-compose restart new-api # 重启服务
-docker-compose down            # 停止（保留数据）
+sudo docker compose ps              # 查看状态
+sudo docker compose logs -f         # 查看日志
+sudo docker compose restart new-api # 重启服务
+sudo docker compose down            # 停止（保留数据）
 ```
 
 ---
@@ -140,14 +140,14 @@ docker-compose down            # 停止（保留数据）
 
 ```bash
 BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
-docker exec postgres pg_dumpall -U root > backup_${BACKUP_DATE}.sql
+sudo docker exec postgres pg_dumpall -U root > backup_${BACKUP_DATE}.sql
 ```
 
 定时备份（每天凌晨 2 点）：
 
 ```bash
-crontab -e
-# 0 2 * * * cd /opt/production-deploy && docker exec postgres pg_dumpall -U root > backup_$(date +\%Y\%m\%d).sql && find . -name "backup_*.sql" -mtime +7 -delete
+sudo crontab -e
+# 0 2 * * * cd /opt/production-deploy && sudo docker exec postgres pg_dumpall -U root > backup_$(date +\%Y\%m\%d).sql && find . -name "backup_*.sql" -mtime +7 -delete
 ```
 
 ---
