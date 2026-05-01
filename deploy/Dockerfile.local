@@ -1,0 +1,21 @@
+FROM docker.m.daocloud.io/library/debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata libasan8 wget curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
+
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+
+COPY new-api /
+RUN chown appuser:appgroup /new-api && chmod +x /new-api
+RUN mkdir -p /data && chown -R appuser:appgroup /data
+
+USER appuser
+EXPOSE 3000
+WORKDIR /data
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3000/api/status || exit 1
+
+ENTRYPOINT ["/new-api"]

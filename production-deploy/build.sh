@@ -9,206 +9,161 @@ RESET='\033[0m'
 BOLD='\033[1m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT_DIR="$SCRIPT_DIR/output"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
-NEW_API_PATH=${NEW_API_PATH:-/Users/linbiqiu/new-api-test/new-api/deploy}
-CLIPROXY_API_PATH=${CLIPROXY_API_PATH:-/Users/linbiqiu/trae/源码部署/CLIProxyAPI-main}
-
-NEW_API_IMAGE=localhost/new-api:1.0.0
-CLIPROXY_API_IMAGE=localhost/cliproxyapi:1.0.0
+NEW_API_PATH="/Users/linbiqiu/new-api-test/new-api-fork"
+ACR_REGISTRY="crpi-bij57v7e3thiuuod.cn-shenzhen.personal.cr.aliyuncs.com"
+ACR_NAMESPACE="ccpg_einwin"
 
 info()    { echo -e "${BLUE}[INFO]${RESET} $1"; }
 success() { echo -e "${GREEN}[OK]${RESET} $1"; }
 warn()    { echo -e "${YELLOW}[WARN]${RESET} $1"; }
 error()   { echo -e "${RED}[ERROR]${RESET} $1"; exit 1; }
 
-check_docker() {
-    info "Checking Docker environment..."
-    command -v docker &> /dev/null || error "Docker not installed, please install Docker first"
-    docker info &> /dev/null || error "Docker daemon not running, please start Docker"
-    success "Docker environment OK"
+usage() {
+    echo ""
+    echo -e "${BOLD}Usage:${RESET}"
+    echo "  $0 <version> [options]"
+    echo ""
+    echo -e "${BOLD}Options:${RESET}"
+    echo "  --skip-build     Skip local Go/bun build (use existing binary)"
+    echo "  --skip-push      Skip ACR push"
+    echo "  --skip-classic   Skip classic frontend build"
+    echo "  --skip-default   Skip default frontend build"
+    echo ""
+    echo -e "${BOLD}Examples:${RESET}"
+    echo "  $0 1.1.0                    # Full build + push"
+    echo "  $0 1.1.0 --skip-push        # Build only, don't push"
+    echo "  $0 1.1.0 --skip-build       # Use existing binary, build image + push"
+    echo ""
+    exit 1
 }
 
-cleanup() {
-    info "Cleaning old output files..."
-    rm -rf "$OUTPUT_DIR"
-    mkdir -p "$OUTPUT_DIR"
-    success "Output directory cleaned: $OUTPUT_DIR"
-}
+if [ $# -lt 1 ]; then
+    usage
+fi
 
-build_new_api() {
-    echo ""
+VERSION="$1"
+shift
+SKIP_BUILD=false
+SKIP_PUSH=false
+SKIP_CLASSIC=false
+SKIP_DEFAULT=false
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --skip-build)   SKIP_BUILD=true; shift ;;
+        --skip-push)    SKIP_PUSH=true; shift ;;
+        --skip-classic) SKIP_CLASSIC=true; shift ;;
+        --skip-default) SKIP_DEFAULT=true; shift ;;
+        *) error "Unknown option: $1" ;;
+    esac
+done
+
+IMAGE_TAG="${ACR_REGISTRY}/${ACR_NAMESPACE}/new-api:${VERSION}"
+BINARY_PATH="${NEW_API_PATH}/new-api"
+
+info "Version:    ${VERSION}"
+info "Image:      ${IMAGE_TAG}"
+info "Source:     ${NEW_API_PATH}"
+echo ""
+
+# Step 1: Local build
+if [ "$SKIP_BUILD" = false ]; then
     echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo -e "${BOLD}${BLUE}  Build new-api Image${RESET}"
+    echo -e "${BOLD}${BLUE}  Step 1/4: Build Frontend & Backend${RESET}"
     echo -e "${BOLD}${BLUE}========================================${RESET}"
     echo ""
-
-    if [ ! -d "$NEW_API_PATH" ]; then
-        error "new-api project path not found: $NEW_API_PATH"
-    fi
-
-    if [ ! -f "$NEW_API_PATH/Dockerfile.optimized" ]; then
-        error "Dockerfile.optimized not found: $NEW_API_PATH/Dockerfile.optimized"
-    fi
 
     cd "$NEW_API_PATH"
 
-    info "Building new-api image (linux/amd64)..."
-    docker build \
-        --platform linux/amd64 \
-        --build-arg ENV=production \
-        --build-arg VERSION=1.0.0 \
-        -t "$NEW_API_IMAGE" \
-        -f Dockerfile.optimized \
-        .. || error "new-api image build failed"
-
-    NEW_API_SIZE=$(docker images "$NEW_API_IMAGE" --format "{{.Size}}")
-    success "new-api image built: $NEW_API_IMAGE ($NEW_API_SIZE)"
-}
-
-build_cliproxy_api() {
-    echo ""
-    echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo -e "${BOLD}${BLUE}  Build CLIProxyAPI Image${RESET}"
-    echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo ""
-
-    if [ ! -d "$CLIPROXY_API_PATH" ]; then
-        error "CLIProxyAPI project path not found: $CLIPROXY_API_PATH"
+    if [ "$SKIP_CLASSIC" = false ]; then
+        info "Building classic frontend..."
+        cd "${NEW_API_PATH}/web/classic"
+        bun install
+        bun run build
+        success "Classic frontend built"
+        cd "$NEW_API_PATH"
     fi
 
-    if [ ! -f "$CLIPROXY_API_PATH/Dockerfile" ]; then
-        error "Dockerfile not found: $CLIPROXY_API_PATH/Dockerfile"
+    if [ "$SKIP_DEFAULT" = false ]; then
+        info "Building default frontend..."
+        cd "${NEW_API_PATH}/web/default"
+        bun install
+        bun run build
+        success "Default frontend built"
+        cd "$NEW_API_PATH"
     fi
 
-    cd "$CLIPROXY_API_PATH"
-
-    info "Building CLIProxyAPI image (linux/amd64, using China Go proxy)..."
-    docker build \
-        --platform linux/amd64 \
-        --build-arg VERSION=1.0.0 \
-        --build-arg GOPROXY=https://goproxy.cn,https://mirrors.aliyun.com/goproxy/,direct \
-        --build-arg GOSUMDB=sum.golang.google.cn \
-        -t "$CLIPROXY_API_IMAGE" \
-        . || error "CLIProxyAPI image build failed"
-
-    CLIPROXY_SIZE=$(docker images "$CLIPROXY_API_IMAGE" --format "{{.Size}}")
-    success "CLIProxyAPI image built: $CLIPROXY_API_IMAGE ($CLIPROXY_SIZE)"
-}
-
-export_images() {
-    echo ""
-    echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo -e "${BOLD}${BLUE} Export Docker Images${RESET}"
-    echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo ""
-
-    cd "$OUTPUT_DIR"
-
-    info "Exporting new-api image..."
-    docker save -o new-api.tar "$NEW_API_IMAGE" || error "new-api image export failed"
-    NEW_API_TAR_SIZE=$(ls -lh new-api.tar | awk '{print $5}')
-    success "new-api image exported: new-api.tar ($NEW_API_TAR_SIZE)"
-
-    info "Exporting CLIProxyAPI image..."
-    docker save -o cliproxyapi.tar "$CLIPROXY_API_IMAGE" || error "CLIProxyAPI image export failed"
-    CLIPROXY_TAR_SIZE=$(ls -lh cliproxyapi.tar | awk '{print $5}')
-    success "CLIProxyAPI image exported: cliproxyapi.tar ($CLIPROXY_TAR_SIZE)"
-}
-
-copy_configs() {
-    echo ""
-    echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo -e "${BOLD}${BLUE} Copy Config Files${RESET}"
-    echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo ""
-
-    cd "$SCRIPT_DIR"
-
-    cp docker-compose.yml "$OUTPUT_DIR/" || error "docker-compose.yml copy failed"
-    success "Copied: docker-compose.yml"
-
-    if [ -f ".env" ]; then
-        cp .env "$OUTPUT_DIR/" || error ".env copy failed"
-        success "Copied: .env"
-    else
-        warn ".env file not found, copying .env.example"
-        cp .env.example "$OUTPUT_DIR/.env" || error ".env.example copy failed"
-        success "Copied: .env.example -> .env"
+    info "Building Go binary (linux/amd64)..."
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOEXPERIMENT=greenteagc \
+        go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=${VERSION}'" \
+        -o new-api .
+    success "Go binary built: $(ls -lh new-api | awk '{print $5}') (linux/amd64)"
+else
+    warn "Skipping local build (--skip-build)"
+    if [ ! -f "$BINARY_PATH" ]; then
+        error "Binary not found: $BINARY_PATH"
     fi
+    info "Using existing binary: $(ls -lh $BINARY_PATH | awk '{print $5}')"
+fi
 
-    cp init-db.sh "$OUTPUT_DIR/" || error "init-db.sh copy failed"
-    success "Copied: init-db.sh"
+# Step 2: Build Docker image
+echo ""
+echo -e "${BOLD}${BLUE}========================================${RESET}"
+echo -e "${BOLD}${BLUE}  Step 2/4: Build Docker Image${RESET}"
+echo -e "${BOLD}${BLUE}========================================${RESET}"
+echo ""
 
-    if [ -f "config.example.yaml" ]; then
-        cp config.example.yaml "$OUTPUT_DIR/" || error "config.example.yaml copy failed"
-        success "Copied: config.example.yaml"
-    fi
+cd "$NEW_API_PATH"
 
-    if [ -f "production-deploy.service" ]; then
-        cp production-deploy.service "$OUTPUT_DIR/" || error "production-deploy.service copy failed"
-        success "Copied: production-deploy.service"
-    fi
-}
+info "Building Docker image for linux/amd64..."
+docker buildx build \
+    --platform linux/amd64 \
+    -t "$IMAGE_TAG" \
+    -f deploy/Dockerfile.local \
+    --load \
+    . || error "Docker image build failed"
 
-package_all() {
+IMAGE_SIZE=$(docker images "$IMAGE_TAG" --format "{{.Size}}")
+success "Image built: $IMAGE_TAG ($IMAGE_SIZE)"
+
+# Step 3: Push to ACR
+if [ "$SKIP_PUSH" = false ]; then
     echo ""
     echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo -e "${BOLD}${BLUE} Package All Files${RESET}"
-    echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo ""
-
-    cd "$SCRIPT_DIR"
-
-    PACKAGE_NAME="production-deploy-${TIMESTAMP}.tar.gz"
-
-    info "Packaging files to: $PACKAGE_NAME"
-    tar -czf "$PACKAGE_NAME" -C "$OUTPUT_DIR" . || error "Package failed"
-
-    PACKAGE_SIZE=$(ls -lh "$PACKAGE_NAME" | awk '{print $5}')
-    success "Package complete: $PACKAGE_NAME ($PACKAGE_SIZE)"
-
-    mv "$PACKAGE_NAME" "$OUTPUT_DIR/"
-}
-
-show_result() {
-    echo ""
-    echo -e "${BOLD}${GREEN}========================================${RESET}"
-    echo -e "${BOLD}${GREEN} Build and Package Complete!${RESET}"
-    echo -e "${BOLD}${GREEN}========================================${RESET}"
-    echo ""
-    echo -e "${BOLD}Output directory:${RESET} $OUTPUT_DIR"
-    echo ""
-    echo -e "${BOLD}File list:${RESET}"
-    ls -lh "$OUTPUT_DIR"
-    echo ""
-    echo -e "${BOLD}Next steps:${RESET}"
-    echo ""
-    echo -e "  1. Upload all files in output directory to jump server"
-    echo -e "  2. Upload from jump server to production server"
-    echo -e "  3. Execute deployment commands on production server (see README.md)"
-    echo ""
-    echo -e "${BOLD}Quick upload command (local -> jump server):${RESET}"
-    echo -e "  ${YELLOW}scp -r output/* user@jump-server:/tmp/production-deploy/${RESET}"
-    echo ""
-}
-
-main() {
-    echo ""
-    echo -e "${BOLD}${BLUE}========================================${RESET}"
-    echo -e "${BOLD}${BLUE} Production Environment Build and Package${RESET}"
+    echo -e "${BOLD}${BLUE}  Step 3/4: Push to ACR${RESET}"
     echo -e "${BOLD}${BLUE}========================================${RESET}"
     echo ""
 
-    check_docker
-    cleanup
-    build_new_api
-    build_cliproxy_api
-    export_images
-    copy_configs
-    package_all
-    show_result
-}
+    info "Logging in to ACR..."
+    docker login --username=beacherlin "$ACR_REGISTRY" || error "ACR login failed"
 
-main
+    info "Pushing image: $IMAGE_TAG"
+    docker push "$IMAGE_TAG" || error "ACR push failed"
+    success "Image pushed to ACR"
+else
+    warn "Skipping ACR push (--skip-push)"
+fi
+
+# Step 4: Summary
+echo ""
+echo -e "${BOLD}${GREEN}========================================${RESET}"
+echo -e "${BOLD}${GREEN}  Build Complete!${RESET}"
+echo -e "${BOLD}${GREEN}========================================${RESET}"
+echo ""
+echo -e "${BOLD}Version:${RESET}    $VERSION"
+echo -e "${BOLD}Image:${RESET}      $IMAGE_TAG"
+echo -e "${BOLD}Size:${RESET}       $IMAGE_SIZE"
+echo ""
+echo -e "${BOLD}Production deployment:${RESET}"
+echo ""
+echo -e "  1. SSH to production server"
+echo -e "  2. cd /opt/production-deploy"
+echo -e "  3. Backup: ${YELLOW}cp .env .env.bak.\$(date +%F-%H%M%S)${RESET}"
+echo -e "  4. Edit .env: ${YELLOW}NEW_API_IMAGE=$IMAGE_TAG${RESET}"
+echo -e "  5. Pull & restart: ${YELLOW}docker compose pull new-api && docker compose up -d new-api --no-deps${RESET}"
+echo -e "  6. Verify: ${YELLOW}docker compose ps && curl -f http://127.0.0.1:3000/api/status${RESET}"
+echo ""
+echo -e "${BOLD}Rollback:${RESET} edit .env back to old tag, re-run step 5"
+echo ""
