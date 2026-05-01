@@ -80,12 +80,11 @@ func (p *FeishuProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://open.feishu.cn/open-apis/authen/v1/oidc/access_token", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://open.feishu.cn/open-apis/authen/v2/oauth/token", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
 	client := http.Client{
 		Timeout: 20 * time.Second,
@@ -104,19 +103,38 @@ func (p *FeishuProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 		return nil, err
 	}
 
+	bodyStr := string(body)
+	if len(bodyStr) > 500 {
+		bodyStr = bodyStr[:500] + "..."
+	}
+	logger.LogDebug(ctx, "[OAuth-Feishu] ExchangeToken response body: %s", bodyStr)
+
 	var tokenErr feishuTokenError
 	if err := json.Unmarshal(body, &tokenErr); err == nil && tokenErr.Error != "" {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-Feishu] ExchangeToken failed: error=%s, desc=%s", tokenErr.Error, tokenErr.ErrorDescription))
 		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "Feishu"}, tokenErr.ErrorDescription)
 	}
 
-	var tokenRes feishuTokenResponse
-	if err := json.Unmarshal(body, &tokenRes); err != nil {
+	var rawRes struct {
+		Code        int    `json:"code"`
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+		Scope       string `json:"scope"`
+		Error       string `json:"error"`
+		ErrorDesc   string `json:"error_description"`
+	}
+	if err := json.Unmarshal(body, &rawRes); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-Feishu] ExchangeToken decode error: %s", err.Error()))
 		return nil, err
 	}
 
-	if tokenRes.AccessToken == "" {
+	if rawRes.Code != 0 {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-Feishu] ExchangeToken failed: code=%d, error=%s, desc=%s", rawRes.Code, rawRes.Error, rawRes.ErrorDesc))
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "Feishu"}, fmt.Sprintf("code=%d, %s", rawRes.Code, rawRes.ErrorDesc))
+	}
+
+	if rawRes.AccessToken == "" {
 		logger.LogError(ctx, "[OAuth-Feishu] ExchangeToken failed: empty access token")
 		return nil, NewOAuthError(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "Feishu"})
 	}
@@ -124,10 +142,10 @@ func (p *FeishuProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	logger.LogDebug(ctx, "[OAuth-Feishu] ExchangeToken success")
 
 	return &OAuthToken{
-		AccessToken: tokenRes.AccessToken,
-		TokenType:   tokenRes.TokenType,
-		ExpiresIn:   tokenRes.ExpiresIn,
-		Scope:       tokenRes.Scope,
+		AccessToken: rawRes.AccessToken,
+		TokenType:   rawRes.TokenType,
+		ExpiresIn:   rawRes.ExpiresIn,
+		Scope:       rawRes.Scope,
 	}, nil
 }
 

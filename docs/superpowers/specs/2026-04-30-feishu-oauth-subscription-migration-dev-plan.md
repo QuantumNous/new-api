@@ -334,3 +334,68 @@
 6. 测试批量导入
 7. 切换 `feishu_only` 模式验证
 8. 监控关键指标：飞书登录成功率、密码拒绝率、用户名冲突率
+
+---
+
+## 补充变更记录（2026-04-30 第二轮迭代）
+
+### 变更 A：绑定分组（bind_group）功能
+
+**目标**：订阅套餐可绑定到一个分组，该分组下所有用户自动拥有此套餐。分组变更时自动同步。
+
+**设计决策**：采用「虚拟订阅」方案——查询时动态合并，而非在分组变更时批量创建/删除订阅记录。
+
+| 层 | 文件 | 变更 |
+|---|---|---|
+| 模型 | `model/subscription.go` | `SubscriptionPlan` 新增 `BindGroup` 字段 |
+| 模型 | `model/subscription.go` | 新增 `GetBindGroupSubscriptions()` 查询绑定分组虚拟订阅 |
+| 迁移 | `model/main.go` | `ensureSubscriptionPlanTableSQLite()` 新增 `bind_group` 列（CREATE TABLE + ALTER TABLE） |
+| 控制器 | `controller/subscription.go` | `AdminCreateSubscriptionPlan` / `AdminUpdateSubscriptionPlan` 新增 bind_group 验证 |
+| 控制器 | `controller/subscription.go` | `GetSubscriptionSelf` 查询时合并 bind_group 虚拟订阅（去重） |
+| 前端表单 | `web/classic/.../AddEditSubscriptionModal.jsx` | 新增「绑定分组」Select 下拉 |
+| 前端列表 | `web/classic/.../SubscriptionsColumnDefs.jsx` | 新增「绑定分组」列 |
+
+**PostgreSQL 兼容性**：PG/MySQL 走 `DB.AutoMigrate(&SubscriptionPlan{})`，GORM 自动添加新列，无需手动处理。仅 SQLite 因使用 `ensureSubscriptionPlanTableSQLite()` 需手动添加列定义。
+
+**分组变更同步逻辑**：
+- 用户分组变更后，`GetSubscriptionSelf` 查询时根据新 group 自动计算 bind_group 订阅
+- 旧 group 的套餐自动消失，新 group 的套餐自动出现
+- `AdminSetUserGroup` 接口增加 `InvalidateUserCache` 刷新缓存
+- `User.Edit()` 方法已有 `updateUserCache` 确保 group 变更后缓存同步
+
+### 变更 B：用户模型统计页面可见性修复
+
+**问题**：admin 账号登录后侧边栏不显示「用户模型统计」。
+
+**原因**：`useSidebar.js` 的 `DEFAULT_ADMIN_CONFIG.admin` 和 `SettingsSidebarModulesAdmin.jsx` 的默认配置中缺少 `userModelStats` 模块。
+
+**修复文件**：
+| 文件 | 变更 |
+|---|---|
+| `web/classic/src/hooks/common/useSidebar.js` | `DEFAULT_ADMIN_CONFIG.admin` 新增 `userModelStats: true` |
+| `web/classic/src/pages/Setting/Operation/SettingsSidebarModulesAdmin.jsx` | 默认配置 + 模块定义 + 重置默认值 均新增 `userModelStats` |
+
+### 变更 C：飞书设置 UI 可操作性修复
+
+**问题**：飞书 OAuth 设置在系统设置页面可能无法正确操作。
+
+**修复内容**：
+| 文件 | 变更 |
+|---|---|
+| `web/classic/.../SystemSetting.jsx` | 飞书 checkbox 增加 `checked={feishuEnabled}` 受控属性 |
+| `web/classic/.../SystemSetting.jsx` | options 加载时同步 `feishuEnabled` state |
+| `web/classic/.../SystemSetting.jsx` | `submitFeishuSettings` 改用 `formApiRef` 取值（与 `submitPasskeySettings` 一致） |
+| `controller/option.go` | `UpdateOption` 新增 `feishu.enabled` case，校验 App ID 非空 |
+| `controller/feishu_admin.go` | `AdminSetUserGroup` 增加 `InvalidateUserCache` 刷新用户缓存 |
+
+### 变更 D：开发计划任务补充
+
+以下任务需要补充到原计划中：
+
+**任务 6 更新**：分组联动不再需要单独的批量同步接口。`GetSubscriptionSelf` 查询时自动合并 bind_group 虚拟订阅，分组变更后无需手动触发同步。`GroupSync` 接口保留用于一次性全量同步场景。
+
+**新增任务 6.5**：用户分组变更时订阅套餐同步
+- 涉及 `controller/user.go`（`UpdateUser` → `Edit` 方法）和 `controller/feishu_admin.go`（`AdminSetUserGroup`）
+- `Edit` 方法已有 `updateUserCache`，分组变更后缓存自动刷新
+- `AdminSetUserGroup` 已补充 `InvalidateUserCache` 调用
+- 查询侧（`GetSubscriptionSelf`）自动根据新 group 计算 bind_group 订阅

@@ -141,6 +141,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "feishu.enabled":
+		if option.Value == "true" && system_setting.GetFeishuSettings().AppID == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用飞书登录，请先填入飞书 App ID 以及飞书 App Secret！",
+			})
+			return
+		}
 	case "discord.enabled":
 		if option.Value == "true" && system_setting.GetDiscordSettings().ClientId == "" {
 			c.JSON(http.StatusOK, gin.H{

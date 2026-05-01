@@ -306,6 +306,8 @@ func InitResources() error {
 		return err
 	}
 
+	go model.RepairBindGroupSubscriptions()
+
 	// 启动系统监控
 	common.StartSystemMonitor()
 

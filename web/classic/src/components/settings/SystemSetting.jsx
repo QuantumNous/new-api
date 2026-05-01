@@ -100,6 +100,11 @@ const SystemSetting = () => {
     LinuxDOClientId: '',
     LinuxDOClientSecret: '',
     LinuxDOMinimumTrustLevel: '',
+    'feishu.enabled': '',
+    feishu_app_id: '',
+    feishu_app_secret: '',
+    feishu_default_group: '',
+    feishu_auth_policy: '',
     ServerAddress: '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
@@ -120,6 +125,7 @@ const SystemSetting = () => {
   const [showPasswordLoginConfirmModal, setShowPasswordLoginConfirmModal] =
     useState(false);
   const [linuxDOOAuthEnabled, setLinuxDOOAuthEnabled] = useState(false);
+  const [feishuEnabled, setFeishuEnabled] = useState(false);
   const [emailToAdd, setEmailToAdd] = useState('');
   const [domainFilterMode, setDomainFilterMode] = useState(true);
   const [ipFilterMode, setIpFilterMode] = useState(true);
@@ -187,6 +193,7 @@ const SystemSetting = () => {
           case 'LinuxDOOAuthEnabled':
           case 'discord.enabled':
           case 'oidc.enabled':
+          case 'feishu.enabled':
           case 'passkey.enabled':
           case 'passkey.allow_insecure_origin':
           case 'WorkerAllowHttpImageRequestEnabled':
@@ -214,6 +221,9 @@ const SystemSetting = () => {
             break;
         }
         newInputs[item.key] = item.value;
+        if (item.key === 'feishu.app_id') newInputs.feishu_app_id = item.value;
+        if (item.key === 'feishu.default_group') newInputs.feishu_default_group = item.value;
+        if (item.key === 'feishu.auth_policy') newInputs.feishu_auth_policy = item.value;
       });
       setInputs(newInputs);
       setOriginInputs(newInputs);
@@ -225,6 +235,9 @@ const SystemSetting = () => {
       }
       if (typeof newInputs['fetch_setting.ip_filter_mode'] !== 'undefined') {
         setIpFilterMode(!!newInputs['fetch_setting.ip_filter_mode']);
+      }
+      if (typeof newInputs['feishu.enabled'] !== 'undefined') {
+        setFeishuEnabled(!!newInputs['feishu.enabled']);
       }
       if (formApiRef.current) {
         formApiRef.current.setValues(newInputs);
@@ -639,6 +652,29 @@ const SystemSetting = () => {
     }
   };
 
+  const submitFeishuSettings = async () => {
+    const formValues = formApiRef.current?.getValues() || {};
+    const fieldMapping = {
+      'feishu.app_id': 'feishu_app_id',
+      'feishu.app_secret': 'feishu_app_secret',
+      'feishu.default_group': 'feishu_default_group',
+      'feishu.auth_policy': 'feishu_auth_policy',
+    };
+    const options = [];
+    for (const [backendKey, formField] of Object.entries(fieldMapping)) {
+      const val = formValues[formField];
+      if (
+        originInputs[backendKey] !== val &&
+        !(backendKey === 'feishu.app_secret' && (val === '' || val === undefined))
+      ) {
+        options.push({ key: backendKey, value: val || '' });
+      }
+    }
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
   const submitPasskeySettings = async () => {
     // 使用formApi直接获取当前表单值
     const formValues = formApiRef.current?.getValues() || {};
@@ -688,6 +724,9 @@ const SystemSetting = () => {
     }
     if (optionKey === 'LinuxDOOAuthEnabled') {
       setLinuxDOOAuthEnabled(value);
+    }
+    if (optionKey === 'feishu.enabled') {
+      setFeishuEnabled(value);
     }
   };
 
@@ -1063,6 +1102,16 @@ const SystemSetting = () => {
                         }
                       >
                         {t('允许通过 Linux DO 账户登录 & 注册')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field="['feishu.enabled']"
+                        noLabel
+                        checked={feishuEnabled}
+                        onChange={(e) =>
+                          handleCheckboxChange('feishu.enabled', e)
+                        }
+                      >
+                        {t('允许通过飞书登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='WeChatAuthEnabled'
@@ -1542,6 +1591,61 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitLinuxDOOAuth}>
                     {t('保存 Linux DO OAuth 设置')}
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('配置飞书 OAuth')}>
+                  <Text>{t('用以支持通过飞书进行登录注册')}</Text>
+                  <Banner
+                    type='info'
+                    description={`${t('回调 URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}/oauth/feishu`}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='feishu_app_id'
+                        label={t('飞书 App ID')}
+                        placeholder={t('输入飞书应用的 App ID')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='feishu_app_secret'
+                        label={t('飞书 App Secret')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='feishu_default_group'
+                        label={t('新用户默认分组')}
+                        placeholder='pending'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Select
+                        field='feishu_auth_policy'
+                        label={t('认证策略')}
+                        placeholder='parallel'
+                        optionList={[
+                          { value: 'parallel', label: '并行模式 (飞书 + 密码登录)' },
+                          { value: 'feishu_only', label: '仅飞书模式 (禁用密码登录)' },
+                        ]}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitFeishuSettings}>
+                    {t('保存飞书 OAuth 设置')}
                   </Button>
                 </Form.Section>
               </Card>

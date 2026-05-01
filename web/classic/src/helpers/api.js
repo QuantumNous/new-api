@@ -315,6 +315,17 @@ export async function onLinuxDOOAuthClicked(
   );
 }
 
+export async function onFeishuOAuthClicked(app_id, options = {}) {
+  const state = await prepareOAuthState(options);
+  if (!state) return;
+  const url = new URL('https://accounts.feishu.cn/open-apis/authen/v1/authorize');
+  url.searchParams.set('client_id', app_id);
+  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/feishu`);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('state', state);
+  redirectToOAuthUrl(url);
+}
+
 /**
  * Initiate custom OAuth login
  * @param {Object} provider - Custom OAuth provider config from status API

@@ -50,6 +50,7 @@ import {
   onLinuxDOOAuthClicked,
   onDiscordOAuthClicked,
   onCustomOAuthClicked,
+  onFeishuOAuthClicked,
   getOAuthProviderIcon,
 } from '../../../../helpers';
 import TwoFASetting from '../components/TwoFASetting';
@@ -512,6 +513,50 @@ const AccountManagement = ({
                       }
                     >
                       {status.linuxdo_oauth ? t('绑定') : t('未启用')}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* 飞书绑定 */}
+              <Card className='!rounded-xl'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='flex items-center flex-1 min-w-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-slate-600 dark:text-slate-300">
+                        <path d="M3.5 7.5C3.5 5.29 5.29 3.5 7.5 3.5H16.5C18.71 3.5 20.5 5.29 20.5 7.5V16.5C20.5 18.71 18.71 20.5 16.5 20.5H7.5C5.29 20.5 3.5 18.71 3.5 16.5V7.5Z" fill="currentColor" fillOpacity="0.15"/>
+                        <path d="M8 8H12V10H8V8Z" fill="currentColor"/>
+                        <path d="M8 12H16V14H8V12Z" fill="currentColor"/>
+                        <path d="M8 16H14V18H8V16Z" fill="currentColor"/>
+                      </svg>
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='font-medium text-gray-900'>
+                        {t('飞书')}
+                      </div>
+                      <div className='text-sm text-gray-500 truncate'>
+                        {isBound(userState.user?.feishu_id)
+                          ? t('已绑定')
+                          : !status.feishu_oauth
+                            ? t('未启用')
+                            : t('未绑定')}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex-shrink-0'>
+                    <Button
+                      type='primary'
+                      theme='outline'
+                      size='small'
+                      onClick={() =>
+                        onFeishuOAuthClicked(status.feishu_app_id)
+                      }
+                      disabled={
+                        isBound(userState.user?.feishu_id) ||
+                        !status.feishu_oauth
+                      }
+                    >
+                      {status.feishu_oauth ? t('绑定') : t('未启用')}
                     </Button>
                   </div>
                 </div>

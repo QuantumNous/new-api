@@ -533,8 +533,13 @@ func (user *User) Edit(updatePassword bool) error {
 	}
 
 	DB.First(&user, user.Id)
+	oldGroup := user.Group
 	if err = DB.Model(user).Updates(updates).Error; err != nil {
 		return err
+	}
+
+	if oldGroup != newUser.Group {
+		_ = SyncUserBindGroupSubscriptions(user.Id, oldGroup, newUser.Group)
 	}
 
 	// Update cache

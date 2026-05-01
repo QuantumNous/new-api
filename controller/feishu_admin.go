@@ -147,13 +147,18 @@ func AdminSetUserGroup(c *gin.Context) {
 		return
 	}
 
+	oldGroup := user.Group
 	if err := model.DB.Model(&model.User{}).Where("id = ?", id).Update("group", req.Group).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	model.RecordLog(user.Id, model.LogTypeSystem, "管理员修改分组: "+user.Group+" -> "+req.Group)
+	model.RecordLog(user.Id, model.LogTypeSystem, "管理员修改分组: "+oldGroup+" -> "+req.Group)
+	if oldGroup != req.Group {
+		_ = model.SyncUserBindGroupSubscriptions(id, oldGroup, req.Group)
+	}
 	user.Group = req.Group
+	_ = model.InvalidateUserCache(user.Id)
 	common.ApiSuccess(c, user)
 }
 
