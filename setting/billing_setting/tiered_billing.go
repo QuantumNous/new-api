@@ -16,50 +16,22 @@ const (
 	BillingExprField      = "billing_expr"
 )
 
-// defaultBillingMode and defaultBillingExpr seed the initial state on a fresh
-// database. The DB-loaded values override these at startup. Adding a new model
-// here ensures the system recognises it for billing on first install.
-//
-// Expressions use $/1M-token coefficients (see pkg/billingexpr/expr.md).
-// Doubao Seedance video models — per-second output billing.
-// https://www.volcengine.com/docs/82379/1543901
-var defaultBillingMode = map[string]string{
-	"doubao-seedance-1-0-lite-i2v-250428": BillingModeTieredExpr,
-	"doubao-seedance-1-0-lite-t2v-250428": BillingModeTieredExpr,
-	"doubao-seedance-1-0-pro-250528":      BillingModeTieredExpr,
-	"doubao-seedance-1-0-pro-fast-251015": BillingModeTieredExpr,
-	"doubao-seedance-1-5-pro-251215":      BillingModeTieredExpr,
-	"doubao-seedance-2-0-260128":          BillingModeTieredExpr,
-	"doubao-seedance-2-0-fast-260128":     BillingModeTieredExpr,
-}
-
-var defaultBillingExpr = map[string]string{
-	// lite i2v/t2v: ¥0.10/秒 (c = output seconds); flex = 50% off
-	"doubao-seedance-1-0-lite-i2v-250428": `(tier("在线推理", p * 0 + c * 10)) * (param("service_tier") == "flex" ? 0.5 : 1)`,
-	"doubao-seedance-1-0-lite-t2v-250428": `(tier("在线推理", p * 0 + c * 10)) * (param("service_tier") == "flex" ? 0.5 : 1)`,
-	// pro: ¥0.15/秒; flex = 50% off
-	"doubao-seedance-1-0-pro-250528": `(tier("在线推理", p * 0 + c * 15)) * (param("service_tier") == "flex" ? 0.5 : 1)`,
-	// pro-fast: ¥0.042/秒; flex = 50% off
-	"doubao-seedance-1-0-pro-fast-251015": `(tier("在线推理", p * 0 + c * 4.2)) * (param("service_tier") == "flex" ? 0.5 : 1)`,
-	// 1.5 pro: ¥0.08/秒 without audio; ×2 with audio
-	"doubao-seedance-1-5-pro-251215": `(tier("无音频", p * 0 + c * 8)) * (param("generate_audio") == true ? 2 : 1)`,
-	// 2.0: 480p/720p base; 1080p costs more; video-input costs less
-	"doubao-seedance-2-0-260128": `(tier("480p/720p 无视频输入", c* 46 + p * 0)) * (param("resolution") == "1080p" ? 1.108696 : 1) * (param("content.#(type=='video_url')") != nil ? 0.608696 : 1)`,
-	// 2.0 fast: ¥0.37/秒 (uses p not c); video-input costs less
-	"doubao-seedance-2-0-fast-260128": `(tier("无视频输入", p * 37 + c * 0)) * (param("content.#(type=='video_url')") != nil ? 0.594595 : 1)`,
-}
-
-
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr
+//
+// Default empty maps — admins must configure billing modes/expressions
+// explicitly via the UI. The tiered-pricing editor's PRESET_GROUPS provides
+// curated templates that admins can load as a starting point. Pre-seeding
+// concrete prices here is unsafe because deployments use different
+// currencies (¥ vs $) and the rates would need conversion.
 type BillingSetting struct {
 	BillingMode map[string]string `json:"billing_mode"`
 	BillingExpr map[string]string `json:"billing_expr"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode: make(map[string]string),
-	BillingExpr: make(map[string]string),
+	BillingMode: map[string]string{},
+	BillingExpr: map[string]string{},
 }
 
 func init() {
