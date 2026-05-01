@@ -190,6 +190,14 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 		}
 	}
 
+	if provider.GetName() == "Feishu" {
+		if unionID, ok := oauthUser.Extra["union_id"].(string); ok && unionID != "" && user.FeishuId != unionID {
+			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("feishu_id", unionID).Error; err != nil {
+				common.SysError(fmt.Sprintf("[OAuth-Feishu] Failed to migrate bind to union_id for user %d: %s", user.Id, err.Error()))
+			}
+		}
+	}
+
 	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{
 		"action": "bind",
 	})
@@ -209,6 +217,19 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if user.Id == 0 {
 			return nil, &OAuthUserDeletedError{}
 		}
+
+		if provider.GetName() == "Feishu" {
+			if unionID, ok := oauthUser.Extra["union_id"].(string); ok && unionID != "" && user.FeishuId != unionID {
+				common.SysLog(fmt.Sprintf("[OAuth-Feishu] Migrating user %d from open_id=%s to union_id=%s",
+					user.Id, user.FeishuId, unionID))
+				if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("feishu_id", unionID).Error; err != nil {
+					common.SysError(fmt.Sprintf("[OAuth-Feishu] Failed to migrate user %d to union_id: %s", user.Id, err.Error()))
+				} else {
+					user.FeishuId = unionID
+				}
+			}
+		}
+
 		return user, nil
 	}
 
@@ -233,7 +254,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 
 	// User doesn't exist, create new user if registration is enabled
-	if !common.RegisterEnabled {
+	if !common.RegisterEnabled && provider.GetName() != "Feishu" {
 		return nil, &OAuthRegistrationDisabledError{}
 	}
 
@@ -343,6 +364,14 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if provider.GetName() == "Feishu" {
 			model.RecordLog(user.Id, model.LogTypeSystem,
 				fmt.Sprintf("飞书OAuth创建用户，分组=%s，额度=0", oauth.GetFeishuDefaultGroup()))
+
+			if unionID, ok := oauthUser.Extra["union_id"].(string); ok && unionID != "" {
+				if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("feishu_id", unionID).Error; err != nil {
+					common.SysError(fmt.Sprintf("[OAuth-Feishu] Failed to set union_id for new user %d: %s", user.Id, err.Error()))
+				} else {
+					user.FeishuId = unionID
+				}
+			}
 		}
 	}
 

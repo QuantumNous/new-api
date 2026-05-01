@@ -196,21 +196,21 @@ func (p *FeishuProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	}
 
 	data := userInfoRes.Data
-	if data.UnionID == "" {
-		logger.LogError(ctx, "[OAuth-Feishu] GetUserInfo failed: empty union_id")
+	if data.OpenID == "" {
+		logger.LogError(ctx, "[OAuth-Feishu] GetUserInfo failed: empty open_id")
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "Feishu"})
 	}
 
-	logger.LogDebug(ctx, "[OAuth-Feishu] GetUserInfo success: union_id=%s, open_id=%s, name=%s, email=%s",
-		data.UnionID, data.OpenID, data.Name, data.Email)
+	logger.LogDebug(ctx, "[OAuth-Feishu] GetUserInfo success: open_id=%s, union_id=%s, name=%s, email=%s",
+		data.OpenID, data.UnionID, data.Name, data.Email)
 
 	return &OAuthUser{
-		ProviderUserID: data.UnionID,
+		ProviderUserID: data.OpenID,
 		Username:       data.Name,
 		DisplayName:    data.Name,
 		Email:          data.Email,
 		Extra: map[string]any{
-			"open_id":    data.OpenID,
+			"union_id":   data.UnionID,
 			"avatar_url": data.AvatarURL,
 			"user_id":    data.UserID,
 			"mobile":     data.Mobile,

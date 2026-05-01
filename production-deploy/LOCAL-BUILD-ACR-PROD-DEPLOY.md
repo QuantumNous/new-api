@@ -90,6 +90,15 @@ chmod +x build.sh
 ./build.sh 1.1.0 --skip-push        # 只构建不推送
 ```
 
+### 常用场景速查
+
+| 场景 | 命令 | 耗时 |
+|------|------|------|
+| 全量构建（前后端都改了） | `./build.sh <版本>` | 慢（~5-10min） |
+| **仅改了后端 Go 代码** | `./build.sh <版本> --skip-classic --skip-default` | 快（~2-3min） |
+| 仅改了 classic 前端 | `./build.sh <版本> --skip-default --skip-build` → 手动先 build classic | 中等 |
+| 改了 docker 配置 | `./build.sh <版本> --skip-classic --skip-default --skip-build` | 最快 |
+
 ---
 
 ## 5. 手动构建（分步操作，本地 Mac 执行）

@@ -140,6 +140,13 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/feishu/bindings/import", controller.ImportFeishuBindings)
 				adminRoute.PUT("/:id/group", controller.AdminSetUserGroup)
 				adminRoute.POST("/group-sync", controller.AdminGroupSync)
+
+				// Admin Feishu user & token management
+				adminRoute.POST("/feishu/users/batch", controller.BatchCreateFeishuUsers)
+				adminRoute.PUT("/feishu/users/batch", controller.BatchUpdateFeishuUsers)
+				adminRoute.POST("/feishu/tokens", controller.AdminCreateTokenByFeishu)
+				adminRoute.POST("/feishu/tokens/batch", controller.AdminBatchCreateTokensByFeishu)
+				adminRoute.GET("/feishu/tokens", controller.AdminGetTokensByFeishu)
 			}
 		}
 

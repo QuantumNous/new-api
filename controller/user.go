@@ -69,7 +69,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	if user.FeishuId != "" {
+	if user.FeishuId != "" && user.Role != common.RoleRootUser {
 		common.ApiErrorI18n(c, i18n.MsgUserFeishuLoginRequired)
 		return
 	}
