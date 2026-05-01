@@ -4,7 +4,7 @@ type TaskPlatform string
 
 const (
 	TaskPlatformSuno       TaskPlatform = "suno"
-	TaskPlatformMidjourney              = "mj"
+	TaskPlatformMidjourney TaskPlatform = "mj"
 )
 
 const (
@@ -12,6 +12,7 @@ const (
 	SunoActionLyrics = "LYRICS"
 
 	TaskActionGenerate          = "generate"
+	TaskActionAssetUpload       = "assetUpload"
 	TaskActionTextGenerate      = "textGenerate"
 	TaskActionFirstTailGenerate = "firstTailGenerate"
 	TaskActionReferenceGenerate = "referenceGenerate"

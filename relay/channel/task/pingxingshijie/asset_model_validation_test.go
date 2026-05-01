@@ -39,6 +39,9 @@ func TestValidateRequestAndSetActionAllowsAssetPlaceholderModel(t *testing.T) {
 	if taskErr != nil {
 		t.Fatalf("expected asset model to be accepted, got %#v", taskErr)
 	}
+	if info.Action != "assetUpload" {
+		t.Fatalf("expected asset upload action to avoid generate/image-to-video classification, got %q", info.Action)
+	}
 }
 
 func TestValidateRequestAndSetActionRejectsBlankAssetUploadModel(t *testing.T) {

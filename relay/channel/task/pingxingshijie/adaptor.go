@@ -185,7 +185,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		if strings.TrimSpace(req.Prompt) == "" {
 			req.Prompt = "asset-upload"
 		}
-		info.Action = constant.TaskActionGenerate
+		info.Action = constant.TaskActionAssetUpload
 		c.Set("task_request", req)
 		return nil
 	case UpstreamKindImage:
