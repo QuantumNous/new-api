@@ -135,8 +135,6 @@ export function UptimePanel() {
         </span>
       }
       loading={loading}
-      empty={!groups.length}
-      emptyMessage={t('No uptime monitoring configured')}
       height='h-80'
       headerActions={
         <Button
