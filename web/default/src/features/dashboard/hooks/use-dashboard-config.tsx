@@ -4,7 +4,6 @@ import {
   Layers,
   Gauge,
   Zap,
-  Clock3,
   Wallet,
   TrendingUp,
   Activity,
@@ -69,8 +68,6 @@ export function useSummaryCardsConfig(totals: {
   remainDisplay: string
   usedDisplay: string
   requestCountDisplay: string
-  uptimeDisplay: string
-  uptimeSinceDisplay: string
   currencyLabel: string
   currencyEnabled: boolean
 }) {
@@ -105,13 +102,6 @@ export function useSummaryCardsConfig(totals: {
       value: totals.requestCountDisplay,
       description: t('Total requests made'),
       icon: Activity,
-    },
-    {
-      key: 'uptime',
-      title: t('Uptime'),
-      value: totals.uptimeDisplay,
-      description: `${t('Uptime since')} ${totals.uptimeSinceDisplay}`,
-      icon: Clock3,
     },
   ]
 }
