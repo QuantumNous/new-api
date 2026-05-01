@@ -82,48 +82,35 @@ production-deploy/
 
 ## 部署流程
 
-### 第一步：本地构建打包
+### 方式一：本地构建 + ACR 推送 + 生产拉取（推荐）
+
+详见 [LOCAL-BUILD-ACR-PROD-DEPLOY.md](./LOCAL-BUILD-ACR-PROD-DEPLOY.md)
+
+```bash
+# 本地一键构建并推送
+cd production-deploy
+./build.sh 1.1.0
+
+# 生产服务器拉取并重启（仅升级 new-api）
+docker compose pull new-api
+docker compose up -d new-api --no-deps
+```
+
+### 方式二：本地打包 + SCP 上传（旧方式）
 
 ```bash
 cd production-deploy
-./build.sh
+./build.sh 1.1.0 --skip-push
+# 输出目录：production-deploy/output/
 ```
 
-### 第二步：上传到服务器
-
-```bash
-scp -r output/* user@jump-server:/tmp/production-deploy/
-ssh user@jump-server
-scp -r /tmp/production-deploy/* root@production-server:/opt/production-deploy/
-```
-
-### 第三步：服务器初始化（首次）
+### 首次服务器初始化
 
 ```bash
 ssh root@production-server
 cd /opt/production-deploy
 chmod +x init-server.sh
 ./init-server.sh
-```
-
-### 第四步：部署
-
-```bash
-docker load -i new-api.tar
-docker load -i cliproxyapi.tar
-mkdir -p new-api-data new-api-logs cliproxy-config cliproxy-auth cliproxy-logs pg-data redis-data
-cp config.example.yaml cliproxy-config/config.yaml
-nano cliproxy-config/config.yaml
-docker-compose up -d
-```
-
-### 第五步：配置自启动
-
-```bash
-cp production-deploy.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable production-deploy
-systemctl start production-deploy
 ```
 
 ---
