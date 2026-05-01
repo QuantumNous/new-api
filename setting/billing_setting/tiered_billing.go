@@ -18,20 +18,14 @@ const (
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr
-//
-// Default empty maps — admins must configure billing modes/expressions
-// explicitly via the UI. The tiered-pricing editor's PRESET_GROUPS provides
-// curated templates that admins can load as a starting point. Pre-seeding
-// concrete prices here is unsafe because deployments use different
-// currencies (¥ vs $) and the rates would need conversion.
 type BillingSetting struct {
 	BillingMode map[string]string `json:"billing_mode"`
 	BillingExpr map[string]string `json:"billing_expr"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode: map[string]string{},
-	BillingExpr: map[string]string{},
+	BillingMode: make(map[string]string),
+	BillingExpr: make(map[string]string),
 }
 
 func init() {
