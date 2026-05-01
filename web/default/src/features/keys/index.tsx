@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
+import { ApiRequestUrlCard } from './components/api-request-url-card'
 import { ApiKeysDialogs } from './components/api-keys-dialogs'
 import { ApiKeysProvider } from './components/api-keys-provider'
 import { ApiKeysTable } from './components/api-keys-table'
@@ -14,7 +15,10 @@ export function ApiKeys() {
           {t('Manage your API keys for accessing the service')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Content>
-          <ApiKeysTable />
+          <div className='space-y-4'>
+            <ApiRequestUrlCard />
+            <ApiKeysTable />
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 
