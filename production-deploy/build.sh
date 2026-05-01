@@ -120,6 +120,8 @@ cd "$NEW_API_PATH"
 info "Building Docker image for linux/amd64..."
 docker buildx build \
     --platform linux/amd64 \
+    --provenance=false \
+    --sbom=false \
     -t "$IMAGE_TAG" \
     -f deploy/Dockerfile.local \
     --load \
