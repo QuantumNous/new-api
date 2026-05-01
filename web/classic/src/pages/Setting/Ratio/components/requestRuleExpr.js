@@ -314,33 +314,43 @@ function tryParseTimeCondition(expr) {
   return null;
 }
 
+// Unescape a JSON-string-escaped path (e.g. content.#(type==\"video_url\") → content.#(type=="video_url")).
+// Only handles the two escape sequences that JSON.stringify emits for path strings: \" and \\.
+function unescapePath(raw) {
+  return raw.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+}
+
+// Regex fragment that matches a JSON-escaped path inside double quotes.
+// Captures escaped sequences (\\.) as well as plain non-quote/non-backslash chars.
+const ESCAPED_PATH_RE = '((?:[^"\\\\]|\\\\.)*)';
+
 function tryParseRequestCondition(expr) {
   const tc = tryParseTimeCondition(expr);
   if (tc) return tc;
 
-  let m = expr.match(/^header\("([^"]+)"\) != ""$/);
-  if (m) return { source: SOURCE_HEADER, path: m[1], mode: MATCH_EXISTS, value: '' };
+  let m = expr.match(new RegExp(`^header\\("${ESCAPED_PATH_RE}"\\) != ""$`));
+  if (m) return { source: SOURCE_HEADER, path: unescapePath(m[1]), mode: MATCH_EXISTS, value: '' };
 
-  m = expr.match(/^param\("([^"]+)"\) != nil$/);
-  if (m) return { source: SOURCE_PARAM, path: m[1], mode: MATCH_EXISTS, value: '' };
+  m = expr.match(new RegExp(`^param\\("${ESCAPED_PATH_RE}"\\) != nil$`));
+  if (m) return { source: SOURCE_PARAM, path: unescapePath(m[1]), mode: MATCH_EXISTS, value: '' };
 
-  m = expr.match(/^has\(header\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/);
-  if (m) return { source: SOURCE_HEADER, path: m[1], mode: MATCH_CONTAINS, value: JSON.parse(m[2]) };
+  m = expr.match(new RegExp(`^has\\(header\\("${ESCAPED_PATH_RE}"\\), ((?:"(?:[^"\\\\]|\\\\.)*"))\\)$`));
+  if (m) return { source: SOURCE_HEADER, path: unescapePath(m[1]), mode: MATCH_CONTAINS, value: JSON.parse(m[2]) };
 
-  m = expr.match(/^param\("([^"]+)"\) != nil && has\(param\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/);
-  if (m && m[1] === m[2]) return { source: SOURCE_PARAM, path: m[1], mode: MATCH_CONTAINS, value: JSON.parse(m[3]) };
+  m = expr.match(new RegExp(`^param\\("${ESCAPED_PATH_RE}"\\) != nil && has\\(param\\("${ESCAPED_PATH_RE}"\\), ((?:"(?:[^"\\\\]|\\\\.)*"))\\)$`));
+  if (m && m[1] === m[2]) return { source: SOURCE_PARAM, path: unescapePath(m[1]), mode: MATCH_CONTAINS, value: JSON.parse(m[3]) };
 
-  m = expr.match(/^param\("([^"]+)"\) != nil && param\("([^"]+)"\) (>|>=|<|<=) ([\d.eE+-]+)$/);
+  m = expr.match(new RegExp(`^param\\("${ESCAPED_PATH_RE}"\\) != nil && param\\("${ESCAPED_PATH_RE}"\\) (>|>=|<|<=) ([\\d.eE+-]+)$`));
   if (m && m[1] === m[2]) {
     const opMap = { '>': MATCH_GT, '>=': MATCH_GTE, '<': MATCH_LT, '<=': MATCH_LTE };
-    return { source: SOURCE_PARAM, path: m[1], mode: opMap[m[3]], value: m[4] };
+    return { source: SOURCE_PARAM, path: unescapePath(m[1]), mode: opMap[m[3]], value: m[4] };
   }
 
-  m = expr.match(/^(param|header)\("([^"]+)"\) == (.+)$/);
+  m = expr.match(new RegExp(`^(param|header)\\("${ESCAPED_PATH_RE}"\\) == (.+)$`));
   if (m) {
     const parsedValue = parseExprLiteral(m[3]);
     if (parsedValue === null) return null;
-    return { source: m[1], path: m[2], mode: MATCH_EQ, value: String(parsedValue) };
+    return { source: m[1], path: unescapePath(m[2]), mode: MATCH_EQ, value: String(parsedValue) };
   }
 
   return null;
