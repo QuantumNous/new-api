@@ -369,6 +369,27 @@ func GetByTaskId(userId int, taskId string) (*Task, bool, error) {
 	return task, exist, err
 }
 
+func GetByUpstreamTaskId(userId int, upstreamTaskId string) (*Task, bool, error) {
+	if upstreamTaskId == "" {
+		return nil, false, nil
+	}
+	var task *Task
+	query := DB.Where("user_id = ?", userId)
+	if common.UsingPostgreSQL {
+		query = query.Where("private_data->>'upstream_task_id' = ?", upstreamTaskId)
+	} else if common.UsingMySQL {
+		query = query.Where("JSON_UNQUOTE(JSON_EXTRACT(private_data, '$.upstream_task_id')) = ?", upstreamTaskId)
+	} else {
+		query = query.Where("json_extract(private_data, '$.upstream_task_id') = ?", upstreamTaskId)
+	}
+	err := query.First(&task).Error
+	exist, err := RecordExist(err)
+	if err != nil {
+		return nil, false, err
+	}
+	return task, exist, err
+}
+
 func GetByTaskIds(userId int, taskIds []any) ([]*Task, error) {
 	if len(taskIds) == 0 {
 		return nil, nil

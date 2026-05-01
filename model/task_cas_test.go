@@ -72,6 +72,26 @@ func insertTask(t *testing.T, task *Task) {
 	require.NoError(t, DB.Create(task).Error)
 }
 
+func TestGetByUpstreamTaskIdFindsAssetByPrivateData(t *testing.T) {
+	truncateTables(t)
+	insertTask(t, &Task{
+		TaskID:   "task_public_asset",
+		UserId:   7,
+		Platform: "58",
+		Status:   TaskStatusSubmitted,
+		PrivateData: TaskPrivateData{
+			UpstreamTaskID: "asset-20260319082447-qrrjp",
+			UpstreamKind:   "asset",
+		},
+	})
+
+	task, exist, err := GetByUpstreamTaskId(7, "asset-20260319082447-qrrjp")
+	require.NoError(t, err)
+	require.True(t, exist)
+	require.NotNil(t, task)
+	assert.Equal(t, "task_public_asset", task.TaskID)
+}
+
 // ---------------------------------------------------------------------------
 // Snapshot / Equal — pure logic tests (no DB)
 // ---------------------------------------------------------------------------

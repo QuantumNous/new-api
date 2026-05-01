@@ -384,11 +384,15 @@ func sunoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dt
 func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
 	taskId := c.Param("task_id")
 	if taskId == "" {
+		taskId = c.Param("asset_id")
+	}
+	if taskId == "" {
 		taskId = c.GetString("task_id")
 	}
 	userId := c.GetInt("id")
+	path := c.Request.URL.Path
 
-	originTask, exist, err := model.GetByTaskId(userId, taskId)
+	originTask, exist, err := getTaskForVideoFetch(userId, taskId, path)
 	if err != nil {
 		taskResp = service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
 		return
@@ -398,7 +402,6 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
-	path := c.Request.URL.Path
 	isOpenAIVideoAPI := strings.HasPrefix(path, "/v1/videos/") || strings.HasPrefix(path, "/v1/video/generations/")
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
@@ -426,7 +429,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		}
 	}
 
-	// PingXingShiJie asset task (GET /v1/assets/:task_id)
+	// PingXingShiJie asset task (GET /v1/assets/:asset_id)
 	if strings.HasPrefix(path, "/v1/assets/") && (uk == "" || uk == "asset") {
 		adaptor := GetTaskAdaptor(originTask.Platform)
 		if adaptor == nil {
@@ -473,6 +476,15 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+func getTaskForVideoFetch(userId int, id string, path string) (*model.Task, bool, error) {
+	if strings.HasPrefix(path, "/v1/assets/") {
+		if task, exist, err := model.GetByUpstreamTaskId(userId, id); err != nil || exist {
+			return task, exist, err
+		}
+	}
+	return model.GetByTaskId(userId, id)
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。

@@ -87,7 +87,7 @@ type OpenAIAsyncImageConverter interface {
 	ConvertToOpenAIAsyncImage(originTask *model.Task) ([]byte, error)
 }
 
-// OpenAIAssetTaskConverter converts stored PingXingShiJie asset tasks for GET /v1/assets/:task_id.
+// OpenAIAssetTaskConverter converts stored PingXingShiJie asset tasks for GET /v1/assets/:asset_id.
 type OpenAIAssetTaskConverter interface {
 	ConvertToOpenAIAssetTask(originTask *model.Task) ([]byte, error)
 }
