@@ -1,7 +1,23 @@
 package pingxingshijie
 
-// AssetPlaceholderModel is used when /v1/assets/upload JSON omits "model" (distributor still needs a model for routing).
+import (
+	"fmt"
+	"strings"
+)
+
+// AssetPlaceholderModel is the only model allowed for /v1/assets/upload routing and billing.
 const AssetPlaceholderModel = "pingxingshijie-asset"
+
+func ValidateAssetUploadModel(modelName string) error {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return fmt.Errorf("model is required for asset upload; use %s", AssetPlaceholderModel)
+	}
+	if modelName != AssetPlaceholderModel {
+		return fmt.Errorf("invalid asset upload model %q; use %s", modelName, AssetPlaceholderModel)
+	}
+	return nil
+}
 
 // ModelList contains the PingXingShiJie models documented in docs/pingxingshijie-api-reference.md.
 var ModelList = []string{

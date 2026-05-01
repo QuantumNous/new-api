@@ -179,8 +179,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 			return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 		}
-		if strings.TrimSpace(req.Model) == "" {
-			req.Model = AssetPlaceholderModel
+		if err := ValidateAssetUploadModel(req.Model); err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 		}
 		if strings.TrimSpace(req.Prompt) == "" {
 			req.Prompt = "asset-upload"
