@@ -47,7 +47,7 @@ export function ApiRequestUrlCard() {
         <div className='flex flex-col gap-3'>
           <div className='flex flex-wrap items-center gap-2'>
             <Badge variant='secondary'>{t('OpenAI')}</Badge>
-            <p className='text-sm font-medium'>API {'\u8bf7\u6c42\u5730\u5740'}</p>
+            <p className='text-sm font-medium'>{t('API Request URL')}</p>
           </div>
 
           <div className='flex flex-col gap-2 sm:flex-row'>
@@ -55,7 +55,7 @@ export function ApiRequestUrlCard() {
               readOnly
               value={apiRequestUrl}
               onFocus={(event) => event.currentTarget.select()}
-              aria-label={'API \u8bf7\u6c42\u5730\u5740'}
+              aria-label={t('API Request URL')}
               className='font-mono text-xs sm:text-sm'
             />
             <CopyButton
@@ -65,7 +65,7 @@ export function ApiRequestUrlCard() {
               className='w-full sm:w-auto'
               iconClassName='size-4'
               tooltip={t('Copy URL')}
-              aria-label={'\u590d\u5236 API \u8bf7\u6c42\u5730\u5740'}
+              aria-label={t('Copy API request URL')}
             >
               <span className='ml-1'>{t('Copy')}</span>
             </CopyButton>
