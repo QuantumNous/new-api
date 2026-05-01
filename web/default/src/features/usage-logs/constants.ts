@@ -147,6 +147,7 @@ export const TASK_ACTIONS = {
 
   // Video generation (camelCase)
   GENERATE: 'generate', // 图生视频
+  ASSET_UPLOAD: 'assetUpload', // 素材上传
   TEXT_GENERATE: 'textGenerate', // 文生视频
   FIRST_TAIL_GENERATE: 'firstTailGenerate', // 首尾生视频
   REFERENCE_GENERATE: 'referenceGenerate', // 参照生视频
@@ -253,6 +254,7 @@ export const TASK_ACTION_MAPPINGS: Record<string, StatusMapping> = {
   [TASK_ACTIONS.MUSIC]: { label: 'Generate Music', variant: 'neutral' },
   [TASK_ACTIONS.LYRICS]: { label: 'Generate Lyrics', variant: 'pink' },
   [TASK_ACTIONS.GENERATE]: { label: 'Image to Video', variant: 'blue' },
+  [TASK_ACTIONS.ASSET_UPLOAD]: { label: 'Asset Upload', variant: 'cyan' },
   [TASK_ACTIONS.TEXT_GENERATE]: { label: 'Text to Video', variant: 'blue' },
   [TASK_ACTIONS.FIRST_TAIL_GENERATE]: {
     label: 'First/Last Frame to Video',

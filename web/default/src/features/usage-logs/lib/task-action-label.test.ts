@@ -8,6 +8,11 @@ assert.equal(
 )
 
 assert.equal(
+  getTaskActionLabel({ action: 'assetUpload' }, 'Image to Video'),
+  'Asset Upload'
+)
+
+assert.equal(
   getTaskActionLabel({ upstream_kind: 'image' }, 'Image to Video'),
   'Image Generation'
 )
