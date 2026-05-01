@@ -320,13 +320,13 @@ Body 转发至上游 `POST /v2/asset/upload`。分发器要求 JSON 中必须显
 
 ### 4.2 查询素材任务
 
-**`GET /v1/assets/:task_id`**
+**`GET /v1/assets/:asset_id`**
 
 | 参数名 | 位置 | 必填 | 含义 |
 |--------|------|------|------|
-| `task_id` | Path | 是 | 提交返回的 **公开** 任务 ID |
+| `asset_id` | Path | 是 | 上传响应返回的 **上游素材 ID**（`asset_id`） |
 
-服务端周期性以 `POST /v2/asset/status`（body: `{"asset_id":"<上游ID>"}`）轮询上游；客户端只需轮询本 GET。
+服务端按该 `asset_id` 找到本地任务记录，并周期性以 `POST /v2/asset/status`（body: `{"asset_id":"<上游ID>"}`）轮询上游。为兼容旧客户端，若未找到 `asset_id`，网关仍会回退尝试公开 `task_id`。
 
 #### 成功响应 HTTP 200 — Body
 
@@ -401,7 +401,7 @@ curl -sS -X POST "${GATEWAY}/v1/assets/upload" \
 | 图片异步提交 | POST | `/v1/images/generations/async` |
 | 图片异步查询 | GET | `/v1/images/generations/:task_id` |
 | 素材上传 | POST | `/v1/assets/upload` |
-| 素材查询 | GET | `/v1/assets/:task_id` |
+| 素材查询 | GET | `/v1/assets/:asset_id` |
 | 视频内容代理 | GET | `/v1/videos/:task_id/content`（`TokenOrUserAuth`，见 `video-router`） |
 
 ---
