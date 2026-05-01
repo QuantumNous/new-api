@@ -83,6 +83,35 @@ describe('tryParseRequestRuleExpr — gjson double-quoted path reverse parsing',
     expect(groups[0].conditions[0].value).toBe('1080p');
   });
 
+  it('round-trips other JSON string escapes in paths', () => {
+    const path = 'metadata.line\nname';
+    const expr = buildRequestRuleExpr([
+      { conditions: [{ source: SOURCE_PARAM, path, mode: MATCH_EXISTS }], multiplier: '0.5' },
+    ]);
+    const parsed = tryParseRequestRuleExpr(expr);
+    expect(parsed).not.toBeNull();
+    expect(parsed[0].conditions[0].path).toBe(path);
+  });
+
+  it('does not parse an empty path as a valid request rule', () => {
+    expect(tryParseRequestRuleExpr('(param("") != nil ? 0.5 : 1)')).toBeNull();
+  });
+
+  it('does not throw on invalid JSON escape inside has() value (admin half-typed)', () => {
+    // \q is not a valid JSON escape sequence; regex still matches but JSON.parse
+    // would throw. Guard ensures the parser returns null gracefully.
+    const expr = '(has(header("x-flag"), "\\q") ? 0.5 : 1)';
+    expect(() => tryParseRequestRuleExpr(expr)).not.toThrow();
+    expect(tryParseRequestRuleExpr(expr)).toBeNull();
+  });
+
+  it('does not throw on invalid JSON escape inside param has() value', () => {
+    const expr = '(param("foo") != nil && has(param("foo"), "\\q") ? 0.5 : 1)';
+    expect(() => tryParseRequestRuleExpr(expr)).not.toThrow();
+    expect(tryParseRequestRuleExpr(expr)).toBeNull();
+  });
+
+
   it('old single-quoted path (the buggy form) does NOT produce a gjson-correct path', () => {
     // The old preset used single quotes — the build direction emits them literally,
     // resulting in an expr that gjson cannot match. Confirm the build output differs

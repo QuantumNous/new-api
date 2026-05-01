@@ -320,7 +320,20 @@ function unescapePath(raw) {
   return raw.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
 }
 
-// Regex fragment that matches a JSON-escaped path inside double quotes.
+// Parse a quoted string literal (already including surrounding quotes) with
+// graceful fallback. The has()/== regex fragments accept any backslash escape
+// (`\\.`) which is more permissive than JSON's escape grammar — admins typing
+// half-finished input like `\q` would crash JSON.parse and bubble up to the
+// editor. Return null on any parse error so the caller skips the rule.
+function safeJsonParse(quoted) {
+  try {
+    return JSON.parse(quoted);
+  } catch {
+    return null;
+  }
+}
+
+// Regex fragment that matches a non-empty JSON-escaped path inside double quotes.
 // Captures escaped sequences (\\.) as well as plain non-quote/non-backslash chars.
 const ESCAPED_PATH_RE = '((?:[^"\\\\]|\\\\.)+)';
 // JSON-escaped string literal (e.g. "foo" or "foo\\nbar"). Used as the value
@@ -357,14 +370,16 @@ function tryParseRequestCondition(expr) {
   m = expr.match(HAS_HEADER_RE);
   if (m) {
     const path = unescapePath(m[1]);
-    if (path !== null) return { source: SOURCE_HEADER, path, mode: MATCH_CONTAINS, value: JSON.parse(m[2]) };
+    const value = safeJsonParse(m[2]);
+    if (path !== null && value !== null) return { source: SOURCE_HEADER, path, mode: MATCH_CONTAINS, value };
   }
 
   m = expr.match(PARAM_HAS_RE);
   if (m) {
     const path = unescapePath(m[1]);
     const repeatedPath = unescapePath(m[2]);
-    if (path !== null && path === repeatedPath) return { source: SOURCE_PARAM, path, mode: MATCH_CONTAINS, value: JSON.parse(m[3]) };
+    const value = safeJsonParse(m[3]);
+    if (path !== null && path === repeatedPath && value !== null) return { source: SOURCE_PARAM, path, mode: MATCH_CONTAINS, value };
   }
 
   m = expr.match(PARAM_NUMERIC_CMP_RE);
