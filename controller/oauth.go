@@ -190,14 +190,6 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 		}
 	}
 
-	if provider.GetName() == "Feishu" {
-		if unionID, ok := oauthUser.Extra["union_id"].(string); ok && unionID != "" && user.FeishuId != unionID {
-			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("feishu_id", unionID).Error; err != nil {
-				common.SysError(fmt.Sprintf("[OAuth-Feishu] Failed to migrate bind to union_id for user %d: %s", user.Id, err.Error()))
-			}
-		}
-	}
-
 	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{
 		"action": "bind",
 	})
@@ -219,13 +211,17 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		}
 
 		if provider.GetName() == "Feishu" {
-			if unionID, ok := oauthUser.Extra["union_id"].(string); ok && unionID != "" && user.FeishuId != unionID {
-				common.SysLog(fmt.Sprintf("[OAuth-Feishu] Migrating user %d from open_id=%s to union_id=%s",
-					user.Id, user.FeishuId, unionID))
-				if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("feishu_id", unionID).Error; err != nil {
-					common.SysError(fmt.Sprintf("[OAuth-Feishu] Failed to migrate user %d to union_id: %s", user.Id, err.Error()))
+			updates := map[string]interface{}{}
+			if oauthUser.DisplayName != "" && user.DisplayName != oauthUser.DisplayName {
+				updates["display_name"] = oauthUser.DisplayName
+			}
+			if len(updates) > 0 {
+				if err := model.DB.Model(user).Updates(updates).Error; err != nil {
+					common.SysError(fmt.Sprintf("[OAuth-Feishu] Failed to sync profile for user %d: %s", user.Id, err.Error()))
 				} else {
-					user.FeishuId = unionID
+					if dn, ok := updates["display_name"]; ok {
+						user.DisplayName = dn.(string)
+					}
 				}
 			}
 		}
@@ -244,9 +240,20 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				// Found user with legacy ID, migrate to new ID
 				common.SysLog(fmt.Sprintf("[OAuth] Migrating user %d from legacy_id=%s to new_id=%s",
 					user.Id, legacyID, oauthUser.ProviderUserID))
-				if err := user.UpdateGitHubId(oauthUser.ProviderUserID); err != nil {
-					common.SysError(fmt.Sprintf("[OAuth] Failed to migrate user %d: %s", user.Id, err.Error()))
-					// Continue with login even if migration fails
+				if provider.GetName() == "Feishu" {
+					if err := user.UpdateFeishuId(oauthUser.ProviderUserID); err != nil {
+						common.SysError(fmt.Sprintf("[OAuth-Feishu] Failed to migrate user %d: %s", user.Id, err.Error()))
+					} else {
+						user.FeishuId = oauthUser.ProviderUserID
+					}
+					if oauthUser.DisplayName != "" {
+						_ = model.DB.Model(user).Update("display_name", oauthUser.DisplayName)
+						user.DisplayName = oauthUser.DisplayName
+					}
+				} else {
+					if err := user.UpdateGitHubId(oauthUser.ProviderUserID); err != nil {
+						common.SysError(fmt.Sprintf("[OAuth] Failed to migrate user %d: %s", user.Id, err.Error()))
+					}
 				}
 				return user, nil
 			}
@@ -364,14 +371,6 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if provider.GetName() == "Feishu" {
 			model.RecordLog(user.Id, model.LogTypeSystem,
 				fmt.Sprintf("飞书OAuth创建用户，分组=%s，额度=0", oauth.GetFeishuDefaultGroup()))
-
-			if unionID, ok := oauthUser.Extra["union_id"].(string); ok && unionID != "" {
-				if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("feishu_id", unionID).Error; err != nil {
-					common.SysError(fmt.Sprintf("[OAuth-Feishu] Failed to set union_id for new user %d: %s", user.Id, err.Error()))
-				} else {
-					user.FeishuId = unionID
-				}
-			}
 		}
 	}
 

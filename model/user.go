@@ -718,6 +718,13 @@ func IsFeishuIdAlreadyTaken(feishuId string) bool {
 	return DB.Unscoped().Where("feishu_id = ?", feishuId).Find(&User{}).RowsAffected == 1
 }
 
+func (user *User) UpdateFeishuId(newFeishuId string) error {
+	if user.Id == 0 {
+		return errors.New("user id is empty")
+	}
+	return DB.Model(user).Update("feishu_id", newFeishuId).Error
+}
+
 func (user *User) FillUserByFeishuId() error {
 	if user.FeishuId == "" {
 		return errors.New("feishu_id is empty")
