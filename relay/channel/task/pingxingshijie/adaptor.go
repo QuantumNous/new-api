@@ -296,6 +296,17 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err != nil {
 			return nil, err
 		}
+		if kind == UpstreamKindAsset {
+			var m map[string]any
+			if err := common.Unmarshal(raw, &m); err != nil {
+				return nil, errors.Wrap(err, "unmarshal asset request")
+			}
+			delete(m, "model")
+			raw, err = common.Marshal(m)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if kind == UpstreamKindImage {
 			var m map[string]any
 			if err := common.Unmarshal(raw, &m); err != nil {
