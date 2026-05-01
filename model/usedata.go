@@ -141,6 +141,7 @@ type UserStatItem struct {
 type ModelStatItem struct {
 	ModelName string `json:"model_name"`
 	Count     int    `json:"count"`
+	TokenUsed int    `json:"token_used"`
 	Quota     int    `json:"quota"`
 }
 
@@ -163,7 +164,7 @@ func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string,
 	}
 
 	err = tx.Group("username").
-		Order("sum(quota) desc").
+		Order("sum(count) desc, sum(token_used) desc, sum(quota) desc").
 		Limit(pageSize).Offset((page - 1) * pageSize).
 		Find(&items).Error
 	return items, total, err
@@ -171,7 +172,7 @@ func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string,
 
 func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string, modelNames []string, page int, pageSize int) (items []*ModelStatItem, total int64, err error) {
 	tx := DB.Table("quota_data").
-		Select("model_name, sum(count) as count, sum(quota) as quota").
+		Select("model_name, sum(count) as count, sum(token_used) as token_used, sum(quota) as quota").
 		Where("created_at >= ? and created_at <= ?", startTime, endTime)
 
 	if len(usernames) > 0 {
@@ -188,7 +189,7 @@ func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string
 	}
 
 	err = tx.Group("model_name").
-		Order("sum(quota) desc").
+		Order("sum(count) desc, sum(token_used) desc, sum(quota) desc").
 		Limit(pageSize).Offset((page - 1) * pageSize).
 		Find(&items).Error
 	return items, total, err
@@ -196,7 +197,7 @@ func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string
 
 func GetUserModelStatsByDetail(startTime int64, endTime int64, usernames []string, modelNames []string, page int, pageSize int) (items []*UserModelStatItem, total int64, err error) {
 	tx := DB.Table("quota_data").
-		Select("username, model_name, sum(count) as count, sum(quota) as quota").
+		Select("username, model_name, sum(count) as count, sum(token_used) as token_used, sum(quota) as quota").
 		Where("created_at >= ? and created_at <= ?", startTime, endTime)
 
 	if len(usernames) > 0 {
@@ -213,7 +214,7 @@ func GetUserModelStatsByDetail(startTime int64, endTime int64, usernames []strin
 	}
 
 	err = tx.Group("username, model_name").
-		Order("sum(quota) desc").
+		Order("sum(count) desc, sum(token_used) desc, sum(quota) desc").
 		Limit(pageSize).Offset((page - 1) * pageSize).
 		Find(&items).Error
 	return items, total, err

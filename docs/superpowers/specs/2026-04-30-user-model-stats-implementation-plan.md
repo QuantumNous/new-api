@@ -26,8 +26,8 @@
 ## 2.2 前端页面
 
 - Tab1 用户视角：用户、请求次数、总Token、额度消耗
-- Tab2 模型视角：模型、请求次数、额度消耗
-- Tab3 用户模型消耗：用户、模型、请求次数、额度消耗
+- Tab2 模型视角：模型、请求次数、总Token、额度消耗
+- Tab3 用户模型消耗：用户、模型、请求次数、总Token、额度消耗
 
 三个视角均为表格列表 + 分页。
 
@@ -44,7 +44,7 @@
 | token_used | 总 Token 数 |
 | quota | 额度消耗 |
 
-按用户汇总（GROUP BY username），按额度降序。
+按用户汇总（GROUP BY username），按请求次数、Token、额度综合降序。
 
 ### 3.2 模型视角（by_model）
 
@@ -52,9 +52,10 @@
 |---|---|
 | model_name | 模型名 |
 | count | 请求次数 |
+| token_used | 总 Token 数 |
 | quota | 额度消耗 |
 
-按模型汇总（GROUP BY model_name），按额度降序。
+按模型汇总（GROUP BY model_name），按请求次数、Token、额度综合降序。
 
 ### 3.3 用户模型消耗（by_detail）
 
@@ -63,9 +64,10 @@
 | username | 用户名 |
 | model_name | 模型名 |
 | count | 请求次数 |
+| token_used | 总 Token 数 |
 | quota | 额度消耗 |
 
-按用户+模型汇总（GROUP BY username, model_name），按额度降序。
+按用户+模型汇总（GROUP BY username, model_name），按请求次数、Token、额度综合降序。
 
 ## 4. 性能与兼容
 

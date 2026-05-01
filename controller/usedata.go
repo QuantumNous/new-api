@@ -277,7 +277,7 @@ func ExportUserModelStats(c *gin.Context) {
 
 	switch viewType {
 	case "by_model":
-		writer.Write([]string{"模型名", "请求次数", "额度消耗"})
+		writer.Write([]string{"模型名", "请求次数", "总Tokens", "额度消耗"})
 		page := 1
 		pageSize := 1000
 		for {
@@ -291,7 +291,7 @@ func ExportUserModelStats(c *gin.Context) {
 				break
 			}
 			for _, it := range items {
-				writer.Write([]string{it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.Quota)})
+				writer.Write([]string{it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
 			}
 			if len(items) < pageSize {
 				break
@@ -299,7 +299,7 @@ func ExportUserModelStats(c *gin.Context) {
 			page++
 		}
 	case "by_detail":
-		writer.Write([]string{"用户名", "模型名", "请求次数", "额度消耗"})
+		writer.Write([]string{"用户名", "模型名", "请求次数", "总Tokens", "额度消耗"})
 		page := 1
 		pageSize := 1000
 		for {
@@ -313,7 +313,7 @@ func ExportUserModelStats(c *gin.Context) {
 				break
 			}
 			for _, it := range items {
-				writer.Write([]string{it.Username, it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.Quota)})
+				writer.Write([]string{it.Username, it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
 			}
 			if len(items) < pageSize {
 				break

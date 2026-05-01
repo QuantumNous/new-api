@@ -23,6 +23,7 @@ const COLUMNS = {
       render: (v) => <Tag type='light'>{v}</Tag>,
     },
     { title: t('请求次数'), dataIndex: 'count', key: 'count' },
+    { title: t('总 Tokens'), dataIndex: 'token_used', key: 'token_used' },
     {
       title: t('额度消耗'),
       dataIndex: 'quota',
@@ -39,6 +40,7 @@ const COLUMNS = {
       render: (v) => <Tag type='light'>{v}</Tag>,
     },
     { title: t('请求次数'), dataIndex: 'count', key: 'count' },
+    { title: t('总 Tokens'), dataIndex: 'token_used', key: 'token_used' },
     {
       title: t('额度消耗'),
       dataIndex: 'quota',
