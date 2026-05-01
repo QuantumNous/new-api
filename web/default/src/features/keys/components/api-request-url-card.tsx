@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useStatus } from '@/hooks/use-status'
@@ -26,11 +25,7 @@ function extractServerAddress(status: SystemStatus | null) {
 }
 
 function normalizeRequestUrl(serverAddress: string) {
-  const normalized = serverAddress.replace(/\/+$/, '')
-  if (!normalized) {
-    return ''
-  }
-  return normalized.endsWith('/v1') ? normalized : `${normalized}/v1`
+  return serverAddress.replace(/\/+$/, '')
 }
 
 export function ApiRequestUrlCard() {
@@ -45,10 +40,7 @@ export function ApiRequestUrlCard() {
     <Card className='gap-0 py-4'>
       <CardContent className='px-4 sm:px-6'>
         <div className='flex flex-col gap-3'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <Badge variant='secondary'>{t('OpenAI')}</Badge>
-            <p className='text-sm font-medium'>{t('API Request URL')}</p>
-          </div>
+          <p className='text-sm font-medium'>{t('API Request URL')}</p>
 
           <div className='flex flex-col gap-2 sm:flex-row'>
             <Input
