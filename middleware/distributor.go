@@ -283,8 +283,8 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			return nil, false, err
 		}
 		modelRequest.Model = req.Model
-		if modelRequest.Model == "" {
-			modelRequest.Model = taskpxsj.AssetPlaceholderModel
+		if err := taskpxsj.ValidateAssetUploadModel(modelRequest.Model); err != nil {
+			return nil, false, err
 		}
 		c.Set("relay_mode", relayconstant.RelayModeVideoSubmit)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/assets/") && c.Request.Method == http.MethodGet {
