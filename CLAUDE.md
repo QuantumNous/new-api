@@ -146,3 +146,75 @@ For request structs that are parsed from client JSON and then re-marshaled to up
 ### Rule 7: Billing Expression System — Read `pkg/billingexpr/expr.md`
 
 When working on tiered/dynamic billing (expression-based pricing), you MUST read `pkg/billingexpr/expr.md` first. It documents the design philosophy, expression language (variables, functions, examples), full system architecture (editor → storage → pre-consume → settlement → log display), token normalization rules (`p`/`c` auto-exclusion), quota conversion, and expression versioning. All code changes to the billing expression system must follow the patterns described in that document.
+
+### Rule 8: Frontend Theme — Default-Only
+
+Classic frontend has been removed from this fork. `common.GetTheme()` is hardcoded to `"default"` and `common.SetTheme()` is a no-op. When debugging frontend issues:
+
+- **First check**: which bundle is being served? `curl http://host/` and look at the `<script src=...>` path. `/static/js/...` = default; `/assets/...` = classic (should never appear).
+- All UI work happens in `web/default/`. The `web/classic/` directory has been deleted; do not re-introduce it.
+- New routes go in `web/default/src/routes/<path>/index.tsx` (TanStack Router file-based). After adding a route file, run `cd web/default && bunx --bun @tanstack/router-cli generate` to update `routeTree.gen.ts` (committed to git).
+
+### Rule 9: Verify Before Instructing — Test the UI Path Yourself First
+
+**This is a behavioral rule for AI assistants, not a code rule.**
+
+Before telling the user "click X then Y then Z" in the admin UI, drive that path in a browser yourself (Chrome MCP / Claude in Chrome). The Chinese i18n translations diverge from English Go constants frequently — e.g. `DoubaoVideo` (Go) shows as `豆包视频` (zh.json), so telling a Chinese user to "search DoubaoVideo" sends them down a dead end.
+
+Concrete checks before giving UI instructions:
+1. Log in as the relevant role (admin/user) and navigate the actual path.
+2. If telling the user to search/filter, try the suggested keyword yourself.
+3. If telling them to find a menu item, confirm it exists in the live nav (not just in the source code).
+4. Use the API directly (curl + bearer token) when the UI is wonky — see [Rule 10](#rule-10).
+
+Cost of skipping: a 30-second browser test prevents a 30-minute back-and-forth.
+
+### Rule 10: Server Verification — Don't Trust Browser Cache
+
+When verifying that a backend or frontend change took effect, do **not** rely on a single browser screenshot. The browser may serve stale HTML, the bundle may be cached, or the running container may not be the one you just built. Verification ladder:
+
+1. Confirm the running image has your code: `docker inspect <container> --format '{{.Image}}'` and check creation timestamp against your file mtime.
+2. Confirm the served bundle includes your change: `curl <host>/<bundle.js> | grep <marker>`. Drop a unique marker string in your code temporarily to make this trivial.
+3. Hard-reload the browser (`Cmd+Shift+R`) before screenshotting.
+4. For SPA routes that 404, verify the JS bundle has the route registered (search for the route path in the bundle), not just that the HTML shell loads.
+
+### Rule 11: Migration Skip via Schema Hash
+
+`InitDB()` skips `migrateDB()` when `model.computeSchemaHash()` matches the value stored in the `Option` table under key `SchemaMigrationHash`. See `model/schema_hash.go`.
+
+This makes restarts on remote DBs (Neon) drop from ~90s to ~11s. Implications:
+
+- **When you add a model to AutoMigrate**: also add it to `migrateModels()` in `model/schema_hash.go`. Forgetting causes the new model's table/columns to be missing on next boot.
+- **When you change a model's struct fields or `gorm:` tags**: the reflection-based hash will change automatically and trigger a fresh migration.
+- **Limitation**: only walks one level of struct fields. If you change a field inside an embedded type (e.g. `ChannelInfo`'s internals when `Channel` embeds it), the hash won't change. Force a re-migrate via `SKIP_AUTO_MIGRATION_HASH_CHECK=true` for one boot.
+- **Override env vars**:
+  - `FORCE_SKIP_AUTO_MIGRATION=true` — never run, ops-managed migration
+  - `SKIP_AUTO_MIGRATION_HASH_CHECK=true` — always run (escape hatch when hash logic itself is suspected broken)
+
+### Rule 12: Don't Switch Infrastructure Without Permission
+
+When the user has explicitly chosen a setup (e.g. Neon Postgres, R2, etc.), don't unilaterally swap it for "something faster" or "easier to debug". The user's setup choice usually reflects production parity, billing, or other constraints not visible to the AI assistant. Switching:
+
+- Loses data (admin sessions, test users, preconfigured channels)
+- Hides bugs that only show on the chosen infra
+- Wastes user trust
+
+If a slow-iteration problem comes up (Neon migration latency, etc.), solve it on the chosen stack — see Rule 11. Don't propose a stack swap until the on-stack solution is exhausted and the user explicitly OKs it.
+
+### Rule 13: Docker Build Hygiene
+
+The Dockerfile uses BuildKit cache mounts (`--mount=type=cache`) for `bun install`, `go mod download`, and `go build`. Maintain these patterns:
+
+- A bare `bun install` step without the cache mount will re-download all packages on every build (slow + wasteful)
+- Adding a top-level dir without it appearing in `.dockerignore` will balloon the build context. Always check what's in the context: a build context > 100 MB warrants investigation.
+- The classic frontend stage has been dropped. Do not add it back.
+
+### Rule 14: Always Update This File After a Bug Fix
+
+When a fix lands a non-obvious correctness or workflow lesson — something a future change could re-break — append a short rule to this file in the same PR. Examples of what triggers a CLAUDE.md update:
+
+- A frontend change broke because of a server-side flag (Rule 8)
+- A debugging session revealed an undocumented invariant (Rule 11)
+- A user pointed out a behavioral mistake (Rule 9, Rule 12)
+
+The rule should state the constraint, not retell the bug story. Keep it under 200 words.
