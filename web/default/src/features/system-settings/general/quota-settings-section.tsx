@@ -25,8 +25,8 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
-  TopUpLink: z.string().url().optional().or(z.literal('')),
-  'general_setting.docs_link': z.string().url().optional().or(z.literal('')),
+  TopUpLink: z.string().optional().or(z.literal('')),
+  'general_setting.docs_link': z.string().optional().or(z.literal('')),
   'quota_setting.enable_free_model_pre_consume': z.boolean(),
 })
 
@@ -80,7 +80,7 @@ export function QuotaSettingsSection({
                   <Input
                     type='number'
                     value={field.value as number}
-                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    onChange={(e) => field.onChange(Number.isNaN(e.target.valueAsNumber) ? 0 : e.target.valueAsNumber)}
                     name={field.name}
                     onBlur={field.onBlur}
                     ref={field.ref}
@@ -104,7 +104,7 @@ export function QuotaSettingsSection({
                   <Input
                     type='number'
                     value={field.value as number}
-                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    onChange={(e) => field.onChange(Number.isNaN(e.target.valueAsNumber) ? 0 : e.target.valueAsNumber)}
                     name={field.name}
                     onBlur={field.onBlur}
                     ref={field.ref}
@@ -128,7 +128,7 @@ export function QuotaSettingsSection({
                   <Input
                     type='number'
                     value={field.value as number}
-                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    onChange={(e) => field.onChange(Number.isNaN(e.target.valueAsNumber) ? 0 : e.target.valueAsNumber)}
                     name={field.name}
                     onBlur={field.onBlur}
                     ref={field.ref}
@@ -152,7 +152,7 @@ export function QuotaSettingsSection({
                   <Input
                     type='number'
                     value={field.value as number}
-                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    onChange={(e) => field.onChange(Number.isNaN(e.target.valueAsNumber) ? 0 : e.target.valueAsNumber)}
                     name={field.name}
                     onBlur={field.onBlur}
                     ref={field.ref}

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
+import { formatQuota } from '@/lib/format'
 import { formatDuration, formatResetPeriod } from '../lib'
 import type { PlanRecord } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -159,7 +160,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
           const total = Number(row.original.plan.total_amount || 0)
           return (
             <span className='text-muted-foreground'>
-              {total > 0 ? total : t('Unlimited')}
+              {total > 0 ? formatQuota(total) : t('Unlimited')}
             </span>
           )
         },

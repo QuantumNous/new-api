@@ -21,6 +21,30 @@ import { parseModelTags, formatEndpointsDisplay } from '../lib'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
+import { useModels } from './models-provider'
+
+function VendorCell({ vendor }: { vendor: Vendor }) {
+  const { setOpen, setCurrentVendor } = useModels()
+  const icon = vendor.icon ? getLobeIcon(vendor.icon, 14) : null
+
+  return (
+    <button
+      type='button'
+      className='flex cursor-pointer items-center gap-1.5 hover:opacity-80'
+      onClick={() => {
+        setCurrentVendor(vendor)
+        setOpen('update-vendor')
+      }}
+    >
+      {icon}
+      <StatusBadge
+        label={vendor.name}
+        autoColor={vendor.name}
+        size='sm'
+      />
+    </button>
+  )
+}
 
 /**
  * Render limited items with "and X more" indicator
@@ -266,18 +290,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
 
-        const icon = vendor.icon ? getLobeIcon(vendor.icon, 14) : null
-
-        return (
-          <div className='flex items-center gap-1.5'>
-            {icon}
-            <StatusBadge
-              label={vendor.name}
-              autoColor={vendor.name}
-              size='sm'
-            />
-          </div>
-        )
+        return <VendorCell vendor={vendor} />
       },
       filterFn: (row, id, value) => {
         if (!value || value.length === 0 || value.includes('all')) return true
