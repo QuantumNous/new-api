@@ -20,6 +20,7 @@ import {
   AudioPreviewDialog,
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
+import { VideoPreviewDialog } from '../dialogs/video-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 import {
   createDurationColumn,
@@ -38,6 +39,34 @@ function parseTaskData(data: unknown): unknown[] {
     }
   }
   return []
+}
+
+function VideoPreviewCell({
+  url,
+  taskId,
+}: {
+  url: string
+  taskId: string
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        type='button'
+        onClick={() => setOpen(true)}
+        className='text-xs text-foreground hover:underline'
+      >
+        {t('Click to preview video')}
+      </button>
+      <VideoPreviewDialog
+        open={open}
+        onOpenChange={setOpen}
+        videoUrl={url}
+        title={taskId}
+      />
+    </>
+  )
 }
 
 function AudioPreviewCell({ log }: { log: TaskLog }) {
@@ -248,20 +277,15 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
           log.action === TASK_ACTIONS.REMIX_GENERATE
         const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
+        // Video URL is in `result_url` for new data, falls back to `fail_reason`
+        // for legacy rows (see model/task.go:130). Upstream's default frontend
+        // only checked fail_reason, so video previews never showed for new tasks.
+        const hasVideoResult =
+          log.result_url?.startsWith('http') || failReason?.startsWith('http')
 
-        if (isSuccess && isVideoTask && isUrl) {
+        if (isSuccess && isVideoTask && hasVideoResult) {
           const videoUrl = `/v1/videos/${log.task_id}/content`
-          return (
-            <a
-              href={videoUrl}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-xs text-foreground hover:underline'
-            >
-              {t('Click to preview video')}
-            </a>
-          )
+          return <VideoPreviewCell url={videoUrl} taskId={log.task_id} />
         }
 
         if (!failReason) {

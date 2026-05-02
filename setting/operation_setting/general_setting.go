@@ -24,7 +24,9 @@ type GeneralSetting struct {
 
 // 默认配置
 var generalSetting = GeneralSetting{
-	DocsLink:                   "https://docs.newapi.pro",
+	// AIKanHub: 顶部"文档"链接走站内 /docs 页面（features/docs）。
+	// 上游默认是 https://docs.newapi.pro —— 不适合我们的产品。
+	DocsLink:                   "/docs",
 	PingIntervalEnabled:        false,
 	PingIntervalSeconds:        60,
 	QuotaDisplayType:           QuotaDisplayTypeUSD,
