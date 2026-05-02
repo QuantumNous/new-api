@@ -40,6 +40,8 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err := applyDeepSeekV4ClaudeThinkingSuffix(info, claudeRequest); err != nil {
 		return nil, err
 	}
+	// DeepSeek V4 requires thinking blocks before tool_use when thinking is enabled
+	EnsureThinkingBeforeToolUse(claudeRequest)
 	return claudeRequest, nil
 }
 
