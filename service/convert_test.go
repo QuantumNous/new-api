@@ -6,13 +6,153 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
 
 func testRelayInfo() *relaycommon.RelayInfo {
 	return &relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{},
+		ChannelMeta:       &relaycommon.ChannelMeta{},
+		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{},
 	}
+}
+
+func TestStreamResponseOpenAI2ClaudeEmitsSignatureBeforeToolUse(t *testing.T) {
+	info := testRelayInfo()
+	info.RelayFormat = types.RelayFormatClaude
+	info.SendResponseCount = 1
+	reasoning := "Need to inspect the file."
+	opaque := "EqQBCgIYAhIMsignedOpaqueBlob"
+
+	start := &dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_123",
+		Model: "deepseek-v4-pro",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Index: 0,
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					Role:             "assistant",
+					ReasoningContent: &reasoning,
+				},
+			},
+		},
+	}
+	responses := StreamResponseOpenAI2Claude(start, info)
+	require.Len(t, responses, 3)
+	require.Equal(t, "content_block_start", responses[1].Type)
+	require.Equal(t, "thinking", responses[1].ContentBlock.Type)
+	require.NotNil(t, responses[1].ContentBlock.Thinking)
+	require.Equal(t, "", *responses[1].ContentBlock.Thinking)
+	require.Equal(t, "thinking_delta", responses[2].Delta.Type)
+	require.Equal(t, reasoning, *responses[2].Delta.Thinking)
+
+	info.SendResponseCount++
+	signature := &dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_123",
+		Model: "deepseek-v4-pro",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Index: 0,
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ReasoningOpaque: &opaque,
+				},
+			},
+		},
+	}
+	responses = StreamResponseOpenAI2Claude(signature, info)
+	require.Empty(t, responses)
+
+	info.SendResponseCount++
+	args := `{"filePath":"/tmp/1.txt"}`
+	tool := &dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_123",
+		Model: "deepseek-v4-pro",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Index: 0,
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{
+						{
+							Index: common.GetPointer[int](0),
+							ID:    "call_123",
+							Type:  "function",
+							Function: dto.FunctionResponse{
+								Name:      "read",
+								Arguments: args,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	responses = StreamResponseOpenAI2Claude(tool, info)
+	require.GreaterOrEqual(t, len(responses), 4)
+	require.Equal(t, "content_block_delta", responses[0].Type)
+	require.Equal(t, "signature_delta", responses[0].Delta.Type)
+	require.NotNil(t, responses[0].Delta.Signature)
+	require.Equal(t, opaque, *responses[0].Delta.Signature)
+	require.Equal(t, "content_block_stop", responses[1].Type)
+	require.Equal(t, "content_block_start", responses[2].Type)
+	require.Equal(t, "tool_use", responses[2].ContentBlock.Type)
+}
+
+func TestStreamResponseOpenAI2ClaudeEmitsBlankSignatureBeforeToolUse(t *testing.T) {
+	info := testRelayInfo()
+	info.RelayFormat = types.RelayFormatClaude
+	info.SendResponseCount = 1
+	reasoning := "Need to inspect the file."
+
+	start := &dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_123",
+		Model: "deepseek-v4-pro",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Index: 0,
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					Role:             "assistant",
+					ReasoningContent: &reasoning,
+				},
+			},
+		},
+	}
+	responses := StreamResponseOpenAI2Claude(start, info)
+	require.Len(t, responses, 3)
+	require.Equal(t, "thinking_delta", responses[2].Delta.Type)
+
+	info.SendResponseCount++
+	args := `{"filePath":"/tmp/1.txt"}`
+	tool := &dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_123",
+		Model: "deepseek-v4-pro",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Index: 0,
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{
+						{
+							Index: common.GetPointer[int](0),
+							ID:    "call_123",
+							Type:  "function",
+							Function: dto.FunctionResponse{
+								Name:      "read",
+								Arguments: args,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	responses = StreamResponseOpenAI2Claude(tool, info)
+	require.GreaterOrEqual(t, len(responses), 4)
+	require.Equal(t, "content_block_delta", responses[0].Type)
+	require.Equal(t, "signature_delta", responses[0].Delta.Type)
+	require.NotNil(t, responses[0].Delta.Signature)
+	require.Equal(t, "", *responses[0].Delta.Signature)
+	require.Equal(t, "content_block_stop", responses[1].Type)
+	require.Equal(t, "content_block_start", responses[2].Type)
+	require.Equal(t, "tool_use", responses[2].ContentBlock.Type)
 }
 
 func TestClaudeToOpenAIRequestPreservesThinkingForToolUse(t *testing.T) {
@@ -27,7 +167,7 @@ func TestClaudeToOpenAIRequestPreservesThinkingForToolUse(t *testing.T) {
 					{
 						Type:      "thinking",
 						Thinking:  &thinking,
-						Signature: signature,
+						Signature: &signature,
 					},
 					{
 						Type:  "tool_use",
@@ -64,7 +204,7 @@ func TestClaudeToOpenAIRequestPreservesSignedThinkingContent(t *testing.T) {
 					{
 						Type:      "thinking",
 						Thinking:  &thinking,
-						Signature: signature,
+						Signature: &signature,
 					},
 					{
 						Type:  "tool_use",
@@ -169,7 +309,8 @@ func TestResponseOpenAI2ClaudePreservesReasoningBeforeToolUse(t *testing.T) {
 	require.Equal(t, "thinking", claudeResponse.Content[0].Type)
 	require.NotNil(t, claudeResponse.Content[0].Thinking)
 	require.Equal(t, reasoning, *claudeResponse.Content[0].Thinking)
-	require.Equal(t, opaque, claudeResponse.Content[0].Signature)
+	require.NotNil(t, claudeResponse.Content[0].Signature)
+	require.Equal(t, opaque, *claudeResponse.Content[0].Signature)
 	require.Equal(t, "tool_use", claudeResponse.Content[1].Type)
 	require.Equal(t, "call_123", claudeResponse.Content[1].Id)
 	require.Equal(t, "read", claudeResponse.Content[1].Name)

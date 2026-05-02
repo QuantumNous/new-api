@@ -161,8 +161,8 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 					if mediaMsg.Thinking != nil {
 						openAIMessage.ReasoningContent = mediaMsg.Thinking
 					}
-					if mediaMsg.Signature != "" {
-						openAIMessage.ReasoningOpaque = common.GetPointer[string](mediaMsg.Signature)
+					if mediaMsg.Signature != nil {
+						openAIMessage.ReasoningOpaque = mediaMsg.Signature
 					}
 				case "text", "input_text":
 					message := dto.MediaContent{
@@ -282,7 +282,21 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	// so we may have multiple open blocks and must stop each one explicitly.
 	stopOpenBlocks := func() {
 		switch info.ClaudeConvertInfo.LastMessagesType {
-		case relaycommon.LastMessageTypeText, relaycommon.LastMessageTypeThinking:
+		case relaycommon.LastMessageTypeThinking:
+			if !info.ClaudeConvertInfo.SentSignature {
+				idx := info.ClaudeConvertInfo.Index
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Index: &idx,
+					Type:  "content_block_delta",
+					Delta: &dto.ClaudeMediaMessage{
+						Type:      "signature_delta",
+						Signature: common.GetPointer[string](info.ClaudeConvertInfo.ReasoningOpaque),
+					},
+				})
+				info.ClaudeConvertInfo.SentSignature = true
+			}
+			claudeResponses = append(claudeResponses, generateStopBlock(info.ClaudeConvertInfo.Index))
+		case relaycommon.LastMessageTypeText:
 			claudeResponses = append(claudeResponses, generateStopBlock(info.ClaudeConvertInfo.Index))
 		case relaycommon.LastMessageTypeTools:
 			base := info.ClaudeConvertInfo.ToolCallBaseIndex
@@ -374,6 +388,12 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		// 判断首个响应是否存在内容（非标准的 OpenAI 响应）
 		if len(openAIResponse.Choices) > 0 {
 			reasoning := openAIResponse.Choices[0].Delta.GetReasoningContent()
+			if reasoning != "" {
+				info.ClaudeConvertInfo.ReasoningContent += reasoning
+			}
+			if opaque := openAIResponse.Choices[0].Delta.GetReasoningOpaque(); opaque != "" {
+				info.ClaudeConvertInfo.ReasoningOpaque += opaque
+			}
 			content := openAIResponse.Choices[0].Delta.GetContentString()
 
 			if reasoning != "" {
@@ -389,6 +409,8 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 						Thinking: common.GetPointer[string](""),
 					},
 				})
+				info.ClaudeConvertInfo.SentThinking = true
+				info.ClaudeConvertInfo.SentSignature = false
 				idx2 := idx
 				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 					Index: &idx2,
@@ -477,6 +499,12 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		return claudeResponses
 	} else {
 		chosenChoice := openAIResponse.Choices[0]
+		if reasoning := chosenChoice.Delta.GetReasoningContent(); reasoning != "" {
+			info.ClaudeConvertInfo.ReasoningContent += reasoning
+		}
+		if opaque := chosenChoice.Delta.GetReasoningOpaque(); opaque != "" {
+			info.ClaudeConvertInfo.ReasoningOpaque += opaque
+		}
 		doneChunk := chosenChoice.FinishReason != nil && *chosenChoice.FinishReason != ""
 		if doneChunk {
 			info.FinishReason = *chosenChoice.FinishReason
@@ -558,6 +586,8 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 								Thinking: common.GetPointer[string](""),
 							},
 						})
+						info.ClaudeConvertInfo.SentThinking = true
+						info.ClaudeConvertInfo.SentSignature = false
 					}
 					info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeThinking
 					claudeResponse.Delta = &dto.ClaudeMediaMessage{
@@ -636,7 +666,7 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 				Thinking: common.GetPointer[string](reasoning),
 			}
 			if signature := choice.Message.GetReasoningOpaque(); signature != "" {
-				thinkingBlock.Signature = signature
+				thinkingBlock.Signature = common.GetPointer[string](signature)
 			}
 			contents = append(contents, thinkingBlock)
 		}
