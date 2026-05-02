@@ -35,3 +35,7 @@ data/
 .test
 token_estimator_test.go
 skills-lock.json
+
+# aikanhub local dev
+.env.local
+docker-compose.local.override.yml

@@ -1,0 +1,73 @@
+# aikanhub 本地开发栈
+#   - new-api: 后端 + 前端（用上游官方镜像，先跑通再决定要不要自己 build）
+#   - redis: 本地缓存
+#   - postgres: 不在这里，用 Neon（在 .env.local 里配 SQL_DSN）
+#
+# 用法：
+#   1. 复制 .env.local 模板，填好 SQL_DSN（Neon direct connection string）
+#   2. docker-compose -f docker-compose.local.yml --env-file .env.local up -d
+#   3. 浏览器打开 http://localhost:3000
+#   4. 首次访问会要求创建 root 账号
+#
+# 停服：docker-compose -f docker-compose.local.yml down
+# 重置 redis 数据：docker-compose -f docker-compose.local.yml down -v
+
+version: '3.4'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aikanhub:local
+    container_name: aikanhub-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    environment:
+      - SQL_DSN=${SQL_DSN}
+      - REDIS_CONN_STRING=${REDIS_CONN_STRING}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - TZ=${TZ:-Asia/Shanghai}
+      - PORT=${PORT:-3000}
+      - ERROR_LOG_ENABLED=${ERROR_LOG_ENABLED:-true}
+      - BATCH_UPDATE_ENABLED=${BATCH_UPDATE_ENABLED:-true}
+      - NODE_NAME=${NODE_NAME:-aikanhub-dev-1}
+      - UPDATE_TASK=${UPDATE_TASK:-true}
+      - STREAMING_TIMEOUT=${STREAMING_TIMEOUT:-300}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - aikanhub-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: aikanhub-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "3070f09bd424ef9d1bedd3e035616fd7", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - aikanhub-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "3070f09bd424ef9d1bedd3e035616fd7", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  aikanhub-net:
+    driver: bridge
+
+volumes:
+  redis_data:
