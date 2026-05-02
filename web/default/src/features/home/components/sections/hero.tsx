@@ -37,10 +37,10 @@ export function Hero(props: HeroProps) {
           className='landing-animate-fade-up text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'
           style={{ animationDelay: '0ms' }}
         >
-          {t('Video Generation API')}
+          {t('Unified API Gateway for')}
           <br />
           <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('Seedance 2.0 · One key, all major models')}
+            {t('All Your Creation')}
           </span>
         </h1>
         <p
@@ -48,7 +48,7 @@ export function Hero(props: HeroProps) {
           style={{ animationDelay: '80ms' }}
         >
           {t(
-            'AIKanHub provides a unified async API for text-to-video, image-to-video, first/last frame control, and multimodal reference generation. Per-video billing — no surprises.'
+            'AIKanHub aggregates the best video generation models behind one API and one bill. Seedance 2.0 today; Pixverse and HappyHorse next. Pay per video, no surprises.'
           )}
         </p>
         <div
