@@ -12,8 +12,6 @@ interface StatItem {
 export function Stats(_props: StatsProps) {
   const { t } = useTranslation()
 
-  // Capability-focused stats — for an MVP we don't have usage numbers to flex,
-  // so highlight what the product can do today.
   const stats: StatItem[] = [
     { value: 'Seedance 2.0', label: t('Latest model') },
     { value: '1080p', label: t('Max resolution') },
