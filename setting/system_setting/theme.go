@@ -9,8 +9,11 @@ type ThemeSettings struct {
 	Frontend string `json:"frontend"`
 }
 
+// AIKanHub: classic theme has been removed, only default ships in the binary.
+// Frontend value is kept in config for backwards compatibility but is ignored
+// at runtime — see common/constants.go GetTheme().
 var themeSettings = ThemeSettings{
-	Frontend: "classic",
+	Frontend: "default",
 }
 
 func init() {

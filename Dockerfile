@@ -35,11 +35,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 COPY --from=builder /build/dist ./web/default/dist
 
-# Stub web/classic/dist so the //go:embed directives in main.go compile.
-# Classic is no longer served at runtime (see common/constants.go GetTheme).
-RUN mkdir -p web/classic/dist \
-    && echo '<!doctype html><html><head><title>AIKanHub</title></head><body></body></html>' > web/classic/dist/index.html
-
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
