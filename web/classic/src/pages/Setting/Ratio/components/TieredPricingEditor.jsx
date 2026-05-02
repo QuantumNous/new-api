@@ -848,7 +848,7 @@ const PRESET_GROUPS = [
       {
         key: 'doubao-seedance-2-0-fast-260128',
         label: 'Seedance 2.0 Fast (¥37/Mtoken)',
-        expr: 'tier("无视频输入(含视频×0.59)", p * 37 + c * 0)',
+        expr: 'tier("无视频输入(含视频×0.59)", p * 0 + c * 37)',
         requestRules: [
           { conditions: [{ source: SOURCE_PARAM, path: 'content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.594595' },
         ],
