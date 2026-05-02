@@ -32,7 +32,15 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		openAIRequest.Stream = lo.ToPtr(lo.FromPtr(claudeRequest.Stream))
 	}
 
-	isOpenRouter := info.ChannelType == constant.ChannelTypeOpenRouter
+	channelType := 0
+	originModelName := ""
+	if info != nil && info.ChannelMeta != nil {
+		channelType = info.ChannelType
+	}
+	if info != nil {
+		originModelName = info.OriginModelName
+	}
+	isOpenRouter := channelType == constant.ChannelTypeOpenRouter
 
 	if isOpenRouter {
 		if effort := claudeRequest.GetEfforts(); effort != "" {
@@ -59,7 +67,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		}
 	} else {
 		thinkingSuffix := "-thinking"
-		if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
+		if strings.HasSuffix(originModelName, thinkingSuffix) &&
 			!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
 			openAIRequest.Model = openAIRequest.Model + thinkingSuffix
 		}
@@ -149,6 +157,13 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 
 			for _, mediaMsg := range contents {
 				switch mediaMsg.Type {
+				case "thinking":
+					if mediaMsg.Thinking != nil {
+						openAIMessage.ReasoningContent = mediaMsg.Thinking
+					}
+					if mediaMsg.Signature != "" {
+						openAIMessage.ReasoningOpaque = common.GetPointer[string](mediaMsg.Signature)
+					}
 				case "text", "input_text":
 					message := dto.MediaContent{
 						Type:         "text",
@@ -615,6 +630,16 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 	}
 	for _, choice := range openAIResponse.Choices {
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)
+		if reasoning := choice.Message.GetReasoningContent(); reasoning != "" {
+			thinkingBlock := dto.ClaudeMediaMessage{
+				Type:     "thinking",
+				Thinking: common.GetPointer[string](reasoning),
+			}
+			if signature := choice.Message.GetReasoningOpaque(); signature != "" {
+				thinkingBlock.Signature = signature
+			}
+			contents = append(contents, thinkingBlock)
+		}
 		if choice.FinishReason == "tool_calls" {
 			for _, toolUse := range choice.Message.ParseToolCalls() {
 				claudeContent := dto.ClaudeMediaMessage{}
