@@ -1,12 +1,10 @@
 package xiaomi
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
@@ -46,30 +44,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	if info.RelayMode != relayconstant.RelayModeAudioSpeech {
 		return a.Adaptor.ConvertAudioRequest(c, info, request)
 	}
-
-	audioFormat := normalizeMimoAudioFormat(request.ResponseFormat)
-	c.Set(contextKeyAudioFormat, audioFormat)
-
-	voice := request.Voice
-	if voice == "" {
-		voice = defaultMimoVoice
-	}
-
-	messages := make([]xiaomiTTSMessage, 0, 2)
-	if request.Instructions != "" {
-		messages = append(messages, xiaomiTTSMessage{Role: "user", Content: request.Instructions})
-	}
-	messages = append(messages, xiaomiTTSMessage{Role: "assistant", Content: request.Input})
-
-	jsonData, err := common.Marshal(xiaomiTTSRequest{
-		Model:    request.Model,
-		Messages: messages,
-		Audio:    xiaomiTTSAudio{Voice: voice, Format: audioFormat},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return bytes.NewReader(jsonData), nil
+	return convertTTSRequest(c, request)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -86,7 +61,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayMode == relayconstant.RelayModeAudioSpeech {
-		return handleTTSResponse(c, resp, info, c.GetString(contextKeyAudioFormat))
+		return handleTTSResponse(c, resp, info)
 	}
 	return a.Adaptor.DoResponse(c, resp, info)
 }

@@ -1,6 +1,7 @@
 package xiaomi
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -40,6 +41,32 @@ type xiaomiTTSResponse struct {
 	Usage dto.Usage `json:"usage"`
 }
 
+func convertTTSRequest(c *gin.Context, request dto.AudioRequest) (io.Reader, error) {
+	audioFormat := normalizeMimoAudioFormat(request.ResponseFormat)
+	c.Set(contextKeyAudioFormat, audioFormat)
+
+	voice := request.Voice
+	if voice == "" {
+		voice = defaultMimoVoice
+	}
+
+	messages := make([]xiaomiTTSMessage, 0, 2)
+	if request.Instructions != "" {
+		messages = append(messages, xiaomiTTSMessage{Role: "user", Content: request.Instructions})
+	}
+	messages = append(messages, xiaomiTTSMessage{Role: "assistant", Content: request.Input})
+
+	jsonData, err := common.Marshal(xiaomiTTSRequest{
+		Model:    request.Model,
+		Messages: messages,
+		Audio:    xiaomiTTSAudio{Voice: voice, Format: audioFormat},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(jsonData), nil
+}
+
 func normalizeMimoAudioFormat(format string) string {
 	switch format {
 	case "":
@@ -62,8 +89,9 @@ func getTTSContentType(format string) string {
 	}
 }
 
-func handleTTSResponse(c *gin.Context, resp *http.Response, _ *relaycommon.RelayInfo, audioFormat string) (any, *types.NewAPIError) {
+func handleTTSResponse(c *gin.Context, resp *http.Response, _ *relaycommon.RelayInfo) (any, *types.NewAPIError) {
 	defer resp.Body.Close()
+	audioFormat := c.GetString(contextKeyAudioFormat)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewErrorWithStatusCode(
