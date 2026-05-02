@@ -78,6 +78,11 @@ curl $AIKANHUB_HOST/v1/video/generations/task_xxx \
 | `doubao-seedance-2-0-260128` | $0.885 / video | ✅ |
 | `doubao-seedance-2-0-fast-260128` | $0.712 / video | ✅ |
 | `pixverse-v5.5` | — | 🚧 规划中 |
+| `happyhorse` | — | 🚧 规划中 |
+
+## 部署
+
+完整部署步骤（含 Neon 配置、首次启动、定价配置、常见问题、生产化清单）见 [DEPLOY.md](./DEPLOY.md)。
 
 ## 协议
 
