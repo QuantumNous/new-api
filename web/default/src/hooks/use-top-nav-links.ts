@@ -77,7 +77,11 @@ export function useTopNavLinks(): TopNavLink[] {
   // Docs (supports external links)
   if (modules?.docs !== false) {
     if (docsLink) {
-      links.push({ title: t('Docs'), href: docsLink, external: true })
+      // Internal paths (starting with `/`) open in the same tab; only http(s)
+      // URLs are treated as external. Without this check, setting docsLink
+      // to "/docs" would still mark it `external: true` and open in a new tab.
+      const isExternal = /^https?:\/\//i.test(docsLink)
+      links.push({ title: t('Docs'), href: docsLink, external: isExternal })
     } else {
       links.push({ title: t('Docs'), href: '/docs' })
     }
