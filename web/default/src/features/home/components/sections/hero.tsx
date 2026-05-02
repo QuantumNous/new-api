@@ -1,7 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
 import { HeroTerminalDemo } from '../hero-terminal-demo'
 
@@ -12,7 +11,6 @@ interface HeroProps {
 
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
-  const { systemName } = useSystemConfig()
 
   return (
     <section className='relative z-10 flex flex-col items-center overflow-hidden px-6 pt-28 pb-16 md:pt-36 md:pb-24'>
@@ -39,19 +37,18 @@ export function Hero(props: HeroProps) {
           className='landing-animate-fade-up text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'
           style={{ animationDelay: '0ms' }}
         >
-          {t('Unified API Gateway for')}
+          {t('Video Generation API')}
           <br />
           <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('All Your AI Models')}
+            {t('Seedance 2.0 · One key, all major models')}
           </span>
         </h1>
         <p
           className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-lg text-base leading-relaxed opacity-0 md:text-lg'
           style={{ animationDelay: '80ms' }}
         >
-          {systemName}{' '}
           {t(
-            'is an open-source AI API gateway for self-hosted deployments. Connect multiple upstream services, manage models, keys, quotas, logs, and routing policies in one place.'
+            'AIKanHub provides a unified async API for text-to-video, image-to-video, first/last frame control, and multimodal reference generation. Per-video billing — no surprises.'
           )}
         </p>
         <div
@@ -78,7 +75,7 @@ export function Hero(props: HeroProps) {
                 className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
                 asChild
               >
-                <Link to='/pricing'>{t('View Pricing')}</Link>
+                <a href='/docs'>{t('API Docs')}</a>
               </Button>
             </>
           )}

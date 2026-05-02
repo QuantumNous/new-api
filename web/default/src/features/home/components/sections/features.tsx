@@ -1,12 +1,12 @@
 import {
-  Zap,
-  Shield,
-  Globe,
-  Code,
-  Gauge,
+  Film,
+  ImagePlus,
+  Layers,
+  Volume2,
+  Webhook,
   DollarSign,
-  Users,
-  HeartHandshake,
+  Key,
+  Sparkles,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AnimateInView } from '@/components/animate-in-view'
@@ -20,117 +20,109 @@ export function Features(_props: FeaturesProps) {
 
   const features = [
     {
-      id: 'fast',
+      id: 'models',
       num: '01',
-      title: t('Lightning Fast'),
+      title: t('Multiple Models'),
       desc: t(
-        'Optimized network architecture ensures millisecond response times'
+        'Seedance 2.0 today. Pixverse and HappyHorse on the roadmap — same API, no migration.'
       ),
       span: 'md:col-span-2',
-      icon: <Zap className='size-4 text-blue-400' />,
+      icon: <Sparkles className='size-4 text-blue-400' />,
       visual: (
-        <div className='mt-4 grid grid-cols-3 gap-2'>
-          {['OpenAI', 'Claude', 'Gemini', 'DeepSeek', 'Qwen', 'Llama'].map(
-            (name) => (
-              <div
-                key={name}
-                className='border-border/30 bg-muted/20 text-muted-foreground flex items-center justify-center rounded-lg border px-3 py-2 text-xs transition-colors duration-300 hover:border-blue-500/30 hover:bg-blue-500/5'
+        <div className='mt-4 grid grid-cols-2 gap-2'>
+          {[
+            { name: 'Seedance 2.0', status: 'live' },
+            { name: 'Seedance 2.0 fast', status: 'live' },
+            { name: 'Pixverse v5.5', status: 'soon' },
+            { name: 'HappyHorse', status: 'soon' },
+          ].map((m) => (
+            <div
+              key={m.name}
+              className='border-border/30 bg-muted/20 flex items-center justify-between rounded-lg border px-3 py-2 text-xs transition-colors duration-300 hover:border-blue-500/30 hover:bg-blue-500/5'
+            >
+              <span className='text-muted-foreground'>{m.name}</span>
+              <span
+                className={
+                  m.status === 'live'
+                    ? 'rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium text-emerald-600 dark:text-emerald-400'
+                    : 'rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400'
+                }
               >
-                {name}
-              </div>
-            )
-          )}
+                {m.status === 'live' ? 'LIVE' : 'SOON'}
+              </span>
+            </div>
+          ))}
         </div>
       ),
     },
     {
-      id: 'secure',
+      id: 'multimodal',
       num: '02',
-      title: t('Secure & Reliable'),
+      title: t('Multimodal Input'),
       desc: t(
-        'Enterprise-grade security with comprehensive permission management'
+        'Text, reference images (1–9), input video, and audio — combined in one request.'
       ),
       span: 'md:col-span-1',
-      icon: <Shield className='size-4 text-emerald-400' />,
+      icon: <ImagePlus className='size-4 text-emerald-400' />,
       visual: (
-        <div className='mt-4 flex items-center justify-center'>
-          <div className='relative'>
-            <div className='flex size-16 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/5'>
-              <Shield
-                className='size-7 text-emerald-500/70'
-                strokeWidth={1.5}
-              />
+        <div className='mt-4 flex items-center justify-center gap-1.5'>
+          {['text', 'image', 'video', 'audio'].map((m) => (
+            <div
+              key={m}
+              className='border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 rounded border px-2 py-1 text-[10px] font-medium'
+            >
+              {m}
             </div>
-            <div className='absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-emerald-500'>
-              <svg
-                className='size-2.5 text-white'
-                fill='none'
-                viewBox='0 0 24 24'
-                stroke='currentColor'
-                strokeWidth={3}
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  d='m4.5 12.75 6 6 9-13.5'
-                />
-              </svg>
-            </div>
-          </div>
+          ))}
         </div>
       ),
     },
     {
-      id: 'global',
+      id: 'frame-control',
       num: '03',
-      title: t('Global Coverage'),
-      desc: t('Multi-region deployment for stable global access'),
+      title: t('First/Last Frame Control'),
+      desc: t(
+        'Pin both ends of a video with reference images. Useful for transitions, intros, brand sequences.'
+      ),
       span: 'md:col-span-1',
-      icon: <Globe className='size-4 text-violet-400' />,
+      icon: <Layers className='size-4 text-violet-400' />,
       visual: (
-        <div className='mt-4 space-y-2'>
-          {[t('Load Balancing'), t('Rate Limiting'), t('Cost Tracking')].map(
-            (step, i) => (
-              <div key={step} className='flex items-center gap-2'>
-                <div
-                  className={`flex size-6 items-center justify-center rounded-full text-[10px] font-bold ${
-                    i === 1
-                      ? 'border border-blue-500/30 bg-blue-500/20 text-blue-500'
-                      : 'border-border/40 bg-muted text-muted-foreground border'
-                  }`}
-                >
-                  {i + 1}
-                </div>
-                <div className='bg-border/40 h-px flex-1' />
-                <span className='text-muted-foreground text-xs'>{step}</span>
-              </div>
-            )
-          )}
+        <div className='mt-4 flex items-center justify-center gap-2'>
+          <div className='border-violet-500/30 bg-violet-500/10 flex size-10 items-center justify-center rounded border text-[10px] font-medium text-violet-700 dark:text-violet-400'>
+            first
+          </div>
+          <div className='text-muted-foreground/40 text-[10px]'>→</div>
+          <div className='border-border/40 bg-muted/20 flex size-10 items-center justify-center rounded border text-[10px]'>
+            ···
+          </div>
+          <div className='text-muted-foreground/40 text-[10px]'>→</div>
+          <div className='border-violet-500/30 bg-violet-500/10 flex size-10 items-center justify-center rounded border text-[10px] font-medium text-violet-700 dark:text-violet-400'>
+            last
+          </div>
         </div>
       ),
     },
     {
-      id: 'developer',
+      id: 'audio',
       num: '04',
-      title: t('Developer Friendly'),
-      desc: t('Compatible API routes for common AI application workflows'),
+      title: t('Generate with Audio'),
+      desc: t(
+        'Built-in audio generation for Seedance 2.0. No separate TTS step.'
+      ),
       span: 'md:col-span-2',
-      icon: <Code className='size-4 text-amber-400' />,
+      icon: <Volume2 className='size-4 text-amber-400' />,
       visual: (
-        <div className='mt-4 flex items-center gap-3'>
-          <div className='flex -space-x-2'>
-            {['API', 'SDK', 'CLI', 'Docs'].map((n) => (
-              <div
-                key={n}
-                className='border-background from-muted to-muted/60 text-muted-foreground flex size-8 items-center justify-center rounded-full border-2 bg-gradient-to-br text-[9px] font-bold'
-              >
-                {n}
-              </div>
-            ))}
-          </div>
-          <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
-            <Code className='size-3.5 text-blue-500' />
-            {t('Multi-protocol Compatible')}
+        <div className='mt-4 flex items-center gap-2'>
+          {[3, 7, 10, 5, 8, 11, 4, 9, 6, 12, 5, 8].map((h, i) => (
+            <div
+              key={i}
+              className='from-amber-500/40 to-amber-500/10 w-1.5 rounded-full bg-gradient-to-t'
+              style={{ height: `${h * 2.5}px` }}
+            />
+          ))}
+          <div className='text-muted-foreground ml-2 flex items-center gap-1.5 text-xs'>
+            <Volume2 className='size-3.5 text-amber-500' />
+            {t('Native audio track')}
           </div>
         </div>
       ),
@@ -139,24 +131,24 @@ export function Features(_props: FeaturesProps) {
 
   const additionalFeatures = [
     {
-      icon: <Gauge className='size-5' strokeWidth={1.5} />,
-      title: t('High Performance'),
-      desc: t('Support for high concurrency with automatic load balancing'),
+      icon: <Film className='size-5' strokeWidth={1.5} />,
+      title: t('Async + Webhook'),
+      desc: t('Submit, get task_id, poll or wait for callback. No blocking.'),
     },
     {
       icon: <DollarSign className='size-5' strokeWidth={1.5} />,
-      title: t('Transparent Billing'),
-      desc: t('Pay-as-you-go with real-time usage monitoring'),
+      title: t('Per-Video Billing'),
+      desc: t('Charged only on success. No tokens, no minimums, no surprises.'),
     },
     {
-      icon: <Users className='size-5' strokeWidth={1.5} />,
-      title: t('Team Collaboration'),
-      desc: t('Multi-user management with flexible permission allocation'),
+      icon: <Key className='size-5' strokeWidth={1.5} />,
+      title: t('OpenAI-Style Auth'),
+      desc: t('Bearer sk-... — drop into any OpenAI-compatible HTTP client.'),
     },
     {
-      icon: <HeartHandshake className='size-5' strokeWidth={1.5} />,
-      title: t('Open Source'),
-      desc: t('Community driven, self-hosted, and extensible'),
+      icon: <Webhook className='size-5' strokeWidth={1.5} />,
+      title: t('24h Proxy Cache'),
+      desc: t('Generated mp4 served through our domain — hide signed URLs.'),
     },
   ]
 
@@ -168,9 +160,9 @@ export function Features(_props: FeaturesProps) {
             {t('Core Features')}
           </p>
           <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-3xl'>
-            {t('Built for developers,')}
+            {t('Production-grade video gen,')}
             <br />
-            {t('designed for scale')}
+            {t('one HTTP call away')}
           </h2>
         </AnimateInView>
 

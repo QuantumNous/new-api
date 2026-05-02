@@ -1,4 +1,4 @@
-import { Settings, Zap, BarChart3 } from 'lucide-react'
+import { Send, Loader2, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AnimateInView } from '@/components/animate-in-view'
 
@@ -8,25 +8,27 @@ export function HowItWorks() {
   const steps = [
     {
       num: '1',
-      title: t('Configure'),
+      title: t('Submit'),
       desc: t(
-        'Add your API keys, set up channels and configure access permissions'
+        'POST /v1/video/generations with a prompt, model, size and duration. Returns a task_id immediately.'
       ),
-      icon: <Settings className='size-6' strokeWidth={1.5} />,
+      icon: <Send className='size-6' strokeWidth={1.5} />,
     },
     {
       num: '2',
-      title: t('Connect'),
+      title: t('Poll'),
       desc: t(
-        'Connect through OpenAI, Claude, Gemini, and other compatible API routes'
+        'GET /v1/video/generations/{task_id} every 5 seconds. 720p / 5s typically completes in 90–120s.'
       ),
-      icon: <Zap className='size-6' strokeWidth={1.5} />,
+      icon: <Loader2 className='size-6' strokeWidth={1.5} />,
     },
     {
       num: '3',
-      title: t('Monitor'),
-      desc: t('Track usage, costs and performance with real-time analytics'),
-      icon: <BarChart3 className='size-6' strokeWidth={1.5} />,
+      title: t('Download'),
+      desc: t(
+        'GET /v1/videos/{task_id}/content streams the mp4 through our proxy — works for 24 hours.'
+      ),
+      icon: <Download className='size-6' strokeWidth={1.5} />,
     },
   ]
 
@@ -38,7 +40,7 @@ export function HowItWorks() {
             {t('How It Works')}
           </p>
           <h2 className='text-2xl font-bold tracking-tight md:text-3xl'>
-            {t('Three steps to get started')}
+            {t('Three async steps · submit, poll, download')}
           </h2>
         </AnimateInView>
 
@@ -59,7 +61,7 @@ export function HowItWorks() {
                 </div>
               </div>
               <h3 className='mb-2 text-base font-semibold'>{step.title}</h3>
-              <p className='text-muted-foreground max-w-[240px] text-sm leading-relaxed'>
+              <p className='text-muted-foreground max-w-[260px] text-sm leading-relaxed'>
                 {step.desc}
               </p>
             </AnimateInView>

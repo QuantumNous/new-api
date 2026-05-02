@@ -35,15 +35,15 @@ export function CTA(props: CTAProps) {
         animation='scale-in'
       >
         <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-4xl'>
-          {t('Ready to simplify')}
+          {t('Ready to generate')}
           <br />
           <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('your AI integration?')}
+            {t('your first video?')}
           </span>
         </h2>
         <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
           {t(
-            'Deploy your own gateway and start routing requests through your configured upstream services.'
+            'Sign up, get a token, and call the Seedance 2.0 API in under 60 seconds. Pay per video, no minimums.'
           )}
         </p>
         <div className='mt-8 flex items-center justify-center gap-3'>
@@ -58,7 +58,7 @@ export function CTA(props: CTAProps) {
             className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
             asChild
           >
-            <Link to='/pricing'>{t('View Pricing')}</Link>
+            <a href='/docs'>{t('API Docs')}</a>
           </Button>
         </div>
       </AnimateInView>

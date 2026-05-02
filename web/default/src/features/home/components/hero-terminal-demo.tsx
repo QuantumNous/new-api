@@ -12,8 +12,10 @@ interface ApiDemoConfig {
   request: string[]
   response: string[]
   responseHighlights: string[]
-  tokens: number
-  latency: number
+  // Right-side metrics in footer; pre-formatted strings keep this widget free
+  // of misleading per-token / per-second math that doesn't fit video tasks.
+  metric1: { value: string; unit: string }
+  metric2: { value: string; unit: string }
   accent: AccentTone
 }
 
@@ -52,95 +54,65 @@ const ACCENT_CLASSES: Record<
 
 const API_DEMOS: ApiDemoConfig[] = [
   {
-    id: 'gpt-chat',
-    label: 'Chat',
+    id: 'submit',
+    label: 'Submit',
     method: 'POST',
-    endpoint: '/v1/chat/completions',
+    endpoint: '/v1/video/generations',
     headers: ['"Authorization: Bearer sk-••••"'],
     request: [
-      '"model": "your-model",',
-      '"messages": [',
-      '  { "role": "user", "content": "..." }',
-      ']',
+      '"model": "doubao-seedance-2-0-fast-260128",',
+      '"prompt": "一只橘猫慢慢走过夕阳下的东京街道",',
+      '"size": "720p",',
+      '"duration": 5,',
+      '"metadata": { "ratio": "16:9" }',
     ],
     response: [
       '{',
-      '  "choices": [{ "message": { "content": <text> } }],',
-      '  "usage": { "total_tokens": <tokens> }',
+      '  "task_id": <task>,',
+      '  "status": "queued",',
+      '  "created_at": <ts>',
       '}',
     ],
-    responseHighlights: ['<text>', '<tokens>'],
-    tokens: 27,
-    latency: 142,
+    responseHighlights: ['<task>', '<ts>'],
+    metric1: { value: '142', unit: 'ms' },
+    metric2: { value: '$0.71', unit: 'cost' },
     accent: 'emerald',
   },
   {
-    id: 'responses',
-    label: 'Responses',
-    method: 'POST',
-    endpoint: '/v1/responses',
+    id: 'poll',
+    label: 'Poll',
+    method: 'GET',
+    endpoint: '/v1/video/generations/{task_id}',
     headers: ['"Authorization: Bearer sk-••••"'],
-    request: [
-      '"model": "your-model",',
-      '"input": "..."',
-    ],
+    request: ['# no body, GET request'],
     response: [
       '{',
-      '  "output": [{ "type": "output_text", "text": <text> }],',
-      '  "usage": { "total_tokens": <tokens> }',
+      '  "status": "SUCCESS",',
+      '  "progress": <progress>,',
+      '  "data": { "content": { "video_url": <url> } }',
       '}',
     ],
-    responseHighlights: ['<text>', '<tokens>'],
-    tokens: 31,
-    latency: 168,
+    responseHighlights: ['<progress>', '<url>'],
+    metric1: { value: '5s', unit: 'interval' },
+    metric2: { value: '~110s', unit: 'avg total' },
     accent: 'amber',
   },
   {
-    id: 'claude',
-    label: 'Claude',
-    method: 'POST',
-    endpoint: '/v1/messages',
-    headers: ['"x-api-key: sk-••••"', '"anthropic-version: 2023-06-01"'],
-    request: [
-      '"model": "your-model",',
-      '"max_tokens": 1024,',
-      '"messages": [',
-      '  { "role": "user", "content": "..." }',
-      ']',
-    ],
+    id: 'download',
+    label: 'Download',
+    method: 'GET',
+    endpoint: '/v1/videos/{task_id}/content',
+    headers: ['"Authorization: Bearer sk-••••"'],
+    request: ['# streams mp4 from upstream via aikanhub proxy'],
     response: [
-      '{',
-      '  "content": [{ "type": "text", "text": <text> }],',
-      '  "usage": { "input_tokens": <in>, "output_tokens": <out> }',
-      '}',
+      '# Content-Type: video/mp4',
+      '# Content-Length: <size>',
+      '# (binary stream)',
     ],
-    responseHighlights: ['<text>', '<in>', '<out>'],
-    tokens: 29,
-    latency: 156,
+    responseHighlights: ['<size>'],
+    metric1: { value: '5.4', unit: 'MB' },
+    metric2: { value: '24h', unit: 'valid' },
     accent: 'blue',
-  },
-  {
-    id: 'gemini',
-    label: 'Gemini',
-    method: 'POST',
-    endpoint: '/v1beta/models/{model}:generateContent',
-    headers: ['"x-goog-api-key: sk-••••"'],
-    request: [
-      '"contents": [',
-      '  { "role": "user",',
-      '    "parts": [{ "text": "..." }] }',
-      ']',
-    ],
-    response: [
-      '{',
-      '  "candidates": [{ "content": { "parts": [{ "text": <text> }] } }],',
-      '  "usageMetadata": { "totalTokenCount": <tokens> }',
-      '}',
-    ],
-    responseHighlights: ['<text>', '<tokens>'],
-    tokens: 25,
-    latency: 93,
-    accent: 'violet',
   },
 ]
 
@@ -270,24 +242,17 @@ export function HeroTerminalDemo() {
         >
           <div className='flex items-center gap-3 text-[10px] tabular-nums text-foreground/40'>
             <span className='flex items-center gap-1'>
-              <span className='font-mono'>{demo.latency}</span>
-              <span className='tracking-wider uppercase'>ms</span>
+              <span className='font-mono'>{demo.metric1.value}</span>
+              <span className='tracking-wider uppercase'>{demo.metric1.unit}</span>
             </span>
             <span className='size-1 rounded-full bg-foreground/15' />
             <span className='flex items-center gap-1'>
-              <span className='font-mono'>{demo.tokens}</span>
-              <span className='tracking-wider uppercase'>tokens</span>
-            </span>
-            <span className='size-1 rounded-full bg-foreground/15' />
-            <span className='flex items-center gap-1'>
-              <span className='tracking-wider uppercase'>cost</span>
-              <span className='font-mono'>
-                ${(demo.tokens * 0.00003).toFixed(5)}
-              </span>
+              <span className='font-mono'>{demo.metric2.value}</span>
+              <span className='tracking-wider uppercase'>{demo.metric2.unit}</span>
             </span>
           </div>
           <span className='font-mono text-[10px] tracking-wider text-foreground/30 uppercase'>
-            stream · sse
+            video · async
           </span>
         </div>
       </div>
@@ -394,27 +359,12 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
       )
     }
     const placeholder = match[0]
-    if (placeholder === '<text>') {
+    const replacement = responseValueFor(placeholder, demo)
+    if (replacement) {
       segments.push(
         <Accent key={`ph-${idx}`} accent={demo.accent}>
-          {`"${truncateResponse(demo)}"`}
+          {replacement}
         </Accent>
-      )
-    } else if (placeholder === '<tokens>') {
-      segments.push(
-        <NumberText key={`ph-${idx}`}>{demo.tokens}</NumberText>
-      )
-    } else if (placeholder === '<in>') {
-      segments.push(
-        <NumberText key={`ph-${idx}`}>
-          {Math.floor(demo.tokens * 0.4)}
-        </NumberText>
-      )
-    } else if (placeholder === '<out>') {
-      segments.push(
-        <NumberText key={`ph-${idx}`}>
-          {Math.ceil(demo.tokens * 0.6)}
-        </NumberText>
       )
     } else {
       segments.push(<Muted key={`ph-${idx}`}>{placeholder}</Muted>)
@@ -429,14 +379,22 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
   return segments
 }
 
-function truncateResponse(demo: ApiDemoConfig): string {
-  const map: Record<string, string> = {
-    'gpt-chat': 'Chat request routed.',
-    responses: 'Response workflow ready.',
-    claude: 'Claude message routed.',
-    gemini: 'Gemini request served.',
+function responseValueFor(placeholder: string, demo: ApiDemoConfig): string | null {
+  // Demo-specific mock values rendered with accent color in the response panel.
+  const map: Record<string, Record<string, string>> = {
+    submit: {
+      '<task>': '"task_e78KHBgMz17gaK9SkHYL9FWw3NwQhuVL"',
+      '<ts>': '1777703361',
+    },
+    poll: {
+      '<progress>': '"100%"',
+      '<url>': '"https://...volces.com/...mp4"',
+    },
+    download: {
+      '<size>': '5,481,234',
+    },
   }
-  return map[demo.id] ?? '...'
+  return map[demo.id]?.[placeholder] ?? null
 }
 
 function tokenize(input: string): ReactNode {

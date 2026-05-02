@@ -465,6 +465,12 @@ export function Docs() {
                       <td className='px-4 py-2 text-muted-foreground'>—</td>
                       <td className='px-4 py-2 text-muted-foreground'>🚧 规划中</td>
                     </tr>
+                    <tr>
+                      <td className='px-4 py-2 font-mono'>happyhorse</td>
+                      <td className='px-4 py-2'>HappyHorse</td>
+                      <td className='px-4 py-2 text-muted-foreground'>—</td>
+                      <td className='px-4 py-2 text-muted-foreground'>🚧 规划中</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
