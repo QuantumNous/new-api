@@ -25,8 +25,8 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
-  TopUpLink: z.string().optional().or(z.literal('')),
-  'general_setting.docs_link': z.string().optional().or(z.literal('')),
+  TopUpLink: z.string().default(''),
+  'general_setting.docs_link': z.string().default(''),
   'quota_setting.enable_free_model_pre_consume': z.boolean(),
 })
 
