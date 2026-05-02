@@ -223,6 +223,26 @@ When removing upstream branding, the first grep pass routinely misses fallback c
 
 Dead code (e.g. `assets/logo.tsx` with `id='newapi-logo'`) is fine to leave as-is for upstream rebase ease; just verify it's truly dead via `grep -r 'from.*<path>'` first.
 
+### Rule 16: i18n — Add zh Translations in the Same Commit as New Strings
+
+When introducing user-facing strings via `t('English source')`, always add the corresponding `web/default/src/i18n/locales/zh.json` entry in the **same commit**. If you don't, zh-CN browsers (the default user) see existing translated chrome (top nav, sidebar, settings) mixed with your new untranslated English text — a visible "half English half Chinese" bug.
+
+**Convention** (don't fight it):
+- Source strings stay in **English** (matches the React component code, ergonomic for new contributors).
+- All non-English locales live in `i18n/locales/<lang>.json`.
+- Adding a string in source → add to `zh.json` (and any other active locales).
+- Don't "fix mixed languages" by hardcoding Chinese in the source — that just breaks en users.
+
+**Quick check before commit**:
+
+```bash
+# Find new t() calls in your changed files
+git diff --diff-filter=AM main..HEAD -- '*.tsx' '*.ts' | grep -oE "t\('[^']{3,}'\)" | sort -u
+# Verify each appears in zh.json
+```
+
+The orphaned reverse case (zh.json keys with no source reference) is harmless — i18next just doesn't load them. Don't bother cleaning unless an audit calls for it.
+
 ### Rule 14: Always Update This File After a Bug Fix
 
 When a fix lands a non-obvious correctness or workflow lesson — something a future change could re-break — append a short rule to this file in the same PR. Examples of what triggers a CLAUDE.md update:
