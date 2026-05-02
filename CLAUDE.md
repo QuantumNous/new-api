@@ -209,6 +209,20 @@ The Dockerfile uses BuildKit cache mounts (`--mount=type=cache`) for `bun instal
 - Adding a top-level dir without it appearing in `.dockerignore` will balloon the build context. Always check what's in the context: a build context > 100 MB warrants investigation.
 - The classic frontend stage has been dropped. Do not add it back.
 
+### Rule 15: Branding Sweep Checklist
+
+When removing upstream branding, the first grep pass routinely misses fallback constants. Always run a second sweep covering these patterns AFTER the obvious replacements look clean:
+
+- `defaultName = 'New API'` (component prop defaults)
+- `DEFAULT_SYSTEM_NAME = 'New API'` (lib/constants.ts and similar shared exports)
+- `... || 'New API'` (fallback chains in render functions)
+- `placeholder=` and `placeholder={t(...)}` in form components
+- HTTP headers sent to upstreams (e.g. `X-OpenRouter-Title`, `User-Agent`)
+- The DB `Option` table `SystemName` row (existing deployments don't pick up new defaults; must be UPDATEd or DELETEd)
+- Inline SVG `<title>` tags and DOM `id=` attributes — even in unused/dead components, since they leak through dev tools
+
+Dead code (e.g. `assets/logo.tsx` with `id='newapi-logo'`) is fine to leave as-is for upstream rebase ease; just verify it's truly dead via `grep -r 'from.*<path>'` first.
+
 ### Rule 14: Always Update This File After a Bug Fix
 
 When a fix lands a non-obvious correctness or workflow lesson — something a future change could re-break — append a short rule to this file in the same PR. Examples of what triggers a CLAUDE.md update:
