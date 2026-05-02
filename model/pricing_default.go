@@ -47,6 +47,7 @@ var defaultVendorIcons = map[string]string{
 	"智谱":         "Zhipu.Color",
 	"阿里巴巴":       "Qwen.Color",
 	"DeepSeek":   "DeepSeek.Color",
+	"小米":         "XiaomiMiMo",
 	"MiniMax":    "Minimax.Color",
 	"百度":         "Wenxin.Color",
 	"讯飞":         "Spark.Color",

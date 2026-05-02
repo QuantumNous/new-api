@@ -90,6 +90,13 @@ func getTTSContentType(format string) string {
 }
 
 func handleTTSResponse(c *gin.Context, resp *http.Response, _ *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("invalid xiaomi TTS response"),
+			types.ErrorCodeBadResponse,
+			http.StatusInternalServerError,
+		)
+	}
 	defer resp.Body.Close()
 	audioFormat := c.GetString(contextKeyAudioFormat)
 	body, err := io.ReadAll(resp.Body)
