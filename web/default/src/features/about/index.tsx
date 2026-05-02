@@ -27,76 +27,66 @@ function EmptyAboutState() {
     <div className='flex min-h-[60vh] items-center justify-center p-8'>
       <div className='max-w-2xl space-y-6 text-center'>
         <div className='flex justify-center'>
-          <Construction className='text-muted-foreground h-24 w-24' />
+          <img src='/logo.png' alt='AIKanHub' className='h-24 w-24 object-contain' />
         </div>
         <div className='space-y-2'>
-          <h2 className='text-2xl font-bold'>{t('No About Content Set')}</h2>
+          <h2 className='text-2xl font-bold'>AIKanHub</h2>
           <p className='text-muted-foreground'>
-            {t(
-              'The administrator has not configured any about content yet. You can set it in the settings page, supporting HTML or URL.'
-            )}
+            {t('A unified video generation API gateway. One key, all major models.')}
           </p>
         </div>
-        <div className='space-y-4 text-sm'>
+        <div className='space-y-3 text-sm'>
           <p>
-            {t('New API Project Repository:')}{' '}
             <a
-              href='https://github.com/QuantumNous/new-api'
+              href='https://github.com/NekoAIKan/aikanhub'
               target='_blank'
               rel='noopener noreferrer'
               className='text-primary hover:underline'
             >
-              {t('https://github.com/QuantumNous/new-api')}
+              github.com/NekoAIKan/aikanhub
             </a>
           </p>
-          <p className='text-muted-foreground'>
+          <p className='text-muted-foreground/80'>
+            © {currentYear} AIKanHub · forked from{' '}
             <a
-              href='https://github.com/QuantumNous/new-api'
+              href='https://github.com/Calcium-Ion/new-api'
               target='_blank'
               rel='noopener noreferrer'
-              className='text-primary hover:underline'
+              className='hover:underline'
             >
-              {t('NewAPI')}
+              new-api
             </a>{' '}
-            © {currentYear}{' '}
-            <a
-              href='https://github.com/QuantumNous'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('QuantumNous')}
-            </a>{' '}
-            {t('| Based on')}{' '}
+            (originally{' '}
             <a
               href='https://github.com/songquanpeng/one-api'
               target='_blank'
               rel='noopener noreferrer'
-              className='text-primary hover:underline'
+              className='hover:underline'
             >
-              {t('One API')}
-            </a>{' '}
-            © 2023{' '}
-            <a
-              href='https://github.com/songquanpeng'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('JustSong')}
+              one-api
             </a>
+            )
           </p>
-          <p className='text-muted-foreground'>
-            {t('This project must be used in compliance with the')}{' '}
+          <p className='text-muted-foreground/80'>
+            {t('Licensed under')}{' '}
             <a
-              href='https://github.com/QuantumNous/new-api/blob/main/LICENSE'
+              href='https://github.com/NekoAIKan/aikanhub/blob/main/LICENSE'
               target='_blank'
               rel='noopener noreferrer'
               className='text-primary hover:underline'
             >
-              {t('AGPL v3.0 License')}
+              AGPL v3.0
             </a>
-            .
+            . {t('See')}{' '}
+            <a
+              href='https://github.com/NekoAIKan/aikanhub/blob/main/NOTICE.md'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-primary hover:underline'
+            >
+              NOTICE
+            </a>{' '}
+            {t('for full attribution.')}
           </p>
         </div>
       </div>

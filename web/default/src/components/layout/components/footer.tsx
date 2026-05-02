@@ -22,12 +22,6 @@ interface FooterProps {
   className?: string
 }
 
-const NEW_API_FOOTER_ATTRIBUTION_KEY = [
-  'footer',
-  'new' + 'api',
-  'projectAttributionSuffix',
-].join('.')
-
 function FooterLinkItem(props: { link: FooterLink }) {
   const { t } = useTranslation()
   const isExternal = props.link.href.startsWith('http')
@@ -57,21 +51,27 @@ function FooterLinkItem(props: { link: FooterLink }) {
 }
 
 function ProjectAttribution(props: { currentYear: number }) {
-  const { t } = useTranslation()
-
   return (
     <div className='text-muted-foreground/45 text-center text-xs sm:text-right'>
       <span className='text-muted-foreground/45'>
         &copy; {props.currentYear}{' '}
         <a
-          href='https://github.com/QuantumNous/new-api'
+          href='https://github.com/NekoAIKan/aikanhub'
           target='_blank'
           rel='noopener noreferrer'
           className='text-foreground/70 font-medium transition-colors hover:text-foreground'
         >
-          {t('New API')}
+          AIKanHub
         </a>
-        . {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
+        {' · '}
+        <a
+          href='https://github.com/Calcium-Ion/new-api'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='text-muted-foreground/45 hover:text-muted-foreground transition-colors'
+        >
+          forked from new-api
+        </a>
       </span>
     </div>
   )
@@ -87,61 +87,34 @@ export function Footer(props: FooterProps) {
   } = useSystemConfig()
 
   const displayLogo = systemLogo || props.logo || '/logo.png'
-  const displayName = systemName || props.name || 'New API'
+  const displayName = systemName || props.name || 'AIKanHub'
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 
   const fallbackColumns = useMemo<FooterColumnProps[]>(
     () => [
       {
-        title: t('footer.columns.about.title'),
+        title: t('Product'),
         links: [
-          {
-            text: t('footer.columns.about.links.aboutProject'),
-            href: 'https://docs.newapi.pro/wiki/project-introduction/',
-          },
-          {
-            text: t('footer.columns.about.links.contact'),
-            href: 'https://docs.newapi.pro/support/community-interaction/',
-          },
-          {
-            text: t('footer.columns.about.links.features'),
-            href: 'https://docs.newapi.pro/wiki/features-introduction/',
-          },
+          { text: t('API Docs'), href: '/docs' },
+          { text: t('Pricing'), href: '/docs#pricing' },
+          { text: t('Models'), href: '/docs#models' },
         ],
       },
       {
-        title: t('footer.columns.docs.title'),
+        title: t('Account'),
         links: [
-          {
-            text: t('footer.columns.docs.links.quickStart'),
-            href: 'https://docs.newapi.pro/getting-started/',
-          },
-          {
-            text: t('footer.columns.docs.links.installation'),
-            href: 'https://docs.newapi.pro/installation/',
-          },
-          {
-            text: t('footer.columns.docs.links.apiDocs'),
-            href: 'https://docs.newapi.pro/api/',
-          },
+          { text: t('API Keys'), href: '/keys' },
+          { text: t('Wallet'), href: '/wallet' },
+          { text: t('Task Logs'), href: '/usage-logs/task' },
         ],
       },
       {
-        title: t('footer.columns.related.title'),
+        title: t('Resources'),
         links: [
-          {
-            text: t('footer.columns.related.links.oneApi'),
-            href: 'https://github.com/songquanpeng/one-api',
-          },
-          {
-            text: t('footer.columns.related.links.midjourney'),
-            href: 'https://github.com/novicezk/midjourney-proxy',
-          },
-          {
-            text: t('footer.columns.related.links.neko'),
-            href: 'https://github.com/Calcium-Ion/neko-api-key-tool',
-          },
+          { text: t('GitHub'), href: 'https://github.com/NekoAIKan/aikanhub' },
+          { text: t('Status'), href: '/' },
+          { text: t('Contact'), href: '/about' },
         ],
       },
     ],
