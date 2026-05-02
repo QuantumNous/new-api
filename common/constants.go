@@ -21,20 +21,21 @@ var TopUpLink = ""
 var themeValue atomic.Value // stores string; safe for concurrent read/write
 
 func init() {
-	themeValue.Store("classic")
+	// AIKanHub: classic theme is no longer maintained — always serve default.
+	// Source for classic still exists in web/classic/ to ease upstream rebases,
+	// but the runtime never selects it. Full deletion is tracked in Issue #6.
+	themeValue.Store("default")
 }
 
+// GetTheme always returns "default" for AIKanHub. Kept as a function (not const)
+// so call sites elsewhere don't need changes.
 func GetTheme() string {
-	return themeValue.Load().(string)
+	return "default"
 }
 
-// SetTheme updates the frontend theme atomically.
-// Only "default" and "classic" are accepted; other values are silently ignored.
-func SetTheme(t string) {
-	if t == "default" || t == "classic" {
-		themeValue.Store(t)
-	}
-}
+// SetTheme is a no-op in AIKanHub. We always serve default. Kept to avoid
+// breaking callers in upstream code paths.
+func SetTheme(_ string) {}
 
 // var ChatLink = ""
 // var ChatLink2 = ""

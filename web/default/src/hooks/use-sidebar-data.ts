@@ -10,8 +10,7 @@ import {
   User,
   Command,
   Radio,
-  FlaskConical,
-  MessageSquare,
+  // FlaskConical, MessageSquare — used by the hidden chat group below
   CreditCard,
   ListTodo,
   Settings,
@@ -33,22 +32,17 @@ export function useSidebarData(): SidebarData {
       },
     ],
     navGroups: [
-      {
-        id: 'chat',
-        title: t('Chat'),
-        items: [
-          {
-            title: t('Playground'),
-            url: '/playground',
-            icon: FlaskConical,
-          },
-          {
-            title: t('Chat'),
-            icon: MessageSquare,
-            type: 'chat-presets',
-          },
-        ],
-      },
+      // Chat group hidden — AIKanHub is video-first; the upstream chat playground
+      // doesn't support video tasks. Tracked in NekoAIKan/aikanhub#3 for a video
+      // playground replacement. Code preserved here to ease upstream rebases.
+      // {
+      //   id: 'chat',
+      //   title: t('Chat'),
+      //   items: [
+      //     { title: t('Playground'), url: '/playground', icon: FlaskConical },
+      //     { title: t('Chat'), icon: MessageSquare, type: 'chat-presets' },
+      //   ],
+      // },
       {
         id: 'general',
         title: t('General'),

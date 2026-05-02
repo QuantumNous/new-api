@@ -15,7 +15,25 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
+
+// newGormLogger returns a GORM logger whose slow-SQL threshold is configurable
+// via SQL_SLOW_THRESHOLD_MS (default 1500ms). Default raised from GORM's
+// built-in 200ms because remote Postgres (e.g. Neon) adds 50-150ms RTT
+// per query, so almost every normal query trips the warning otherwise.
+func newGormLogger() gormlogger.Interface {
+	slowMs := common.GetEnvOrDefault("SQL_SLOW_THRESHOLD_MS", 1500)
+	return gormlogger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		gormlogger.Config{
+			SlowThreshold:             time.Duration(slowMs) * time.Millisecond,
+			LogLevel:                  gormlogger.Warn,
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  true,
+		},
+	)
+}
 
 var commonGroupCol string
 var commonKeyCol string
@@ -134,6 +152,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 				PreferSimpleProtocol: true, // disables implicit prepared statement usage
 			}), &gorm.Config{
 				PrepareStmt: true, // precompile SQL
+				Logger:      newGormLogger(),
 			})
 		}
 		if strings.HasPrefix(dsn, "local") {
@@ -145,6 +164,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 			}
 			return gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
 				PrepareStmt: true, // precompile SQL
+				Logger:      newGormLogger(),
 			})
 		}
 		// Use MySQL
@@ -164,6 +184,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 		}
 		return gorm.Open(mysql.Open(dsn), &gorm.Config{
 			PrepareStmt: true, // precompile SQL
+			Logger:      newGormLogger(),
 		})
 	}
 	// Use SQLite
@@ -171,6 +192,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	common.UsingSQLite = true
 	return gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
 		PrepareStmt: true, // precompile SQL
+		Logger:      newGormLogger(),
 	})
 }
 
@@ -201,9 +223,18 @@ func InitDB() (err error) {
 		if common.UsingMySQL {
 			//_, _ = sqlDB.Exec("ALTER TABLE channels MODIFY model_mapping TEXT;") // TODO: delete this line when most users have upgraded
 		}
+		runMigrate, currentHash := shouldRunMigration(DB)
+		if !runMigrate {
+			return nil
+		}
 		common.SysLog("database migration started")
-		err = migrateDB()
-		return err
+		if err := migrateDB(); err != nil {
+			return err
+		}
+		if err := saveSchemaHash(DB, currentHash); err != nil {
+			common.SysLog(fmt.Sprintf("warning: failed to persist schema hash: %v (next start will re-migrate)", err))
+		}
+		return nil
 	} else {
 		common.FatalLog(err)
 	}

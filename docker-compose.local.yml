@@ -1,18 +1,15 @@
 # aikanhub 本地开发栈
-#   - new-api: 后端 + 前端（用上游官方镜像，先跑通再决定要不要自己 build）
+#   - app: aikanhub 后端 + 前端（本地 build）
 #   - redis: 本地缓存
 #   - postgres: 不在这里，用 Neon（在 .env.local 里配 SQL_DSN）
 #
 # 用法：
-#   1. 复制 .env.local 模板，填好 SQL_DSN（Neon direct connection string）
-#   2. docker-compose -f docker-compose.local.yml --env-file .env.local up -d
+#   1. cp .env.local.example .env.local，填 Neon SQL_DSN
+#   2. docker compose -f docker-compose.local.yml --env-file .env.local up -d
 #   3. 浏览器打开 http://localhost:3000
-#   4. 首次访问会要求创建 root 账号
 #
-# 停服：docker-compose -f docker-compose.local.yml down
-# 重置 redis 数据：docker-compose -f docker-compose.local.yml down -v
-
-version: '3.4'
+# 停服：docker compose -f docker-compose.local.yml down
+# 重置 redis 数据：docker compose -f docker-compose.local.yml down -v
 
 services:
   app:
