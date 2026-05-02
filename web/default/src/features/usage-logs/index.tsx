@@ -7,7 +7,6 @@ import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
-import { UsageLogsPrimaryButtons } from './components/usage-logs-primary-buttons'
 import {
   UsageLogsProvider,
   useUsageLogsContext,
@@ -105,11 +104,6 @@ function UsageLogsContent() {
         <SectionPageLayout.Description>
           {t(pageMeta.descriptionKey)}
         </SectionPageLayout.Description>
-        <SectionPageLayout.Actions>
-          {activeCategory !== 'common' && (
-            <UsageLogsPrimaryButtons logCategory={activeCategory} />
-          )}
-        </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
             {showTaskSwitcher && (

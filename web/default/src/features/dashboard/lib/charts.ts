@@ -910,8 +910,18 @@ export function processUserChartData(
           },
         },
       },
-      area: { style: { fillOpacity: 0.15 } },
-      line: { style: { lineWidth: 2 } },
+      area: {
+        style: {
+          fillOpacity: 0.15,
+          curveType: 'monotone',
+        },
+      },
+      line: {
+        style: {
+          lineWidth: 2,
+          curveType: 'monotone',
+        },
+      },
       point: { visible: false },
       color: { specified: userColorMap },
       background: { fill: 'transparent' },

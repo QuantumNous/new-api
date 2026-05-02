@@ -71,7 +71,7 @@ export function useTopNavLinks(): TopNavLink[] {
   const pricing = modules?.pricing
   if (pricing && typeof pricing === 'object' && pricing.enabled) {
     const disabled = pricing.requireAuth && !isAuthed
-    links.push({ title: t('Pricing'), href: '/pricing', disabled })
+    links.push({ title: t('Model Square'), href: '/pricing', disabled })
   }
 
   // Docs (supports external links)

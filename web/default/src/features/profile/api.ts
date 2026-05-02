@@ -42,6 +42,14 @@ export async function updateUserSettings(
 }
 
 /**
+ * Update interface language preference
+ */
+export async function updateUserLanguage(language: string): Promise<ApiResponse> {
+  const res = await api.put('/api/user/self', { language })
+  return res.data
+}
+
+/**
  * Delete user account
  */
 export async function deleteUserAccount(
@@ -85,7 +93,10 @@ export async function bindEmail(
   email: string,
   code: string
 ): Promise<ApiResponse> {
-  const res = await api.get(`/api/oauth/email/bind?email=${email}&code=${code}`)
+  const res = await api.post('/api/oauth/email/bind', {
+    email,
+    code,
+  })
   return res.data
 }
 

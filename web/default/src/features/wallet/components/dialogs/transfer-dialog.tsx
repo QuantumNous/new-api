@@ -49,7 +49,7 @@ export function TransferDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-w-md'>
+      <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'>
         <DialogHeader>
           <DialogTitle className='text-xl font-semibold'>
             {t('Transfer Rewards')}
@@ -59,7 +59,7 @@ export function TransferDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className='space-y-6 py-4'>
+        <div className='space-y-4 py-3 sm:space-y-6 sm:py-4'>
           <div className='space-y-2'>
             <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
               {t('Available Rewards')}
@@ -92,7 +92,7 @@ export function TransferDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className='grid grid-cols-2 gap-2 sm:flex'>
           <Button
             variant='outline'
             onClick={() => onOpenChange(false)}

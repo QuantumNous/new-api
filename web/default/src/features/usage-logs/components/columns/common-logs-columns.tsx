@@ -115,51 +115,59 @@ function buildDetailSegments(
     const text = prices.join(' / ')
     return showUnit ? `${text}/M` : text
   }
+  const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
-  if (tieredSummary) {
-    const baseEntries = tieredSummary.priceEntries
-      .filter((entry) => ['inputPrice', 'outputPrice'].includes(entry.field))
-      .map((entry) => formatPriceCompact(entry.price))
-    if (baseEntries.length > 0) {
-      const tierLabel = tieredSummary.tier.label || t('Default')
-      segments.push({
-        text: `${tierLabel} · ${formatPriceList(baseEntries, true)}`,
-      })
-    }
+  if (isTieredExpr) {
+    if (tieredSummary) {
+      const baseEntries = tieredSummary.priceEntries
+        .filter((entry) => ['inputPrice', 'outputPrice'].includes(entry.field))
+        .map((entry) => formatPriceCompact(entry.price))
+      if (baseEntries.length > 0) {
+        const tierLabel = tieredSummary.tier.label || t('Default')
+        segments.push({
+          text: `${tierLabel} · ${formatPriceList(baseEntries, true)}`,
+        })
+      }
 
-    const cacheEntries = tieredSummary.priceEntries
-      .filter((entry) =>
-        [
-          'cacheReadPrice',
-          'cacheCreatePrice',
-          'cacheCreate1hPrice',
-        ].includes(entry.field)
-      )
-      .map((entry) => {
-        return formatPriceCompact(entry.price)
-      })
-    if (cacheEntries.length > 0) {
-      segments.push({
-        text: `${t('Cache')} ${formatPriceList(cacheEntries, false)}`,
-        muted: true,
-      })
-    }
-
-    const otherEntries = tieredSummary.priceEntries
-      .filter(
-        (entry) =>
-          ![
-            'inputPrice',
-            'outputPrice',
+      const cacheEntries = tieredSummary.priceEntries
+        .filter((entry) =>
+          [
             'cacheReadPrice',
             'cacheCreatePrice',
             'cacheCreate1hPrice',
           ].includes(entry.field)
-      )
-      .map((entry) => `${t(entry.shortLabel)} ${formatPrice(entry.price)}`)
-    if (otherEntries.length > 0) {
+        )
+        .map((entry) => {
+          return formatPriceCompact(entry.price)
+        })
+      if (cacheEntries.length > 0) {
+        segments.push({
+          text: `${t('Cache')} ${formatPriceList(cacheEntries, false)}`,
+          muted: true,
+        })
+      }
+
+      const otherEntries = tieredSummary.priceEntries
+        .filter(
+          (entry) =>
+            ![
+              'inputPrice',
+              'outputPrice',
+              'cacheReadPrice',
+              'cacheCreatePrice',
+              'cacheCreate1hPrice',
+            ].includes(entry.field)
+        )
+        .map((entry) => `${t(entry.shortLabel)} ${formatPrice(entry.price)}`)
+      if (otherEntries.length > 0) {
+        segments.push({
+          text: otherEntries.join(' · '),
+          muted: true,
+        })
+      }
+    } else {
       segments.push({
-        text: otherEntries.join(' · '),
+        text: `${t('Dynamic Pricing')} · ${t('No matching results')}`,
         muted: true,
       })
     }
@@ -769,7 +777,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </>
         )
       },
-      meta: { label: t('Details'), mobileHidden: true },
+      meta: { label: t('Details') },
       size: 180,
       maxSize: 200,
     }

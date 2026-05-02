@@ -63,13 +63,13 @@ function DetailRow(props: {
   muted?: boolean
 }) {
   return (
-    <div className='flex items-start gap-3 text-sm'>
-      <span className='text-muted-foreground w-28 shrink-0 text-xs'>
+    <div className='grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3'>
+      <span className='text-muted-foreground min-w-0 text-xs'>
         {props.label}
       </span>
       <span
         className={cn(
-          'min-w-0 text-xs break-words',
+          'min-w-0 max-w-full text-xs break-all sm:break-words',
           props.mono && 'font-mono',
           props.muted && 'text-muted-foreground'
         )}
@@ -88,7 +88,7 @@ function DetailSection(props: {
 }) {
   const isDanger = props.variant === 'danger'
   return (
-    <div className='space-y-1.5'>
+    <div className='min-w-0 space-y-1.5'>
       <Label
         className={cn(
           'flex items-center gap-1.5 text-xs font-semibold',
@@ -100,7 +100,7 @@ function DetailSection(props: {
       </Label>
       <div
         className={cn(
-          'space-y-1.5 rounded-md border p-2.5',
+          'min-w-0 space-y-1 overflow-hidden rounded-md border p-2.5 max-sm:p-2',
           isDanger
             ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20'
             : 'bg-muted/30'
@@ -126,6 +126,7 @@ function BillingBreakdown(props: {
   const { log, other, isAdmin } = props
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
+  const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
@@ -133,21 +134,28 @@ function BillingBreakdown(props: {
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
 
-  if (tieredSummary) {
+  if (isTieredExpr) {
     rows.push({
       label: t('Billing Mode'),
       value: t('Dynamic Pricing'),
     })
-    if (tieredSummary.tier.label) {
+    if (tieredSummary) {
+      if (tieredSummary.tier.label) {
+        rows.push({
+          label: t('Matched Tier'),
+          value: tieredSummary.tier.label,
+        })
+      }
+      for (const entry of tieredSummary.priceEntries) {
+        rows.push({
+          label: t(entry.shortLabel),
+          value: `${fmtPrice(entry.price)}/M`,
+        })
+      }
+    } else {
       rows.push({
         label: t('Matched Tier'),
-        value: tieredSummary.tier.label,
-      })
-    }
-    for (const entry of tieredSummary.priceEntries) {
-      rows.push({
-        label: t(entry.shortLabel),
-        value: `${fmtPrice(entry.price)}/M`,
+        value: t('No matching results'),
       })
     }
   } else if (isPerCall) {
@@ -184,7 +192,7 @@ function BillingBreakdown(props: {
     })
   }
 
-  if (!tieredSummary && isClaude && hasAnyCacheTokens(other)) {
+  if (!isTieredExpr && isClaude && hasAnyCacheTokens(other)) {
     if (other.cache_ratio != null && other.cache_ratio !== 1) {
       rows.push({
         label: t('Cache Read'),
@@ -220,7 +228,7 @@ function BillingBreakdown(props: {
     }
   }
 
-  if (!tieredSummary) {
+  if (!isTieredExpr) {
     if (other.audio_ratio != null && other.audio_ratio !== 1) {
       rows.push({
         label: t('Audio input'),
@@ -462,11 +470,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent
         className={cn(
-          'min-w-0',
+          'min-w-0 overflow-hidden',
+          'max-sm:max-h-[calc(100dvh-1.5rem)] max-sm:w-[calc(100vw-1.5rem)] max-sm:max-w-[calc(100vw-1.5rem)] max-sm:p-4',
           isTieredBilling ? 'sm:max-w-4xl lg:max-w-5xl' : 'sm:max-w-lg'
         )}
       >
-        <DialogHeader>
+        <DialogHeader className='max-sm:gap-1'>
           <DialogTitle className='flex items-center gap-2 text-base'>
             {t('Log Details')}
             <StatusBadge
@@ -481,10 +490,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className='max-h-[70vh] min-w-0 pr-4'>
-          <div className='min-w-0 space-y-3 py-1'>
+        <ScrollArea className='max-h-[70vh] min-w-0 overflow-hidden pr-2 max-sm:max-h-[calc(100dvh-7rem)] sm:pr-4'>
+          <div className='w-full min-w-0 max-w-full space-y-2.5 overflow-hidden py-1 sm:space-y-3'>
             {/* Overview section - key identifiers */}
-            <div className='space-y-1.5'>
+            <div className='min-w-0 space-y-1'>
               {props.log.request_id && (
                 <DetailRow
                   label={t('Request ID')}
@@ -587,7 +596,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {/* Request conversion (admin only, not for refund) */}
             {showConversion && (
               <DetailSection label={t('Request Conversion')}>
-                <div className='relative'>
+                <div className='relative min-w-0'>
                   <Button
                     variant='ghost'
                     size='sm'
@@ -602,7 +611,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                       <Copy className='size-3' />
                     )}
                   </Button>
-                  <div className='space-y-1 pr-6'>
+                  <div className='min-w-0 space-y-1 pr-6'>
                     {other?.request_path && (
                       <DetailRow
                         label={t('Path')}
@@ -610,12 +619,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
                         mono
                       />
                     )}
-                    <div className='flex items-center gap-1.5 text-xs'>
+                    <div className='flex min-w-0 items-center gap-1.5 text-xs'>
                       <Route
                         className='text-muted-foreground size-3'
                         aria-hidden='true'
                       />
-                      <span className='break-words'>{conversionLabel}</span>
+                      <span className='min-w-0 break-all sm:break-words'>
+                        {conversionLabel}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -825,7 +836,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
             {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
             {isTieredBilling && other?.expr_b64 && (
-              <div className='bg-muted/30 min-w-0 rounded-md border px-3'>
+              <div className='bg-muted/30 min-w-0 overflow-hidden rounded-md border px-3 max-sm:px-2'>
                 <DynamicPricingBreakdown
                   billingExpr={decodeBillingExprB64(other.expr_b64)}
                   matchedTierLabel={other.matched_tier}
@@ -964,7 +975,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     return (
                       <div
                         key={idx}
-                        className='bg-background/60 flex items-start gap-2 rounded border p-2'
+                        className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
                       >
                         <StatusBadge
                           variant='neutral'
@@ -972,7 +983,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                           className='shrink-0 font-medium'
                           copyable={false}
                         />
-                        <span className='min-w-0 font-mono text-[11px] leading-relaxed break-words'>
+                        <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:break-words'>
                           {parsed.content}
                         </span>
                       </div>
@@ -985,7 +996,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {details && (
               <div className='space-y-1.5'>
                 <Label className='text-xs font-semibold'>{t('Content')}</Label>
-                <div className='bg-muted/30 relative rounded-md border p-2.5'>
+                <div className='bg-muted/30 relative min-w-0 overflow-hidden rounded-md border p-2.5'>
                   <Button
                     variant='ghost'
                     size='sm'
@@ -1000,7 +1011,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                       <Copy className='size-3' />
                     )}
                   </Button>
-                  <p className='pr-6 text-xs leading-relaxed break-words whitespace-pre-wrap'>
+                  <p className='min-w-0 pr-6 text-xs leading-relaxed break-all whitespace-pre-wrap sm:break-words'>
                     {details}
                   </p>
                 </div>

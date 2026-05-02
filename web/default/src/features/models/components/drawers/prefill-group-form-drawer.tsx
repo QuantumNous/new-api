@@ -161,8 +161,8 @@ export function PrefillGroupFormDrawer({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className='flex w-full flex-col sm:max-w-2xl'>
-        <SheetHeader className='text-start'>
+      <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl'>
+        <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
           <SheetTitle>
             {isEdit ? t('Edit Prefill Group') : t('Create Prefill Group')}
           </SheetTitle>
@@ -177,7 +177,7 @@ export function PrefillGroupFormDrawer({
           <form
             id='prefill-group-form'
             onSubmit={form.handleSubmit(handleSubmit)}
-            className='flex-1 space-y-6 overflow-y-auto px-4'
+            className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
           >
             <div className='space-y-4'>
               <div className='space-y-1'>
@@ -286,7 +286,7 @@ export function PrefillGroupFormDrawer({
                 )}
               />
 
-              <div className='space-y-2 rounded-lg border p-4'>
+              <div className='space-y-2 rounded-lg border p-3 sm:p-4'>
                 <div className='flex items-center gap-2'>
                   <h4 className='text-sm font-medium'>{t('Project')}</h4>
                   <StatusBadge
@@ -343,7 +343,7 @@ export function PrefillGroupFormDrawer({
           </form>
         </Form>
 
-        <SheetFooter className='gap-2'>
+        <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
           <SheetClose asChild>
             <Button type='button' variant='outline' disabled={isSaving}>
               {t('Cancel')}

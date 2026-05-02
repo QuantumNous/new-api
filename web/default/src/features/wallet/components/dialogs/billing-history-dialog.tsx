@@ -83,7 +83,7 @@ export function BillingHistoryDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className='max-w-4xl'>
+        <DialogContent className='flex max-h-[calc(100dvh-2rem)] flex-col max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-4xl'>
           <DialogHeader>
             <DialogTitle>{t('Billing History')}</DialogTitle>
             <DialogDescription>
@@ -91,7 +91,7 @@ export function BillingHistoryDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className='space-y-4'>
+          <div className='min-h-0 flex-1 space-y-3 sm:space-y-4'>
             {/* Search and Filter Bar */}
             <div className='flex items-center gap-2'>
               <div className='relative flex-1'>
@@ -100,14 +100,14 @@ export function BillingHistoryDialog({
                   placeholder={t('Search by order number...')}
                   value={keyword}
                   onChange={(e) => handleSearch(e.target.value)}
-                  className='pl-10'
+                  className='h-9 pl-10'
                 />
               </div>
               <Select
                 value={pageSize.toString()}
                 onValueChange={(value) => handlePageSizeChange(parseInt(value))}
               >
-                <SelectTrigger className='w-32'>
+                <SelectTrigger className='h-9 w-[92px] sm:w-32'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -120,11 +120,11 @@ export function BillingHistoryDialog({
             </div>
 
             {/* Records List */}
-            <ScrollArea className='h-[500px] pr-4'>
+            <ScrollArea className='h-[calc(100dvh-15rem)] pr-3 sm:h-[500px] sm:pr-4'>
               {loading ? (
                 <div className='space-y-3'>
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className='rounded-lg border p-4'>
+                    <div key={i} className='rounded-lg border p-3 sm:p-4'>
                       <div className='flex items-start justify-between'>
                         <div className='flex-1 space-y-2'>
                           <Skeleton className='h-4 w-48' />
@@ -132,7 +132,7 @@ export function BillingHistoryDialog({
                         </div>
                         <Skeleton className='h-5 w-16' />
                       </div>
-                      <div className='mt-3 grid grid-cols-3 gap-4'>
+                      <div className='mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4'>
                         <Skeleton className='h-3 w-full' />
                         <Skeleton className='h-3 w-full' />
                         <Skeleton className='h-3 w-full' />
@@ -141,7 +141,7 @@ export function BillingHistoryDialog({
                   ))}
                 </div>
               ) : records.length === 0 ? (
-                <div className='text-muted-foreground flex h-[400px] flex-col items-center justify-center text-center'>
+                <div className='text-muted-foreground flex h-[320px] flex-col items-center justify-center text-center sm:h-[400px]'>
                   <p className='text-sm font-medium'>
                     {t('No billing records found')}
                   </p>
@@ -158,13 +158,13 @@ export function BillingHistoryDialog({
                     return (
                       <div
                         key={record.id}
-                        className='hover:bg-muted/50 rounded-lg border p-4 transition-colors'
+                        className='hover:bg-muted/50 rounded-lg border p-3 transition-colors sm:p-4'
                       >
                         {/* Header Row */}
-                        <div className='flex items-start justify-between'>
+                        <div className='flex items-start justify-between gap-2'>
                           <div className='flex-1 space-y-1'>
-                            <div className='flex items-center gap-2'>
-                              <code className='text-foreground font-mono text-sm'>
+                            <div className='flex min-w-0 items-center gap-2'>
+                              <code className='text-foreground truncate font-mono text-sm'>
                                 {record.trade_no}
                               </code>
                               <Button
@@ -201,7 +201,7 @@ export function BillingHistoryDialog({
                         </div>
 
                         {/* Details Grid */}
-                        <div className='mt-4 grid grid-cols-3 gap-4'>
+                        <div className='mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-3 sm:gap-4'>
                           <div className='space-y-1'>
                             <Label className='text-muted-foreground text-xs'>
                               Payment Method

@@ -113,7 +113,7 @@ export function Features(_props: FeaturesProps) {
       id: 'developer',
       num: '04',
       title: t('Developer Friendly'),
-      desc: t('Complete API documentation with multi-language SDK support'),
+      desc: t('Compatible API routes for common AI application workflows'),
       span: 'md:col-span-2',
       icon: <Code className='size-4 text-amber-400' />,
       visual: (
@@ -130,7 +130,7 @@ export function Features(_props: FeaturesProps) {
           </div>
           <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
             <Code className='size-3.5 text-blue-500' />
-            {t('OpenAI Compatible')}
+            {t('Multi-protocol Compatible')}
           </div>
         </div>
       ),
@@ -155,8 +155,8 @@ export function Features(_props: FeaturesProps) {
     },
     {
       icon: <HeartHandshake className='size-5' strokeWidth={1.5} />,
-      title: t('Technical Support'),
-      desc: t('Professional team providing 24/7 technical support'),
+      title: t('Open Source'),
+      desc: t('Community driven, self-hosted, and extensible'),
     },
   ]
 

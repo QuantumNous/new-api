@@ -8,9 +8,14 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
+import { GroupBadge } from '@/components/group-badge'
 import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getDynamicDisplayGroupRatio,
+  getDynamicPricingSummary,
+} from '../lib/dynamic-price'
 import {
   formatPrice,
   formatRequestPrice,
@@ -46,6 +51,28 @@ function renderLimitedTags(
         <span className='text-muted-foreground/50'> +{remaining}</span>
       )}
     </span>
+  )
+}
+
+function renderLimitedGroupBadges(
+  groups: string[],
+  maxDisplay: number = 2
+): React.ReactNode {
+  if (groups.length === 0)
+    return <span className='text-muted-foreground/50 text-xs'>—</span>
+
+  const displayed = groups.slice(0, maxDisplay)
+  const remaining = groups.length - maxDisplay
+
+  return (
+    <div className='flex max-w-full items-center gap-1 overflow-hidden'>
+      {displayed.map((group) => (
+        <GroupBadge key={group} group={group} size='sm' />
+      ))}
+      {remaining > 0 && (
+        <span className='text-muted-foreground/50 text-xs'>+{remaining}</span>
+      )}
+    </div>
   )
 }
 
@@ -114,6 +141,63 @@ export function usePricingColumns(
       ),
       cell: ({ row }) => {
         const model = row.original
+        const dynamicSummary = getDynamicPricingSummary(model, {
+          tokenUnit,
+          showRechargePrice,
+          priceRate,
+          usdExchangeRate,
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(model),
+        })
+
+        if (dynamicSummary) {
+          if (dynamicSummary.isSpecialExpression) {
+            return (
+              <div className='min-w-[200px] max-w-[320px]'>
+                <div className='text-amber-700 text-xs font-medium dark:text-amber-300'>
+                  {t('Special billing expression')}
+                </div>
+                <div className='text-muted-foreground text-[11px]'>
+                  {t('Unable to parse structured pricing')}
+                </div>
+                <code className='text-muted-foreground/70 mt-1 line-clamp-2 block break-all font-mono text-[10px] leading-relaxed'>
+                  {dynamicSummary.rawExpression}
+                </code>
+              </div>
+            )
+          }
+
+          const primaryEntries = dynamicSummary.primaryEntries.slice(0, 2)
+          if (primaryEntries.length === 0) {
+            return (
+              <span className='text-muted-foreground text-xs'>
+                {t('Dynamic Pricing')}
+              </span>
+            )
+          }
+
+          return (
+            <div className='min-w-[180px]'>
+              <span className='font-mono text-sm tabular-nums'>
+                {primaryEntries.map((entry, index) => (
+                  <span key={entry.key}>
+                    {index > 0 && (
+                      <span className='text-muted-foreground/40 mx-1'>/</span>
+                    )}
+                    {stripTrailingZeros(entry.formatted)}
+                  </span>
+                ))}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {tokenUnitLabel} tokens
+                {dynamicSummary.tierCount > 1 &&
+                  ` · ${t('{{count}} tiers', {
+                    count: dynamicSummary.tierCount,
+                  })}`}
+              </div>
+            </div>
+          )
+        }
+
         const isTokenBased = isTokenBasedModel(model)
 
         if (isTokenBased) {
@@ -181,6 +265,42 @@ export function usePricingColumns(
       header: t('Cached'),
       cell: ({ row }) => {
         const model = row.original
+        const dynamicSummary = getDynamicPricingSummary(model, {
+          tokenUnit,
+          showRechargePrice,
+          priceRate,
+          usdExchangeRate,
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(model),
+        })
+
+        if (dynamicSummary) {
+          if (dynamicSummary.isSpecialExpression) {
+            return (
+              <span className='text-muted-foreground/50 text-xs'>
+                {t('Special billing expression')}
+              </span>
+            )
+          }
+
+          const cacheEntry = dynamicSummary.entries.find(
+            (entry) => entry.field === 'cacheReadPrice'
+          )
+          if (!cacheEntry) {
+            return <span className='text-muted-foreground/30 text-xs'>—</span>
+          }
+
+          return (
+            <div className='min-w-[80px]'>
+              <span className='font-mono text-sm tabular-nums'>
+                {stripTrailingZeros(cacheEntry.formatted)}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {tokenUnitLabel}
+              </div>
+            </div>
+          )
+        }
+
         const isTokenBased = isTokenBasedModel(model)
 
         if (!isTokenBased || model.cache_ratio == null) {
@@ -312,11 +432,15 @@ export function usePricingColumns(
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div>{renderLimitedTags(groups, 2)}</div>
+                <div>{renderLimitedGroupBadges(groups, 2)}</div>
               </TooltipTrigger>
               {groups.length > 2 && (
                 <TooltipContent side='top' className='max-w-[280px] p-2'>
-                  <span className='text-xs'>{groups.join(', ')}</span>
+                  <div className='flex flex-wrap gap-1'>
+                    {groups.map((group) => (
+                      <GroupBadge key={group} group={group} size='sm' />
+                    ))}
+                  </div>
                 </TooltipContent>
               )}
             </Tooltip>

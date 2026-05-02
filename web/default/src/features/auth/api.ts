@@ -109,8 +109,9 @@ export async function bindEmail(
   email: string,
   code: string
 ): Promise<ApiResponse> {
-  const res = await api.get('/api/oauth/email/bind', {
-    params: { email, code },
+  const res = await api.post('/api/oauth/email/bind', {
+    email,
+    code,
   })
   return res.data
 }

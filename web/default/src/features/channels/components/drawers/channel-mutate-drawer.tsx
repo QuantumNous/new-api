@@ -1082,8 +1082,8 @@ export function ChannelMutateDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent className='flex w-full flex-col sm:max-w-3xl'>
-          <SheetHeader className='text-start'>
+        <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl'>
+          <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
             <SheetTitle className='flex items-center gap-3'>
               <span className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border'>
                 {getLobeIcon(`${getChannelTypeIcon(currentType)}.Color`, 22)}
@@ -1110,10 +1110,10 @@ export function ChannelMutateDrawer({
             <form
               id='channel-form'
               onSubmit={form.handleSubmit(onSubmit)}
-              className='flex-1 space-y-5 overflow-y-auto px-4 pb-2'
+              className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-5 sm:px-4'
             >
               {/* ── Basic Information ── */}
-              <div className='bg-card space-y-4 rounded-xl border p-5'>
+              <div className='bg-card space-y-4 rounded-xl border p-3 sm:p-5'>
                 <CardHeading
                   title={t('Basic Information')}
                   icon={<Server className='h-4 w-4' />}
@@ -3276,7 +3276,7 @@ export function ChannelMutateDrawer({
             </form>
           </Form>
 
-          <SheetFooter className='gap-2'>
+          <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
             <SheetClose asChild>
               <Button variant='outline' disabled={isSubmitting}>
                 {t('Cancel')}

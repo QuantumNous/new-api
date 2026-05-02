@@ -62,7 +62,7 @@ function ListSkeleton() {
             <Skeleton className='h-4 w-32' />
             <Skeleton className='h-5 w-16 rounded-full' />
           </div>
-          <div className='mt-1.5 flex items-start gap-4'>
+          <div className='mt-1.5 grid grid-cols-2 gap-2'>
             <div className='flex-1'>
               <Skeleton className='mb-1 h-2 w-8' />
               <Skeleton className='h-4 w-full' />
@@ -136,9 +136,9 @@ function CompactRow<TData>({ row }: { row: Row<TData> }) {
         )}
       </div>
 
-      {/* Row 2: Key fields side by side */}
+      {/* Row 2: Key fields wrap into compact columns instead of squeezing */}
       {fieldCells.length > 0 && (
-        <div className='mt-1.5 flex items-start gap-4'>
+        <div className='mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5'>
           {fieldCells.map((cell) => {
             const label = getCellLabel(cell)
             return (
@@ -260,7 +260,7 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
 
   if (!rows || rows.length === 0) {
     return (
-      <div className='rounded-lg border p-8'>
+      <div className='rounded-lg border p-6'>
         <Empty className='border-none p-0'>
           <EmptyHeader>
             <EmptyMedia variant='icon'>

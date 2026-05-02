@@ -124,7 +124,7 @@ export function ViewLogsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex h-[80vh] max-w-4xl flex-col'>
+      <DialogContent className='flex h-[calc(100dvh-2rem)] flex-col max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:h-[80vh] sm:max-w-4xl'>
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
             <Terminal className='h-5 w-5' />
@@ -132,11 +132,11 @@ export function ViewLogsDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className='mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3'>
           <div className='text-muted-foreground text-sm'>
             {t('Deployment ID')}: {deploymentId}
           </div>
-          <div className='flex flex-wrap items-center gap-2'>
+          <div className='grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center'>
             <Button
               variant='outline'
               size='sm'
@@ -162,14 +162,14 @@ export function ViewLogsDialog({
               <Download className='mr-2 h-4 w-4' />
               {t('Download')}
             </Button>
-            <div className='flex items-center gap-2 rounded-md border px-3 py-1.5'>
+            <div className='col-span-2 flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 sm:col-span-1'>
               <span className='text-xs'>{t('Auto refresh')}</span>
               <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
             </div>
           </div>
         </div>
 
-        <div className='mb-3 grid gap-3 sm:grid-cols-2'>
+        <div className='mb-3 grid gap-2 sm:grid-cols-2 sm:gap-3'>
           <div className='space-y-1'>
             <div className='text-muted-foreground text-xs'>
               {t('Container')}
@@ -234,7 +234,7 @@ export function ViewLogsDialog({
 
         <div
           ref={scrollRef}
-          className='flex-1 overflow-auto rounded-md border bg-black p-4'
+          className='flex-1 overflow-auto rounded-md border bg-black p-3 sm:p-4'
           onScroll={(e) => {
             const target = e.target as HTMLDivElement
             const isAtBottom =

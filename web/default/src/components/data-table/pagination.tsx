@@ -32,12 +32,12 @@ export function DataTablePagination<TData>({
     <div
       className={cn(
         'flex items-center justify-between overflow-clip',
-        '@max-2xl/content:flex-col-reverse @max-2xl/content:gap-4'
+        '@max-2xl/content:flex-col-reverse @max-2xl/content:gap-2 sm:@max-2xl/content:gap-4'
       )}
       style={{ overflowClipMargin: 1 }}
     >
-      <div className='flex w-full items-center justify-between'>
-        <div className='flex min-w-[130px] items-center text-sm font-medium whitespace-nowrap @2xl/content:hidden'>
+      <div className='flex w-full items-center justify-between gap-2'>
+        <div className='flex min-w-0 items-center text-xs font-medium whitespace-nowrap sm:min-w-[130px] sm:text-sm @2xl/content:hidden'>
           {t('Page {{current}} of {{total}}', {
             current: currentPage,
             total: totalPages,
@@ -50,7 +50,7 @@ export function DataTablePagination<TData>({
               table.setPageSize(Number(value))
             }}
           >
-            <SelectTrigger className='h-8 w-[70px]'>
+            <SelectTrigger className='h-8 w-[64px] sm:w-[70px]'>
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
             <SelectContent side='top'>
@@ -74,7 +74,7 @@ export function DataTablePagination<TData>({
             total: totalPages,
           })}
         </div>
-        <div className='flex items-center space-x-2'>
+        <div className='flex items-center space-x-1.5 sm:space-x-2'>
           <Button
             variant='outline'
             className='size-8 p-0 @max-md/content:hidden'

@@ -62,7 +62,13 @@ function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
   if (!label) return null
 
   return (
-    <Badge variant='outline' className={getRatioBadgeClassName(ratio)}>
+    <Badge
+      variant='outline'
+      className={cn(
+        'max-w-24 shrink-0 truncate text-[10px] sm:max-w-none sm:text-xs',
+        getRatioBadgeClassName(ratio)
+      )}
+    >
       {label}
     </Badge>
   )
@@ -110,25 +116,32 @@ export function ApiKeyGroupCombobox({
           role='combobox'
           aria-expanded={open}
           disabled={disabled}
-          className='border-input bg-muted/40 h-auto min-h-20 w-full justify-between gap-3 rounded-lg px-4 py-3 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 hover:bg-muted/55 hover:text-foreground active:bg-background data-[state=open]:border-ring data-[state=open]:bg-background data-[state=open]:ring-ring/20 data-[state=open]:ring-[3px]'
+          className='border-input bg-muted/40 h-auto min-h-14 w-full justify-between gap-2 rounded-lg px-3 py-2 text-start shadow-none transition-[background-color,border-color,box-shadow] duration-150 hover:bg-muted/55 hover:text-foreground active:bg-background data-[state=open]:border-ring data-[state=open]:bg-background data-[state=open]:ring-ring/20 data-[state=open]:ring-[3px] sm:min-h-20 sm:gap-3 sm:px-4 sm:py-3'
         >
-          <span className='flex min-w-0 flex-1 items-center justify-between gap-3'>
+          <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
             <span className='min-w-0'>
               <span className='block truncate font-medium'>
                 {selectedOption?.value || placeholder || t('Select a group')}
               </span>
               {selectedOption?.desc && (
-                <span className='text-muted-foreground block truncate text-xs'>
+                <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>
                   {selectedOption.desc}
                 </span>
               )}
             </span>
-            <GroupRatioBadge ratio={selectedOption?.ratio} />
+            <span className='hidden sm:block'>
+              <GroupRatioBadge ratio={selectedOption?.ratio} />
+            </span>
           </span>
           <ChevronsUpDown className='h-4 w-4 shrink-0 opacity-50' />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className='data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100 data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 w-[var(--radix-popover-trigger-width)] overflow-hidden rounded-xl p-0 shadow-lg data-[state=closed]:duration-75 data-[state=open]:duration-100'>
+      <PopoverContent
+        className='data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100 data-[side=bottom]:slide-in-from-top-0 data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0 data-[side=top]:slide-in-from-bottom-0 w-[var(--radix-popover-trigger-width)] overflow-hidden rounded-xl p-0 shadow-lg data-[state=closed]:duration-75 data-[state=open]:duration-100'
+        onWheel={(event) => event.stopPropagation()}
+        onTouchMove={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
         <Command shouldFilter={false}>
           <CommandInput
             placeholder={t('Search...')}

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { DataTableColumnHeader } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { formatDuration, formatResetPeriod } from '../lib'
 import type { PlanRecord } from '../types'
@@ -172,11 +173,10 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         ),
         cell: ({ row }) => {
           const group = row.original.plan.upgrade_group
-          return (
-            <span className='text-muted-foreground'>
-              {group || t('No Upgrade')}
-            </span>
-          )
+          if (!group) {
+            return <span className='text-muted-foreground'>{t('No Upgrade')}</span>
+          }
+          return <GroupBadge group={group} />
         },
         size: 100,
       },

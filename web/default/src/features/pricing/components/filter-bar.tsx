@@ -4,7 +4,6 @@ import {
   Check,
   ChevronDown,
   Filter,
-  List,
   RotateCcw,
   Table2,
   X,
@@ -572,7 +571,6 @@ export function FilterBar(props: FilterBarProps) {
 
           <SegmentedControl
             options={[
-              { value: VIEW_MODES.LIST, icon: List, tooltip: t('List view') },
               {
                 value: VIEW_MODES.TABLE,
                 icon: Table2,
@@ -622,16 +620,16 @@ export function FilterBar(props: FilterBarProps) {
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent
           side='right'
-          className='flex w-full flex-col overflow-hidden p-0 sm:max-w-md'
+          className='flex h-dvh w-full flex-col overflow-hidden p-0 sm:max-w-md'
         >
-          <SheetHeader className='border-b px-6 py-4'>
+          <SheetHeader className='border-b px-4 py-3 sm:px-6 sm:py-4'>
             <SheetTitle>{t('Filters')}</SheetTitle>
             <SheetDescription className='sr-only'>
               {t('Filter models by type, endpoint, vendor, group and tags')}
             </SheetDescription>
           </SheetHeader>
 
-          <div className='flex-1 space-y-6 overflow-y-auto px-6 py-5'>
+          <div className='flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:space-y-6 sm:px-6 sm:py-5'>
             <MobileFilterGroup
               title={t('Pricing Type')}
               value={props.quotaTypeFilter}
@@ -673,7 +671,7 @@ export function FilterBar(props: FilterBarProps) {
               <h3 className='text-foreground mb-3 text-sm font-semibold'>
                 {t('Display Options')}
               </h3>
-              <div className='space-y-4'>
+              <div className='space-y-3 sm:space-y-4'>
                 <div className='space-y-2'>
                   <p className='text-muted-foreground text-xs'>
                     {t('Price display')}
@@ -706,8 +704,8 @@ export function FilterBar(props: FilterBarProps) {
             </div>
           </div>
 
-          <SheetFooter className='border-t px-6 py-4'>
-            <div className='flex w-full gap-3'>
+          <SheetFooter className='border-t px-4 py-3 sm:px-6 sm:py-4'>
+            <div className='grid w-full grid-cols-2 gap-2 sm:flex sm:gap-3'>
               {props.hasActiveFilters && (
                 <Button
                   variant='outline'

@@ -72,7 +72,7 @@ export function DeploymentsTable() {
       pageKey: 'dPage',
       pageSizeKey: 'dPageSize',
       defaultPage: 1,
-      defaultPageSize: 10,
+      defaultPageSize: isMobile ? 8 : 10,
     },
     globalFilter: { enabled: true, key: 'dFilter' },
     columnFilters: [
@@ -229,7 +229,7 @@ export function DeploymentsTable() {
 
   return (
     <>
-      <div className='space-y-4'>
+      <div className='space-y-3 sm:space-y-4'>
         <DataTableToolbar
           table={table}
           searchPlaceholder={t('Search deployments...')}

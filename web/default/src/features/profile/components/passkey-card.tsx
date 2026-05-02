@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { KeyRound, ShieldAlert, Loader2 } from 'lucide-react'
+import { AlertTriangle, KeyRound, Loader2, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import dayjs from '@/lib/dayjs'
@@ -169,14 +169,13 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   if (pageLoading || loading) {
     return (
-      <Card className='overflow-hidden'>
-        <CardHeader>
+      <Card className='gap-0 overflow-hidden py-0'>
+        <CardHeader className='p-3 sm:p-5'>
           <Skeleton className='h-6 w-48' />
           <Skeleton className='mt-2 h-4 w-64' />
         </CardHeader>
-        <CardContent className='space-y-4'>
-          <Skeleton className='h-12 w-full' />
-          <Skeleton className='h-12 w-full' />
+        <CardContent className='p-3 sm:p-5'>
+          <Skeleton className='h-20 w-full' />
         </CardContent>
       </Card>
     )
@@ -191,19 +190,20 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   return (
     <>
-      <Card className='overflow-hidden'>
-        <CardHeader>
-          <CardTitle className='text-xl tracking-tight'>
+      <Card className='gap-0 overflow-hidden py-0'>
+        <CardHeader className='p-3 sm:p-5'>
+          <CardTitle className='text-lg tracking-tight sm:text-xl'>
             {t('Passkey Login')}
           </CardTitle>
-          <CardDescription>
+          <CardDescription className='text-xs sm:text-sm'>
             {t('Use Passkey to sign in without entering your password.')}
           </CardDescription>
         </CardHeader>
 
-        <CardContent className='space-y-6'>
-          <div className='flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between xl:flex-col xl:items-stretch 2xl:flex-row 2xl:items-center'>
-            <div className='flex items-start gap-3'>
+        <CardContent className='p-3 sm:p-5'>
+          <div className='space-y-6'>
+            <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row'>
+              <div className='flex items-start gap-4'>
               <div className='bg-muted rounded-md p-2'>
                 <KeyRound className='h-5 w-5' />
               </div>
@@ -241,74 +241,86 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                   {t('Last used:')} {formattedLastUsed}
                 </p>
               </div>
+              </div>
+
+              {!enabled && (
+                <Button
+                  className='w-full sm:w-auto xl:w-full 2xl:w-auto'
+                  onClick={handleRegister}
+                  disabled={!supported || registering}
+                >
+                  {registering && (
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  )}
+                  {t('Enable Passkey')}
+                </Button>
+              )}
             </div>
 
-            {!enabled ? (
-              <Button
-                className='w-full sm:w-auto xl:w-full 2xl:w-auto'
-                onClick={handleRegister}
-                disabled={!supported || registering}
-              >
-                {registering && (
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                )}
-                {t('Register Passkey')}
-              </Button>
-            ) : (
-              <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant='outline'
-                    className='w-full sm:w-auto xl:w-full 2xl:w-auto'
-                    disabled={removing}
-                  >
-                    {t('Remove Passkey')}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{t('Remove Passkey?')}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {t(
-                        'Removing Passkey will require you to sign in with your password next time. You can re-register anytime.'
-                      )}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={removing}>
-                      {t('Cancel')}
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            {enabled && (
+              <div className='flex flex-col gap-3 border-t pt-6 sm:flex-row xl:flex-col 2xl:flex-row'>
+                <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant='destructive'
+                      className='flex-1'
                       disabled={removing}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        handleRemove()
-                      }}
                     >
-                      {t('Remove')}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                      {removing ? (
+                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                      ) : (
+                        <AlertTriangle className='mr-2 h-4 w-4' />
+                      )}
+                      {t('Remove Passkey')}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {t('Remove Passkey?')}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {t(
+                          'Removing Passkey will require you to sign in with your password next time. You can re-register anytime.'
+                        )}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={removing}>
+                        {t('Cancel')}
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                        disabled={removing}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          handleRemove()
+                        }}
+                      >
+                        {t('Remove')}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+
+            {showUnsupportedNotice && (
+              <div className='bg-muted/60 text-muted-foreground flex items-start gap-3 rounded-md p-4 text-sm'>
+                <ShieldAlert className='mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500' />
+                <div>
+                  <p className='text-foreground font-medium'>
+                    {t('Passkey not supported on this device')}
+                  </p>
+                  <p>
+                    {t(
+                      'Use a compatible browser or device with biometric authentication or a security key to register a Passkey.'
+                    )}
+                  </p>
+                </div>
+              </div>
             )}
           </div>
-
-          {showUnsupportedNotice && (
-            <div className='bg-muted/60 text-muted-foreground flex items-start gap-3 rounded-md p-4 text-sm'>
-              <ShieldAlert className='mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500' />
-              <div>
-                <p className='text-foreground font-medium'>
-                  {t('Passkey not supported on this device')}
-                </p>
-                <p>
-                  {t(
-                    'Use a compatible browser or device with biometric authentication or a security key to register a Passkey.'
-                  )}
-                </p>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 

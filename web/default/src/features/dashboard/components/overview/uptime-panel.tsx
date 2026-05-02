@@ -84,7 +84,7 @@ export function UptimePanel() {
       loading={loading}
       empty={!groups.length}
       emptyMessage={t('No uptime monitoring configured')}
-      height='h-80'
+      height='h-64 sm:h-80'
       headerActions={
         <Button
           variant='ghost'
@@ -100,11 +100,11 @@ export function UptimePanel() {
         </Button>
       }
     >
-      <ScrollArea className='h-80'>
-        <div className='-mx-4 space-y-0 sm:-mx-5'>
+      <ScrollArea className='h-64 sm:h-80'>
+        <div className='-mx-3 space-y-0 sm:-mx-5'>
           {groups.map((group, groupIdx) => (
             <div key={group.categoryName}>
-              <div className='bg-muted/30 border-border/60 border-b px-4 py-2 sm:px-5'>
+              <div className='bg-muted/30 border-border/60 border-b px-3 py-2 sm:px-5'>
                 <div className='flex items-center gap-2'>
                   <h4 className='text-muted-foreground text-xs font-semibold tracking-wider uppercase'>
                     {group.categoryName}
@@ -120,7 +120,7 @@ export function UptimePanel() {
                   <div
                     key={monitor.name}
                     className={cn(
-                      'hover:bg-muted/40 flex items-center justify-between px-4 py-2.5 transition-colors sm:px-5',
+                      'hover:bg-muted/40 flex items-center justify-between gap-2 px-3 py-2 transition-colors sm:px-5 sm:py-2.5',
                       monitorIdx < (group.monitors?.length || 0) - 1 &&
                         'border-border/40 border-b',
                       groupIdx < groups.length - 1 &&

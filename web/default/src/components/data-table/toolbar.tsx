@@ -64,14 +64,14 @@ export function DataTableToolbar<TData>({
       onChange={(event) =>
         table.getColumn(searchKey)?.setFilterValue(event.target.value)
       }
-      className='h-8 w-full sm:w-[150px] lg:w-[250px]'
+      className='h-9 w-full sm:h-8 sm:w-[150px] lg:w-[250px]'
     />
   ) : (
     <Input
       placeholder={resolvedSearchPlaceholder}
       value={table.getState().globalFilter ?? ''}
       onChange={(event) => table.setGlobalFilter(event.target.value)}
-      className='h-8 w-full sm:w-[150px] lg:w-[250px]'
+      className='h-9 w-full sm:h-8 sm:w-[150px] lg:w-[250px]'
     />
   )
 
@@ -106,7 +106,7 @@ export function DataTableToolbar<TData>({
 
   return (
     <div className='space-y-2'>
-      <div className='flex items-center gap-2'>
+      <div className='flex items-center gap-1.5 sm:gap-2'>
         {/* Search input */}
         {customSearch !== undefined ? customSearch : searchInput}
 
@@ -122,7 +122,7 @@ export function DataTableToolbar<TData>({
           <Button
             variant='outline'
             size='sm'
-            className='relative h-8 shrink-0 gap-1 sm:hidden'
+            className='relative h-9 shrink-0 gap-1 px-2 sm:hidden'
             onClick={() => setMobileFiltersOpen((v) => !v)}
           >
             <SlidersHorizontal className='h-3.5 w-3.5' />
@@ -142,7 +142,7 @@ export function DataTableToolbar<TData>({
 
       {/* Mobile: collapsible filter area */}
       {hasFilterContent && mobileFiltersOpen && (
-        <div className='flex flex-wrap items-center gap-2 sm:hidden'>
+        <div className='bg-muted/30 flex flex-wrap items-center gap-2 rounded-lg border p-2 sm:hidden'>
           {additionalSearch && <div className='w-full'>{additionalSearch}</div>}
           {filterChips}
           {resetButton}

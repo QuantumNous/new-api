@@ -99,18 +99,18 @@ export function ViewDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-h-[90vh] overflow-hidden sm:max-w-3xl'>
+      <DialogContent className='max-h-[calc(100dvh-2rem)] overflow-hidden max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-3xl'>
         <DialogHeader>
           <DialogTitle>{t('Deployment details')}</DialogTitle>
         </DialogHeader>
 
-        <div className='max-h-[72vh] space-y-4 overflow-y-auto py-2 pr-1'>
-          <div className='flex flex-wrap items-center justify-between gap-2'>
+        <div className='max-h-[calc(100dvh-8.5rem)] space-y-3 overflow-y-auto py-2 pr-1 sm:max-h-[72vh] sm:space-y-4'>
+            <div className='flex flex-wrap items-center justify-between gap-2'>
             <div className='text-muted-foreground text-sm'>
               {t('Deployment ID')}:{' '}
               <span className='font-mono'>{deploymentId}</span>
             </div>
-            <div className='flex items-center gap-2'>
+            <div className='grid grid-cols-2 gap-2 sm:flex sm:items-center'>
               <Button variant='outline' size='sm' onClick={handleCopyId}>
                 <Copy className='mr-2 h-4 w-4' />
                 {t('Copy')}
@@ -252,7 +252,7 @@ export function ViewDetailsDialog({
         </div>
 
         <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)}>
+          <Button variant='outline' onClick={() => onOpenChange(false)} className='w-full sm:w-auto'>
             {t('Close')}
           </Button>
         </DialogFooter>

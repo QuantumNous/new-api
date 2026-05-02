@@ -4,13 +4,23 @@ import path from 'node:path'
 // This script is executed from the web/ package root (see package.json script).
 const LOCALES_DIR = path.resolve('src/i18n/locales')
 const FALLBACK_COMPARE_LOCALE = 'en' // used for "still English" detection only
+const OBFUSCATED_KEYS = [
+  {
+    runtime: ['footer', 'new' + 'api', 'projectAttributionSuffix'].join('.'),
+    serialized: 'footer.new\\u0061pi.projectAttributionSuffix',
+  },
+]
 
 function isPlainObject(v) {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
 function stableStringify(obj) {
-  return JSON.stringify(obj, null, 2) + '\n'
+  let text = JSON.stringify(obj, null, 2)
+  for (const key of OBFUSCATED_KEYS) {
+    text = text.replaceAll(`"${key.runtime}":`, `"${key.serialized}":`)
+  }
+  return text + '\n'
 }
 
 function countLeafKeys(obj) {

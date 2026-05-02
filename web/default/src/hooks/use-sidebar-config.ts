@@ -47,6 +47,31 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   },
 }
 
+const mergeWithDefaultSidebarModules = (
+  config: SidebarModulesAdminConfig
+): SidebarModulesAdminConfig => {
+  const merged: SidebarModulesAdminConfig = { ...config }
+
+  Object.entries(DEFAULT_SIDEBAR_MODULES).forEach(
+    ([sectionKey, defaultSection]) => {
+      const existingSection = merged[sectionKey]
+      if (!existingSection) {
+        merged[sectionKey] = { ...defaultSection }
+        return
+      }
+
+      merged[sectionKey] = { ...defaultSection, ...existingSection }
+      Object.keys(defaultSection).forEach((moduleKey) => {
+        if (merged[sectionKey][moduleKey] === undefined) {
+          merged[sectionKey][moduleKey] = defaultSection[moduleKey]
+        }
+      })
+    }
+  )
+
+  return merged
+}
+
 /**
  * Mapping from URL to configuration keys
  */
@@ -87,15 +112,7 @@ function parseSidebarConfig(
 
   try {
     const parsed = JSON.parse(value) as SidebarModulesAdminConfig
-    // Ensure chat section and its modules are correctly initialized if missing
-    if (!parsed.chat) {
-      parsed.chat = { enabled: true, playground: true, chat: true }
-    } else {
-      if (parsed.chat.enabled === undefined) parsed.chat.enabled = true
-      if (parsed.chat.playground === undefined) parsed.chat.playground = true
-      if (parsed.chat.chat === undefined) parsed.chat.chat = true
-    }
-    return parsed
+    return mergeWithDefaultSidebarModules(parsed)
   } catch {
     // eslint-disable-next-line no-console
     console.error('Failed to parse sidebar modules configuration')

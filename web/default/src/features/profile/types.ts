@@ -98,6 +98,8 @@ export interface UserSettings {
   record_ip_log?: boolean
   /** Receive upstream model update notifications (admin only) */
   upstream_model_update_notify_enabled?: boolean
+  /** Preferred interface/API response language */
+  language?: string
 }
 
 /**

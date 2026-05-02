@@ -26,6 +26,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  DISABLED_ROW_DESKTOP,
+  DISABLED_ROW_MOBILE,
   DataTableToolbar,
   TableSkeleton,
   TableEmpty,
@@ -85,7 +87,10 @@ export function ChannelsTable() {
   } = useTableUrlState({
     search: route.useSearch(),
     navigate: route.useNavigate(),
-    pagination: { defaultPage: 1, defaultPageSize: DEFAULT_PAGE_SIZE },
+    pagination: {
+      defaultPage: 1,
+      defaultPageSize: isMobile ? 10 : DEFAULT_PAGE_SIZE,
+    },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
@@ -327,7 +332,7 @@ export function ChannelsTable() {
 
   return (
     <>
-      <div className='space-y-4'>
+      <div className='space-y-3 sm:space-y-4'>
         <DataTableToolbar
           table={table}
           searchPlaceholder={t('Filter by name, ID, or key...')}
@@ -368,9 +373,7 @@ export function ChannelsTable() {
             emptyTitle='No Channels Found'
             emptyDescription='No channels available. Create your first channel to get started.'
             getRowClassName={(row) =>
-              isDisabledChannelRow(row.original)
-                ? 'border-l-4 border-l-muted-foreground/35 bg-muted/85 dark:border-l-zinc-300/70 dark:bg-zinc-700/55'
-                : undefined
+              isDisabledChannelRow(row.original) ? DISABLED_ROW_MOBILE : undefined
             }
           />
         ) : (
@@ -419,7 +422,7 @@ export function ChannelsTable() {
                         data-state={row.getIsSelected() && 'selected'}
                         className={cn(
                           isDisabledChannelRow(row.original) &&
-                            'bg-muted/85 hover:bg-muted [&>td:first-child]:border-l-muted-foreground/35 dark:bg-zinc-700/55 dark:hover:bg-zinc-700/70 [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1 dark:[&>td:first-child]:border-l-zinc-300/70'
+                            DISABLED_ROW_DESKTOP
                         )}
                       >
                         {row.getVisibleCells().map((cell) => (
