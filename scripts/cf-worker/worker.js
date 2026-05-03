@@ -172,12 +172,77 @@ async function proxyAndMaybeRewrite(request, url, env, ctx) {
 
   // For POST /v1/responses with image_generation tool(s), inject default
   // moderation:"low" if the client didn't set it explicitly.
-  if (
-    request.method === 'POST' &&
-    url.pathname === '/v1/responses' &&
-    bodyBuffer
-  ) {
+  const isResponsesPost =
+    request.method === 'POST' && url.pathname === '/v1/responses';
+
+  if (isResponsesPost && bodyBuffer) {
     bodyBuffer = injectImageModerationDefault(bodyBuffer);
+  }
+
+  // For non-streaming /v1/responses calls that include an image_generation
+  // tool, force the upstream call into SSE and aggregate. Image generation
+  // routinely takes 60-180s and would otherwise hit CF's 100s subrequest
+  // timeout, returning 524 to the client.
+  if (isResponsesPost && bodyBuffer) {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(new TextDecoder().decode(bodyBuffer));
+    } catch {}
+
+    // URL → data:URI fallback. Many SDKs / users pass an http(s) URL for
+    // input_image.image_url, but several upstream Responses-API providers
+    // only accept inline base64. Inline before forwarding so the client
+    // doesn't have to know which upstream is configured. Re-encode bodyBuffer
+    // when any URL is inlined so the streaming-passthrough path also sees it.
+    if (parsed) {
+      try {
+        const { inlined } = await inlineInputImageUrls(parsed);
+        if (inlined > 0) {
+          bodyBuffer = new TextEncoder().encode(JSON.stringify(parsed)).buffer;
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const sep = msg.lastIndexOf('|');
+        const status = sep >= 0 ? parseInt(msg.slice(sep + 1), 10) || 400 : 400;
+        const text = sep >= 0 ? msg.slice(0, sep) : msg;
+        return jsonError(status, `input_image url inline failed: ${text}`);
+      }
+    }
+
+    const hasImageTool =
+      parsed && Array.isArray(parsed.tools) &&
+      parsed.tools.some((t) => t && t.type === 'image_generation');
+    const clientWantsStream = parsed?.stream === true;
+    if (hasImageTool && !clientWantsStream) {
+      const result = await postResponsesAggregated(upstreamUrl, upstreamHeaders, parsed, env);
+      if (result.ok) {
+        return new Response(JSON.stringify(result.response), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'access-control-allow-origin': '*',
+            'x-relay-mode': 'aggregated',
+          },
+        });
+      }
+      if (result.errorPayload) {
+        return new Response(JSON.stringify({ error: result.errorPayload }), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'access-control-allow-origin': '*',
+            'x-relay-mode': 'aggregated-error',
+          },
+        });
+      }
+      return new Response(result.rawBody, {
+        status: result.status,
+        headers: {
+          'content-type': result.contentType,
+          'access-control-allow-origin': '*',
+        },
+      });
+    }
   }
 
   const upstreamResp = await fetchWithFastFailRetry(upstreamUrl, {
@@ -186,9 +251,6 @@ async function proxyAndMaybeRewrite(request, url, env, ctx) {
     body: bodyBuffer,
   });
   const ct = (upstreamResp.headers.get('content-type') || '').toLowerCase();
-
-  const isResponsesPost =
-    request.method === 'POST' && url.pathname === '/v1/responses';
 
   if (isResponsesPost && upstreamResp.ok) {
     if (ct.includes('text/event-stream')) {
@@ -282,6 +344,294 @@ async function sha256Hex(buf) {
   return Array.from(new Uint8Array(hash))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+// Limits for inline-image inputs. CF Workers have a 128MB CPU/memory budget
+// per request; 25MB matches OpenAI's per-image cap, and 16 matches their
+// images-edits batch limit.
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+const MAX_IMAGES_PER_REQUEST = 16;
+const ALLOWED_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
+
+function pickMimeFromType(rawType) {
+  const t = (rawType || '').toLowerCase();
+  if (t.includes('webp')) return 'image/webp';
+  if (t.includes('jpeg') || t.includes('jpg')) return 'image/jpeg';
+  if (t.includes('png')) return 'image/png';
+  return null;
+}
+
+// Resolves an image input — File/Blob, http(s) URL string, or pre-formed
+// data: URI — into a data:image/<mime>;base64,... string. Validates type and
+// caps size at MAX_IMAGE_BYTES. Returns { dataUri, mime } on success, throws
+// Error('msg|status') where status is the HTTP status to surface.
+async function normalizeImageInput(value) {
+  // Pre-formed data URI: validate prefix and pass through unchanged.
+  if (typeof value === 'string' && value.startsWith('data:')) {
+    const m = /^data:(image\/(?:png|jpeg|webp))(?:;[^,]*)?,/i.exec(value);
+    if (!m) throw new Error('image data URI must be image/png|jpeg|webp|400');
+    return { dataUri: value, mime: m[1].toLowerCase() };
+  }
+
+  // http(s) URL: fetch, validate, base64-encode.
+  if (typeof value === 'string' && /^https?:\/\//i.test(value)) {
+    let resp;
+    try {
+      resp = await fetch(value, {
+        method: 'GET',
+        redirect: 'follow',
+        cf: { cacheEverything: false },
+      });
+    } catch (e) {
+      throw new Error(`failed to fetch image url: ${e instanceof Error ? e.message : String(e)}|400`);
+    }
+    if (!resp.ok) {
+      throw new Error(`image url returned ${resp.status}|400`);
+    }
+    const declaredType = resp.headers.get('content-type') || '';
+    const declaredLen = parseInt(resp.headers.get('content-length') || '0', 10);
+    if (declaredLen && declaredLen > MAX_IMAGE_BYTES) {
+      throw new Error(`image url too large: ${declaredLen} bytes (max ${MAX_IMAGE_BYTES})|400`);
+    }
+    const buf = new Uint8Array(await resp.arrayBuffer());
+    if (buf.length > MAX_IMAGE_BYTES) {
+      throw new Error(`image url too large: ${buf.length} bytes (max ${MAX_IMAGE_BYTES})|400`);
+    }
+    const mime =
+      pickMimeFromType(declaredType) ||
+      pickMimeFromType('image/' + (inferExt('', bytesToBase64(buf.subarray(0, 12))) || ''));
+    if (!mime) {
+      throw new Error(`image url content-type unsupported: "${declaredType}"|400`);
+    }
+    return { dataUri: `data:${mime};base64,${bytesToBase64(buf)}`, mime };
+  }
+
+  // File / Blob from multipart.
+  if (value && typeof value === 'object' && typeof value.arrayBuffer === 'function') {
+    const mime = pickMimeFromType(value.type);
+    if (!mime) {
+      throw new Error(`unsupported image type "${value.type || 'unknown'}", use png, jpeg, or webp|400`);
+    }
+    const buf = new Uint8Array(await value.arrayBuffer());
+    if (buf.length === 0) throw new Error('empty image file|400');
+    if (buf.length > MAX_IMAGE_BYTES) {
+      throw new Error(`image too large: ${buf.length} bytes (max ${MAX_IMAGE_BYTES})|400`);
+    }
+    return { dataUri: `data:${mime};base64,${bytesToBase64(buf)}`, mime };
+  }
+
+  throw new Error('image input must be a file, http(s) URL, or data: URI|400');
+}
+
+// Collects all image-like form fields used by the OpenAI Images-Edits API.
+// Supports three idioms used by SDKs in the wild:
+//   - repeated 'image' fields (canonical)
+//   - 'image[]' suffix (some Python SDKs)
+//   - 'image[0]', 'image[1]', ... numbered (some JS SDKs)
+function collectImageFields(formData) {
+  const out = [];
+  for (const v of formData.getAll('image')) out.push(v);
+  for (const v of formData.getAll('image[]')) out.push(v);
+  // Numbered: image[0], image[1], ...
+  const numbered = [];
+  for (const [k, v] of formData.entries()) {
+    const m = /^image\[(\d+)\]$/.exec(k);
+    if (m) numbered.push({ idx: parseInt(m[1], 10), v });
+  }
+  numbered.sort((a, b) => a.idx - b.idx);
+  for (const n of numbered) out.push(n.v);
+  // Drop empty / blank-string entries.
+  return out.filter(
+    (v) => v !== null && v !== undefined && v !== '' && v !== 'undefined'
+  );
+}
+
+// Walks a /v1/responses request body and inlines any input_image.image_url
+// that points at an http(s) URL. Returns the same object (mutated) plus the
+// number of URLs that were inlined (for diagnostics). Errors propagate.
+async function inlineInputImageUrls(body) {
+  if (!body || !Array.isArray(body.input)) return { body, inlined: 0 };
+  let inlined = 0;
+  for (const item of body.input) {
+    if (!item || !Array.isArray(item.content)) continue;
+    for (const part of item.content) {
+      if (
+        part &&
+        part.type === 'input_image' &&
+        typeof part.image_url === 'string' &&
+        /^https?:\/\//i.test(part.image_url)
+      ) {
+        const { dataUri } = await normalizeImageInput(part.image_url);
+        part.image_url = dataUri;
+        inlined++;
+      }
+    }
+  }
+  return { body, inlined };
+}
+
+// Forces stream:true on a /v1/responses POST body, consumes the upstream SSE
+// in this worker, and returns a single aggregated JSON response object
+// (mirroring what upstream would have sent for a non-streaming call).
+//
+// Why: image-generation calls routinely take 60-180s. CF subrequests have a
+// 100s read timeout, so non-streaming POSTs to slow upstreams reliably 524.
+// SSE streams keep the connection alive via incremental events and dodge the
+// timeout, then we reassemble.
+//
+// Side effects: same R2 uploads as rewriteSSE / rewriteJsonResponse — base64
+// image_generation_call.result is rewritten to a CDN URL inline.
+async function postResponsesAggregated(upstreamUrl, headers, parsedBody, env) {
+  const merged = { ...parsedBody, stream: true };
+  const upstreamResp = await fetchWithFastFailRetry(upstreamUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(merged),
+  });
+
+  if (!upstreamResp.ok) {
+    const errBody = await upstreamResp.text();
+    return {
+      ok: false,
+      status: upstreamResp.status,
+      contentType: upstreamResp.headers.get('content-type') || 'text/plain',
+      rawBody: errBody,
+    };
+  }
+
+  const ct = (upstreamResp.headers.get('content-type') || '').toLowerCase();
+  const imageBase = (env.IMAGE_BASE || '').replace(/\/$/, '');
+
+  // Upstream ignored stream:true and gave back JSON anyway — handle as before.
+  if (!ct.includes('text/event-stream')) {
+    const data = await upstreamResp.json();
+    if (imageBase && Array.isArray(data.output)) {
+      for (const item of data.output) {
+        if (
+          item?.type === 'image_generation_call' &&
+          typeof item.result === 'string' &&
+          item.result.length > 100
+        ) {
+          const ext = inferExt(item.output_format, item.result);
+          const key = await uploadToR2(item.result, ext, env);
+          item.result = `${imageBase}/${key}`;
+          if (item.status === 'generating') item.status = 'completed';
+        }
+      }
+    }
+    return { ok: true, status: 200, response: data };
+  }
+
+  const decoder = new TextDecoder();
+  const reader = upstreamResp.body.getReader();
+  const state = { collectedItems: [] };
+  let finalResponse = null;
+  let errorPayload = null;
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      const eventText = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      const consumed = await consumeAggregatedEvent(eventText, env, state, imageBase);
+      if (consumed.finalResponse) finalResponse = consumed.finalResponse;
+      if (consumed.error) errorPayload = consumed.error;
+    }
+  }
+  buffer += decoder.decode();
+  if (buffer.trim().length > 0) {
+    const consumed = await consumeAggregatedEvent(buffer, env, state, imageBase);
+    if (consumed.finalResponse) finalResponse = consumed.finalResponse;
+    if (consumed.error) errorPayload = consumed.error;
+  }
+
+  if (finalResponse) {
+    return { ok: true, status: 200, response: finalResponse };
+  }
+  if (errorPayload) {
+    return { ok: false, status: 200, errorPayload };
+  }
+  return {
+    ok: false,
+    status: 502,
+    errorPayload: { message: 'upstream stream ended without response.completed', type: 'upstream_error' },
+  };
+}
+
+// Parses one SSE event from an aggregated upstream stream. Tracks
+// image_generation_call items as they complete (so a final
+// response.completed with output:[] can be backfilled), uploads their base64
+// payload to R2, and surfaces any terminal error event.
+async function consumeAggregatedEvent(eventText, env, state, imageBase) {
+  const lines = eventText.split('\n');
+  let dataIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith('data: ')) { dataIdx = i; break; }
+  }
+  if (dataIdx < 0) return {};
+  const dataStr = lines[dataIdx].slice(6);
+  let obj;
+  try { obj = JSON.parse(dataStr); } catch { return {}; }
+
+  // Skip preview frames; only the terminal item carries the canonical result.
+  if (obj.type === 'response.image_generation_call.partial_image') return {};
+
+  if (
+    obj.type === 'response.output_item.done' &&
+    obj.item?.type === 'image_generation_call'
+  ) {
+    if (
+      typeof obj.item.result === 'string' &&
+      obj.item.result.length > 100 &&
+      imageBase
+    ) {
+      const ext = inferExt(obj.item.output_format, obj.item.result);
+      const key = await uploadToR2(obj.item.result, ext, env);
+      obj.item.result = `${imageBase}/${key}`;
+      if (obj.item.status === 'generating') obj.item.status = 'completed';
+    }
+    state.collectedItems.push(JSON.parse(JSON.stringify(obj.item)));
+    return {};
+  }
+
+  if (obj.type === 'response.completed' && obj.response) {
+    const resp = obj.response;
+    if (Array.isArray(resp.output)) {
+      for (const item of resp.output) {
+        if (
+          item?.type === 'image_generation_call' &&
+          typeof item.result === 'string' &&
+          item.result.length > 100 &&
+          imageBase
+        ) {
+          const ext = inferExt(item.output_format, item.result);
+          const key = await uploadToR2(item.result, ext, env);
+          item.result = `${imageBase}/${key}`;
+          if (item.status === 'generating') item.status = 'completed';
+        }
+      }
+      if (resp.output.length === 0 && state.collectedItems.length > 0) {
+        resp.output = state.collectedItems.slice();
+      }
+    }
+    return { finalResponse: resp };
+  }
+
+  if (obj.type === 'response.failed' || obj.type === 'response.incomplete') {
+    return {
+      error:
+        obj.response?.error ||
+        { message: `upstream ${obj.type}`, type: obj.type },
+    };
+  }
+  if (obj.type === 'error') {
+    return { error: obj.error || { message: 'upstream error', type: 'error' } };
+  }
+  return {};
 }
 
 // Wraps fetch with fast-fail retry. Only retries on 502/503/504 that come back
@@ -566,27 +916,39 @@ async function handleImagesGenerations(request, env) {
     if (incoming) upstreamHeaders.set('authorization', incoming);
   }
 
-  const upstreamResp = await fetchWithFastFailRetry(getUpstream(env) + '/v1/responses', {
-    method: 'POST',
-    headers: upstreamHeaders,
-    body: JSON.stringify(responsesBody),
-  });
+  const aggregated = await postResponsesAggregated(
+    getUpstream(env) + '/v1/responses',
+    upstreamHeaders,
+    responsesBody,
+    env
+  );
 
-  if (!upstreamResp.ok) {
-    const errBody = await upstreamResp.text();
+  if (!aggregated.ok) {
+    if (aggregated.errorPayload) {
+      console.error(
+        `images/generations upstream error: ${JSON.stringify(aggregated.errorPayload).slice(0, 300)}`
+      );
+      return new Response(JSON.stringify({ error: aggregated.errorPayload }), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'access-control-allow-origin': '*',
+        },
+      });
+    }
     console.error(
-      `images/generations upstream ${upstreamResp.status}: ${errBody.slice(0, 200)}`
+      `images/generations upstream ${aggregated.status}: ${(aggregated.rawBody || '').slice(0, 200)}`
     );
-    return new Response(errBody, {
-      status: upstreamResp.status,
+    return new Response(aggregated.rawBody || '', {
+      status: aggregated.status,
       headers: {
-        'content-type': upstreamResp.headers.get('content-type') || 'text/plain',
+        'content-type': aggregated.contentType || 'text/plain',
         'access-control-allow-origin': '*',
       },
     });
   }
 
-  const responsesData = await upstreamResp.json();
+  const responsesData = aggregated.response;
   const imageBase = (env.IMAGE_BASE || '').replace(/\/$/, '');
   const wantB64 = reqBody.response_format === 'b64_json';
   const originalPrompt = String(reqBody.prompt ?? reqBody.input ?? '');
@@ -598,22 +960,25 @@ async function handleImagesGenerations(request, env) {
     if (
       item?.type === 'image_generation_call' &&
       typeof item.result === 'string' &&
-      item.result.length > 100
+      item.result.length > 0
     ) {
       if (!firstFormat) firstFormat = item.output_format;
       if (!firstSize) firstSize = item.size;
       const entry = {};
-      if (wantB64) {
+      // After aggregation, item.result is already a CDN URL (R2-uploaded by
+      // postResponsesAggregated). For wantB64 mode we'd need the raw base64,
+      // which has been replaced — fall back to returning the URL instead.
+      const looksLikeUrl = /^https?:\/\//i.test(item.result);
+      if (wantB64 && !looksLikeUrl) {
         entry.b64_json = item.result;
+      } else if (looksLikeUrl) {
+        entry.url = item.result;
       } else {
         const ext = inferExt(item.output_format, item.result);
-        const key = await uploadToR2(item.result, ext, env);
         entry.url = imageBase
-          ? `${imageBase}/${key}`
+          ? `${imageBase}/${ext}`
           : `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${item.result}`;
       }
-      // revised_prompt fallback chain: image_generation_call.revised_prompt
-      // (the canonical Responses-API location) → message text → original prompt
       const revised =
         (typeof item.revised_prompt === 'string' && item.revised_prompt) ||
         extractMessageText(responsesData) ||
@@ -650,8 +1015,7 @@ async function handleImagesGenerations(request, env) {
 // Translates classic OpenAI Images-Edits requests (multipart/form-data with
 // an image file and a text prompt) into the Responses-API multimodal shape
 // upstream, then re-shapes the response back into the classic Images-API
-// envelope. xixiapi rejects inline-base64 webp on /v1/responses, so webp
-// uploads are short-circuited with a clear 400.
+// envelope.
 
 async function handleImagesEdits(request, env) {
   let formData;
@@ -661,35 +1025,32 @@ async function handleImagesEdits(request, env) {
     return jsonError(400, 'Invalid multipart/form-data body');
   }
 
-  const imageField = formData.get('image');
+  const imageFields = collectImageFields(formData);
   const prompt = formData.get('prompt');
-  if (!imageField || typeof imageField === 'string') {
-    return jsonError(400, '"image" field is required and must be a file');
+  if (imageFields.length === 0) {
+    return jsonError(400, '"image" field is required (file, http(s) URL, or data: URI)');
+  }
+  if (imageFields.length > MAX_IMAGES_PER_REQUEST) {
+    return jsonError(
+      400,
+      `too many images: ${imageFields.length} (max ${MAX_IMAGES_PER_REQUEST})`
+    );
   }
   if (!prompt || typeof prompt !== 'string') {
     return jsonError(400, '"prompt" field is required');
   }
 
-  const imageType = (imageField.type || 'image/png').toLowerCase();
-  if (imageType.includes('webp')) {
-    return jsonError(
-      400,
-      'webp inline base64 is not supported by the upstream Responses API; please convert the source image to png or jpeg before uploading'
-    );
+  // Normalize all images in parallel; surface the first failing one.
+  let imageDataUris;
+  try {
+    imageDataUris = await Promise.all(imageFields.map((v) => normalizeImageInput(v)));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const sep = msg.lastIndexOf('|');
+    const status = sep >= 0 ? parseInt(msg.slice(sep + 1), 10) || 400 : 400;
+    const text = sep >= 0 ? msg.slice(0, sep) : msg;
+    return jsonError(status, text);
   }
-  if (
-    !imageType.includes('png') &&
-    !imageType.includes('jpeg') &&
-    !imageType.includes('jpg')
-  ) {
-    return jsonError(400, `unsupported image type "${imageType}", use png or jpeg`);
-  }
-
-  const arrayBuffer = await imageField.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  const b64 = bytesToBase64(bytes);
-  const mime = imageType.includes('jpeg') || imageType.includes('jpg') ? 'image/jpeg' : 'image/png';
-  const dataUri = `data:${mime};base64,${b64}`;
 
   const model = String(formData.get('model') || 'gpt-image-2');
   const size = formData.get('size');
@@ -717,17 +1078,13 @@ async function handleImagesEdits(request, env) {
   // Default moderation to "low" for the lowest false-positive rate.
   tool.moderation = moderation ? String(moderation) : 'low';
 
+  const userContent = [{ type: 'input_text', text: String(prompt) }];
+  for (const { dataUri } of imageDataUris) {
+    userContent.push({ type: 'input_image', image_url: dataUri });
+  }
   const responsesBody = {
     model,
-    input: [
-      {
-        role: 'user',
-        content: [
-          { type: 'input_text', text: String(prompt) },
-          { type: 'input_image', image_url: dataUri },
-        ],
-      },
-    ],
+    input: [{ role: 'user', content: userContent }],
     tools: [tool],
   };
 
@@ -740,27 +1097,39 @@ async function handleImagesEdits(request, env) {
     if (incoming) upstreamHeaders.set('authorization', incoming);
   }
 
-  const upstreamResp = await fetchWithFastFailRetry(getUpstream(env) + '/v1/responses', {
-    method: 'POST',
-    headers: upstreamHeaders,
-    body: JSON.stringify(responsesBody),
-  });
+  const aggregated = await postResponsesAggregated(
+    getUpstream(env) + '/v1/responses',
+    upstreamHeaders,
+    responsesBody,
+    env
+  );
 
-  if (!upstreamResp.ok) {
-    const errBody = await upstreamResp.text();
+  if (!aggregated.ok) {
+    if (aggregated.errorPayload) {
+      console.error(
+        `images/edits upstream error: ${JSON.stringify(aggregated.errorPayload).slice(0, 300)}`
+      );
+      return new Response(JSON.stringify({ error: aggregated.errorPayload }), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'access-control-allow-origin': '*',
+        },
+      });
+    }
     console.error(
-      `images/edits upstream ${upstreamResp.status}: ${errBody.slice(0, 200)}`
+      `images/edits upstream ${aggregated.status}: ${(aggregated.rawBody || '').slice(0, 200)}`
     );
-    return new Response(errBody, {
-      status: upstreamResp.status,
+    return new Response(aggregated.rawBody || '', {
+      status: aggregated.status,
       headers: {
-        'content-type': upstreamResp.headers.get('content-type') || 'text/plain',
+        'content-type': aggregated.contentType || 'text/plain',
         'access-control-allow-origin': '*',
       },
     });
   }
 
-  const responsesData = await upstreamResp.json();
+  const responsesData = aggregated.response;
   const imageBase = (env.IMAGE_BASE || '').replace(/\/$/, '');
   const wantB64 = responseFormat === 'b64_json';
   const originalPrompt = String(prompt);
@@ -772,18 +1141,20 @@ async function handleImagesEdits(request, env) {
     if (
       item?.type === 'image_generation_call' &&
       typeof item.result === 'string' &&
-      item.result.length > 100
+      item.result.length > 0
     ) {
       if (!firstFormat) firstFormat = item.output_format;
       if (!firstSize) firstSize = item.size;
       const entry = {};
-      if (wantB64) {
+      const looksLikeUrl = /^https?:\/\//i.test(item.result);
+      if (wantB64 && !looksLikeUrl) {
         entry.b64_json = item.result;
+      } else if (looksLikeUrl) {
+        entry.url = item.result;
       } else {
         const ext = inferExt(item.output_format, item.result);
-        const key = await uploadToR2(item.result, ext, env);
         entry.url = imageBase
-          ? `${imageBase}/${key}`
+          ? `${imageBase}/${ext}`
           : `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${item.result}`;
       }
       const revised =
