@@ -26,8 +26,12 @@ const quotaSchema = z.object({
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string().url().optional().or(z.literal('')),
-  'general_setting.docs_link': z.string().url().optional().or(z.literal('')),
-  'quota_setting.enable_free_model_pre_consume': z.boolean(),
+  general_setting: z.object({
+    docs_link: z.string().url().optional().or(z.literal('')),
+  }),
+  quota_setting: z.object({
+    enable_free_model_pre_consume: z.boolean(),
+  }),
 })
 
 type QuotaFormValues = z.infer<typeof quotaSchema>
