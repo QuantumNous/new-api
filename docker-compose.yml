@@ -39,6 +39,8 @@ services:
       # 在线升级（Watchtower）：下面两个值必须跟 watchtower 服务里的 WATCHTOWER_HTTP_API_TOKEN 一致
       - WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN:-CHANGE_ME_TO_RANDOM_TOKEN}
       - WATCHTOWER_API_URL=http://watchtower:8080
+      - KYC_ENCRYPT_KEY=${KYC_ENCRYPT_KEY}  # 必须在 .env.test / .env.prod 中设置，否则重启后历史 KYC 数据将无法解密
+      - KYC_HASH_KEY=${KYC_HASH_KEY}
 #      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
 #      - GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX  # Google Analytics 的测量 ID (Google Analytics Measurement ID G-FLN7WD8JC9)
 #      - UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Umami 网站 ID (Umami Website ID a8f20661-db79-43d8-876c-f4743e8b4c5a)

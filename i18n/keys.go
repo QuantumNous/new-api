@@ -319,6 +319,17 @@ const (
 	MsgDistributorInvalidParseModel       = "distributor.invalid_request_parse_model"
 )
 
+// KYC related messages
+const (
+	MsgKycRequired              = "kyc.required"
+	MsgKycImageTooLarge         = "kyc.image_too_large"
+	MsgKycImageInvalid          = "kyc.image_invalid"
+	MsgKycImagesIncomplete      = "kyc.images_incomplete"
+	MsgKycImagesNotFound        = "kyc.images_not_found"
+	MsgKycSensitiveAccessDenied = "kyc.sensitive_access_denied"
+	MsgKycImageUploadFailed     = "kyc.image_upload_failed"
+)
+
 // Custom OAuth provider related messages
 const (
 	MsgCustomOAuthNotFound          = "custom_oauth.not_found"

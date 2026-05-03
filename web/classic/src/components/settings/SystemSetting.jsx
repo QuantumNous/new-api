@@ -35,6 +35,7 @@ import {
 const { Text } = Typography;
 import {
   API,
+  isRoot,
   removeTrailingSlash,
   showError,
   showSuccess,
@@ -81,6 +82,7 @@ const SystemSetting = () => {
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
     RegisterEnabled: '',
+    KYCEnabled: '',
     'passkey.enabled': '',
     'passkey.rp_display_name': '',
     'passkey.rp_id': '',
@@ -190,6 +192,7 @@ const SystemSetting = () => {
           case 'passkey.enabled':
           case 'passkey.allow_insecure_origin':
           case 'WorkerAllowHttpImageRequestEnabled':
+          case 'KYCEnabled':
             item.value = toBoolean(item.value);
             break;
           case 'passkey.origins':
@@ -1026,6 +1029,17 @@ const SystemSetting = () => {
                       >
                         {t('允许新用户注册')}
                       </Form.Checkbox>
+                      {isRoot() && (
+                        <Form.Checkbox
+                          field='KYCEnabled'
+                          noLabel
+                          onChange={(e) =>
+                            handleCheckboxChange('KYCEnabled', e)
+                          }
+                        >
+                          {t('启用实名认证强制要求（KYC）')}
+                        </Form.Checkbox>
+                      )}
                       <Form.Checkbox
                         field='TurnstileCheckEnabled'
                         noLabel

@@ -131,6 +131,9 @@ var PreConsumedQuota = 500
 
 var RetryTimes = 0
 
+var KYCEnabled = false
+var KYCMaxSubmitCount = 5
+
 //var RootUserEmail = ""
 
 var IsMasterNode bool

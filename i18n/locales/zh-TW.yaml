@@ -277,3 +277,12 @@ custom_oauth.name_empty: "供應者名稱不能為空"
 custom_oauth.has_bindings: "無法刪除已有使用者綁定的供應者"
 custom_oauth.binding_not_found: "OAuth 綁定不存在"
 custom_oauth.provider_id_field_invalid: "無法從供應者響應中提取使用者 ID"
+
+# KYC messages
+kyc.required: "請先完成實名認證後再使用 API。"
+kyc.image_too_large: "身分證圖片大小不能超過 5MB。"
+kyc.image_invalid: "身分證圖片格式無效。"
+kyc.images_incomplete: "請同時上傳身分證正面和背面圖片。"
+kyc.images_not_found: "該 KYC 記錄暫無身分證圖片。"
+kyc.sensitive_access_denied: "當前 KYC 狀態下您無權查看敏感資訊。"
+kyc.image_upload_failed: "身分證圖片上傳失敗。"

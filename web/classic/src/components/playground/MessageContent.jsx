@@ -21,9 +21,10 @@ import React, { useRef, useEffect } from 'react';
 import { Typography, TextArea, Button } from '@douyinfe/semi-ui';
 import MarkdownRenderer from '../common/markdown/MarkdownRenderer';
 import ThinkingContent from './ThinkingContent';
-import { Loader2, Check, X, Settings, AlertTriangle } from 'lucide-react';
+import { Loader2, Check, X, Settings, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { isAdmin } from '../../helpers/utils';
+import { Link } from 'react-router-dom';
 
 const MessageContent = ({
   message,
@@ -63,6 +64,38 @@ const MessageContent = ({
       errorText = message.content;
     } else {
       errorText = t('请求发生错误');
+    }
+
+    if (message.errorCode === 'kyc_required') {
+      return (
+        <div className={`${className}`}>
+          <div
+            className='rounded-lg p-3 space-y-2'
+            style={{
+              background: 'var(--semi-color-bg-0)',
+              border: '1px solid var(--semi-color-border)',
+            }}
+          >
+            <div className='flex items-center gap-2'>
+              <ShieldAlert size={16} className='text-orange-500 shrink-0' />
+              <Typography.Text strong className='!text-[var(--semi-color-text-0)]'>
+                {t('实名认证')}
+              </Typography.Text>
+            </div>
+            <Typography.Paragraph
+              className='!text-[var(--semi-color-text-1)] !text-sm !mb-0'
+              style={{ wordBreak: 'break-word' }}
+            >
+              {t('您尚未完成实名认证，API 访问已受限。')}
+            </Typography.Paragraph>
+            <Link to='/console/personal'>
+              <Button size='small' theme='light' type='warning' icon={<ShieldAlert size={14} />}>
+                {t('立即认证')}
+              </Button>
+            </Link>
+          </div>
+        </div>
+      );
     }
 
     if (message.errorCode === 'model_price_error') {

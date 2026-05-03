@@ -41,6 +41,7 @@ import AccountManagement from './personal/cards/AccountManagement';
 import NotificationSettings from './personal/cards/NotificationSettings';
 import PreferencesSettings from './personal/cards/PreferencesSettings';
 import CheckinCalendar from './personal/cards/CheckinCalendar';
+import KYCSetting from './personal/cards/KYCSetting';
 import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
@@ -587,13 +588,16 @@ const PersonalSetting = () => {
               <PreferencesSettings t={t} />
             </div>
 
-            {/* 右侧：其他设置 */}
-            <NotificationSettings
-              t={t}
-              notificationSettings={notificationSettings}
-              handleNotificationSettingChange={handleNotificationSettingChange}
-              saveNotificationSettings={saveNotificationSettings}
-            />
+            {/* 右侧：通知设置 + 实名认证 */}
+            <div className='flex flex-col gap-4 md:gap-6'>
+              <NotificationSettings
+                t={t}
+                notificationSettings={notificationSettings}
+                handleNotificationSettingChange={handleNotificationSettingChange}
+                saveNotificationSettings={saveNotificationSettings}
+              />
+              <KYCSetting />
+            </div>
           </div>
         </div>
       </div>

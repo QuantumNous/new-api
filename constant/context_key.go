@@ -66,4 +66,8 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+
+	// KYC related keys — written by TokenAuth → userCache.WriteContext (relay chain only)
+	ContextKeyUserRole      ContextKey = "user_role"
+	ContextKeyUserKYCStatus ContextKey = "user_kyc_status"
 )

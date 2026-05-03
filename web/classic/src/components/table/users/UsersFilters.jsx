@@ -21,6 +21,14 @@ import React, { useRef } from 'react';
 import { Form, Button } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
+const KYC_STATUS_OPTIONS = (t) => [
+  { label: t('全部'), value: '' },
+  { label: t('未认证'), value: '0' },
+  { label: t('审核中'), value: '1' },
+  { label: t('已认证'), value: '2' },
+  { label: t('已拒绝'), value: '3' },
+];
+
 const UsersFilters = ({
   formInitValues,
   setFormApi,
@@ -84,6 +92,21 @@ const UsersFilters = ({
             }}
             className='w-full'
             showClear
+            pure
+            size='small'
+          />
+        </div>
+        <div className='w-full md:w-40'>
+          <Form.Select
+            field='searchKycStatus'
+            placeholder={t('实名认证状态')}
+            optionList={KYC_STATUS_OPTIONS(t)}
+            onChange={() => {
+              setTimeout(() => {
+                searchUsers(1, pageSize);
+              }, 100);
+            }}
+            className='w-full'
             pure
             size='small'
           />

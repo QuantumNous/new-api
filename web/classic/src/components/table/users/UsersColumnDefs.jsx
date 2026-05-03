@@ -38,6 +38,22 @@ import {
 
 const renderTimestamp = (text) => (text ? timestamp2string(text) : '-');
 
+const KYC_STATUS_MAP = {
+  0: { text: '未认证', color: 'grey' },
+  1: { text: '审核中', color: 'orange' },
+  2: { text: '已认证', color: 'green' },
+  3: { text: '已拒绝', color: 'red' },
+};
+
+const renderKYCStatus = (status, t) => {
+  const s = KYC_STATUS_MAP[status] ?? KYC_STATUS_MAP[0];
+  return (
+    <Tag color={s.color} shape='circle' size='small'>
+      {t(s.text)}
+    </Tag>
+  );
+};
+
 /**
  * Render user role
  */
@@ -351,6 +367,11 @@ export const getUsersColumns = ({
       render: (text, record, index) => {
         return <div>{renderRole(text, t)}</div>;
       },
+    },
+    {
+      title: t('实名认证'),
+      dataIndex: 'kyc_status',
+      render: (text, record) => renderKYCStatus(text ?? 0, t),
     },
     {
       title: t('邀请信息'),

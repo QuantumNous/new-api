@@ -276,3 +276,12 @@ custom_oauth.name_empty: "Provider name cannot be empty"
 custom_oauth.has_bindings: "Cannot delete provider with existing user bindings"
 custom_oauth.binding_not_found: "OAuth binding not found"
 custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider response"
+
+# KYC messages
+kyc.required: "Please complete identity verification before using the API."
+kyc.image_too_large: "ID card image must not exceed 5MB."
+kyc.image_invalid: "Invalid ID card image format."
+kyc.images_incomplete: "Please upload both the front and back of the ID card."
+kyc.images_not_found: "No ID card images for this KYC record."
+kyc.sensitive_access_denied: "You are not allowed to view sensitive info at this KYC status."
+kyc.image_upload_failed: "Failed to upload ID card image."

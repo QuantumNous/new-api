@@ -119,6 +119,12 @@ func SetApiRouter(router *gin.Engine) {
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
+
+				// KYC routes
+				selfRoute.GET("/kyc", controller.GetKYCStatus)
+				selfRoute.POST("/kyc", controller.SubmitKYC)
+				selfRoute.PUT("/kyc", controller.UpdateKYC)
+				selfRoute.DELETE("/kyc", controller.DeleteKYC)
 			}
 
 			adminRoute := userRoute.Group("/")
@@ -141,6 +147,15 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+
+				// KYC admin routes — /kyc/admin/by-user/:user_id must be registered before /:id routes
+				adminRoute.GET("/kyc/admin", controller.AdminGetKYCList)
+				adminRoute.GET("/kyc/admin/by-user/:user_id", controller.AdminGetKYCByUser)
+				adminRoute.PUT("/kyc/admin/:id/approve", controller.AdminApproveKYC)
+				adminRoute.PUT("/kyc/admin/:id/reject", controller.AdminRejectKYC)
+				adminRoute.PUT("/kyc/admin/:id/reset", controller.AdminResetKYC)
+				adminRoute.GET("/kyc/admin/:id/reveal", controller.AdminRevealKYC)
+				adminRoute.GET("/kyc/admin/:id/images", controller.AdminGetKYCImages)
 			}
 		}
 

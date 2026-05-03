@@ -26,8 +26,9 @@ type User struct {
 	Password         string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
 	OriginalPassword string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
 	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=20"`
-	Role             int            `json:"role" gorm:"type:int;default:1"`   // admin, common
-	Status           int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
+	Role             int            `json:"role" gorm:"type:int;default:1"`        // admin, common
+	Status           int            `json:"status" gorm:"type:int;default:1"`      // enabled, disabled
+	KycStatus        int            `json:"kyc_status" gorm:"type:int;default:0;column:kyc_status"` // 0=未认证 1=审核中 2=已通过 3=已拒绝
 	Email            string         `json:"email" gorm:"index" validate:"max=50"`
 	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
@@ -56,13 +57,15 @@ type User struct {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:        user.Id,
+		Group:     user.Group,
+		Quota:     user.Quota,
+		Status:    user.Status,
+		Username:  user.Username,
+		Setting:   user.Setting,
+		Email:     user.Email,
+		Role:      user.Role,
+		KycStatus: user.KycStatus,
 	}
 	return cache
 }
@@ -190,7 +193,7 @@ func GetMaxUserId() int {
 	return user.Id
 }
 
-func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err error) {
+func GetAllUsers(pageInfo *common.PageInfo, kycStatus int) (users []*User, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -202,15 +205,20 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 		}
 	}()
 
+	baseQuery := tx.Unscoped().Model(&User{})
+	if kycStatus != 0 {
+		baseQuery = baseQuery.Where("kyc_status = ?", kycStatus)
+	}
+
 	// Get total count within transaction
-	err = tx.Unscoped().Model(&User{}).Count(&total).Error
+	err = baseQuery.Count(&total).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
 	// Get paginated users within same transaction
-	err = tx.Unscoped().Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("password").Find(&users).Error
+	err = baseQuery.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("password").Find(&users).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -224,7 +232,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, startIdx int, num int, kycStatus int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -267,6 +275,10 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 			query = query.Where(likeCondition,
 				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 		}
+	}
+
+	if kycStatus != 0 {
+		query = query.Where("kyc_status = ?", kycStatus)
 	}
 
 	// 获取总数
@@ -326,8 +338,15 @@ func HardDeleteUserById(id int) error {
 	if id == 0 {
 		return errors.New("id 为空！")
 	}
-	err := DB.Unscoped().Delete(&User{}, "id = ?", id).Error
-	return err
+	// Clean up KYC images first. Use Unscoped to also catch soft-deleted KYC
+	// rows (case: user previously self-soft-deleted, admin then hard-deletes).
+	var kycs []UserKYC
+	DB.Unscoped().Where("user_id = ?", id).Find(&kycs)
+	for _, kyc := range kycs {
+		_ = DeleteKYCImagesByKYCId(kyc.Id)
+	}
+	DB.Unscoped().Where("user_id = ?", id).Delete(&UserKYC{})
+	return DB.Unscoped().Delete(&User{}, "id = ?", id).Error
 }
 
 func inviteUser(inviterId int) (err error) {
@@ -575,6 +594,14 @@ func (user *User) Delete() error {
 	if user.Id == 0 {
 		return errors.New("id 为空！")
 	}
+	// Cascade KYC soft-delete to keep the account-deletion lifecycle consistent:
+	// user soft-deleted → user_kycs and user_kyc_images both soft-deleted.
+	// Errors are non-fatal (audit data) — only log via the returned error from
+	// the DB.Delete call below.
+	if kyc, err := GetKYCByUserId(user.Id); err == nil {
+		_ = SoftDeleteKYCImagesByKYCId(kyc.Id)
+	}
+	_ = DB.Where("user_id = ?", user.Id).Delete(&UserKYC{}).Error
 	if err := DB.Delete(user).Error; err != nil {
 		return err
 	}

@@ -234,7 +234,8 @@ func Register(c *gin.Context) {
 
 func GetAllUsers(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.GetAllUsers(pageInfo)
+	kycStatus, _ := strconv.Atoi(c.Query("kyc_status"))
+	users, total, err := model.GetAllUsers(pageInfo, kycStatus)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -250,8 +251,9 @@ func GetAllUsers(c *gin.Context) {
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
+	kycStatus, _ := strconv.Atoi(c.Query("kyc_status"))
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), kycStatus)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -413,8 +415,9 @@ func GetSelf(c *gin.Context) {
 		"linux_do_id":       user.LinuxDOId,
 		"setting":           user.Setting,
 		"stripe_customer":   user.StripeCustomer,
-		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":       permissions,                // 新增权限字段
+		"sidebar_modules":   userSetting.SidebarModules,
+		"permissions":       permissions,
+		"kyc_status":        user.KycStatus,
 	}
 
 	c.JSON(http.StatusOK, gin.H{

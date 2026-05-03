@@ -13,6 +13,9 @@ web/classic/dist
 web/node_modules
 web/dist
 .env
+.env.local
+.env.test
+.env.prod
 one-api
 new-api
 /__debug_bin*

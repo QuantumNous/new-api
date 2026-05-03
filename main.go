@@ -56,6 +56,10 @@ func main() {
 	}
 
 	common.SysLog("New API " + common.Version + " started")
+
+	// Surface KYC key (mis)configuration warnings at startup rather than first use.
+	common.InitKYCKeys()
+
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -260,12 +264,10 @@ func InjectGoogleAnalytics() {
 func InitResources() error {
 	// Initialize resources here if needed
 	// This is a placeholder function for future resource initialization
-	err := godotenv.Load(".env")
-	if err != nil {
-		if common.DebugEnabled {
-			common.SysLog("No .env file found, using default environment variables. If needed, please create a .env file and set the relevant variables.")
-		}
-	}
+	// Load order: .env.local overrides .env (godotenv.Load does not override already-set vars)
+	godotenv.Load(".env.local", ".env")
+
+	var err error
 
 	// 加载环境变量
 	common.InitEnv()

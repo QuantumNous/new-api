@@ -31,6 +31,8 @@ services:
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - BATCH_UPDATE_ENABLED=true
+      - KYC_ENCRYPT_KEY=${KYC_ENCRYPT_KEY:-00000000000000000000000000000000000000000000000000000000deadbeef}
+      - KYC_HASH_KEY=${KYC_HASH_KEY:-00000000000000000000000000000000000000000000000000000000cafebabe}
     depends_on:
       redis:
         condition: service_started
