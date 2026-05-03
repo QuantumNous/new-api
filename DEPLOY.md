@@ -453,9 +453,140 @@ sudo systemctl disable caddy
 
 ---
 
-## 六、排查：明明部署了为什么访问不到
+## 六、配置在线充值
 
-### 6.1 容器健康但外部访问 timeout
+钱包页默认显示「尚未启用在线充值。请使用兑换码或联系管理员。」直到管理员配好支付网关。三种方式：
+
+| 方式 | 适用 | 集成难度 | 资金到账 |
+|---|---|---|---|
+| **易支付** | 国内为主，支持支付宝/微信，绕开商户号申请 | 低 | T+1 / T+0 |
+| **Stripe** | 海外用户、信用卡 | 中（需 Stripe 账户）| 7 天 |
+| **Creem** | 海外，订阅型 SaaS 友好 | 低 | 7-14 天 |
+
+下面以最常见的**易支付**为例。Stripe / Creem 配置项附在最后。
+
+### 步骤 1：注册易支付服务商
+
+国内常用的易支付聚合服务（任选）：彩虹易支付、码支付、91pay 等。注册后拿三个值：
+- **商户 ID**（PartnerID / PID）
+- **商户密钥**（Key / MD5 签名 Key）
+- **支付网关地址**（如 `https://pay.example.com`）
+
+### 步骤 2：在 admin 后台配置选项
+
+登录 admin → 浏览器 console（也可以走系统设置 UI 操作）：
+
+```javascript
+const adminFetch = (key, value) => fetch('/api/option/', {
+  method: 'PUT',
+  headers: {
+    'Content-Type': 'application/json',
+    'New-Api-User': '1',
+    'Authorization': 'Bearer ' + localStorage.getItem('access_token'),
+  },
+  body: JSON.stringify({key, value}),
+}).then(r => r.json());
+
+await adminFetch('PayAddress', 'https://pay.your-epay-provider.com');
+await adminFetch('EpayId',     '你的商户ID');
+await adminFetch('EpayKey',    '你的商户密钥');
+
+// 用户能选的充值面值（元）
+await adminFetch('TopupAmountOptions', '[10,20,50,100,200,500]');
+
+// 最低充值金额
+await adminFetch('MinTopUp', '1');
+
+// 1 USD = 多少 RMB（影响展示与额度换算）
+await adminFetch('Price', '7.3');
+```
+
+### 步骤 3：在易支付服务商后台填回调 URL
+
+异步通知 `notify_url` 和同步跳转 `return_url` **都填同一个**：
+
+```
+https://your.domain.com/api/user/epay/notify
+```
+
+### 步骤 4：自检
+
+```javascript
+// 1. 确认三个 epay 字段都进去了
+const opts = await fetch('/api/option/', {
+  headers: {'New-Api-User':'1','Authorization':'Bearer '+localStorage.getItem('access_token')}
+}).then(r => r.json());
+const find = (k) => opts.data.find(o => o.key === k)?.value;
+console.log({
+  PayAddress: find('PayAddress'),
+  EpayId:     find('EpayId'),
+  EpayKey:    find('EpayKey') ? '<set>' : '<missing>',
+});
+
+// 2. /api/user/topup/info 应该返回 enable_online_topup: true
+const info = await fetch('/api/user/topup/info', {
+  headers: {'Authorization':'Bearer '+localStorage.getItem('access_token')}
+}).then(r => r.json());
+console.log('enable_online_topup:', info.data?.enable_online_topup);
+console.log('pay_methods:', info.data?.pay_methods);
+```
+
+`enable_online_topup: true` + 至少一个 pay_method → 配置生效。**用普通用户身份刷新钱包页**（cmd+shift+r），「尚未启用」提示消失，能选金额发起支付。
+
+### 步骤 5：跑通一笔
+
+1. 用普通账号登录 https://your.domain.com → 钱包
+2. 选金额 → 选支付方式 → 跳到易支付页面
+3. 扫码付款（建议先用最小金额测试）
+4. 付完跳回应能看到余额到账
+
+如果付完没到账，看：
+```bash
+docker compose -f docker-compose.local.yml --env-file .env.local logs app | grep -E "epay|notify|TopUp"
+```
+
+通常是回调 URL 错或签名 Key 不一致。
+
+---
+
+### 替代：Stripe
+
+```javascript
+await adminFetch('StripeApiSecret',     'sk_live_xxxxxxxxxxxx');
+await adminFetch('StripeWebhookSecret', 'whsec_xxxxxxxx');
+await adminFetch('StripeUnitPrice',     '8');   // 1 USD 显示价
+await adminFetch('StripeMinTopUp',      '5');   // Stripe 限制 ~$0.50, 建议 $5 起
+await adminFetch('StripePriceId',       'price_xxxxxxxxxxxx');
+```
+
+Stripe Dashboard 配 Webhook：
+- Endpoint: `https://your.domain.com/api/stripe/webhook`
+- Events: `checkout.session.completed`, `payment_intent.succeeded`
+
+### 替代：Creem
+
+```javascript
+await adminFetch('CreemApiKey',         'creem_xxxxxxxx');
+await adminFetch('CreemWebhookSecret',  'whsec_xxxxxxxx');
+await adminFetch('CreemProductId',      'prod_xxxxxxxx');
+```
+
+Webhook URL：`https://your.domain.com/api/creem/webhook`
+
+---
+
+### 通用注意
+
+- **必须先配 ServerAddress**（章节五的步骤 6）。回调 URL 是 `${ServerAddress}/api/user/epay/notify`，没设的话支付服务商拿到的回调地址会是空的。
+- **额度计算**：内部用 `quota` 整数，`QuotaPerUnit = 500000` 即 500,000 quota = $1。用户充 ¥10（按 `Price=7.3` 折 $1.37），到账 685,000 quota。
+- **测试模式**：易支付有沙箱、Stripe 用 `sk_test_xxx` + Stripe CLI 转发 webhook。**先沙箱跑通，再切真实商户**。
+- **退款**：new-api 没内建退款流程。手动改 user.quota（POST `/api/user/manage` `add_quota` action）或自行接 dispute webhook。
+
+---
+
+## 七、排查：明明部署了为什么访问不到
+
+### 7.1 容器健康但外部访问 timeout
 
 最常见原因：**端口没真的对外暴露**。按这个顺序排：
 
@@ -480,13 +611,13 @@ curl -skI -m 5 https://$PUB_IP/ | head -3
 | ❌ timeout | ❌ timeout | 网络/路由问题，不是端口问题 |
 | ✅ | ✅ | 端口都通，问题在 DNS / 浏览器缓存 / 应用 |
 
-### 6.2 在国内地域用未备案 `.ai` / `.io` 等域名访问 443 timeout
+### 7.2 在国内地域用未备案 `.ai` / `.io` 等域名访问 443 timeout
 
 即使安全组都开了，部分国内地域对**未 ICP 备案域名**会在 ISP 层面过滤 80/443。表现：服务器自测公网 IP 的 443 通，但**用域名访问**不通。
 
 修法：上面的**路径 B（Cloudflare Tunnel）**。
 
-### 6.3 Caddyfile 里出现 `[domain](http://domain)` 这种乱码
+### 7.3 Caddyfile 里出现 `[domain](http://domain)` 这种乱码
 
 复制粘贴时被聊天工具/IDE 渲染了 markdown。修：
 
@@ -497,7 +628,7 @@ sudo systemctl reload caddy
 
 或者**直接用 nano/vim 编辑**而不是从外部粘贴。
 
-### 6.4 Caddy 启动报 `address already in use`
+### 7.4 Caddy 启动报 `address already in use`
 
 端口被别的服务占了（常见 nginx）：
 
@@ -511,7 +642,7 @@ sudo systemctl start caddy
 
 ---
 
-## 七、生产化清单（上线前过一遍）
+## 八、生产化清单（上线前过一遍）
 
 - [ ] `.env.local` 里的 `SESSION_SECRET` 重新生成（默认值是开发用）
 - [ ] `.env.local` 里的 `REDIS_CONN_STRING` 密码改成强密码（同步改 `docker-compose.local.yml` 里 redis-server 的 `--requirepass`）
@@ -522,12 +653,13 @@ sudo systemctl start caddy
 - [ ] 改 admin → 系统设置 → ServerAddress 为你的 https 域名
 - [ ] 关闭注册或加上邮箱验证（按业务需要）
 - [ ] 配置火山引擎账号的并发上限（默认 10），按预期流量调整
+- [ ] 配置在线充值（章节六，三选一：易支付 / Stripe / Creem）
 - [ ] 视频任务持久化方案（Issue #7）跟进——避免 24h 后用户拿不到视频
 - [ ] 监控：用 Uptime Kuma 或类似工具盯 `/api/status`
 
 ---
 
-## 八、相关文档
+## 九、相关文档
 
 - API 调用：站内 `/docs` 页面
 - 仓库：[NekoAIKan/aikanhub](https://github.com/NekoAIKan/aikanhub)
