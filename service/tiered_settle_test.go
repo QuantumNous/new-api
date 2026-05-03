@@ -605,6 +605,97 @@ func TestBuildTieredTokenParams_ParityWithRatio_Image(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// BuildTieredTokenParams: Len computation tests
+// ---------------------------------------------------------------------------
+
+func TestBuildTieredTokenParams_Len_GPT(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     10000,
+		CompletionTokens: 2000,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 3000,
+			TextTokens:   7000,
+		},
+	}
+	expr := `tier("base", p * 2.5 + c * 15 + cr * 0.25)`
+	usedVars := billingexpr.UsedVars(expr)
+	params := BuildTieredTokenParams(usage, false, usedVars)
+
+	// Non-Claude: Len = raw PromptTokens
+	if params.Len != 10000 {
+		t.Fatalf("Len = %f, want 10000 (raw PromptTokens)", params.Len)
+	}
+	// P should be reduced by cache
+	if params.P != 7000 {
+		t.Fatalf("P = %f, want 7000 (PromptTokens - CachedTokens)", params.P)
+	}
+}
+
+func TestBuildTieredTokenParams_Len_Claude(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     5000,
+		CompletionTokens: 2000,
+		UsageSemantic:    "anthropic",
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 3000,
+			TextTokens:   5000,
+		},
+		ClaudeCacheCreation5mTokens: 1000,
+		ClaudeCacheCreation1hTokens: 500,
+	}
+	expr := `tier("base", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6)`
+	usedVars := billingexpr.UsedVars(expr)
+	params := BuildTieredTokenParams(usage, true, usedVars)
+
+	// Claude: Len = PromptTokens + CachedTokens + CacheCreation5m + CacheCreation1h
+	wantLen := float64(5000 + 3000 + 1000 + 500)
+	if params.Len != wantLen {
+		t.Fatalf("Len = %f, want %f (text + cache read + cache creation)", params.Len, wantLen)
+	}
+	// Claude: P is not reduced (isClaudeUsageSemantic = true)
+	if params.P != 5000 {
+		t.Fatalf("P = %f, want 5000 (no subtraction for Claude)", params.P)
+	}
+}
+
+func TestBuildTieredTokenParams_Len_TierCondition(t *testing.T) {
+	// Test that len-based tier conditions work correctly when p is reduced by cache
+	usage := &dto.Usage{
+		PromptTokens:     300000,
+		CompletionTokens: 5000,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 250000,
+			TextTokens:   50000,
+		},
+	}
+	expr := `len <= 200000 ? tier("standard", p * 3 + c * 15 + cr * 0.3) : tier("long_context", p * 6 + c * 22.5 + cr * 0.6)`
+	usedVars := billingexpr.UsedVars(expr)
+	params := BuildTieredTokenParams(usage, false, usedVars)
+
+	// Len = 300000 (raw prompt), P = 50000 (300000 - 250000 cache)
+	if params.Len != 300000 {
+		t.Fatalf("Len = %f, want 300000", params.Len)
+	}
+	if params.P != 50000 {
+		t.Fatalf("P = %f, want 50000", params.P)
+	}
+
+	// Run expression: len=300000 > 200000, so long_context tier
+	cost, trace, err := billingexpr.RunExpr(expr, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trace.MatchedTier != "long_context" {
+		t.Fatalf("tier = %s, want long_context (len=300000 but p=50000)", trace.MatchedTier)
+	}
+	// long_context: 50000*6 + 5000*22.5 + 250000*0.6
+	wantCost := 50000.0*6 + 5000*22.5 + 250000*0.6
+	if math.Abs(cost-wantCost) > 1e-6 {
+		t.Fatalf("cost = %f, want %f", cost, wantCost)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Stress test: 1000 concurrent goroutines, complex tiered expr vs ratio,
 // random token counts, verify correctness and measure performance
 // ---------------------------------------------------------------------------

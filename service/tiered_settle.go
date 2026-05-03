@@ -35,6 +35,14 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	imgO := float64(usage.CompletionTokenDetails.ImageTokens)
 	ao := float64(usage.CompletionTokenDetails.AudioTokens)
 
+	// len = total input context length for tier condition evaluation.
+	// Non-Claude: prompt_tokens already includes everything.
+	// Claude: input_tokens is text-only, so add cache read + cache creation.
+	inputLen := p
+	if isClaudeUsageSemantic {
+		inputLen = p + cr + cc5m + cc1h
+	}
+
 	if !isClaudeUsageSemantic {
 		if usedVars["cr"] {
 			p -= cr
@@ -69,6 +77,7 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	return billingexpr.TokenParams{
 		P:    p,
 		C:    c,
+		Len:  inputLen,
 		CR:   cr,
 		CC:   cc5m,
 		CC1h: cc1h,
