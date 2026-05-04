@@ -20,6 +20,10 @@ type TooltipLineItem = {
   shapeSize?: number
 }
 
+const DISABLE_POINT_UPDATE_ANIMATION = {
+  animationUpdate: false,
+} as const
+
 function getVChartDefaultColors(domainLength: number) {
   const scheme =
     vchartDefaultDataScheme.find(
@@ -159,14 +163,17 @@ export function processChartData(
         yField: 'Usage',
         seriesField: 'Model',
         stack: true,
+        ...DISABLE_POINT_UPDATE_ANIMATION,
         legends: { visible: true, selectMode: 'single' },
       },
       spec_model_line: {
-        type: 'line',
+        type: 'area',
         data: [{ id: 'lineData', values: [] }],
         xField: 'Time',
         yField: 'Count',
         seriesField: 'Model',
+        stack: false,
+        ...DISABLE_POINT_UPDATE_ANIMATION,
         legends: { visible: true, selectMode: 'single' },
         title: {
           visible: true,
@@ -510,6 +517,7 @@ export function processChartData(
       yField: 'Usage',
       seriesField: 'Model',
       stack: false,
+      ...DISABLE_POINT_UPDATE_ANIMATION,
       legends: { visible: true, selectMode: 'single' },
       color: modelColor,
       tooltip: {
@@ -558,6 +566,7 @@ export function processChartData(
       yField: 'Count',
       seriesField: 'Model',
       stack: false,
+      ...DISABLE_POINT_UPDATE_ANIMATION,
       legends: { visible: true, selectMode: 'single' },
       color: modelColor,
       title: {
@@ -713,6 +722,7 @@ export function processUserChartData(
       xField: 'Time',
       yField: 'rawQuota',
       seriesField: 'User',
+      ...DISABLE_POINT_UPDATE_ANIMATION,
       title: {
         visible: true,
         text: tt('User Consumption Trend'),
@@ -853,6 +863,7 @@ export function processUserChartData(
       yField: 'rawQuota',
       seriesField: 'User',
       stack: false,
+      ...DISABLE_POINT_UPDATE_ANIMATION,
       title: {
         visible: true,
         text: tt('User Consumption Trend'),
