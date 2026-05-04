@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net/http"
@@ -590,6 +591,61 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
+}
+
+func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		logger.LogError(c, "invalid image stream response")
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+
+	usage := &dto.Usage{}
+	var lastStreamData []byte
+
+	helper.SetEventStreamHeaders(c)
+	if info.StreamStatus == nil {
+		info.StreamStatus = relaycommon.NewStreamStatus()
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.DefaultMaxScannerBufferSize)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "data:") {
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			if data == "[DONE]" {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+			} else if data != "" {
+				info.SetFirstResponseTime()
+				info.ReceivedResponseCount++
+				lastStreamData = common.StringToByteSlice(data)
+				var usageResp dto.SimpleResponse
+				if err := common.Unmarshal(lastStreamData, &usageResp); err == nil && service.ValidUsage(&usageResp.Usage) {
+					usage = &usageResp.Usage
+				}
+			}
+		}
+		if _, err := c.Writer.Write(append([]byte(line), '\n')); err != nil {
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
+			return usage, nil
+		}
+		if line == "" {
+			if err := helper.FlushWriter(c); err != nil {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
+				return usage, nil
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
+	} else if info.StreamStatus.EndReason == relaycommon.StreamEndReasonNone {
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
+	}
+	_ = helper.FlushWriter(c)
+
+	applyUsagePostProcessing(info, usage, lastStreamData)
+	return usage, nil
 }
 
 func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
