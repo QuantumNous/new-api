@@ -1,0 +1,8 @@
+{
+  "Are you sure you want to delete \"{{name}}\"?": "Bạn có chắc muốn xóa \"{{name}}\" không?",
+  "Create, edit, or delete vendors": "Tạo, chỉnh sửa hoặc xóa nhà cung cấp",
+  "Delete Vendor": "Xóa nhà cung cấp",
+  "No vendors yet": "Chưa có nhà cung cấp",
+  "Vendor created successfully": "Tạo nhà cung cấp thành công",
+  "Vendor updated successfully": "Cập nhật nhà cung cấp thành công"
+}

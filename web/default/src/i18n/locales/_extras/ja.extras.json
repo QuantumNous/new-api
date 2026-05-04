@@ -1,0 +1,8 @@
+{
+  "Are you sure you want to delete \"{{name}}\"?": "\"{{name}}\" を削除してもよろしいですか？",
+  "Create, edit, or delete vendors": "ベンダーの作成、編集、削除",
+  "Delete Vendor": "ベンダーを削除",
+  "No vendors yet": "ベンダーはまだありません",
+  "Vendor created successfully": "ベンダーを作成しました",
+  "Vendor updated successfully": "ベンダーを更新しました"
+}
