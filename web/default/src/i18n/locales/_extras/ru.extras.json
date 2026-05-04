@@ -1,0 +1,8 @@
+{
+  "Are you sure you want to delete \"{{name}}\"?": "Вы уверены, что хотите удалить \"{{name}}\"?",
+  "Create, edit, or delete vendors": "Создание, редактирование или удаление поставщиков",
+  "Delete Vendor": "Удалить поставщика",
+  "No vendors yet": "Поставщиков пока нет",
+  "Vendor created successfully": "Поставщик успешно создан",
+  "Vendor updated successfully": "Поставщик успешно обновлён"
+}

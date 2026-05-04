@@ -1,0 +1,8 @@
+{
+  "Are you sure you want to delete \"{{name}}\"?": "Êtes-vous sûr de vouloir supprimer \"{{name}}\" ?",
+  "Create, edit, or delete vendors": "Créer, modifier ou supprimer des fournisseurs",
+  "Delete Vendor": "Supprimer le fournisseur",
+  "No vendors yet": "Aucun fournisseur",
+  "Vendor created successfully": "Fournisseur créé avec succès",
+  "Vendor updated successfully": "Fournisseur mis à jour avec succès"
+}

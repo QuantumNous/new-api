@@ -7,6 +7,7 @@
   "Anthropic": "Anthropic",
   "API URL": "API URL",
   "API2GPT": "API2GPT",
+  "Are you sure you want to delete \"{{name}}\"?": "确定要删除 \"{{name}}\" 吗？",
   "AZURE_OPENAI_ENDPOINT *": "AZURE_OPENAI_ENDPOINT *",
   "checkout.session.completed": "checkout.session.completed",
   "checkout.session.expired": "checkout.session.expired",
