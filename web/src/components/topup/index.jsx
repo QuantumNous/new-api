@@ -44,7 +44,7 @@ const TopUp = () => {
   const [amount, setAmount] = useState(0.0);
   const [minTopUp, setMinTopUp] = useState(statusState?.status?.min_topup || 1);
   const [topUpCount, setTopUpCount] = useState(
-    statusState?.status?.min_topup || 1,
+    Math.max(10, statusState?.status?.min_topup || 1),
   );
   const [topUpLink, setTopUpLink] = useState(
     statusState?.status?.top_up_link || '',

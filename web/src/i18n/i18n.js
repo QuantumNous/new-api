@@ -45,7 +45,7 @@ i18n
       ja: jaTranslation,
       vi: viTranslation,
     },
-    fallbackLng: 'zh-CN',
+    fallbackLng: 'en',
     nsSeparator: false,
     interpolation: {
       escapeValue: false,
