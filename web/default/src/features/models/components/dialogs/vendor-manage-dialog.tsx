@@ -32,7 +32,7 @@ export function VendorManageDialog({
   const queryClient = useQueryClient()
   const [deleteTarget, setDeleteTarget] = useState<Vendor | null>(null)
 
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: vendorsQueryKeys.list(),
     queryFn: () => getVendors({ page_size: 1000 }),
     enabled: open,
@@ -62,7 +62,7 @@ export function VendorManageDialog({
           </DialogHeader>
 
           <div className='max-h-80 space-y-2 overflow-y-auto'>
-            {vendors.length === 0 && (
+            {!isLoading && vendors.length === 0 && (
               <p className='text-muted-foreground py-4 text-center text-sm'>
                 {t('No vendors yet')}
               </p>
@@ -94,6 +94,7 @@ export function VendorManageDialog({
                       variant='ghost'
                       size='icon'
                       className='h-8 w-8'
+                      aria-label={t('Edit Vendor')}
                       onClick={() => handleEdit(vendor)}
                     >
                       <Pencil className='h-4 w-4' />
@@ -102,6 +103,7 @@ export function VendorManageDialog({
                       variant='ghost'
                       size='icon'
                       className='text-destructive hover:text-destructive h-8 w-8'
+                      aria-label={t('Delete Vendor')}
                       onClick={() => setDeleteTarget(vendor)}
                     >
                       <Trash2 className='h-4 w-4' />
