@@ -290,7 +290,7 @@ function ConditionRow({ cond, onChange, onRemove, t }) {
       >
         {VAR_OPTIONS.map((v) => (
           <Select.Option key={v.value} value={v.value}>
-            {v.label}
+            {t(v.label)}
           </Select.Option>
         ))}
       </Select>
@@ -703,7 +703,7 @@ function VisualEditor({ visualConfig, onChange, t }) {
       conditions: [],
       input_unit_cost: 0,
       output_unit_cost: 0,
-      label: `第${newTiers.length + 1}档`,
+      label: t('第 {{n}} 档', { n: newTiers.length + 1 }),
       cache_mode: CACHE_MODE_GENERIC,
     });
     onChange({ ...config, tiers: newTiers });
@@ -863,7 +863,7 @@ function PresetSection({ applyPreset, t }) {
             </Tag>
             {g.presets.map((p) => (
               <Button key={p.key} size='small' theme='light' onClick={() => applyPreset(p)}>
-                {p.label}
+                {t(p.label)}
               </Button>
             ))}
           </div>
@@ -1316,10 +1316,10 @@ function LlmPromptHelper({ t, model }) {
   const modelName = model?.name || '';
   const prompt = useMemo(() => {
     if (modelName) {
-      return LLM_PROMPT_TEMPLATE + `\n\n当前模型：${modelName}`;
+      return t(LLM_PROMPT_TEMPLATE) + '\n\n' + t('当前模型：{{name}}', { name: modelName });
     }
-    return LLM_PROMPT_TEMPLATE;
-  }, [modelName]);
+    return t(LLM_PROMPT_TEMPLATE);
+  }, [modelName, t]);
 
   const handleCopy = useCallback(async () => {
     const ok = await copy(prompt);

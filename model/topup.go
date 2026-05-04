@@ -23,6 +23,13 @@ type TopUp struct {
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
+	IncludeTax      bool    `json:"include_tax" gorm:"default:false"`
+	TaxRate         float64 `json:"tax_rate" gorm:"default:0"`
+	TaxAmount       float64 `json:"tax_amount" gorm:"default:0"`
+	PreTaxMoney     float64 `json:"pre_tax_money" gorm:"default:0"`
+	InvoiceStatus      string  `json:"invoice_status" gorm:"type:varchar(20);default:'none'"` // none, pending, issued, rejected
+	InvoiceAdminRemark string  `json:"invoice_admin_remark" gorm:"type:varchar(500);default:''"`
+	Username           string  `json:"username" gorm:"-"`
 }
 
 const (
@@ -236,6 +243,7 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 		return nil, 0, err
 	}
 
+	fillTopUpUsernames(topups)
 	return topups, total, nil
 }
 
@@ -320,7 +328,35 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 	if err = tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
+	fillTopUpUsernames(topups)
 	return topups, total, nil
+}
+
+// fillTopUpUsernames 批量填充 TopUp 的 Username 字段
+func fillTopUpUsernames(topups []*TopUp) {
+	if len(topups) == 0 {
+		return
+	}
+	userIds := make([]int, 0, len(topups))
+	seen := make(map[int]bool)
+	for _, t := range topups {
+		if !seen[t.UserId] {
+			userIds = append(userIds, t.UserId)
+			seen[t.UserId] = true
+		}
+	}
+	var users []struct {
+		Id       int    `gorm:"column:id"`
+		Username string `gorm:"column:username"`
+	}
+	DB.Table("users").Select("id, username").Where("id IN ?", userIds).Find(&users)
+	nameMap := make(map[int]string)
+	for _, u := range users {
+		nameMap[u.Id] = u.Username
+	}
+	for _, t := range topups {
+		t.Username = nameMap[t.UserId]
+	}
 }
 
 // ManualCompleteTopUp 管理员手动完成订单并给用户充值

@@ -25,6 +25,7 @@ import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPa
 import SettingsPaymentGatewayCreem from '../../pages/Setting/Payment/SettingsPaymentGatewayCreem';
 import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffo';
 import SettingsPaymentGatewayWaffoPancake from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake';
+import InvoiceManagement from '../../pages/Setting/Payment/InvoiceManagement';
 import { API, showError, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -42,6 +43,7 @@ const PaymentSetting = () => {
     PayMethods: '',
     AmountOptions: '',
     AmountDiscount: '',
+    InvoiceFeeRate: '',
 
     StripeApiSecret: '',
     StripeWebhookSecret: '',
@@ -103,6 +105,9 @@ const PaymentSetting = () => {
             } catch (error) {
               newInputs['AmountDiscount'] = item.value;
             }
+            break;
+          case 'payment_setting.invoice_fee_rate':
+            newInputs['InvoiceFeeRate'] = item.value;
             break;
           case 'Price':
           case 'MinTopUp':
@@ -205,6 +210,9 @@ const PaymentSetting = () => {
             {/*    hideSectionTitle*/}
             {/*  />*/}
             {/*</Tabs.TabPane>*/}
+            <Tabs.TabPane tab={t('发票审核')} itemKey='invoice'>
+              <InvoiceManagement />
+            </Tabs.TabPane>
           </Tabs>
         </Card>
       </Spin>

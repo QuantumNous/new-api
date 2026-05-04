@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, Divider, Typography, Button } from '@douyinfe/semi-ui';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
@@ -57,10 +58,9 @@ const CardPro = ({
   bordered = true,
   // 自定义样式
   style,
-  // 国际化函数
-  t = (key) => key,
   ...props
 }) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [showMobileActions, setShowMobileActions] = useState(false);
 
@@ -193,8 +193,6 @@ CardPro.propTypes = {
   paginationArea: PropTypes.node,
   // 表格内容
   children: PropTypes.node,
-  // 国际化函数
-  t: PropTypes.func,
 };
 
 export default CardPro;

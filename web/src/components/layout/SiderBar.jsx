@@ -51,6 +51,7 @@ const routerMap = {
   personal: '/console/personal',
   'image-studio': '/console/image-studio',
   commission: '/console/commission',
+  invoice: '/console/invoice',
 };
 
 // 需要在新标签页打开的外部路径
@@ -135,9 +136,14 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/topup',
       },
       {
-        text: t('个人设置'),
-        itemKey: 'personal',
-        to: '/personal',
+        text: t('充值订单'),
+        itemKey: 'invoice',
+        to: '/console/invoice',
+      },
+      {
+        text: t('返佣管理'),
+        itemKey: 'commission',
+        to: '/console/commission',
       },
       {
         text: t('生图工具'),
@@ -145,9 +151,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/console/image-studio',
       },
       {
-        text: t('返佣管理'),
-        itemKey: 'commission',
-        to: '/console/commission',
+        text: t('个人设置'),
+        itemKey: 'personal',
+        to: '/personal',
       },
     ];
 

@@ -92,6 +92,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/passkey/verify/finish", controller.PasskeyVerifyFinish)
 				selfRoute.DELETE("/passkey", controller.PasskeyDelete)
 				selfRoute.GET("/aff", controller.GetAffCode)
+				selfRoute.GET("/geo", controller.GetUserGeo)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
@@ -118,6 +119,10 @@ func SetApiRouter(router *gin.Engine) {
 				// Check-in routes
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
 				selfRoute.POST("/checkin", middleware.TurnstileCheck(), controller.DoCheckin)
+
+				// Invoice routes
+				selfRoute.GET("/invoice", controller.GetUserInvoices)
+				selfRoute.POST("/invoice", middleware.CriticalRateLimit(), controller.ApplyInvoice)
 
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
@@ -157,6 +162,10 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/commission/withdrawal/approve", controller.AdminApproveWithdrawal)
 				adminRoute.POST("/commission/withdrawal/reject", controller.AdminRejectWithdrawal)
 				adminRoute.POST("/commission/issue", controller.AdminManualIssueCommission)
+
+				// Admin invoice routes
+				adminRoute.GET("/invoice/all", controller.AdminGetAllInvoices)
+				adminRoute.POST("/invoice/process", controller.AdminProcessInvoice)
 			}
 		}
 

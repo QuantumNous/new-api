@@ -29,8 +29,10 @@ import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLim
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsCDN from '../../pages/Setting/Operation/SettingsCDN';
 import { API, showError, toBoolean } from '../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const OperationSetting = () => {
+  const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     /* 额度相关 */
     QuotaForNewUser: 0,
@@ -115,7 +117,7 @@ const OperationSetting = () => {
       await getOptions();
       // showSuccess('刷新成功');
     } catch (error) {
-      showError('刷新失败');
+      showError(t('刷新失败'));
     } finally {
       setLoading(false);
     }

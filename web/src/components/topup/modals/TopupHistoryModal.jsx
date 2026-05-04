@@ -27,6 +27,7 @@ import {
   Button,
   Input,
   Tag,
+  Form,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -57,7 +58,15 @@ const PAYMENT_METHOD_MAP = {
   wxpay: '微信',
 };
 
-const TopupHistoryModal = ({ visible, onCancel, t }) => {
+// 开票状态映射
+const INVOICE_STATUS_CONFIG = {
+  none: { color: 'grey', key: '未申请' },
+  pending: { color: 'orange', key: '待开票' },
+  issued: { color: 'green', key: '已开票' },
+  rejected: { color: 'red', key: '已拒绝' },
+};
+
+const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
   const [loading, setLoading] = useState(false);
   const [topups, setTopups] = useState([]);
   const [total, setTotal] = useState(0);
@@ -65,6 +74,12 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const isMobile = useIsMobile();
+
+  // 开票申请弹窗
+  const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
+  const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
+  const [selectedTopUp, setSelectedTopUp] = useState(null);
+  const invoiceFormRef = React.useRef();
 
   const loadTopups = async (currentPage, currentPageSize) => {
     setLoading(true);
@@ -90,7 +105,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   };
 
   useEffect(() => {
-    if (visible) {
+    if (asPage || visible) {
       loadTopups(page, pageSize);
     }
   }, [visible, page, pageSize, keyword]);
@@ -160,15 +175,64 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   // 检查是否为管理员
   const userIsAdmin = useMemo(() => isAdmin(), []);
 
+  // 打开开票申请弹窗
+  const openInvoiceModal = (record) => {
+    setSelectedTopUp(record);
+    setInvoiceModalVisible(true);
+  };
+
+  // 提交开票申请
+  const submitInvoice = async (values) => {
+    if (!selectedTopUp) return;
+    setInvoiceSubmitting(true);
+    try {
+      const res = await API.post('/api/user/invoice', {
+        topup_id: selectedTopUp.id,
+        invoice_title: values.invoice_title,
+        tax_number: values.tax_number || '',
+        email: values.email,
+        remark: values.remark || '',
+      });
+      const { success, message } = res.data;
+      if (success) {
+        Toast.success({ content: t('开票申请已提交') });
+        setInvoiceModalVisible(false);
+        setSelectedTopUp(null);
+        await loadTopups(page, pageSize);
+      } else {
+        Toast.error({ content: message || t('申请失败') });
+      }
+    } catch (e) {
+      Toast.error({ content: t('申请失败') });
+    } finally {
+      setInvoiceSubmitting(false);
+    }
+  };
+
+  // 渲染开票状态
+  const renderInvoiceStatus = (invoiceStatus, record) => {
+    const config = INVOICE_STATUS_CONFIG[invoiceStatus] || INVOICE_STATUS_CONFIG.none;
+    return (
+      <Tag color={config.color} size='small'>
+        {t(config.key)}
+      </Tag>
+    );
+  };
+
   const columns = useMemo(() => {
     const baseColumns = [
       ...(userIsAdmin
         ? [
             {
-              title: t('用户ID'),
+              title: t('用户'),
               dataIndex: 'user_id',
               key: 'user_id',
-              render: (userId) => <Text>{userId ?? '-'}</Text>,
+              render: (userId, record) => (
+                <div>
+                  <Text>{record.username || '-'}</Text>
+                  <div><Text type='tertiary' size='small'>ID: {userId}</Text></div>
+                </div>
+              ),
             },
           ]
         : []),
@@ -208,13 +272,55 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money) => <Text type='danger'>¥{money.toFixed(2)}</Text>,
+        render: (money, record) => (
+          <div>
+            <Text type='danger'>¥{money.toFixed(2)}</Text>
+            {record.include_tax && record.tax_amount > 0 && (
+              <div>
+                <Text type='tertiary' size='small'>
+                  {t('含服务费')} ¥{record.tax_amount.toFixed(2)}
+                </Text>
+              </div>
+            )}
+          </div>
+        ),
       },
       {
         title: t('状态'),
         dataIndex: 'status',
         key: 'status',
         render: renderStatusBadge,
+      },
+      {
+        title: t('开票'),
+        dataIndex: 'invoice_status',
+        key: 'invoice_status',
+        render: (invoiceStatus, record) => {
+          if (record.status !== 'success') return '-';
+          if (!record.include_tax) return '-';
+          const status = invoiceStatus || 'none';
+          if (status === 'none' || status === 'rejected') {
+            return (
+              <div>
+                <Button
+                  size='small'
+                  theme='outline'
+                  onClick={() => openInvoiceModal(record)}
+                >
+                  {status === 'rejected' ? t('重新申请') : t('申请开票')}
+                </Button>
+                {status === 'rejected' && record.invoice_admin_remark && (
+                  <div style={{ marginTop: 4 }}>
+                    <Text type='danger' size='small'>
+                      {record.invoice_admin_remark}
+                    </Text>
+                  </div>
+                )}
+              </div>
+            );
+          }
+          return renderInvoiceStatus(status, record);
+        },
       },
     ];
 
@@ -253,14 +359,8 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     return baseColumns;
   }, [t, userIsAdmin]);
 
-  return (
-    <Modal
-      title={t('充值账单')}
-      visible={visible}
-      onCancel={onCancel}
-      footer={null}
-      size={isMobile ? 'full-width' : 'large'}
-    >
+  const tableContent = (
+    <>
       <div className='mb-3'>
         <Input
           prefix={<IconSearch />}
@@ -296,6 +396,85 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           />
         }
       />
+
+      {/* 开票申请弹窗 */}
+      <Modal
+        title={t('申请开票')}
+        visible={invoiceModalVisible}
+        onCancel={() => {
+          setInvoiceModalVisible(false);
+          setSelectedTopUp(null);
+        }}
+        onOk={() => invoiceFormRef.current?.submitForm()}
+        confirmLoading={invoiceSubmitting}
+        maskClosable={false}
+        size='small'
+        centered
+      >
+        {selectedTopUp && (
+          <div className='mb-4'>
+            <Text type='secondary'>
+              {t('订单号')}：{selectedTopUp.trade_no}
+            </Text>
+            <br />
+            <Text type='secondary'>
+              {t('支付金额')}：¥{selectedTopUp.money?.toFixed(2)}
+            </Text>
+            {selectedTopUp.include_tax && selectedTopUp.tax_amount > 0 && (
+              <>
+                <br />
+                <Text type='secondary'>
+                  {t('其中服务费')}：¥{selectedTopUp.tax_amount?.toFixed(2)}
+                </Text>
+              </>
+            )}
+          </div>
+        )}
+        <Form
+          getFormApi={(api) => (invoiceFormRef.current = api)}
+          onSubmit={submitInvoice}
+        >
+          <Form.Input
+            field='invoice_title'
+            label={t('发票抬头')}
+            rules={[{ required: true, message: t('请填写发票抬头') }]}
+            placeholder={t('请输入公司名称')}
+          />
+          <Form.Input
+            field='tax_number'
+            label={t('税号')}
+            placeholder={t('选填')}
+          />
+          <Form.Input
+            field='email'
+            label={t('接收邮箱')}
+            rules={[{ required: true, message: t('请填写接收邮箱') }]}
+            placeholder={t('发票将发送至此邮箱')}
+          />
+          <Form.TextArea
+            field='remark'
+            label={t('备注')}
+            placeholder={t('选填')}
+            rows={2}
+          />
+        </Form>
+      </Modal>
+    </>
+  );
+
+  if (asPage) {
+    return tableContent;
+  }
+
+  return (
+    <Modal
+      title={t('充值账单')}
+      visible={visible}
+      onCancel={onCancel}
+      footer={null}
+      size={isMobile ? 'full-width' : 'large'}
+    >
+      {tableContent}
     </Modal>
   );
 };

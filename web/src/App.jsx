@@ -53,6 +53,7 @@ const PersonalSetting = lazy(
 );
 const ImageStudio = lazy(() => import('./pages/ImageStudio'));
 const Commission = lazy(() => import('./pages/Commission'));
+const Invoice = lazy(() => import('./pages/Invoice'));
 const LoginForm = lazy(() => import('./components/auth/LoginForm'));
 const RegisterForm = lazy(() => import('./components/auth/RegisterForm'));
 const PasswordResetForm = lazy(
@@ -298,6 +299,16 @@ function App() {
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <ImageStudio />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/invoice'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Invoice />
               </Suspense>
             </PrivateRoute>
           }

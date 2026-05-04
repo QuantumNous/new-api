@@ -237,15 +237,15 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
             icon={<BookOpen size={16} />}
             description={
               <>
-                Waffo Pancake 的商户、商品和签名密钥请
+                {t('Waffo Pancake 的商户、商品和签名密钥请')}
                 <a
                   href='https://docs.waffo.ai'
                   target='_blank'
                   rel='noreferrer'
                 >
-                  点击此处
+                  {t('点击此处')}
                 </a>
-                获取，建议先在测试环境完成联调。
+                {t('获取，建议先在测试环境完成联调。')}
                 <br />
                 {t('回调地址')}：
                 {props.options.ServerAddress

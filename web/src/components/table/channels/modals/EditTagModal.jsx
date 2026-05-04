@@ -201,7 +201,7 @@ const EditTagModal = (props) => {
     let data = { tag };
     if (formVals.model_mapping) {
       if (!verifyJSON(formVals.model_mapping)) {
-        showInfo('模型映射必须是合法的 JSON 格式！');
+        showInfo(t('模型映射必须是合法的 JSON 格式！'));
         setLoading(false);
         return;
       }
@@ -218,13 +218,13 @@ const EditTagModal = (props) => {
       formVals.param_override !== null
     ) {
       if (typeof formVals.param_override !== 'string') {
-        showInfo('参数覆盖必须是合法的 JSON 格式！');
+        showInfo(t('参数覆盖必须是合法的 JSON 格式！'));
         setLoading(false);
         return;
       }
       const trimmedParamOverride = formVals.param_override.trim();
       if (trimmedParamOverride !== '' && !verifyJSON(trimmedParamOverride)) {
-        showInfo('参数覆盖必须是合法的 JSON 格式！');
+        showInfo(t('参数覆盖必须是合法的 JSON 格式！'));
         setLoading(false);
         return;
       }
@@ -235,13 +235,13 @@ const EditTagModal = (props) => {
       formVals.header_override !== null
     ) {
       if (typeof formVals.header_override !== 'string') {
-        showInfo('请求头覆盖必须是合法的 JSON 格式！');
+        showInfo(t('请求头覆盖必须是合法的 JSON 格式！'));
         setLoading(false);
         return;
       }
       const trimmedHeaderOverride = formVals.header_override.trim();
       if (trimmedHeaderOverride !== '' && !verifyJSON(trimmedHeaderOverride)) {
-        showInfo('请求头覆盖必须是合法的 JSON 格式！');
+        showInfo(t('请求头覆盖必须是合法的 JSON 格式！'));
         setLoading(false);
         return;
       }
@@ -256,7 +256,7 @@ const EditTagModal = (props) => {
       data.param_override === undefined &&
       data.header_override === undefined
     ) {
-      showWarning('没有任何修改！');
+      showWarning(t('没有任何修改！'));
       setLoading(false);
       return;
     }
@@ -268,7 +268,7 @@ const EditTagModal = (props) => {
     try {
       const res = await API.put('/api/channel/tag', data);
       if (res?.data?.success) {
-        showSuccess('标签更新成功！');
+        showSuccess(t('标签更新成功！'));
         refresh();
         handleClose();
       }

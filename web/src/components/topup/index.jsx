@@ -26,14 +26,14 @@ import {
   renderQuota,
   renderQuotaWithAmount,
 } from '../../helpers';
-import { Modal, Toast } from '@douyinfe/semi-ui';
+import { Modal, Toast, Typography, Button } from '@douyinfe/semi-ui';
+import { ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 
 import RechargeCard from './RechargeCard';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
-import TopupHistoryModal from './modals/TopupHistoryModal';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -73,9 +73,6 @@ const TopUp = () => {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [payMethods, setPayMethods] = useState([]);
 
-  // 账单Modal状态
-  const [openHistory, setOpenHistory] = useState(false);
-
   // 订阅相关
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
@@ -87,6 +84,31 @@ const TopUp = () => {
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
   const [selectedPreset, setSelectedPreset] = useState(null);
+
+  // 含税状态
+  const [includeTax, setIncludeTax] = useState(false);
+  const [invoiceFeeRate, setInvoiceFeeRate] = useState(0.06);
+
+  // GeoIP 相关
+  const [geoCountry, setGeoCountry] = useState('');
+  const [geoWarnVisible, setGeoWarnVisible] = useState(false);
+  const [geoPayWarnVisible, setGeoPayWarnVisible] = useState(false);
+  const [pendingPayAction, setPendingPayAction] = useState(null);
+
+  const fetchGeo = async () => {
+    try {
+      const res = await API.get('/api/user/geo');
+      if (res.data?.success) {
+        const country = res.data.data?.country || '';
+        setGeoCountry(country);
+        if (country === 'CN') {
+          setGeoWarnVisible(true);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
 
   // 充值配置信息
   const [topupInfo, setTopupInfo] = useState({
@@ -151,6 +173,15 @@ const TopUp = () => {
   };
 
   const preTopUp = async (payment) => {
+    if (geoCountry === 'CN') {
+      setPendingPayAction(() => () => _preTopUp(payment));
+      setGeoPayWarnVisible(true);
+      return;
+    }
+    await _preTopUp(payment);
+  };
+
+  const _preTopUp = async (payment) => {
     if (payment === 'stripe') {
       if (!enableStripeTopUp) {
         showError(t('管理员未开启Stripe充值！'));
@@ -198,7 +229,7 @@ const TopUp = () => {
     }
 
     if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+      showError(t('充值数量不能小于') + minTopUp);
       return;
     }
     setConfirmLoading(true);
@@ -209,12 +240,14 @@ const TopUp = () => {
         res = await API.post('/api/user/stripe/pay', {
           amount: parseInt(topUpCount),
           payment_method: 'stripe',
+          include_tax: includeTax,
         });
       } else {
         // 普通支付请求
         res = await API.post('/api/user/pay', {
           amount: parseInt(topUpCount),
           payment_method: payWay,
+          include_tax: includeTax,
         });
       }
 
@@ -266,6 +299,15 @@ const TopUp = () => {
   };
 
   const creemPreTopUp = async (product) => {
+    if (geoCountry === 'CN') {
+      setPendingPayAction(() => () => _creemPreTopUp(product));
+      setGeoPayWarnVisible(true);
+      return;
+    }
+    await _creemPreTopUp(product);
+  };
+
+  const _creemPreTopUp = async (product) => {
     if (!enableCreemTopUp) {
       showError(t('管理员未开启 Creem 充值！'));
       return;
@@ -289,6 +331,7 @@ const TopUp = () => {
       const res = await API.post('/api/user/creem/pay', {
         product_id: selectedCreemProduct.productId,
         payment_method: 'creem',
+        include_tax: includeTax,
       });
       if (res !== undefined) {
         const { message, data } = res.data;
@@ -489,6 +532,11 @@ const TopUp = () => {
           }));
           setPresetAmounts(customPresets);
         }
+
+        // 设置服务费率
+        if (data.invoice_fee_rate !== undefined) {
+          setInvoiceFeeRate(data.invoice_fee_rate);
+        }
       } else {
         console.error('获取充值配置失败:', data);
       }
@@ -500,6 +548,7 @@ const TopUp = () => {
   useEffect(() => {
     // 始终获取最新用户数据，确保余额等统计信息准确
     getUserQuota().then();
+    fetchGeo().then();
   }, []);
 
   // 在 statusState 可用时获取充值信息
@@ -521,6 +570,13 @@ const TopUp = () => {
     }
   }, [statusState?.status]);
 
+  // 含税状态变化时重新计算金额
+  useEffect(() => {
+    if (topUpCount > 0) {
+      getAmount(topUpCount);
+    }
+  }, [includeTax]);
+
   const renderAmount = () => {
     return amount + ' ' + t('元');
   };
@@ -533,6 +589,7 @@ const TopUp = () => {
     try {
       const res = await API.post('/api/user/amount', {
         amount: parseFloat(value),
+        include_tax: includeTax,
       });
       if (res !== undefined) {
         const { message, data } = res.data;
@@ -540,7 +597,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: t('错误：') + data, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -559,6 +616,7 @@ const TopUp = () => {
     try {
       const res = await API.post('/api/user/stripe/amount', {
         amount: parseFloat(value),
+        include_tax: includeTax,
       });
       if (res !== undefined) {
         const { message, data } = res.data;
@@ -566,7 +624,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: t('错误：') + data, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -582,14 +640,6 @@ const TopUp = () => {
     setOpen(false);
   };
 
-  const handleOpenHistory = () => {
-    setOpenHistory(true);
-  };
-
-  const handleHistoryCancel = () => {
-    setOpenHistory(false);
-  };
-
   const handleCreemCancel = () => {
     setCreemOpen(false);
     setSelectedCreemProduct(null);
@@ -600,10 +650,8 @@ const TopUp = () => {
     setTopUpCount(preset.value);
     setSelectedPreset(preset.value);
 
-    // 计算实际支付金额，考虑折扣
-    const discount = preset.discount || topupInfo.discount[preset.value] || 1.0;
-    const discountedAmount = preset.value * priceRatio * discount;
-    setAmount(discountedAmount);
+    // 获取后端计算的实际支付金额（已含税或不含税）
+    getAmount(preset.value);
   };
 
   // 格式化大数字显示
@@ -621,6 +669,140 @@ const TopUp = () => {
 
   return (
     <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
+      {/* 大陆地区访问提醒 */}
+      <Modal
+        visible={geoWarnVisible}
+        onCancel={() => setGeoWarnVisible(false)}
+        footer={null}
+        centered
+        size='small'
+        header={null}
+        bodyStyle={{ padding: '36px 28px 28px', textAlign: 'center', position: 'relative' }}
+      >
+        {/* 关闭按钮 */}
+        <button
+          onClick={() => setGeoWarnVisible(false)}
+          style={{
+            position: 'absolute', top: 14, right: 16,
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--semi-color-text-2)', fontSize: 18, lineHeight: 1, padding: 4,
+          }}
+        >✕</button>
+
+        {/* 图标 */}
+        <div style={{
+          width: 68, height: 68, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #ff6b6b 0%, #d9363e 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 18px',
+          boxShadow: '0 8px 24px rgba(217,54,62,0.30)',
+        }}>
+          <ShieldAlert size={32} color='#fff' />
+        </div>
+
+        {/* 标题 */}
+        <Typography.Title heading={4} style={{ margin: '0 0 8px' }}>
+          {t('服务访问限制')}
+        </Typography.Title>
+
+        {/* 分割线 */}
+        <div style={{ height: 1, background: 'var(--semi-color-border)', margin: '12px 0 16px' }} />
+
+        {/* 正文 */}
+        <Typography.Paragraph style={{
+          fontSize: 14, lineHeight: '1.8', color: 'var(--semi-color-text-1)',
+          margin: '0 0 24px', textAlign: 'left',
+        }}>
+          {t('本平台拒绝向中国大陆地区用户提供服务。')}
+            <br /><br />
+            {t('当前检测到您位于中国大陆地区，请立即停止使用。如继续使用，本平台不承担任何责任，请知悉。')}
+        </Typography.Paragraph>
+
+        <Button
+          block
+          type='danger'
+          theme='solid'
+          size='large'
+          style={{ borderRadius: 8, fontWeight: 600 }}
+          onClick={() => setGeoWarnVisible(false)}
+        >
+          {t('我已知晓')}
+        </Button>
+      </Modal>
+
+      {/* 大陆地区支付提醒 */}
+      <Modal
+        visible={geoPayWarnVisible}
+        onCancel={() => setGeoPayWarnVisible(false)}
+        footer={null}
+        centered
+        size='small'
+        header={null}
+        bodyStyle={{ padding: '36px 28px 28px', textAlign: 'center', position: 'relative' }}
+      >
+        {/* 关闭按钮 */}
+        <button
+          onClick={() => setGeoPayWarnVisible(false)}
+          style={{
+            position: 'absolute', top: 14, right: 16,
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--semi-color-text-2)', fontSize: 18, lineHeight: 1, padding: 4,
+          }}
+        >✕</button>
+
+        {/* 图标 */}
+        <div style={{
+          width: 68, height: 68, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #fa8c16 0%, #d46b08 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 18px',
+          boxShadow: '0 8px 24px rgba(250,140,22,0.30)',
+        }}>
+          <ShieldAlert size={32} color='#fff' />
+        </div>
+
+        {/* 标题 */}
+        <Typography.Title heading={4} style={{ margin: '0 0 8px' }}>
+          {t('充值地区提醒')}
+        </Typography.Title>
+
+        {/* 分割线 */}
+        <div style={{ height: 1, background: 'var(--semi-color-border)', margin: '12px 0 16px' }} />
+
+        {/* 正文 */}
+        <Typography.Paragraph style={{
+          fontSize: 14, lineHeight: '1.8', color: 'var(--semi-color-text-1)',
+          margin: '0 0 24px', textAlign: 'left',
+        }}>
+          {t('检测到本次充值位于中国，强烈建议用户遵守相关国家法律法规，切勿违反任何法定约束。')}
+        </Typography.Paragraph>
+
+        {/* 确认按钮 */}
+        <Button
+          block
+          theme='solid'
+          size='large'
+          style={{ borderRadius: 8, fontWeight: 600, marginBottom: 10, background: '#fa8c16', borderColor: '#fa8c16', whiteSpace: 'normal', height: 'auto', padding: '10px 16px', lineHeight: '1.6' }}
+          onClick={() => {
+            setGeoPayWarnVisible(false);
+            if (pendingPayAction) { pendingPayAction(); setPendingPayAction(null); }
+          }}
+        >
+          {t('我承诺本次充值关联业务和使用均不在中国大陆，')}<br />{t('我确认继续充值')}
+        </Button>
+
+        {/* 取消按钮 */}
+        <Button
+          block
+          type='tertiary'
+          size='large'
+          style={{ borderRadius: 8 }}
+          onClick={() => setGeoPayWarnVisible(false)}
+        >
+          {t('取消')}
+        </Button>
+      </Modal>
+
       {/* 充值确认模态框 */}
       <PaymentConfirmModal
         t={t}
@@ -636,13 +818,8 @@ const TopUp = () => {
         payMethods={payMethods}
         amountNumber={amount}
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
-      />
-
-      {/* 充值账单模态框 */}
-      <TopupHistoryModal
-        visible={openHistory}
-        onCancel={handleHistoryCancel}
-        t={t}
+        includeTax={includeTax}
+        taxRate={invoiceFeeRate}
       />
 
       {/* Creem 充值确认模态框 */}
@@ -709,7 +886,6 @@ const TopUp = () => {
           renderQuota={renderQuota}
           statusLoading={statusLoading}
           topupInfo={topupInfo}
-          onOpenHistory={handleOpenHistory}
           subscriptionLoading={subscriptionLoading}
           subscriptionPlans={subscriptionPlans}
           billingPreference={billingPreference}
@@ -719,6 +895,9 @@ const TopUp = () => {
           reloadSubscriptionSelf={getSubscriptionSelf}
           redemptionEnabled={topupInfo.redemption_enabled}
           redemptionAllowedGroups={topupInfo.redemption_allowed_groups}
+          includeTax={includeTax}
+          setIncludeTax={setIncludeTax}
+          taxRate={invoiceFeeRate}
         />
       </div>
     </div>

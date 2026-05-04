@@ -241,6 +241,7 @@ oauth.trust_level_low: "Linux DO 信任等級未達到管理員設定的最低�
 
 # Model layer error messages
 redeem.failed: "兌換失敗，請稍後重試"
+subscription.purchase_limit: "已達到該套餐的兌換次數上限"
 user.create_default_token_error: "建立預設令牌失敗"
 common.uuid_duplicate: "請重試，系統生成的 UUID 竟然重複了！"
 common.invalid_input: "輸入不合法"

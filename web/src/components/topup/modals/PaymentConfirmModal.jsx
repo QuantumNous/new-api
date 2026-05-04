@@ -39,11 +39,18 @@ const PaymentConfirmModal = ({
   // 新增：用于显示折扣明细
   amountNumber,
   discountRate,
+  includeTax,
+  taxRate,
 }) => {
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
   const originalAmount = hasDiscount ? amountNumber / discountRate : 0;
   const discountAmount = hasDiscount ? originalAmount - amountNumber : 0;
+
+  // 含税明细
+  const hasTax = includeTax && taxRate > 0 && amountNumber > 0;
+  const preTaxAmount = hasTax ? amountNumber / (1 + taxRate) : 0;
+  const taxAmount = hasTax ? amountNumber - preTaxAmount : 0;
   return (
     <Modal
       title={
@@ -106,6 +113,26 @@ const PaymentConfirmModal = ({
                   </Text>
                   <Text className='text-emerald-600 dark:text-emerald-400'>
                     {`- ${discountAmount.toFixed(2)} ${t('元')}`}
+                  </Text>
+                </div>
+              </>
+            )}
+            {hasTax && !amountLoading && (
+              <>
+                <div className='flex justify-between items-center'>
+                  <Text className='text-slate-500 dark:text-slate-400'>
+                    {t('商品金额')}：
+                  </Text>
+                  <Text className='text-slate-500 dark:text-slate-400'>
+                    {`${preTaxAmount.toFixed(2)} ${t('元')}`}
+                  </Text>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <Text className='text-slate-500 dark:text-slate-400'>
+                    {t('服务费')}（{parseFloat((taxRate * 100).toFixed(2))}%）：
+                  </Text>
+                  <Text className='text-slate-500 dark:text-slate-400'>
+                    {`+ ${taxAmount.toFixed(2)} ${t('元')}`}
                   </Text>
                 </div>
               </>

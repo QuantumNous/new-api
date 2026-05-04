@@ -74,7 +74,7 @@ const HeaderLogo = ({
           )}
         </div>
         <span className='text-[11px] uppercase tracking-[0.18em] text-semi-color-text-2'>
-          All In One API Gateway
+          {t('AI模型一站式网关')}
         </span>
       </div>
     </Link>

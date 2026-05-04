@@ -110,6 +110,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
+		"invoice_fee_rate":        operation_setting.GetPaymentSetting().InvoiceFeeRate,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -117,10 +118,46 @@ func GetTopUpInfo(c *gin.Context) {
 type EpayRequest struct {
 	Amount        int64  `json:"amount"`
 	PaymentMethod string `json:"payment_method"`
+	IncludeTax    bool   `json:"include_tax"`
 }
 
 type AmountRequest struct {
-	Amount int64 `json:"amount"`
+	Amount     int64 `json:"amount"`
+	IncludeTax bool  `json:"include_tax"`
+}
+
+// TaxResult 含税计算结果
+type TaxResult struct {
+	IncludeTax  bool
+	TaxRate     float64
+	PreTaxMoney float64
+	TaxAmount   float64
+	TotalMoney  float64
+}
+
+// calcTax 根据是否含税计算税费信息
+func calcTax(payMoney float64, includeTax bool) TaxResult {
+	if !includeTax {
+		return TaxResult{
+			IncludeTax:  false,
+			TaxRate:     0,
+			PreTaxMoney: payMoney,
+			TaxAmount:   0,
+			TotalMoney:  payMoney,
+		}
+	}
+	feeRate := operation_setting.GetPaymentSetting().InvoiceFeeRate
+	dPayMoney := decimal.NewFromFloat(payMoney)
+	dFeeRate := decimal.NewFromFloat(feeRate)
+	dTaxAmount := dPayMoney.Mul(dFeeRate)
+	dTotal := dPayMoney.Add(dTaxAmount)
+	return TaxResult{
+		IncludeTax:  true,
+		TaxRate:     feeRate,
+		PreTaxMoney: payMoney,
+		TaxAmount:   dTaxAmount.InexactFloat64(),
+		TotalMoney:  dTotal.InexactFloat64(),
+	}
 }
 
 func GetEpayClient() *epay.Client {
@@ -201,6 +238,8 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 
+	tax := calcTax(payMoney, req.IncludeTax)
+
 	if !operation_setting.ContainsPayMethod(req.PaymentMethod) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付方式不存在"})
 		return
@@ -220,7 +259,7 @@ func RequestEpay(c *gin.Context) {
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("TUC%d", req.Amount),
-		Money:          strconv.FormatFloat(payMoney, 'f', 2, 64),
+		Money:          strconv.FormatFloat(tax.TotalMoney, 'f', 2, 64),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
@@ -239,12 +278,16 @@ func RequestEpay(c *gin.Context) {
 	topUp := &model.TopUp{
 		UserId:          id,
 		Amount:          amount,
-		Money:           payMoney,
+		Money:           tax.TotalMoney,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
+		IncludeTax:      tax.IncludeTax,
+		TaxRate:         tax.TaxRate,
+		TaxAmount:       tax.TaxAmount,
+		PreTaxMoney:     tax.PreTaxMoney,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -428,7 +471,8 @@ func RequestAmount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "success", "data": strconv.FormatFloat(payMoney, 'f', 2, 64)})
+	tax := calcTax(payMoney, req.IncludeTax)
+	c.JSON(http.StatusOK, gin.H{"message": "success", "data": strconv.FormatFloat(tax.TotalMoney, 'f', 2, 64)})
 }
 
 func GetUserTopUps(c *gin.Context) {
@@ -486,6 +530,11 @@ type AdminCompleteTopupRequest struct {
 }
 
 // AdminCompleteTopUp 管理员补单接口
+func GetUserGeo(c *gin.Context) {
+	country := c.GetHeader("X-GeoIP-Country")
+	common.ApiSuccess(c, gin.H{"country": country})
+}
+
 func AdminCompleteTopUp(c *gin.Context) {
 	var req AdminCompleteTopupRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.TradeNo == "" {

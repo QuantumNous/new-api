@@ -15,21 +15,6 @@ const SIZES = [
   { value: '3840x2160', label: '3840×2160 (4K)' },
   { value: '2160x3840', label: '2160×3840 (4K)' },
 ];
-const QUALITY_KEYS = {
-  low: '快速',
-  medium: '标准',
-  high: '高清',
-};
-const ASPECT_PREFIX_KEYS = {
-  '1024x1024': '方版 1:1，',
-  '1536x1024': '横版 3:2，',
-  '1024x1536': '竖版 2:3，',
-  '2048x2048': '方版 1:1，',
-  '2048x1152': '横版 16:9，',
-  '1152x2048': '竖版 9:16，',
-  '3840x2160': '横版 16:9，',
-  '2160x3840': '竖版 9:16，',
-};
 const MODEL = 'gpt-image-2';
 const TIMEOUT_MS = 600000;
 const DB_NAME = 'image_studio_db';
@@ -322,7 +307,7 @@ export default function ImageStudio() {
       const imgs = await Promise.all(res.data.map(d => imageToBase64(d)));
       updateTask(id, { status: 'done', images: imgs });
       saveHistoryDB({ type: 'generate', prompt: dp, params: { size: params.size, quality: params.quality, format: f, count: params.n }, images: imgs, timestamp: Date.now() });
-    } catch (e) { updateTask(id, { status: 'error', error: e.message || t('生成失败') }); }
+    } catch (e) { updateTask(id, { status: 'error', error: t(e.message || '生成失败') }); }
   }, [updateTask]);
 
   const handleGenerate = useCallback(() => {
@@ -345,7 +330,7 @@ export default function ImageStudio() {
       const b64s = await Promise.all(res.data.map(d => imageToBase64(d)));
       updateTask(id, { status: 'done', images: b64s });
       saveHistoryDB({ type: 'edit', prompt: p, params: { size: s, quality: q, format: f }, images: b64s, timestamp: Date.now() });
-    } catch (e) { updateTask(id, { status: 'error', error: e.message || t('编辑失败') }); }
+    } catch (e) { updateTask(id, { status: 'error', error: t(e.message || '编辑失败') }); }
   }, [updateTask]);
 
   const handleEdit = useCallback(() => {

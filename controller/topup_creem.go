@@ -50,6 +50,7 @@ func verifyCreemSignature(payload string, signature string, secret string) bool 
 type CreemPayRequest struct {
 	ProductId     string `json:"product_id"`
 	PaymentMethod string `json:"payment_method"`
+	IncludeTax    bool   `json:"include_tax"`
 }
 
 type CreemProduct struct {
@@ -100,6 +101,8 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 	id := c.GetInt("id")
 	user, _ := model.GetUserById(id, false)
 
+	tax := calcTax(selectedProduct.Price, req.IncludeTax)
+
 	// 生成唯一的订单引用ID
 	reference := fmt.Sprintf("creem-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "ref_" + common.Sha1([]byte(reference))
@@ -108,12 +111,16 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 	topUp := &model.TopUp{
 		UserId:          id,
 		Amount:          selectedProduct.Quota, // 充值额度
-		Money:           selectedProduct.Price, // 支付金额
+		Money:           tax.TotalMoney,         // 支付金额（含税）
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,
 		PaymentProvider: model.PaymentProviderCreem,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
+		IncludeTax:      tax.IncludeTax,
+		TaxRate:         tax.TaxRate,
+		TaxAmount:       tax.TaxAmount,
+		PreTaxMoney:     tax.PreTaxMoney,
 	}
 	err = topUp.Insert()
 	if err != nil {
