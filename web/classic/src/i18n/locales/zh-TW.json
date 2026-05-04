@@ -235,6 +235,8 @@
     "SSRF防护详细说明": "SSRF防護可防止惡意使用者利用您的伺服器訪問內網資源。您可以設定受信任域名/IP的白名單，並限制允許的端口。適用於檔案下載、Webhook回調和通知功能。",
     "standard 已被移除，vip 用户看不到": "standard 已被移除，vip 使用者看不到",
     "store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用": "store 字段用於授權 OpenAI 存儲請求數據以評估和優化產品。預設關閉，開啟後可能導致 Codex 無法正常使用",
+    "启用 Stripe 充值": "啟用 Stripe 儲值",
+    "关闭后会保留密钥与价格配置，但用户无法使用 Stripe 支付": "關閉後會保留密鑰與價格設定，但使用者無法使用 Stripe 支付",
     "Stripe 设置": "Stripe 設定",
     "Stripe/Creem 商品ID（可选）": "Stripe/Creem 商品ID（可選）",
     "Stripe/Creem 需在第三方平台创建商品并填入 ID": "Stripe/Creem 需在第三方平臺建立商品並填入 ID",

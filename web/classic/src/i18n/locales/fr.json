@@ -243,6 +243,8 @@
     "SSRF防护详细说明": "La protection SSRF empêche les utilisateurs malveillants d'utiliser votre serveur pour accéder aux ressources du réseau interne. Configurez des listes blanches pour les domaines/IP de confiance et limitez les ports autorisés. S'applique aux téléchargements de fichiers, aux webhooks et aux notifications.",
     "standard 已被移除，vip 用户看不到": "standard has been removed, vip users cannot see it",
     "store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用": "Le champ store autorise OpenAI à stocker les données de requête pour l'évaluation et l'optimisation du produit. Désactivé par défaut. L'activation peut causer un dysfonctionnement de Codex",
+    "启用 Stripe 充值": "Activer la recharge Stripe",
+    "关闭后会保留密钥与价格配置，但用户无法使用 Stripe 支付": "Une fois désactivé, les clés et la configuration des prix sont conservées, mais les utilisateurs ne peuvent pas payer avec Stripe",
     "Stripe 设置": "Paramètres Stripe",
     "Stripe/Creem 商品ID（可选）": "ID produit Stripe/Creem (optionnel)",
     "Stripe/Creem 需在第三方平台创建商品并填入 ID": "Les produits Stripe/Creem doivent être créés sur la plateforme tierce et l'ID doit être renseigné",

@@ -39,6 +39,7 @@ export default function SettingsPaymentGateway(props) {
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
+    StripeEnabled: true,
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
@@ -61,6 +62,10 @@ export default function SettingsPaymentGateway(props) {
           props.options.StripePromotionCodesEnabled !== undefined
             ? props.options.StripePromotionCodesEnabled
             : false,
+        StripeEnabled:
+          props.options.StripeEnabled !== undefined
+            ? props.options.StripeEnabled
+            : true,
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -110,6 +115,15 @@ export default function SettingsPaymentGateway(props) {
         options.push({
           key: 'StripeMinTopUp',
           value: inputs.StripeMinTopUp.toString(),
+        });
+      }
+      if (
+        originInputs['StripeEnabled'] !== inputs.StripeEnabled &&
+        inputs.StripeEnabled !== undefined
+      ) {
+        options.push({
+          key: 'StripeEnabled',
+          value: inputs.StripeEnabled ? 'true' : 'false',
         });
       }
       if (
@@ -197,6 +211,21 @@ export default function SettingsPaymentGateway(props) {
             description='需要包含事件：checkout.session.completed 和 checkout.session.expired'
             style={{ marginBottom: 16 }}
           />
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginBottom: 16 }}
+          >
+            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+              <Form.Switch
+                field='StripeEnabled'
+                size='default'
+                checkedText='｜'
+                uncheckedText='〇'
+                label={t('启用 Stripe 充值')}
+                extraText={t('关闭后会保留密钥与价格配置，但用户无法使用 Stripe 支付')}
+              />
+            </Col>
+          </Row>
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input

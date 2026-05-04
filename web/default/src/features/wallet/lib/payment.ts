@@ -50,6 +50,56 @@ export function submitPaymentForm(
   document.body.removeChild(form)
 }
 
+export function openPaymentWindow(title = 'Payment'): Window | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const paymentWindow = window.open('', '_blank')
+  if (!paymentWindow) {
+    return null
+  }
+
+  paymentWindow.document.title = title
+  paymentWindow.document.body.style.margin = '0'
+  paymentWindow.document.body.style.fontFamily =
+    'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  paymentWindow.document.body.innerHTML = `
+    <main style="min-height: 100vh; display: grid; place-items: center; color: #0f172a; background: #f8fafc;">
+      <section style="text-align: center; padding: 24px;">
+        <div style="font-size: 16px; font-weight: 600;">Redirecting to payment...</div>
+        <div style="margin-top: 8px; font-size: 13px; color: #64748b;">Please keep this window open.</div>
+      </section>
+    </main>
+  `
+  paymentWindow.document.close()
+
+  return paymentWindow
+}
+
+export function redirectPaymentWindow(
+  paymentWindow: Window | null,
+  url: string
+): boolean {
+  if (!url || typeof window === 'undefined') {
+    return false
+  }
+
+  if (paymentWindow && !paymentWindow.closed) {
+    paymentWindow.location.href = url
+    return true
+  }
+
+  window.location.href = url
+  return true
+}
+
+export function closePaymentWindow(paymentWindow: Window | null): void {
+  if (paymentWindow && !paymentWindow.closed) {
+    paymentWindow.close()
+  }
+}
+
 /**
  * Check if payment method is Stripe
  */

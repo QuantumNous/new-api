@@ -456,7 +456,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := GetDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -509,6 +509,14 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 // expectedPaymentProvider guards against cross-gateway callback attacks (empty skips the check).
 // actualPaymentMethod updates the order's PaymentMethod to reflect the real payment type used (empty skips update).
 func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string) error {
+	return completeSubscriptionOrder(tradeNo, providerPayload, expectedPaymentProvider, actualPaymentMethod, "", false)
+}
+
+func CompleteStripeSubscriptionOrder(tradeNo string, providerPayload string, customerId string, stripeLiveMode bool) error {
+	return completeSubscriptionOrder(tradeNo, providerPayload, PaymentProviderStripe, "", customerId, stripeLiveMode)
+}
+
+func completeSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, stripeCustomerId string, stripeLiveMode bool) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
@@ -530,12 +538,15 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			return ErrPaymentMethodMismatch
 		}
 		if order.Status == common.TopUpStatusSuccess {
+			if err := updateStripeCustomerForUserTx(tx, order.UserId, stripeCustomerId, stripeLiveMode); err != nil {
+				return err
+			}
 			return nil
 		}
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 		if err != nil {
 			return err
 		}
@@ -557,6 +568,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		}
 		if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
 			order.PaymentMethod = actualPaymentMethod
+		}
+		if err := updateStripeCustomerForUserTx(tx, order.UserId, stripeCustomerId, stripeLiveMode); err != nil {
+			return err
 		}
 		if err := tx.Save(&order).Error; err != nil {
 			return err
