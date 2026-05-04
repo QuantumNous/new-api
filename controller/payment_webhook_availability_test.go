@@ -8,16 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStripeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
+func TestStripeWebhookEnabledRequiresWebhookConfig(t *testing.T) {
 	originalAPISecret := setting.StripeApiSecret
 	originalWebhookSecret := setting.StripeWebhookSecret
 	originalPriceID := setting.StripePriceId
+	originalEnabled := setting.StripeEnabled
 	t.Cleanup(func() {
 		setting.StripeApiSecret = originalAPISecret
 		setting.StripeWebhookSecret = originalWebhookSecret
 		setting.StripePriceId = originalPriceID
+		setting.StripeEnabled = originalEnabled
 	})
 
+	setting.StripeEnabled = true
 	setting.StripeWebhookSecret = ""
 	setting.StripeApiSecret = "sk_test_123"
 	setting.StripePriceId = "price_123"
@@ -27,7 +30,33 @@ func TestStripeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	require.True(t, isStripeWebhookEnabled())
 
 	setting.StripePriceId = ""
-	require.False(t, isStripeWebhookEnabled())
+	require.True(t, isStripeWebhookEnabled())
+
+	setting.StripePriceId = "price_123"
+	setting.StripeEnabled = false
+	require.True(t, isStripeWebhookEnabled())
+}
+
+func TestStripeTopUpEnabledRequiresExplicitEnable(t *testing.T) {
+	originalAPISecret := setting.StripeApiSecret
+	originalWebhookSecret := setting.StripeWebhookSecret
+	originalPriceID := setting.StripePriceId
+	originalEnabled := setting.StripeEnabled
+	t.Cleanup(func() {
+		setting.StripeApiSecret = originalAPISecret
+		setting.StripeWebhookSecret = originalWebhookSecret
+		setting.StripePriceId = originalPriceID
+		setting.StripeEnabled = originalEnabled
+	})
+
+	setting.StripeApiSecret = "sk_test_123"
+	setting.StripeWebhookSecret = "whsec_test"
+	setting.StripePriceId = "price_123"
+	setting.StripeEnabled = true
+	require.True(t, isStripeTopUpEnabled())
+
+	setting.StripeEnabled = false
+	require.False(t, isStripeTopUpEnabled())
 }
 
 func TestCreemWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {

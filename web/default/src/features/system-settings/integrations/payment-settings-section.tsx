@@ -91,6 +91,7 @@ const paymentSchema = z.object({
   StripeUnitPrice: z.coerce.number().min(0),
   StripeMinTopUp: z.coerce.number().min(0),
   StripePromotionCodesEnabled: z.boolean(),
+  StripeEnabled: z.boolean(),
   CreemApiKey: z.string(),
   CreemWebhookSecret: z.string(),
   CreemTestMode: z.boolean(),
@@ -280,6 +281,7 @@ export function PaymentSettingsSection({
       StripeMinTopUp: values.StripeMinTopUp as number,
       StripePromotionCodesEnabled:
         values.StripePromotionCodesEnabled as boolean,
+      StripeEnabled: values.StripeEnabled as boolean,
     }
 
     const initial = {
@@ -290,6 +292,7 @@ export function PaymentSettingsSection({
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
       StripePromotionCodesEnabled:
         initialRef.current.StripePromotionCodesEnabled,
+      StripeEnabled: initialRef.current.StripeEnabled,
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -330,6 +333,13 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'StripePromotionCodesEnabled',
         value: sanitized.StripePromotionCodesEnabled,
+      })
+    }
+
+    if (sanitized.StripeEnabled !== initial.StripeEnabled) {
+      updates.push({
+        key: 'StripeEnabled',
+        value: sanitized.StripeEnabled,
       })
     }
 
@@ -414,6 +424,7 @@ export function PaymentSettingsSection({
       StripeUnitPrice: values.StripeUnitPrice,
       StripeMinTopUp: values.StripeMinTopUp,
       StripePromotionCodesEnabled: values.StripePromotionCodesEnabled,
+      StripeEnabled: values.StripeEnabled,
     }
 
     const initial = {
@@ -435,6 +446,7 @@ export function PaymentSettingsSection({
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
       StripePromotionCodesEnabled:
         initialRef.current.StripePromotionCodesEnabled,
+      StripeEnabled: initialRef.current.StripeEnabled,
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -529,6 +541,13 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'StripePromotionCodesEnabled',
         value: sanitized.StripePromotionCodesEnabled,
+      })
+    }
+
+    if (sanitized.StripeEnabled !== initial.StripeEnabled) {
+      updates.push({
+        key: 'StripeEnabled',
+        value: sanitized.StripeEnabled,
       })
     }
 
@@ -918,6 +937,31 @@ export function PaymentSettingsSection({
                 {t('Configuration for Stripe payment integration')}
               </p>
             </div>
+
+            <FormField
+              control={form.control}
+              name='StripeEnabled'
+              render={({ field }) => (
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('Enable Stripe recharge')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'When disabled, Stripe keys and prices are kept but users cannot pay with Stripe'
+                      )}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
             <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
               <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>

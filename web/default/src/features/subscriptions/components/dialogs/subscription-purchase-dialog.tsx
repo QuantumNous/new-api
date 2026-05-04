@@ -17,8 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { GroupBadge } from '@/components/group-badge'
 import { Separator } from '@/components/ui/separator'
+import { GroupBadge } from '@/components/group-badge'
+import {
+  closePaymentWindow,
+  openPaymentWindow,
+  redirectPaymentWindow,
+} from '@/features/wallet/lib'
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,
@@ -72,14 +77,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
     (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
 
   const handlePayStripe = async () => {
+    const stripePaymentWindow = openPaymentWindow('Stripe')
     setPaying(true)
     try {
       const res = await paySubscriptionStripe({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.pay_link) {
-        window.open(res.data.pay_link, '_blank')
+        redirectPaymentWindow(stripePaymentWindow, res.data.pay_link)
         toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       } else {
+        closePaymentWindow(stripePaymentWindow)
         toast.error(
           res.message && res.message !== 'success'
             ? res.message
@@ -87,6 +94,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
         )
       }
     } catch {
+      closePaymentWindow(stripePaymentWindow)
       toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)

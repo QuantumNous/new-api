@@ -43,6 +43,7 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
   StripeUnitPrice: 8.0,
   StripeMinTopUp: 1,
   StripePromotionCodesEnabled: false,
+  StripeEnabled: true,
   CreemApiKey: '',
   CreemWebhookSecret: '',
   CreemTestMode: false,

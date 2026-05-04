@@ -10,8 +10,11 @@ import {
   isApiSuccess,
 } from '../api'
 import {
+  closePaymentWindow,
   isStripePayment,
   isWaffoPancakePayment,
+  openPaymentWindow,
+  redirectPaymentWindow,
   submitPaymentForm,
 } from '../lib'
 
@@ -60,11 +63,13 @@ export function usePayment() {
   // Process payment
   const processPayment = useCallback(
     async (topupAmount: number, paymentType: string) => {
+      let stripePaymentWindow: Window | null = null
       try {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
         const amount = Math.floor(topupAmount)
+        stripePaymentWindow = isStripe ? openPaymentWindow('Stripe') : null
 
         const response = isStripe
           ? await requestStripePayment({
@@ -77,16 +82,22 @@ export function usePayment() {
             })
 
         if (!isApiSuccess(response)) {
+          closePaymentWindow(stripePaymentWindow)
           toast.error(response.message || i18next.t('Payment request failed'))
           return false
         }
 
         // Handle Stripe payment
         if (isStripe && response.data?.pay_link) {
-          window.open(response.data.pay_link as string, '_blank')
+          redirectPaymentWindow(
+            stripePaymentWindow,
+            response.data.pay_link as string
+          )
           toast.success(i18next.t('Redirecting to payment page...'))
           return true
         }
+
+        closePaymentWindow(stripePaymentWindow)
 
         // Handle non-Stripe payment
         if (!isStripe && response.data) {
@@ -100,6 +111,7 @@ export function usePayment() {
 
         return false
       } catch (_error) {
+        closePaymentWindow(stripePaymentWindow)
         toast.error(i18next.t('Payment request failed'))
         return false
       } finally {

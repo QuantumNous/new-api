@@ -38,6 +38,11 @@ import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
 } from '../../helpers/subscriptionFormat';
+import {
+  closePaymentWindow,
+  openPaymentWindow,
+  redirectPaymentWindow,
+} from './paymentWindow';
 
 const { Text } = Typography;
 
@@ -118,23 +123,32 @@ const SubscriptionPlansCard = ({
       showError(t('该套餐未配置 Stripe'));
       return;
     }
+    const stripePaymentWindow = openPaymentWindow('Stripe');
     setPaying(true);
     try {
       const res = await API.post('/api/subscription/stripe/pay', {
         plan_id: selectedPlan.plan.id,
       });
       if (res.data?.message === 'success') {
-        window.open(res.data.data?.pay_link, '_blank');
-        showSuccess(t('已打开支付页面'));
-        closeBuy();
+        const payLink = res.data.data?.pay_link || '';
+        if (payLink) {
+          redirectPaymentWindow(stripePaymentWindow, payLink);
+          showSuccess(t('已打开支付页面'));
+          closeBuy();
+        } else {
+          closePaymentWindow(stripePaymentWindow);
+          showError(t('支付请求失败'));
+        }
       } else {
         const errorMsg =
           typeof res.data?.data === 'string'
             ? res.data.data
             : res.data?.message || t('支付失败');
+        closePaymentWindow(stripePaymentWindow);
         showError(errorMsg);
       }
     } catch (e) {
+      closePaymentWindow(stripePaymentWindow);
       showError(t('支付请求失败'));
     } finally {
       setPaying(false);
