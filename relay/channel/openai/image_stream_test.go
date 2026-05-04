@@ -58,6 +58,7 @@ func TestOpenaiImageStreamHandlerForwardsSSEAndUsage(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `event: image_generation.partial_image`)
 	require.Contains(t, recorder.Body.String(), `data: {"type":"image_generation.partial_image","b64_json":"partial"}`)
 	require.Contains(t, recorder.Body.String(), `data: {"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7,"input_tokens_details":{"image_tokens":2,"text_tokens":1}}}`)
+	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
 	require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
 }
 
@@ -67,8 +68,9 @@ func TestNormalizeOpenAIUsageMapsImageTokenDetailsWithoutDoubleCounting(t *testi
 		InputTokens:  5000,
 		OutputTokens: 4000,
 		InputTokensDetails: &dto.InputTokenDetails{
-			ImageTokens: 1000,
-			TextTokens:  4000,
+			CachedCreationTokens: 200,
+			ImageTokens:          1000,
+			TextTokens:           4000,
 		},
 	}
 
@@ -77,6 +79,7 @@ func TestNormalizeOpenAIUsageMapsImageTokenDetailsWithoutDoubleCounting(t *testi
 	require.Equal(t, 5000, usage.PromptTokens)
 	require.Equal(t, 4000, usage.CompletionTokens)
 	require.Equal(t, 9000, usage.TotalTokens)
+	require.Equal(t, 200, usage.PromptTokensDetails.CachedCreationTokens)
 	require.Equal(t, 1000, usage.PromptTokensDetails.ImageTokens)
 	require.Equal(t, 4000, usage.PromptTokensDetails.TextTokens)
 }
