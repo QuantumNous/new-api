@@ -86,6 +86,9 @@ const SubscriptionPlansCard = ({
   withCard = true,
   showMySubscription = true,
   showPlansList = true,
+  includeTax = false,
+  setIncludeTax = () => {},
+  taxRate = 0.06,
 }) => {
   const [open, setOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -155,6 +158,7 @@ const SubscriptionPlansCard = ({
     try {
       const res = await API.post('/api/subscription/stripe/pay', {
         plan_id: selectedPlan.plan.id,
+        include_tax: includeTax,
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.pay_link, '_blank');
@@ -183,6 +187,7 @@ const SubscriptionPlansCard = ({
     try {
       const res = await API.post('/api/subscription/creem/pay', {
         plan_id: selectedPlan.plan.id,
+        include_tax: includeTax,
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.checkout_url, '_blank');
@@ -212,6 +217,7 @@ const SubscriptionPlansCard = ({
       const res = await API.post('/api/subscription/epay/pay', {
         plan_id: selectedPlan.plan.id,
         payment_method: selectedEpayMethod,
+        include_tax: includeTax,
       });
       if (res.data?.message === 'success') {
         submitEpayForm({ url: res.data.url, params: res.data.data });
@@ -554,7 +560,8 @@ const SubscriptionPlansCard = ({
                 const totalAmount = Number(plan?.total_amount || 0);
                 const { symbol, rate } = getCurrencyConfig();
                 const price = Number(plan?.price_amount || 0);
-                const convertedPrice = price * rate;
+                const taxMultiplier = includeTax ? (1 + taxRate) : 1;
+                const convertedPrice = price * rate * taxMultiplier;
                 const displayPrice = convertedPrice.toFixed(
                   Number.isInteger(convertedPrice) ? 0 : 2,
                 );
@@ -752,6 +759,9 @@ const SubscriptionPlansCard = ({
         onPayStripe={payStripe}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
+        includeTax={includeTax}
+        setIncludeTax={setIncludeTax}
+        taxRate={taxRate}
       />
     </>
   );

@@ -5698,6 +5698,10 @@
     "AI模型一站式网关": "All In One API Gateway",
     "等值": "Equivalent to ",
     "例如：CREDITCARD,DEBITCARD": "e.g.: CREDITCARD,DEBITCARD",
-    "如遇支付失败可前往购买兑换码充值": "If payment fails, you can purchase a redemption code at"
+    "如遇支付失败可前往购买兑换码充值": "If payment fails, you can purchase a redemption code at",
+    "可开票金额": "Invoiceable",
+    "已开票金额": "Invoiced",
+    "可开票额度": "Invoiceable",
+    "已开票额度": "Invoiced"
   }
 }

@@ -17,7 +17,8 @@ import (
 )
 
 type SubscriptionCreemPayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId     int  `json:"plan_id"`
+	IncludeTax bool `json:"include_tax"`
 }
 
 func SubscriptionRequestCreemPay(c *gin.Context) {
@@ -81,16 +82,23 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	reference := "sub-creem-ref-" + randstr.String(6)
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference+time.Now().String()+user.Username))
 
+	money, preTaxMoney, taxAmount := operation_setting.CalcTaxedAmount(plan.PriceAmount, req.IncludeTax)
+	taxRate := operation_setting.GetPaymentSetting().InvoiceFeeRate
+
 	// create pending order first
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
+		Money:           money,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,
 		PaymentProvider: model.PaymentProviderCreem,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
+		IncludeTax:      req.IncludeTax,
+		TaxRate:         taxRate,
+		TaxAmount:       taxAmount,
+		PreTaxMoney:     preTaxMoney,
 	}
 	if err := order.Insert(); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})

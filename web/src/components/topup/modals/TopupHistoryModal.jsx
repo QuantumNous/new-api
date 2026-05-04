@@ -286,6 +286,28 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
         ),
       },
       {
+        title: t('可开票额度'),
+        key: 'invoiceable_amount',
+        render: (_, record) => {
+          if (!record.include_tax) return <Text type='tertiary'>¥0.00</Text>;
+          const amount = record.pre_tax_money || (record.money - (record.tax_amount || 0));
+          return <Text>¥{amount.toFixed(2)}</Text>;
+        },
+      },
+      {
+        title: t('已开票额度'),
+        key: 'invoiced_amount',
+        render: (_, record) => {
+          if (!record.include_tax) return <Text type='tertiary'>¥0.00</Text>;
+          const status = record.invoice_status || 'none';
+          if (status === 'issued') {
+            const amount = record.pre_tax_money || (record.money - (record.tax_amount || 0));
+            return <Text type='success'>¥{amount.toFixed(2)}</Text>;
+          }
+          return <Text type='tertiary'>¥0.00</Text>;
+        },
+      },
+      {
         title: t('状态'),
         dataIndex: 'status',
         key: 'status',
@@ -428,6 +450,13 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                 </Text>
               </>
             )}
+            <br />
+            <Text strong>
+              {t('可开票额度')}：¥{(selectedTopUp.include_tax
+                ? (selectedTopUp.pre_tax_money || selectedTopUp.money - (selectedTopUp.tax_amount || 0))
+                : 0
+              ).toFixed(2)}
+            </Text>
           </div>
         )}
         <Form

@@ -5712,6 +5712,10 @@
     "AI模型一站式网关": "Passerelle API Tout-en-Un",
     "等值": "Équivalent à ",
     "例如：CREDITCARD,DEBITCARD": "ex. : CREDITCARD,DEBITCARD",
-    "如遇支付失败可前往购买兑换码充值": "Si le paiement échoue, vous pouvez acheter un code d'échange sur"
+    "如遇支付失败可前往购买兑换码充值": "Si le paiement échoue, vous pouvez acheter un code d'échange sur",
+    "可开票金额": "Facturable",
+    "已开票金额": "Facturé",
+    "可开票额度": "Facturable",
+    "已开票额度": "Facturé"
   }
 }

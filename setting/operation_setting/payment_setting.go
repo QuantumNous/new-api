@@ -23,3 +23,13 @@ func init() {
 func GetPaymentSetting() *PaymentSetting {
 	return &paymentSetting
 }
+
+// CalcTaxedAmount 根据 baseAmount 和是否含税，计算实付金额、税前金额、税额
+func CalcTaxedAmount(baseAmount float64, includeTax bool) (money, preTax, taxAmount float64) {
+	if !includeTax {
+		return baseAmount, baseAmount, 0
+	}
+	rate := paymentSetting.InvoiceFeeRate
+	money = baseAmount * (1 + rate)
+	return money, baseAmount, money - baseAmount
+}

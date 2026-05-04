@@ -56,14 +56,18 @@ const SubscriptionPurchaseModal = ({
   onPayStripe,
   onPayCreem,
   onPayEpay,
+  includeTax = false,
+  setIncludeTax = () => {},
+  taxRate = 0.06,
 }) => {
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
   const { symbol, rate } = getCurrencyConfig();
   const price = plan ? Number(plan.price_amount || 0) : 0;
   const convertedPrice = price * rate;
-  const displayPrice = convertedPrice.toFixed(
-    Number.isInteger(convertedPrice) ? 0 : 2,
+  const taxMultiplier = includeTax ? (1 + taxRate) : 1;
+  const displayPrice = (convertedPrice * taxMultiplier).toFixed(
+    Number.isInteger(convertedPrice * taxMultiplier) ? 0 : 2,
   );
   // 只有当管理员开启支付网关 AND 套餐配置了对应的支付ID时才显示
   const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
@@ -182,6 +186,39 @@ const SubscriptionPurchaseModal = ({
               </div>
             </div>
           </Card>
+
+          {/* 税费类型 */}
+          <div
+            className='rounded-xl px-4 py-3'
+            style={{ background: 'var(--semi-color-fill-0)' }}
+          >
+            <div className='flex items-center justify-between'>
+              <Text strong size='small'>
+                {t('税费类型')}
+              </Text>
+              <div className='flex rounded-lg overflow-hidden' style={{ border: '1px solid var(--semi-color-border)' }}>
+                {[
+                  { value: false, label: t('不含税') },
+                  { value: true, label: t('含税') },
+                ].map((opt) => (
+                  <div
+                    key={String(opt.value)}
+                    className='cursor-pointer select-none transition-all'
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: 12,
+                      fontWeight: includeTax === opt.value ? 600 : 400,
+                      backgroundColor: includeTax === opt.value ? '#3b82f6' : 'transparent',
+                      color: includeTax === opt.value ? '#fff' : 'var(--semi-color-text-0)',
+                    }}
+                    onClick={() => setIncludeTax(opt.value)}
+                  >
+                    {opt.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
           {/* 支付方式 */}
           {purchaseLimitReached && (

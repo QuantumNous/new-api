@@ -5712,6 +5712,10 @@
     "AI模型一站式网关": "Cổng API Tất Cả Trong Một",
     "等值": "Tương đương ",
     "例如：CREDITCARD,DEBITCARD": "VD: CREDITCARD,DEBITCARD",
-    "如遇支付失败可前往购买兑换码充值": "Nếu thanh toán thất bại, bạn có thể mua mã đổi thưởng tại"
+    "如遇支付失败可前往购买兑换码充值": "Nếu thanh toán thất bại, bạn có thể mua mã đổi thưởng tại",
+    "可开票金额": "Có thể xuất HĐ",
+    "已开票金额": "Đã xuất HĐ",
+    "可开票额度": "Có thể xuất HĐ",
+    "已开票额度": "Đã xuất HĐ"
   }
 }

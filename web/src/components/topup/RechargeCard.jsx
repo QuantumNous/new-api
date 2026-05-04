@@ -950,6 +950,9 @@ const RechargeCard = ({
           allSubscriptions={allSubscriptions}
           reloadSubscriptionSelf={reloadSubscriptionSelf}
           withCard={false}
+          includeTax={includeTax}
+          setIncludeTax={setIncludeTax}
+          taxRate={taxRate}
         />
       )}
     </div>

@@ -284,6 +284,11 @@ type SubscriptionOrder struct {
 	CreateTime      int64  `json:"create_time"`
 	CompleteTime    int64  `json:"complete_time"`
 
+	IncludeTax  bool    `json:"include_tax" gorm:"default:false"`
+	TaxRate     float64 `json:"tax_rate" gorm:"default:0"`
+	TaxAmount   float64 `json:"tax_amount" gorm:"default:0"`
+	PreTaxMoney float64 `json:"pre_tax_money" gorm:"default:0"`
+
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
 
@@ -308,6 +313,7 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 	}
 	return &order
 }
+
 
 // User subscription instance
 type UserSubscription struct {
@@ -648,6 +654,10 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 				CreateTime:    order.CreateTime,
 				CompleteTime:  now,
 				Status:        common.TopUpStatusSuccess,
+				IncludeTax:    order.IncludeTax,
+				TaxRate:       order.TaxRate,
+				TaxAmount:     order.TaxAmount,
+				PreTaxMoney:   order.PreTaxMoney,
 			}
 			return tx.Create(&topup).Error
 		}
@@ -662,6 +672,10 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	}
 	topup.CompleteTime = now
 	topup.Status = common.TopUpStatusSuccess
+	topup.IncludeTax = order.IncludeTax
+	topup.TaxRate = order.TaxRate
+	topup.TaxAmount = order.TaxAmount
+	topup.PreTaxMoney = order.PreTaxMoney
 	return tx.Save(&topup).Error
 }
 

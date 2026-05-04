@@ -20,6 +20,7 @@ import (
 type SubscriptionEpayPayRequest struct {
 	PlanId        int    `json:"plan_id"`
 	PaymentMethod string `json:"payment_method"`
+	IncludeTax    bool   `json:"include_tax"`
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
@@ -81,15 +82,22 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 
+	money, preTaxMoney, taxAmount := operation_setting.CalcTaxedAmount(plan.PriceAmount, req.IncludeTax)
+	taxRate := operation_setting.GetPaymentSetting().InvoiceFeeRate
+
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
+		Money:           money,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
+		IncludeTax:      req.IncludeTax,
+		TaxRate:         taxRate,
+		TaxAmount:       taxAmount,
+		PreTaxMoney:     preTaxMoney,
 	}
 	if err := order.Insert(); err != nil {
 		common.ApiErrorMsg(c, "创建订单失败")
@@ -99,7 +107,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("SUB:%s", plan.Title),
-		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
+		Money:          strconv.FormatFloat(money, 'f', 2, 64),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
