@@ -84,13 +84,13 @@ export function VendorMutateDialog({
 
       if (response.success) {
         toast.success(
-          isEdit ? 'Vendor updated successfully' : 'Vendor created successfully'
+          isEdit ? t('Vendor updated successfully') : t('Vendor created successfully')
         )
         queryClient.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
         queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
         onOpenChange(false)
       } else {
-        toast.error(response.message || 'Operation failed')
+        toast.error(response.message || t('Operation failed'))
       }
     } catch (error: unknown) {
       toast.error((error as Error)?.message || 'Operation failed')
@@ -186,7 +186,7 @@ export function VendorMutateDialog({
               </Button>
               <Button type='submit' disabled={isSaving}>
                 {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                {isSaving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+                {isSaving ? t('Saving...') : isEdit ? t('Update') : t('Create')}
               </Button>
             </DialogFooter>
           </form>

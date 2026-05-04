@@ -38,7 +38,7 @@ export function VendorManageDialog({
     enabled: open,
   })
 
-  const vendors = data?.data ?? []
+  const vendors = data?.data?.items ?? []
 
   const handleEdit = (vendor: Vendor) => {
     setCurrentVendor(vendor)
