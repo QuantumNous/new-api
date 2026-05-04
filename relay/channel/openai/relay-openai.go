@@ -575,28 +575,43 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
-	// Once we've written to the client, we should not return errors anymore
-	// because the upstream has already consumed resources and returned content
-	// We should still perform billing even if parsing fails
-	// format
-	if usageResp.InputTokens > 0 {
-		usageResp.PromptTokens += usageResp.InputTokens
-	}
-	if usageResp.OutputTokens > 0 {
-		usageResp.CompletionTokens += usageResp.OutputTokens
-	}
-	if usageResp.InputTokensDetails != nil {
-		usageResp.PromptTokensDetails.ImageTokens += usageResp.InputTokensDetails.ImageTokens
-		usageResp.PromptTokensDetails.TextTokens += usageResp.InputTokensDetails.TextTokens
-	}
+	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
 }
 
+// normalizeOpenAIUsage maps OpenAI usage aliases into NewAPI billing fields.
+func normalizeOpenAIUsage(usage *dto.Usage) {
+	if usage == nil {
+		return
+	}
+	if usage.InputTokens != 0 {
+		usage.PromptTokens = usage.InputTokens
+	}
+	if usage.OutputTokens != 0 {
+		usage.CompletionTokens = usage.OutputTokens
+	}
+	if usage.InputTokensDetails != nil {
+		usage.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
+		usage.PromptTokensDetails.ImageTokens = usage.InputTokensDetails.ImageTokens
+		usage.PromptTokensDetails.TextTokens = usage.InputTokensDetails.TextTokens
+		usage.PromptTokensDetails.AudioTokens = usage.InputTokensDetails.AudioTokens
+	}
+	if usage.TotalTokens == 0 {
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
+}
+
+// OpenaiImageStreamHandler forwards OpenAI Images SSE events and extracts usage.
 func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid image stream response")
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices || !strings.Contains(contentType, "text/event-stream") {
+		return OpenaiHandlerWithUsage(c, info, resp)
 	}
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -609,7 +624,7 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.DefaultMaxScannerBufferSize)
+	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.GetScannerBufferSize())
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "data:") {
@@ -621,8 +636,11 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 				info.ReceivedResponseCount++
 				lastStreamData = common.StringToByteSlice(data)
 				var usageResp dto.SimpleResponse
-				if err := common.Unmarshal(lastStreamData, &usageResp); err == nil && service.ValidUsage(&usageResp.Usage) {
-					usage = &usageResp.Usage
+				if err := common.Unmarshal(lastStreamData, &usageResp); err == nil {
+					normalizeOpenAIUsage(&usageResp.Usage)
+					if service.ValidUsage(&usageResp.Usage) {
+						usage = &usageResp.Usage
+					}
 				}
 			}
 		}
