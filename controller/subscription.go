@@ -55,10 +55,29 @@ func GetSubscriptionSelf(c *gin.Context) {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
 
+	user, err := model.GetUserById(userId, true)
+	if err == nil && user.Group != "" {
+		bindSubs, _ := model.GetBindGroupSubscriptions(user.Group)
+		if len(bindSubs) > 0 {
+			planIdSet := make(map[int]bool)
+			for _, s := range activeSubscriptions {
+				if s.Subscription != nil {
+					planIdSet[s.Subscription.PlanId] = true
+				}
+			}
+			for _, bs := range bindSubs {
+				if bs.Subscription != nil && !planIdSet[bs.Subscription.PlanId] {
+					activeSubscriptions = append(activeSubscriptions, bs)
+					allSubscriptions = append(allSubscriptions, bs)
+				}
+			}
+		}
+	}
+
 	common.ApiSuccess(c, gin.H{
 		"billing_preference": pref,
-		"subscriptions":      activeSubscriptions, // all active subscriptions
-		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"subscriptions":      activeSubscriptions,
+		"all_subscriptions":  allSubscriptions,
 	})
 }
 
@@ -151,6 +170,13 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	req.Plan.BindGroup = strings.TrimSpace(req.Plan.BindGroup)
+	if req.Plan.BindGroup != "" {
+		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.BindGroup]; !ok {
+			common.ApiErrorMsg(c, "绑定分组不存在")
+			return
+		}
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
@@ -214,14 +240,26 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	req.Plan.BindGroup = strings.TrimSpace(req.Plan.BindGroup)
+	if req.Plan.BindGroup != "" {
+		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.BindGroup]; !ok {
+			common.ApiErrorMsg(c, "绑定分组不存在")
+			return
+		}
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
 
+	var oldPlan model.SubscriptionPlan
+	if err := model.DB.Where("id = ?", id).First(&oldPlan).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
-		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
 			"title":                      req.Plan.Title,
 			"subtitle":                   req.Plan.Subtitle,
@@ -237,6 +275,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
+			"bind_group":                 req.Plan.BindGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
@@ -250,6 +289,11 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	if oldPlan.BindGroup != req.Plan.BindGroup {
+		go model.SyncPlanBindGroupChange(id, oldPlan.BindGroup, req.Plan.BindGroup, req.Plan.TotalAmount)
+	}
+
 	model.InvalidateSubscriptionPlanCache(id)
 	common.ApiSuccess(c, nil)
 }

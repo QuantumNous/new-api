@@ -62,6 +62,7 @@ redemption.expire_time_invalid: "Expiration time cannot be earlier than current 
 
 # User messages
 user.password_login_disabled: "Password login has been disabled by administrator"
+user.feishu_login_required: "This account is bound to Feishu, please use Feishu to log in"
 user.register_disabled: "New user registration has been disabled by administrator"
 user.password_register_disabled: "Password registration has been disabled by administrator, please use third-party account verification"
 user.username_or_password_empty: "Username or password is empty"

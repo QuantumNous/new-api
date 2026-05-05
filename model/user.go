@@ -34,6 +34,7 @@ type User struct {
 	OidcId           string         `json:"oidc_id" gorm:"column:oidc_id;index"`
 	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
+	FeishuId         string         `json:"feishu_id" gorm:"column:feishu_id;index"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
 	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
@@ -532,8 +533,13 @@ func (user *User) Edit(updatePassword bool) error {
 	}
 
 	DB.First(&user, user.Id)
+	oldGroup := user.Group
 	if err = DB.Model(user).Updates(updates).Error; err != nil {
 		return err
+	}
+
+	if oldGroup != newUser.Group {
+		_ = SyncUserBindGroupSubscriptions(user.Id, oldGroup, newUser.Group)
 	}
 
 	// Update cache
@@ -552,6 +558,7 @@ func (user *User) ClearBinding(bindingType string) error {
 		"oidc":     "oidc_id",
 		"wechat":   "wechat_id",
 		"telegram": "telegram_id",
+		"feishu":   "feishu_id",
 		"linuxdo":  "linux_do_id",
 	}
 
@@ -705,6 +712,25 @@ func IsOidcIdAlreadyTaken(oidcId string) bool {
 
 func IsTelegramIdAlreadyTaken(telegramId string) bool {
 	return DB.Unscoped().Where("telegram_id = ?", telegramId).Find(&User{}).RowsAffected == 1
+}
+
+func IsFeishuIdAlreadyTaken(feishuId string) bool {
+	return DB.Unscoped().Where("feishu_id = ?", feishuId).Find(&User{}).RowsAffected == 1
+}
+
+func (user *User) UpdateFeishuId(newFeishuId string) error {
+	if user.Id == 0 {
+		return errors.New("user id is empty")
+	}
+	return DB.Model(user).Update("feishu_id", newFeishuId).Error
+}
+
+func (user *User) FillUserByFeishuId() error {
+	if user.FeishuId == "" {
+		return errors.New("feishu_id is empty")
+	}
+	DB.Where(User{FeishuId: user.FeishuId}).First(user)
+	return nil
 }
 
 func ResetUserPasswordByEmail(email string, password string) error {

@@ -1,0 +1,187 @@
+# ============================================
+# 生产环境统一部署配置
+# 包含：new-api + CLIProxyAPI
+# 共享：PostgreSQL + Redis
+# 服务器配置：8核 CPU / 16G 内存 / 100G 存储
+# ============================================
+
+version: '3.8'
+
+services:
+  new-api:
+    image: ${NEW_API_IMAGE:-localhost/new-api:1.0.0}
+    container_name: new-api
+    restart: unless-stopped
+    command: --log-dir /app/logs
+    ports:
+      - "${NEW_API_PORT:-3000}:3000"
+    volumes:
+      - ${NEW_API_DATA_DIR:-./new-api-data}:/data
+      - ${NEW_API_LOGS_DIR:-./new-api-logs}:/app/logs
+    environment:
+      - PORT=3000
+      - TZ=${TZ:-Asia/Shanghai}
+      - DEBUG=false
+      - ENABLE_PPROF=false
+      - ERROR_LOG_ENABLED=true
+      - SQL_DSN=${SQL_DSN:-postgresql://root:123456@postgres:5432/new-api}
+      - REDIS_CONN_STRING=${REDIS_CONN_STRING:-redis://redis:6379/0}
+      - BATCH_UPDATE_ENABLED=true
+      - BATCH_UPDATE_INTERVAL=5
+      - SYNC_FREQUENCY=${SYNC_FREQUENCY:-60}
+      - RELAY_TIMEOUT=${RELAY_TIMEOUT:-300}
+      - STREAMING_TIMEOUT=${STREAMING_TIMEOUT:-120}
+      - SQL_MAX_IDLE_CONNS=${SQL_MAX_IDLE_CONNS:-200}
+      - SQL_MAX_OPEN_CONNS=${SQL_MAX_OPEN_CONNS:-1000}
+      - SQL_MAX_LIFETIME=${SQL_MAX_LIFETIME:-300}
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${NEW_API_CPU_LIMIT:-3.0}
+          memory: ${NEW_API_MEMORY_LIMIT:-4G}
+        reservations:
+          cpus: ${NEW_API_CPU_RESERVATION:-1.0}
+          memory: ${NEW_API_MEMORY_RESERVATION:-1G}
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  cliproxyapi:
+    image: ${CLIPROXY_API_IMAGE:-localhost/cliproxyapi:1.0.0}
+    container_name: cliproxyapi
+    restart: unless-stopped
+    ports:
+      - "${CLIPROXY_API_PORT:-8317}:8317"
+      - "${CLIPROXY_MGMT_PORT:-8085}:8085"
+    volumes:
+      - ${CLIPROXY_API_CONFIG_DIR:-./cliproxy-config}:/CLIProxyAPI/config.yaml
+      - ${CLIPROXY_API_AUTH_DIR:-./cliproxy-auth}:/root/.cli-proxy-api
+      - ${CLIPROXY_API_LOGS_DIR:-./cliproxy-logs}:/CLIProxyAPI/logs
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - MANAGEMENT_PASSWORD=${MANAGEMENT_PASSWORD:-change-me-to-a-strong-password}
+      - PGSTORE_DSN=${PGSTORE_DSN:-postgresql://root:123456@postgres:5432/cliproxy}
+      - PGSTORE_SCHEMA=${PGSTORE_SCHEMA:-cliproxy}
+      - DEPLOY=${DEPLOY:-production}
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8317/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${CLIPROXY_API_CPU_LIMIT:-1.0}
+          memory: ${CLIPROXY_API_MEMORY_LIMIT:-2G}
+        reservations:
+          cpus: ${CLIPROXY_API_CPU_RESERVATION:-0.5}
+          memory: ${CLIPROXY_API_MEMORY_RESERVATION:-512M}
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-123456}
+      POSTGRES_DB: ${DB_NAME:-postgres}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+      POSTGRES_SHARED_BUFFERS: 1GB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 3GB
+      POSTGRES_MAINTENANCE_WORK_MEM: 256MB
+      POSTGRES_WORK_MEM: 16MB
+      POSTGRES_MAX_WORKER_PROCESSES: 4
+      POSTGRES_MAX_CONNECTIONS: 500
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
+    volumes:
+      - ${PG_DATA_DIR:-./pg-data}:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: ${PG_CPU_LIMIT:-2.0}
+          memory: ${PG_MEMORY_LIMIT:-4G}
+        reservations:
+          cpus: ${PG_CPU_RESERVATION:-0.5}
+          memory: ${PG_MEMORY_RESERVATION:-1G}
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --no-appendfsync-on-rewrite yes
+      --auto-aof-rewrite-percentage 100
+      --auto-aof-rewrite-min-size 64mb
+      --tcp-keepalive 300
+      --timeout 0
+      --tcp-backlog 511
+      --maxclients 10000
+    volumes:
+      - ${REDIS_DATA_DIR:-./redis-data}:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: ${REDIS_CPU_LIMIT:-0.5}
+          memory: ${REDIS_MEMORY_LIMIT:-1G}
+        reservations:
+          cpus: ${REDIS_CPU_RESERVATION:-0.1}
+          memory: ${REDIS_MEMORY_RESERVATION:-256M}
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1

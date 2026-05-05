@@ -5,6 +5,7 @@ export {
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
+  buildFeishuOAuthUrl,
 } from '@/lib/oauth'
 
 // ============================================================================
@@ -80,6 +81,7 @@ export function hasOAuthProviders(status: SystemStatus | null): boolean {
     status.oidc_enabled ||
     status.linuxdo_oauth ||
     status.telegram_oauth ||
-    status.wechat_login
+    status.wechat_login ||
+    status.feishu_oauth
   )
 }

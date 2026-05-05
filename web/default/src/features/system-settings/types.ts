@@ -98,6 +98,11 @@ export type AuthSettings = {
   WeChatServerAddress: string
   WeChatServerToken: string
   WeChatAccountQRCodeImageURL: string
+  'feishu.enabled': boolean
+  'feishu.app_id': string
+  'feishu.app_secret': string
+  'feishu.default_group': string
+  'feishu.auth_policy': string
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string

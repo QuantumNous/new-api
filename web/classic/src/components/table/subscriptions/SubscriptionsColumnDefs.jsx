@@ -192,6 +192,15 @@ const renderUpgradeGroup = (text, record, t) => {
   );
 };
 
+const renderBindGroup = (text, record, t) => {
+  const group = record?.plan?.bind_group || '';
+  return (
+    <Text type={group ? 'secondary' : 'tertiary'}>
+      {group ? group : t('不绑定')}
+    </Text>
+  );
+};
+
 const renderResetPeriod = (text, record, t) => {
   const period = record?.plan?.quota_reset_period || 'never';
   const isNever = period === 'never';
@@ -344,6 +353,11 @@ export const getSubscriptionsColumns = ({
       title: t('升级分组'),
       width: 100,
       render: (text, record) => renderUpgradeGroup(text, record, t),
+    },
+    {
+      title: t('绑定分组'),
+      width: 100,
+      render: (text, record) => renderBindGroup(text, record, t),
     },
     {
       title: t('操作'),

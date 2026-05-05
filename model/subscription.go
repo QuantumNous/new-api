@@ -175,6 +175,8 @@ type SubscriptionPlan struct {
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
+	BindGroup string `json:"bind_group" gorm:"type:varchar(64);default:''"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -671,13 +673,186 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	}
 	now := common.GetTimestamp()
 	var subs []UserSubscription
-	err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+	err := DB.Where("user_id = ? AND status = ? AND (end_time > ? OR end_time = 0)", userId, "active", now).
 		Order("end_time desc, id desc").
 		Find(&subs).Error
 	if err != nil {
 		return nil, err
 	}
 	return buildSubscriptionSummaries(subs), nil
+}
+
+func GetBindGroupSubscriptions(userGroup string) ([]SubscriptionSummary, error) {
+	if userGroup == "" {
+		return []SubscriptionSummary{}, nil
+	}
+	var plans []SubscriptionPlan
+	err := DB.Where("bind_group = ? AND enabled = ?", userGroup, true).Find(&plans).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(plans) == 0 {
+		return []SubscriptionSummary{}, nil
+	}
+	result := make([]SubscriptionSummary, 0, len(plans))
+	for _, p := range plans {
+		virtualSub := UserSubscription{
+			PlanId:        p.Id,
+			AmountTotal:   p.TotalAmount,
+			AmountUsed:    0,
+			StartTime:     0,
+			EndTime:       0,
+			Status:        "active",
+			Source:        "bind_group",
+			UpgradeGroup:  "",
+			PrevUserGroup: "",
+		}
+		result = append(result, SubscriptionSummary{
+			Subscription: &virtualSub,
+		})
+	}
+	return result, nil
+}
+
+func SyncUserBindGroupSubscriptions(userId int, oldGroup, newGroup string) error {
+	if userId <= 0 {
+		return nil
+	}
+
+	if oldGroup != "" {
+		var oldPlans []SubscriptionPlan
+		if err := DB.Where("bind_group = ? AND enabled = ?", oldGroup, true).Find(&oldPlans).Error; err != nil {
+			return err
+		}
+		if len(oldPlans) > 0 {
+			planIds := make([]int, 0, len(oldPlans))
+			for _, p := range oldPlans {
+				planIds = append(planIds, p.Id)
+			}
+			if err := DB.Where("user_id = ? AND source = ? AND plan_id IN ?", userId, "bind_group", planIds).
+				Delete(&UserSubscription{}).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	if newGroup != "" {
+		var newPlans []SubscriptionPlan
+		if err := DB.Where("bind_group = ? AND enabled = ?", newGroup, true).Find(&newPlans).Error; err != nil {
+			return err
+		}
+		nowUnix := GetDBTimestamp()
+		for _, p := range newPlans {
+			var count int64
+			DB.Model(&UserSubscription{}).
+				Where("user_id = ? AND plan_id = ?", userId, p.Id).
+				Count(&count)
+			if count > 0 {
+				continue
+			}
+			sub := &UserSubscription{
+				UserId:      userId,
+				PlanId:      p.Id,
+				AmountTotal: p.TotalAmount,
+				AmountUsed:  0,
+				StartTime:   nowUnix,
+				EndTime:     0,
+				Status:      "active",
+				Source:      "bind_group",
+				CreatedAt:   common.GetTimestamp(),
+				UpdatedAt:   common.GetTimestamp(),
+			}
+			if err := DB.Create(sub).Error; err != nil {
+				common.SysLog(fmt.Sprintf("SyncUserBindGroupSubscriptions: failed to create sub for user %d plan %d: %s", userId, p.Id, err.Error()))
+			}
+		}
+	}
+
+	return nil
+}
+
+func SyncPlanBindGroupChange(planId int, oldBindGroup, newBindGroup string, totalAmount int64) {
+	if oldBindGroup != "" {
+		DB.Where("plan_id = ? AND source = ?", planId, "bind_group").Delete(&UserSubscription{})
+	}
+	if newBindGroup != "" {
+		var users []User
+		if err := DB.Where("`group` = ?", newBindGroup).Find(&users).Error; err != nil {
+			common.SysLog(fmt.Sprintf("SyncPlanBindGroupChange: failed to find users for group %s: %s", newBindGroup, err.Error()))
+			return
+		}
+		nowUnix := GetDBTimestamp()
+		for _, u := range users {
+			var count int64
+			DB.Model(&UserSubscription{}).
+				Where("user_id = ? AND plan_id = ?", u.Id, planId).
+				Count(&count)
+			if count > 0 {
+				continue
+			}
+			sub := &UserSubscription{
+				UserId:      u.Id,
+				PlanId:      planId,
+				AmountTotal: totalAmount,
+				AmountUsed:  0,
+				StartTime:   nowUnix,
+				EndTime:     0,
+				Status:      "active",
+				Source:      "bind_group",
+				CreatedAt:   common.GetTimestamp(),
+				UpdatedAt:   common.GetTimestamp(),
+			}
+			if err := DB.Create(sub).Error; err != nil {
+				common.SysLog(fmt.Sprintf("SyncPlanBindGroupChange: failed to create sub for user %d: %s", u.Id, err.Error()))
+			}
+		}
+	}
+}
+
+func RepairBindGroupSubscriptions() {
+	var plans []SubscriptionPlan
+	if err := DB.Where("bind_group != '' AND bind_group IS NOT NULL AND enabled = ?", true).Find(&plans).Error; err != nil || len(plans) == 0 {
+		return
+	}
+
+	groupPlanMap := make(map[string][]SubscriptionPlan)
+	for _, p := range plans {
+		groupPlanMap[p.BindGroup] = append(groupPlanMap[p.BindGroup], p)
+	}
+
+	for group, groupPlans := range groupPlanMap {
+		var users []User
+		if err := DB.Where("`group` = ?", group).Find(&users).Error; err != nil {
+			continue
+		}
+		for _, u := range users {
+			for _, p := range groupPlans {
+				var count int64
+				DB.Model(&UserSubscription{}).
+					Where("user_id = ? AND plan_id = ?", u.Id, p.Id).
+					Count(&count)
+				if count > 0 {
+					continue
+				}
+				sub := &UserSubscription{
+					UserId:      u.Id,
+					PlanId:      p.Id,
+					AmountTotal: p.TotalAmount,
+					AmountUsed:  0,
+					StartTime:   GetDBTimestamp(),
+					EndTime:     0,
+					Status:      "active",
+					Source:      "bind_group",
+					CreatedAt:   common.GetTimestamp(),
+					UpdatedAt:   common.GetTimestamp(),
+				}
+				if err := DB.Create(sub).Error; err != nil {
+					common.SysLog(fmt.Sprintf("RepairBindGroupSubscriptions: failed for user %d plan %d: %s", u.Id, p.Id, err.Error()))
+				}
+			}
+		}
+	}
+	common.SysLog("RepairBindGroupSubscriptions: completed")
 }
 
 // HasActiveUserSubscription returns whether the user has any active subscription.
@@ -689,7 +864,7 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 	now := common.GetTimestamp()
 	var count int64
 	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Where("user_id = ? AND status = ? AND (end_time > ? OR end_time = 0)", userId, "active", now).
 		Count(&count).Error; err != nil {
 		return false, err
 	}

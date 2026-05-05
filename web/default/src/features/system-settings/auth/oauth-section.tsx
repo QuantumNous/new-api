@@ -49,6 +49,11 @@ const oauthSchema = z.object({
   WeChatServerAddress: z.string().optional(),
   WeChatServerToken: z.string().optional(),
   WeChatAccountQRCodeImageURL: z.string().optional(),
+  'feishu.enabled': z.boolean(),
+  'feishu.app_id': z.string().optional(),
+  'feishu.app_secret': z.string().optional(),
+  'feishu.default_group': z.string().optional(),
+  'feishu.auth_policy': z.string().optional(),
 })
 
 type OAuthFormValues = z.infer<typeof oauthSchema>
@@ -85,6 +90,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     WeChatServerToken: defaultValues.WeChatServerToken ?? '',
     WeChatAccountQRCodeImageURL:
       defaultValues.WeChatAccountQRCodeImageURL ?? '',
+    'feishu.app_id': defaultValues['feishu.app_id'] ?? '',
+    'feishu.app_secret': defaultValues['feishu.app_secret'] ?? '',
+    'feishu.default_group': defaultValues['feishu.default_group'] ?? 'pending',
+    'feishu.auth_policy': defaultValues['feishu.auth_policy'] ?? 'parallel',
   }
 
   const form = useForm<OAuthFormValues>({
@@ -102,7 +111,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
     Object.entries(rawData).forEach(([key, value]) => {
       if (
-        (key === 'oidc' || key === 'discord') &&
+        (key === 'oidc' || key === 'discord' || key === 'feishu') &&
         typeof value === 'object' &&
         value !== null
       ) {
@@ -241,13 +250,14 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
             <FormDirtyIndicator isDirty={form.formState.isDirty} />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className='grid w-full grid-cols-6'>
+              <TabsList className='grid w-full grid-cols-7'>
                 <TabsTrigger value='github'>{t('GitHub')}</TabsTrigger>
                 <TabsTrigger value='discord'>{t('Discord')}</TabsTrigger>
                 <TabsTrigger value='oidc'>{t('OIDC')}</TabsTrigger>
                 <TabsTrigger value='telegram'>{t('Telegram')}</TabsTrigger>
                 <TabsTrigger value='linuxdo'>{t('LinuxDO')}</TabsTrigger>
                 <TabsTrigger value='wechat'>{t('WeChat')}</TabsTrigger>
+                <TabsTrigger value='feishu'>{t('Feishu')}</TabsTrigger>
               </TabsList>
 
               <TabsContent value='github' className='space-y-4'>
@@ -734,6 +744,110 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                           {...field}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value='feishu' className='space-y-4'>
+                <FormField
+                  control={form.control}
+                  name='feishu.enabled'
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-base'>
+                          {t('Enable Feishu OAuth')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t('Allow users to sign in with Feishu')}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='feishu.app_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('App ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('Your Feishu App ID (cli_xxx)')}
+                          autoComplete='off'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='feishu.app_secret'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('App Secret')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('Your Feishu App Secret')}
+                          autoComplete='new-password'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='feishu.default_group'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Default Group')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='pending'
+                          autoComplete='off'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Default group for new Feishu users (e.g. pending)')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='feishu.auth_policy'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Auth Policy')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='parallel'
+                          autoComplete='off'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t("'parallel' = Feishu + password coexist, 'feishu_only' = password disabled")}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

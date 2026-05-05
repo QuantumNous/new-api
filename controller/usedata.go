@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -67,6 +68,91 @@ func parseUserModelStatsTimeRange(c *gin.Context) (int64, int64, error) {
 		endTimestamp = parsedEnd
 	}
 	return startTimestamp, endTimestamp, nil
+}
+
+type userStatResponseItem struct {
+	Username       string  `json:"username"`
+	Count          int     `json:"count"`
+	TokenUsed      int     `json:"token_used"`
+	Quota          int     `json:"quota"`
+	QuotaAmountUSD float64 `json:"quota_amount_usd"`
+	QuotaAmountCNY float64 `json:"quota_amount_cny"`
+}
+
+type modelStatResponseItem struct {
+	ModelName      string  `json:"model_name"`
+	Count          int     `json:"count"`
+	TokenUsed      int     `json:"token_used"`
+	Quota          int     `json:"quota"`
+	QuotaAmountUSD float64 `json:"quota_amount_usd"`
+	QuotaAmountCNY float64 `json:"quota_amount_cny"`
+}
+
+type userModelStatResponseItem struct {
+	Username       string  `json:"username"`
+	ModelName      string  `json:"model_name"`
+	Count          int     `json:"count"`
+	TokenUsed      int     `json:"token_used"`
+	Quota          int     `json:"quota"`
+	QuotaAmountUSD float64 `json:"quota_amount_usd"`
+	QuotaAmountCNY float64 `json:"quota_amount_cny"`
+}
+
+func quotaToUSDAmount(quota int) float64 {
+	if common.QuotaPerUnit <= 0 {
+		return 0
+	}
+	return float64(quota) / common.QuotaPerUnit
+}
+
+func quotaToCNYAmount(quota int) float64 {
+	return quotaToUSDAmount(quota) * operation_setting.USDExchangeRate
+}
+
+func buildUserStatResponseItems(items []*model.UserStatItem) []userStatResponseItem {
+	res := make([]userStatResponseItem, 0, len(items))
+	for _, it := range items {
+		res = append(res, userStatResponseItem{
+			Username:       it.Username,
+			Count:          it.Count,
+			TokenUsed:      it.TokenUsed,
+			Quota:          it.Quota,
+			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
+			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
+		})
+	}
+	return res
+}
+
+func buildModelStatResponseItems(items []*model.ModelStatItem) []modelStatResponseItem {
+	res := make([]modelStatResponseItem, 0, len(items))
+	for _, it := range items {
+		res = append(res, modelStatResponseItem{
+			ModelName:      it.ModelName,
+			Count:          it.Count,
+			TokenUsed:      it.TokenUsed,
+			Quota:          it.Quota,
+			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
+			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
+		})
+	}
+	return res
+}
+
+func buildUserModelStatResponseItems(items []*model.UserModelStatItem) []userModelStatResponseItem {
+	res := make([]userModelStatResponseItem, 0, len(items))
+	for _, it := range items {
+		res = append(res, userModelStatResponseItem{
+			Username:       it.Username,
+			ModelName:      it.ModelName,
+			Count:          it.Count,
+			TokenUsed:      it.TokenUsed,
+			Quota:          it.Quota,
+			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
+			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
+		})
+	}
+	return res
 }
 
 func GetAllQuotaDates(c *gin.Context) {
@@ -158,7 +244,7 @@ func GetUserModelStatsByUser(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"items":     items,
+			"items":     buildUserStatResponseItems(items),
 			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
@@ -199,7 +285,7 @@ func GetUserModelStatsByModel(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"items":     items,
+			"items":     buildModelStatResponseItems(items),
 			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
@@ -207,7 +293,7 @@ func GetUserModelStatsByModel(c *gin.Context) {
 	})
 }
 
-func GetUserModelStatsMatrix(c *gin.Context) {
+func GetUserModelStatsByDetail(c *gin.Context) {
 	startTimestamp, endTimestamp, err := parseUserModelStatsTimeRange(c)
 	if err != nil {
 		common.ApiError(c, err)
@@ -219,33 +305,32 @@ func GetUserModelStatsMatrix(c *gin.Context) {
 	}
 	username := c.Query("username")
 	modelName := c.Query("model_name")
-
-	userPage, _ := strconv.Atoi(c.Query("user_page"))
-	if userPage <= 0 {
-		userPage = 1
-	}
-	modelPage, _ := strconv.Atoi(c.Query("model_page"))
-	if modelPage <= 0 {
-		modelPage = 1
+	page, _ := strconv.Atoi(c.Query("page"))
+	if page <= 0 {
+		page = 1
 	}
 	pageSize, _ := strconv.Atoi(c.Query("page_size"))
 	if pageSize <= 0 {
 		pageSize = 20
 	}
-	if pageSize > 50 {
-		pageSize = 50
+	if pageSize > 100 {
+		pageSize = 100
 	}
 
-	matrix, err := model.GetUserModelMatrix(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userPage, modelPage, pageSize)
+	items, total, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    matrix,
+		"data": gin.H{
+			"items":     buildUserModelStatResponseItems(items),
+			"total":     total,
+			"page":      page,
+			"page_size": pageSize,
+		},
 	})
 }
 
@@ -278,7 +363,7 @@ func ExportUserModelStats(c *gin.Context) {
 
 	switch viewType {
 	case "by_model":
-		writer.Write([]string{"模型名", "用户名", "请求次数", "总Tokens", "额度消耗"})
+		writer.Write([]string{"模型名", "请求次数", "总Tokens", "额度消耗"})
 		page := 1
 		pageSize := 1000
 		for {
@@ -292,26 +377,37 @@ func ExportUserModelStats(c *gin.Context) {
 				break
 			}
 			for _, it := range items {
-				writer.Write([]string{it.ModelName, it.Username, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
+				writer.Write([]string{it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
 			}
 			if len(items) < pageSize {
 				break
 			}
 			page++
 		}
-	case "matrix":
+	case "by_detail":
 		writer.Write([]string{"用户名", "模型名", "请求次数", "总Tokens", "额度消耗"})
-		matrix, err := model.GetUserModelMatrix(startTimestamp, endTimestamp, usernames, modelNames, 1, 1, 50)
-		if err != nil {
-			common.SysError("csv export error: " + err.Error())
-			writer.Write([]string{"error", err.Error()})
-			return
-		}
-		for _, cell := range matrix.Cells {
-			writer.Write([]string{cell.Username, cell.ModelName, strconv.Itoa(cell.Count), strconv.Itoa(cell.TokenUsed), strconv.Itoa(cell.Quota)})
+		page := 1
+		pageSize := 1000
+		for {
+			items, _, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, usernames, modelNames, page, pageSize)
+			if err != nil {
+				common.SysError("csv export error: " + err.Error())
+				writer.Write([]string{"error", err.Error()})
+				return
+			}
+			if len(items) == 0 {
+				break
+			}
+			for _, it := range items {
+				writer.Write([]string{it.Username, it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
+			}
+			if len(items) < pageSize {
+				break
+			}
+			page++
 		}
 	default:
-		writer.Write([]string{"用户名", "模型名", "请求次数", "总Tokens", "额度消耗"})
+		writer.Write([]string{"用户名", "请求次数", "总Tokens", "额度消耗"})
 		page := 1
 		pageSize := 1000
 		for {
@@ -325,7 +421,7 @@ func ExportUserModelStats(c *gin.Context) {
 				break
 			}
 			for _, it := range items {
-				writer.Write([]string{it.Username, it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
+				writer.Write([]string{it.Username, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
 			}
 			if len(items) < pageSize {
 				break

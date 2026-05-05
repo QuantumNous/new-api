@@ -10,6 +10,7 @@ import {
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
+  buildFeishuOAuthUrl,
 } from '../lib/oauth'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
 
@@ -171,6 +172,33 @@ export function useOAuthLogin(status: SystemStatus | null) {
     toast.info(t('Telegram login requires widget integration; coming soon'))
   }
 
+  const handleFeishuLogin = async () => {
+    if (!status?.feishu_oauth) return
+
+    setIsLoading(true)
+    try {
+      await resetSession()
+      const state = await getOAuthState()
+      if (!state) {
+        toast.error(t('Failed to initialize OAuth'))
+        return
+      }
+
+      const appId = (status as Record<string, unknown>).feishu_app_id as string || ''
+      if (!appId) {
+        toast.error(t('Feishu App ID is not configured'))
+        return
+      }
+
+      const url = buildFeishuOAuthUrl(appId, state)
+      window.open(url, '_self')
+    } catch (_error) {
+      toast.error(t('Failed to start Feishu login'))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleCustomOAuthLogin = async (provider: CustomOAuthProviderInfo) => {
     if (!provider.authorization_endpoint || !provider.client_id) return
 
@@ -212,6 +240,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
     handleOIDCLogin,
     handleLinuxDOLogin,
     handleTelegramLogin,
+    handleFeishuLogin,
     handleCustomOAuthLogin,
   }
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 
@@ -31,6 +32,10 @@ type LoginRequest struct {
 
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
+		return
+	}
+	if oauth.IsFeishuOnly() {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
 		return
 	}
@@ -61,6 +66,11 @@ func Login(c *gin.Context) {
 		default:
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 		}
+		return
+	}
+
+	if user.FeishuId != "" && user.Role != common.RoleRootUser {
+		common.ApiErrorI18n(c, i18n.MsgUserFeishuLoginRequired)
 		return
 	}
 

@@ -95,6 +95,7 @@ const AddEditSubscriptionModal = ({
     max_purchase_per_user: 0,
     total_amount: 0,
     upgrade_group: '',
+    bind_group: '',
     stripe_price_id: '',
     creem_product_id: '',
   });
@@ -121,6 +122,7 @@ const AddEditSubscriptionModal = ({
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
+      bind_group: p.bind_group || '',
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
     };
@@ -164,6 +166,7 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          bind_group: values.bind_group || '',
         },
       };
       if (editingPlan?.plan?.id) {
@@ -334,6 +337,26 @@ const AddEditSubscriptionModal = ({
                         )}
                       >
                         <Select.Option value=''>{t('不升级')}</Select.Option>
+                        {(groupOptions || []).map((g) => (
+                          <Select.Option key={g} value={g}>
+                            {g}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.Select
+                        field='bind_group'
+                        label={t('绑定分组')}
+                        showClear
+                        loading={groupLoading}
+                        placeholder={t('不绑定')}
+                        extraText={t(
+                          '绑定后，该分组下的所有用户自动拥有此套餐。变更分组时自动同步。',
+                        )}
+                      >
+                        <Select.Option value=''>{t('不绑定')}</Select.Option>
                         {(groupOptions || []).map((g) => (
                           <Select.Option key={g} value={g}>
                             {g}

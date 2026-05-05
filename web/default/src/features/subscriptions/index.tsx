@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
+import { GroupPlanMapping } from './components/group-plan-mapping'
 import { SubscriptionsDialogs } from './components/subscriptions-dialogs'
 import { SubscriptionsPrimaryButtons } from './components/subscriptions-primary-buttons'
 import { SubscriptionsProvider } from './components/subscriptions-provider'
@@ -9,6 +12,8 @@ import { SubscriptionsTable } from './components/subscriptions-table'
 
 export function Subscriptions() {
   const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState('plans')
+
   return (
     <SubscriptionsProvider>
       <SectionPageLayout>
@@ -32,7 +37,18 @@ export function Subscriptions() {
           </div>
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <SubscriptionsTable />
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+              <TabsTrigger value='plans'>{t('Plans')}</TabsTrigger>
+              <TabsTrigger value='group-mapping'>{t('Group Mapping')}</TabsTrigger>
+            </TabsList>
+            <TabsContent value='plans'>
+              <SubscriptionsTable />
+            </TabsContent>
+            <TabsContent value='group-mapping'>
+              <GroupPlanMapping />
+            </TabsContent>
+          </Tabs>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

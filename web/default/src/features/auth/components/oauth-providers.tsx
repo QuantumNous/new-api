@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   IconDiscord,
+  IconFeishu,
   IconGithub,
   IconLinuxDo,
   IconWeChat,
@@ -44,8 +45,38 @@ export function OAuthProviders({
     handleOIDCLogin,
     handleLinuxDOLogin,
     handleTelegramLogin,
+    handleFeishuLogin,
     handleCustomOAuthLogin,
   } = useOAuthLogin(status)
+
+  const isFeishuEnabled = Boolean(status?.feishu_oauth)
+
+  if (isFeishuEnabled) {
+    return (
+      <div className={cn('space-y-3', className)}>
+        <div className='relative'>
+          <div className='absolute inset-0 flex items-center'>
+            <span className='w-full border-t' />
+          </div>
+          <div className='relative flex justify-center text-xs uppercase'>
+            <span className='bg-background text-muted-foreground px-2'>
+              {t('Or continue with')}
+            </span>
+          </div>
+        </div>
+
+        <Button
+          type='button'
+          disabled={disabled || isLoading}
+          onClick={handleFeishuLogin}
+          className='h-11 w-full justify-center gap-2 rounded-lg bg-[#3370FF] text-white hover:bg-[#2860E0]'
+        >
+          <IconFeishu className='h-4 w-4' />
+          {t('Continue with Feishu')}
+        </Button>
+      </div>
+    )
+  }
 
   const providerButtons: ProviderButton[] = []
 
@@ -103,7 +134,6 @@ export function OAuthProviders({
     })
   }
 
-  // Custom OAuth providers
   const customProviders = status?.custom_oauth_providers
   if (customProviders && customProviders.length > 0) {
     for (const provider of customProviders) {

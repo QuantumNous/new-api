@@ -36,6 +36,7 @@ import {
   onOIDCClicked,
   onLinuxDOOAuthClicked,
   onCustomOAuthClicked,
+  onFeishuOAuthClicked,
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
@@ -63,6 +64,7 @@ import {
 import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
+import FeishuIcon from '../common/logo/FeishuIcon';
 import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
@@ -95,6 +97,7 @@ const LoginForm = () => {
   const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
+  const [feishuLoading, setFeishuLoading] = useState(false);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
@@ -139,6 +142,7 @@ const LoginForm = () => {
       status.oidc_enabled ||
       status.wechat_login ||
       status.linuxdo_oauth ||
+      status.feishu_oauth ||
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
@@ -382,8 +386,21 @@ const LoginForm = () => {
     try {
       onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
     } finally {
-      // 由于重定向，这里不会执行到，但为了完整性添加
       setTimeout(() => setLinuxdoLoading(false), 3000);
+    }
+  };
+
+  // 包装的飞书登录点击处理
+  const handleFeishuClick = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    setFeishuLoading(true);
+    try {
+      onFeishuOAuthClicked(status.feishu_app_id, { shouldLogout: true });
+    } finally {
+      setTimeout(() => setFeishuLoading(false), 3000);
     }
   };
 
@@ -501,6 +518,7 @@ const LoginForm = () => {
   };
 
   const renderOAuthOptions = () => {
+    const isFeishuOnly = status.feishu_oauth && status.feishu_auth_policy === 'feishu_only';
     return (
       <div className='flex flex-col items-center'>
         <div className='w-full max-w-md'>
@@ -519,6 +537,21 @@ const LoginForm = () => {
             </div>
             <div className='px-2 py-8'>
               <div className='space-y-3'>
+                {status.feishu_oauth && (
+                  <Button
+                    theme='solid'
+                    className='w-full h-12 flex items-center justify-center !rounded-full text-white transition-colors'
+                    style={{ backgroundColor: '#3370FF' }}
+                    type='primary'
+                    icon={<FeishuIcon size={20} />}
+                    onClick={handleFeishuClick}
+                    loading={feishuLoading}
+                  >
+                    <span className='ml-3'>{t('使用飞书继续')}</span>
+                  </Button>
+                )}
+
+                {!isFeishuOnly && (<>
                 {status.wechat_login && (
                   <Button
                     theme='outline'
@@ -642,6 +675,8 @@ const LoginForm = () => {
                   </Button>
                 )}
 
+                </>)}
+                {!isFeishuOnly && (<>
                 <Divider margin='12px' align='center'>
                   {t('或')}
                 </Divider>
@@ -656,6 +691,7 @@ const LoginForm = () => {
                 >
                   <span className='ml-3'>{t('使用 邮箱或用户名 登录')}</span>
                 </Button>
+                </>)}
               </div>
 
               {(hasUserAgreement || hasPrivacyPolicy) && (

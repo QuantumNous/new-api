@@ -134,6 +134,19 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+
+				// Admin Feishu binding management
+				adminRoute.GET("/feishu/bindings", controller.GetFeishuBindings)
+				adminRoute.POST("/feishu/bindings/import", controller.ImportFeishuBindings)
+				adminRoute.PUT("/:id/group", controller.AdminSetUserGroup)
+				adminRoute.POST("/group-sync", controller.AdminGroupSync)
+
+				// Admin Feishu user & token management
+				adminRoute.POST("/feishu/users/batch", controller.BatchCreateFeishuUsers)
+				adminRoute.PUT("/feishu/users/batch", controller.BatchUpdateFeishuUsers)
+				adminRoute.POST("/feishu/tokens", controller.AdminCreateTokenByFeishu)
+				adminRoute.POST("/feishu/tokens/batch", controller.AdminBatchCreateTokensByFeishu)
+				adminRoute.GET("/feishu/tokens", controller.AdminGetTokensByFeishu)
 			}
 		}
 
@@ -301,7 +314,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
 		dataRoute.GET("/by-user", middleware.AdminAuth(), controller.GetUserModelStatsByUser)
 		dataRoute.GET("/by-model", middleware.AdminAuth(), controller.GetUserModelStatsByModel)
-		dataRoute.GET("/matrix", middleware.AdminAuth(), controller.GetUserModelStatsMatrix)
+		dataRoute.GET("/by-detail", middleware.AdminAuth(), controller.GetUserModelStatsByDetail)
 		dataRoute.GET("/export", middleware.AdminAuth(), controller.ExportUserModelStats)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
