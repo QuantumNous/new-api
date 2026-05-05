@@ -346,12 +346,18 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 
 	stripe.Key = setting.StripeApiSecret
 
-	// Use custom URLs if provided, otherwise use defaults
+	// Use custom URLs if provided, otherwise use defaults based on the active frontend theme
+	successPath := "/console/log"
+	cancelPath := "/console/topup"
+	if common.GetTheme() == "default" {
+		successPath = "/usage-logs"
+		cancelPath = "/wallet"
+	}
 	if successURL == "" {
-		successURL = system_setting.ServerAddress + "/console/log"
+		successURL = system_setting.ServerAddress + successPath
 	}
 	if cancelURL == "" {
-		cancelURL = system_setting.ServerAddress + "/console/topup"
+		cancelURL = system_setting.ServerAddress + cancelPath
 	}
 
 	params := &stripe.CheckoutSessionParams{
