@@ -78,7 +78,8 @@ func TestOpenAIResponsesRequestNormalizeInputNullContent(t *testing.T) {
 		"input":[
 			{"role":"user","content":"hello"},
 			{"role":"assistant","content":null},
-			{"type":"function_call","call_id":"call_1","name":"demo","arguments":"{}"}
+			{"type":"function_call","call_id":"call_1","name":"demo","arguments":"{}"},
+			{"type":"reasoning","summary":[],"content":null,"encrypted_content":"secret"}
 		]
 	}`)
 
@@ -92,4 +93,5 @@ func TestOpenAIResponsesRequestNormalizeInputNullContent(t *testing.T) {
 	require.Equal(t, "\"\"", gjson.GetBytes(req.Input, "1.content").Raw)
 	require.Equal(t, "", gjson.GetBytes(req.Input, "1.content").String())
 	require.Equal(t, "hello", gjson.GetBytes(req.Input, "0.content").String())
+	require.Equal(t, "null", gjson.GetBytes(req.Input, "3.content").Raw)
 }

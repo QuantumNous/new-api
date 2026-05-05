@@ -948,10 +948,11 @@ func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
 	return toolsMap
 }
 
-// NormalizeInputNullContent rewrites Responses API input items whose `content`
-// is explicitly null into an empty string. Some OpenAI-compatible chat clients
-// emit empty assistant messages as null, while Responses-compatible upstreams
-// reject null content.
+// NormalizeInputNullContent rewrites Responses API message input items whose
+// `content` is explicitly null into an empty string. Some OpenAI-compatible
+// chat clients emit empty assistant messages as null, while Responses-compatible
+// upstreams reject null content. Non-message input items such as reasoning and
+// function_call use different schemas and must be preserved.
 func (r *OpenAIResponsesRequest) NormalizeInputNullContent() error {
 	if r == nil || len(r.Input) == 0 {
 		return nil
@@ -969,6 +970,14 @@ func (r *OpenAIResponsesRequest) NormalizeInputNullContent() error {
 	for _, rawItem := range items {
 		item, ok := rawItem.(map[string]any)
 		if !ok || item == nil {
+			continue
+		}
+		itemType := strings.TrimSpace(common.Interface2String(item["type"]))
+		role := strings.TrimSpace(common.Interface2String(item["role"]))
+		if itemType != "" && itemType != "message" {
+			continue
+		}
+		if itemType == "" && role == "" {
 			continue
 		}
 		content, exists := item["content"]
