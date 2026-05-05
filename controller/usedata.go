@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -67,6 +68,91 @@ func parseUserModelStatsTimeRange(c *gin.Context) (int64, int64, error) {
 		endTimestamp = parsedEnd
 	}
 	return startTimestamp, endTimestamp, nil
+}
+
+type userStatResponseItem struct {
+	Username       string  `json:"username"`
+	Count          int     `json:"count"`
+	TokenUsed      int     `json:"token_used"`
+	Quota          int     `json:"quota"`
+	QuotaAmountUSD float64 `json:"quota_amount_usd"`
+	QuotaAmountCNY float64 `json:"quota_amount_cny"`
+}
+
+type modelStatResponseItem struct {
+	ModelName      string  `json:"model_name"`
+	Count          int     `json:"count"`
+	TokenUsed      int     `json:"token_used"`
+	Quota          int     `json:"quota"`
+	QuotaAmountUSD float64 `json:"quota_amount_usd"`
+	QuotaAmountCNY float64 `json:"quota_amount_cny"`
+}
+
+type userModelStatResponseItem struct {
+	Username       string  `json:"username"`
+	ModelName      string  `json:"model_name"`
+	Count          int     `json:"count"`
+	TokenUsed      int     `json:"token_used"`
+	Quota          int     `json:"quota"`
+	QuotaAmountUSD float64 `json:"quota_amount_usd"`
+	QuotaAmountCNY float64 `json:"quota_amount_cny"`
+}
+
+func quotaToUSDAmount(quota int) float64 {
+	if common.QuotaPerUnit <= 0 {
+		return 0
+	}
+	return float64(quota) / common.QuotaPerUnit
+}
+
+func quotaToCNYAmount(quota int) float64 {
+	return quotaToUSDAmount(quota) * operation_setting.USDExchangeRate
+}
+
+func buildUserStatResponseItems(items []*model.UserStatItem) []userStatResponseItem {
+	res := make([]userStatResponseItem, 0, len(items))
+	for _, it := range items {
+		res = append(res, userStatResponseItem{
+			Username:       it.Username,
+			Count:          it.Count,
+			TokenUsed:      it.TokenUsed,
+			Quota:          it.Quota,
+			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
+			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
+		})
+	}
+	return res
+}
+
+func buildModelStatResponseItems(items []*model.ModelStatItem) []modelStatResponseItem {
+	res := make([]modelStatResponseItem, 0, len(items))
+	for _, it := range items {
+		res = append(res, modelStatResponseItem{
+			ModelName:      it.ModelName,
+			Count:          it.Count,
+			TokenUsed:      it.TokenUsed,
+			Quota:          it.Quota,
+			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
+			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
+		})
+	}
+	return res
+}
+
+func buildUserModelStatResponseItems(items []*model.UserModelStatItem) []userModelStatResponseItem {
+	res := make([]userModelStatResponseItem, 0, len(items))
+	for _, it := range items {
+		res = append(res, userModelStatResponseItem{
+			Username:       it.Username,
+			ModelName:      it.ModelName,
+			Count:          it.Count,
+			TokenUsed:      it.TokenUsed,
+			Quota:          it.Quota,
+			QuotaAmountUSD: quotaToUSDAmount(it.Quota),
+			QuotaAmountCNY: quotaToCNYAmount(it.Quota),
+		})
+	}
+	return res
 }
 
 func GetAllQuotaDates(c *gin.Context) {
@@ -158,7 +244,7 @@ func GetUserModelStatsByUser(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"items":     items,
+			"items":     buildUserStatResponseItems(items),
 			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
@@ -199,7 +285,7 @@ func GetUserModelStatsByModel(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"items":     items,
+			"items":     buildModelStatResponseItems(items),
 			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
@@ -240,7 +326,7 @@ func GetUserModelStatsByDetail(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"items":     items,
+			"items":     buildUserModelStatResponseItems(items),
 			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
