@@ -80,6 +80,7 @@ func TestConvertImageEditRequestParsesReusableMultipartWhenFormIsMissing(t *test
 	writer := multipart.NewWriter(&body)
 	require.NoError(t, writer.WriteField("model", "gpt-image-1"))
 	require.NoError(t, writer.WriteField("prompt", "edit without pre-parsed form"))
+	require.NoError(t, writer.WriteField("stream", "true"))
 	part, err := writer.CreateFormFile("image", "input.png")
 	require.NoError(t, err)
 	_, err = part.Write([]byte("fake image"))
@@ -103,6 +104,7 @@ func TestConvertImageEditRequestParsesReusableMultipartWhenFormIsMissing(t *test
 	request := dto.ImageRequest{
 		Model:  "gpt-image-1",
 		Prompt: "edit without pre-parsed form",
+		Stream: true,
 	}
 
 	converted, err := (&Adaptor{}).ConvertImageRequest(c, info, request)
@@ -114,5 +116,6 @@ func TestConvertImageEditRequestParsesReusableMultipartWhenFormIsMissing(t *test
 	replayedRequest.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	require.NoError(t, replayedRequest.ParseMultipartForm(32<<20))
 	require.Equal(t, "edit without pre-parsed form", replayedRequest.PostForm.Get("prompt"))
+	require.Equal(t, "true", replayedRequest.PostForm.Get("stream"))
 	require.Len(t, replayedRequest.MultipartForm.File["image"], 1)
 }
