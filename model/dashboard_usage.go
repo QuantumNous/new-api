@@ -65,7 +65,7 @@ func normalizeDashboardDimension(input string) DashboardDimension {
 }
 
 func buildDashboardUsageBaseQuery(query DashboardUsageQuery) (*gorm.DB, error) {
-	tx := LOG_DB.Model(&Log{}).Where("type = ?", LogTypeConsume)
+	tx := logReadDB().Model(&Log{}).Where("type = ?", LogTypeConsume)
 
 	if query.UserID > 0 {
 		tx = tx.Where("user_id = ?", query.UserID)
@@ -159,7 +159,7 @@ func loadNamedEntityMap(table string, ids []int) map[int]string {
 		return map[int]string{}
 	}
 	var rows []dashboardNamedEntity
-	if err := DB.Table(table).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := readDB().Table(table).Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
 		common.SysLog(fmt.Sprintf("failed to load %s names: %v", table, err))
 		return map[int]string{}
 	}

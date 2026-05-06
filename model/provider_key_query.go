@@ -54,7 +54,7 @@ func GetPagedProviderKeys(keyword string, startIdx int, pageSize int) ([]*Provid
 		return nil, 0, err
 	}
 
-	baseQuery := LOG_DB.Model(&ProviderKey{})
+	baseQuery := logReadDB().Model(&ProviderKey{})
 
 	trimmedKeyword := strings.TrimSpace(keyword)
 	if trimmedKeyword != "" {
@@ -141,7 +141,7 @@ func syncProviderKeysFromChannels() error {
 	}
 
 	var channels []providerKeyChannelRow
-	if err := DB.Model(&Channel{}).
+	if err := readDB().Model(&Channel{}).
 		Select("id, name, status, type, " + keyColumn + " as key").
 		Find(&channels).Error; err != nil {
 		return err
@@ -175,7 +175,7 @@ func getProviderKeyUsageStats(providerKeyIds []int) (map[int]providerKeyLogAggre
 	}
 
 	var rows []providerKeyLogAggregateRow
-	err := LOG_DB.Model(&Log{}).
+	err := logReadDB().Model(&Log{}).
 		Select(
 			"provider_key_id, COUNT(*) AS request_count, "+
 				"SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) AS success_count, "+
@@ -218,7 +218,7 @@ func getProviderKeyChannels(fingerprintSet map[string]struct{}) (map[string][]Pr
 	}
 
 	var channels []providerKeyChannelRow
-	if err := DB.Model(&Channel{}).
+	if err := readDB().Model(&Channel{}).
 		Select("id, name, status, type, " + keyColumn + " as key").
 		Find(&channels).Error; err != nil {
 		return nil, nil, err

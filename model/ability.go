@@ -265,7 +265,7 @@ func UpdateAbilityStatus(channelId int, status bool) error {
 }
 
 func UpdateAbilityStatusByTag(tag string, status bool) error {
-	return DB.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error
+	return withTagCondition(DB.Model(&Ability{}), tag).Select("enabled").Update("enabled", status).Error
 }
 
 func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uint) error {
@@ -279,7 +279,7 @@ func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uin
 	if weight != nil {
 		ability.Weight = *weight
 	}
-	return DB.Model(&Ability{}).Where("tag = ?", tag).Updates(ability).Error
+	return withTagCondition(DB.Model(&Ability{}), tag).Updates(ability).Error
 }
 
 var fixLock = sync.Mutex{}

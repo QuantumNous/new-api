@@ -313,7 +313,7 @@ export const useChannelsData = () => {
             key: tag,
             id: tag,
             tag: tag,
-            name: '标签：' + tag,
+            name: tag ? '标签：' + tag : t('无标签'),
             group: '',
             used_quota: 0,
             response_time: 0,

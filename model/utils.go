@@ -32,8 +32,13 @@ func init() {
 
 func InitBatchUpdater() {
 	gopool.Go(func() {
+		interval := common.BatchUpdateInterval
+		if interval <= 0 {
+			common.SysError("batch update interval must be positive, using default value: 5")
+			interval = 5
+		}
 		for {
-			time.Sleep(time.Duration(common.BatchUpdateInterval) * time.Second)
+			time.Sleep(time.Duration(interval) * time.Second)
 			batchUpdate()
 		}
 	})

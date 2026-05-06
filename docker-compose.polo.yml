@@ -1,0 +1,66 @@
+# New-API Polo Docker Compose Configuration
+#
+# Quick Start:
+#   1. docker compose -f docker-compose.polo.yml -p new-api-polo up -d
+#   2. Access at http://localhost:8091
+#
+# IMPORTANT: Change all default passwords before deploying to production.
+
+services:
+  new-api-polo:
+    image: ghcr.io/sulishi2011/new-api:custom-main
+    container_name: new-api-polo
+    restart: always
+    command: --log-dir /app/logs
+    ports:
+      - "8091:3000"
+    volumes:
+      - ./data-polo:/data
+      - ./logs-polo:/app/logs
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres-polo:5432/new-api
+      - REDIS_CONN_STRING=redis://:123456@redis-polo:6379
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - NODE_NAME=new-api-polo
+#      - STREAMING_TIMEOUT=300
+#      - SESSION_SECRET=random_string
+    depends_on:
+      - redis-polo
+      - postgres-polo
+    networks:
+      - new-api-polo-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis-polo:
+    image: redis:latest
+    container_name: redis-polo
+    restart: always
+    command: ["redis-server", "--requirepass", "123456"]
+    networks:
+      - new-api-polo-network
+
+  postgres-polo:
+    image: postgres:15
+    container_name: postgres-polo
+    restart: always
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: new-api
+    volumes:
+      - pg_data_polo:/var/lib/postgresql/data
+    networks:
+      - new-api-polo-network
+
+volumes:
+  pg_data_polo:
+
+networks:
+  new-api-polo-network:
+    driver: bridge

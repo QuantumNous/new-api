@@ -27,7 +27,12 @@ func UpdateQuotaData() {
 			common.SysLog("正在更新数据看板数据...")
 			SaveQuotaDataCache()
 		}
-		time.Sleep(time.Duration(common.DataExportInterval) * time.Minute)
+		interval := common.DataExportInterval
+		if interval <= 0 {
+			common.SysError("data export interval must be positive, using default value: 5")
+			interval = 5
+		}
+		time.Sleep(time.Duration(interval) * time.Minute)
 	}
 }
 

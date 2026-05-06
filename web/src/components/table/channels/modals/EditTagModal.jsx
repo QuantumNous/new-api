@@ -292,10 +292,12 @@ const EditTagModal = (props) => {
 
   useEffect(() => {
     const fetchTagModels = async () => {
-      if (!tag) return;
+      if (tag === undefined || tag === null) return;
       setLoading(true);
       try {
-        const res = await API.get(`/api/channel/tag/models?tag=${tag}`);
+        const res = await API.get(
+          `/api/channel/tag/models?tag=${encodeURIComponent(tag)}`,
+        );
         if (res?.data?.success) {
           const models = res.data.data ? res.data.data.split(',') : [];
           handleInputChange('models', models);
@@ -412,7 +414,7 @@ const EditTagModal = (props) => {
       closeIcon={null}
     >
       <Form
-        key={tag || 'edit'}
+        key={tag === undefined || tag === null ? 'edit' : `edit-${tag}`}
         initValues={getInitValues()}
         getFormApi={(api) => (formApiRef.current = api)}
         onSubmit={handleSave}

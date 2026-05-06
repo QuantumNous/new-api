@@ -496,6 +496,10 @@ func UpdateAllChannelsBalance(c *gin.Context) {
 }
 
 func AutomaticallyUpdateChannels(frequency int) {
+	if frequency <= 0 {
+		common.SysError("CHANNEL_UPDATE_FREQUENCY must be positive; automatic channel balance update disabled")
+		return
+	}
 	for {
 		time.Sleep(time.Duration(frequency) * time.Minute)
 		common.SysLog("updating all channels")

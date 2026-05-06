@@ -199,6 +199,10 @@ func loadOptionsFromDatabase() {
 }
 
 func SyncOptions(frequency int) {
+	if frequency <= 0 {
+		common.SysError("option sync frequency must be positive, using default value: 60")
+		frequency = 60
+	}
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
 		common.SysLog("syncing options from database")

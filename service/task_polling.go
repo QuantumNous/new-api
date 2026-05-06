@@ -1,12 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
+	"reflect"
 	"strings"
 	"time"
 
@@ -271,20 +272,31 @@ func taskNeedsUpdate(oldTask *model.Task, newTask dto.SunoDataResponse) bool {
 		return true
 	}
 
-	oldData, _ := common.Marshal(oldTask.Data)
-	newData, _ := common.Marshal(newTask.Data)
-
-	sort.Slice(oldData, func(i, j int) bool {
-		return oldData[i] < oldData[j]
-	})
-	sort.Slice(newData, func(i, j int) bool {
-		return newData[i] < newData[j]
-	})
-
-	if string(oldData) != string(newData) {
+	if !jsonRawMessageEqual(oldTask.Data, newTask.Data) {
 		return true
 	}
 	return false
+}
+
+func jsonRawMessageEqual(left, right []byte) bool {
+	left = bytes.TrimSpace(left)
+	right = bytes.TrimSpace(right)
+	if bytes.Equal(left, right) {
+		return true
+	}
+	if len(left) == 0 || len(right) == 0 {
+		return false
+	}
+
+	var leftValue any
+	var rightValue any
+	if err := common.Unmarshal(left, &leftValue); err != nil {
+		return false
+	}
+	if err := common.Unmarshal(right, &rightValue); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
 }
 
 // UpdateVideoTasks 按渠道更新所有视频任务

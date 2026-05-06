@@ -95,12 +95,30 @@ func InitEnv() {
 	}
 
 	// Parse requestInterval and set RequestInterval
-	requestInterval, _ = strconv.Atoi(os.Getenv("POLLING_INTERVAL"))
+	requestInterval = 0
+	if pollingInterval := os.Getenv("POLLING_INTERVAL"); pollingInterval != "" {
+		parsedInterval, err := strconv.Atoi(pollingInterval)
+		if err != nil {
+			SysError("failed to parse POLLING_INTERVAL: " + err.Error() + ", using default value: 0")
+		} else if parsedInterval < 0 {
+			SysError("POLLING_INTERVAL must not be negative, using default value: 0")
+		} else {
+			requestInterval = parsedInterval
+		}
+	}
 	RequestInterval = time.Duration(requestInterval) * time.Second
 
 	// Initialize variables with GetEnvOrDefault
 	SyncFrequency = GetEnvOrDefault("SYNC_FREQUENCY", 60)
+	if SyncFrequency <= 0 {
+		SysError("SYNC_FREQUENCY must be positive, using default value: 60")
+		SyncFrequency = 60
+	}
 	BatchUpdateInterval = GetEnvOrDefault("BATCH_UPDATE_INTERVAL", 5)
+	if BatchUpdateInterval <= 0 {
+		SysError("BATCH_UPDATE_INTERVAL must be positive, using default value: 5")
+		BatchUpdateInterval = 5
+	}
 	RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0)
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
@@ -150,6 +168,10 @@ func initConstantEnv() {
 	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
 	// 任务轮询时查询的最大数量
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
+	if constant.TaskQueryLimit <= 0 {
+		SysError("TASK_QUERY_LIMIT must be positive, using default value: 1000")
+		constant.TaskQueryLimit = 1000
+	}
 	// 异步任务超时时间（分钟），超过此时间未完成的任务将被标记为失败并退款。0 表示禁用。
 	constant.TaskTimeoutMinutes = GetEnvOrDefault("TASK_TIMEOUT_MINUTES", 1440)
 

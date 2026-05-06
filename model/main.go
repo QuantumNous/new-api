@@ -63,7 +63,86 @@ func initCol() {
 
 var DB *gorm.DB
 
+var READ_DB *gorm.DB
+
 var LOG_DB *gorm.DB
+
+var LOG_READ_DB *gorm.DB
+
+func configureSQLPool(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
+	sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
+	sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+	return nil
+}
+
+func chooseReadDB(envName string) (*gorm.DB, error) {
+	dsn := os.Getenv(envName)
+	if dsn == "" {
+		return nil, nil
+	}
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		common.SysLog("using PostgreSQL as read database for " + envName)
+		return gorm.Open(postgres.New(postgres.Config{
+			DSN:                  dsn,
+			PreferSimpleProtocol: true,
+		}), &gorm.Config{
+			PrepareStmt: true,
+		})
+	}
+	if strings.HasPrefix(dsn, "local") {
+		common.SysLog("using SQLite as read database for " + envName)
+		return gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
+			PrepareStmt: true,
+		})
+	}
+	common.SysLog("using MySQL as read database for " + envName)
+	if !strings.Contains(dsn, "parseTime") {
+		if strings.Contains(dsn, "?") {
+			dsn += "&parseTime=true"
+		} else {
+			dsn += "?parseTime=true"
+		}
+	}
+	return gorm.Open(mysql.Open(dsn), &gorm.Config{
+		PrepareStmt: true,
+	})
+}
+
+func initReadDB(envName string, fallback *gorm.DB) (*gorm.DB, error) {
+	readDB, err := chooseReadDB(envName)
+	if err != nil {
+		return nil, err
+	}
+	if readDB == nil {
+		return fallback, nil
+	}
+	if common.DebugEnabled {
+		readDB = readDB.Debug()
+	}
+	if err := configureSQLPool(readDB); err != nil {
+		return nil, err
+	}
+	return readDB, nil
+}
+
+func readDB() *gorm.DB {
+	if READ_DB != nil {
+		return READ_DB
+	}
+	return DB
+}
+
+func logReadDB() *gorm.DB {
+	if LOG_READ_DB != nil {
+		return LOG_READ_DB
+	}
+	return LOG_DB
+}
 
 func createRootAccountIfNeed() error {
 	var user User
@@ -187,13 +266,13 @@ func InitDB() (err error) {
 				panic(err)
 			}
 		}
-		sqlDB, err := DB.DB()
+		if err := configureSQLPool(DB); err != nil {
+			return err
+		}
+		READ_DB, err = initReadDB("SQL_READ_DSN", DB)
 		if err != nil {
 			return err
 		}
-		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
-		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
 		if !common.IsMasterNode {
 			return nil
@@ -213,7 +292,8 @@ func InitDB() (err error) {
 func InitLogDB() (err error) {
 	if os.Getenv("LOG_SQL_DSN") == "" {
 		LOG_DB = DB
-		return
+		LOG_READ_DB, err = initReadDB("LOG_SQL_READ_DSN", LOG_DB)
+		return err
 	}
 	db, err := chooseDB("LOG_SQL_DSN", true)
 	if err == nil {
@@ -227,13 +307,13 @@ func InitLogDB() (err error) {
 				panic(err)
 			}
 		}
-		sqlDB, err := LOG_DB.DB()
+		if err := configureSQLPool(LOG_DB); err != nil {
+			return err
+		}
+		LOG_READ_DB, err = initReadDB("LOG_SQL_READ_DSN", LOG_DB)
 		if err != nil {
 			return err
 		}
-		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
-		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
 		if !common.IsMasterNode {
 			return nil
@@ -577,13 +657,20 @@ func closeDB(db *gorm.DB) error {
 }
 
 func CloseDB() error {
-	if LOG_DB != DB {
-		err := closeDB(LOG_DB)
-		if err != nil {
+	seen := make(map[*gorm.DB]struct{})
+	for _, db := range []*gorm.DB{LOG_READ_DB, LOG_DB, READ_DB, DB} {
+		if db == nil {
+			continue
+		}
+		if _, ok := seen[db]; ok {
+			continue
+		}
+		seen[db] = struct{}{}
+		if err := closeDB(db); err != nil {
 			return err
 		}
 	}
-	return closeDB(DB)
+	return nil
 }
 
 // checkMySQLChineseSupport ensures the MySQL connection and current schema

@@ -12,10 +12,12 @@ type MonitorSetting struct {
 	AutoTestChannelMinutes float64 `json:"auto_test_channel_minutes"`
 }
 
+const defaultAutoTestChannelMinutes = 10
+
 // 默认配置
 var monitorSetting = MonitorSetting{
 	AutoTestChannelEnabled: false,
-	AutoTestChannelMinutes: 10,
+	AutoTestChannelMinutes: defaultAutoTestChannelMinutes,
 }
 
 func init() {
@@ -30,6 +32,9 @@ func GetMonitorSetting() *MonitorSetting {
 			monitorSetting.AutoTestChannelEnabled = true
 			monitorSetting.AutoTestChannelMinutes = float64(frequency)
 		}
+	}
+	if monitorSetting.AutoTestChannelMinutes < 1 {
+		monitorSetting.AutoTestChannelMinutes = defaultAutoTestChannelMinutes
 	}
 	return &monitorSetting
 }

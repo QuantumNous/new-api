@@ -95,7 +95,7 @@ func GetAllChannels(c *gin.Context) {
 			return
 		}
 		for _, tag := range tags {
-			if tag == nil || *tag == "" {
+			if tag == nil {
 				continue
 			}
 			tagChannels, err := model.GetChannelsByTag(*tag, idSort, false)
@@ -264,11 +264,12 @@ func SearchChannels(c *gin.Context) {
 			return
 		}
 		for _, tag := range tags {
-			if tag != nil && *tag != "" {
-				tagChannel, err := model.GetChannelsByTag(*tag, idSort, false)
-				if err == nil {
-					channelData = append(channelData, tagChannel...)
-				}
+			if tag == nil {
+				continue
+			}
+			tagChannel, err := model.GetChannelsByTag(*tag, idSort, false)
+			if err == nil {
+				channelData = append(channelData, tagChannel...)
 			}
 		}
 	} else {
@@ -771,7 +772,7 @@ func DeleteDisabledChannel(c *gin.Context) {
 }
 
 type ChannelTag struct {
-	Tag            string  `json:"tag"`
+	Tag            *string `json:"tag"`
 	NewTag         *string `json:"new_tag"`
 	Priority       *int64  `json:"priority"`
 	Weight         *uint   `json:"weight"`
@@ -785,14 +786,14 @@ type ChannelTag struct {
 func DisableTagChannels(c *gin.Context) {
 	channelTag := ChannelTag{}
 	err := c.ShouldBindJSON(&channelTag)
-	if err != nil || channelTag.Tag == "" {
+	if err != nil || channelTag.Tag == nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
 		})
 		return
 	}
-	err = model.DisableChannelByTag(channelTag.Tag)
+	err = model.DisableChannelByTag(*channelTag.Tag)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -808,14 +809,14 @@ func DisableTagChannels(c *gin.Context) {
 func EnableTagChannels(c *gin.Context) {
 	channelTag := ChannelTag{}
 	err := c.ShouldBindJSON(&channelTag)
-	if err != nil || channelTag.Tag == "" {
+	if err != nil || channelTag.Tag == nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
 		})
 		return
 	}
-	err = model.EnableChannelByTag(channelTag.Tag)
+	err = model.EnableChannelByTag(*channelTag.Tag)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -838,7 +839,7 @@ func EditTagChannels(c *gin.Context) {
 		})
 		return
 	}
-	if channelTag.Tag == "" {
+	if channelTag.Tag == nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "tag不能为空",
@@ -867,7 +868,7 @@ func EditTagChannels(c *gin.Context) {
 		}
 		channelTag.HeaderOverride = common.GetPointer[string](trimmed)
 	}
-	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
+	err = model.EditChannelByTag(*channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -1191,8 +1192,8 @@ func BatchSetChannelTag(c *gin.Context) {
 }
 
 func GetTagModels(c *gin.Context) {
-	tag := c.Query("tag")
-	if tag == "" {
+	tag, ok := c.GetQuery("tag")
+	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "tag不能为空",
