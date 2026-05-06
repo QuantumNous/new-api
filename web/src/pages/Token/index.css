@@ -276,6 +276,9 @@
   font-weight: 700;
 }
 
+.token-toolbar-button.semi-button {
+  color: var(--semi-color-primary);
+}
 .token-toolbar-button.semi-button,
 .token-filter-button.semi-button {
   height: 42px;
@@ -296,6 +299,7 @@
 
 .token-toolbar-danger.semi-button {
   box-shadow: none;
+  color: var(--semi-color-danger);
 }
 
 .token-toolbar-filters {
