@@ -1,0 +1,489 @@
+.token-edit-sheet .semi-sidesheet-content {
+  background: radial-gradient(
+      circle at top left,
+      rgba(236, 72, 153, 0.08),
+      transparent 24%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(248, 250, 252, 0.98)
+    );
+}
+
+.token-edit-sheet .semi-sidesheet-header {
+  padding: 22px 24px 18px !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96) !important;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+}
+
+.token-edit-sheet .semi-sidesheet-body {
+  background: transparent;
+}
+
+.token-edit-sheet-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.token-edit-sheet-status.semi-tag {
+  flex-shrink: 0;
+  margin-top: 2px;
+  border-radius: 999px !important;
+  font-weight: 700;
+}
+
+.token-edit-sheet-status-edit.semi-tag {
+  background: rgba(59, 130, 246, 0.12) !important;
+  color: #1d4ed8 !important;
+}
+
+.token-edit-sheet-status-create.semi-tag {
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #047857 !important;
+}
+
+.token-edit-sheet-title-copy {
+  min-width: 0;
+}
+
+.token-edit-sheet-heading.semi-typography {
+  margin: 0 !important;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.token-edit-sheet-subtitle.semi-typography {
+  display: block;
+  margin-top: 6px;
+  color: #8a94a6;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.token-edit-sheet-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 24px 20px;
+  border-top: 1px solid rgba(226, 232, 240, 0.96);
+  background: linear-gradient(
+    180deg,
+    rgba(250, 250, 252, 0.4),
+    rgba(248, 250, 252, 0.98)
+  );
+}
+
+.token-edit-footer-button.semi-button {
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 14px !important;
+  font-weight: 700;
+}
+
+.token-edit-footer-button-primary.semi-button {
+  border: none !important;
+  background: linear-gradient(90deg, #a855f7, #d946ef 54%, #f472b6) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 28px rgba(168, 85, 247, 0.22);
+}
+
+.token-edit-footer-button-primary.semi-button:hover {
+  background: linear-gradient(90deg, #9333ea, #c026d3 54%, #ec4899) !important;
+}
+
+.token-edit-footer-button-secondary.semi-button {
+  border-color: rgba(226, 232, 240, 0.96) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #111827 !important;
+}
+
+.token-edit-modal {
+  min-height: 100%;
+}
+
+.token-edit-content {
+  display: grid;
+  gap: 14px;
+  padding: 12px;
+}
+
+.token-edit-section-card.semi-card {
+  border: 1px solid rgba(224, 229, 237, 0.95) !important;
+  border-radius: 26px !important;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(248, 250, 252, 0.96)
+  ) !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.05) !important;
+}
+
+.token-edit-section-card .semi-card-body {
+  padding: 20px 20px 18px !important;
+}
+
+.token-edit-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.token-edit-section-avatar.semi-avatar {
+  width: 38px !important;
+  min-width: 38px;
+  height: 38px !important;
+  border-radius: 14px !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+
+.token-edit-section-avatar-basic.semi-avatar {
+  background: linear-gradient(135deg, #3b82f6, #6366f1) !important;
+}
+
+.token-edit-section-avatar-quota.semi-avatar {
+  background: linear-gradient(135deg, #10b981, #14b8a6) !important;
+}
+
+.token-edit-section-avatar-access.semi-avatar {
+  background: linear-gradient(135deg, #a855f7, #d946ef) !important;
+}
+
+.token-edit-section-copy {
+  min-width: 0;
+}
+
+.token-edit-section-title.semi-typography {
+  display: block;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.token-edit-section-description {
+  margin-top: 4px;
+  color: #8a94a6;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.token-edit-modal .semi-form-field {
+  margin-bottom: 18px;
+}
+
+.token-edit-modal .semi-form-field:last-child {
+  margin-bottom: 0;
+}
+
+.token-edit-modal .semi-form-field-label {
+  margin-bottom: 8px !important;
+  color: #475467 !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.token-edit-modal .semi-form-field-label-required::before {
+  color: #ec4899 !important;
+}
+
+.token-edit-modal .semi-form-field-extra {
+  margin-top: 6px !important;
+  color: #8a94a6 !important;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.token-edit-input .semi-input-wrapper,
+.token-edit-input.semi-input-wrapper {
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.token-edit-number .semi-input-wrapper {
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+.token-edit-number .semi-input-default {
+  height: 42px;
+}
+.token-edit-number .semi-input-number-button.semi-input-number-button-up,
+.token-edit-number .semi-input-number-button.semi-input-number-button-down {
+  width: 28px;
+}
+.token-edit-number .semi-input-number-suffix-btns {
+  height: 42px;
+}
+.token-edit-select {
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+.token-edit-select .semi-select-selection {
+  line-height: 42px;
+}
+
+.token-edit-date .semi-input-wrapper,
+.token-edit-date.semi-input-wrapper {
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.token-edit-textarea {
+  min-height: 104px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.token-edit-input .semi-input,
+.token-edit-number .semi-input-number-input,
+.token-edit-select .semi-select-selection-text,
+.token-edit-textarea .semi-textarea,
+.token-edit-date .semi-input {
+  color: #0f172a !important;
+  font-weight: 500;
+}
+
+.token-edit-input .semi-input::placeholder,
+.token-edit-number .semi-input-number-input::placeholder,
+.token-edit-select .semi-select-selection-placeholder,
+.token-edit-textarea .semi-textarea::placeholder,
+.token-edit-date .semi-input::placeholder {
+  color: #98a2b3 !important;
+}
+
+.token-edit-input .semi-input-prefix,
+.token-edit-input .semi-input-suffix,
+.token-edit-select .semi-select-selection-icon,
+.token-edit-number .semi-input-number-prefix,
+.token-edit-number .semi-input-number-suffix,
+.token-edit-date .semi-input-prefix,
+.token-edit-date .semi-input-suffix {
+  color: #94a3b8 !important;
+}
+
+.token-edit-select {
+  width: 100%;
+}
+
+.token-edit-number {
+  width: 100%;
+}
+
+.token-edit-modal .semi-form-field .semi-switch {
+  background: rgba(191, 203, 222, 0.86) !important;
+}
+
+.token-edit-modal .semi-form-field .semi-switch-checked {
+  background: linear-gradient(135deg, #d946ef, #a855f7) !important;
+}
+
+.token-edit-preset-group {
+  gap: 8px !important;
+}
+
+.token-edit-preset-button.semi-button {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 14px !important;
+  border-color: rgba(226, 232, 240, 0.95) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #475467 !important;
+  font-weight: 700;
+}
+
+.token-edit-preset-button.semi-button:hover {
+  border-color: rgba(217, 70, 239, 0.26) !important;
+  background: rgba(250, 245, 255, 0.95) !important;
+  color: #b423c7 !important;
+}
+
+.token-edit-preset-button-primary.semi-button {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #d946ef, #a855f7) !important;
+  color: #ffffff !important;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 14px !important;
+  font-weight: 700;
+}
+
+.token-edit-preset-button-primary.semi-button:hover {
+  background: linear-gradient(135deg, #c026d3, #9333ea) !important;
+  color: #ffffff !important;
+}
+
+.token-edit-toggle-native-input {
+  margin-top: 6px;
+  color: #8a94a6;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.token-edit-toggle-native-input:hover {
+  color: #b423c7;
+}
+
+html.dark .token-edit-sheet .semi-sidesheet-content {
+  background: radial-gradient(
+      circle at top left,
+      rgba(192, 38, 211, 0.12),
+      transparent 30%
+    ),
+    linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98));
+}
+
+html.dark .token-edit-sheet .semi-sidesheet-header {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(16, 19, 24, 0.82);
+}
+
+html.dark .token-edit-sheet-heading.semi-typography,
+html.dark .token-edit-section-title.semi-typography {
+  color: #f8fafc !important;
+}
+
+html.dark .token-edit-sheet-subtitle.semi-typography,
+html.dark .token-edit-section-description,
+html.dark .token-edit-modal .semi-form-field-label,
+html.dark .token-edit-modal .semi-form-field-extra,
+html.dark .token-edit-toggle-native-input {
+  color: #98a2b3 !important;
+}
+
+html.dark .token-edit-sheet-status-edit.semi-tag {
+  background: rgba(59, 130, 246, 0.18) !important;
+  color: #93c5fd !important;
+}
+
+html.dark .token-edit-sheet-status-create.semi-tag {
+  background: rgba(16, 185, 129, 0.18) !important;
+  color: #6ee7b7 !important;
+}
+
+html.dark .token-edit-sheet-footer {
+  border-top-color: rgba(43, 48, 59, 0.95);
+  background: linear-gradient(
+    180deg,
+    rgba(17, 19, 24, 0.4),
+    rgba(16, 19, 24, 0.98)
+  );
+}
+
+html.dark .token-edit-footer-button-secondary.semi-button,
+html.dark .token-edit-preset-button.semi-button,
+html.dark .token-edit-section-card.semi-card,
+html.dark .token-edit-input .semi-input-wrapper,
+html.dark .token-edit-input.semi-input-wrapper,
+html.dark .token-edit-number .semi-input-wrapper,
+html.dark .token-edit-select,
+html.dark .token-edit-date .semi-input-wrapper,
+html.dark .token-edit-date.semi-input-wrapper,
+html.dark .token-edit-textarea {
+  border-color: rgba(58, 66, 82, 0.95) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html.dark .token-edit-section-card.semi-card {
+  box-shadow: none !important;
+}
+
+html.dark .token-edit-footer-button-secondary.semi-button,
+html.dark .token-edit-preset-button.semi-button,
+html.dark .token-edit-input .semi-input,
+html.dark .token-edit-number .semi-input-number-input,
+html.dark .token-edit-select .semi-select-selection-text,
+html.dark .token-edit-textarea .semi-textarea,
+html.dark .token-edit-date .semi-input {
+  color: #f8fafc !important;
+}
+
+html.dark .token-edit-input .semi-input::placeholder,
+html.dark .token-edit-number .semi-input-number-input::placeholder,
+html.dark .token-edit-select .semi-select-selection-placeholder,
+html.dark .token-edit-textarea .semi-textarea::placeholder,
+html.dark .token-edit-date .semi-input::placeholder,
+html.dark .token-edit-input .semi-input-prefix,
+html.dark .token-edit-input .semi-input-suffix,
+html.dark .token-edit-select .semi-select-selection-icon,
+html.dark .token-edit-number .semi-input-number-prefix,
+html.dark .token-edit-number .semi-input-number-suffix,
+html.dark .token-edit-date .semi-input-prefix,
+html.dark .token-edit-date .semi-input-suffix {
+  color: #667085 !important;
+}
+
+html.dark .token-edit-toggle-native-input:hover {
+  color: #f472b6 !important;
+}
+
+@media (max-width: 767px) {
+  .token-edit-sheet .semi-sidesheet-header {
+    padding: 18px 16px 14px !important;
+  }
+
+  .token-edit-sheet-title {
+    gap: 10px;
+  }
+
+  .token-edit-sheet-heading.semi-typography {
+    font-size: 20px;
+  }
+
+  .token-edit-sheet-footer {
+    padding: 14px 16px 16px;
+  }
+
+  .token-edit-content {
+    padding: 10px;
+  }
+
+  .token-edit-section-card .semi-card-body {
+    padding: 18px 16px 16px !important;
+  }
+
+  .token-edit-footer-button.semi-button {
+    width: 100%;
+  }
+}

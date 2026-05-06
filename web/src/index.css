@@ -2299,7 +2299,7 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
 }
 
 /* ==================== 自定义圆角样式 ==================== */
-.semi-radio,
+/* .semi-radio,
 .semi-tagInput,
 .semi-input-textarea-wrapper,
 .semi-navigation-sub-title,
@@ -2313,7 +2313,7 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
 .semi-button,
 .semi-datepicker-range-input {
   border-radius: 10px !important;
-}
+} */
 
 @keyframes slideInLeft {
   from {
