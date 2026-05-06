@@ -99,12 +99,25 @@ const RechargeCard = ({
 }) => {
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
+  const syncingPresetRef = useRef(false);
   const initialTabSetRef = useRef(false);
   const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
   const [activeTab, setActiveTab] = useState('topup');
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
   const regularPayMethods = payMethods || [];
+
+  const releasePresetSyncLock = () => {
+    if (typeof window !== 'undefined' && window.requestAnimationFrame) {
+      window.requestAnimationFrame(() => {
+        syncingPresetRef.current = false;
+      });
+      return;
+    }
+    setTimeout(() => {
+      syncingPresetRef.current = false;
+    }, 0);
+  };
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
@@ -118,6 +131,11 @@ const RechargeCard = ({
       setActiveTab('topup');
     }
   }, [shouldShowSubscription, activeTab]);
+
+  const currentTopupGroupRatio = Number(topupInfo?.topup_group_ratio) || 1;
+  const currentOriginalAmount =
+    Number(topUpCount || 0) * Number(priceRatio || 0) * currentTopupGroupRatio;
+
   const topupContent = (
     <Space vertical style={{ width: '100%' }}>
       {/* 统计数据 */}
@@ -261,6 +279,9 @@ const RechargeCard = ({
                       step={1}
                       precision={0}
                       onChange={async (value) => {
+                        if (syncingPresetRef.current) {
+                          return;
+                        }
                         if (value && value >= 1) {
                           setTopUpCount(value);
                           setSelectedPreset(null);
@@ -297,6 +318,16 @@ const RechargeCard = ({
                             <span style={{ color: 'red' }}>
                               {renderAmount()}
                             </span>
+                            {currentOriginalAmount > 0 && (
+                              <Text
+                                type='tertiary'
+                                style={{ marginLeft: 8, fontSize: '12px' }}
+                              >
+                                {t('原价')}：{currentOriginalAmount.toFixed(2)}
+                                {' '}
+                                {t('元')}
+                              </Text>
+                            )}
                           </Text>
                         </Skeleton>
                       }
@@ -434,11 +465,18 @@ const RechargeCard = ({
                 >
                   <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
                     {presetAmounts.map((preset, index) => {
-                      const discount =
-                        preset.discount ||
-                        topupInfo?.discount?.[preset.value] ||
-                        1.0;
-                      const originalPrice = preset.value * priceRatio;
+                      const presetValue = Number(preset.value);
+                      const rawDiscount =
+                        topupInfo?.discount?.[presetValue] ??
+                        topupInfo?.discount?.[String(presetValue)] ??
+                        preset.discount;
+                      const discount = Number.isFinite(Number(rawDiscount))
+                        ? Number(rawDiscount)
+                        : 1.0;
+                      const topupGroupRatio =
+                        Number(topupInfo?.topup_group_ratio) || 1;
+                      const originalPrice =
+                        presetValue * priceRatio * topupGroupRatio;
                       const discountedPrice = originalPrice * discount;
                       const hasDiscount = discount < 1.0;
                       const actualPay = discountedPrice;
@@ -452,20 +490,23 @@ const RechargeCard = ({
                           ? Number(priceRatio)
                           : 1;
 
-                      let displayValue = preset.value; // 显示的数量
+                      let displayValue = presetValue; // 显示的数量
+                      let displayOriginalPay = originalPrice;
                       let displayActualPay = actualPay;
                       let displaySave = save;
 
                       if (type === 'USD') {
                         // 数量保持USD，价格从充值货币转回USD
+                        displayOriginalPay = originalPrice / topupRate;
                         displayActualPay = actualPay / topupRate;
                         displaySave = save / topupRate;
                       } else if (type === 'CNY') {
                         // 数量按充值价格折算为CNY
-                        displayValue = preset.value * topupRate;
+                        displayValue = presetValue * topupRate;
                       } else if (type === 'CUSTOM') {
                         // 数量和价格都转自定义货币
-                        displayValue = preset.value * rate;
+                        displayValue = presetValue * rate;
+                        displayOriginalPay = (originalPrice / topupRate) * rate;
                         displayActualPay = (actualPay / topupRate) * rate;
                         displaySave = (save / topupRate) * rate;
                       }
@@ -476,7 +517,7 @@ const RechargeCard = ({
                           style={{
                             cursor: 'pointer',
                             border:
-                              selectedPreset === preset.value
+                              selectedPreset === presetValue
                                 ? '2px solid var(--semi-color-primary)'
                                 : '1px solid var(--semi-color-border)',
                             height: '100%',
@@ -484,7 +525,13 @@ const RechargeCard = ({
                           }}
                           bodyStyle={{ padding: '12px' }}
                           onClick={() => {
+                            syncingPresetRef.current = true;
+                            onlineFormApiRef.current?.setValue(
+                              'topUpCount',
+                              presetValue,
+                            );
                             selectPresetAmount(preset);
+                            releasePresetSyncLock();
                           }}
                         >
                           <div style={{ textAlign: 'center' }}>
@@ -494,6 +541,29 @@ const RechargeCard = ({
                             >
                               <Coins size={18} />
                               {formatLargeNumber(displayValue)} {symbol}
+                            </Typography.Title>
+                            <div
+                              style={{
+                                color: 'var(--semi-color-text-2)',
+                                fontSize: '12px',
+                                margin: '4px 0',
+                              }}
+                            >
+                              {t('原价')} {symbol}
+                              {displayOriginalPay.toFixed(2)}
+                            </div>
+                            <div
+                              style={{
+                                color: hasDiscount
+                                  ? 'var(--semi-color-danger)'
+                                  : 'var(--semi-color-text-2)',
+                                fontSize: '12px',
+                                margin: '4px 0 0 0',
+                                fontWeight: hasDiscount ? 600 : 400,
+                              }}
+                            >
+                              {t('实付')} {symbol}
+                              {displayActualPay.toFixed(2)}
                               {hasDiscount && (
                                 <Tag style={{ marginLeft: 4 }} color='green'>
                                   {t('折').includes('off')
@@ -505,19 +575,6 @@ const RechargeCard = ({
                                   {t('折')}
                                 </Tag>
                               )}
-                            </Typography.Title>
-                            <div
-                              style={{
-                                color: 'var(--semi-color-text-2)',
-                                fontSize: '12px',
-                                margin: '4px 0',
-                              }}
-                            >
-                              {t('实付')} {symbol}
-                              {displayActualPay.toFixed(2)}，
-                              {hasDiscount
-                                ? `${t('节省')} ${symbol}${displaySave.toFixed(2)}`
-                                : `${t('节省')} ${symbol}0.00`}
                             </div>
                           </div>
                         </Card>

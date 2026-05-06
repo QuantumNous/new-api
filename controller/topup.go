@@ -23,6 +23,14 @@ import (
 )
 
 func GetTopUpInfo(c *gin.Context) {
+	id := c.GetInt("id")
+	group, err := model.GetUserGroup(id, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	topupGroupRatio := common.GetTopupGroupRatio(group)
+
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
 
@@ -110,6 +118,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
+		"topup_group_ratio":       topupGroupRatio,
 	}
 	common.ApiSuccess(c, data)
 }

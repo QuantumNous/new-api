@@ -61,9 +61,10 @@ export function calculatePresetPricing(
   presetValue: number,
   priceRatio: number,
   discount: number,
+  topupGroupRatio: number = 1,
   usdExchangeRate: number = 1
 ) {
-  const originalPrice = presetValue * priceRatio
+  const originalPrice = presetValue * priceRatio * topupGroupRatio
   const actualPrice = originalPrice * discount
   const savedAmount = originalPrice - actualPrice
   const hasDiscount = discount < 1.0

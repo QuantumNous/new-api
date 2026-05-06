@@ -40,6 +40,40 @@ import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
 
+const parseDiscountMap = (data) => {
+  if (!data) {
+    return {};
+  }
+
+  let parsedData = data;
+  if (typeof data === 'string') {
+    try {
+      parsedData = JSON.parse(data);
+    } catch {
+      return {};
+    }
+  }
+
+  if (
+    !parsedData ||
+    typeof parsedData !== 'object' ||
+    Array.isArray(parsedData)
+  ) {
+    return {};
+  }
+
+  return Object.entries(parsedData).reduce((result, [key, value]) => {
+    const numericKey = Number(key);
+    const numericValue = Number(value);
+
+    if (Number.isFinite(numericKey) && Number.isFinite(numericValue)) {
+      result[numericKey] = numericValue;
+    }
+
+    return result;
+  }, {});
+};
+
 const TopUp = () => {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -112,6 +146,7 @@ const TopUp = () => {
   const [topupInfo, setTopupInfo] = useState({
     amount_options: [],
     discount: {},
+    topup_group_ratio: 1,
   });
 
   const confirmPayMethods = [
@@ -577,9 +612,11 @@ const TopUp = () => {
       const res = await API.get('/api/user/topup/info');
       const { message, data, success } = res.data;
       if (success) {
+        const parsedDiscounts = parseDiscountMap(data.discount);
         setTopupInfo({
           amount_options: data.amount_options || [],
-          discount: data.discount || {},
+          discount: parsedDiscounts,
+          topup_group_ratio: Number(data.topup_group_ratio) || 1,
         });
 
         // 处理支付方式
@@ -681,8 +718,8 @@ const TopUp = () => {
         // 如果有自定义充值数量选项，使用它们替换默认的预设选项
         if (data.amount_options && data.amount_options.length > 0) {
           const customPresets = data.amount_options.map((amount) => ({
-            value: amount,
-            discount: data.discount[amount] || 1.0,
+            value: Number(amount),
+            discount: parsedDiscounts[amount] || 1.0,
           }));
           setPresetAmounts(customPresets);
         }
@@ -851,12 +888,21 @@ const TopUp = () => {
 
   // 选择预设充值额度
   const selectPresetAmount = (preset) => {
-    setTopUpCount(preset.value);
-    setSelectedPreset(preset.value);
+    const presetValue = Number(preset.value);
+    setTopUpCount(presetValue);
+    setSelectedPreset(presetValue);
 
     // 计算实际支付金额，考虑折扣
-    const discount = preset.discount || topupInfo.discount[preset.value] || 1.0;
-    const discountedAmount = preset.value * priceRatio * discount;
+    const rawDiscount =
+      topupInfo.discount[presetValue] ??
+      topupInfo.discount[String(presetValue)] ??
+      preset.discount;
+    const discount = Number.isFinite(Number(rawDiscount))
+      ? Number(rawDiscount)
+      : 1.0;
+    const topupGroupRatio = Number(topupInfo.topup_group_ratio) || 1;
+    const discountedAmount =
+      presetValue * Number(priceRatio) * topupGroupRatio * discount;
     setAmount(discountedAmount);
   };
 
