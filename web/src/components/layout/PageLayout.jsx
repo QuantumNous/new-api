@@ -76,6 +76,9 @@ const PageLayout = () => {
     location.pathname !== '/console/playground';
 
   const isConsoleRoute = location.pathname.startsWith('/console');
+  const isAuthRoute = ['/login', '/register', '/reset', '/user/reset'].some(
+    (path) => location.pathname === path,
+  );
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
   const desktopConsoleShell = isConsoleRoute && !isMobile;
   const contentPadding = shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0';
@@ -178,27 +181,29 @@ const PageLayout = () => {
         overflow: isMobile ? 'visible' : 'hidden',
       }}
     >
-      <Header
-        style={{
-          padding: 0,
-          height: 'auto',
-          lineHeight: 'normal',
-          position: 'fixed',
-          width: desktopConsoleShell
-            ? 'calc(100% - var(--sidebar-current-width))'
-            : '100%',
-          left: desktopConsoleShell ? 'var(--sidebar-current-width)' : '0',
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <HeaderBar
-          onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
-          drawerOpen={drawerOpen}
-          collapsed={collapsed}
-          onDesktopCollapseToggle={toggleCollapsed}
-        />
-      </Header>
+      {!isAuthRoute && (
+        <Header
+          style={{
+            padding: 0,
+            height: 'auto',
+            lineHeight: 'normal',
+            position: 'fixed',
+            width: desktopConsoleShell
+              ? 'calc(100% - var(--sidebar-current-width))'
+              : '100%',
+            left: desktopConsoleShell ? 'var(--sidebar-current-width)' : '0',
+            top: 0,
+            zIndex: 100,
+          }}
+        >
+          <HeaderBar
+            onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
+            drawerOpen={drawerOpen}
+            collapsed={collapsed}
+            onDesktopCollapseToggle={toggleCollapsed}
+          />
+        </Header>
+      )}
       <Layout
         id='app-scroll-shell'
         style={{
