@@ -90,6 +90,10 @@ export function SidebarModulesSection({
         title: t('Task logs'),
         description: t('Background job tracker for queued work.'),
       },
+      assessment: {
+        title: t('AI Code Review Assessment'),
+        description: t('Monthly AI development code assessment with submission and review.'),
+      },
     },
     personal: {
       topup: {

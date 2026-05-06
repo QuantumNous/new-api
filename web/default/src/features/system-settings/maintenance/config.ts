@@ -45,6 +45,7 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
     log: true,
     midjourney: true,
     task: true,
+    assessment: true,
   },
   personal: {
     enabled: true,
