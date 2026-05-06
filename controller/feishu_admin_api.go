@@ -513,7 +513,9 @@ func AdminGetTokensByFeishu(c *gin.Context) {
 }
 
 type FeishuUserUpdateItem struct {
-	FeishuOpenId string `json:"feishu_open_id" binding:"required"`
+	FeishuOpenId string `json:"feishu_open_id"`
+	UserId       *int   `json:"user_id"`
+	Username     string `json:"username"`
 	DisplayName  string `json:"display_name"`
 	Password     string `json:"password"`
 	Group        string `json:"group"`
@@ -563,21 +565,47 @@ func BatchUpdateFeishuUsers(c *gin.Context) {
 
 	for _, item := range req.Users {
 		openId := strings.TrimSpace(item.FeishuOpenId)
-		if openId == "" {
+
+		if openId == "" && item.UserId == nil && item.Username == "" {
 			result.Failed++
-			result.Errors = append(result.Errors, "feishu_open_id is required")
+			result.Errors = append(result.Errors, "at least one of feishu_open_id, user_id, username is required")
 			result.Results = append(result.Results, FeishuUserUpdateResultItem{
 				FeishuOpenId: openId,
 				Action:       "failed",
-				Error:        "feishu_open_id is empty",
+				Error:        "至少需要提供 feishu_open_id, user_id 或 username 之一",
 			})
 			continue
 		}
 
 		var user model.User
-		if err := model.DB.Where("feishu_id = ?", openId).First(&user).Error; err != nil {
+		found := false
+
+		if openId != "" {
+			if err := model.DB.Where("feishu_id = ?", openId).First(&user).Error; err == nil {
+				found = true
+			}
+		}
+		if !found && item.UserId != nil {
+			if err := model.DB.Where("id = ?", *item.UserId).First(&user).Error; err == nil {
+				found = true
+			}
+		}
+		if !found && item.Username != "" {
+			if err := model.DB.Where("username = ?", item.Username).First(&user).Error; err == nil {
+				found = true
+			}
+		}
+
+		if !found {
 			result.Failed++
-			result.Errors = append(result.Errors, fmt.Sprintf("open_id=%s: user not found", openId))
+			identifier := openId
+			if identifier == "" && item.UserId != nil {
+				identifier = fmt.Sprintf("user_id=%d", *item.UserId)
+			}
+			if identifier == "" {
+				identifier = fmt.Sprintf("username=%s", item.Username)
+			}
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: user not found", identifier))
 			result.Results = append(result.Results, FeishuUserUpdateResultItem{
 				FeishuOpenId: openId,
 				Action:       "failed",
@@ -593,6 +621,10 @@ func BatchUpdateFeishuUsers(c *gin.Context) {
 			Username:     user.Username,
 			OldGroup:     user.Group,
 			Action:       "updated",
+		}
+
+		if openId != "" && user.FeishuId != openId {
+			updates["feishu_id"] = openId
 		}
 
 		if item.DisplayName != "" {
