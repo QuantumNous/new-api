@@ -170,6 +170,36 @@ func FormatQuota(quota int) string {
 	}
 }
 
+// FormatQuotaShort 用于充值/订阅等以"用户面值金额"为主的场景，
+// 货币以 2 位小数展示，避免内部 quota → 显示币种 round-trip 的浮点
+// 噪音（例如 ¥21.999995）泄漏到用户可见的日志里。Tokens 模式不变。
+// 与前端 renderQuota(amount, digits=2) 的行为对齐。
+func FormatQuotaShort(quota int) string {
+	q := float64(quota)
+	switch operation_setting.GetQuotaDisplayType() {
+	case operation_setting.QuotaDisplayTypeCNY:
+		usd := q / common.QuotaPerUnit
+		cny := usd * operation_setting.USDExchangeRate
+		return fmt.Sprintf("¥%.2f", cny)
+	case operation_setting.QuotaDisplayTypeCustom:
+		usd := q / common.QuotaPerUnit
+		rate := operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate
+		symbol := operation_setting.GetGeneralSetting().CustomCurrencySymbol
+		if symbol == "" {
+			symbol = "¤"
+		}
+		if rate <= 0 {
+			rate = 1
+		}
+		v := usd * rate
+		return fmt.Sprintf("%s%.2f", symbol, v)
+	case operation_setting.QuotaDisplayTypeTokens:
+		return fmt.Sprintf("%d", quota)
+	default:
+		return fmt.Sprintf("＄%.2f", q/common.QuotaPerUnit)
+	}
+}
+
 // LogJson 仅供测试使用 only for test
 func LogJson(ctx context.Context, msg string, obj any) {
 	jsonStr, err := common.Marshal(obj)

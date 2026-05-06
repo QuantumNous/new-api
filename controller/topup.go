@@ -23,6 +23,19 @@ import (
 )
 
 func GetTopUpInfo(c *gin.Context) {
+	// 获取当前用户的充值分组倍率
+	userId := c.GetInt("id")
+	topupGroupRatio := 1.0
+	if userId > 0 {
+		group, err := model.GetUserGroup(userId, false)
+		if err == nil && group != "" {
+			topupGroupRatio = common.GetTopupGroupRatio(group)
+			if topupGroupRatio <= 0 {
+				topupGroupRatio = 1.0
+			}
+		}
+	}
+
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
 
@@ -148,8 +161,11 @@ func GetTopUpInfo(c *gin.Context) {
 		"stripe_min_topup":        setting.StripeMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
-		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
+		"alipay_min_topup":        setting.AlipayMinTopUp,
+		"wxpay_min_topup":         setting.WxpayMinTopUp,
+		"amount_options":       operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":             operation_setting.GetPaymentSetting().AmountDiscount,
+		"topup_group_ratio":    topupGroupRatio,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -160,7 +176,8 @@ type EpayRequest struct {
 }
 
 type AmountRequest struct {
-	Amount int64 `json:"amount"`
+	Amount int64  `json:"amount"`
+	Type   string `json:"type"` // "direct" for Alipay/WeChat direct pay
 }
 
 func GetEpayClient() *epay.Client {
@@ -205,6 +222,55 @@ func getPayMoney(amount int64, group string) float64 {
 	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio).Mul(dDiscount)
 
 	return payMoney.InexactFloat64()
+}
+
+// getDirectPayMoney computes the CNY amount to charge for a direct (Alipay/WeChat)
+// payment. Unlike getPayMoney, it skips the Price multiplier when the display type
+// is CNY because the user's input is already in CNY.
+func getDirectPayMoney(amount int64, group string) float64 {
+	dAmount := decimal.NewFromInt(amount)
+
+	switch operation_setting.GetQuotaDisplayType() {
+	case operation_setting.QuotaDisplayTypeCNY:
+		// amount is already in CNY — no Price conversion needed
+	case operation_setting.QuotaDisplayTypeTokens:
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		dPrice := decimal.NewFromFloat(operation_setting.Price)
+		dAmount = dAmount.Div(dQuotaPerUnit).Mul(dPrice)
+	default: // USD, CUSTOM
+		dPrice := decimal.NewFromFloat(operation_setting.Price)
+		dAmount = dAmount.Mul(dPrice)
+	}
+
+	topupGroupRatio := common.GetTopupGroupRatio(group)
+	if topupGroupRatio == 0 {
+		topupGroupRatio = 1
+	}
+	discount := 1.0
+	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok {
+		if ds > 0 {
+			discount = ds
+		}
+	}
+	return dAmount.Mul(decimal.NewFromFloat(topupGroupRatio)).Mul(decimal.NewFromFloat(discount)).InexactFloat64()
+}
+
+// getQuotaFromMoney converts a CNY payment into internal quota units.
+// Multiply-before-divide ordering ensures only one truncation at the very end,
+// so the rounding error is always < 1 internal unit (≈ ¥0.00002) regardless
+// of payment size.
+func getQuotaFromMoney(money float64, group string) int64 {
+	topupGroupRatio := common.GetTopupGroupRatio(group)
+	if topupGroupRatio == 0 {
+		topupGroupRatio = 1
+	}
+	dMoney := decimal.NewFromFloat(money)
+	dPrice := decimal.NewFromFloat(operation_setting.Price)
+	dGroupRatio := decimal.NewFromFloat(topupGroupRatio)
+	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+	// Multiply by QuotaPerUnit FIRST, then divide — only one truncation at the end.
+	internalQuota := dMoney.Mul(dQuotaPerUnit).Div(dPrice).Div(dGroupRatio)
+	return internalQuota.IntPart()
 }
 
 func getMinTopup() int64 {
@@ -338,6 +404,23 @@ func UnlockOrder(tradeNo string) {
 	createLock.Unlock()
 }
 
+// LockUserPayCreation / UnlockUserPayCreation guard the per-user-per-provider
+// payment-order creation hot path (Pattern C: at most 1 pending order per
+// user per provider). The "createpay:" prefix namespaces these keys away from
+// real trade_no values reused by LockOrder, so the same orderLocks map can
+// back both without collision.
+func LockUserPayCreation(userId int, provider string) {
+	LockOrder(userPayCreationKey(userId, provider))
+}
+
+func UnlockUserPayCreation(userId int, provider string) {
+	UnlockOrder(userPayCreationKey(userId, provider))
+}
+
+func userPayCreationKey(userId int, provider string) string {
+	return fmt.Sprintf("createpay:%s:%d", provider, userId)
+}
+
 func EpayNotify(c *gin.Context) {
 	if !isEpayWebhookEnabled() {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
@@ -460,7 +543,12 @@ func RequestAmount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+	var payMoney float64
+	if req.Type == "direct" {
+		payMoney = getDirectPayMoney(req.Amount, group)
+	} else {
+		payMoney = getPayMoney(req.Amount, group)
+	}
 	if payMoney <= 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return

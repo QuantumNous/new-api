@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useContext, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   API,
   showError,
@@ -39,9 +39,11 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import DirectPayQRModal from './modals/DirectPayQRModal';
 
 const TopUp = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
@@ -87,6 +89,15 @@ const TopUp = () => {
   const [payMethods, setPayMethods] = useState([]);
 
   const affFetchedRef = useRef(false);
+
+  // 直连支付（支付宝 / 微信）二维码弹窗状态
+  const [enableAlipayDirectTopUp, setEnableAlipayDirectTopUp] = useState(false);
+  const [enableWxpayDirectTopUp, setEnableWxpayDirectTopUp] = useState(false);
+  const [directPayQROpen, setDirectPayQROpen] = useState(false);
+  const [directPayType, setDirectPayType] = useState('');
+  const [directPayQRCode, setDirectPayQRCode] = useState('');
+  const [directPayMoney, setDirectPayMoney] = useState(null);
+  const directPayPollRef = useRef(null);
 
   // 邀请相关状态
   const [affLink, setAffLink] = useState('');
@@ -144,6 +155,9 @@ const TopUp = () => {
     if (typeof payment === 'string' && payment.startsWith('waffo:')) {
       return getWaffoAmount(value);
     }
+    if (payment === 'alipay_direct' || payment === 'wxpay_direct') {
+      return getAmount(value, 'direct');
+    }
     return getAmount(value);
   };
 
@@ -191,7 +205,135 @@ const TopUp = () => {
     window.open(topUpLink, '_blank');
   };
 
+  const stopDirectPayPoll = () => {
+    if (directPayPollRef.current) {
+      clearInterval(directPayPollRef.current);
+      directPayPollRef.current = null;
+    }
+  };
+
+  const startDirectPayPoll = (payType, tradeNo) => {
+    stopDirectPayPoll();
+    const apiBase =
+      payType === 'alipay_direct'
+        ? '/api/user/alipay'
+        : '/api/user/wxpay';
+    let count = 0;
+    directPayPollRef.current = setInterval(async () => {
+      count++;
+      try {
+        const res = await API.get(`${apiBase}/query`, {
+          params: { trade_no: tradeNo },
+        });
+        const { message, data } = res.data;
+        if (message === 'success') {
+          if (data === 'success') {
+            stopDirectPayPoll();
+            setDirectPayQROpen(false);
+            showSuccess(t('支付成功！'));
+            getUserQuota();
+            return;
+          }
+          if (data === 'expired' || data === 'failed') {
+            stopDirectPayPoll();
+            setDirectPayQROpen(false);
+            showError(t('支付失败或已过期，请重新下单'));
+            return;
+          }
+        }
+      } catch (_) {}
+      if (count >= 60) {
+        stopDirectPayPoll();
+        setDirectPayQROpen(false);
+        showError(t('支付超时，请检查充值记录'));
+      }
+    }, 5000);
+  };
+
+  const handleDirectTopUp = async (payType) => {
+    if (!checkKycBeforePay()) return;
+    const selectedMinTopUp = getPaymentMinTopUp(payType);
+    if (topUpCount < selectedMinTopUp) {
+      showError(t('充值数量不能小于 ') + selectedMinTopUp);
+      return;
+    }
+    setPaymentLoading(true);
+    try {
+      const apiBase =
+        payType === 'alipay_direct'
+          ? '/api/user/alipay'
+          : '/api/user/wxpay';
+      const res = await API.post(`${apiBase}/pay`, {
+        amount: parseInt(topUpCount),
+      });
+      const { message, data } = res.data;
+      if (message !== 'success') {
+        showError(data || t('创建订单失败'));
+        return;
+      }
+      if (data.qr_code) {
+        const fetched = await requestAmountByPayment(payType);
+        setDirectPayType(payType);
+        setDirectPayQRCode(data.qr_code);
+        setDirectPayMoney(typeof fetched === 'number' ? fetched : amount);
+        setDirectPayQROpen(true);
+        startDirectPayPoll(payType, data.trade_no);
+      } else if (data.pay_url) {
+        window.location.href = data.pay_url;
+      } else {
+        showError(t('未获取到支付信息'));
+      }
+    } catch (_) {
+      showError(t('创建订单失败'));
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  // KYC gate for paid topup entry points (Pattern: dual-layer block, with
+  // backend's middleware.KYCRequired() as the authoritative enforcement).
+  // Returns true to allow the payment flow to proceed; returns false after
+  // showing the appropriate guidance Modal when blocked.
+  const checkKycBeforePay = () => {
+    const status = statusState?.status;
+    if (!status?.kyc_enabled) return true; // global switch off → allow
+    const user = userState?.user;
+    if (!user) return true; // not logged in → let downstream auth handle it
+    if (user.role >= 10) return true; // admin / root exempt
+    if (user.kyc_status === 2) return true; // approved → allow
+    showKycModal(user.kyc_status);
+    return false;
+  };
+
+  const showKycModal = (status) => {
+    if (status === 1) {
+      Modal.info({
+        title: t('实名认证审核中'),
+        content: t('您的实名认证正在审核中，请等待审核通过后再充值。'),
+        okText: t('我知道了'),
+      });
+      return;
+    }
+    const isRejected = status === 3;
+    Modal.confirm({
+      title: t(isRejected ? '实名认证未通过' : '需要先完成实名认证'),
+      content: t(
+        isRejected
+          ? '您的实名认证未通过，请重新提交。'
+          : '根据平台规则，充值前需要完成实名认证。立即前往个人设置进行实名认证？',
+      ),
+      okText: t(isRejected ? '重新提交' : '立即认证'),
+      cancelText: t('稍后再说'),
+      onOk: () => navigate('/console/personal?tab=kyc'),
+    });
+  };
+
   const preTopUp = async (payment) => {
+    if (!checkKycBeforePay()) return;
+    if (payment === 'alipay_direct' || payment === 'wxpay_direct') {
+      await handleDirectTopUp(payment);
+      return;
+    }
     if (payment === 'stripe') {
       if (!enableStripeTopUp) {
         showError(t('管理员未开启Stripe充值！'));
@@ -336,6 +478,7 @@ const TopUp = () => {
   };
 
   const creemPreTopUp = async (product) => {
+    if (!checkKycBeforePay()) return;
     if (!enableCreemTopUp) {
       showError(t('管理员未开启 Creem 充值！'));
       return;
@@ -639,6 +782,8 @@ const TopUp = () => {
           const enableWaffoTopUp = data.enable_waffo_topup || false;
           const enableWaffoPancakeTopUp =
             data.enable_waffo_pancake_topup || false;
+          const enableAlipayTopUp = data.enable_alipay_topup || false;
+          const enableWxpayTopUp = data.enable_wxpay_topup || false;
           const minTopUpValue = enableOnlineTopUp
             ? data.min_topup
             : enableStripeTopUp
@@ -647,7 +792,11 @@ const TopUp = () => {
                 ? data.waffo_min_topup
                 : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
-                : 1;
+                  : enableAlipayTopUp
+                    ? data.alipay_min_topup
+                    : enableWxpayTopUp
+                      ? data.wxpay_min_topup
+                      : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
@@ -656,6 +805,8 @@ const TopUp = () => {
           setWaffoMinTopUp(data.waffo_min_topup || 1);
           setEnableWaffoPancakeTopUp(enableWaffoPancakeTopUp);
           setWaffoPancakeMinTopUp(data.waffo_pancake_min_topup || 1);
+          setEnableAlipayDirectTopUp(enableAlipayTopUp);
+          setEnableWxpayDirectTopUp(enableWxpayTopUp);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
@@ -673,7 +824,13 @@ const TopUp = () => {
           }
 
           // 初始化显示实付金额
-          getAmount(minTopUpValue);
+          const isDirectOnlyInit =
+            !enableOnlineTopUp &&
+            !enableStripeTopUp &&
+            !enableWaffoTopUp &&
+            !enableWaffoPancakeTopUp &&
+            (enableAlipayTopUp || enableWxpayTopUp);
+          getAmount(minTopUpValue, isDirectOnlyInit ? 'direct' : undefined);
         } catch (e) {
           setPayMethods([]);
         }
@@ -775,19 +932,21 @@ const TopUp = () => {
     return amount + ' ' + t('元');
   };
 
-  const getAmount = async (value) => {
+  const getAmount = async (value, type) => {
     if (value === undefined) {
       value = topUpCount;
     }
     setAmountLoading(true);
+    let parsed = null;
     try {
-      const res = await API.post('/api/user/amount', {
-        amount: parseFloat(value),
-      });
+      const body = { amount: parseFloat(value) };
+      if (type) body.type = type;
+      const res = await API.post('/api/user/amount', body);
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success') {
-          setAmount(parseFloat(data));
+          parsed = parseFloat(data);
+          setAmount(parsed);
         } else {
           setAmount(0);
           Toast.error({ content: '错误：' + data, id: 'getAmount' });
@@ -799,6 +958,7 @@ const TopUp = () => {
       // amount fetch failed silently
     }
     setAmountLoading(false);
+    return parsed;
   };
 
   const getStripeAmount = async (value) => {
@@ -854,10 +1014,16 @@ const TopUp = () => {
     setTopUpCount(preset.value);
     setSelectedPreset(preset.value);
 
-    // 计算实际支付金额，考虑折扣
     const discount = preset.discount || topupInfo.discount[preset.value] || 1.0;
-    const discountedAmount = preset.value * priceRatio * discount;
-    setAmount(discountedAmount);
+    // 直充模式下 amount 已是人民币，不乘汇率；其他模式需要乘 priceRatio
+    const isDirectOnly =
+      !enableOnlineTopUp &&
+      !enableStripeTopUp &&
+      !enableWaffoTopUp &&
+      !enableWaffoPancakeTopUp &&
+      (enableAlipayDirectTopUp || enableWxpayDirectTopUp);
+    const ratio = isDirectOnly ? 1 : priceRatio;
+    setAmount(preset.value * ratio * discount);
   };
 
   // 格式化大数字显示
@@ -940,6 +1106,24 @@ const TopUp = () => {
         )}
       </Modal>
 
+      {/* 直连支付二维码弹窗 */}
+      <DirectPayQRModal
+        t={t}
+        open={directPayQROpen}
+        onClose={() => {
+          stopDirectPayPoll();
+          setDirectPayQROpen(false);
+        }}
+        payType={directPayType}
+        qrCode={directPayQRCode}
+        payMoney={directPayMoney}
+        onExpired={() => {
+          stopDirectPayPoll();
+          setDirectPayQROpen(false);
+          showError(t('支付码已过期，请重新下单'));
+        }}
+      />
+
       {/* 主布局区域 */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         <RechargeCard
@@ -951,6 +1135,8 @@ const TopUp = () => {
           creemPreTopUp={creemPreTopUp}
           enableWaffoTopUp={enableWaffoTopUp}
           enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
+          enableAlipayDirectTopUp={enableAlipayDirectTopUp}
+          enableWxpayDirectTopUp={enableWxpayDirectTopUp}
           presetAmounts={presetAmounts}
           selectedPreset={selectedPreset}
           selectPresetAmount={selectPresetAmount}
@@ -967,6 +1153,7 @@ const TopUp = () => {
           payMethods={confirmPayMethods}
           preTopUp={preTopUp}
           paymentLoading={paymentLoading}
+          directPayQROpen={directPayQROpen}
           payWay={payWay}
           redemptionCode={redemptionCode}
           setRedemptionCode={setRedemptionCode}

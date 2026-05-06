@@ -47,7 +47,7 @@ import {
 } from 'lucide-react';
 import { IconGift } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { getCurrencyConfig } from '../../helpers/render';
+import { getCurrencyConfig, getQuotaPerUnit } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 
 const { Text } = Typography;
@@ -89,6 +89,9 @@ const RechargeCard = ({
   onOpenHistory,
   enableWaffoTopUp,
   enableWaffoPancakeTopUp,
+  enableAlipayDirectTopUp = false,
+  enableWxpayDirectTopUp = false,
+  directPayQROpen = false,
   subscriptionLoading = false,
   subscriptionPlans = [],
   billingPreference,
@@ -105,6 +108,13 @@ const RechargeCard = ({
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
   const regularPayMethods = payMethods || [];
+  // True when only direct-pay methods (Alipay/WeChat) are available — input is yuan.
+  const isDirectPayOnly =
+    !enableOnlineTopUp &&
+    !enableStripeTopUp &&
+    !enableWaffoTopUp &&
+    !enableWaffoPancakeTopUp &&
+    (enableAlipayDirectTopUp || enableWxpayDirectTopUp);
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
@@ -231,7 +241,9 @@ const RechargeCard = ({
           enableStripeTopUp ||
           enableCreemTopUp ||
           enableWaffoTopUp ||
-          enableWaffoPancakeTopUp ? (
+          enableWaffoPancakeTopUp ||
+          enableAlipayDirectTopUp ||
+          enableWxpayDirectTopUp ? (
           <Form
             getFormApi={(api) => (onlineFormApiRef.current = api)}
             initValues={{ topUpCount: topUpCount }}
@@ -240,7 +252,9 @@ const RechargeCard = ({
               {(enableOnlineTopUp ||
                 enableStripeTopUp ||
                 enableWaffoTopUp ||
-                enableWaffoPancakeTopUp) && (
+                enableWaffoPancakeTopUp ||
+                enableAlipayDirectTopUp ||
+                enableWxpayDirectTopUp) && (
                 <Row gutter={12}>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.InputNumber
@@ -250,28 +264,34 @@ const RechargeCard = ({
                         !enableOnlineTopUp &&
                         !enableStripeTopUp &&
                         !enableWaffoTopUp &&
-                        !enableWaffoPancakeTopUp
+                        !enableWaffoPancakeTopUp &&
+                        !enableAlipayDirectTopUp &&
+                        !enableWxpayDirectTopUp
                       }
-                      placeholder={
-                        t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
-                      }
+                      placeholder={t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)}
                       value={topUpCount}
                       min={minTopUp}
                       max={999999999}
                       step={1}
                       precision={0}
                       onChange={async (value) => {
-                        if (value && value >= 1) {
+                        if (value && value > 0) {
                           setTopUpCount(value);
                           setSelectedPreset(null);
-                          await getAmount(value);
+                          await getAmount(
+                            value,
+                            isDirectPayOnly ? 'direct' : undefined,
+                          );
                         }
                       }}
                       onBlur={(e) => {
                         const value = parseInt(e.target.value);
-                        if (!value || value < 1) {
-                          setTopUpCount(1);
-                          getAmount(1);
+                        if (!value || value < minTopUp) {
+                          setTopUpCount(minTopUp);
+                          getAmount(
+                            minTopUp,
+                            isDirectPayOnly ? 'direct' : undefined,
+                          );
                         }
                       }}
                       formatter={(value) => (value ? `${value}` : '')}
@@ -298,7 +318,7 @@ const RechargeCard = ({
                               {renderAmount()}
                             </span>
                           </Text>
-                        </Skeleton>
+                          </Skeleton>
                       }
                       style={{ width: '100%' }}
                     />
@@ -316,15 +336,29 @@ const RechargeCard = ({
                               payMethod.type.startsWith('waffo:');
                             const isWaffoPancake =
                               payMethod.type === 'waffo_pancake';
+                            const isAlipayDirect =
+                              payMethod.type === 'alipay_direct';
+                            const isWxpayDirect =
+                              payMethod.type === 'wxpay_direct';
                             const disabled =
                               (!enableOnlineTopUp &&
                                 !isStripe &&
                                 !isWaffo &&
-                                !isWaffoPancake) ||
+                                !isWaffoPancake &&
+                                !isAlipayDirect &&
+                                !isWxpayDirect) ||
                               (!enableStripeTopUp && isStripe) ||
                               (!enableWaffoTopUp && isWaffo) ||
                               (!enableWaffoPancakeTopUp && isWaffoPancake) ||
-                              minTopupVal > Number(topUpCount || 0);
+                              (!enableAlipayDirectTopUp && isAlipayDirect) ||
+                              (!enableWxpayDirectTopUp && isWxpayDirect) ||
+                              minTopupVal > Number(topUpCount || 0) ||
+                              // Disable all payment buttons while a payment
+                              // flow is in progress (request in-flight or
+                              // direct-pay QR popup open) — prevents spam
+                              // clicks and accidental switching.
+                              paymentLoading ||
+                              directPayQROpen;
 
                             const buttonEl = (
                               <Button
@@ -337,9 +371,11 @@ const RechargeCard = ({
                                   paymentLoading && payWay === payMethod.type
                                 }
                                 icon={
-                                  payMethod.type === 'alipay' ? (
+                                  payMethod.type === 'alipay' ||
+                                  payMethod.type === 'alipay_direct' ? (
                                     <SiAlipay size={18} color='#1677FF' />
-                                  ) : payMethod.type === 'wxpay' ? (
+                                  ) : payMethod.type === 'wxpay' ||
+                                    payMethod.type === 'wxpay_direct' ? (
                                     <SiWechat size={18} color='#07C160' />
                                   ) : payMethod.type === 'stripe' ? (
                                     <SiStripe size={18} color='#635BFF' />
@@ -664,6 +700,8 @@ const RechargeCard = ({
                 enableOnlineTopUp={enableOnlineTopUp}
                 enableStripeTopUp={enableStripeTopUp}
                 enableCreemTopUp={enableCreemTopUp}
+                enableAlipayDirectTopUp={enableAlipayDirectTopUp}
+                enableWxpayDirectTopUp={enableWxpayDirectTopUp}
                 billingPreference={billingPreference}
                 onChangeBillingPreference={onChangeBillingPreference}
                 activeSubscriptions={activeSubscriptions}

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
@@ -34,6 +34,8 @@ import { API, showError, showSuccess, renderQuota } from '../../helpers';
 import { getCurrencyConfig } from '../../helpers/render';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
+import DirectPayQRModal from './modals/DirectPayQRModal';
+import { SiAlipay, SiWechat } from 'react-icons/si';
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
@@ -77,6 +79,8 @@ const SubscriptionPlansCard = ({
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
+  enableAlipayDirectTopUp = false,
+  enableWxpayDirectTopUp = false,
   billingPreference,
   onChangeBillingPreference,
   activeSubscriptions = [],
@@ -89,6 +93,11 @@ const SubscriptionPlansCard = ({
   const [paying, setPaying] = useState(false);
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [directPayQROpen, setDirectPayQROpen] = useState(false);
+  const [directPayType, setDirectPayType] = useState('');
+  const [directPayQRCode, setDirectPayQRCode] = useState('');
+  const [directPayMoney, setDirectPayMoney] = useState(null);
+  const directPayPollRef = useRef(null);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
@@ -102,6 +111,77 @@ const SubscriptionPlansCard = ({
     setOpen(false);
     setSelectedPlan(null);
     setPaying(false);
+  };
+
+  const stopDirectPayPoll = () => {
+    if (directPayPollRef.current) {
+      clearInterval(directPayPollRef.current);
+      directPayPollRef.current = null;
+    }
+  };
+
+  const startDirectPayPoll = (payType, tradeNo) => {
+    stopDirectPayPoll();
+    let attempts = 0;
+    const provider = payType === 'alipay_direct' ? 'alipay' : 'wxpay';
+    directPayPollRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts > 60) {
+        stopDirectPayPoll();
+        setDirectPayQROpen(false);
+        showError(t('支付超时，请重试'));
+        return;
+      }
+      try {
+        const res = await API.get(
+          `/api/subscription/${provider}/query?trade_no=${tradeNo}`,
+        );
+        const status = res.data?.data;
+        if (status === 'success') {
+          stopDirectPayPoll();
+          setDirectPayQROpen(false);
+          showSuccess(t('支付成功'));
+          await reloadSubscriptionSelf?.();
+        } else if (status === 'expired' || status === 'failed') {
+          stopDirectPayPoll();
+          setDirectPayQROpen(false);
+          showError(t('支付失败，请重试'));
+        }
+      } catch (_) {
+        // ignore transient poll errors
+      }
+    }, 5000);
+  };
+
+  const handleDirectPay = async (payType, plan) => {
+    const provider = payType === 'alipay_direct' ? 'alipay' : 'wxpay';
+    try {
+      const res = await API.post(`/api/subscription/${provider}/pay`, {
+        plan_id: plan.id,
+      });
+      if (res.data?.message === 'success') {
+        const { qr_code, pay_url, trade_no } = res.data.data || {};
+        if (qr_code) {
+          setDirectPayType(payType);
+          setDirectPayQRCode(qr_code);
+          setDirectPayMoney(
+            plan.price_amount != null ? Number(plan.price_amount) : null,
+          );
+          setDirectPayQROpen(true);
+          startDirectPayPoll(payType, trade_no);
+        } else if (pay_url) {
+          window.location.href = pay_url;
+        }
+      } else {
+        const errorMsg =
+          typeof res.data?.data === 'string'
+            ? res.data.data
+            : res.data?.message || t('支付失败');
+        showError(errorMsg);
+      }
+    } catch (_) {
+      showError(t('支付请求失败'));
+    }
   };
 
   const handleRefresh = async () => {
@@ -615,6 +695,12 @@ const SubscriptionPlansCard = ({
                           const tip = reached
                             ? t('已达到购买上限') + ` (${count}/${limit})`
                             : '';
+                          const isCNY =
+                            plan?.currency?.toUpperCase() === 'CNY';
+                          const showAlipay =
+                            isCNY && enableAlipayDirectTopUp && !reached;
+                          const showWxpay =
+                            isCNY && enableWxpayDirectTopUp && !reached;
                           const buttonEl = (
                             <Button
                               theme='outline'
@@ -628,12 +714,48 @@ const SubscriptionPlansCard = ({
                               {reached ? t('已达上限') : t('立即订阅')}
                             </Button>
                           );
-                          return reached ? (
-                            <Tooltip content={tip} position='top'>
-                              {buttonEl}
-                            </Tooltip>
-                          ) : (
-                            buttonEl
+                          return (
+                            <Space vertical style={{ width: '100%' }} spacing={6}>
+                              {reached ? (
+                                <Tooltip content={tip} position='top'>
+                                  {buttonEl}
+                                </Tooltip>
+                              ) : (
+                                buttonEl
+                              )}
+                              {showAlipay && (
+                                <Button
+                                  block
+                                  style={{
+                                    background: '#1677FF',
+                                    borderColor: '#1677FF',
+                                    color: '#fff',
+                                  }}
+                                  icon={<SiAlipay size={14} />}
+                                  onClick={() =>
+                                    handleDirectPay('alipay_direct', plan)
+                                  }
+                                >
+                                  {t('支付宝付款')}
+                                </Button>
+                              )}
+                              {showWxpay && (
+                                <Button
+                                  block
+                                  style={{
+                                    background: '#07C160',
+                                    borderColor: '#07C160',
+                                    color: '#fff',
+                                  }}
+                                  icon={<SiWechat size={14} />}
+                                  onClick={() =>
+                                    handleDirectPay('wxpay_direct', plan)
+                                  }
+                                >
+                                  {t('微信付款')}
+                                </Button>
+                              )}
+                            </Space>
                           );
                         })()}
                       </div>
@@ -684,6 +806,23 @@ const SubscriptionPlansCard = ({
         onPayStripe={payStripe}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
+      />
+
+      <DirectPayQRModal
+        t={t}
+        open={directPayQROpen}
+        onClose={() => {
+          stopDirectPayPoll();
+          setDirectPayQROpen(false);
+        }}
+        payType={directPayType}
+        qrCode={directPayQRCode}
+        payMoney={directPayMoney}
+        onExpired={() => {
+          stopDirectPayPoll();
+          setDirectPayQROpen(false);
+          showError(t('二维码已过期，请重新发起支付'));
+        }}
       />
     </>
   );

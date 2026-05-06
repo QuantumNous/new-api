@@ -25,6 +25,8 @@ import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPa
 import SettingsPaymentGatewayCreem from '../../pages/Setting/Payment/SettingsPaymentGatewayCreem';
 import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffo';
 import SettingsPaymentGatewayWaffoPancake from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake';
+import SettingsPaymentGatewayAlipay from '../../pages/Setting/Payment/SettingsPaymentGatewayAlipay';
+import SettingsPaymentGatewayWxpay from '../../pages/Setting/Payment/SettingsPaymentGatewayWxpay';
 import { API, showError, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -60,6 +62,21 @@ const PaymentSetting = () => {
     WaffoPancakeCurrency: 'USD',
     WaffoPancakeUnitPrice: 1.0,
     WaffoPancakeMinTopUp: 1,
+
+    AlipayAppId: '',
+    AlipayPrivateKey: '',
+    AlipayPublicKey: '',
+    AlipayMinTopUp: 1,
+    AlipaySandbox: false,
+
+    WxpayAppId: '',
+    WxpayMchId: '',
+    WxpayPrivateKey: '',
+    WxpayApiV3Key: '',
+    WxpayCertSerial: '',
+    WxpayPublicKey: '',
+    WxpayPublicKeyId: '',
+    WxpayMinTopUp: 1,
   });
 
   let [loading, setLoading] = useState(false);
@@ -110,6 +127,8 @@ const PaymentSetting = () => {
           case 'StripeMinTopUp':
           case 'WaffoPancakeUnitPrice':
           case 'WaffoPancakeMinTopUp':
+          case 'AlipayMinTopUp':
+          case 'WxpayMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
             break;
           case 'WaffoPancakeMerchantID':
@@ -121,6 +140,7 @@ const PaymentSetting = () => {
             newInputs[item.key] = item.value;
             break;
           case 'WaffoPancakeSandbox':
+          case 'AlipaySandbox':
             newInputs[item.key] = toBoolean(item.value);
             break;
           default:
@@ -193,6 +213,20 @@ const PaymentSetting = () => {
             </Tabs.TabPane>
             <Tabs.TabPane tab={t('Waffo 设置')} itemKey='waffo'>
               <SettingsPaymentGatewayWaffo
+                options={inputs}
+                refresh={onRefresh}
+                hideSectionTitle
+              />
+            </Tabs.TabPane>
+            <Tabs.TabPane tab={t('支付宝直连')} itemKey='alipay-direct'>
+              <SettingsPaymentGatewayAlipay
+                options={inputs}
+                refresh={onRefresh}
+                hideSectionTitle
+              />
+            </Tabs.TabPane>
+            <Tabs.TabPane tab={t('微信支付直连')} itemKey='wxpay-direct'>
+              <SettingsPaymentGatewayWxpay
                 options={inputs}
                 refresh={onRefresh}
                 hideSectionTitle

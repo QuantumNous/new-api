@@ -27,6 +27,10 @@ import (
 	"github.com/wechatpay-apiv3/wechatpay-go/utils"
 )
 
+func init() {
+	model.WxpayClientResetHook = ResetWxpayClient
+}
+
 // ---- singleton ----
 
 var (
@@ -99,7 +103,7 @@ func formatWxpayPEM(key, keyType string) string {
 // ---- request/response types ----
 
 type WxpayPayRequest struct {
-	Amount int64 `json:"amount"`
+	Amount int64 `json:"amount"` // display units (same as epay)
 }
 
 type WxpayPayResponse struct {
@@ -131,10 +135,34 @@ func RequestWxpay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+
+	// Pattern C: at most one pending wxpay order per user. Acquire per-user
+	// lock + close any prior pending orders before creating a new one.
+	LockUserPayCreation(userId, "wxpay")
+	defer UnlockUserPayCreation(userId, "wxpay")
+	closePendingWxpayForUser(userId)
+
+	// Calculate CNY to charge (direct pay: skip Price for CNY display mode)
+	payMoney := getDirectPayMoney(req.Amount, group)
 	if payMoney < 0.01 {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付金额无效"})
 		return
+	}
+
+	// Calculate internal quota to credit based on display type
+	dAmount := decimal.NewFromInt(req.Amount)
+	dQPU := decimal.NewFromFloat(common.QuotaPerUnit)
+	var internalQuota int64
+	switch operation_setting.GetQuotaDisplayType() {
+	case operation_setting.QuotaDisplayTypeCNY:
+		// ¥amount → internal units: amount × QuotaPerUnit ÷ Price
+		dPrice := decimal.NewFromFloat(operation_setting.Price)
+		internalQuota = dAmount.Mul(dQPU).Div(dPrice).IntPart()
+	case operation_setting.QuotaDisplayTypeTokens:
+		// tokens = internal quota directly
+		internalQuota = req.Amount
+	default: // USD, CUSTOM
+		internalQuota = dAmount.Mul(dQPU).IntPart()
 	}
 
 	clients, err := getWxpayClient()
@@ -159,7 +187,7 @@ func RequestWxpay(c *gin.Context) {
 	resp, _, err := svc.Prepay(c.Request.Context(), native.PrepayRequest{
 		Appid:       core.String(setting.WxpayAppId),
 		Mchid:       core.String(setting.WxpayMchId),
-		Description: core.String(fmt.Sprintf("TopUp-%d", req.Amount)),
+		Description: core.String("充值"),
 		OutTradeNo:  core.String(tradeNo),
 		NotifyUrl:   core.String(notifyURL),
 		Amount:      &native.Amount{Total: core.Int64(totalFen), Currency: &cur},
@@ -179,18 +207,12 @@ func RequestWxpay(c *gin.Context) {
 		return
 	}
 
-	// amount stored in TopUp: convert if display type is tokens
-	amount := req.Amount
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		amount = decimal.NewFromInt(amount).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
-	}
-
 	topUp := &model.TopUp{
 		UserId:          userId,
-		Amount:          amount,
+		Amount:          internalQuota,
 		Money:           payMoney,
 		TradeNo:         tradeNo,
-		PaymentMethod:   "wxpay",
+		PaymentMethod:   model.PaymentMethodWxpay,
 		PaymentProvider: model.PaymentProviderWxpayDirect,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
@@ -330,6 +352,40 @@ func QueryWxpayOrder(c *gin.Context) {
 		status = topUp.Status
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": status})
+}
+
+// closePendingWxpayForUser mirrors closePendingAlipayForUser's two-phase
+// async design: capture old trade_nos sync (cheap DB query in hot path),
+// fire-and-forget goroutine to mark expired + call upstream close.
+func closePendingWxpayForUser(userId int) {
+	var oldTradeNos []string
+	model.DB.Model(&model.TopUp{}).
+		Where("user_id = ? AND payment_provider = ? AND status = ?",
+			userId, model.PaymentProviderWxpayDirect, common.TopUpStatusPending).
+		Pluck("trade_no", &oldTradeNos)
+	if len(oldTradeNos) == 0 {
+		return
+	}
+
+	go func() {
+		for _, tn := range oldTradeNos {
+			_ = model.UpdatePendingTopUpStatus(tn, model.PaymentProviderWxpayDirect, common.TopUpStatusExpired)
+		}
+		clients, err := getWxpayClient()
+		if err != nil {
+			common.SysLog(fmt.Sprintf("wxpay async close: client not ready: %v", err))
+			return
+		}
+		svc := native.NativeApiService{Client: clients.client}
+		for _, tn := range oldTradeNos {
+			if _, err := svc.CloseOrder(context.Background(), native.CloseOrderRequest{
+				OutTradeNo: core.String(tn),
+				Mchid:      core.String(setting.WxpayMchId),
+			}); err != nil {
+				common.SysLog(fmt.Sprintf("wxpay async close %s: %v", tn, err))
+			}
+		}
+	}()
 }
 
 // CloseExpiredWxpayOrders should be called by a cron task to close stale pending orders.

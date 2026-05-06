@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
 import {
   API,
   removeTrailingSlash,
@@ -27,6 +27,7 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { TriangleAlert } from 'lucide-react';
 
 export default function SettingsGeneralPayment(props) {
   const { t } = useTranslation();
@@ -184,7 +185,7 @@ export default function SettingsGeneralPayment(props) {
                 label={t('回调地址')}
                 placeholder={t('例如：https://yourdomain.com')}
                 extraText={t(
-                  '留空时默认使用服务器地址作为回调地址，填写后将覆盖默认值',
+                  '留空即可（绝大多数部署都不需要填）。仅当支付 webhook 想走独立反代域名（CDN 分流 / IP 白名单等）时才填写。注意 Stripe 订阅当前直接使用服务器地址，不读此项。',
                 )}
               />
             </Col>
@@ -202,10 +203,18 @@ export default function SettingsGeneralPayment(props) {
             style={{ marginTop: 16 }}
           >
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Banner
+                type='warning'
+                icon={<TriangleAlert size={16} />}
+                description={t(
+                  '此处配置的是「易支付（epay）」渠道展示的入口。如果你启用了支付宝直连 / 微信支付直连，请把此处清空为 [] 避免与直连按钮重复展示，否则用户充值页会出现两个同名按钮。默认值内置了 alipay/wxpay/custom1 三条易支付项，未清空时会和直连同时显示。',
+                )}
+                style={{ marginBottom: 8 }}
+              />
               <Form.TextArea
                 field='PayMethods'
                 label={t('充值方式设置')}
-                placeholder={t('为一个 JSON 文本')}
+                placeholder={t('为一个 JSON 文本，禁用易支付渠道时填 []')}
                 autosize
               />
             </Col>

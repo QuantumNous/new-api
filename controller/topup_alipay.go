@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -18,6 +19,25 @@ import (
 	"github.com/smartwalle/alipay/v3"
 )
 
+func init() {
+	model.AlipayClientResetHook = ResetAlipayClient
+}
+
+// LogAlipaySandboxStatus emits a startup notice when the Alipay sandbox toggle
+// is enabled. Sandbox in a release-mode build is legitimate (initial deployment
+// verification before real merchant credentials arrive), so this is just an
+// informational reminder rather than an error — easy to grep for in logs and
+// reminds the operator to switch off before going live. Must be called from
+// main() after model.InitOptionMap() so setting.AlipaySandbox reflects DB state.
+func LogAlipaySandboxStatus() {
+	if !setting.AlipaySandbox {
+		return
+	}
+	common.SysLog("[ALIPAY-SANDBOX] AlipaySandbox=true. " +
+		"All Alipay API calls hit the sandbox endpoint and real users cannot pay through this gateway. " +
+		"Toggle off in 系统设置→支付设置→支付宝直连→沙箱模式 when switching to production credentials.")
+}
+
 // ---- singleton ----
 
 var (
@@ -29,7 +49,9 @@ var (
 
 func getAlipayClient() (*alipay.Client, error) {
 	alipayOnce.Do(func() {
-		client, err := alipay.New(setting.AlipayAppId, setting.AlipayPrivateKey, true)
+		// 第三个参数为 isProduction：true 走生产网关，false 走沙箱网关。
+		// 由 setting.AlipaySandbox 反向控制。
+		client, err := alipay.New(setting.AlipayAppId, setting.AlipayPrivateKey, !setting.AlipaySandbox)
 		if err != nil {
 			alipayErr = fmt.Errorf("alipay init: %w", err)
 			return
@@ -55,7 +77,7 @@ func ResetAlipayClient() {
 // ---- request/response types ----
 
 type AlipayPayRequest struct {
-	Amount int64 `json:"amount"`
+	Amount int64 `json:"amount"` // display units (same as epay)
 }
 
 type AlipayPayResponse struct {
@@ -88,10 +110,35 @@ func RequestAlipay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+
+	// Pattern C: at most one pending alipay order per user. Acquire a per-user
+	// lock to defeat ms-level double-clicks, then close any prior pending
+	// orders for this user before creating a new one.
+	LockUserPayCreation(userId, "alipay")
+	defer UnlockUserPayCreation(userId, "alipay")
+	closePendingAlipayForUser(userId)
+
+	// Calculate CNY to charge (direct pay: skip Price for CNY display mode)
+	payMoney := getDirectPayMoney(req.Amount, group)
 	if payMoney < 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
+	}
+
+	// Calculate internal quota to credit based on display type
+	dAmount := decimal.NewFromInt(req.Amount)
+	dQPU := decimal.NewFromFloat(common.QuotaPerUnit)
+	var internalQuota int64
+	switch operation_setting.GetQuotaDisplayType() {
+	case operation_setting.QuotaDisplayTypeCNY:
+		// ¥amount → internal units: amount × QuotaPerUnit ÷ Price
+		dPrice := decimal.NewFromFloat(operation_setting.Price)
+		internalQuota = dAmount.Mul(dQPU).Div(dPrice).IntPart()
+	case operation_setting.QuotaDisplayTypeTokens:
+		// tokens = internal quota directly
+		internalQuota = req.Amount
+	default: // USD, CUSTOM
+		internalQuota = dAmount.Mul(dQPU).IntPart()
 	}
 
 	client, err := getAlipayClient()
@@ -105,13 +152,12 @@ func RequestAlipay(c *gin.Context) {
 	notifyURL := service.GetCallbackAddress() + "/api/alipay/notify"
 	returnURL := service.GetCallbackAddress() + "/console/log"
 	moneyStr := fmt.Sprintf("%.2f", payMoney)
-	subject := fmt.Sprintf("TopUp-%d", req.Amount)
 
 	var qrCode, payURL string
 	preParam := alipay.TradePreCreate{}
 	preParam.OutTradeNo = tradeNo
 	preParam.TotalAmount = moneyStr
-	preParam.Subject = subject
+	preParam.Subject = "充值"
 	preParam.ProductCode = "FACE_TO_FACE_PAYMENT"
 	preParam.NotifyURL = notifyURL
 	preRsp, preErr := client.TradePreCreate(c.Request.Context(), preParam)
@@ -121,7 +167,7 @@ func RequestAlipay(c *gin.Context) {
 		pageParam := alipay.TradePagePay{}
 		pageParam.OutTradeNo = tradeNo
 		pageParam.TotalAmount = moneyStr
-		pageParam.Subject = subject
+		pageParam.Subject = "充值"
 		pageParam.ProductCode = "FAST_INSTANT_TRADE_PAY"
 		pageParam.NotifyURL = notifyURL
 		pageParam.ReturnURL = returnURL
@@ -134,18 +180,12 @@ func RequestAlipay(c *gin.Context) {
 		payURL = pageURL.String()
 	}
 
-	// amount stored in TopUp: convert if display type is tokens
-	amount := req.Amount
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		amount = decimal.NewFromInt(amount).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
-	}
-
 	topUp := &model.TopUp{
 		UserId:          userId,
-		Amount:          amount,
+		Amount:          internalQuota,
 		Money:           payMoney,
 		TradeNo:         tradeNo,
-		PaymentMethod:   "alipay",
+		PaymentMethod:   model.PaymentMethodAlipay,
 		PaymentProvider: model.PaymentProviderAlipayDirect,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
@@ -257,6 +297,59 @@ func QueryAlipayOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": status})
 }
 
+// closePendingAlipayForUser implements Pattern C's "at most 1 pending per user"
+// rule with a fully-async cleanup design for low hot-path latency:
+//
+//   - SYNC (in hot path): one cheap DB query that captures the list of the
+//     user's prior pending alipay trade_nos. Returns in <10ms.
+//   - ASYNC (goroutine, fire-and-forget): mark each captured trade_no expired
+//     locally, then call alipay.trade.close on each upstream. The goroutine
+//     uses context.Background() because it outlives the gin request.
+//
+// Important: the sync DB query happens BEFORE the new order is inserted by
+// the caller, so the captured list will never include the just-to-be-created
+// new trade_no — the goroutine cannot accidentally close the user's fresh QR.
+//
+// Pattern C's "at most 1 pending" invariant becomes eventually-consistent:
+// for a brief window after the hot path returns, the old orders are still
+// pending in DB while the goroutine catches up. The window is microseconds-
+// to-milliseconds in steady state and bounded by per-user lock + frontend
+// button gating, so it never causes user-visible duplicate-pending issues.
+//
+// Race with concurrent webhook is safe — model.UpdatePendingTopUpStatus only
+// flips status when the row is still pending, so a webhook that already wrote
+// status=success will not be overwritten.
+func closePendingAlipayForUser(userId int) {
+	var oldTradeNos []string
+	model.DB.Model(&model.TopUp{}).
+		Where("user_id = ? AND payment_provider = ? AND status = ?",
+			userId, model.PaymentProviderAlipayDirect, common.TopUpStatusPending).
+		Pluck("trade_no", &oldTradeNos)
+	if len(oldTradeNos) == 0 {
+		return
+	}
+
+	go func() {
+		for _, tn := range oldTradeNos {
+			_ = model.UpdatePendingTopUpStatus(tn, model.PaymentProviderAlipayDirect, common.TopUpStatusExpired)
+		}
+		client, err := getAlipayClient()
+		if err != nil {
+			common.SysLog(fmt.Sprintf("alipay async close: client not ready: %v", err))
+			return
+		}
+		for _, tn := range oldTradeNos {
+			closeParam := alipay.TradeClose{}
+			closeParam.OutTradeNo = tn
+			if _, err := client.TradeClose(context.Background(), closeParam); err != nil &&
+				!strings.Contains(err.Error(), "ACQ.TRADE_NOT_EXIST") &&
+				!strings.Contains(err.Error(), "ACQ.TRADE_HAS_CLOSE") {
+				common.SysLog(fmt.Sprintf("alipay async close %s: %v", tn, err))
+			}
+		}
+	}()
+}
+
 // CloseExpiredAlipayOrders should be called by a cron task to close stale pending orders.
 func CloseExpiredAlipayOrders() {
 	if !isAlipayEnabled() {
@@ -274,14 +367,27 @@ func CloseExpiredAlipayOrders() {
 	model.DB.Where("payment_provider = ? AND status = ? AND create_time < ?",
 		model.PaymentProviderAlipayDirect, common.TopUpStatusPending, cutoff).Find(&orders)
 
+	closed := 0
 	for _, order := range orders {
 		closeParam := alipay.TradeClose{}
 		closeParam.OutTradeNo = order.TradeNo
-		_, err := client.TradeClose(nil, closeParam)
-		if err != nil && !strings.Contains(err.Error(), "ACQ.TRADE_NOT_EXIST") {
+		// Use context.Background() — passing nil makes smartwalle/alipay/v3 fail
+		// with "net/http: nil Context", short-circuiting the local status update.
+		_, err := client.TradeClose(context.Background(), closeParam)
+		// Both ACQ.TRADE_NOT_EXIST (alipay never knew about it) and
+		// ACQ.TRADE_HAS_CLOSE (already closed upstream) are benign — fall through
+		// to local status update. Anything else is logged and skipped so we don't
+		// mark a still-payable order as expired.
+		if err != nil &&
+			!strings.Contains(err.Error(), "ACQ.TRADE_NOT_EXIST") &&
+			!strings.Contains(err.Error(), "ACQ.TRADE_HAS_CLOSE") {
 			common.SysError(fmt.Sprintf("alipay close order %s: %v", order.TradeNo, err))
 			continue
 		}
 		_ = model.UpdatePendingTopUpStatus(order.TradeNo, model.PaymentProviderAlipayDirect, common.TopUpStatusExpired)
+		closed++
+	}
+	if len(orders) > 0 {
+		common.SysLog(fmt.Sprintf("alipay close expired: scanned=%d, closed=%d", len(orders), closed))
 	}
 }

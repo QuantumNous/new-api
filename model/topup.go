@@ -29,6 +29,8 @@ const (
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
+	PaymentMethodAlipay       = "alipay"
+	PaymentMethodWxpay        = "wxpay"
 )
 
 const (
@@ -550,9 +552,7 @@ func RechargeAlipay(tradeNo string, callerIp string) error {
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
 		}
-		dAmount := decimal.NewFromInt(topUp.Amount)
-		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		quotaToAdd = int(topUp.Amount)
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
@@ -568,7 +568,7 @@ func RechargeAlipay(tradeNo string, callerIp string) error {
 		return errors.New("充值失败，请稍后重试")
 	}
 	if quotaToAdd > 0 {
-		RecordTopupLog(topUp.UserId, fmt.Sprintf("支付宝直连充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderAlipayDirect)
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("支付宝直连充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuotaShort(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderAlipayDirect)
 	}
 	return nil
 }
@@ -596,9 +596,7 @@ func RechargeWxpay(tradeNo string, callerIp string) error {
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
 		}
-		dAmount := decimal.NewFromInt(topUp.Amount)
-		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		quotaToAdd = int(topUp.Amount)
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
@@ -614,7 +612,7 @@ func RechargeWxpay(tradeNo string, callerIp string) error {
 		return errors.New("充值失败，请稍后重试")
 	}
 	if quotaToAdd > 0 {
-		RecordTopupLog(topUp.UserId, fmt.Sprintf("微信支付直连充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderWxpayDirect)
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("微信支付直连充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuotaShort(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderWxpayDirect)
 	}
 	return nil
 }

@@ -294,12 +294,13 @@ export const useApiRequest = (
               status: MESSAGE_STATUS.ERROR,
               ...autoCollapseState,
             };
+            setTimeout(() => saveMessages(newMessages), 0);
           }
           return newMessages;
         });
       }
     },
-    [setDebugData, setActiveDebugTab, setMessage, t, applyAutoCollapseLogic],
+    [setDebugData, setActiveDebugTab, setMessage, t, applyAutoCollapseLogic, saveMessages],
   );
 
   // SSE请求
@@ -432,6 +433,7 @@ export const useApiRequest = (
                 errorCode: errorCode,
                 status: MESSAGE_STATUS.ERROR,
               };
+              setTimeout(() => saveMessages(newMessages), 0);
             }
             return newMessages;
           });
@@ -491,6 +493,7 @@ export const useApiRequest = (
       completeMessage,
       t,
       applyAutoCollapseLogic,
+      saveMessages,
     ],
   );
 

@@ -122,6 +122,7 @@ func InitOptionMap() {
 	common.OptionMap["AlipayPrivateKey"] = setting.AlipayPrivateKey
 	common.OptionMap["AlipayPublicKey"] = setting.AlipayPublicKey
 	common.OptionMap["AlipayMinTopUp"] = strconv.Itoa(setting.AlipayMinTopUp)
+	common.OptionMap["AlipaySandbox"] = strconv.FormatBool(setting.AlipaySandbox)
 	common.OptionMap["WxpayAppId"] = setting.WxpayAppId
 	common.OptionMap["WxpayMchId"] = setting.WxpayMchId
 	common.OptionMap["WxpayPrivateKey"] = setting.WxpayPrivateKey
@@ -461,26 +462,61 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
 	case "AlipayAppId":
 		setting.AlipayAppId = value
+		if AlipayClientResetHook != nil {
+			AlipayClientResetHook()
+		}
 	case "AlipayPrivateKey":
 		setting.AlipayPrivateKey = value
+		if AlipayClientResetHook != nil {
+			AlipayClientResetHook()
+		}
 	case "AlipayPublicKey":
 		setting.AlipayPublicKey = value
+		if AlipayClientResetHook != nil {
+			AlipayClientResetHook()
+		}
 	case "AlipayMinTopUp":
 		setting.AlipayMinTopUp, _ = strconv.Atoi(value)
+	case "AlipaySandbox":
+		setting.AlipaySandbox, _ = strconv.ParseBool(value)
+		if AlipayClientResetHook != nil {
+			AlipayClientResetHook()
+		}
 	case "WxpayAppId":
 		setting.WxpayAppId = value
+		if WxpayClientResetHook != nil {
+			WxpayClientResetHook()
+		}
 	case "WxpayMchId":
 		setting.WxpayMchId = value
+		if WxpayClientResetHook != nil {
+			WxpayClientResetHook()
+		}
 	case "WxpayPrivateKey":
 		setting.WxpayPrivateKey = value
+		if WxpayClientResetHook != nil {
+			WxpayClientResetHook()
+		}
 	case "WxpayApiV3Key":
 		setting.WxpayApiV3Key = value
+		if WxpayClientResetHook != nil {
+			WxpayClientResetHook()
+		}
 	case "WxpayCertSerial":
 		setting.WxpayCertSerial = value
+		if WxpayClientResetHook != nil {
+			WxpayClientResetHook()
+		}
 	case "WxpayPublicKey":
 		setting.WxpayPublicKey = value
+		if WxpayClientResetHook != nil {
+			WxpayClientResetHook()
+		}
 	case "WxpayPublicKeyId":
 		setting.WxpayPublicKeyId = value
+		if WxpayClientResetHook != nil {
+			WxpayClientResetHook()
+		}
 	case "WxpayMinTopUp":
 		setting.WxpayMinTopUp, _ = strconv.Atoi(value)
 	case "TopupGroupRatio":

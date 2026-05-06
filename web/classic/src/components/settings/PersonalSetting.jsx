@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   API,
   copy,
@@ -53,6 +53,9 @@ const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
   let navigate = useNavigate();
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const kycCardRef = useRef(null);
+  const [kycHighlight, setKycHighlight] = useState(false);
 
   const [inputs, setInputs] = useState({
     wechat_verification_code: '',
@@ -125,6 +128,23 @@ const PersonalSetting = () => {
           passkeyVerificationMethods.hasPasskey,
       }
     : passkeyVerificationMethods;
+
+  // Handle ?tab=kyc deep link: scroll to KYC card and pulse-highlight it.
+  // Triggered by Modal "立即认证" / "重新提交" navigation from the topup page.
+  useEffect(() => {
+    if (searchParams.get('tab') !== 'kyc') return;
+    const node = kycCardRef.current;
+    if (!node) return;
+    requestAnimationFrame(() => {
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    setKycHighlight(true);
+    const timer = setTimeout(() => setKycHighlight(false), 2400);
+    // Strip the query param so a refresh doesn't re-trigger the highlight.
+    searchParams.delete('tab');
+    setSearchParams(searchParams, { replace: true });
+    return () => clearTimeout(timer);
+  }, [searchParams]);
 
   useEffect(() => {
     let saved = localStorage.getItem('status');
@@ -596,7 +616,16 @@ const PersonalSetting = () => {
                 handleNotificationSettingChange={handleNotificationSettingChange}
                 saveNotificationSettings={saveNotificationSettings}
               />
-              <KYCSetting />
+              <div
+                ref={kycCardRef}
+                className={
+                  kycHighlight
+                    ? 'rounded-xl ring-2 ring-orange-400 transition-shadow duration-700 ring-offset-2 ring-offset-transparent'
+                    : 'rounded-xl transition-shadow duration-700'
+                }
+              >
+                <KYCSetting />
+              </div>
             </div>
           </div>
         </div>

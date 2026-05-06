@@ -122,6 +122,9 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// Direct payment (Alipay/WeChat Pay) expired order cleanup
+	service.StartDirectPaymentExpiryScan()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)
@@ -292,6 +295,9 @@ func InitResources() error {
 
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()
+
+	// Surface payment-sandbox state once DB-loaded options are in effect
+	controller.LogAlipaySandboxStatus()
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()

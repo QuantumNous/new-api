@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import HeaderBar from './headerbar';
-import { Banner, Layout } from '@douyinfe/semi-ui';
+import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
 import FooterBar from './Footer';
@@ -37,13 +37,13 @@ import {
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { normalizeLanguage } from '../../i18n/language';
 const { Sider, Content, Header } = Layout;
 
 const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
-  const [statusState, statusDispatch] = useContext(StatusContext);
+  const [, statusDispatch] = useContext(StatusContext);
   const isMobile = useIsMobile();
   const [collapsed, , setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -218,22 +218,6 @@ const PageLayout = () => {
               position: 'relative',
             }}
           >
-            {isConsoleRoute &&
-              statusState?.status?.kyc_enabled &&
-              userState?.user &&
-              userState.user.kyc_status !== 2 && (
-                <Banner
-                  type='warning'
-                  description={
-                    <span>
-                      {t('您尚未完成实名认证，API 访问已受限。')}{' '}
-                      <Link to='/console/personal'>{t('立即认证')}</Link>
-                    </span>
-                  }
-                  style={{ marginBottom: 0, borderRadius: 0 }}
-                  closeIcon={null}
-                />
-              )}
             <ErrorBoundary>
               <App />
             </ErrorBoundary>
