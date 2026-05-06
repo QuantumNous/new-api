@@ -5,6 +5,7 @@ import (
 	//"os"
 	//"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,24 @@ var SystemName = "New API"
 var Footer = ""
 var Logo = ""
 var TopUpLink = ""
+
+var themeValue atomic.Value // stores string; safe for concurrent read/write
+
+func init() {
+	themeValue.Store("classic")
+}
+
+func GetTheme() string {
+	return themeValue.Load().(string)
+}
+
+// SetTheme updates the frontend theme atomically.
+// Only "default" and "classic" are accepted; other values are silently ignored.
+func SetTheme(t string) {
+	if t == "default" || t == "classic" {
+		themeValue.Store(t)
+	}
+}
 
 // var ChatLink = ""
 // var ChatLink2 = ""
