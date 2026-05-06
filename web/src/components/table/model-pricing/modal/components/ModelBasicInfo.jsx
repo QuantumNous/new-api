@@ -58,24 +58,34 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
   };
 
   return (
-    <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='blue' className='mr-2 shadow-md'>
+    <Card className='model-detail-section-card'>
+      <div className='model-detail-section-head'>
+        <Avatar
+          size='small'
+          color='blue'
+          className='model-detail-section-avatar model-detail-section-avatar-basic'
+        >
           <IconInfoCircle size={16} />
         </Avatar>
-        <div>
-          <Text className='text-lg font-medium'>{t('基本信息')}</Text>
-          <div className='text-xs text-gray-600'>
+        <div className='model-detail-section-copy'>
+          <Text className='model-detail-section-title'>{t('基本信息')}</Text>
+          <div className='model-detail-section-description'>
             {t('模型的详细描述和基本特性')}
           </div>
         </div>
       </div>
-      <div className='text-gray-600'>
-        <p className='mb-4'>{getModelDescription()}</p>
+      <div className='model-detail-basic-body'>
+        <p className='model-detail-description'>{getModelDescription()}</p>
         {getModelTags().length > 0 && (
-          <Space wrap>
+          <Space wrap className='model-detail-tag-list'>
             {getModelTags().map((tag, index) => (
-              <Tag key={index} color={tag.color} shape='circle' size='small'>
+              <Tag
+                key={index}
+                className='model-detail-meta-pill'
+                color={tag.color}
+                shape='circle'
+                size='small'
+              >
                 {tag.text}
               </Tag>
             ))}

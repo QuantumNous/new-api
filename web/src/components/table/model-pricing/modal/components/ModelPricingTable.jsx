@@ -127,13 +127,16 @@ const ModelPricingTable = ({
       title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('价格摘要'),
       dataIndex: 'priceItems',
       render: (items) => (
-        <div className='space-y-1'>
+        <div className='model-detail-price-summary'>
           {items.map((item) => (
-            <div key={item.key}>
-              <div className='font-semibold text-orange-600'>
-                {item.label} {item.value}
+            <div key={item.key} className='model-detail-price-item'>
+              <div className='model-detail-price-item-label'>
+                {item.label}
               </div>
-              <div className='text-xs text-gray-500'>{item.suffix}</div>
+              <div className='model-detail-price-item-value'>{item.value}</div>
+              <div className='model-detail-price-item-suffix'>
+                {item.suffix}
+              </div>
             </div>
           ))}
         </div>
@@ -153,34 +156,49 @@ const ModelPricingTable = ({
   };
 
   return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='orange' className='mr-2 shadow-md'>
+    <Card className='model-detail-section-card model-detail-pricing-card'>
+      <div className='model-detail-section-head'>
+        <Avatar
+          size='small'
+          color='orange'
+          className='model-detail-section-avatar model-detail-section-avatar-pricing'
+        >
           <IconCoinMoneyStroked size={16} />
         </Avatar>
-        <div>
-          <Text className='text-lg font-medium'>{t('分组价格')}</Text>
-          <div className='text-xs text-gray-600'>
+        <div className='model-detail-section-copy'>
+          <Text className='model-detail-section-title'>{t('分组价格')}</Text>
+          <div className='model-detail-section-description'>
             {t('不同用户分组的价格信息')}
           </div>
         </div>
       </div>
       {autoChain.length > 0 && (
-        <div className='flex flex-wrap items-center gap-1 mb-4'>
-          <span className='text-sm text-gray-600'>{t('auto分组调用链路')}</span>
-          <span className='text-sm'>→</span>
+        <div className='model-detail-auto-chain'>
+          <span className='model-detail-auto-chain-label'>
+            {t('auto分组调用链路')}
+          </span>
+          <span className='model-detail-auto-chain-arrow'>→</span>
           {autoChain.map((g, idx) => (
             <React.Fragment key={g}>
-              <Tag color='white' size='small' shape='circle'>
+              <Tag
+                className='model-detail-meta-pill'
+                color='white'
+                size='small'
+                shape='circle'
+              >
                 {g}
                 {t('分组')}
               </Tag>
-              {idx < autoChain.length - 1 && <span className='text-sm'>→</span>}
+              {idx < autoChain.length - 1 && (
+                <span className='model-detail-auto-chain-arrow'>→</span>
+              )}
             </React.Fragment>
           ))}
         </div>
       )}
-      {renderGroupPriceTable()}
+      <div className='model-detail-pricing-table-wrap'>
+        {renderGroupPriceTable()}
+      </div>
     </Card>
   );
 };
