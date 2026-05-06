@@ -209,40 +209,6 @@ async function proxyAndMaybeRewrite(request, url, env, ctx) {
       }
     }
 
-    const hasImageTool =
-      parsed && Array.isArray(parsed.tools) &&
-      parsed.tools.some((t) => t && t.type === 'image_generation');
-    const clientWantsStream = parsed?.stream === true;
-    if (hasImageTool && !clientWantsStream) {
-      const result = await postResponsesAggregated(upstreamUrl, upstreamHeaders, parsed, env);
-      if (result.ok) {
-        return new Response(JSON.stringify(result.response), {
-          status: 200,
-          headers: {
-            'content-type': 'application/json; charset=utf-8',
-            'access-control-allow-origin': '*',
-            'x-relay-mode': 'aggregated',
-          },
-        });
-      }
-      if (result.errorPayload) {
-        return new Response(JSON.stringify({ error: result.errorPayload }), {
-          status: 200,
-          headers: {
-            'content-type': 'application/json; charset=utf-8',
-            'access-control-allow-origin': '*',
-            'x-relay-mode': 'aggregated-error',
-          },
-        });
-      }
-      return new Response(result.rawBody, {
-        status: result.status,
-        headers: {
-          'content-type': result.contentType,
-          'access-control-allow-origin': '*',
-        },
-      });
-    }
   }
 
   const upstreamResp = await fetchWithFastFailRetry(upstreamUrl, {
@@ -485,189 +451,6 @@ async function inlineInputImageUrls(body) {
     }
   }
   return { body, inlined };
-}
-
-// Forces stream:true on a /v1/responses POST body, consumes the upstream SSE
-// in this worker, and returns a single aggregated JSON response object
-// (mirroring what upstream would have sent for a non-streaming call).
-//
-// Why: image-generation calls routinely take 60-180s. CF subrequests have a
-// 100s read timeout, so non-streaming POSTs to slow upstreams reliably 524.
-// SSE streams keep the connection alive via incremental events and dodge the
-// timeout, then we reassemble.
-//
-// Side effects: same R2 uploads as rewriteSSE / rewriteJsonResponse — base64
-// image_generation_call.result is rewritten to a CDN URL inline.
-async function postResponsesAggregated(upstreamUrl, headers, parsedBody, env) {
-  const merged = { ...parsedBody, stream: true };
-  const upstreamResp = await fetchWithFastFailRetry(upstreamUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(merged),
-  });
-
-  if (!upstreamResp.ok) {
-    const errBody = await upstreamResp.text();
-    return {
-      ok: false,
-      status: upstreamResp.status,
-      contentType: upstreamResp.headers.get('content-type') || 'text/plain',
-      rawBody: errBody,
-    };
-  }
-
-  const ct = (upstreamResp.headers.get('content-type') || '').toLowerCase();
-  const imageBase = (env.IMAGE_BASE || '').replace(/\/$/, '');
-
-  // Upstream ignored stream:true and gave back JSON anyway — handle as before.
-  if (!ct.includes('text/event-stream')) {
-    const data = await upstreamResp.json();
-    if (imageBase && Array.isArray(data.output)) {
-      for (const item of data.output) {
-        if (
-          item?.type === 'image_generation_call' &&
-          typeof item.result === 'string' &&
-          item.result.length > 100
-        ) {
-          const ext = inferExt(item.output_format, item.result);
-          const key = await uploadToR2(item.result, ext, env);
-          item.result = `${imageBase}/${key}`;
-          if (item.status === 'generating') item.status = 'completed';
-        }
-      }
-    }
-    return { ok: true, status: 200, response: data };
-  }
-
-  const decoder = new TextDecoder();
-  const reader = upstreamResp.body.getReader();
-  const state = { collectedItems: [], processedKeys: new Set() };
-  let finalResponse = null;
-  let errorPayload = null;
-  // Use an array of chunks to avoid O(n²) cons-string flatten that occurs when
-  // appending hundreds of 16KB network chunks to a growing 30MB+ buffer. Only
-  // join when we need to scan for an event boundary.
-  let pending = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    pending += decoder.decode(value, { stream: true });
-    // Yield to break the sync window before scanning a potentially huge buffer.
-    await yieldNow();
-    let idx;
-    while ((idx = pending.indexOf('\n\n')) >= 0) {
-      const eventText = pending.slice(0, idx);
-      pending = pending.slice(idx + 2);
-      await yieldNow();
-      const consumed = await consumeAggregatedEvent(eventText, env, state, imageBase);
-      if (consumed.finalResponse) finalResponse = consumed.finalResponse;
-      if (consumed.error) errorPayload = consumed.error;
-    }
-  }
-  pending += decoder.decode();
-  if (pending.trim().length > 0) {
-    const consumed = await consumeAggregatedEvent(pending, env, state, imageBase);
-    if (consumed.finalResponse) finalResponse = consumed.finalResponse;
-    if (consumed.error) errorPayload = consumed.error;
-  }
-
-  if (finalResponse) {
-    return { ok: true, status: 200, response: finalResponse };
-  }
-  if (errorPayload) {
-    return { ok: false, status: 200, errorPayload };
-  }
-  return {
-    ok: false,
-    status: 502,
-    errorPayload: { message: 'upstream stream ended without response.completed', type: 'upstream_error' },
-  };
-}
-
-// Parses one SSE event from an aggregated upstream stream. Tracks
-// image_generation_call items as they complete (so a final
-// response.completed with output:[] can be backfilled), uploads their base64
-// payload to R2, and surfaces any terminal error event.
-async function consumeAggregatedEvent(eventText, env, state, imageBase) {
-  const lines = eventText.split('\n');
-  let dataIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith('data: ')) { dataIdx = i; break; }
-  }
-  if (dataIdx < 0) return {};
-  const dataStr = lines[dataIdx].slice(6);
-  let obj;
-  try { obj = JSON.parse(dataStr); } catch { return {}; }
-
-  // Skip preview frames; only the terminal item carries the canonical result.
-  if (obj.type === 'response.image_generation_call.partial_image') return {};
-
-  if (
-    obj.type === 'response.output_item.done' &&
-    obj.item?.type === 'image_generation_call'
-  ) {
-    if (
-      typeof obj.item.result === 'string' &&
-      obj.item.result.length > 100 &&
-      imageBase
-    ) {
-      const ext = inferExt(obj.item.output_format, obj.item.result);
-      const key = await uploadToR2(obj.item.result, ext, env);
-      obj.item.result = `${imageBase}/${key}`;
-      if (obj.item.status === 'generating') obj.item.status = 'completed';
-      if (state && state.processedKeys instanceof Set) state.processedKeys.add(key);
-    }
-    // Shallow copy is enough now that result has been replaced with a short URL.
-    state.collectedItems.push({ ...obj.item });
-    return {};
-  }
-
-  if (obj.type === 'response.completed' && obj.response) {
-    const resp = obj.response;
-    if (Array.isArray(resp.output)) {
-      // For each completed item: if we already uploaded this exact bytes via
-      // output_item.done (matched by sha256-derived key), reuse the URL — don't
-      // re-decode the giant base64 a second time. This is what was burning the
-      // 2s isolate CPU window.
-      for (const item of resp.output) {
-        if (
-          item?.type === 'image_generation_call' &&
-          typeof item.result === 'string' &&
-          item.result.length > 100 &&
-          imageBase
-        ) {
-          const ext = inferExt(item.output_format, item.result);
-          // Try to short-circuit by matching to a previously-uploaded item.
-          const prior = state.collectedItems.find((c) => c.id === item.id);
-          if (prior && typeof prior.result === 'string' && prior.result.startsWith(imageBase)) {
-            item.result = prior.result;
-            if (item.status === 'generating') item.status = 'completed';
-            continue;
-          }
-          const key = await uploadToR2(item.result, ext, env);
-          item.result = `${imageBase}/${key}`;
-          if (item.status === 'generating') item.status = 'completed';
-        }
-      }
-      if (resp.output.length === 0 && state.collectedItems.length > 0) {
-        resp.output = state.collectedItems.slice();
-      }
-    }
-    return { finalResponse: resp };
-  }
-
-  if (obj.type === 'response.failed' || obj.type === 'response.incomplete') {
-    return {
-      error:
-        obj.response?.error ||
-        { message: `upstream ${obj.type}`, type: obj.type },
-    };
-  }
-  if (obj.type === 'error') {
-    return { error: obj.error || { message: 'upstream error', type: 'error' } };
-  }
-  return {};
 }
 
 // Wraps fetch with fast-fail retry. Only retries on 502/503/504 that come back
@@ -952,39 +735,27 @@ async function handleImagesGenerations(request, env) {
     if (incoming) upstreamHeaders.set('authorization', incoming);
   }
 
-  const aggregated = await postResponsesAggregated(
-    getUpstream(env) + '/v1/responses',
-    upstreamHeaders,
-    responsesBody,
-    env
-  );
+  const upstreamResp = await fetchWithFastFailRetry(getUpstream(env) + '/v1/responses', {
+    method: 'POST',
+    headers: upstreamHeaders,
+    body: JSON.stringify(responsesBody),
+  });
 
-  if (!aggregated.ok) {
-    if (aggregated.errorPayload) {
-      console.error(
-        `images/generations upstream error: ${JSON.stringify(aggregated.errorPayload).slice(0, 300)}`
-      );
-      return new Response(JSON.stringify({ error: aggregated.errorPayload }), {
-        status: 200,
-        headers: {
-          'content-type': 'application/json; charset=utf-8',
-          'access-control-allow-origin': '*',
-        },
-      });
-    }
+  if (!upstreamResp.ok) {
+    const errBody = await upstreamResp.text();
     console.error(
-      `images/generations upstream ${aggregated.status}: ${(aggregated.rawBody || '').slice(0, 200)}`
+      `images/generations upstream ${upstreamResp.status}: ${errBody.slice(0, 200)}`
     );
-    return new Response(aggregated.rawBody || '', {
-      status: aggregated.status,
+    return new Response(errBody, {
+      status: upstreamResp.status,
       headers: {
-        'content-type': aggregated.contentType || 'text/plain',
+        'content-type': upstreamResp.headers.get('content-type') || 'text/plain',
         'access-control-allow-origin': '*',
       },
     });
   }
 
-  const responsesData = aggregated.response;
+  const responsesData = await upstreamResp.json();
   const imageBase = (env.IMAGE_BASE || '').replace(/\/$/, '');
   const wantB64 = reqBody.response_format === 'b64_json';
   const originalPrompt = String(reqBody.prompt ?? reqBody.input ?? '');
@@ -996,23 +767,18 @@ async function handleImagesGenerations(request, env) {
     if (
       item?.type === 'image_generation_call' &&
       typeof item.result === 'string' &&
-      item.result.length > 0
+      item.result.length > 100
     ) {
       if (!firstFormat) firstFormat = item.output_format;
       if (!firstSize) firstSize = item.size;
       const entry = {};
-      // After aggregation, item.result is already a CDN URL (R2-uploaded by
-      // postResponsesAggregated). For wantB64 mode we'd need the raw base64,
-      // which has been replaced — fall back to returning the URL instead.
-      const looksLikeUrl = /^https?:\/\//i.test(item.result);
-      if (wantB64 && !looksLikeUrl) {
+      if (wantB64) {
         entry.b64_json = item.result;
-      } else if (looksLikeUrl) {
-        entry.url = item.result;
       } else {
         const ext = inferExt(item.output_format, item.result);
+        const key = await uploadToR2(item.result, ext, env);
         entry.url = imageBase
-          ? `${imageBase}/${ext}`
+          ? `${imageBase}/${key}`
           : `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${item.result}`;
       }
       const revised =
@@ -1133,39 +899,27 @@ async function handleImagesEdits(request, env) {
     if (incoming) upstreamHeaders.set('authorization', incoming);
   }
 
-  const aggregated = await postResponsesAggregated(
-    getUpstream(env) + '/v1/responses',
-    upstreamHeaders,
-    responsesBody,
-    env
-  );
+  const upstreamResp = await fetchWithFastFailRetry(getUpstream(env) + '/v1/responses', {
+    method: 'POST',
+    headers: upstreamHeaders,
+    body: JSON.stringify(responsesBody),
+  });
 
-  if (!aggregated.ok) {
-    if (aggregated.errorPayload) {
-      console.error(
-        `images/edits upstream error: ${JSON.stringify(aggregated.errorPayload).slice(0, 300)}`
-      );
-      return new Response(JSON.stringify({ error: aggregated.errorPayload }), {
-        status: 200,
-        headers: {
-          'content-type': 'application/json; charset=utf-8',
-          'access-control-allow-origin': '*',
-        },
-      });
-    }
+  if (!upstreamResp.ok) {
+    const errBody = await upstreamResp.text();
     console.error(
-      `images/edits upstream ${aggregated.status}: ${(aggregated.rawBody || '').slice(0, 200)}`
+      `images/edits upstream ${upstreamResp.status}: ${errBody.slice(0, 200)}`
     );
-    return new Response(aggregated.rawBody || '', {
-      status: aggregated.status,
+    return new Response(errBody, {
+      status: upstreamResp.status,
       headers: {
-        'content-type': aggregated.contentType || 'text/plain',
+        'content-type': upstreamResp.headers.get('content-type') || 'text/plain',
         'access-control-allow-origin': '*',
       },
     });
   }
 
-  const responsesData = aggregated.response;
+  const responsesData = await upstreamResp.json();
   const imageBase = (env.IMAGE_BASE || '').replace(/\/$/, '');
   const wantB64 = responseFormat === 'b64_json';
   const originalPrompt = String(prompt);
@@ -1177,20 +931,18 @@ async function handleImagesEdits(request, env) {
     if (
       item?.type === 'image_generation_call' &&
       typeof item.result === 'string' &&
-      item.result.length > 0
+      item.result.length > 100
     ) {
       if (!firstFormat) firstFormat = item.output_format;
       if (!firstSize) firstSize = item.size;
       const entry = {};
-      const looksLikeUrl = /^https?:\/\//i.test(item.result);
-      if (wantB64 && !looksLikeUrl) {
+      if (wantB64) {
         entry.b64_json = item.result;
-      } else if (looksLikeUrl) {
-        entry.url = item.result;
       } else {
         const ext = inferExt(item.output_format, item.result);
+        const key = await uploadToR2(item.result, ext, env);
         entry.url = imageBase
-          ? `${imageBase}/${ext}`
+          ? `${imageBase}/${key}`
           : `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${item.result}`;
       }
       const revised =
