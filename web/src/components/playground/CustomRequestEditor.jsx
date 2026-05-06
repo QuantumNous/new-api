@@ -117,12 +117,12 @@ const CustomRequestEditor = ({
   };
 
   return (
-    <div className='space-y-4'>
+    <div className='playground-custom-request space-y-4'>
       {/* 自定义模式开关 */}
-      <div className='flex items-center justify-between'>
+      <div className='playground-custom-request-toggle flex items-center justify-between'>
         <div className='flex items-center gap-2'>
-          <Code size={16} className='text-gray-500' />
-          <Typography.Text strong className='text-sm'>
+          <Code size={16} className='playground-field-icon' />
+          <Typography.Text strong className='playground-field-label text-sm'>
             {t('自定义请求体模式')}
           </Typography.Text>
         </div>
@@ -144,7 +144,7 @@ const CustomRequestEditor = ({
               '启用此模式后，将使用您自定义的请求体发送API请求，模型配置面板的参数设置将被忽略。',
             )}
             icon={<AlertTriangle size={16} />}
-            className='!rounded-lg'
+            className='playground-custom-request-banner !rounded-2xl'
             closeIcon={null}
           />
 
@@ -156,14 +156,14 @@ const CustomRequestEditor = ({
               </Typography.Text>
               <div className='flex items-center gap-2'>
                 {isValid ? (
-                  <div className='flex items-center gap-1 text-green-600'>
+                  <div className='playground-json-status is-valid flex items-center gap-1'>
                     <Check size={14} />
                     <Typography.Text className='text-xs'>
                       {t('格式正确')}
                     </Typography.Text>
                   </div>
                 ) : (
-                  <div className='flex items-center gap-1 text-red-600'>
+                  <div className='playground-json-status is-invalid flex items-center gap-1'>
                     <X size={14} />
                     <Typography.Text className='text-xs'>
                       {t('格式错误')}
@@ -177,7 +177,7 @@ const CustomRequestEditor = ({
                   icon={<Edit size={14} />}
                   onClick={formatJson}
                   disabled={!isValid}
-                  className='!rounded-lg'
+                  className='playground-json-format-button !rounded-full'
                 >
                   {t('格式化')}
                 </Button>
@@ -202,7 +202,7 @@ const CustomRequestEditor = ({
               </Typography.Text>
             )}
 
-            <Typography.Text className='text-xs text-gray-500 mt-2 block'>
+            <Typography.Text className='playground-parameter-description text-xs mt-2 block'>
               {t(
                 '请输入有效的JSON格式的请求体。您可以参考预览面板中的默认请求体格式。',
               )}

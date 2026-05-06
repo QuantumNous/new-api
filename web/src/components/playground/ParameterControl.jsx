@@ -51,15 +51,15 @@ const ParameterControl = ({
     <>
       {/* Temperature */}
       <div
-        className={`transition-opacity duration-200 mb-4 ${!parameterEnabled.temperature || disabled ? 'opacity-50' : ''}`}
+        className={`playground-parameter-block transition-opacity duration-200 mb-4 ${!parameterEnabled.temperature || disabled ? 'opacity-50' : ''}`}
       >
         <div className='flex items-center justify-between mb-2'>
           <div className='flex items-center gap-2'>
-            <Thermometer size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
+            <Thermometer size={16} className='playground-field-icon' />
+            <Typography.Text strong className='playground-field-label text-sm'>
               Temperature
             </Typography.Text>
-            <Tag size='small' shape='circle'>
+            <Tag size='small' shape='circle' className='playground-parameter-tag'>
               {inputs.temperature}
             </Tag>
           </div>
@@ -75,11 +75,11 @@ const ParameterControl = ({
               )
             }
             onClick={() => onParameterToggle('temperature')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='playground-parameter-toggle !rounded-full !w-4 !h-4 !p-0 !min-w-0'
             disabled={disabled}
           />
         </div>
-        <Typography.Text className='text-xs text-gray-500 mb-2'>
+        <Typography.Text className='playground-parameter-description text-xs mb-2'>
           {t('控制输出的随机性和创造性')}
         </Typography.Text>
         <Slider
@@ -95,15 +95,15 @@ const ParameterControl = ({
 
       {/* Top P */}
       <div
-        className={`transition-opacity duration-200 mb-4 ${!parameterEnabled.top_p || disabled ? 'opacity-50' : ''}`}
+        className={`playground-parameter-block transition-opacity duration-200 mb-4 ${!parameterEnabled.top_p || disabled ? 'opacity-50' : ''}`}
       >
         <div className='flex items-center justify-between mb-2'>
           <div className='flex items-center gap-2'>
-            <Target size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
+            <Target size={16} className='playground-field-icon' />
+            <Typography.Text strong className='playground-field-label text-sm'>
               Top P
             </Typography.Text>
-            <Tag size='small' shape='circle'>
+            <Tag size='small' shape='circle' className='playground-parameter-tag'>
               {inputs.top_p}
             </Tag>
           </div>
@@ -115,11 +115,11 @@ const ParameterControl = ({
               parameterEnabled.top_p ? <Check size={10} /> : <X size={10} />
             }
             onClick={() => onParameterToggle('top_p')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='playground-parameter-toggle !rounded-full !w-4 !h-4 !p-0 !min-w-0'
             disabled={disabled}
           />
         </div>
-        <Typography.Text className='text-xs text-gray-500 mb-2'>
+        <Typography.Text className='playground-parameter-description text-xs mb-2'>
           {t('核采样，控制词汇选择的多样性')}
         </Typography.Text>
         <Slider
@@ -135,15 +135,15 @@ const ParameterControl = ({
 
       {/* Frequency Penalty */}
       <div
-        className={`transition-opacity duration-200 mb-4 ${!parameterEnabled.frequency_penalty || disabled ? 'opacity-50' : ''}`}
+        className={`playground-parameter-block transition-opacity duration-200 mb-4 ${!parameterEnabled.frequency_penalty || disabled ? 'opacity-50' : ''}`}
       >
         <div className='flex items-center justify-between mb-2'>
           <div className='flex items-center gap-2'>
-            <Repeat size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
+            <Repeat size={16} className='playground-field-icon' />
+            <Typography.Text strong className='playground-field-label text-sm'>
               Frequency Penalty
             </Typography.Text>
-            <Tag size='small' shape='circle'>
+            <Tag size='small' shape='circle' className='playground-parameter-tag'>
               {inputs.frequency_penalty}
             </Tag>
           </div>
@@ -159,11 +159,11 @@ const ParameterControl = ({
               )
             }
             onClick={() => onParameterToggle('frequency_penalty')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='playground-parameter-toggle !rounded-full !w-4 !h-4 !p-0 !min-w-0'
             disabled={disabled}
           />
         </div>
-        <Typography.Text className='text-xs text-gray-500 mb-2'>
+        <Typography.Text className='playground-parameter-description text-xs mb-2'>
           {t('频率惩罚，减少重复词汇的出现')}
         </Typography.Text>
         <Slider
@@ -179,15 +179,15 @@ const ParameterControl = ({
 
       {/* Presence Penalty */}
       <div
-        className={`transition-opacity duration-200 mb-4 ${!parameterEnabled.presence_penalty || disabled ? 'opacity-50' : ''}`}
+        className={`playground-parameter-block transition-opacity duration-200 mb-4 ${!parameterEnabled.presence_penalty || disabled ? 'opacity-50' : ''}`}
       >
         <div className='flex items-center justify-between mb-2'>
           <div className='flex items-center gap-2'>
-            <Ban size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
+            <Ban size={16} className='playground-field-icon' />
+            <Typography.Text strong className='playground-field-label text-sm'>
               Presence Penalty
             </Typography.Text>
-            <Tag size='small' shape='circle'>
+            <Tag size='small' shape='circle' className='playground-parameter-tag'>
               {inputs.presence_penalty}
             </Tag>
           </div>
@@ -203,11 +203,11 @@ const ParameterControl = ({
               )
             }
             onClick={() => onParameterToggle('presence_penalty')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='playground-parameter-toggle !rounded-full !w-4 !h-4 !p-0 !min-w-0'
             disabled={disabled}
           />
         </div>
-        <Typography.Text className='text-xs text-gray-500 mb-2'>
+        <Typography.Text className='playground-parameter-description text-xs mb-2'>
           {t('存在惩罚，鼓励讨论新话题')}
         </Typography.Text>
         <Slider
@@ -223,12 +223,12 @@ const ParameterControl = ({
 
       {/* MaxTokens */}
       <div
-        className={`transition-opacity duration-200 mb-4 ${!parameterEnabled.max_tokens || disabled ? 'opacity-50' : ''}`}
+        className={`playground-parameter-block transition-opacity duration-200 mb-4 ${!parameterEnabled.max_tokens || disabled ? 'opacity-50' : ''}`}
       >
         <div className='flex items-center justify-between mb-2'>
           <div className='flex items-center gap-2'>
-            <Hash size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
+            <Hash size={16} className='playground-field-icon' />
+            <Typography.Text strong className='playground-field-label text-sm'>
               Max Tokens
             </Typography.Text>
           </div>
@@ -244,7 +244,7 @@ const ParameterControl = ({
               )
             }
             onClick={() => onParameterToggle('max_tokens')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='playground-parameter-toggle !rounded-full !w-4 !h-4 !p-0 !min-w-0'
             disabled={disabled}
           />
         </div>
@@ -256,21 +256,22 @@ const ParameterControl = ({
           min={0}
           precision={0}
           style={{ width: '100%' }}
+          className='playground-parameter-input'
           disabled={!parameterEnabled.max_tokens || disabled}
         />
       </div>
 
       {/* Seed */}
       <div
-        className={`transition-opacity duration-200 mb-4 ${!parameterEnabled.seed || disabled ? 'opacity-50' : ''}`}
+        className={`playground-parameter-block transition-opacity duration-200 mb-4 ${!parameterEnabled.seed || disabled ? 'opacity-50' : ''}`}
       >
         <div className='flex items-center justify-between mb-2'>
           <div className='flex items-center gap-2'>
-            <Shuffle size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
+            <Shuffle size={16} className='playground-field-icon' />
+            <Typography.Text strong className='playground-field-label text-sm'>
               Seed
             </Typography.Text>
-            <Typography.Text className='text-xs text-gray-400'>
+            <Typography.Text className='playground-parameter-description text-xs'>
               ({t('可选，用于复现结果')})
             </Typography.Text>
           </div>
@@ -280,7 +281,7 @@ const ParameterControl = ({
             size='small'
             icon={parameterEnabled.seed ? <Check size={10} /> : <X size={10} />}
             onClick={() => onParameterToggle('seed')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            className='playground-parameter-toggle !rounded-full !w-4 !h-4 !p-0 !min-w-0'
             disabled={disabled}
           />
         </div>
@@ -292,7 +293,7 @@ const ParameterControl = ({
           onChange={(value) =>
             onInputChange('seed', value === '' ? null : value)
           }
-          className='!rounded-lg'
+          className='playground-parameter-input !rounded-2xl'
           disabled={!parameterEnabled.seed || disabled}
         />
       </div>

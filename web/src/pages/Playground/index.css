@@ -1,0 +1,835 @@
+.playground-page {
+  background:
+    radial-gradient(circle at top left, rgba(0, 82, 255, 0.08), transparent 24%),
+    radial-gradient(circle at right center, rgba(87, 139, 250, 0.08), transparent 20%),
+    linear-gradient(180deg, #f7fbff 0%, #f4f8fc 48%, #f8fbff 100%);
+  color: #1c2536;
+}
+
+.playground-layout {
+  gap: 16px;
+  padding: 12px 16px 16px;
+}
+
+.playground-settings-sider .semi-layout-sider-children,
+.playground-debug-shell > *,
+.playground-chat-column > * {
+  height: 100%;
+}
+
+.playground-workspace {
+  gap: 16px;
+}
+
+.playground-side-card.semi-card,
+.playground-chat-card.semi-card {
+  overflow: hidden;
+  height: 100%;
+  border: 1px solid rgba(216, 224, 235, 0.88) !important;
+  border-radius: 30px !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 252, 0.96)),
+    #ffffff !important;
+  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.08) !important;
+}
+
+.playground-chat-card .semi-card-body,
+.playground-side-card .semi-card-body {
+  height: 100%;
+}
+
+.playground-chat-header {
+  border-bottom: 1px solid rgba(216, 224, 235, 0.82);
+  background:
+    radial-gradient(circle at top right, rgba(0, 82, 255, 0.08), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 249, 255, 0.98));
+}
+
+.playground-chat-header-icon,
+.playground-side-header-icon {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0052ff, #69a0ff);
+  box-shadow: 0 14px 30px rgba(0, 82, 255, 0.2);
+}
+
+.playground-debug-header-icon {
+  background: linear-gradient(135deg, #0f172a, #2563eb);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
+}
+
+.playground-chat-title.semi-typography,
+.playground-side-title.semi-typography {
+  color: #1c2536 !important;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.playground-chat-subtitle,
+.playground-debug-timestamp,
+.playground-config-status,
+.playground-parameter-description,
+.playground-thinking-source,
+.playground-field-hint,
+.playground-image-toggle-icon,
+.playground-field-icon {
+  color: #667085 !important;
+}
+
+.playground-field-label {
+  color: #233149 !important;
+}
+
+.playground-field-hint {
+  color: #b54708 !important;
+}
+
+.playground-chat-debug-toggle.semi-button,
+.playground-side-close.semi-button,
+.playground-config-menu-button.semi-button {
+  border: 1px solid rgba(196, 207, 226, 0.72) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #334155 !important;
+}
+
+.playground-chat-debug-toggle.semi-button:hover,
+.playground-side-close.semi-button:hover,
+.playground-config-menu-button.semi-button:hover {
+  border-color: rgba(0, 82, 255, 0.24) !important;
+  background: rgba(240, 246, 255, 0.96) !important;
+  color: #0052ff !important;
+}
+
+.playground-side-scroll {
+  padding-right: 6px;
+}
+
+.playground-side-card .semi-select-selection,
+.playground-side-card .semi-input-wrapper,
+.playground-side-card .semi-input-number-input-wrap,
+.playground-side-card .semi-input-textarea-wrapper {
+  border: 1px solid rgba(209, 217, 229, 0.92) !important;
+  border-radius: 18px !important;
+  background: rgba(248, 250, 252, 0.96) !important;
+  box-shadow: none !important;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.playground-side-card .semi-select-selection:hover,
+.playground-side-card .semi-input-wrapper:hover,
+.playground-side-card .semi-input-number-input-wrap:hover,
+.playground-side-card .semi-input-textarea-wrapper:hover,
+.playground-side-card .semi-select.focus .semi-select-selection,
+.playground-side-card .semi-input-wrapper-focus,
+.playground-side-card .semi-input-number-input-wrap-focus,
+.playground-side-card .semi-input-textarea-wrapper-focus {
+  border-color: rgba(0, 82, 255, 0.24) !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 4px rgba(0, 82, 255, 0.08) !important;
+}
+
+.playground-side-card .semi-input,
+.playground-side-card .semi-input-number-input,
+.playground-side-card .semi-select-selection-text,
+.playground-side-card .semi-select-selection-placeholder,
+.playground-side-card .semi-tag-content,
+.playground-side-card .semi-banner-description {
+  color: #233149 !important;
+}
+
+.playground-side-card .semi-switch {
+  background: rgba(191, 203, 222, 0.7) !important;
+}
+
+.playground-side-card .semi-switch-checked {
+  background: #0052ff !important;
+}
+
+.playground-side-card .semi-slider-track {
+  background: rgba(0, 82, 255, 0.14) !important;
+}
+
+.playground-side-card .semi-slider-track .semi-slider-handle {
+  border-color: #0052ff !important;
+}
+
+.playground-side-card .semi-slider-track .semi-slider-rail {
+  background: #0052ff !important;
+}
+
+.playground-parameter-block {
+  padding: 16px 18px;
+  border: 1px solid rgba(224, 230, 239, 0.9);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.playground-parameter-tag.semi-tag {
+  border: none !important;
+  border-radius: 999px !important;
+  background: rgba(0, 82, 255, 0.08) !important;
+  color: #0052ff !important;
+  font-weight: 700;
+}
+
+.playground-parameter-toggle.semi-button,
+.playground-image-add-button.semi-button {
+  width: 22px !important;
+  min-width: 22px !important;
+  height: 22px !important;
+  border-color: transparent !important;
+  background: #0052ff !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.playground-parameter-input .semi-input-number-input,
+.playground-parameter-input .semi-input {
+  min-height: 44px;
+}
+
+.playground-custom-request-banner.semi-banner {
+  border-color: rgba(245, 158, 11, 0.22) !important;
+  background: rgba(255, 248, 235, 0.94) !important;
+}
+
+.playground-json-status.is-valid {
+  color: #047857;
+}
+
+.playground-json-status.is-invalid {
+  color: #b42318;
+}
+
+.playground-json-format-button.semi-button,
+.playground-config-button.semi-button {
+  font-weight: 700;
+}
+
+.playground-config-button.semi-button {
+  border-color: rgba(196, 207, 226, 0.72) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #233149 !important;
+}
+
+.playground-config-button-primary.semi-button {
+  border-color: transparent !important;
+  background: #0052ff !important;
+  color: #ffffff !important;
+}
+
+.playground-config-reset.semi-button,
+.playground-image-remove-button.semi-button {
+  color: #b42318 !important;
+}
+
+.playground-config-reset.semi-button:hover,
+.playground-image-remove-button.semi-button:hover {
+  background: rgba(254, 226, 226, 0.9) !important;
+}
+
+.playground-image-toggle-icon.is-active {
+  color: #0052ff !important;
+}
+
+.playground-input-wrap {
+  background: transparent;
+}
+
+.playground-input-shell {
+  border: 1px solid rgba(209, 217, 229, 0.92);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)),
+    #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.playground-input-shell:hover {
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+}
+
+.playground-input-shell .semi-input-textarea-wrapper,
+.playground-input-shell .semi-input-wrapper {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.playground-input-shell .semi-input,
+.playground-input-shell textarea {
+  color: #1c2536 !important;
+}
+
+.playground-input-clear-button.semi-button {
+  background: rgba(241, 245, 249, 0.98) !important;
+  color: #64748b !important;
+}
+
+.playground-input-clear-button.semi-button:hover {
+  background: rgba(254, 226, 226, 0.96) !important;
+  color: #b42318 !important;
+}
+
+.playground-input-send-button.semi-button,
+.playground-floating-button.semi-button {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #0052ff, #4f8cff) !important;
+  color: #ffffff !important;
+}
+
+.playground-input-send-button.semi-button:hover,
+.playground-floating-button.semi-button:hover {
+  background: linear-gradient(135deg, #0b63ff, #578bfa) !important;
+}
+
+.playground-chat-surface .semi-chat-list {
+  padding: 22px 22px 10px;
+}
+
+.playground-chat-surface .semi-chat-chatBox {
+  margin-bottom: 18px;
+}
+
+.playground-chat-surface .semi-chat-chatBox-content {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.playground-chat-surface .semi-chat-chatBox-action {
+  margin-top: 8px;
+  padding-left: 6px;
+}
+
+.playground-message-content {
+  width: 100%;
+}
+
+.playground-markdown {
+  padding: 14px 16px;
+  border-radius: 22px;
+  line-height: 1.72;
+}
+
+.playground-assistant-markdown {
+  border: 1px solid rgba(216, 224, 235, 0.88);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 252, 0.96)),
+    #ffffff;
+  color: #1c2536;
+}
+
+.playground-user-markdown {
+  border: 1px solid rgba(0, 82, 255, 0.24);
+  background: linear-gradient(135deg, #0052ff, #3d7dff);
+  color: #ffffff;
+  box-shadow: 0 18px 34px rgba(0, 82, 255, 0.2);
+}
+
+.playground-markdown :is(p, ul, ol, li, h1, h2, h3, h4, strong, em, span) {
+  color: inherit;
+}
+
+.playground-markdown pre {
+  overflow: auto;
+  border-radius: 16px;
+}
+
+.playground-assistant-markdown pre {
+  border: 1px solid rgba(216, 224, 235, 0.88);
+  background: rgba(241, 245, 249, 0.94);
+}
+
+.playground-user-markdown pre {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 18, 48, 0.28);
+}
+
+.playground-markdown code {
+  border-radius: 8px;
+}
+
+.playground-user-markdown code {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.playground-assistant-markdown code {
+  background: rgba(0, 82, 255, 0.06);
+  color: #0052ff;
+}
+
+.playground-user-markdown a {
+  color: #e0ecff;
+}
+
+.playground-message-actions {
+  border-radius: 999px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(224, 230, 239, 0.86);
+}
+
+.playground-message-action-button.semi-button {
+  color: #667085 !important;
+}
+
+.playground-message-action-button.semi-button:hover {
+  background: rgba(240, 246, 255, 0.96) !important;
+  color: #0052ff !important;
+}
+
+.playground-message-action-copy.semi-button:hover {
+  color: #047857 !important;
+}
+
+.playground-message-action-edit.semi-button:hover {
+  color: #b54708 !important;
+}
+
+.playground-message-action-role.is-system.semi-button,
+.playground-message-action-role.semi-button:hover {
+  color: #7c3aed !important;
+}
+
+.playground-message-action-delete.semi-button:hover {
+  color: #b42318 !important;
+}
+
+.playground-message-action-disabled.semi-button {
+  color: #c0c7d2 !important;
+}
+
+.playground-message-loading-state {
+  padding: 10px 12px;
+}
+
+.playground-message-loading-indicator {
+  background: linear-gradient(135deg, #0052ff, #4f8cff);
+}
+
+.playground-message-loading-icon {
+  color: #ffffff;
+}
+
+.playground-system-banner {
+  background: linear-gradient(180deg, rgba(255, 248, 235, 0.98), rgba(255, 243, 224, 0.98));
+}
+
+.playground-system-banner-icon {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+}
+
+.playground-system-banner-icon-text {
+  color: #ffffff;
+}
+
+.playground-system-banner-text {
+  color: #b54708 !important;
+}
+
+.playground-error-card {
+  background: linear-gradient(180deg, rgba(254, 242, 242, 0.98), rgba(254, 226, 226, 0.98)) !important;
+  border-color: rgba(248, 113, 113, 0.24) !important;
+}
+
+.playground-message-error {
+  color: #b42318;
+}
+
+.playground-error-text {
+  color: #b42318 !important;
+}
+
+.playground-message-image {
+  border-color: rgba(216, 224, 235, 0.92);
+}
+
+.playground-message-image-error {
+  color: #b42318;
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(254, 242, 242, 0.96);
+}
+
+.playground-message-editor-input.semi-input-textarea-wrapper {
+  border-color: rgba(0, 82, 255, 0.2) !important;
+  background: rgba(240, 246, 255, 0.72) !important;
+}
+
+.playground-message-editor-cancel.semi-button,
+.playground-message-editor-save.semi-button {
+  height: 38px;
+  border-radius: 999px !important;
+  font-weight: 700;
+}
+
+.playground-message-editor-save.semi-button {
+  border-color: transparent !important;
+  background: #0052ff !important;
+}
+
+.playground-thinking-card {
+  border: 1px solid rgba(191, 219, 254, 0.52);
+  background: rgba(244, 249, 255, 0.82);
+}
+
+.playground-thinking-header {
+  background:
+    radial-gradient(circle at top right, rgba(123, 178, 255, 0.16), transparent 28%),
+    linear-gradient(135deg, #0f172a 0%, #12356f 52%, #0052ff 100%);
+}
+
+.playground-thinking-header-glow > div:first-child {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.playground-thinking-header-glow > div:last-child {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.playground-thinking-icon,
+.playground-thinking-toggle {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.playground-thinking-title,
+.playground-thinking-source,
+.playground-thinking-status-text {
+  color: #ffffff !important;
+}
+
+.playground-thinking-source {
+  opacity: 0.76;
+}
+
+.playground-thinking-body {
+  background: linear-gradient(180deg, rgba(240, 246, 255, 0.94), rgba(248, 251, 255, 0.98));
+}
+
+.playground-thinking-scroll {
+  border: 1px solid rgba(191, 219, 254, 0.42);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.playground-thinking-markdown {
+  color: #1c2536;
+}
+
+.playground-debug-tabs .semi-tabs-bar {
+  margin-bottom: 16px;
+}
+
+.playground-debug-tabs .semi-tabs-tab-button {
+  border-radius: 999px !important;
+  border: 1px solid rgba(209, 217, 229, 0.9);
+  background: rgba(248, 250, 252, 0.96);
+  color: #667085;
+  font-weight: 700;
+}
+
+.playground-debug-tabs .semi-tabs-tab-active .semi-tabs-tab-button,
+.playground-debug-tabs .semi-tabs-tab-button:hover {
+  border-color: rgba(0, 82, 255, 0.22);
+  background: rgba(240, 246, 255, 0.98);
+  color: #0052ff;
+}
+
+.playground-debug-pill {
+  border: 1px solid rgba(0, 82, 255, 0.16);
+  background: rgba(0, 82, 255, 0.08);
+  color: #0052ff;
+}
+
+.playground-debug-pill-warning {
+  border-color: rgba(245, 158, 11, 0.18);
+  background: rgba(255, 248, 235, 0.94);
+  color: #b54708;
+}
+
+.playground-debug-footer {
+  border-top: 1px solid rgba(224, 230, 239, 0.88);
+}
+
+.playground-mobile-sheet,
+.playground-mobile-overlay {
+  background:
+    linear-gradient(180deg, rgba(247, 251, 255, 0.98), rgba(243, 247, 252, 0.98)),
+    #ffffff !important;
+}
+
+.playground-floating-button.semi-button {
+  position: fixed;
+  right: 16px;
+  z-index: 1000;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 999px !important;
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.18);
+}
+
+.playground-floating-settings-button.semi-button {
+  bottom: 96px;
+}
+
+.playground-floating-debug-button.semi-button {
+  bottom: 148px;
+}
+
+.playground-floating-danger-button.semi-button {
+  bottom: 148px;
+  background: linear-gradient(135deg, #b42318, #ef4444) !important;
+}
+
+html.dark .playground-page {
+  background:
+    radial-gradient(circle at top left, rgba(0, 82, 255, 0.16), transparent 22%),
+    radial-gradient(circle at right center, rgba(96, 165, 250, 0.12), transparent 20%),
+    linear-gradient(180deg, #06080d 0%, #090c12 50%, #07090f 100%);
+  color: #f8fafc;
+}
+
+html.dark .playground-side-card.semi-card,
+html.dark .playground-chat-card.semi-card {
+  border-color: rgba(43, 48, 59, 0.95) !important;
+  background:
+    linear-gradient(180deg, rgba(17, 19, 24, 0.98), rgba(13, 16, 22, 0.98)),
+    #111318 !important;
+  box-shadow: none !important;
+}
+
+html.dark .playground-chat-header {
+  border-bottom-color: rgba(43, 48, 59, 0.95);
+  background:
+    radial-gradient(circle at top right, rgba(0, 82, 255, 0.16), transparent 26%),
+    linear-gradient(180deg, rgba(13, 16, 22, 0.98), rgba(10, 13, 18, 0.98));
+}
+
+html.dark .playground-chat-title.semi-typography,
+html.dark .playground-side-title.semi-typography,
+html.dark .playground-field-label,
+html.dark .playground-side-card .semi-input,
+html.dark .playground-side-card .semi-input-number-input,
+html.dark .playground-side-card .semi-select-selection-text,
+html.dark .playground-side-card .semi-tag-content {
+  color: #f8fafc !important;
+}
+
+html.dark .playground-chat-subtitle,
+html.dark .playground-debug-timestamp,
+html.dark .playground-config-status,
+html.dark .playground-parameter-description,
+html.dark .playground-image-toggle-icon,
+html.dark .playground-field-icon,
+html.dark .playground-side-card .semi-select-selection-placeholder,
+html.dark .playground-side-card .semi-banner-description {
+  color: #98a2b3 !important;
+}
+
+html.dark .playground-chat-debug-toggle.semi-button,
+html.dark .playground-side-close.semi-button,
+html.dark .playground-config-menu-button.semi-button,
+html.dark .playground-config-button.semi-button {
+  border-color: rgba(53, 61, 76, 0.96) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+  color: #f8fafc !important;
+}
+
+html.dark .playground-chat-debug-toggle.semi-button:hover,
+html.dark .playground-side-close.semi-button:hover,
+html.dark .playground-config-menu-button.semi-button:hover,
+html.dark .playground-config-button.semi-button:hover {
+  background: rgba(18, 28, 46, 0.96) !important;
+  color: #8bb8ff !important;
+}
+
+html.dark .playground-side-card .semi-select-selection,
+html.dark .playground-side-card .semi-input-wrapper,
+html.dark .playground-side-card .semi-input-number-input-wrap,
+html.dark .playground-side-card .semi-input-textarea-wrapper,
+html.dark .playground-parameter-block,
+html.dark .playground-input-shell,
+html.dark .playground-thinking-scroll {
+  border-color: rgba(53, 61, 76, 0.96) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+  box-shadow: none !important;
+}
+
+html.dark .playground-side-card .semi-select-selection:hover,
+html.dark .playground-side-card .semi-input-wrapper:hover,
+html.dark .playground-side-card .semi-input-number-input-wrap:hover,
+html.dark .playground-side-card .semi-input-textarea-wrapper:hover,
+html.dark .playground-side-card .semi-select.focus .semi-select-selection,
+html.dark .playground-side-card .semi-input-wrapper-focus,
+html.dark .playground-side-card .semi-input-number-input-wrap-focus,
+html.dark .playground-side-card .semi-input-textarea-wrapper-focus {
+  border-color: rgba(120, 164, 255, 0.24) !important;
+  background: rgba(18, 28, 46, 0.96) !important;
+  box-shadow: none !important;
+}
+
+html.dark .playground-parameter-tag.semi-tag,
+html.dark .playground-debug-pill {
+  background: rgba(0, 82, 255, 0.14) !important;
+  color: #8bb8ff !important;
+}
+
+html.dark .playground-custom-request-banner.semi-banner {
+  border-color: rgba(245, 158, 11, 0.24) !important;
+  background: rgba(39, 29, 15, 0.92) !important;
+}
+
+html.dark .playground-chat-surface .semi-chat-chatBox-content {
+  background: transparent !important;
+}
+
+html.dark .playground-assistant-markdown {
+  border-color: rgba(53, 61, 76, 0.96);
+  background:
+    linear-gradient(180deg, rgba(17, 19, 24, 0.98), rgba(13, 16, 22, 0.98)),
+    #111318;
+  color: #f8fafc;
+}
+
+html.dark .playground-user-markdown {
+  border-color: rgba(120, 164, 255, 0.2);
+  box-shadow: none;
+}
+
+html.dark .playground-assistant-markdown pre {
+  border-color: rgba(53, 61, 76, 0.96);
+  background: rgba(7, 10, 15, 0.92);
+}
+
+html.dark .playground-assistant-markdown code {
+  background: rgba(0, 82, 255, 0.14);
+  color: #8bb8ff;
+}
+
+html.dark .playground-message-actions {
+  border-color: rgba(53, 61, 76, 0.96);
+  background: rgba(16, 19, 24, 0.92);
+}
+
+html.dark .playground-message-action-button.semi-button {
+  color: #98a2b3 !important;
+}
+
+html.dark .playground-message-action-button.semi-button:hover {
+  background: rgba(18, 28, 46, 0.96) !important;
+  color: #8bb8ff !important;
+}
+
+html.dark .playground-system-banner {
+  background: rgba(49, 37, 18, 0.92);
+}
+
+html.dark .playground-system-banner-text {
+  color: #fbbf24 !important;
+}
+
+html.dark .playground-error-card {
+  background: rgba(60, 20, 20, 0.92) !important;
+  border-color: rgba(248, 113, 113, 0.26) !important;
+}
+
+html.dark .playground-message-error {
+  color: #fda4af;
+}
+
+html.dark .playground-error-text {
+  color: #fda4af !important;
+}
+
+html.dark .playground-message-image {
+  border-color: rgba(53, 61, 76, 0.96);
+}
+
+html.dark .playground-message-image-error {
+  color: #fda4af;
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(69, 10, 10, 0.72);
+}
+
+html.dark .playground-message-editor-input.semi-input-textarea-wrapper {
+  border-color: rgba(120, 164, 255, 0.22) !important;
+  background: rgba(18, 28, 46, 0.82) !important;
+}
+
+html.dark .playground-thinking-card {
+  border-color: rgba(53, 61, 76, 0.96);
+  background: rgba(11, 16, 25, 0.92);
+}
+
+html.dark .playground-thinking-body {
+  background: linear-gradient(180deg, rgba(12, 16, 25, 0.98), rgba(10, 13, 19, 0.98));
+}
+
+html.dark .playground-debug-tabs .semi-tabs-tab-button {
+  border-color: rgba(53, 61, 76, 0.96);
+  background: rgba(16, 19, 24, 0.92);
+  color: #98a2b3;
+}
+
+html.dark .playground-debug-tabs .semi-tabs-tab-active .semi-tabs-tab-button,
+html.dark .playground-debug-tabs .semi-tabs-tab-button:hover {
+  border-color: rgba(120, 164, 255, 0.2);
+  background: rgba(0, 82, 255, 0.14);
+  color: #8bb8ff;
+}
+
+html.dark .playground-debug-footer {
+  border-top-color: rgba(43, 48, 59, 0.95);
+}
+
+html.dark .playground-mobile-sheet,
+html.dark .playground-mobile-overlay {
+  background:
+    linear-gradient(180deg, rgba(8, 11, 17, 0.98), rgba(11, 14, 20, 0.99)),
+    #07090f !important;
+}
+
+@media (max-width: 1024px) {
+  .playground-layout {
+    padding: 10px 12px 12px;
+  }
+}
+
+@media (max-width: 767px) {
+  .playground-layout {
+    gap: 0;
+    padding: 0;
+  }
+
+  .playground-workspace {
+    gap: 0;
+  }
+
+  .playground-side-card.semi-card,
+  .playground-chat-card.semi-card {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    box-shadow: none !important;
+  }
+
+  .playground-chat-surface .semi-chat-list {
+    padding: 16px 14px 8px;
+  }
+
+  .playground-markdown {
+    padding: 12px 14px;
+    border-radius: 18px;
+  }
+
+  .playground-floating-button.semi-button {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+  }
+}
