@@ -1,12 +1,18 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -166,6 +172,183 @@ func ForceGC(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "GC 已执行",
+	})
+}
+
+// LogFileInfo 日志文件信息
+type LogFileInfo struct {
+	Name    string    `json:"name"`
+	Size    int64     `json:"size"`
+	ModTime time.Time `json:"mod_time"`
+}
+
+// LogFilesResponse 日志文件列表响应
+type LogFilesResponse struct {
+	LogDir     string        `json:"log_dir"`
+	Enabled    bool          `json:"enabled"`
+	FileCount  int           `json:"file_count"`
+	TotalSize  int64         `json:"total_size"`
+	OldestTime *time.Time    `json:"oldest_time,omitempty"`
+	NewestTime *time.Time    `json:"newest_time,omitempty"`
+	Files      []LogFileInfo `json:"files"`
+}
+
+// getLogFiles 读取日志目录中的日志文件列表
+func getLogFiles() ([]LogFileInfo, error) {
+	if *common.LogDir == "" {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(*common.LogDir)
+	if err != nil {
+		return nil, err
+	}
+	var files []LogFileInfo
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasPrefix(name, "oneapi-") || !strings.HasSuffix(name, ".log") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, LogFileInfo{
+			Name:    name,
+			Size:    info.Size(),
+			ModTime: info.ModTime(),
+		})
+	}
+	// 按文件名降序排列（最新在前）
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name > files[j].Name
+	})
+	return files, nil
+}
+
+// GetLogFiles 获取日志文件列表
+func GetLogFiles(c *gin.Context) {
+	if *common.LogDir == "" {
+		common.ApiSuccess(c, LogFilesResponse{Enabled: false})
+		return
+	}
+	files, err := getLogFiles()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var totalSize int64
+	var oldest, newest time.Time
+	for i, f := range files {
+		totalSize += f.Size
+		if i == 0 || f.ModTime.Before(oldest) {
+			oldest = f.ModTime
+		}
+		if i == 0 || f.ModTime.After(newest) {
+			newest = f.ModTime
+		}
+	}
+	resp := LogFilesResponse{
+		LogDir:    *common.LogDir,
+		Enabled:   true,
+		FileCount: len(files),
+		TotalSize: totalSize,
+		Files:     files,
+	}
+	if len(files) > 0 {
+		resp.OldestTime = &oldest
+		resp.NewestTime = &newest
+	}
+	common.ApiSuccess(c, resp)
+}
+
+// CleanupLogFiles 清理过期日志文件
+func CleanupLogFiles(c *gin.Context) {
+	mode := c.Query("mode")
+	valueStr := c.Query("value")
+	if mode != "by_count" && mode != "by_days" {
+		common.ApiErrorMsg(c, "invalid mode, must be by_count or by_days")
+		return
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil || value < 1 {
+		common.ApiErrorMsg(c, "invalid value, must be a positive integer")
+		return
+	}
+	if *common.LogDir == "" {
+		common.ApiErrorMsg(c, "log directory not configured")
+		return
+	}
+
+	files, err := getLogFiles()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	activeLogPath := logger.GetCurrentLogPath()
+	var toDelete []LogFileInfo
+
+	switch mode {
+	case "by_count":
+		// files 已按名称降序（最新在前），保留前 value 个
+		for i, f := range files {
+			if i < value {
+				continue
+			}
+			fullPath := filepath.Join(*common.LogDir, f.Name)
+			if fullPath == activeLogPath {
+				continue
+			}
+			toDelete = append(toDelete, f)
+		}
+	case "by_days":
+		cutoff := time.Now().AddDate(0, 0, -value)
+		for _, f := range files {
+			if f.ModTime.Before(cutoff) {
+				fullPath := filepath.Join(*common.LogDir, f.Name)
+				if fullPath == activeLogPath {
+					continue
+				}
+				toDelete = append(toDelete, f)
+			}
+		}
+	}
+
+	var deletedCount int
+	var freedBytes int64
+	var failedFiles []string
+	for _, f := range toDelete {
+		fullPath := filepath.Join(*common.LogDir, f.Name)
+		if err := os.Remove(fullPath); err != nil {
+			failedFiles = append(failedFiles, f.Name)
+			continue
+		}
+		deletedCount++
+		freedBytes += f.Size
+	}
+
+	result := gin.H{
+		"deleted_count": deletedCount,
+		"freed_bytes":   freedBytes,
+		"failed_files":  failedFiles,
+	}
+
+	if len(failedFiles) > 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": fmt.Sprintf("部分文件删除失败（%d/%d）", len(failedFiles), len(toDelete)),
+			"data":    result,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    result,
 	})
 }
 

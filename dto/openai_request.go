@@ -108,14 +108,6 @@ type GeneralOpenAIRequest struct {
 	ReasoningSplit json.RawMessage `json:"reasoning_split,omitempty"`
 }
 
-// createFileSource 根据数据内容创建正确类型的 FileSource
-func createFileSource(data string) *types.FileSource {
-	if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
-		return types.NewURLFileSource(data)
-	}
-	return types.NewBase64FileSource(data, "")
-}
-
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var tokenCountMeta types.TokenCountMeta
 	var texts = make([]string, 0)
@@ -159,44 +151,24 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 			}
 			arrayContent := message.ParseContent()
 			for _, m := range arrayContent {
-				if m.Type == ContentTypeImageURL {
-					imageUrl := m.GetImageMedia()
-					if imageUrl != nil && imageUrl.Url != "" {
-						source := createFileSource(imageUrl.Url)
-						fileMeta = append(fileMeta, &types.FileMeta{
-							FileType: types.FileTypeImage,
-							Source:   source,
-							Detail:   imageUrl.Detail,
-						})
+				source := m.ToFileSource()
+				if source != nil {
+					meta := &types.FileMeta{Source: source}
+					switch m.Type {
+					case ContentTypeImageURL:
+						meta.FileType = types.FileTypeImage
+						if img := m.GetImageMedia(); img != nil {
+							meta.Detail = img.Detail
+						}
+					case ContentTypeInputAudio:
+						meta.FileType = types.FileTypeAudio
+					case ContentTypeFile:
+						meta.FileType = types.FileTypeFile
+					case ContentTypeVideoUrl:
+						meta.FileType = types.FileTypeVideo
 					}
-				} else if m.Type == ContentTypeInputAudio {
-					inputAudio := m.GetInputAudio()
-					if inputAudio != nil && inputAudio.Data != "" {
-						source := createFileSource(inputAudio.Data)
-						fileMeta = append(fileMeta, &types.FileMeta{
-							FileType: types.FileTypeAudio,
-							Source:   source,
-						})
-					}
-				} else if m.Type == ContentTypeFile {
-					file := m.GetFile()
-					if file != nil && file.FileData != "" {
-						source := createFileSource(file.FileData)
-						fileMeta = append(fileMeta, &types.FileMeta{
-							FileType: types.FileTypeFile,
-							Source:   source,
-						})
-					}
-				} else if m.Type == ContentTypeVideoUrl {
-					videoUrl := m.GetVideoUrl()
-					if videoUrl != nil && videoUrl.Url != "" {
-						source := createFileSource(videoUrl.Url)
-						fileMeta = append(fileMeta, &types.FileMeta{
-							FileType: types.FileTypeVideo,
-							Source:   source,
-						})
-					}
-				} else {
+					fileMeta = append(fileMeta, meta)
+				} else if m.Type == ContentTypeText {
 					texts = append(texts, m.Text)
 				}
 			}
@@ -307,8 +279,8 @@ type Message struct {
 	Content          any             `json:"content"`
 	Name             *string         `json:"name,omitempty"`
 	Prefix           *bool           `json:"prefix,omitempty"`
-	ReasoningContent string          `json:"reasoning_content,omitempty"`
-	Reasoning        string          `json:"reasoning,omitempty"`
+	ReasoningContent *string         `json:"reasoning_content,omitempty"`
+	Reasoning        *string         `json:"reasoning,omitempty"`
 	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
 	ToolCallId       string          `json:"tool_call_id,omitempty"`
 	parsedContent    []MediaContent
@@ -391,9 +363,43 @@ func (m *MediaContent) GetVideoUrl() *MessageVideoUrl {
 	return nil
 }
 
+func (m *MediaContent) ToFileSource() types.FileSource {
+	switch m.Type {
+	case ContentTypeImageURL:
+		img := m.GetImageMedia()
+		if img == nil || img.Url == "" {
+			return nil
+		}
+		return types.NewFileSourceFromData(img.Url, img.MimeType)
+	case ContentTypeInputAudio:
+		audio := m.GetInputAudio()
+		if audio == nil || audio.Data == "" {
+			return nil
+		}
+		mimeType := ""
+		if audio.Format != "" {
+			mimeType = "audio/" + audio.Format
+		}
+		return types.NewFileSourceFromData(audio.Data, mimeType)
+	case ContentTypeFile:
+		file := m.GetFile()
+		if file == nil || file.FileData == "" {
+			return nil
+		}
+		return types.NewFileSourceFromData(file.FileData, "")
+	case ContentTypeVideoUrl:
+		video := m.GetVideoUrl()
+		if video == nil || video.Url == "" {
+			return nil
+		}
+		return types.NewFileSourceFromData(video.Url, "")
+	}
+	return nil
+}
+
 type MessageImageUrl struct {
 	Url      string `json:"url"`
-	Detail   string `json:"detail"`
+	Detail   string `json:"detail,omitempty"`
 	MimeType string
 }
 
@@ -424,6 +430,16 @@ const (
 	ContentTypeVideoUrl   = "video_url" // 阿里百炼视频识别
 	//ContentTypeAudioUrl   = "audio_url"
 )
+
+func (m *Message) GetReasoningContent() string {
+	if m.ReasoningContent == nil && m.Reasoning == nil {
+		return ""
+	}
+	if m.ReasoningContent != nil {
+		return *m.ReasoningContent
+	}
+	return *m.Reasoning
+}
 
 func (m *Message) GetPrefix() bool {
 	if m.Prefix == nil {
@@ -865,7 +881,7 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				if input.ImageUrl != "" {
 					fileMeta = append(fileMeta, &types.FileMeta{
 						FileType: types.FileTypeImage,
-						Source:   createFileSource(input.ImageUrl),
+						Source:   types.NewFileSourceFromData(input.ImageUrl, ""),
 						Detail:   input.Detail,
 					})
 				}
@@ -873,7 +889,7 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				if input.FileUrl != "" {
 					fileMeta = append(fileMeta, &types.FileMeta{
 						FileType: types.FileTypeFile,
-						Source:   createFileSource(input.FileUrl),
+						Source:   types.NewFileSourceFromData(input.FileUrl, ""),
 					})
 				}
 			} else {

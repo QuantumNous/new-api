@@ -81,6 +81,10 @@ func TestCollectPendingApplyUpstreamModelChanges(t *testing.T) {
 	require.Equal(t, []string{"old-model"}, pendingRemoveModels)
 }
 
+func TestChannelUpstreamModelUpdateSelectFieldsIncludeModelMapping(t *testing.T) {
+	require.Contains(t, channelUpstreamModelUpdateSelectFields, "model_mapping")
+}
+
 func TestNormalizeChannelModelMapping(t *testing.T) {
 	modelMapping := `{
 		" alias-model ": " upstream-model ",
@@ -109,6 +113,18 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithModelMapping(t *testin
 
 	require.Equal(t, []string{}, pendingAddModels)
 	require.Equal(t, []string{"stale-model"}, pendingRemoveModels)
+}
+
+func TestCollectPendingUpstreamModelChangesFromModels_WithIgnoredRegexPatterns(t *testing.T) {
+	pendingAddModels, pendingRemoveModels := collectPendingUpstreamModelChangesFromModels(
+		[]string{"gpt-4o"},
+		[]string{"gpt-4o", "claude-3-5-sonnet", "sora-video", "gpt-4.1"},
+		[]string{"regex:^sora-.*$", "gpt-4.1"},
+		nil,
+	)
+
+	require.Equal(t, []string{"claude-3-5-sonnet"}, pendingAddModels)
+	require.Equal(t, []string{}, pendingRemoveModels)
 }
 
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {

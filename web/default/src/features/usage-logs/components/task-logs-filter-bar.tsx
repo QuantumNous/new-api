@@ -1,0 +1,197 @@
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
+import { useNavigate, getRouteApi } from '@tanstack/react-router'
+import { useQueryClient, useIsFetching } from '@tanstack/react-query'
+import { Loader2, RotateCcw, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useIsAdmin } from '@/hooks/use-admin'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { buildSearchParams } from '../lib/filter'
+import { getDefaultTimeRange } from '../lib/utils'
+import type { DrawingLogFilters, LogCategory, TaskLogFilters } from '../types'
+import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
+
+const route = getRouteApi('/_authenticated/usage-logs/$section')
+
+type TaskLikeLogCategory = Extract<LogCategory, 'drawing' | 'task'>
+type TaskLogsFilters = DrawingLogFilters | TaskLogFilters
+
+interface TaskLogsFilterBarProps {
+  logCategory: TaskLikeLogCategory
+  viewOptions?: ReactNode
+}
+
+function getFilterPlaceholder(_logCategory: TaskLikeLogCategory): string {
+  return 'Filter by task ID'
+}
+
+function getFilterValue(
+  filters: TaskLogsFilters,
+  logCategory: TaskLikeLogCategory
+): string {
+  if (logCategory === 'drawing') {
+    return (filters as DrawingLogFilters).mjId || ''
+  }
+  return (filters as TaskLogFilters).taskId || ''
+}
+
+function setFilterValue(
+  filters: TaskLogsFilters,
+  logCategory: TaskLikeLogCategory,
+  value: string
+): TaskLogsFilters {
+  if (logCategory === 'drawing') {
+    return { ...filters, mjId: value }
+  }
+  return { ...filters, taskId: value }
+}
+
+export function TaskLogsFilterBar(props: TaskLogsFilterBarProps) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const searchParams = route.useSearch()
+  const isAdmin = useIsAdmin()
+  const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
+
+  const [filters, setFilters] = useState<TaskLogsFilters>(() => {
+    const { start, end } = getDefaultTimeRange()
+    return { startTime: start, endTime: end }
+  })
+
+  useEffect(() => {
+    const { start, end } = getDefaultTimeRange()
+    const baseFilters = {
+      startTime: searchParams.startTime ? new Date(searchParams.startTime) : start,
+      endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
+      ...(searchParams.channel ? { channel: String(searchParams.channel) } : {}),
+    }
+    const next: TaskLogsFilters =
+      props.logCategory === 'drawing'
+        ? {
+            ...baseFilters,
+            ...(searchParams.filter ? { mjId: searchParams.filter } : {}),
+          }
+        : {
+            ...baseFilters,
+            ...(searchParams.filter ? { taskId: searchParams.filter } : {}),
+          }
+
+    setFilters(next)
+  }, [
+    props.logCategory,
+    searchParams.startTime,
+    searchParams.endTime,
+    searchParams.channel,
+    searchParams.filter,
+  ])
+
+  const handleChange = useCallback(
+    (field: keyof TaskLogsFilters, value: Date | string | undefined) => {
+      setFilters((prev) => ({ ...prev, [field]: value }))
+    },
+    []
+  )
+
+  const handleApply = useCallback(() => {
+    const filterParams = buildSearchParams(filters, props.logCategory)
+    navigate({
+      to: '/usage-logs/$section',
+      params: { section: props.logCategory },
+      search: {
+        ...filterParams,
+        page: 1,
+      },
+    })
+    queryClient.invalidateQueries({ queryKey: ['logs'] })
+  }, [filters, navigate, props.logCategory, queryClient])
+
+  const handleReset = useCallback(() => {
+    const { start, end } = getDefaultTimeRange()
+    const resetFilters: TaskLogsFilters = { startTime: start, endTime: end }
+    setFilters(resetFilters)
+
+    navigate({
+      to: '/usage-logs/$section',
+      params: { section: props.logCategory },
+      search: {
+        page: 1,
+        startTime: start.getTime(),
+        endTime: end.getTime(),
+      },
+    })
+    queryClient.invalidateQueries({ queryKey: ['logs'] })
+  }, [navigate, props.logCategory, queryClient])
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') handleApply()
+    },
+    [handleApply]
+  )
+
+  const handleFilterChange = useCallback(
+    (value: string) => {
+      setFilters((prev) => setFilterValue(prev, props.logCategory, value))
+    },
+    [props.logCategory]
+  )
+
+  return (
+    <div className='space-y-2 sm:space-y-3'>
+      <div className='grid grid-cols-2 gap-1.5 sm:gap-2 lg:grid-cols-[minmax(280px,2fr)_minmax(180px,1fr)_minmax(120px,0.8fr)_auto]'>
+        <CompactDateTimeRangePicker
+          start={filters.startTime}
+          end={filters.endTime}
+          onChange={({ start, end }) => {
+            handleChange('startTime', start)
+            handleChange('endTime', end)
+          }}
+          className='col-span-2 lg:col-span-1'
+        />
+        <Input
+          aria-label={t('Task ID')}
+          placeholder={t(getFilterPlaceholder(props.logCategory))}
+          value={getFilterValue(filters, props.logCategory)}
+          onChange={(e) => handleFilterChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className='h-9'
+        />
+        {isAdmin && (
+          <Input
+            placeholder={t('Channel ID')}
+            value={filters.channel || ''}
+            onChange={(e) => handleChange('channel', e.target.value)}
+            onKeyDown={handleKeyDown}
+            className='h-9'
+          />
+        )}
+        <div className='col-span-2 flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 lg:col-span-1'>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
+            onClick={handleReset}
+          >
+            <RotateCcw className='size-3.5' />
+            {t('Reset')}
+          </Button>
+          <Button
+            size='sm'
+            className='h-8'
+            onClick={handleApply}
+            disabled={fetchingLogs > 0}
+          >
+            {fetchingLogs > 0 ? (
+              <Loader2 className='size-3.5 animate-spin' />
+            ) : (
+              <Search className='size-3.5' />
+            )}
+            {t('Search')}
+          </Button>
+          {props.viewOptions}
+        </div>
+      </div>
+    </div>
+  )
+}

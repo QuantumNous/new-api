@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -153,6 +155,11 @@ type RelayInfo struct {
 
 	PriceData types.PriceData
 
+	// TieredBillingSnapshot is a frozen snapshot of tiered billing rules
+	// captured at pre-consume time. Non-nil only when billing mode is "tiered_expr".
+	TieredBillingSnapshot *billingexpr.BillingSnapshot
+	BillingRequestInput   *billingexpr.RequestInput
+
 	Request dto.Request
 
 	// RequestConversionChain records request format conversions in order, e.g.
@@ -161,6 +168,8 @@ type RelayInfo struct {
 	// 最终请求到上游的格式。可由 adaptor 显式设置；
 	// 若为空，调用 GetFinalRequestRelayFormat 会回退到 RequestConversionChain 的最后一项或 RelayFormat。
 	FinalRequestRelayFormat types.RelayFormat
+
+	StreamStatus *StreamStatus
 
 	ThinkingContentInfo
 	TokenCountMeta
@@ -338,13 +347,8 @@ func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info.ClaudeConvertInfo = &ClaudeConvertInfo{
 		LastMessagesType: LastMessageTypeNone,
 	}
-	info.IsClaudeBetaQuery = c.Query("beta") == "true" || isClaudeBetaForced(c)
+	info.IsClaudeBetaQuery = c.Query("beta") == "true"
 	return info
-}
-
-func isClaudeBetaForced(c *gin.Context) bool {
-	channelOtherSettings, ok := common.GetContextKeyType[dto.ChannelOtherSettings](c, constant.ContextKeyChannelOtherSetting)
-	return ok && channelOtherSettings.ClaudeBetaQuery
 }
 
 func GenRelayInfoRerank(c *gin.Context, request *dto.RerankRequest) *RelayInfo {
@@ -440,6 +444,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	if request != nil {
 		isStream = request.IsStream(c)
 	}
+	c.Set(string(constant.ContextKeyIsStream), isStream)
 
 	// firstResponseTime = time.Now() - 1 second
 
@@ -693,6 +698,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	type Alias TaskSubmitReq
 	aux := &struct {
 		Metadata json.RawMessage `json:"metadata,omitempty"`
+		Duration json.RawMessage `json:"duration,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -700,6 +706,20 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 
 	if err := common.Unmarshal(data, &aux); err != nil {
 		return err
+	}
+
+	if len(aux.Duration) > 0 {
+		var durationInt int
+		if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
+			t.Duration = durationInt
+		} else {
+			var durationStr string
+			if err := common.Unmarshal(aux.Duration, &durationStr); err == nil && durationStr != "" {
+				if v, err := strconv.Atoi(durationStr); err == nil {
+					t.Duration = v
+				}
+			}
+		}
 	}
 
 	if len(aux.Metadata) > 0 {
@@ -757,6 +777,7 @@ func FailTaskInfo(reason string) *TaskInfo {
 // RemoveDisabledFields 从请求 JSON 数据中移除渠道设置中禁用的字段
 // service_tier: 服务层级字段，可能导致额外计费（OpenAI、Claude、Responses API 支持）
 // inference_geo: Claude 数据驻留推理区域字段（仅 Claude 支持，默认过滤）
+// speed: Claude 推理速度模式字段（仅 Claude 支持，默认过滤）
 // store: 数据存储授权字段，涉及用户隐私（仅 OpenAI、Responses API 支持，默认允许透传，禁用后可能导致 Codex 无法使用）
 // safety_identifier: 安全标识符，用于向 OpenAI 报告违规用户（仅 OpenAI 支持，涉及用户隐私）
 // stream_options.include_obfuscation: 响应流混淆控制字段（仅 OpenAI Responses API 支持）
@@ -782,6 +803,13 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 	if !channelOtherSettings.AllowInferenceGeo {
 		if _, exists := data["inference_geo"]; exists {
 			delete(data, "inference_geo")
+		}
+	}
+
+	// 默认移除 speed，除非明确允许（避免意外切换 Claude 推理速度模式）
+	if !channelOtherSettings.AllowSpeed {
+		if _, exists := data["speed"]; exists {
+			delete(data, "speed")
 		}
 	}
 

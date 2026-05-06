@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -220,10 +221,12 @@ type CompletionsStreamResponse struct {
 }
 
 type Usage struct {
-	PromptTokens         int `json:"prompt_tokens"`
-	CompletionTokens     int `json:"completion_tokens"`
-	TotalTokens          int `json:"total_tokens"`
-	PromptCacheHitTokens int `json:"prompt_cache_hit_tokens,omitempty"`
+	PromptTokens         int    `json:"prompt_tokens"`
+	CompletionTokens     int    `json:"completion_tokens"`
+	TotalTokens          int    `json:"total_tokens"`
+	PromptCacheHitTokens int    `json:"prompt_cache_hit_tokens,omitempty"`
+	UsageSemantic        string `json:"usage_semantic,omitempty"`
+	UsageSource          string `json:"usage_source,omitempty"`
 
 	PromptTokensDetails    InputTokenDetails  `json:"prompt_tokens_details"`
 	CompletionTokenDetails OutputTokenDetails `json:"completion_tokens_details"`
@@ -251,7 +254,7 @@ type OpenAIVideoResponse struct {
 
 type InputTokenDetails struct {
 	CachedTokens         int `json:"cached_tokens"`
-	CachedCreationTokens int `json:"-"`
+	CachedCreationTokens int `json:"cached_creation_tokens,omitempty"`
 	TextTokens           int `json:"text_tokens"`
 	AudioTokens          int `json:"audio_tokens"`
 	ImageTokens          int `json:"image_tokens"`
@@ -260,6 +263,7 @@ type InputTokenDetails struct {
 type OutputTokenDetails struct {
 	TextTokens      int `json:"text_tokens"`
 	AudioTokens     int `json:"audio_tokens"`
+	ImageTokens     int `json:"image_tokens"`
 	ReasoningTokens int `json:"reasoning_tokens"`
 }
 
@@ -270,7 +274,7 @@ type OpenAIResponsesResponse struct {
 	Status             json.RawMessage    `json:"status"`
 	Error              any                `json:"error,omitempty"`
 	IncompleteDetails  *IncompleteDetails `json:"incomplete_details,omitempty"`
-	Instructions       string             `json:"instructions"`
+	Instructions       json.RawMessage    `json:"instructions"`
 	MaxOutputTokens    int                `json:"max_output_tokens"`
 	Model              string             `json:"model"`
 	Output             []ResponsesOutput  `json:"output"`
@@ -343,7 +347,20 @@ type ResponsesOutput struct {
 	Size      string                   `json:"size"`
 	CallId    string                   `json:"call_id,omitempty"`
 	Name      string                   `json:"name,omitempty"`
-	Arguments string                   `json:"arguments,omitempty"`
+	Arguments json.RawMessage          `json:"arguments,omitempty"`
+}
+
+// ArgumentsString returns function call arguments in the string form expected by Chat Completions.
+func (r *ResponsesOutput) ArgumentsString() string {
+	if r == nil {
+		return ""
+	}
+	return ResponsesArgumentsString(r.Arguments)
+}
+
+// ResponsesArgumentsString returns function call arguments in the string form expected by Chat Completions.
+func ResponsesArgumentsString(arguments json.RawMessage) string {
+	return common.JsonRawMessageToString(arguments)
 }
 
 type ResponsesOutputContent struct {

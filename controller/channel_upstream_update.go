@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -30,6 +31,26 @@ const (
 	channelUpstreamModelUpdateNotifyMaxModelDetails       = 12
 	channelUpstreamModelUpdateNotifyMaxFailedChannelIDs   = 10
 )
+
+var channelUpstreamModelUpdateSelectFields = []string{
+	"id",
+	"name",
+	"type",
+	"key",
+	"status",
+	"base_url",
+	"models",
+	"model_mapping",
+	"settings",
+	"setting",
+	"other",
+	"group",
+	"priority",
+	"weight",
+	"tag",
+	"channel_info",
+	"header_override",
+}
 
 var (
 	channelUpstreamModelUpdateTaskOnce    sync.Once
@@ -169,10 +190,7 @@ func collectPendingUpstreamModelChangesFromModels(
 		upstreamSet[modelName] = struct{}{}
 	}
 
-	ignoredSet := make(map[string]struct{})
-	for _, modelName := range normalizeModelNames(ignoredModels) {
-		ignoredSet[modelName] = struct{}{}
-	}
+	normalizedIgnoredModels := normalizeModelNames(ignoredModels)
 
 	redirectSourceSet := make(map[string]struct{}, len(modelMapping))
 	redirectTargetSet := make(map[string]struct{}, len(modelMapping))
@@ -193,7 +211,13 @@ func collectPendingUpstreamModelChangesFromModels(
 		if _, ok := coveredUpstreamSet[modelName]; ok {
 			return false
 		}
-		if _, ok := ignoredSet[modelName]; ok {
+		if lo.ContainsBy(normalizedIgnoredModels, func(ignoredModel string) bool {
+			if regexBody, ok := strings.CutPrefix(ignoredModel, "regex:"); ok {
+				matched, err := regexp.MatchString(strings.TrimSpace(regexBody), modelName)
+				return err == nil && matched
+			}
+			return ignoredModel == modelName
+		}) {
 			return false
 		}
 		return true
@@ -517,7 +541,7 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 	for {
 		var channels []*model.Channel
 		query := model.DB.
-			Select("id", "name", "type", "key", "status", "base_url", "models", "settings", "setting", "other", "group", "priority", "weight", "tag", "channel_info", "header_override").
+			Select(channelUpstreamModelUpdateSelectFields).
 			Where("status = ?", common.ChannelStatusEnabled).
 			Order("id asc").
 			Limit(channelUpstreamModelUpdateTaskBatchSize)
@@ -810,7 +834,7 @@ func collectPendingApplyUpstreamModelChanges(settings dto.ChannelOtherSettings) 
 func findEnabledChannelsAfterID(lastID int, batchSize int) ([]*model.Channel, error) {
 	var channels []*model.Channel
 	query := model.DB.
-		Select("id", "name", "type", "key", "status", "base_url", "models", "settings", "setting", "other", "group", "priority", "weight", "tag", "channel_info", "header_override").
+		Select(channelUpstreamModelUpdateSelectFields).
 		Where("status = ?", common.ChannelStatusEnabled).
 		Order("id asc").
 		Limit(batchSize)

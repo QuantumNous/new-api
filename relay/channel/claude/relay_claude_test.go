@@ -1,10 +1,12 @@
 package claude
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
@@ -172,4 +174,209 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	if claudeInfo.ResponseText.String() != "hello" {
 		t.Errorf("ResponseText = %q, want %q", claudeInfo.ResponseText.String(), "hello")
 	}
+}
+
+func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 20,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         30,
+			CachedCreationTokens: 50,
+		},
+		ClaudeCacheCreation5mTokens: 10,
+		ClaudeCacheCreation1hTokens: 20,
+		UsageSemantic:               "anthropic",
+	}
+
+	openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
+
+	if openAIUsage.PromptTokens != 180 {
+		t.Fatalf("PromptTokens = %d, want 180", openAIUsage.PromptTokens)
+	}
+	if openAIUsage.InputTokens != 180 {
+		t.Fatalf("InputTokens = %d, want 180", openAIUsage.InputTokens)
+	}
+	if openAIUsage.TotalTokens != 200 {
+		t.Fatalf("TotalTokens = %d, want 200", openAIUsage.TotalTokens)
+	}
+	if openAIUsage.UsageSemantic != "openai" {
+		t.Fatalf("UsageSemantic = %s, want openai", openAIUsage.UsageSemantic)
+	}
+	if openAIUsage.UsageSource != "anthropic" {
+		t.Fatalf("UsageSource = %s, want anthropic", openAIUsage.UsageSource)
+	}
+}
+
+func TestBuildOpenAIStyleUsageFromClaudeUsagePreservesCacheCreationRemainder(t *testing.T) {
+	tests := []struct {
+		name                    string
+		cachedCreationTokens    int
+		cacheCreationTokens5m   int
+		cacheCreationTokens1h   int
+		expectedTotalInputToken int
+	}{
+		{
+			name:                    "prefers aggregate when it includes remainder",
+			cachedCreationTokens:    50,
+			cacheCreationTokens5m:   10,
+			cacheCreationTokens1h:   20,
+			expectedTotalInputToken: 180,
+		},
+		{
+			name:                    "falls back to split tokens when aggregate missing",
+			cachedCreationTokens:    0,
+			cacheCreationTokens5m:   10,
+			cacheCreationTokens1h:   20,
+			expectedTotalInputToken: 160,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			usage := &dto.Usage{
+				PromptTokens:     100,
+				CompletionTokens: 20,
+				PromptTokensDetails: dto.InputTokenDetails{
+					CachedTokens:         30,
+					CachedCreationTokens: tt.cachedCreationTokens,
+				},
+				ClaudeCacheCreation5mTokens: tt.cacheCreationTokens5m,
+				ClaudeCacheCreation1hTokens: tt.cacheCreationTokens1h,
+				UsageSemantic:               "anthropic",
+			}
+
+			openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
+
+			if openAIUsage.PromptTokens != tt.expectedTotalInputToken {
+				t.Fatalf("PromptTokens = %d, want %d", openAIUsage.PromptTokens, tt.expectedTotalInputToken)
+			}
+			if openAIUsage.InputTokens != tt.expectedTotalInputToken {
+				t.Fatalf("InputTokens = %d, want %d", openAIUsage.InputTokens, tt.expectedTotalInputToken)
+			}
+		})
+	}
+}
+
+func TestBuildOpenAIStyleUsageFromClaudeUsageDefaultsAggregateCacheCreationTo5m(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 20,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         30,
+			CachedCreationTokens: 50,
+		},
+		UsageSemantic: "anthropic",
+	}
+
+	openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
+
+	require.Equal(t, 50, openAIUsage.ClaudeCacheCreation5mTokens)
+	require.Equal(t, 0, openAIUsage.ClaudeCacheCreation1hTokens)
+}
+
+func TestRequestOpenAI2ClaudeMessage_IgnoresUnsupportedFileContent(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{
+				Role: "user",
+				Content: []any{
+					dto.MediaContent{
+						Type: dto.ContentTypeText,
+						Text: "see attachment",
+					},
+					dto.MediaContent{
+						Type: dto.ContentTypeFile,
+						File: &dto.MessageFile{
+							FileName: "blob.bin",
+							FileData: "JVBERi0xLjQK",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Len(t, claudeRequest.Messages, 1)
+
+	content, ok := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, content, 1)
+	require.Equal(t, "text", content[0].Type)
+	require.NotNil(t, content[0].Text)
+	require.Equal(t, "see attachment", *content[0].Text)
+}
+
+func TestRequestOpenAI2ClaudeMessage_SupportsPDFFileContent(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{
+				Role: "user",
+				Content: []any{
+					dto.MediaContent{
+						Type: dto.ContentTypeFile,
+						File: &dto.MessageFile{
+							FileName: "spec.pdf",
+							FileData: "JVBERi0xLjQK",
+						},
+					},
+					dto.MediaContent{
+						Type: dto.ContentTypeText,
+						Text: "summarize it",
+					},
+				},
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Len(t, claudeRequest.Messages, 1)
+
+	content, ok := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, content, 2)
+	require.Equal(t, "document", content[0].Type)
+	require.NotNil(t, content[0].Source)
+	require.Equal(t, "base64", content[0].Source.Type)
+	require.Equal(t, "application/pdf", content[0].Source.MediaType)
+	require.Equal(t, "JVBERi0xLjQK", content[0].Source.Data)
+	require.Equal(t, "text", content[1].Type)
+	require.NotNil(t, content[1].Text)
+	require.Equal(t, "summarize it", *content[1].Text)
+}
+
+func TestRequestOpenAI2ClaudeMessage_ConvertsTextFileContentToText(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{
+			{
+				Role: "user",
+				Content: []any{
+					dto.MediaContent{
+						Type: dto.ContentTypeFile,
+						File: &dto.MessageFile{
+							FileName: "notes.txt",
+							FileData: base64.StdEncoding.EncodeToString([]byte("alpha\nbeta")),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Len(t, claudeRequest.Messages, 1)
+
+	content, ok := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, content, 1)
+	require.Equal(t, "text", content[0].Type)
+	require.NotNil(t, content[0].Text)
+	require.Equal(t, "alpha\nbeta", *content[0].Text)
 }
