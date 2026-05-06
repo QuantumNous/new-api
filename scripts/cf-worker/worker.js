@@ -305,7 +305,7 @@ async function rewriteJsonResponse(upstreamResp, url, env) {
 }
 
 async function uploadToR2(b64, ext, env) {
-  const binary = base64ToBytes(b64);
+  const binary = await base64ToBytes(b64);
   const hash = await sha256Hex(binary);
   const key = `images/${hash}.${ext}`;
   const existing = await env.IMAGES.head(key);
@@ -331,11 +331,26 @@ function inferExt(claimed, b64) {
   return 'png';
 }
 
-function base64ToBytes(b64) {
+// Yields control back to the runtime. Workers' isolate has a hidden ~2s
+// synchronous-CPU ceiling; any unbroken JS loop past it is killed with
+// `exceededCpu`. Yielding between chunks resets that window so a multi-MB
+// base64 decode can run within the 30s per-request CPU budget.
+const yieldNow = () =>
+  typeof scheduler !== 'undefined' && typeof scheduler.yield === 'function'
+    ? scheduler.yield()
+    : new Promise((r) => setTimeout(r, 0));
+
+const BASE64_CHUNK = 1 << 18; // 256 KiB per yield
+
+async function base64ToBytes(b64) {
   const bin = atob(b64);
   const len = bin.length;
   const arr = new Uint8Array(len);
-  for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+  for (let off = 0; off < len; off += BASE64_CHUNK) {
+    const end = Math.min(off + BASE64_CHUNK, len);
+    for (let i = off; i < end; i++) arr[i] = bin.charCodeAt(i);
+    if (end < len) await yieldNow();
+  }
   return arr;
 }
 
@@ -397,13 +412,15 @@ async function normalizeImageInput(value) {
     if (buf.length > MAX_IMAGE_BYTES) {
       throw new Error(`image url too large: ${buf.length} bytes (max ${MAX_IMAGE_BYTES})|400`);
     }
-    const mime =
-      pickMimeFromType(declaredType) ||
-      pickMimeFromType('image/' + (inferExt('', bytesToBase64(buf.subarray(0, 12))) || ''));
+    let mime = pickMimeFromType(declaredType);
+    if (!mime) {
+      const headB64 = await bytesToBase64(buf.subarray(0, 12));
+      mime = pickMimeFromType('image/' + (inferExt('', headB64) || ''));
+    }
     if (!mime) {
       throw new Error(`image url content-type unsupported: "${declaredType}"|400`);
     }
-    return { dataUri: `data:${mime};base64,${bytesToBase64(buf)}`, mime };
+    return { dataUri: `data:${mime};base64,${await bytesToBase64(buf)}`, mime };
   }
 
   // File / Blob from multipart.
@@ -417,7 +434,7 @@ async function normalizeImageInput(value) {
     if (buf.length > MAX_IMAGE_BYTES) {
       throw new Error(`image too large: ${buf.length} bytes (max ${MAX_IMAGE_BYTES})|400`);
     }
-    return { dataUri: `data:${mime};base64,${bytesToBase64(buf)}`, mime };
+    return { dataUri: `data:${mime};base64,${await bytesToBase64(buf)}`, mime };
   }
 
   throw new Error('image input must be a file, http(s) URL, or data: URI|400');
@@ -1188,11 +1205,17 @@ async function handleImagesEdits(request, env) {
   });
 }
 
-function bytesToBase64(bytes) {
+async function bytesToBase64(bytes) {
   let bin = '';
-  const chunk = 0x8000;
+  const chunk = 0x8000;          // 32 KiB per fromCharCode.apply call
+  const yieldEvery = 64;          // yield every ~2 MiB of input
+  let sinceYield = 0;
   for (let i = 0; i < bytes.length; i += chunk) {
     bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    if (++sinceYield >= yieldEvery && i + chunk < bytes.length) {
+      sinceYield = 0;
+      await yieldNow();
+    }
   }
   return btoa(bin);
 }
