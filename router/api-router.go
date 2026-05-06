@@ -25,6 +25,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
 		apiRouter.GET("/notice", controller.GetNotice)
+		apiRouter.GET("/assessment/screenshot/:filename", controller.GetAssessmentScreenshot)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
 		apiRouter.GET("/about", controller.GetAbout)
@@ -378,6 +379,28 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.PUT("/:id/name", controller.UpdateDeploymentName)
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
+		}
+
+		// Assessment (AI code review)
+		assessmentUserRoute := apiRouter.Group("/assessment")
+		assessmentUserRoute.Use(middleware.UserAuth())
+		{
+			assessmentUserRoute.GET("/active", controller.GetActiveAssessmentsForUser)
+			assessmentUserRoute.GET("/my", controller.GetMySubmissions)
+			assessmentUserRoute.GET("/my/stats", controller.GetMyAssessmentStats)
+			assessmentUserRoute.POST("/submit", controller.SubmitAssessment)
+			assessmentUserRoute.POST("/upload", controller.UploadAssessmentScreenshot)
+		}
+		assessmentAdminRoute := apiRouter.Group("/assessment/admin")
+		assessmentAdminRoute.Use(middleware.AdminAuth())
+		{
+			assessmentAdminRoute.GET("/", controller.GetAllAssessments)
+			assessmentAdminRoute.POST("/", controller.CreateAssessment)
+			assessmentAdminRoute.PUT("/", controller.UpdateAssessment)
+			assessmentAdminRoute.DELETE("/:id", controller.DeleteAssessment)
+			assessmentAdminRoute.GET("/submissions/:assessment_id", controller.GetAssessmentSubmissionsAdmin)
+			assessmentAdminRoute.POST("/review", controller.ReviewSubmission)
+			assessmentAdminRoute.GET("/stats/:assessment_id", controller.GetAssessmentStats)
 		}
 	}
 }
