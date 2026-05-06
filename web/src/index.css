@@ -1165,11 +1165,15 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-header-eyebrow,
 .dashboard-panel-eyebrow {
-  margin-bottom: 10px;
+  /* margin-bottom: 10px; */
+  width: 100%;
   color: #b14df1;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.12em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .dashboard-header-title {
@@ -1194,6 +1198,11 @@ html.dark .with-pastel-balls::before {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+.dashboard-uptime-refresh {
+  position: absolute;
+  right: 0;
+  top: 0;
 }
 
 .dashboard-header-button.semi-button,
@@ -1598,12 +1607,15 @@ html.dark .with-pastel-balls::before {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  width: 100%;
+  position: relative;
 }
 
 .dashboard-panel-header {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
 }
 
 .dashboard-panel-title-row,
@@ -1614,7 +1626,7 @@ html.dark .with-pastel-balls::before {
   color: inherit;
   font-size: 20px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 34px;
 }
 
 .dashboard-chart-copy {
@@ -2241,6 +2253,14 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
 
   .dashboard-uptime-legend {
     padding: 12px 14px 14px;
+  }
+
+  .dashboard-panel-eyebrow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .dashboard-legend-list {
+    gap: 10px 4px;
   }
 }
 

@@ -40,43 +40,40 @@ const AnnouncementsPanel = ({
       className='dashboard-announcements-panel !rounded-[2rem] lg:col-span-2'
       title={
         <div className='dashboard-panel-header dashboard-announcements-header'>
-          <div>
-            <div className='dashboard-panel-eyebrow'>{t('更新')}</div>
-            <div className='dashboard-panel-title-row'>
-              <Bell size={16} />
-              {t('系统公告')}
-              <Tag
-                color='white'
-                shape='circle'
-                className='dashboard-panel-badge'
-              >
-                {t('显示最新20条')}
-              </Tag>
+          <div className='dashboard-panel-eyebrow'>
+            <span>{t('更新')}</span>
+
+            <div className='dashboard-legend-list'>
+              {announcementLegendData.map((legend, index) => (
+                <div key={index} className='dashboard-legend-item'>
+                  <div
+                    className='dashboard-legend-dot'
+                    style={{
+                      backgroundColor:
+                        legend.color === 'grey'
+                          ? '#8b9aa7'
+                          : legend.color === 'blue'
+                            ? '#3b82f6'
+                            : legend.color === 'green'
+                              ? '#10b981'
+                              : legend.color === 'orange'
+                                ? '#f59e0b'
+                                : legend.color === 'red'
+                                  ? '#ef4444'
+                                  : '#8b9aa7',
+                    }}
+                  />
+                  <span className='dashboard-legend-label'>{legend.label}</span>
+                </div>
+              ))}
             </div>
           </div>
-          <div className='dashboard-legend-list'>
-            {announcementLegendData.map((legend, index) => (
-              <div key={index} className='dashboard-legend-item'>
-                <div
-                  className='dashboard-legend-dot'
-                  style={{
-                    backgroundColor:
-                      legend.color === 'grey'
-                        ? '#8b9aa7'
-                        : legend.color === 'blue'
-                          ? '#3b82f6'
-                          : legend.color === 'green'
-                            ? '#10b981'
-                            : legend.color === 'orange'
-                              ? '#f59e0b'
-                              : legend.color === 'red'
-                                ? '#ef4444'
-                                : '#8b9aa7',
-                  }}
-                />
-                <span className='dashboard-legend-label'>{legend.label}</span>
-              </div>
-            ))}
+          <div className='dashboard-panel-title-row'>
+            <Bell size={16} />
+            {t('系统公告')}
+            <Tag color='white' shape='circle' className='dashboard-panel-badge'>
+              {t('显示最新20条')}
+            </Tag>
           </div>
         </div>
       }
