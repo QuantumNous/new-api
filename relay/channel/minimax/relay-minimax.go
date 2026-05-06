@@ -14,9 +14,19 @@ func GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if baseUrl == "" {
 		baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeMiniMax]
 	}
+
+	if specialPlan, ok := channelconstant.ChannelSpecialBases[baseUrl]; ok {
+		switch info.RelayFormat {
+		case types.RelayFormatClaude:
+			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
+		default:
+			return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
+		}
+	}
+
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		return fmt.Sprintf("%s/anthropic/v1/messages", info.ChannelBaseUrl), nil
+		return fmt.Sprintf("%s/anthropic/v1/messages", baseUrl), nil
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeChatCompletions:

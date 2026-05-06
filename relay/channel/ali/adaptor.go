@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
@@ -90,6 +91,17 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	var fullRequestURL string
+
+	baseURL := info.ChannelBaseUrl
+	if specialPlan, ok := channelconstant.ChannelSpecialBases[baseURL]; ok {
+		switch info.RelayFormat {
+		case types.RelayFormatClaude:
+			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
+		default:
+			return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
+		}
+	}
+
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
 		if supportsAliAnthropicMessages(info.UpstreamModelName) {

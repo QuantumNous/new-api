@@ -206,4 +206,12 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
 		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
 	},
+	"ali-token-plan": {
+		ClaudeBaseURL: "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+		OpenAIBaseURL: "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+	},
+	"minimax-token-plan": {
+		ClaudeBaseURL: "https://api.minimaxi.com/anthropic",
+		OpenAIBaseURL: "https://api.minimaxi.com/v1",
+	},
 }
