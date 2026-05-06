@@ -541,27 +541,33 @@ async function postResponsesAggregated(upstreamUrl, headers, parsedBody, env) {
 
   const decoder = new TextDecoder();
   const reader = upstreamResp.body.getReader();
-  const state = { collectedItems: [] };
+  const state = { collectedItems: [], processedKeys: new Set() };
   let finalResponse = null;
   let errorPayload = null;
-  let buffer = '';
+  // Use an array of chunks to avoid O(n²) cons-string flatten that occurs when
+  // appending hundreds of 16KB network chunks to a growing 30MB+ buffer. Only
+  // join when we need to scan for an event boundary.
+  let pending = '';
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    pending += decoder.decode(value, { stream: true });
+    // Yield to break the sync window before scanning a potentially huge buffer.
+    await yieldNow();
     let idx;
-    while ((idx = buffer.indexOf('\n\n')) >= 0) {
-      const eventText = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
+    while ((idx = pending.indexOf('\n\n')) >= 0) {
+      const eventText = pending.slice(0, idx);
+      pending = pending.slice(idx + 2);
+      await yieldNow();
       const consumed = await consumeAggregatedEvent(eventText, env, state, imageBase);
       if (consumed.finalResponse) finalResponse = consumed.finalResponse;
       if (consumed.error) errorPayload = consumed.error;
     }
   }
-  buffer += decoder.decode();
-  if (buffer.trim().length > 0) {
-    const consumed = await consumeAggregatedEvent(buffer, env, state, imageBase);
+  pending += decoder.decode();
+  if (pending.trim().length > 0) {
+    const consumed = await consumeAggregatedEvent(pending, env, state, imageBase);
     if (consumed.finalResponse) finalResponse = consumed.finalResponse;
     if (consumed.error) errorPayload = consumed.error;
   }
@@ -610,14 +616,20 @@ async function consumeAggregatedEvent(eventText, env, state, imageBase) {
       const key = await uploadToR2(obj.item.result, ext, env);
       obj.item.result = `${imageBase}/${key}`;
       if (obj.item.status === 'generating') obj.item.status = 'completed';
+      if (state && state.processedKeys instanceof Set) state.processedKeys.add(key);
     }
-    state.collectedItems.push(JSON.parse(JSON.stringify(obj.item)));
+    // Shallow copy is enough now that result has been replaced with a short URL.
+    state.collectedItems.push({ ...obj.item });
     return {};
   }
 
   if (obj.type === 'response.completed' && obj.response) {
     const resp = obj.response;
     if (Array.isArray(resp.output)) {
+      // For each completed item: if we already uploaded this exact bytes via
+      // output_item.done (matched by sha256-derived key), reuse the URL — don't
+      // re-decode the giant base64 a second time. This is what was burning the
+      // 2s isolate CPU window.
       for (const item of resp.output) {
         if (
           item?.type === 'image_generation_call' &&
@@ -626,6 +638,13 @@ async function consumeAggregatedEvent(eventText, env, state, imageBase) {
           imageBase
         ) {
           const ext = inferExt(item.output_format, item.result);
+          // Try to short-circuit by matching to a previously-uploaded item.
+          const prior = state.collectedItems.find((c) => c.id === item.id);
+          if (prior && typeof prior.result === 'string' && prior.result.startsWith(imageBase)) {
+            item.result = prior.result;
+            if (item.status === 'generating') item.status = 'completed';
+            continue;
+          }
           const key = await uploadToR2(item.result, ext, env);
           item.result = `${imageBase}/${key}`;
           if (item.status === 'generating') item.status = 'completed';
