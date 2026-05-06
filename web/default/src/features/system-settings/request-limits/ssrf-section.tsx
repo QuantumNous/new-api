@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -242,6 +243,16 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
               <FormItem>
                 <FormLabel>{t('Domain Filter Mode')}</FormLabel>
                 <Select
+                  items={[
+                    {
+                      value: 'false',
+                      label: t('Blacklist (Block listed domains)'),
+                    },
+                    {
+                      value: 'true',
+                      label: t('Whitelist (Only allow listed domains)'),
+                    },
+                  ]}
                   onValueChange={(value) => field.onChange(value === 'true')}
                   value={field.value ? 'true' : 'false'}
                 >
@@ -250,13 +261,15 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value='false'>
-                      {t('Blacklist (Block listed domains)')}
-                    </SelectItem>
-                    <SelectItem value='true'>
-                      {t('Whitelist (Only allow listed domains)')}
-                    </SelectItem>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      <SelectItem value='false'>
+                        {t('Blacklist (Block listed domains)')}
+                      </SelectItem>
+                      <SelectItem value='true'>
+                        {t('Whitelist (Only allow listed domains)')}
+                      </SelectItem>
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <FormDescription>
@@ -295,6 +308,16 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
               <FormItem>
                 <FormLabel>{t('IP Filter Mode')}</FormLabel>
                 <Select
+                  items={[
+                    {
+                      value: 'false',
+                      label: t('Blacklist (Block listed IPs)'),
+                    },
+                    {
+                      value: 'true',
+                      label: t('Whitelist (Only allow listed IPs)'),
+                    },
+                  ]}
                   onValueChange={(value) => field.onChange(value === 'true')}
                   value={field.value ? 'true' : 'false'}
                 >
@@ -303,13 +326,15 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value='false'>
-                      {t('Blacklist (Block listed IPs)')}
-                    </SelectItem>
-                    <SelectItem value='true'>
-                      {t('Whitelist (Only allow listed IPs)')}
-                    </SelectItem>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      <SelectItem value='false'>
+                        {t('Blacklist (Block listed IPs)')}
+                      </SelectItem>
+                      <SelectItem value='true'>
+                        {t('Whitelist (Only allow listed IPs)')}
+                      </SelectItem>
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <FormDescription>

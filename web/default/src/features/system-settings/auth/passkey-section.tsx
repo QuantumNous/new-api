@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -221,18 +222,30 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
               <FormItem>
                 <FormLabel>{t('User Verification')}</FormLabel>
                 <FormControl>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    items={[
+                      { value: 'required', label: t('Required') },
+                      { value: 'preferred', label: t('Recommended') },
+                      { value: 'discouraged', label: t('Discouraged') },
+                    ]}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder={t('Select requirement')} />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='required'>{t('Required')}</SelectItem>
-                      <SelectItem value='preferred'>
-                        {t('Recommended')}
-                      </SelectItem>
-                      <SelectItem value='discouraged'>
-                        {t('Discouraged')}
-                      </SelectItem>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='required'>
+                          {t('Required')}
+                        </SelectItem>
+                        <SelectItem value='preferred'>
+                          {t('Recommended')}
+                        </SelectItem>
+                        <SelectItem value='discouraged'>
+                          {t('Discouraged')}
+                        </SelectItem>
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                 </FormControl>
@@ -253,18 +266,28 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
               <FormItem>
                 <FormLabel>{t('Device Type Preference')}</FormLabel>
                 <FormControl>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    items={[
+                      { value: 'none', label: t('Unlimited') },
+                      { value: 'platform', label: t('Built-in Device') },
+                      { value: 'cross-platform', label: t('External Device') },
+                    ]}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder={t('No preference')} />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='none'>{t('Unlimited')}</SelectItem>
-                      <SelectItem value='platform'>
-                        {t('Built-in Device')}
-                      </SelectItem>
-                      <SelectItem value='cross-platform'>
-                        {t('External Device')}
-                      </SelectItem>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='none'>{t('Unlimited')}</SelectItem>
+                        <SelectItem value='platform'>
+                          {t('Built-in Device')}
+                        </SelectItem>
+                        <SelectItem value='cross-platform'>
+                          {t('External Device')}
+                        </SelectItem>
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                 </FormControl>

@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -133,19 +134,31 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('Frontend Theme')}</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select
+                    items={[
+                      { value: 'default', label: t('Default (New Frontend)') },
+                      {
+                        value: 'classic',
+                        label: t('Classic (Legacy Frontend)'),
+                      },
+                    ]}
+                    onValueChange={field.onChange}
+                    value={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger className='w-full'>
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value='default'>
-                        {t('Default (New Frontend)')}
-                      </SelectItem>
-                      <SelectItem value='classic'>
-                        {t('Classic (Legacy Frontend)')}
-                      </SelectItem>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='default'>
+                          {t('Default (New Frontend)')}
+                        </SelectItem>
+                        <SelectItem value='classic'>
+                          {t('Classic (Legacy Frontend)')}
+                        </SelectItem>
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <FormDescription>

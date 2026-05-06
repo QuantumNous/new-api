@@ -18,6 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -276,6 +277,12 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
                   <div className='flex gap-2'>
                     <Select<string>
+                      items={[
+                        ...availableModels.map((model) => ({
+                          value: model,
+                          label: model,
+                        })),
+                      ]}
                       onValueChange={(value) => {
                         if (value === null) return
                         if (!selectedModels.includes(value)) {
@@ -288,14 +295,16 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
                           placeholder={t('Add from available models...')}
                         />
                       </SelectTrigger>
-                      <SelectContent>
-                        <ScrollArea className='h-60'>
-                          {availableModels.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
-                            </SelectItem>
-                          ))}
-                        </ScrollArea>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <ScrollArea className='h-60'>
+                            {availableModels.map((model) => (
+                              <SelectItem key={model} value={model}>
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </ScrollArea>
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>

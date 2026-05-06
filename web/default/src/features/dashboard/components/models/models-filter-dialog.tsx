@@ -20,6 +20,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -197,6 +198,12 @@ export function ModelsFilter(props: ModelsFilterProps) {
             <div className='grid gap-2'>
               <Label htmlFor='time_granularity'>{t('Time Granularity')}</Label>
               <Select
+                items={[
+                  ...TIME_GRANULARITY_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: t(option.label),
+                  })),
+                ]}
                 value={filters.time_granularity}
                 onValueChange={(value) =>
                   handleChange('time_granularity', value as TimeGranularity)
@@ -205,12 +212,14 @@ export function ModelsFilter(props: ModelsFilterProps) {
                 <SelectTrigger>
                   <SelectValue placeholder={t('Select time granularity')} />
                 </SelectTrigger>
-                <SelectContent>
-                  {TIME_GRANULARITY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {t(option.label)}
-                    </SelectItem>
-                  ))}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {TIME_GRANULARITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(option.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>

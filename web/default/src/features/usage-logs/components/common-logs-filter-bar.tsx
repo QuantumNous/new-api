@@ -8,17 +8,18 @@ import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { DataTableToolbar } from '@/components/data-table'
 import { LOG_TYPES } from '../constants'
 import { buildSearchParams } from '../lib/filter'
@@ -207,6 +208,13 @@ export function CommonLogsFilterBar<TData>(
             className={inputClass}
           />
           <Select
+            items={[
+              { value: 'all', label: t('All Types') },
+              ...LOG_TYPES.map((type) => ({
+                value: String(type.value),
+                label: t(type.label),
+              })),
+            ]}
             value={logType}
             onValueChange={(value) => {
               setLogType(value !== null && isLogTypeValue(value) ? value : '')
@@ -215,13 +223,15 @@ export function CommonLogsFilterBar<TData>(
             <SelectTrigger className={inputClass}>
               <SelectValue placeholder={t('All Types')} />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='all'>{t('All Types')}</SelectItem>
-              {LOG_TYPES.map((type) => (
-                <SelectItem key={type.value} value={String(type.value)}>
-                  {t(type.label)}
-                </SelectItem>
-              ))}
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                <SelectItem value='all'>{t('All Types')}</SelectItem>
+                {LOG_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={String(type.value)}>
+                    {t(type.label)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </>

@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -252,6 +253,22 @@ export function PrefillGroupFormDrawer({
                   <FormItem>
                     <FormLabel>Group Type</FormLabel>
                     <Select
+                      items={[
+                        ...PREFILL_GROUP_TYPES.map((type) => ({
+                          value: type.value,
+                          label: (
+                            <div className='flex flex-col text-left'>
+                              <span className='font-medium'>{type.label}</span>
+                              <span
+                                data-prefill-description
+                                className='text-muted-foreground text-xs'
+                              >
+                                {type.description}
+                              </span>
+                            </div>
+                          ),
+                        })),
+                      ]}
                       value={field.value}
                       onValueChange={(value) =>
                         value !== null &&
@@ -263,20 +280,24 @@ export function PrefillGroupFormDrawer({
                           <SelectValue placeholder={t('Select a group type')} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {PREFILL_GROUP_TYPES.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            <div className='flex flex-col text-left'>
-                              <span className='font-medium'>{type.label}</span>
-                              <span
-                                data-prefill-description
-                                className='text-muted-foreground text-xs'
-                              >
-                                {type.description}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {PREFILL_GROUP_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              <div className='flex flex-col text-left'>
+                                <span className='font-medium'>
+                                  {type.label}
+                                </span>
+                                <span
+                                  data-prefill-description
+                                  className='text-muted-foreground text-xs'
+                                >
+                                  {type.description}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormDescription>

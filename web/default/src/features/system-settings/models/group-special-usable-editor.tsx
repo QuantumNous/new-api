@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -176,6 +177,38 @@ function GroupSection(props: GroupSectionProps) {
             {props.items.map((rule) => (
               <div key={rule._id} className='flex items-center gap-2'>
                 <Select
+                  items={[
+                    {
+                      value: OP_ADD,
+                      label: (
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_ADD].label)}
+                          variant={OP_BADGE_MAP[OP_ADD].variant}
+                          copyable={false}
+                        />
+                      ),
+                    },
+                    {
+                      value: OP_REMOVE,
+                      label: (
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_REMOVE].label)}
+                          variant={OP_BADGE_MAP[OP_REMOVE].variant}
+                          copyable={false}
+                        />
+                      ),
+                    },
+                    {
+                      value: OP_APPEND,
+                      label: (
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_APPEND].label)}
+                          variant={OP_BADGE_MAP[OP_APPEND].variant}
+                          copyable={false}
+                        />
+                      ),
+                    },
+                  ]}
                   value={rule.op}
                   onValueChange={(v) =>
                     v !== null && props.onUpdate(rule._id, 'op', v)
@@ -190,28 +223,30 @@ function GroupSection(props: GroupSectionProps) {
                       />
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={OP_ADD}>
-                      <StatusBadge
-                        label={t(OP_BADGE_MAP[OP_ADD].label)}
-                        variant={OP_BADGE_MAP[OP_ADD].variant}
-                        copyable={false}
-                      />
-                    </SelectItem>
-                    <SelectItem value={OP_REMOVE}>
-                      <StatusBadge
-                        label={t(OP_BADGE_MAP[OP_REMOVE].label)}
-                        variant={OP_BADGE_MAP[OP_REMOVE].variant}
-                        copyable={false}
-                      />
-                    </SelectItem>
-                    <SelectItem value={OP_APPEND}>
-                      <StatusBadge
-                        label={t(OP_BADGE_MAP[OP_APPEND].label)}
-                        variant={OP_BADGE_MAP[OP_APPEND].variant}
-                        copyable={false}
-                      />
-                    </SelectItem>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      <SelectItem value={OP_ADD}>
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_ADD].label)}
+                          variant={OP_BADGE_MAP[OP_ADD].variant}
+                          copyable={false}
+                        />
+                      </SelectItem>
+                      <SelectItem value={OP_REMOVE}>
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_REMOVE].label)}
+                          variant={OP_BADGE_MAP[OP_REMOVE].variant}
+                          copyable={false}
+                        />
+                      </SelectItem>
+                      <SelectItem value={OP_APPEND}>
+                        <StatusBadge
+                          label={t(OP_BADGE_MAP[OP_APPEND].label)}
+                          variant={OP_BADGE_MAP[OP_APPEND].variant}
+                          copyable={false}
+                        />
+                      </SelectItem>
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <Input

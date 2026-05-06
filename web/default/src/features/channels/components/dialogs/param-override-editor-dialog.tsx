@@ -38,6 +38,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -1722,6 +1723,12 @@ export function ParamOverrideEditorDialog(
               {t('Template')}
             </span>
             <Select
+              items={[
+                ...templatePresetOptions.map((o) => ({
+                  value: o.value,
+                  label: t(o.label),
+                })),
+              ]}
               value={templatePresetKey}
               onValueChange={(v) =>
                 setTemplatePresetKey(v || 'operations_default')
@@ -1730,12 +1737,14 @@ export function ParamOverrideEditorDialog(
               <SelectTrigger className='h-8 w-[220px]'>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {templatePresetOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {t(o.label)}
-                  </SelectItem>
-                ))}
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {templatePresetOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {t(o.label)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
             <Button
@@ -2140,6 +2149,12 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
           <div className='space-y-1.5'>
             <label className='text-xs font-medium'>{t('Operation Type')}</label>
             <Select
+              items={[
+                ...OPERATION_MODE_OPTIONS.map((o) => ({
+                  value: o.value,
+                  label: t(o.label),
+                })),
+              ]}
               value={mode}
               onValueChange={(nextMode) =>
                 nextMode !== null &&
@@ -2151,12 +2166,14 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
               <SelectTrigger className='h-9'>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {OPERATION_MODE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {t(o.label)}
-                  </SelectItem>
-                ))}
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {OPERATION_MODE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {t(o.label)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>
@@ -2339,6 +2356,10 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
             <div className='flex items-center gap-2'>
               <span className='text-sm font-medium'>{t('Conditions')}</span>
               <Select
+                items={[
+                  { value: 'OR', label: t('Match Any (OR)') },
+                  { value: 'AND', label: t('Match All (AND)') },
+                ]}
                 value={operation.logic || 'OR'}
                 onValueChange={(v) =>
                   v !== null &&
@@ -2350,9 +2371,11 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                 <SelectTrigger className='h-7 w-[120px] text-xs'>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='OR'>{t('Match Any (OR)')}</SelectItem>
-                  <SelectItem value='AND'>{t('Match All (AND)')}</SelectItem>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    <SelectItem value='OR'>{t('Match Any (OR)')}</SelectItem>
+                    <SelectItem value='AND'>{t('Match All (AND)')}</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -2515,6 +2538,12 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                   {t('Match Mode')}
                 </label>
                 <Select
+                  items={[
+                    ...CONDITION_MODE_OPTIONS.map((o) => ({
+                      value: o.value,
+                      label: t(o.label),
+                    })),
+                  ]}
                   value={condition.mode}
                   onValueChange={(v) =>
                     v !== null &&
@@ -2528,12 +2557,14 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                   <SelectTrigger className='h-8 text-xs'>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    {CONDITION_MODE_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {t(o.label)}
-                      </SelectItem>
-                    ))}
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {CONDITION_MODE_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {t(o.label)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
@@ -2889,6 +2920,10 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
             <div className='space-y-1'>
               <label className='text-xs font-medium'>{t('Logic')}</label>
               <Select
+                items={[
+                  { value: 'AND', label: t('All Must Match (AND)') },
+                  { value: 'OR', label: t('Any Match (OR)') },
+                ]}
                 value={draft.logic}
                 onValueChange={(v) =>
                   pruneObjectsEditorProps.updateDraft(
@@ -2900,11 +2935,13 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                 <SelectTrigger className='h-8 text-xs'>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='AND'>
-                    {t('All Must Match (AND)')}
-                  </SelectItem>
-                  <SelectItem value='OR'>{t('Any Match (OR)')}</SelectItem>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    <SelectItem value='AND'>
+                      {t('All Must Match (AND)')}
+                    </SelectItem>
+                    <SelectItem value='OR'>{t('Any Match (OR)')}</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -3021,6 +3058,12 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                           {t('Match Mode')}
                         </label>
                         <Select
+                          items={[
+                            ...CONDITION_MODE_OPTIONS.map((o) => ({
+                              value: o.value,
+                              label: t(o.label),
+                            })),
+                          ]}
                           value={rule.mode}
                           onValueChange={(v) =>
                             v !== null &&
@@ -3034,12 +3077,14 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                           <SelectTrigger className='h-7 text-xs'>
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
-                            {CONDITION_MODE_OPTIONS.map((o) => (
-                              <SelectItem key={o.value} value={o.value}>
-                                {t(o.label)}
-                              </SelectItem>
-                            ))}
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              {CONDITION_MODE_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                  {t(o.label)}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                       </div>
@@ -3126,6 +3171,12 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
           </label>
           <div className='flex gap-2'>
             <Select
+              items={[
+                ...SYNC_TARGET_TYPE_OPTIONS.map((o) => ({
+                  value: o.value,
+                  label: t(o.label),
+                })),
+              ]}
               value={syncFieldsEditorProps.syncFromTarget.type || 'json'}
               onValueChange={(v) =>
                 v !== null &&
@@ -3143,12 +3194,14 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
               <SelectTrigger className='h-8 w-[110px] text-xs'>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {SYNC_TARGET_TYPE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {t(o.label)}
-                  </SelectItem>
-                ))}
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {SYNC_TARGET_TYPE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {t(o.label)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
             <Input
@@ -3175,6 +3228,12 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
           </label>
           <div className='flex gap-2'>
             <Select
+              items={[
+                ...SYNC_TARGET_TYPE_OPTIONS.map((o) => ({
+                  value: o.value,
+                  label: t(o.label),
+                })),
+              ]}
               value={syncFieldsEditorProps.syncToTarget.type || 'json'}
               onValueChange={(v) =>
                 v !== null &&
@@ -3192,12 +3251,14 @@ function SyncFieldsEditor(syncFieldsEditorProps: SyncFieldsEditorProps) {
               <SelectTrigger className='h-8 w-[110px] text-xs'>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {SYNC_TARGET_TYPE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {t(o.label)}
-                  </SelectItem>
-                ))}
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {SYNC_TARGET_TYPE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {t(o.label)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
             <Input

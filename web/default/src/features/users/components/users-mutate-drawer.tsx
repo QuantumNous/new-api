@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -201,6 +202,10 @@ export function UsersMutateDrawer({
                       <FormItem>
                         <FormLabel>{t('Role')}</FormLabel>
                         <Select
+                          items={[
+                            { value: '1', label: t('Common User') },
+                            { value: '10', label: t('Admin') },
+                          ]}
                           onValueChange={(value) =>
                             value !== null && field.onChange(parseInt(value))
                           }
@@ -211,11 +216,13 @@ export function UsersMutateDrawer({
                               <SelectValue placeholder={t('Select a role')} />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value='1'>
-                              {t('Common User')}
-                            </SelectItem>
-                            <SelectItem value='10'>{t('Admin')}</SelectItem>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              <SelectItem value='1'>
+                                {t('Common User')}
+                              </SelectItem>
+                              <SelectItem value='10'>{t('Admin')}</SelectItem>
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                         <FormDescription>
@@ -282,6 +289,12 @@ export function UsersMutateDrawer({
                       <FormItem>
                         <FormLabel>{t('Group')}</FormLabel>
                         <Select
+                          items={[
+                            ...groups.map((group) => ({
+                              value: group,
+                              label: group,
+                            })),
+                          ]}
                           onValueChange={field.onChange}
                           value={field.value}
                         >
@@ -290,12 +303,14 @@ export function UsersMutateDrawer({
                               <SelectValue placeholder={t('Select a group')} />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
-                            {groups.map((group) => (
-                              <SelectItem key={group} value={group}>
-                                {group}
-                              </SelectItem>
-                            ))}
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              {groups.map((group) => (
+                                <SelectItem key={group} value={group}>
+                                  {group}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                         <FormMessage />

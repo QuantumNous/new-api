@@ -13,6 +13,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -270,6 +271,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
               {hasEpay && (
                 <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                   <Select
+                    items={[
+                      ...(props.epayMethods || []).map((m) => ({
+                        value: m.type,
+                        label: m.name || m.type,
+                      })),
+                    ]}
                     value={selectedEpayMethod}
                     onValueChange={(v) =>
                       v !== null && setSelectedEpayMethod(v)
@@ -279,12 +286,14 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     <SelectTrigger className='flex-1'>
                       <SelectValue>{selectedEpayMethodLabel}</SelectValue>
                     </SelectTrigger>
-                    <SelectContent>
-                      {(props.epayMethods || []).map((m) => (
-                        <SelectItem key={m.type} value={m.type}>
-                          {m.name || m.type}
-                        </SelectItem>
-                      ))}
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {(props.epayMethods || []).map((m) => (
+                          <SelectItem key={m.type} value={m.type}>
+                            {m.name || m.type}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <Button

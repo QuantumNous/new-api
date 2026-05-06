@@ -27,6 +27,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -701,6 +702,12 @@ export function ModelMutateDrawer({
                   <FormItem>
                     <FormLabel>{t('Vendor')}</FormLabel>
                     <Select
+                      items={[
+                        ...vendors.map((vendor) => ({
+                          value: String(vendor.id),
+                          label: vendor.name,
+                        })),
+                      ]}
                       onValueChange={(value) =>
                         field.onChange(value ? parseInt(value) : undefined)
                       }
@@ -711,12 +718,17 @@ export function ModelMutateDrawer({
                           <SelectValue placeholder={t('Select vendor')} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {vendors.map((vendor) => (
-                          <SelectItem key={vendor.id} value={String(vendor.id)}>
-                            {vendor.name}
-                          </SelectItem>
-                        ))}
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {vendors.map((vendor) => (
+                            <SelectItem
+                              key={vendor.id}
+                              value={String(vendor.id)}
+                            >
+                              {vendor.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -801,6 +813,12 @@ export function ModelMutateDrawer({
               <div className='flex items-center justify-between'>
                 <h3 className='text-sm font-semibold'>{t('Endpoints')}</h3>
                 <Select<string>
+                  items={[
+                    ...Object.keys(ENDPOINT_TEMPLATES).map((key) => ({
+                      value: key,
+                      label: key,
+                    })),
+                  ]}
                   onValueChange={(v) =>
                     v !== null && handleFillEndpointTemplate(v)
                   }
@@ -808,12 +826,14 @@ export function ModelMutateDrawer({
                   <SelectTrigger size='sm' className='w-[200px]'>
                     <SelectValue placeholder={t('Load template...')} />
                   </SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(ENDPOINT_TEMPLATES).map((key) => (
-                      <SelectItem key={key} value={key}>
-                        {key}
-                      </SelectItem>
-                    ))}
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {Object.keys(ENDPOINT_TEMPLATES).map((key) => (
+                        <SelectItem key={key} value={key}>
+                          {key}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>

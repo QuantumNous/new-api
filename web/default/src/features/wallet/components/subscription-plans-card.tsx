@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -276,6 +277,34 @@ export function SubscriptionPlansCard({
             </div>
             <div className='flex w-full items-center gap-2 sm:w-auto'>
               <Select
+                items={[
+                  {
+                    value: 'subscription_first',
+                    label: (
+                      <>
+                        {getBillingPreferenceLabel('subscription_first', t)}
+                        {disablePref ? ` (${t('No Active')})` : ''}
+                      </>
+                    ),
+                  },
+                  {
+                    value: 'wallet_first',
+                    label: getBillingPreferenceLabel('wallet_first', t),
+                  },
+                  {
+                    value: 'subscription_only',
+                    label: (
+                      <>
+                        {getBillingPreferenceLabel('subscription_only', t)}
+                        {disablePref ? ` (${t('No Active')})` : ''}
+                      </>
+                    ),
+                  },
+                  {
+                    value: 'wallet_only',
+                    label: getBillingPreferenceLabel('wallet_only', t),
+                  },
+                ]}
                 value={displayPref}
                 onValueChange={(v) => v !== null && handlePreferenceChange(v)}
               >
@@ -284,21 +313,29 @@ export function SubscriptionPlansCard({
                     {getBillingPreferenceLabel(displayPref, t)}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='subscription_first' disabled={disablePref}>
-                    {getBillingPreferenceLabel('subscription_first', t)}
-                    {disablePref ? ` (${t('No Active')})` : ''}
-                  </SelectItem>
-                  <SelectItem value='wallet_first'>
-                    {getBillingPreferenceLabel('wallet_first', t)}
-                  </SelectItem>
-                  <SelectItem value='subscription_only' disabled={disablePref}>
-                    {getBillingPreferenceLabel('subscription_only', t)}
-                    {disablePref ? ` (${t('No Active')})` : ''}
-                  </SelectItem>
-                  <SelectItem value='wallet_only'>
-                    {getBillingPreferenceLabel('wallet_only', t)}
-                  </SelectItem>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    <SelectItem
+                      value='subscription_first'
+                      disabled={disablePref}
+                    >
+                      {getBillingPreferenceLabel('subscription_first', t)}
+                      {disablePref ? ` (${t('No Active')})` : ''}
+                    </SelectItem>
+                    <SelectItem value='wallet_first'>
+                      {getBillingPreferenceLabel('wallet_first', t)}
+                    </SelectItem>
+                    <SelectItem
+                      value='subscription_only'
+                      disabled={disablePref}
+                    >
+                      {getBillingPreferenceLabel('subscription_only', t)}
+                      {disablePref ? ` (${t('No Active')})` : ''}
+                    </SelectItem>
+                    <SelectItem value='wallet_only'>
+                      {getBillingPreferenceLabel('wallet_only', t)}
+                    </SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <Button

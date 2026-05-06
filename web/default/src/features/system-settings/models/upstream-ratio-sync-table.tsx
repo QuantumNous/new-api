@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -212,6 +213,13 @@ export function UpstreamRatioSyncTable({
           />
         </div>
         <Select
+          items={[
+            { value: '__all__', label: t('All Types') },
+            ...RATIO_TYPE_OPTIONS.map((option) => ({
+              value: option.value,
+              label: t(option.label),
+            })),
+          ]}
           value={ratioTypeFilter}
           onValueChange={(v) => v !== null && setRatioTypeFilter(v)}
           disabled={isDisabled}
@@ -219,13 +227,15 @@ export function UpstreamRatioSyncTable({
           <SelectTrigger className='w-full sm:w-56'>
             <SelectValue placeholder={t('Filter by price field')} />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value='__all__'>{t('All Types')}</SelectItem>
-            {RATIO_TYPE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {t(option.label)}
-              </SelectItem>
-            ))}
+          <SelectContent alignItemWithTrigger={false}>
+            <SelectGroup>
+              <SelectItem value='__all__'>{t('All Types')}</SelectItem>
+              {RATIO_TYPE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {t(option.label)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       </div>
