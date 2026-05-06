@@ -37,8 +37,8 @@ import {
 import {
   stringToColor,
   calculateModelPrice,
-  formatPriceInfo,
   getLobeHubIcon,
+  getModelPriceItems,
 } from '../../../../../helpers';
 import PricingCardSkeleton from './PricingCardSkeleton';
 import { useMinimumLoadingTime } from '../../../../../hooks/common/useMinimumLoadingTime';
@@ -46,11 +46,10 @@ import { renderLimitedItems } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 const CARD_STYLES = {
-  container:
-    'w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md',
-  icon: 'w-8 h-8 flex items-center justify-center',
-  selected: 'border-blue-500 bg-blue-50',
-  default: 'border-gray-200 hover:border-gray-300',
+  container: 'pricing-model-card-icon-shell',
+  icon: 'pricing-model-card-icon',
+  selected: 'pricing-model-card-selected',
+  default: 'pricing-model-card-default',
 };
 
 const PricingCardView = ({
@@ -151,28 +150,30 @@ const PricingCardView = ({
     return record.description || '';
   };
 
-  // 渲染标签
-  const renderTags = (record) => {
-    // 计费类型标签（左边）
-    let billingTag = (
-      <Tag key='billing' shape='circle' color='white' size='small'>
-        -
-      </Tag>
-    );
-    if (record.quota_type === 1) {
-      billingTag = (
+  const renderBillingTag = (quotaType) => {
+    if (quotaType === 1) {
+      return (
         <Tag key='billing' shape='circle' color='teal' size='small'>
           {t('按次计费')}
         </Tag>
       );
-    } else if (record.quota_type === 0) {
-      billingTag = (
+    }
+    if (quotaType === 0) {
+      return (
         <Tag key='billing' shape='circle' color='violet' size='small'>
           {t('按量计费')}
         </Tag>
       );
     }
+    return (
+      <Tag key='billing' shape='circle' color='white' size='small'>
+        -
+      </Tag>
+    );
+  };
 
+  // 渲染标签
+  const renderTags = (record) => {
     // 自定义标签（右边）
     const customTags = [];
     if (record.tags) {
@@ -192,9 +193,11 @@ const PricingCardView = ({
     }
 
     return (
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2'>{billingTag}</div>
-        <div className='flex items-center gap-1'>
+      <div className='pricing-model-card-footbar flex items-center justify-between gap-3'>
+        <div className='pricing-model-card-foot-main flex items-center gap-2'>
+          {renderBillingTag(record.quota_type)}
+        </div>
+        <div className='pricing-model-card-foot-tags flex items-center gap-1'>
           {customTags.length > 0 &&
             renderLimitedItems({
               items: customTags.map((tag, idx) => ({
@@ -234,12 +237,11 @@ const PricingCardView = ({
   }
 
   return (
-    <div className='px-2 pt-2'>
-      <div className='grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4'>
+    <div className='pricing-card-view px-2 pt-2'>
+      <div className='pricing-card-grid grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4'>
         {paginatedModels.map((model, index) => {
           const modelKey = getModelKey(model);
           const isSelected = selectedRowKeys.includes(modelKey);
-
           const priceData = calculateModelPrice({
             record: model,
             selectedGroup,
@@ -249,36 +251,45 @@ const PricingCardView = ({
             currency,
             quotaDisplayType: siteDisplayType,
           });
+          const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
+          const primaryPriceItems = priceItems.slice(0, 3);
+          const extraPriceItemsCount = Math.max(priceItems.length - 3, 0);
 
           return (
             <Card
               key={modelKey || index}
-              className={`!rounded-2xl transition-all duration-200 hover:shadow-lg border cursor-pointer ${isSelected ? CARD_STYLES.selected : CARD_STYLES.default}`}
+              className={`pricing-model-card !rounded-2xl transition-all duration-200 hover:shadow-lg border cursor-pointer ${isSelected ? CARD_STYLES.selected : CARD_STYLES.default}`}
               bodyStyle={{ height: '100%' }}
               onClick={() => openModelDetail && openModelDetail(model)}
             >
               <div className='flex flex-col h-full'>
                 {/* 头部：图标 + 模型名称 + 操作按钮 */}
-                <div className='flex items-start justify-between mb-3'>
-                  <div className='flex items-start space-x-3 flex-1 min-w-0'>
+                <div className='pricing-model-card-head flex items-start justify-between mb-3'>
+                  <div className='pricing-model-card-main flex items-start space-x-3 flex-1 min-w-0'>
                     {getModelIcon(model)}
                     <div className='flex-1 min-w-0'>
-                      <h3 className='text-lg font-bold text-gray-900 truncate'>
+                      <h3 className='pricing-model-card-title text-lg font-bold truncate'>
                         {model.model_name}
                       </h3>
-                      <div className='flex flex-col gap-1 text-xs mt-1'>
-                        {formatPriceInfo(priceData, t, siteDisplayType)}
+                      <div className='pricing-model-card-meta mt-2 flex flex-wrap items-center gap-2'>
+                        {model.vendor_name && (
+                          <span className='pricing-model-card-vendor'>
+                            {model.vendor_name}
+                          </span>
+                        )}
+                        {renderBillingTag(model.quota_type)}
                       </div>
                     </div>
                   </div>
 
-                  <div className='flex items-center space-x-2 ml-3'>
+                  <div className='pricing-model-card-actions flex items-center space-x-2 ml-3'>
                     {/* 复制按钮 */}
                     <Button
                       size='small'
                       theme='outline'
                       type='tertiary'
                       icon={<Copy size={12} />}
+                      className='pricing-model-card-copy'
                       onClick={(e) => {
                         e.stopPropagation();
                         copyText(model.model_name);
@@ -299,25 +310,55 @@ const PricingCardView = ({
                 </div>
 
                 {/* 模型描述 - 占据剩余空间 */}
-                <div className='flex-1 mb-4'>
+                <div className='pricing-model-card-body flex-1 mb-4'>
+                  <div className='pricing-model-card-price-section mb-4'>
+                    <div className='pricing-model-card-price-section-head'>
+                      <span className='pricing-model-card-price-label'>
+                        {siteDisplayType === 'TOKENS'
+                          ? t('计费摘要')
+                          : t('价格摘要')}
+                      </span>
+                      {extraPriceItemsCount > 0 && (
+                        <span className='pricing-model-card-price-more'>
+                          +{extraPriceItemsCount} {t('项更多价格细节')}
+                        </span>
+                      )}
+                    </div>
+                    <div className='pricing-model-card-price-grid'>
+                      {primaryPriceItems.map((item) => (
+                        <div
+                          key={item.key}
+                          className='pricing-model-card-price-item'
+                        >
+                          <span className='pricing-model-card-price-name'>
+                            {item.label}
+                          </span>
+                          <span className='pricing-model-card-price-value'>
+                            {item.value}
+                            {item.suffix}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <p
-                    className='text-xs line-clamp-2 leading-relaxed'
-                    style={{ color: 'var(--semi-color-text-2)' }}
+                    className='pricing-model-card-description text-xs line-clamp-2 leading-relaxed'
                   >
                     {getModelDescription(model)}
                   </p>
                 </div>
 
                 {/* 底部区域 */}
-                <div className='mt-auto'>
+                <div className='pricing-model-card-foot mt-auto'>
                   {/* 标签区域 */}
                   {renderTags(model)}
 
                   {/* 倍率信息（可选） */}
                   {showRatio && (
-                    <div className='pt-3'>
-                      <div className='flex items-center space-x-1 mb-2'>
-                        <span className='text-xs font-medium text-gray-700'>
+                    <div className='pricing-model-card-ratio-panel pt-3'>
+                      <div className='pricing-model-card-ratio-head flex items-center space-x-1 mb-2'>
+                        <span className='pricing-model-card-ratio-title text-xs font-medium text-gray-700'>
                           {t('倍率信息')}
                         </span>
                         <Tooltip
@@ -334,19 +375,32 @@ const PricingCardView = ({
                           />
                         </Tooltip>
                       </div>
-                      <div className='grid grid-cols-3 gap-2 text-xs text-gray-600'>
-                        <div>
-                          {t('模型')}:{' '}
-                          {model.quota_type === 0 ? model.model_ratio : t('无')}
+                      <div className='pricing-model-card-ratio grid grid-cols-3 gap-2 text-xs text-gray-600'>
+                        <div className='pricing-model-card-ratio-item'>
+                          <span className='pricing-model-card-ratio-name'>
+                            {t('模型')}
+                          </span>
+                          <strong className='pricing-model-card-ratio-value'>
+                            {model.quota_type === 0 ? model.model_ratio : t('无')}
+                          </strong>
                         </div>
-                        <div>
-                          {t('补全')}:{' '}
-                          {model.quota_type === 0
-                            ? parseFloat(model.completion_ratio.toFixed(3))
-                            : t('无')}
+                        <div className='pricing-model-card-ratio-item'>
+                          <span className='pricing-model-card-ratio-name'>
+                            {t('补全')}
+                          </span>
+                          <strong className='pricing-model-card-ratio-value'>
+                            {model.quota_type === 0
+                              ? parseFloat(model.completion_ratio.toFixed(3))
+                              : t('无')}
+                          </strong>
                         </div>
-                        <div>
-                          {t('分组')}: {priceData?.usedGroupRatio ?? '-'}
+                        <div className='pricing-model-card-ratio-item'>
+                          <span className='pricing-model-card-ratio-name'>
+                            {t('分组')}
+                          </span>
+                          <strong className='pricing-model-card-ratio-value'>
+                            {priceData?.usedGroupRatio ?? '-'}
+                          </strong>
                         </div>
                       </div>
                     </div>
