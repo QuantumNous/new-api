@@ -259,7 +259,7 @@ const RechargeCard = ({
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.InputNumber
                       field='topUpCount'
-                      label={t('充值数量')}
+                      label={t('充值额度')}
                       disabled={
                         !enableOnlineTopUp &&
                         !enableStripeTopUp &&
@@ -268,7 +268,7 @@ const RechargeCard = ({
                         !enableAlipayDirectTopUp &&
                         !enableWxpayDirectTopUp
                       }
-                      placeholder={t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)}
+                      placeholder={t('充值额度，最低 ') + renderQuotaWithAmount(minTopUp)}
                       value={topUpCount}
                       min={minTopUp}
                       max={999999999}

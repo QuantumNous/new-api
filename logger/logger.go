@@ -144,6 +144,36 @@ func LogQuota(quota int) string {
 	}
 }
 
+// LogQuotaShort 是 LogQuota 的 2 位小数版本，用于"用户面值金额"为主的
+// 场景（兑换码、充值等），避免内部 quota → 显示币种 round-trip 浮点
+// 噪音泄漏到用户可见的日志里（如「¥99.999999 额度」）。Tokens 模式
+// 不变。与前端 renderQuota(amount, digits=2) 行为对齐。
+func LogQuotaShort(quota int) string {
+	q := float64(quota)
+	switch operation_setting.GetQuotaDisplayType() {
+	case operation_setting.QuotaDisplayTypeCNY:
+		usd := q / common.QuotaPerUnit
+		cny := usd * operation_setting.USDExchangeRate
+		return fmt.Sprintf("¥%.2f 额度", cny)
+	case operation_setting.QuotaDisplayTypeCustom:
+		usd := q / common.QuotaPerUnit
+		rate := operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate
+		symbol := operation_setting.GetGeneralSetting().CustomCurrencySymbol
+		if symbol == "" {
+			symbol = "¤"
+		}
+		if rate <= 0 {
+			rate = 1
+		}
+		v := usd * rate
+		return fmt.Sprintf("%s%.2f 额度", symbol, v)
+	case operation_setting.QuotaDisplayTypeTokens:
+		return fmt.Sprintf("%d 点额度", quota)
+	default: // USD
+		return fmt.Sprintf("＄%.2f 额度", q/common.QuotaPerUnit)
+	}
+}
+
 func FormatQuota(quota int) string {
 	q := float64(quota)
 	switch operation_setting.GetQuotaDisplayType() {

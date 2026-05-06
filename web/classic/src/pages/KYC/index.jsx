@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Image,
@@ -14,8 +14,10 @@ import { IconVerify } from '@douyinfe/semi-icons';
 import { API, isAdmin, isRoot, showError, showSuccess } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
+import { useTableCompactMode } from '../../hooks/common/useTableCompactMode';
 import CardPro from '../../components/common/ui/CardPro';
 import CardTable from '../../components/common/ui/CardTable';
+import CompactModeToggle from '../../components/common/ui/CompactModeToggle';
 import { createCardProPagination } from '../../helpers/utils';
 
 const { Text } = Typography;
@@ -48,6 +50,7 @@ export default function KYCPage() {
   const [pageSize, setPageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [compactMode, setCompactMode] = useTableCompactMode('kyc');
 
   // reject modal
   const [rejectVisible, setRejectVisible] = useState(false);
@@ -178,7 +181,7 @@ export default function KYCPage() {
     setInspectData(null);
   };
 
-  const columns = [
+  const baseColumns = [
     {
       title: t('ID'),
       dataIndex: 'id',
@@ -247,6 +250,7 @@ export default function KYCPage() {
     },
     {
       title: t('操作'),
+      dataIndex: 'operate',
       width: 260,
       fixed: 'right',
       render: (_, row) => (
@@ -292,14 +296,33 @@ export default function KYCPage() {
     },
   ];
 
+  const columns = useMemo(() => {
+    return compactMode
+      ? baseColumns.map((col) => {
+          if (col.dataIndex === 'operate') {
+            const { fixed, ...rest } = col;
+            return rest;
+          }
+          return col;
+        })
+      : baseColumns;
+  }, [compactMode, baseColumns]);
+
   return (
     <div className='mt-[60px] px-2'>
       <CardPro
         type='type1'
         descriptionArea={
-          <div className='flex items-center text-blue-500'>
-            <IconVerify className='mr-2' />
-            <Text>{t('实名认证')}</Text>
+          <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
+            <div className='flex items-center text-blue-500'>
+              <IconVerify className='mr-2' />
+              <Text>{t('实名认证')}</Text>
+            </div>
+            <CompactModeToggle
+              compactMode={compactMode}
+              setCompactMode={setCompactMode}
+              t={t}
+            />
           </div>
         }
         actionsArea={
@@ -337,6 +360,7 @@ export default function KYCPage() {
           loading={loading}
           rowKey='id'
           hidePagination={true}
+          scroll={compactMode ? undefined : { x: 'max-content' }}
         />
       </CardPro>
 

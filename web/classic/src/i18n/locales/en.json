@@ -659,6 +659,8 @@
         "充值数量": "Top Up quantity",
         "充值数量，最低 ": "Top Up quantity, minimum",
         "充值数量不能小于": "The top up amount cannot be less than",
+        "充值额度": "Top Up amount",
+        "充值额度，最低 ": "Top Up amount, minimum",
         "充值金额（元）": "Recharge amount (CNY)",
         "充值金额，最低 ": "Recharge amount, minimum",
         "充值金额不能小于": "Recharge amount cannot be less than",
