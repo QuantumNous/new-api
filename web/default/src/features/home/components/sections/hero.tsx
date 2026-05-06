@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getActiveBrandProfile } from '@/branding'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
 import { HeroTerminalDemo } from '../hero-terminal-demo'
@@ -13,6 +14,16 @@ interface HeroProps {
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
   const { systemName } = useSystemConfig()
+  const brandProfile = getActiveBrandProfile()
+  const titleLeading =
+    brandProfile?.hero.titleLeading || t('Unified API Gateway for')
+  const titleHighlight =
+    brandProfile?.hero.titleHighlight || t('All Your AI Models')
+  const description =
+    brandProfile?.hero.description ||
+    `${systemName} ${t(
+      'is an open-source AI API gateway for self-hosted deployments. Connect multiple upstream services, manage models, keys, quotas, logs, and routing policies in one place.'
+    )}`
 
   return (
     <section className='relative z-10 flex flex-col items-center overflow-hidden px-6 pt-28 pb-16 md:pt-36 md:pb-24'>
@@ -39,20 +50,17 @@ export function Hero(props: HeroProps) {
           className='landing-animate-fade-up text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'
           style={{ animationDelay: '0ms' }}
         >
-          {t('Unified API Gateway for')}
+          {titleLeading}
           <br />
           <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('All Your AI Models')}
+            {titleHighlight}
           </span>
         </h1>
         <p
           className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-lg text-base leading-relaxed opacity-0 md:text-lg'
           style={{ animationDelay: '80ms' }}
         >
-          {systemName}{' '}
-          {t(
-            'is an open-source AI API gateway for self-hosted deployments. Connect multiple upstream services, manage models, keys, quotas, logs, and routing policies in one place.'
-          )}
+          {description}
         </p>
         <div
           className='landing-animate-fade-up mt-8 flex items-center gap-3 opacity-0'

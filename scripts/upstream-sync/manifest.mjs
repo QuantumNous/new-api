@@ -1,0 +1,36 @@
+export const PRESERVED_PATHS = [
+  '.github/workflows/upstream-sync.yml',
+  'DESIGN.md',
+  'docs/upstream-sync.md',
+  'docs/branding/bytecola-about.md',
+  'docs/branding/bytecola-brand-kit.md',
+  'docs/branding/bytecola-footer.html',
+  'docs/branding/bytecola-privacy-policy.md',
+  'docs/branding/bytecola-user-agreement.md',
+  'scripts/upstream-sync/manifest.mjs',
+  'scripts/upstream-sync/run.mjs',
+  'web/default/public/bytecola.png',
+  'web/default/public/bytecola-logo-primary.png',
+  'web/default/public/bytecola-logo-mark.png',
+  'web/default/public/bytecola-logo-app-icon.png',
+  'web/default/public/bytecola-favicon.ico',
+  'web/default/public/bytecola-favicon-16x16.png',
+  'web/default/public/bytecola-favicon-32x32.png',
+  'web/default/public/bytecola-apple-touch-icon.png',
+  'web/default/public/bytecola-android-chrome-192x192.png',
+  'web/default/public/bytecola-android-chrome-512x512.png',
+  'web/default/public/bytecola.webmanifest',
+  'web/default/src/branding/index.ts',
+  'web/default/src/branding/types.ts',
+  'web/default/src/branding/profiles/bytecola.ts',
+]
+
+export const TRANSFORM_PATHS = [
+  'web/default/src/lib/constants.ts',
+  'web/default/src/lib/dom-utils.ts',
+  'web/default/src/main.tsx',
+  'web/default/src/components/layout/components/footer.tsx',
+  'web/default/src/features/about/index.tsx',
+  'web/default/src/features/home/components/sections/hero.tsx',
+]
+

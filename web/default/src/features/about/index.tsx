@@ -3,6 +3,7 @@ import { Construction } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Markdown } from '@/components/ui/markdown'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getActiveBrandProfile, getDefaultAboutMarkdown } from '@/branding'
 import { PublicLayout } from '@/components/layout'
 import { getAboutContent } from './api'
 
@@ -111,6 +112,7 @@ export function About() {
     queryFn: getAboutContent,
   })
 
+  const brandProfile = getActiveBrandProfile()
   const rawContent = data?.data?.trim() ?? ''
   const hasContent = rawContent.length > 0
   const isUrl = hasContent && isValidUrl(rawContent)
@@ -130,6 +132,20 @@ export function About() {
   }
 
   if (!hasContent) {
+    const defaultAboutContent = getDefaultAboutMarkdown()
+
+    if (defaultAboutContent) {
+      return (
+        <PublicLayout>
+          <div className='mx-auto max-w-6xl px-4 py-8'>
+            <Markdown className='prose-neutral dark:prose-invert max-w-none'>
+              {defaultAboutContent}
+            </Markdown>
+          </div>
+        </PublicLayout>
+      )
+    }
+
     return (
       <PublicLayout>
         <EmptyAboutState />
@@ -143,7 +159,7 @@ export function About() {
         <iframe
           src={rawContent}
           className='h-[calc(100vh-3.5rem)] w-full border-0'
-          title={t('About')}
+          title={brandProfile?.displayName || t('About')}
         />
       </PublicLayout>
     )

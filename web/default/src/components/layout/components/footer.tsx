@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { getDefaultFooterHtml } from '@/branding'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
 interface FooterLink {
@@ -149,8 +150,9 @@ export function Footer(props: FooterProps) {
   )
 
   const displayColumns = props.columns ?? fallbackColumns
+  const resolvedFooterHtml = footerHtml || getDefaultFooterHtml()
 
-  if (footerHtml) {
+  if (resolvedFooterHtml) {
     return (
       <footer
         className={cn(
@@ -162,7 +164,7 @@ export function Footer(props: FooterProps) {
           <div className='bg-muted/20 border-border/50 flex flex-col items-center justify-between gap-4 rounded-2xl border px-4 py-4 backdrop-blur-sm sm:flex-row sm:px-5'>
             <div
               className='custom-footer text-muted-foreground min-w-0 text-center text-sm sm:text-left'
-              dangerouslySetInnerHTML={{ __html: footerHtml }}
+              dangerouslySetInnerHTML={{ __html: resolvedFooterHtml }}
             />
             <div className='border-border/60 w-full border-t pt-4 sm:w-auto sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
               <ProjectAttribution currentYear={currentYear} />

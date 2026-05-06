@@ -12,7 +12,20 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { getStatus } from '@/lib/api'
 import '@/lib/dayjs'
-import { applyFaviconToDom } from '@/lib/dom-utils'
+import {
+  applyAppleTouchIconToDom,
+  applyDocumentTitle,
+  applyFaviconToDom,
+  applyManifestToDom,
+  applyMetaTagToDom,
+  applyThemeColorToDom,
+} from '@/lib/dom-utils'
+import {
+  getActiveBrandProfile,
+  getDefaultFavicon,
+  getDefaultLogo,
+  getDefaultSystemName,
+} from '@/branding'
 import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
@@ -95,20 +108,32 @@ const rootElement = document.getElementById('root')!
 ;(function initSystemBranding() {
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
-    const apply = (name: string) => {
-      document.title = name
-      const metaTitle = document.querySelector(
-        'meta[name="title"]'
-      ) as HTMLMetaElement | null
-      if (metaTitle) metaTitle.setAttribute('content', name)
+    const activeBrand = getActiveBrandProfile()
+    const defaultFavicon = getDefaultFavicon()
+    const defaultSystemName = getDefaultSystemName()
+    const defaultLogo = getDefaultLogo()
+    const apply = (systemName: string, logo: string, favicon: string) => {
+      applyDocumentTitle(systemName)
+      applyFaviconToDom(favicon)
+
+      if (!activeBrand) return
+
+      applyMetaTagToDom('description', activeBrand.meta.description)
+      applyThemeColorToDom(activeBrand.meta.themeColor)
+      applyManifestToDom(activeBrand.meta.manifest)
+      applyAppleTouchIconToDom(activeBrand.meta.appleTouchIcon)
     }
+    apply(defaultSystemName, defaultLogo, defaultFavicon)
     // Cache-first
     try {
       const saved = localStorage.getItem('status')
       if (saved) {
         const s = JSON.parse(saved)
-        if (s?.system_name) apply(s.system_name)
-        if (s?.logo) applyFaviconToDom(s.logo)
+        apply(
+          s?.system_name || defaultSystemName,
+          s?.logo || defaultLogo,
+          s?.logo || defaultFavicon
+        )
       }
     } catch {
       /* empty */
@@ -116,15 +141,16 @@ const rootElement = document.getElementById('root')!
     // Background refresh
     getStatus()
       .then((s) => {
-        if (s?.system_name) {
-          apply(s.system_name as string)
-          try {
-            localStorage.setItem('status', JSON.stringify(s))
-          } catch {
-            /* empty */
-          }
+        apply(
+          (s?.system_name as string | undefined) || defaultSystemName,
+          (s?.logo as string | undefined) || defaultLogo,
+          (s?.logo as string | undefined) || defaultFavicon
+        )
+        try {
+          localStorage.setItem('status', JSON.stringify(s))
+        } catch {
+          /* empty */
         }
-        if (s?.logo) applyFaviconToDom(s.logo as string)
       })
       .catch(() => {
         /* empty */

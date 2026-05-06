@@ -1,0 +1,19 @@
+{
+  "name": "ByteCola",
+  "short_name": "ByteCola",
+  "icons": [
+    {
+      "src": "/bytecola-android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/bytecola-android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#F5F5F7",
+  "background_color": "#F5F5F7",
+  "display": "standalone"
+}

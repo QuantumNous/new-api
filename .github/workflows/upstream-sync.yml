@@ -1,0 +1,153 @@
+name: Upstream Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: Upstream ref to mirror into upstream-main
+        required: false
+        default: upstream/main
+      source_ref:
+        description: Source ref that owns the ByteCola overlay
+        required: false
+        default: origin/main
+      brand_profile:
+        description: Optional frontend brand profile
+        required: false
+        default: bytecola
+  schedule:
+    - cron: '23 2 * * 1'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch origin and upstream
+        run: |
+          git remote add upstream https://github.com/QuantumNous/new-api.git 2>/dev/null || true
+          git fetch origin --prune
+          git fetch upstream --prune
+
+      - name: Build sync branch
+        id: sync
+        env:
+          UPSTREAM_SYNC_UPSTREAM_REF: ${{ github.event.inputs.upstream_ref || 'upstream/main' }}
+          UPSTREAM_SYNC_SOURCE_REF: ${{ github.event.inputs.source_ref || 'origin/main' }}
+          UPSTREAM_SYNC_MIRROR_BRANCH: upstream-main
+          UPSTREAM_SYNC_BRANCH_PREFIX: sync/upstream
+          UPSTREAM_SYNC_BRAND_PROFILE: ${{ github.event.inputs.brand_profile || 'bytecola' }}
+        run: node scripts/upstream-sync/run.mjs
+
+      - name: Validate default frontend
+        if: steps.sync.outputs.changed == 'true'
+        working-directory: ${{ steps.sync.outputs.worktree_path }}/web/default
+        env:
+          VITE_PUBLIC_BRAND_PROFILE: ${{ github.event.inputs.brand_profile || 'bytecola' }}
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Validate classic frontend
+        if: steps.sync.outputs.changed == 'true'
+        working-directory: ${{ steps.sync.outputs.worktree_path }}/web/classic
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Validate backend build
+        if: steps.sync.outputs.changed == 'true'
+        working-directory: ${{ steps.sync.outputs.worktree_path }}
+        run: go build ./...
+
+      - name: Push mirror and sync branches
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          git push origin "${{ steps.sync.outputs.mirror_branch }}:${{ steps.sync.outputs.mirror_branch }}" --force-with-lease
+          git -C "${{ steps.sync.outputs.worktree_path }}" push origin "${{ steps.sync.outputs.sync_branch }}:${{ steps.sync.outputs.sync_branch }}" --force-with-lease
+
+      - name: Create or update sync PR
+        if: steps.sync.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        env:
+          SYNC_BRANCH: ${{ steps.sync.outputs.sync_branch }}
+          UPSTREAM_REF: ${{ github.event.inputs.upstream_ref || 'upstream/main' }}
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const head = `${owner}:${process.env.SYNC_BRANCH}`
+            const title = `chore(sync): merge ${process.env.UPSTREAM_REF} into ByteCola overlay`
+            const body = [
+              '## Summary',
+              '',
+              `- Mirrors \`${process.env.UPSTREAM_REF}\` into \`upstream-main\``,
+              '- Replays the preserved ByteCola overlay files and default UI brand hooks',
+              '- Runs backend and default frontend validation before opening this PR',
+              '',
+              '## Review focus',
+              '',
+              '- Confirm upstream feature changes still behave correctly',
+              '- Check the default UI overlay files for conflicts if upstream touched the same areas',
+              '- Verify ByteCola assets and docs are still present without replacing protected upstream metadata',
+            ].join('\n')
+
+            const { data: prs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              head,
+              base: 'main',
+            })
+
+            if (prs.length > 0) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: prs[0].number,
+                title,
+                body,
+              })
+              core.info(`Updated PR #${prs[0].number}`)
+              return
+            }
+
+            const { data: pr } = await github.rest.pulls.create({
+              owner,
+              repo,
+              title,
+              head: process.env.SYNC_BRANCH,
+              base: 'main',
+              body,
+            })
+            core.info(`Created PR #${pr.number}`)
