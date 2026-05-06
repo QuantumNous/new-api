@@ -3967,7 +3967,8 @@ html.dark
 
 .billing-custom-amount.semi-input-number-size-large
   .semi-input-number-button.semi-input-number-button-up,
-.semi-input-number-button.semi-input-number-button-down {
+.billing-custom-amount.semi-input-number-size-large
+  .semi-input-number-button.semi-input-number-button-down {
   width: 28px;
 }
 

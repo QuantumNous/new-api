@@ -469,7 +469,7 @@ const Playground = () => {
               ${
                 isMobile
                   ? 'playground-mobile-sheet fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-88px)]'
+                  : 'relative z-[1] w-80 h-[calc(100vh-64px-12px-16px)]'
               }
             `}
               width={isMobile ? '100%' : 320}
@@ -499,7 +499,7 @@ const Playground = () => {
 
           <Layout.Content className='playground-content relative flex-1 overflow-hidden'>
             <div
-              className={`playground-workspace overflow-hidden flex flex-col lg:flex-row ${isMobile ? 'pt-[66px] h-[calc(100vh-0px)]' : 'h-[calc(100vh-88px)]'}`}
+              className={`playground-workspace overflow-hidden flex flex-col lg:flex-row ${isMobile ? 'pt-[66px] h-[calc(100vh-0px)]' : 'h-[calc(100vh-64px-12px-16px)]'}`}
             >
               <div className='playground-chat-column flex-1 flex flex-col'>
                 <ChatArea

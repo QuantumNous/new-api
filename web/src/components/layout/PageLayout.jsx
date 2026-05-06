@@ -78,6 +78,16 @@ const PageLayout = () => {
   const isConsoleRoute = location.pathname.startsWith('/console');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
   const desktopConsoleShell = isConsoleRoute && !isMobile;
+  const contentPadding = shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0';
+  let contentPaddingTop = desktopConsoleShell
+    ? '88px'
+    : shouldInnerPadding
+      ? contentPadding
+      : '0';
+
+  if (location.pathname.includes('/console/playground')) {
+    contentPaddingTop = '64px';
+  }
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -237,8 +247,10 @@ const PageLayout = () => {
               flex: '1 0 auto',
               overflowY: isMobile ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
-              padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
-              paddingTop: desktopConsoleShell ? '88px' : undefined,
+              paddingTop: contentPaddingTop,
+              paddingRight: contentPadding,
+              paddingBottom: contentPadding,
+              paddingLeft: contentPadding,
               position: 'relative',
             }}
           >
