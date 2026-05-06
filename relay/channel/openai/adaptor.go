@@ -442,90 +442,103 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			}
 			mf = c.Request.MultipartForm
 		}
+		if mf == nil {
+			return nil, errors.New("no multipart form data found")
+		}
 
-		// 写入所有非文件字段
-		if mf != nil {
-			for key, values := range mf.Value {
-				if key == "model" {
-					continue
-				}
-				for _, value := range values {
-					writer.WriteField(key, value)
+		// 写入所有非文件字段。image=URL 和 image=data:URI 这类文本形式的图片输入
+		// 也通过这个循环原样转发给下游 worker，由 worker 的 collectImageFields
+		// + normalizeImageInput 负责 fetch / inline。
+		for key, values := range mf.Value {
+			if key == "model" {
+				continue
+			}
+			for _, value := range values {
+				writer.WriteField(key, value)
+			}
+		}
+
+		// 收集 image 二进制文件：image / image[] / image[N]
+		var imageFiles []*multipart.FileHeader
+		if mf.File != nil {
+			if files, ok := mf.File["image"]; ok && len(files) > 0 {
+				imageFiles = files
+			} else if files, ok := mf.File["image[]"]; ok && len(files) > 0 {
+				imageFiles = files
+			} else {
+				for fieldName, files := range mf.File {
+					if strings.HasPrefix(fieldName, "image[") && len(files) > 0 {
+						imageFiles = append(imageFiles, files...)
+					}
 				}
 			}
 		}
 
-		if mf != nil && mf.File != nil {
-			// Check if "image" field exists in any form, including array notation
-			var imageFiles []*multipart.FileHeader
-			var exists bool
-
-			// First check for standard "image" field
-			if imageFiles, exists = mf.File["image"]; !exists || len(imageFiles) == 0 {
-				// If not found, check for "image[]" field
-				if imageFiles, exists = mf.File["image[]"]; !exists || len(imageFiles) == 0 {
-					// If still not found, iterate through all fields to find any that start with "image["
-					foundArrayImages := false
-					for fieldName, files := range mf.File {
-						if strings.HasPrefix(fieldName, "image[") && len(files) > 0 {
-							foundArrayImages = true
-							imageFiles = append(imageFiles, files...)
-						}
-					}
-
-					// If no image fields found at all
-					if !foundArrayImages && (len(imageFiles) == 0) {
-						return nil, errors.New("image is required")
-					}
+		// 检测 image 文本字段（URL / data:URI）。这些值已经被上面的 mf.Value
+		// 循环写入 outgoing multipart，这里只判断"是否存在合法图源"。
+		hasImageTextField := false
+		for key, values := range mf.Value {
+			if key != "image" && key != "image[]" && !strings.HasPrefix(key, "image[") {
+				continue
+			}
+			for _, v := range values {
+				if v == "" {
+					continue
+				}
+				if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "data:") {
+					hasImageTextField = true
+					break
 				}
 			}
+			if hasImageTextField {
+				break
+			}
+		}
 
-			// Process all image files
-			for i, fileHeader := range imageFiles {
-				file, err := fileHeader.Open()
-				if err != nil {
-					return nil, fmt.Errorf("failed to open image file %d: %w", i, err)
-				}
+		if len(imageFiles) == 0 && !hasImageTextField {
+			return nil, errors.New("image is required (file upload, http(s) URL, or data: URI)")
+		}
 
-				// If multiple images, use image[] as the field name
-				fieldName := "image"
-				if len(imageFiles) > 1 {
-					fieldName = "image[]"
-				}
-
-				// Determine MIME type based on file extension
-				mimeType := detectImageMimeType(fileHeader.Filename)
-
-				// Create a form file with the appropriate content type
-				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fileHeader.Filename))
-				h.Set("Content-Type", mimeType)
-
-				part, err := writer.CreatePart(h)
-				if err != nil {
-					return nil, fmt.Errorf("create form part failed for image %d: %w", i, err)
-				}
-
-				if _, err := io.Copy(part, file); err != nil {
-					return nil, fmt.Errorf("copy file failed for image %d: %w", i, err)
-				}
-
-				// 复制完立即关闭，避免在循环内使用 defer 占用资源
-				_ = file.Close()
+		// 处理二进制 file 上传
+		for i, fileHeader := range imageFiles {
+			file, err := fileHeader.Open()
+			if err != nil {
+				return nil, fmt.Errorf("failed to open image file %d: %w", i, err)
 			}
 
-			// Handle mask file if present
+			fieldName := "image"
+			if len(imageFiles) > 1 {
+				fieldName = "image[]"
+			}
+
+			mimeType := detectImageMimeType(fileHeader.Filename)
+
+			h := make(textproto.MIMEHeader)
+			h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fileHeader.Filename))
+			h.Set("Content-Type", mimeType)
+
+			part, err := writer.CreatePart(h)
+			if err != nil {
+				return nil, fmt.Errorf("create form part failed for image %d: %w", i, err)
+			}
+
+			if _, err := io.Copy(part, file); err != nil {
+				return nil, fmt.Errorf("copy file failed for image %d: %w", i, err)
+			}
+
+			_ = file.Close()
+		}
+
+		// Mask file（可选）
+		if mf.File != nil {
 			if maskFiles, exists := mf.File["mask"]; exists && len(maskFiles) > 0 {
 				maskFile, err := maskFiles[0].Open()
 				if err != nil {
 					return nil, errors.New("failed to open mask file")
 				}
-				// 复制完立即关闭，避免在循环内使用 defer 占用资源
 
-				// Determine MIME type for mask file
 				mimeType := detectImageMimeType(maskFiles[0].Filename)
 
-				// Create a form file with the appropriate content type
 				h := make(textproto.MIMEHeader)
 				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="mask"; filename="%s"`, maskFiles[0].Filename))
 				h.Set("Content-Type", mimeType)
@@ -540,11 +553,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				}
 				_ = maskFile.Close()
 			}
-		} else {
-			return nil, errors.New("no multipart form data found")
 		}
 
-		// 关闭 multipart 编写器以设置分界线
 		writer.Close()
 		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
 		return &requestBody, nil
