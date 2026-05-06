@@ -485,10 +485,6 @@ const RechargeCard = ({
                           bodyStyle={{ padding: '12px' }}
                           onClick={() => {
                             selectPresetAmount(preset);
-                            onlineFormApiRef.current?.setValue(
-                              'topUpCount',
-                              preset.value,
-                            );
                           }}
                         >
                           <div style={{ textAlign: 'center' }}>
