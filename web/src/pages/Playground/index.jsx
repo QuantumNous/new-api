@@ -465,7 +465,7 @@ const Playground = () => {
           {(showSettings || !isMobile) && (
             <Layout.Sider
               className={`
-              playground-settings-sider bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
+              playground-settings-sider bg-transparent border-r-0 flex-shrink-0 overflow-auto 
               ${
                 isMobile
                   ? 'playground-mobile-sheet fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
@@ -499,7 +499,7 @@ const Playground = () => {
 
           <Layout.Content className='playground-content relative flex-1 overflow-hidden'>
             <div
-              className={`playground-workspace overflow-hidden flex flex-col lg:flex-row ${isMobile ? 'pt-[66px] h-[calc(100vh-0px)]' : 'h-[calc(100vh-64px-12px-16px)]'}`}
+              className={`playground-workspace overflow-hidden flex flex-col lg:flex-row ${isMobile ? 'h-[calc(100vh-64px)]' : 'h-[calc(100vh-64px-12px-16px)]'}`}
             >
               <div className='playground-chat-column flex-1 flex flex-col'>
                 <ChatArea
@@ -538,7 +538,7 @@ const Playground = () => {
 
             {/* 调试面板 - 移动端覆盖层 */}
             {showDebugPanel && isMobile && (
-              <div className='playground-mobile-overlay fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg pt-[66px]'>
+              <div className='playground-mobile-overlay fixed top-[64px] left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
                 <OptimizedDebugPanel
                   debugData={debugData}
                   activeDebugTab={activeDebugTab}
