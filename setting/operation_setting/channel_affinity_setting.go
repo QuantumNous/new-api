@@ -79,21 +79,21 @@ var channelAffinitySetting = ChannelAffinitySetting{
 	MaxEntries:        100_000,
 	DefaultTTLSeconds: 3600,
 	Rules: []ChannelAffinityRule{
-		{
-			Name:       "codex cli trace",
-			ModelRegex: []string{"^gpt-.*$"},
-			PathRegex:  []string{"/v1/responses"},
-			KeySources: []ChannelAffinityKeySource{
-				{Type: "gjson", Path: "prompt_cache_key"},
-			},
-			ValueRegex:            "",
-			TTLSeconds:            0,
-			ParamOverrideTemplate: buildPassHeaderTemplate(codexCliPassThroughHeaders),
-			SkipRetryOnFailure:    true,
-			IncludeUsingGroup:     true,
-			IncludeRuleName:       true,
-			UserAgentInclude:      nil,
-		},
+		// [DEBUG] codex cli trace rule removed - prompt_cache_key caused permanent channel lock
+		// {
+		// 	Name:       "codex cli trace",
+		// 	ModelRegex: []string{"^gpt-.*$"},
+		// 	PathRegex:  []string{"/v1/responses"},
+		// 	KeySources: []ChannelAffinityKeySource{
+		// 		{Type: "gjson", Path: "prompt_cache_key"},
+		// 	},
+		// 	ValueRegex:            "",
+		// 	TTLSeconds:            0,
+		// 	ParamOverrideTemplate: buildPassHeaderTemplate(codexCliPassThroughHeaders),
+		// 	SkipRetryOnFailure:    true,
+		// 	IncludeUsingGroup:     true,
+		// 	IncludeRuleName:       true,
+		// },
 		{
 			Name:       "claude cli trace",
 			ModelRegex: []string{"^claude-.*$"},
