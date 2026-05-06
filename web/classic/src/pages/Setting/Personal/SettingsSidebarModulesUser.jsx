@@ -86,6 +86,7 @@ export default function SettingsSidebarModulesUser() {
         log: isSidebarModuleAllowed('console', 'log'),
         midjourney: isSidebarModuleAllowed('console', 'midjourney'),
         task: isSidebarModuleAllowed('console', 'task'),
+        assessment: isSidebarModuleAllowed('console', 'assessment'),
       };
     }
 
@@ -317,6 +318,7 @@ export default function SettingsSidebarModulesUser() {
           description: t('绘图任务记录'),
         },
         { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+        { key: 'assessment', title: t('AI Code Review Assessment'), description: t('Monthly AI development code assessment with submission and review.') },
       ],
     },
     {

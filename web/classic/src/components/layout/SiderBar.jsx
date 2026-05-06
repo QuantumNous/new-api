@@ -49,6 +49,7 @@ const routerMap = {
   deployment: '/console/deployment',
   playground: '/console/playground',
   personal: '/console/personal',
+  assessment: '/console/assessment',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -104,6 +105,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/task',
         className:
           localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
+      },
+      {
+        text: t('AI Code Review Assessment'),
+        itemKey: 'assessment',
+        to: '/assessment',
       },
     ];
 
