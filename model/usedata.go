@@ -144,7 +144,6 @@ type UserStatItem struct {
 
 type ModelStatItem struct {
 	ModelName string `json:"model_name"`
-	UserGroup string `json:"user_group"`
 	Count     int    `json:"count"`
 	TokenUsed int    `json:"token_used"`
 	Quota     int    `json:"quota"`

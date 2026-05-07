@@ -136,7 +136,6 @@ func buildModelStatResponseItems(items []*model.ModelStatItem) []modelStatRespon
 	for _, it := range items {
 		res = append(res, modelStatResponseItem{
 			ModelName:      it.ModelName,
-			UserGroup:      it.UserGroup,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
 			Quota:          it.Quota,
@@ -377,7 +376,7 @@ func ExportUserModelStats(c *gin.Context) {
 
 	switch viewType {
 	case "by_model":
-		writer.Write([]string{"模型名", "用户分组", "请求次数", "总Tokens", "额度消耗", "额度(USD)", "额度(CNY)"})
+		writer.Write([]string{"模型名", "请求次数", "总Tokens", "额度消耗", "额度(USD)", "额度(CNY)"})
 		page := 1
 		pageSize := 1000
 		for {
@@ -391,7 +390,7 @@ func ExportUserModelStats(c *gin.Context) {
 				break
 			}
 			for _, it := range items {
-				writer.Write([]string{it.ModelName, it.UserGroup, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota), strconv.FormatFloat(quotaToUSDAmount(it.Quota), 'f', 6, 64), strconv.FormatFloat(quotaToCNYAmount(it.Quota), 'f', 6, 64)})
+				writer.Write([]string{it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota), strconv.FormatFloat(quotaToUSDAmount(it.Quota), 'f', 6, 64), strconv.FormatFloat(quotaToCNYAmount(it.Quota), 'f', 6, 64)})
 			}
 			if len(items) < pageSize {
 				break

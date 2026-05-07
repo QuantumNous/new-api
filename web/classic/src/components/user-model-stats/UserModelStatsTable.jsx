@@ -24,7 +24,6 @@ const COLUMNS = {
       key: 'model_name',
       render: (v) => <Tag type='light'>{v}</Tag>,
     },
-    { title: t('用户分组'), dataIndex: 'user_group', key: 'user_group' },
     { title: t('请求次数'), dataIndex: 'count', key: 'count' },
     { title: t('总 Tokens'), dataIndex: 'token_used', key: 'token_used' },
     {
