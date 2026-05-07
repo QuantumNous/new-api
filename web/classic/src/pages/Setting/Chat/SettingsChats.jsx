@@ -71,6 +71,7 @@ export default function SettingsChats(props) {
     { name: 'AionUI', url: 'aionui://provider/add?v=1&data={aionuiConfig}' },
     { name: '流畅阅读', url: 'fluentread' },
     { name: 'CC Switch', url: 'ccswitch' },
+    { name: 'DeepChat', url: 'deepchat://provider/install?v=1&data={deepchatConfig}' },
     { name: 'Lobe Chat', url: 'https://chat-preview.lobehub.com/?settings={"keyVaults":{"openai":{"apiKey":"{key}","baseURL":"{address}/v1"}}}' },
     { name: 'AI as Workspace', url: 'https://aiaw.app/set-provider?provider={"type":"openai","settings":{"apiKey":"{key}","baseURL":"{address}/v1","compatibility":"strict"}}' },
     { name: 'AMA 问天', url: 'ama://set-api-key?server={address}&key={key}' },
