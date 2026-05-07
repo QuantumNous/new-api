@@ -113,24 +113,6 @@ const PricingSidebar = ({
         t={t}
       />
 
-      <PricingGroups
-        filterGroup={filterGroup}
-        setFilterGroup={handleGroupClick}
-        usableGroup={categoryProps.usableGroup}
-        groupRatio={categoryProps.groupRatio}
-        models={groupCountModels}
-        loading={loading}
-        t={t}
-      />
-
-      <PricingQuotaTypes
-        filterQuotaType={filterQuotaType}
-        setFilterQuotaType={setFilterQuotaType}
-        models={quotaTypeModels}
-        loading={loading}
-        t={t}
-      />
-
       <PricingTags
         filterTag={filterTag}
         setFilterTag={setFilterTag}

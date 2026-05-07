@@ -188,7 +188,6 @@ export const getPricingTableColumns = ({
     vendorColumn,
     descriptionColumn,
     tagsColumn,
-    quotaColumn,
   ];
 
   const ratioColumn = {
