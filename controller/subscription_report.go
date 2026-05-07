@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/csv"
 	"fmt"
 	"strconv"
 	"strings"
@@ -49,6 +50,7 @@ func AdminGetSubscriptionPlanUsage(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	planID, _ := strconv.Atoi(c.Query("plan_id"))
 	groupName := strings.TrimSpace(c.Query("group"))
+	username := strings.TrimSpace(c.Query("username"))
 	orgName := strings.TrimSpace(c.Query("org_name"))
 	noPlanOnly := strings.TrimSpace(c.Query("no_plan_only")) == "true"
 	includeNoPlan := strings.TrimSpace(c.Query("include_no_plan")) == "true"
@@ -71,6 +73,9 @@ func AdminGetSubscriptionPlanUsage(c *gin.Context) {
 	}
 	if groupName != "" {
 		base = base.Where(fmt.Sprintf("%s = ?", model.CommonGroupColumnName()), groupName)
+	}
+	if username != "" {
+		base = base.Where("users.username = ?", username)
 	}
 	if orgName != "" {
 		base = base.Where("users.org_name = ?", orgName)
@@ -160,4 +165,40 @@ func AdminGetInactiveUsers(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(items)
 	common.ApiSuccess(c, pageInfo)
+}
+
+func AdminExportInactiveUsers(c *gin.Context) {
+	days, _ := strconv.Atoi(c.DefaultQuery("days", "15"))
+	if days <= 0 {
+		days = 15
+	}
+	start := common.GetTimestamp() - int64(days*24*3600)
+	selectGroup := fmt.Sprintf("%s as user_group", model.CommonGroupColumnName())
+	base := model.DB.Table("users").
+		Select("users.id as user_id, users.username, users.display_name, "+selectGroup+", users.org_name, COALESCE(MAX(q_all.created_at),0) as last_token_used_at").
+		Joins("LEFT JOIN quota_data q_recent ON q_recent.user_id = users.id AND q_recent.created_at >= ?", start).
+		Joins("LEFT JOIN quota_data q_all ON q_all.user_id = users.id").
+		Group("users.id, users.username, users.display_name, users.org_name, " + model.CommonGroupColumnName()).
+		Having("COUNT(q_recent.id) = 0")
+
+	var items []inactiveUserItem
+	if err := base.Order("users.id asc").Scan(&items).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	filename := fmt.Sprintf("inactive-users-%ddays-%s.csv", days, time.Now().Format("2006-01-02"))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	writer := csv.NewWriter(c.Writer)
+	defer writer.Flush()
+
+	writer.Write([]string{"用户ID", "用户名", "显示名", "用户分组", "组织", "最近Token使用"})
+	for _, it := range items {
+		last := ""
+		if it.LastLoginAt > 0 {
+			last = time.Unix(it.LastLoginAt, 0).Format("2006-01-02 15:04:05")
+		}
+		writer.Write([]string{strconv.Itoa(it.UserId), it.Username, it.DisplayName, it.UserGroup, it.OrgName, last})
+	}
 }

@@ -36,6 +36,8 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
   const [inactiveUsers, setInactiveUsers] = useState([]);
   const [month, setMonth] = useState(dayjs().format('YYYY-MM'));
   const [days, setDays] = useState(15);
+  const [groupFilter, setGroupFilter] = useState('');
+  const [usernameFilter, setUsernameFilter] = useState('');
 
   const [planPage, setPlanPage] = useState(1);
   const [planPageSize, setPlanPageSize] = useState(20);
@@ -53,6 +55,8 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
           p: targetPage,
           page_size: targetPageSize,
           month,
+          group: groupFilter.trim(),
+          username: usernameFilter.trim(),
         },
       });
       if (planRes.data?.success) {
@@ -198,7 +202,31 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
           }}
         >
           <div style={{ fontSize: 14, fontWeight: 600 }}>{t('套餐用量')}</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value || '')}
+              placeholder={t('按分组筛选')}
+              style={{
+                width: 160,
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 8,
+                padding: '7px 10px',
+                background: 'var(--semi-color-bg-0)',
+              }}
+            />
+            <input
+              value={usernameFilter}
+              onChange={(e) => setUsernameFilter(e.target.value || '')}
+              placeholder={t('按用户名筛选')}
+              style={{
+                width: 180,
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 8,
+                padding: '7px 10px',
+                background: 'var(--semi-color-bg-0)',
+              }}
+            />
             <input
               type='month'
               value={month}
@@ -301,6 +329,31 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
               </option>
             ))}
           </select>
+          <button
+            className='semi-button semi-button-tertiary semi-button-size-small'
+            onClick={async () => {
+              try {
+                const res = await API.get('/api/subscription/admin/inactive-users/export', {
+                  params: { days },
+                  responseType: 'blob',
+                });
+                const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `inactive-users-${days}days-${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+              } catch (e) {
+                showError(e.message || t('导出失败'));
+              }
+            }}
+            disabled={loading}
+          >
+            {t('导出 CSV')}
+          </button>
           <button
             className='semi-button semi-button-primary semi-button-size-small'
             onClick={() => loadInactiveUsers(1, inactivePageSize)}

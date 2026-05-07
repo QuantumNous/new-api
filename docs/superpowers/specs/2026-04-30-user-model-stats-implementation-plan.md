@@ -26,6 +26,7 @@
 | end_timestamp | int64 | 否 | 当前时间（秒） | 结束时间戳（秒） |
 | username | string | 否 | 空 | 用户名过滤，支持逗号分隔多值，如 `alice,bob` |
 | model_name | string | 否 | 空 | 模型名过滤，支持逗号分隔多值 |
+| user_group | string | 否 | 空 | 用户分组过滤，支持逗号分隔多值 |
 | page | int | 否 | 0 | 页码，从 0 开始 |
 | page_size | int | 否 | 10 | 每页数量，最大 100 |
 

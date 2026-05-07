@@ -34,6 +34,12 @@ export const UserModelStatsFilters = ({
         onChange={(v) => onInputChange('model_name', Array.isArray(v) ? v.join(',') : '')}
         style={{ width: 200 }}
       />
+      <TagInput
+        placeholder={t('用户分组')}
+        value={inputs.user_group ? inputs.user_group.split(',').filter(Boolean) : []}
+        onChange={(v) => onInputChange('user_group', Array.isArray(v) ? v.join(',') : '')}
+        style={{ width: 200 }}
+      />
       <Button theme='solid' icon={<Search size={14} />} onClick={onSearch}>
         {t('查询')}
       </Button>

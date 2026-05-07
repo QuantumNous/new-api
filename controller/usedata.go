@@ -71,7 +71,9 @@ func parseUserModelStatsTimeRange(c *gin.Context) (int64, int64, error) {
 }
 
 type userStatResponseItem struct {
+	UserID         int     `json:"user_id"`
 	Username       string  `json:"username"`
+	UserGroup      string  `json:"user_group"`
 	Count          int     `json:"count"`
 	TokenUsed      int     `json:"token_used"`
 	Quota          int     `json:"quota"`
@@ -81,6 +83,7 @@ type userStatResponseItem struct {
 
 type modelStatResponseItem struct {
 	ModelName      string  `json:"model_name"`
+	UserGroup      string  `json:"user_group"`
 	Count          int     `json:"count"`
 	TokenUsed      int     `json:"token_used"`
 	Quota          int     `json:"quota"`
@@ -89,7 +92,9 @@ type modelStatResponseItem struct {
 }
 
 type userModelStatResponseItem struct {
+	UserID         int     `json:"user_id"`
 	Username       string  `json:"username"`
+	UserGroup      string  `json:"user_group"`
 	ModelName      string  `json:"model_name"`
 	Count          int     `json:"count"`
 	TokenUsed      int     `json:"token_used"`
@@ -113,7 +118,9 @@ func buildUserStatResponseItems(items []*model.UserStatItem) []userStatResponseI
 	res := make([]userStatResponseItem, 0, len(items))
 	for _, it := range items {
 		res = append(res, userStatResponseItem{
+			UserID:         it.UserID,
 			Username:       it.Username,
+			UserGroup:      it.UserGroup,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
 			Quota:          it.Quota,
@@ -129,6 +136,7 @@ func buildModelStatResponseItems(items []*model.ModelStatItem) []modelStatRespon
 	for _, it := range items {
 		res = append(res, modelStatResponseItem{
 			ModelName:      it.ModelName,
+			UserGroup:      it.UserGroup,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
 			Quota:          it.Quota,
@@ -143,7 +151,9 @@ func buildUserModelStatResponseItems(items []*model.UserModelStatItem) []userMod
 	res := make([]userModelStatResponseItem, 0, len(items))
 	for _, it := range items {
 		res = append(res, userModelStatResponseItem{
+			UserID:         it.UserID,
 			Username:       it.Username,
+			UserGroup:      it.UserGroup,
 			ModelName:      it.ModelName,
 			Count:          it.Count,
 			TokenUsed:      it.TokenUsed,
@@ -223,6 +233,7 @@ func GetUserModelStatsByUser(c *gin.Context) {
 	}
 	username := c.Query("username")
 	modelName := c.Query("model_name")
+	userGroup := strings.TrimSpace(c.Query("user_group"))
 	page, _ := strconv.Atoi(c.Query("page"))
 	if page <= 0 {
 		page = 1
@@ -235,7 +246,7 @@ func GetUserModelStatsByUser(c *gin.Context) {
 		pageSize = 100
 	}
 
-	items, total, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), page, pageSize)
+	items, total, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -264,6 +275,7 @@ func GetUserModelStatsByModel(c *gin.Context) {
 	}
 	username := c.Query("username")
 	modelName := c.Query("model_name")
+	userGroup := strings.TrimSpace(c.Query("user_group"))
 	page, _ := strconv.Atoi(c.Query("page"))
 	if page <= 0 {
 		page = 1
@@ -276,7 +288,7 @@ func GetUserModelStatsByModel(c *gin.Context) {
 		pageSize = 100
 	}
 
-	items, total, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), page, pageSize)
+	items, total, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -305,6 +317,7 @@ func GetUserModelStatsByDetail(c *gin.Context) {
 	}
 	username := c.Query("username")
 	modelName := c.Query("model_name")
+	userGroup := strings.TrimSpace(c.Query("user_group"))
 	page, _ := strconv.Atoi(c.Query("page"))
 	if page <= 0 {
 		page = 1
@@ -317,7 +330,7 @@ func GetUserModelStatsByDetail(c *gin.Context) {
 		pageSize = 100
 	}
 
-	items, total, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), page, pageSize)
+	items, total, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -346,6 +359,7 @@ func ExportUserModelStats(c *gin.Context) {
 	}
 	username := c.Query("username")
 	modelName := c.Query("model_name")
+	userGroup := strings.TrimSpace(c.Query("user_group"))
 	viewType := strings.TrimSpace(c.Query("view_type"))
 	if viewType == "" {
 		viewType = "by_user"
@@ -363,11 +377,11 @@ func ExportUserModelStats(c *gin.Context) {
 
 	switch viewType {
 	case "by_model":
-		writer.Write([]string{"模型名", "请求次数", "总Tokens", "额度消耗"})
+		writer.Write([]string{"模型名", "用户分组", "请求次数", "总Tokens", "额度消耗", "额度(USD)", "额度(CNY)"})
 		page := 1
 		pageSize := 1000
 		for {
-			items, _, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, usernames, modelNames, page, pageSize)
+			items, _, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, usernames, modelNames, userGroup, page, pageSize)
 			if err != nil {
 				common.SysError("csv export error: " + err.Error())
 				writer.Write([]string{"error", err.Error()})
@@ -377,7 +391,7 @@ func ExportUserModelStats(c *gin.Context) {
 				break
 			}
 			for _, it := range items {
-				writer.Write([]string{it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
+				writer.Write([]string{it.ModelName, it.UserGroup, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota), strconv.FormatFloat(quotaToUSDAmount(it.Quota), 'f', 6, 64), strconv.FormatFloat(quotaToCNYAmount(it.Quota), 'f', 6, 64)})
 			}
 			if len(items) < pageSize {
 				break
@@ -385,11 +399,11 @@ func ExportUserModelStats(c *gin.Context) {
 			page++
 		}
 	case "by_detail":
-		writer.Write([]string{"用户名", "模型名", "请求次数", "总Tokens", "额度消耗"})
+		writer.Write([]string{"用户ID", "用户名", "用户分组", "模型名", "请求次数", "总Tokens", "额度消耗", "额度(USD)", "额度(CNY)"})
 		page := 1
 		pageSize := 1000
 		for {
-			items, _, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, usernames, modelNames, page, pageSize)
+			items, _, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, usernames, modelNames, userGroup, page, pageSize)
 			if err != nil {
 				common.SysError("csv export error: " + err.Error())
 				writer.Write([]string{"error", err.Error()})
@@ -399,7 +413,7 @@ func ExportUserModelStats(c *gin.Context) {
 				break
 			}
 			for _, it := range items {
-				writer.Write([]string{it.Username, it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
+				writer.Write([]string{strconv.Itoa(it.UserID), it.Username, it.UserGroup, it.ModelName, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota), strconv.FormatFloat(quotaToUSDAmount(it.Quota), 'f', 6, 64), strconv.FormatFloat(quotaToCNYAmount(it.Quota), 'f', 6, 64)})
 			}
 			if len(items) < pageSize {
 				break
@@ -407,11 +421,11 @@ func ExportUserModelStats(c *gin.Context) {
 			page++
 		}
 	default:
-		writer.Write([]string{"用户名", "请求次数", "总Tokens", "额度消耗"})
+		writer.Write([]string{"用户ID", "用户名", "用户分组", "请求次数", "总Tokens", "额度消耗", "额度(USD)", "额度(CNY)"})
 		page := 1
 		pageSize := 1000
 		for {
-			items, _, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, usernames, modelNames, page, pageSize)
+			items, _, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, usernames, modelNames, userGroup, page, pageSize)
 			if err != nil {
 				common.SysError("csv export error: " + err.Error())
 				writer.Write([]string{"error", err.Error()})
@@ -421,7 +435,7 @@ func ExportUserModelStats(c *gin.Context) {
 				break
 			}
 			for _, it := range items {
-				writer.Write([]string{it.Username, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota)})
+				writer.Write([]string{strconv.Itoa(it.UserID), it.Username, it.UserGroup, strconv.Itoa(it.Count), strconv.Itoa(it.TokenUsed), strconv.Itoa(it.Quota), strconv.FormatFloat(quotaToUSDAmount(it.Quota), 'f', 6, 64), strconv.FormatFloat(quotaToCNYAmount(it.Quota), 'f', 6, 64)})
 			}
 			if len(items) < pageSize {
 				break

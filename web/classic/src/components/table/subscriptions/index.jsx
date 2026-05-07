@@ -134,7 +134,7 @@ const SubscriptionsPage = () => {
             />
           </div>
         }
-        paginationArea={createCardProPagination({
+        paginationArea={activeTab === 'plans' ? createCardProPagination({
           currentPage: subscriptionsData.activePage,
           pageSize: subscriptionsData.pageSize,
           total: subscriptionsData.planCount,
@@ -142,7 +142,7 @@ const SubscriptionsPage = () => {
           onPageSizeChange: subscriptionsData.handlePageSizeChange,
           isMobile,
           t: subscriptionsData.t,
-        })}
+        }) : null}
         t={t}
       >
         <Tabs
