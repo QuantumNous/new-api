@@ -40,3 +40,4 @@ skills-lock.json
 # repo-root screenshot artifacts and openapi dumps (not nested)
 /*.png
 /*.openapi.json
+/tmp
