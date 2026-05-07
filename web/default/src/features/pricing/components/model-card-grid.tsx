@@ -90,7 +90,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
               className='gap-1.5'
             >
               <ChevronLeft className='size-4' />
-              {t('Previous')}
+              {t('Previous page')}
             </Button>
             <Button
               type='button'
@@ -102,7 +102,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
               disabled={page >= totalPages}
               className='gap-1.5'
             >
-              {t('Next')}
+              {t('Next page')}
               <ChevronRight className='size-4' />
             </Button>
           </div>
