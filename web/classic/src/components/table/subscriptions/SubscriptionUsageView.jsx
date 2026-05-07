@@ -28,6 +28,8 @@ const tdStyle = {
   whiteSpace: 'nowrap',
 };
 
+const pageSizeOptions = [20, 50, 100];
+
 const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
   const [loading, setLoading] = useState(false);
   const [planUsage, setPlanUsage] = useState([]);
@@ -35,18 +37,30 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
   const [month, setMonth] = useState(dayjs().format('YYYY-MM'));
   const [days, setDays] = useState(15);
 
-  const loadPlanUsage = async () => {
+  const [planPage, setPlanPage] = useState(1);
+  const [planPageSize, setPlanPageSize] = useState(20);
+  const [planTotal, setPlanTotal] = useState(0);
+
+  const [inactivePage, setInactivePage] = useState(1);
+  const [inactivePageSize, setInactivePageSize] = useState(20);
+  const [inactiveTotal, setInactiveTotal] = useState(0);
+
+  const loadPlanUsage = async (targetPage = planPage, targetPageSize = planPageSize) => {
     setLoading(true);
     try {
       const planRes = await API.get('/api/subscription/admin/plan-usage', {
         params: {
-          p: 1,
-          page_size: 100,
+          p: targetPage,
+          page_size: targetPageSize,
           month,
         },
       });
       if (planRes.data?.success) {
-        setPlanUsage(planRes.data?.data?.items || []);
+        const pageData = planRes.data?.data || {};
+        setPlanUsage(pageData.items || []);
+        setPlanTotal(pageData.total || 0);
+        setPlanPage(pageData.page || targetPage);
+        setPlanPageSize(pageData.page_size || targetPageSize);
       } else {
         showError(planRes.data?.message || t('加载失败'));
       }
@@ -57,18 +71,22 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
     }
   };
 
-  const loadInactiveUsers = async () => {
+  const loadInactiveUsers = async (targetPage = inactivePage, targetPageSize = inactivePageSize) => {
     setLoading(true);
     try {
       const inactiveRes = await API.get('/api/subscription/admin/inactive-users', {
         params: {
           days,
-          p: 1,
-          page_size: 100,
+          p: targetPage,
+          page_size: targetPageSize,
         },
       });
       if (inactiveRes.data?.success) {
-        setInactiveUsers(inactiveRes.data?.data?.items || []);
+        const pageData = inactiveRes.data?.data || {};
+        setInactiveUsers(pageData.items || []);
+        setInactiveTotal(pageData.total || 0);
+        setInactivePage(pageData.page || targetPage);
+        setInactivePageSize(pageData.page_size || targetPageSize);
       } else {
         showError(inactiveRes.data?.message || t('加载失败'));
       }
@@ -81,10 +99,10 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
 
   useEffect(() => {
     if (viewType === 'plan') {
-      loadPlanUsage();
+      loadPlanUsage(1, planPageSize);
       return;
     }
-    loadInactiveUsers();
+    loadInactiveUsers(1, inactivePageSize);
   }, [viewType]);
 
   const inactiveDayOptions = useMemo(
@@ -110,6 +128,61 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
       {text}
     </div>
   );
+
+  const renderPager = ({ page, pageSize, total, onPageChange, onPageSizeChange }) => {
+    const totalPage = Math.max(1, Math.ceil((total || 0) / (pageSize || 1)));
+    return (
+      <div
+        style={{
+          marginTop: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>
+          {t('共 {{count}} 条', { count: total || 0 })}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value || 20))}
+            style={{
+              border: '1px solid var(--semi-color-border)',
+              borderRadius: 8,
+              padding: '6px 8px',
+              background: 'var(--semi-color-bg-0)',
+            }}
+          >
+            {pageSizeOptions.map((size) => (
+              <option key={size} value={size}>
+                {size} / {t('页')}
+              </option>
+            ))}
+          </select>
+          <button
+            className='semi-button semi-button-tertiary semi-button-size-small'
+            disabled={loading || page <= 1}
+            onClick={() => onPageChange(page - 1)}
+          >
+            {t('上一页')}
+          </button>
+          <span style={{ fontSize: 12, color: 'var(--semi-color-text-1)', minWidth: 74, textAlign: 'center' }}>
+            {page} / {totalPage}
+          </span>
+          <button
+            className='semi-button semi-button-tertiary semi-button-size-small'
+            disabled={loading || page >= totalPage}
+            onClick={() => onPageChange(page + 1)}
+          >
+            {t('下一页')}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   if (viewType === 'plan') {
     return (
@@ -140,7 +213,7 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
             />
             <button
               className='semi-button semi-button-primary semi-button-size-small'
-              onClick={loadPlanUsage}
+              onClick={() => loadPlanUsage(1, planPageSize)}
               disabled={loading}
             >
               {loading ? t('加载中') : t('查询套餐用量')}
@@ -185,6 +258,14 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
             </tbody>
           </table>
         </div>
+
+        {renderPager({
+          page: planPage,
+          pageSize: planPageSize,
+          total: planTotal,
+          onPageChange: (nextPage) => loadPlanUsage(nextPage, planPageSize),
+          onPageSizeChange: (nextPageSize) => loadPlanUsage(1, nextPageSize),
+        })}
       </div>
     );
   }
@@ -222,7 +303,7 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
           </select>
           <button
             className='semi-button semi-button-primary semi-button-size-small'
-            onClick={loadInactiveUsers}
+            onClick={() => loadInactiveUsers(1, inactivePageSize)}
             disabled={loading}
           >
             {loading ? t('加载中') : t('查询非活跃用户')}
@@ -263,6 +344,14 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
           </tbody>
         </table>
       </div>
+
+      {renderPager({
+        page: inactivePage,
+        pageSize: inactivePageSize,
+        total: inactiveTotal,
+        onPageChange: (nextPage) => loadInactiveUsers(nextPage, inactivePageSize),
+        onPageSizeChange: (nextPageSize) => loadInactiveUsers(1, nextPageSize),
+      })}
     </div>
   );
 };
