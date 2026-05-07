@@ -48,6 +48,7 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import AuthShell from './AuthShell';
 import { getAuthPageCopy } from './authShellContent';
+import SliderCaptcha from './SliderCaptcha';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
@@ -97,6 +98,9 @@ const RegisterForm = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
+  const [sliderCaptchaResetSignal, setSliderCaptchaResetSignal] = useState(0);
+  const [sliderCaptchaModalVisible, setSliderCaptchaModalVisible] =
+    useState(false);
   const [githubButtonState, setGithubButtonState] = useState('idle');
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const [showEmailVerification, setShowEmailVerification] = useState(false);
@@ -174,6 +178,18 @@ const RegisterForm = () => {
     return true;
   };
 
+  const ensureTermsAccepted = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return false;
+    }
+    return true;
+  };
+
+  const resetSliderCaptcha = () => {
+    setSliderCaptchaResetSignal((current) => current + 1);
+  };
+
   const handleChange = (name, value) => {
     setInputs((current) => ({ ...current, [name]: value }));
   };
@@ -211,22 +227,7 @@ const RegisterForm = () => {
     }
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    if (password.length < 8) {
-      showInfo('密码长度不得小于 8 位！');
-      return;
-    }
-    if (password !== password2) {
-      showInfo('两次输入的密码不一致');
-      return;
-    }
-    if (!username || !password) {
-      return;
-    }
-    if (!ensureTurnstileReady()) {
-      return;
-    }
+  const submitRegister = async () => {
     setRegisterLoading(true);
     try {
       if (!affCode) {
@@ -246,12 +247,39 @@ const RegisterForm = () => {
         showSuccess('注册成功！');
       } else {
         showError(message);
+        resetSliderCaptcha();
       }
     } catch (error) {
       showError('注册失败，请重试');
+      resetSliderCaptcha();
     } finally {
       setRegisterLoading(false);
     }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (password.length < 8) {
+      showInfo('密码长度不得小于 8 位！');
+      return;
+    }
+    if (password !== password2) {
+      showInfo('两次输入的密码不一致');
+      return;
+    }
+    if (!username || !password) {
+      return;
+    }
+    if (!ensureTermsAccepted() || !ensureTurnstileReady()) {
+      return;
+    }
+    resetSliderCaptcha();
+    setSliderCaptchaModalVisible(true);
+  };
+
+  const handleSliderCaptchaVerified = () => {
+    setSliderCaptchaModalVisible(false);
+    submitRegister();
   };
 
   const sendVerificationCode = async () => {
@@ -578,6 +606,31 @@ const RegisterForm = () => {
     );
   };
 
+  const renderSliderCaptchaModal = () => {
+    return (
+      <Modal
+        title={t('滑块验证码')}
+        visible={sliderCaptchaModalVisible}
+        footer={null}
+        width={380}
+        centered
+        maskClosable={!registerLoading}
+        onCancel={() => {
+          setSliderCaptchaModalVisible(false);
+          resetSliderCaptcha();
+        }}
+      >
+        <div className='pb-4'>
+          <SliderCaptcha
+            t={t}
+            onVerified={handleSliderCaptchaVerified}
+            resetSignal={sliderCaptchaResetSignal}
+          />
+        </div>
+      </Modal>
+    );
+  };
+
   return (
     <AuthShell mode='register'>
       <form className='space-y-5' onSubmit={handleSubmit}>
@@ -714,6 +767,7 @@ const RegisterForm = () => {
       </p>
 
       {renderWeChatLoginModal()}
+      {renderSliderCaptchaModal()}
     </AuthShell>
   );
 };
