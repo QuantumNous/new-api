@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -129,6 +130,12 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                 <FormItem>
                   <FormLabel>{t('Default time granularity')}</FormLabel>
                   <Select
+                    items={[
+                      ...granularityOptions.map((option) => ({
+                        value: option.value,
+                        label: option.label,
+                      })),
+                    ]}
                     onValueChange={field.onChange}
                     value={field.value}
                     disabled={!isEnabled}
@@ -138,12 +145,14 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
                         <SelectValue placeholder={t('Select granularity')} />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      {granularityOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {granularityOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <FormDescription>

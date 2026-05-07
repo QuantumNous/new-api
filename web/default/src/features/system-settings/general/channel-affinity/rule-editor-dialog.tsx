@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -276,6 +277,9 @@ export function RuleEditorDialog(props: Props) {
               {keySources.map((src, idx) => (
                 <div key={idx} className='flex items-center gap-2'>
                   <Select
+                    items={[
+                      ...KEY_SOURCE_TYPES.map((t) => ({ value: t, label: t })),
+                    ]}
                     value={src.type}
                     onValueChange={(v) => {
                       if (v === null) return
@@ -290,12 +294,14 @@ export function RuleEditorDialog(props: Props) {
                     <SelectTrigger className='w-[160px]'>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      {KEY_SOURCE_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ))}
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {KEY_SOURCE_TYPES.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <Input

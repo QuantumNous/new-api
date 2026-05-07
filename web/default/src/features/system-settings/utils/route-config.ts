@@ -29,7 +29,7 @@ export type SettingsRouteConfigOptions<
   defaultSection: TSectionId
   /** Settings component to render */
   component: TComponent
-  /** Route path for redirect (e.g., '/system-settings/general') */
+  /** Route path for redirect (e.g., '/system-settings/site') */
   routePath: string
   /** Whether to redirect to default section if no section is provided (default: false) */
   redirectToDefault?: boolean
@@ -44,12 +44,12 @@ export type SettingsRouteConfigOptions<
  *
  * @example
  * ```tsx
- * export const Route = createFileRoute('/_authenticated/system-settings/general')(
+ * export const Route = createFileRoute('/_authenticated/system-settings/site')(
  *   createSettingsRouteConfig({
- *     sectionIds: GENERAL_SECTION_IDS,
- *     defaultSection: GENERAL_DEFAULT_SECTION,
- *     component: GeneralSettings,
- *     routePath: '/system-settings/general',
+ *     sectionIds: SITE_SECTION_IDS,
+ *     defaultSection: SITE_DEFAULT_SECTION,
+ *     component: SiteSettings,
+ *     routePath: '/system-settings/site',
  *     redirectToDefault: true,
  *   })
  * )

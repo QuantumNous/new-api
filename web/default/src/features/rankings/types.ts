@@ -2,11 +2,7 @@
 // Rankings types
 // ----------------------------------------------------------------------------
 //
-// Shape of the data shown on the /rankings page. The backend has not yet
-// implemented these analytics endpoints, so the helpers in
-// `lib/mock-rankings.ts` produce deterministic mock values seeded from the
-// (period, category) tuple. When the real APIs land, these types double as
-// the response shape the UI expects.
+// Shape of the real data shown on the /rankings page.
 
 export type RankingPeriod = 'today' | 'week' | 'month' | 'year' | 'all'
 
@@ -24,13 +20,6 @@ export type RankingCategoryId =
   | 'productivity'
   | 'multimodal'
 
-export type RankingCategory = {
-  id: RankingCategoryId
-  /** Default English label, fed through i18n at render time. */
-  label: string
-  description: string
-}
-
 export type ModelRanking = {
   rank: number
   /** Previous rank in the same period; undefined means "new". */
@@ -45,37 +34,6 @@ export type ModelRanking = {
   share: number
   /** Period-over-period change in token volume (%). */
   growth_pct: number
-}
-
-export type AppCategory =
-  | 'Coding'
-  | 'Chat'
-  | 'Productivity'
-  | 'Education'
-  | 'Creative'
-  | 'Roleplay'
-  | 'Translation'
-  | 'Marketing'
-  | 'Health'
-  | 'Finance'
-  | 'Research'
-  | 'Other'
-
-export type AppListing = {
-  rank: number
-  previous_rank?: number
-  name: string
-  description: string
-  category: AppCategory
-  url?: string
-  /** Total tokens this app sent through new-api in the period. */
-  total_tokens: number
-  /** Period-over-period change. */
-  growth_pct: number
-  /** Top model used by this app (model_name). */
-  top_model: string
-  /** Logo letter / initial. */
-  initial: string
 }
 
 export type VendorRanking = {
@@ -99,17 +57,6 @@ export type RankingMover = {
   rank_delta: number
   current_rank: number
   /** Token-volume change percent. */
-  growth_pct: number
-}
-
-export type NewModelEntry = {
-  model_name: string
-  vendor: string
-  vendor_icon?: string
-  category: RankingCategoryId
-  release_date: string
-  total_tokens: number
-  /** % growth since the model launched. */
   growth_pct: number
 }
 
@@ -158,42 +105,16 @@ export type VendorShareSeries = {
   buckets: number
 }
 
-/**
- * Self-contained ranking unit for a single category. Pairs the small
- * stacked-bar chart with the leaderboard data it summarises so
- * `<CategorySection>` can render both halves from one prop. Every
- * category gets one of these rendered inline on the rankings page.
- */
-export type CategorySection = {
-  category: RankingCategoryId
-  /** English source label, fed through i18n at render time. */
-  label: string
-  /** English source description, fed through i18n at render time. */
-  description: string
-  /** Top models in this category, ordered by total tokens desc. */
-  models: ModelRanking[]
-  /** Stacked-bar history of token usage by model in this category. */
-  models_history: ModelHistorySeries
-  /** Sum of all `models[].total_tokens` (cached for the section header). */
-  total_tokens: number
-}
-
 export type RankingsSnapshot = {
   // Overall (all categories) ------------------------------------------------
   models: ModelRanking[]
-  apps: AppListing[]
   vendors: VendorRanking[]
   /** Largest rank gainers in this period. */
   top_movers: RankingMover[]
   /** Largest rank losers in this period. */
   top_droppers: RankingMover[]
-  /** Newly launched / recently added models. */
-  new_models: NewModelEntry[]
   /** Stacked-bar history of token usage by model over the period. */
   models_history: ModelHistorySeries
   /** 100%-stacked area history of token share by vendor over the period. */
   vendor_share_history: VendorShareSeries
-  // Per-category sections ---------------------------------------------------
-  /** Independent ranking sections, one per non-`all` category. */
-  category_sections: CategorySection[]
 }

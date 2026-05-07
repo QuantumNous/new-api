@@ -88,6 +88,14 @@ export type DataTableToolbarProps<TData> = {
    */
   hideViewOptions?: boolean
   /**
+   * Content rendered on the LEFT side of the secondary action row. When
+   * provided the toolbar splits into two visual rows:
+   *   Row 1: search inputs / filter chips …… Expand
+   *   Row 2: expanded filters
+   *   Row 3: leftActions …… Reset / Search / ViewOptions
+   */
+  leftActions?: ReactNode
+  /**
    * Outer wrapper className override.
    */
   className?: string
@@ -215,6 +223,39 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
       />
     </Button>
   ) : null
+
+  const hasLeftActions = props.leftActions != null
+
+  if (hasLeftActions) {
+    return (
+      <div className={cn('flex flex-col gap-2', props.className)}>
+        <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
+          {props.customSearch !== undefined ? props.customSearch : searchInput}
+          {props.additionalSearch}
+          {filterChips}
+          <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
+            {expandToggle}
+          </div>
+        </div>
+
+        {expanded && hasExpandable && (
+          <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
+            {props.expandable}
+          </div>
+        )}
+
+        <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
+          {props.leftActions}
+          <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
+            {props.preActions}
+            {resetButton}
+            {searchButton}
+            {viewOptionsNode}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

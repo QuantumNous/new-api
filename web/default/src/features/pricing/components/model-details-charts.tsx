@@ -28,7 +28,7 @@ function formatDayLabel(date: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Latency trend chart (24h, multi-group line chart)
+// Latency trend chart (24h, multi-group point-line chart)
 // ---------------------------------------------------------------------------
 
 export function LatencyTrendChart(props: {
@@ -52,14 +52,20 @@ export function LatencyTrendChart(props: {
       yField: 'ttft',
       seriesField: 'group',
       smooth: true,
-      point: { visible: false },
-      legends: { visible: true, orient: 'top', position: 'start' },
+      point: {
+        visible: true,
+        style: { size: 5, stroke: '#ffffff', lineWidth: 1.5 },
+      },
+      line: {
+        style: { lineWidth: 2 },
+      },
+      legends: { visible: false },
       tooltip: {
         mark: {
           title: { value: (d: { time: string }) => d.time },
           content: [
             {
-              key: (d: { group: string }) => d.group,
+              key: t('Average TTFT'),
               value: (d: { ttft: number }) => `${Math.round(d.ttft)} ms`,
             },
           ],
@@ -83,7 +89,7 @@ export function LatencyTrendChart(props: {
         },
       ],
     }
-  }, [props.series])
+  }, [props.series, t])
 
   if (props.series.length === 0) {
     return (
@@ -116,10 +122,10 @@ export function LatencyTrendChart(props: {
 }
 
 // ---------------------------------------------------------------------------
-// Uptime bar chart (30 days)
+// Uptime trend chart (24h, point-line chart)
 // ---------------------------------------------------------------------------
 
-export function UptimeBarChart(props: {
+export function UptimeTrendChart(props: {
   series: UptimeDayPoint[]
   className?: string
 }) {
@@ -137,18 +143,25 @@ export function UptimeBarChart(props: {
     }))
 
     return {
-      type: 'bar' as const,
+      type: 'line' as const,
       data: [{ id: 'uptime', values: data }],
       xField: 'date',
       yField: 'uptime',
-      bar: {
+      smooth: true,
+      line: {
+        style: { stroke: '#10b981', lineWidth: 2 },
+      },
+      point: {
+        visible: true,
         style: {
+          size: 5,
+          stroke: '#ffffff',
+          lineWidth: 1.5,
           fill: (datum: { uptime: number }) => {
             if (datum.uptime >= 99.9) return '#10b981'
             if (datum.uptime >= 99.0) return '#f59e0b'
             return '#ef4444'
           },
-          cornerRadius: 2,
         },
       },
       tooltip: {
@@ -210,7 +223,7 @@ export function UptimeBarChart(props: {
     <div className={cn('h-56 sm:h-64', props.className)}>
       {themeReady && spec && (
         <VChart
-          key={`uptime-${resolvedTheme}`}
+          key={`uptime-trend-${resolvedTheme}`}
           spec={{
             ...spec,
             theme: resolvedTheme === 'dark' ? 'dark' : 'light',

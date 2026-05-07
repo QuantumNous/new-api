@@ -3,6 +3,7 @@ package perfmetrics
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -15,13 +16,15 @@ import (
 
 var hotBuckets sync.Map
 
+// seriesSchema is a stable client cache/schema marker. Do not change it when
+// hiding fields or making response-only privacy hardening changes.
 const seriesSchema = "dbcd0a3c01b55203"
 
 func Init() {
 	go flushLoop()
 }
 
-func RecordRelaySample(info *relaycommon.RelayInfo, success bool) {
+func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens int64) {
 	if info == nil {
 		return
 	}
@@ -31,13 +34,23 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool) {
 	if hasTtft {
 		ttftMs = info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
 	}
+	latencyMs := now.Sub(info.StartTime).Milliseconds()
+	generationMs := latencyMs
+	if hasTtft {
+		generationMs = now.Sub(info.FirstResponseTime).Milliseconds()
+	}
+	if generationMs <= 0 {
+		generationMs = latencyMs
+	}
 	Record(Sample{
-		Model:     info.OriginModelName,
-		Group:     info.UsingGroup,
-		LatencyMs: now.Sub(info.StartTime).Milliseconds(),
-		TtftMs:    ttftMs,
-		HasTtft:   hasTtft,
-		Success:   success,
+		Model:        info.OriginModelName,
+		Group:        info.UsingGroup,
+		LatencyMs:    latencyMs,
+		TtftMs:       ttftMs,
+		HasTtft:      hasTtft,
+		Success:      success,
+		OutputTokens: outputTokens,
+		GenerationMs: generationMs,
 	})
 }
 
@@ -89,6 +102,8 @@ func Query(params QueryParams) (QueryResult, error) {
 			totalLatencyMs: row.TotalLatencyMs,
 			ttftSumMs:      row.TtftSumMs,
 			ttftCount:      row.TtftCount,
+			outputTokens:   row.OutputTokens,
+			generationMs:   row.GenerationMs,
 		})
 	}
 
@@ -105,6 +120,77 @@ func Query(params QueryParams) (QueryResult, error) {
 	})
 
 	return buildQueryResult(params.Model, merged), nil
+}
+
+func QuerySummaryAll(hours int) (SummaryAllResult, error) {
+	if hours <= 0 {
+		hours = 24
+	}
+	if hours > 24*30 {
+		hours = 24 * 30
+	}
+	endTs := time.Now().Unix()
+	startTs := endTs - int64(hours)*3600
+
+	rows, err := model.GetPerfMetricsSummaryAll(startTs, endTs)
+	if err != nil {
+		return SummaryAllResult{}, err
+	}
+
+	totals := map[string]counters{}
+	for _, row := range rows {
+		totals[row.ModelName] = counters{
+			requestCount:   row.RequestCount,
+			successCount:   row.SuccessCount,
+			totalLatencyMs: row.TotalLatencyMs,
+			outputTokens:   row.OutputTokens,
+			generationMs:   row.GenerationMs,
+		}
+	}
+
+	hotBuckets.Range(func(key, value any) bool {
+		k := key.(bucketKey)
+		if k.bucketTs < startTs || k.bucketTs > endTs {
+			return true
+		}
+		snap := value.(*atomicBucket).snapshot()
+		if snap.requestCount == 0 {
+			return true
+		}
+		cur := totals[k.model]
+		cur.requestCount += snap.requestCount
+		cur.successCount += snap.successCount
+		cur.totalLatencyMs += snap.totalLatencyMs
+		cur.outputTokens += snap.outputTokens
+		cur.generationMs += snap.generationMs
+		totals[k.model] = cur
+		return true
+	})
+
+	models := make([]ModelSummary, 0, len(totals))
+	for name, total := range totals {
+		if total.requestCount == 0 {
+			continue
+		}
+		avgLatency := total.totalLatencyMs / total.requestCount
+		successRate := float64(total.successCount) / float64(total.requestCount) * 100
+		avgTps := 0.0
+		if total.generationMs > 0 {
+			avgTps = float64(total.outputTokens) / (float64(total.generationMs) / 1000.0)
+		}
+		models = append(models, ModelSummary{
+			ModelName:    name,
+			AvgLatencyMs: avgLatency,
+			SuccessRate:  math.Round(successRate*100) / 100,
+			AvgTps:       math.Round(avgTps*100) / 100,
+			RequestCount: total.requestCount,
+		})
+	}
+	sort.Slice(models, func(i, j int) bool {
+		return models[i].ModelName < models[j].ModelName
+	})
+
+	return SummaryAllResult{Models: models}, nil
 }
 
 func bucketStart(ts int64) int64 {
@@ -125,6 +211,8 @@ func mergeCounters(merged map[bucketKey]counters, key bucketKey, value counters)
 	current.totalLatencyMs += value.totalLatencyMs
 	current.ttftSumMs += value.ttftSumMs
 	current.ttftCount += value.ttftCount
+	current.outputTokens += value.outputTokens
+	current.generationMs += value.generationMs
 	merged[key] = current
 }
 
@@ -166,6 +254,8 @@ func buildQueryResult(modelName string, merged map[bucketKey]counters) QueryResu
 			total.totalLatencyMs += value.totalLatencyMs
 			total.ttftSumMs += value.ttftSumMs
 			total.ttftCount += value.ttftCount
+			total.outputTokens += value.outputTokens
+			total.generationMs += value.generationMs
 			series = append(series, bucketPoint(ts, value))
 		}
 
@@ -174,9 +264,7 @@ func buildQueryResult(modelName string, merged map[bucketKey]counters) QueryResu
 			AvgTtftMs:    avg(total.ttftSumMs, total.ttftCount),
 			AvgLatencyMs: avg(total.totalLatencyMs, total.requestCount),
 			SuccessRate:  successRate(total),
-			RequestCount: total.requestCount,
-			SuccessCount: total.successCount,
-			TtftCount:    total.ttftCount,
+			AvgTps:       avgTps(total),
 			Series:       series,
 		})
 	}
@@ -194,9 +282,7 @@ func bucketPoint(ts int64, value counters) BucketPoint {
 		AvgTtftMs:    avg(value.ttftSumMs, value.ttftCount),
 		AvgLatencyMs: avg(value.totalLatencyMs, value.requestCount),
 		SuccessRate:  successRate(value),
-		Count:        value.requestCount,
-		SuccessCount: value.successCount,
-		TtftCount:    value.ttftCount,
+		AvgTps:       avgTps(value),
 	}
 }
 
@@ -212,6 +298,13 @@ func successRate(value counters) float64 {
 		return 0
 	}
 	return float64(value.successCount) / float64(value.requestCount) * 100
+}
+
+func avgTps(value counters) float64 {
+	if value.outputTokens <= 0 || value.generationMs <= 0 {
+		return 0
+	}
+	return float64(value.outputTokens) / (float64(value.generationMs) / 1000)
 }
 
 func recordRedis(key bucketKey, sample Sample) {
@@ -233,6 +326,10 @@ func recordRedis(key bucketKey, sample Sample) {
 	if sample.HasTtft && sample.TtftMs >= 0 {
 		pipe.HIncrBy(ctx, redisKey, "ttft", sample.TtftMs)
 		pipe.HIncrBy(ctx, redisKey, "ttft_n", 1)
+	}
+	if sample.OutputTokens > 0 && sample.GenerationMs > 0 {
+		pipe.HIncrBy(ctx, redisKey, "out", sample.OutputTokens)
+		pipe.HIncrBy(ctx, redisKey, "gen_ms", sample.GenerationMs)
 	}
 	pipe.Expire(ctx, redisKey, time.Hour)
 	_, _ = pipe.Exec(ctx)

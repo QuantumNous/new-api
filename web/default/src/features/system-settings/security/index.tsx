@@ -1,11 +1,11 @@
 import { SettingsPage } from '../components/settings-page'
-import type { RequestLimitsSettings } from '../types'
+import type { SecuritySettings } from '../types'
 import {
-  REQUEST_LIMITS_DEFAULT_SECTION,
-  getRequestLimitsSectionContent,
+  SECURITY_DEFAULT_SECTION,
+  getSecuritySectionContent,
 } from './section-registry.tsx'
 
-const defaultRequestLimitsSettings: RequestLimitsSettings = {
+const defaultSecuritySettings: SecuritySettings = {
   ModelRequestRateLimitEnabled: false,
   ModelRequestRateLimitCount: 0,
   ModelRequestRateLimitSuccessCount: 1000,
@@ -24,13 +24,13 @@ const defaultRequestLimitsSettings: RequestLimitsSettings = {
   'fetch_setting.apply_ip_filter_for_domain': false,
 }
 
-export function RequestLimitsSettings() {
+export function SecuritySettings() {
   return (
     <SettingsPage
-      routePath='/_authenticated/system-settings/request-limits/$section'
-      defaultSettings={defaultRequestLimitsSettings}
-      defaultSection={REQUEST_LIMITS_DEFAULT_SECTION}
-      getSectionContent={getRequestLimitsSectionContent}
+      routePath='/_authenticated/system-settings/security/$section'
+      defaultSettings={defaultSecuritySettings}
+      defaultSection={SECURITY_DEFAULT_SECTION}
+      getSectionContent={getSecuritySectionContent}
     />
   )
 }

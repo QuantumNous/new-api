@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -89,18 +90,26 @@ export function PresetSelector(props: PresetSelectorProps) {
         <div className='space-y-1.5'>
           <Label>{t('Preset Template')}</Label>
           <Select
+            items={[
+              ...OAUTH_PRESETS.map((preset) => ({
+                value: preset.key,
+                label: preset.name,
+              })),
+            ]}
             value={selectedPreset}
             onValueChange={(v) => v !== null && handlePresetChange(v)}
           >
             <SelectTrigger className='w-full'>
               <SelectValue placeholder={t('Select a preset...')} />
             </SelectTrigger>
-            <SelectContent>
-              {OAUTH_PRESETS.map((preset) => (
-                <SelectItem key={preset.key} value={preset.key}>
-                  {preset.name}
-                </SelectItem>
-              ))}
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {OAUTH_PRESETS.map((preset) => (
+                  <SelectItem key={preset.key} value={preset.key}>
+                    {preset.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>

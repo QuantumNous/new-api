@@ -1,5 +1,3 @@
-export * from './apps-section'
-export * from './category-section'
 export * from './entity-links'
 export * from './growth-text'
 export * from './market-share-section'

@@ -36,6 +36,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -550,6 +551,12 @@ export function UpstreamConflictDialog({
                           {t('Rows per page')}
                         </span>
                         <Select
+                          items={[
+                            ...[5, 10, 20, 50].map((size) => ({
+                              value: String(size),
+                              label: size,
+                            })),
+                          ]}
                           value={String(pageSize)}
                           onValueChange={(value) => {
                             setPageSize(Number(value))
@@ -559,12 +566,14 @@ export function UpstreamConflictDialog({
                           <SelectTrigger className='h-8 w-[70px] text-xs sm:h-8 sm:w-[72px]'>
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
-                            {[5, 10, 20, 50].map((size) => (
-                              <SelectItem key={size} value={String(size)}>
-                                {size}
-                              </SelectItem>
-                            ))}
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              {[5, 10, 20, 50].map((size) => (
+                                <SelectItem key={size} value={String(size)}>
+                                  {size}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                       </div>

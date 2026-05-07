@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -162,23 +163,34 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('Display Mode')}</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    items={[
+                      { value: 'USD', label: t('USD') },
+                      { value: 'CNY', label: t('CNY') },
+                      { value: 'CUSTOM', label: t('Custom Currency') },
+                      { value: 'TOKENS', label: t('Tokens Only') },
+                    ]}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder={t('Select display mode')} />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value='USD'>{t('USD')}</SelectItem>
-                      <SelectItem value='CNY'>{t('CNY')}</SelectItem>
-                      <SelectItem value='CUSTOM'>
-                        {t('Custom Currency')}
-                      </SelectItem>
-                      {showTokensOnlyOption && (
-                        <SelectItem value='TOKENS'>
-                          {t('Tokens Only')}
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='USD'>{t('USD')}</SelectItem>
+                        <SelectItem value='CNY'>{t('CNY')}</SelectItem>
+                        <SelectItem value='CUSTOM'>
+                          {t('Custom Currency')}
                         </SelectItem>
-                      )}
+                        {showTokensOnlyOption && (
+                          <SelectItem value='TOKENS'>
+                            {t('Tokens Only')}
+                          </SelectItem>
+                        )}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <FormDescription>

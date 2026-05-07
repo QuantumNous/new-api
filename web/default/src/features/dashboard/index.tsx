@@ -6,18 +6,10 @@ import { ROLE } from '@/lib/roles'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
-import {
-  CardStaggerContainer,
-  CardStaggerItem,
-  FadeIn,
-} from '@/components/page-transition'
+import { FadeIn } from '@/components/page-transition'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
-import { AnnouncementsPanel } from './components/overview/announcements-panel'
-import { ApiInfoPanel } from './components/overview/api-info-panel'
-import { FAQPanel } from './components/overview/faq-panel'
-import { SummaryCards } from './components/overview/summary-cards'
-import { UptimePanel } from './components/overview/uptime-panel'
+import { OverviewDashboard } from './components/overview/overview-dashboard'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
@@ -215,25 +207,7 @@ export function Dashboard() {
               )}
             </div>
           )}
-          {activeSection === 'overview' && (
-            <>
-              <SummaryCards />
-              <CardStaggerContainer className='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2'>
-                <CardStaggerItem>
-                  <ApiInfoPanel />
-                </CardStaggerItem>
-                <CardStaggerItem>
-                  <AnnouncementsPanel />
-                </CardStaggerItem>
-                <CardStaggerItem>
-                  <FAQPanel />
-                </CardStaggerItem>
-                <CardStaggerItem>
-                  <UptimePanel />
-                </CardStaggerItem>
-              </CardStaggerContainer>
-            </>
-          )}
+          {activeSection === 'overview' && <OverviewDashboard />}
           {activeSection === 'models' && (
             <>
               <FadeIn>

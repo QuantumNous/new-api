@@ -16,7 +16,7 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
   all: 'Token share by model author since launch',
 }
 
-/** Stable colour palette for vendors, used in both the area chart and the
+/** Stable colour palette for vendors, used in both the share chart and the
  * legend dots. Falls back to a neutral palette for unknown vendors so that
  * future additions still render. */
 const VENDOR_COLOURS: Record<string, string> = {
@@ -77,7 +77,7 @@ type MarketShareSectionProps = {
 }
 
 /**
- * Combined "Market Share" card: a 100%-stacked area chart showing each
+ * Combined "Market Share" card: a 100%-stacked bar chart showing each
  * vendor's slice of total token volume, paired below with a two-column
  * vendor list.
  */
@@ -104,18 +104,15 @@ export function MarketShareSection(props: MarketShareSectionProps) {
   const spec = useMemo(() => {
     if (orderedPoints.length === 0) return null
     return {
-      type: 'area' as const,
+      type: 'bar' as const,
       data: [{ id: 'vendor-share', values: orderedPoints }],
       xField: 'label',
       yField: 'share',
       seriesField: 'vendor',
       stack: true,
+      paddingInner: 0.12,
       legends: { visible: false },
-      area: {
-        style: { fillOpacity: 0.85, curveType: 'monotone' },
-      },
-      line: { style: { lineWidth: 0, curveType: 'monotone' } },
-      point: { visible: false },
+      bar: { style: { cornerRadius: 1 } },
       color: { specified: colourMap },
       axes: [
         {

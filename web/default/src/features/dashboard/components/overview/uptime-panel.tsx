@@ -81,10 +81,12 @@ export function UptimePanel() {
           {t('Uptime')}
         </span>
       }
+      description={t('Grouped monitor status from Uptime Kuma')}
       loading={loading}
       empty={!groups.length}
       emptyMessage={t('No uptime monitoring configured')}
-      height='h-64 sm:h-80'
+      height='h-80'
+      contentClassName='p-0'
       headerActions={
         <Button
           variant='ghost'
@@ -100,8 +102,8 @@ export function UptimePanel() {
         </Button>
       }
     >
-      <ScrollArea className='h-64 sm:h-80'>
-        <div className='-mx-3 space-y-0 sm:-mx-5'>
+      <ScrollArea className='h-80'>
+        <div>
           {groups.map((group, groupIdx) => (
             <div key={group.categoryName}>
               <div className='bg-muted/30 border-border/60 border-b px-3 py-2 sm:px-5'>

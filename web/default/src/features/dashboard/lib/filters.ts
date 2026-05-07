@@ -1,5 +1,4 @@
-import type { TimeGranularity } from '@/lib/time'
-import { getRollingDateRange } from '@/lib/time'
+import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import {
   DASHBOARD_CHART_PREFERENCES_STORAGE_KEY,
   DEFAULT_DASHBOARD_CHART_PREFERENCES,

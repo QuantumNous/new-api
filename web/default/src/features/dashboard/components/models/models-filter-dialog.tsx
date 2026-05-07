@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Filter, RotateCcw, Calendar, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
@@ -20,6 +20,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -72,10 +73,15 @@ export function ModelsFilter(props: ModelsFilterProps) {
     () => props.preferences.defaultTimeRangeDays
   )
 
-  useEffect(() => {
+  const resetFiltersFromPreferences = () => {
     setFilters(buildDefaultDashboardFilters(props.preferences))
     setSelectedRange(props.preferences.defaultTimeRangeDays)
-  }, [props.preferences])
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) resetFiltersFromPreferences()
+    setOpen(nextOpen)
+  }
 
   const handleApply = () => {
     props.onFilterChange(
@@ -120,7 +126,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button variant='outline' size='sm' />}>
         <Filter className='mr-2 h-4 w-4' />
         {t('Filter')}
@@ -197,6 +203,12 @@ export function ModelsFilter(props: ModelsFilterProps) {
             <div className='grid gap-2'>
               <Label htmlFor='time_granularity'>{t('Time Granularity')}</Label>
               <Select
+                items={[
+                  ...TIME_GRANULARITY_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: t(option.label),
+                  })),
+                ]}
                 value={filters.time_granularity}
                 onValueChange={(value) =>
                   handleChange('time_granularity', value as TimeGranularity)
@@ -205,12 +217,14 @@ export function ModelsFilter(props: ModelsFilterProps) {
                 <SelectTrigger>
                   <SelectValue placeholder={t('Select time granularity')} />
                 </SelectTrigger>
-                <SelectContent>
-                  {TIME_GRANULARITY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {t(option.label)}
-                    </SelectItem>
-                  ))}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {TIME_GRANULARITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(option.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>

@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -431,21 +432,29 @@ export function ChannelTestDialog({
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
               <Select
+                items={[
+                  ...endpointTypeOptions.map((option) => {
+                    const itemValue = option.value
+                    return { value: itemValue, label: t(option.label) }
+                  }),
+                ]}
                 value={endpointType}
                 onValueChange={(v) => v !== null && setEndpointType(v)}
               >
                 <SelectTrigger id='endpoint-type'>
                   <SelectValue placeholder={t('Auto detect (default)')} />
                 </SelectTrigger>
-                <SelectContent>
-                  {endpointTypeOptions.map((option) => {
-                    const itemValue = option.value
-                    return (
-                      <SelectItem key={itemValue} value={itemValue}>
-                        {t(option.label)}
-                      </SelectItem>
-                    )
-                  })}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {endpointTypeOptions.map((option) => {
+                      const itemValue = option.value
+                      return (
+                        <SelectItem key={itemValue} value={itemValue}>
+                          {t(option.label)}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <p className='text-muted-foreground text-xs'>

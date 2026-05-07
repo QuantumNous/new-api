@@ -14,6 +14,8 @@ import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
+import { ModelPerfBadge } from './model-perf-badge'
+import type { ModelPerfBadgeData } from './model-perf-badge'
 
 export interface ModelCardProps {
   model: PricingModel
@@ -22,6 +24,7 @@ export interface ModelCardProps {
   usdExchangeRate?: number
   tokenUnit?: TokenUnit
   showRechargePrice?: boolean
+  perf?: ModelPerfBadgeData
 }
 
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
@@ -69,7 +72,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   return (
     <div
       className={cn(
-        'group flex flex-col rounded-xl border p-3 transition-colors sm:p-5',
+        'group relative flex flex-col rounded-xl border p-3 transition-colors sm:p-5',
         'hover:bg-muted/20'
       )}
     >
@@ -206,41 +209,43 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         {props.model.description || t('No description available.')}
       </p>
 
-      {/* Footer row 1: group + billing type */}
-      <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 sm:mt-4'>
-        {primaryGroup && (
+      {/* Footer: left metadata and right performance summary share row alignment */}
+      <div className='mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1 sm:mt-4'>
+        <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
+          {primaryGroup && (
+            <span className='text-muted-foreground text-xs font-medium'>
+              {primaryGroup} {t('Groups')}
+            </span>
+          )}
           <span className='text-muted-foreground text-xs font-medium'>
-            {primaryGroup} {t('Groups')}
+            {isTokenBased ? t('Token-based') : t('Per Request')}
           </span>
-        )}
-        <span className='text-muted-foreground text-xs font-medium'>
-          {isTokenBased ? t('Token-based') : t('Per Request')}
-        </span>
-        {isDynamicPricing && (
-          <StatusBadge
-            label={t('Dynamic Pricing')}
-            variant='warning'
-            copyable={false}
-            size='sm'
-          />
-        )}
-      </div>
+          {isDynamicPricing && (
+            <StatusBadge
+              label={t('Dynamic Pricing')}
+              variant='warning'
+              copyable={false}
+              size='sm'
+            />
+          )}
+        </div>
+        <ModelPerfBadge perf={props.perf} className='row-span-2 self-start' />
 
-      {/* Footer row 2: endpoint + tag chips */}
-      <div className='mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 sm:mt-2 sm:gap-x-3 sm:gap-y-1'>
-        {bottomTags.map((item) => (
-          <span key={item} className='text-muted-foreground/70 text-xs'>
-            {item}
+        <div className='flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 sm:gap-x-3 sm:gap-y-1'>
+          {bottomTags.map((item) => (
+            <span key={item} className='text-muted-foreground/70 text-xs'>
+              {item}
+            </span>
+          ))}
+          <span className='text-muted-foreground/50 text-xs'>
+            {tokenUnitLabel}
           </span>
-        ))}
-        <span className='text-muted-foreground/50 text-xs'>
-          {tokenUnitLabel}
-        </span>
-        {hiddenCount > 0 && (
-          <span className='text-muted-foreground/40 text-xs'>
-            +{hiddenCount}
-          </span>
-        )}
+          {hiddenCount > 0 && (
+            <span className='text-muted-foreground/40 text-xs'>
+              +{hiddenCount}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

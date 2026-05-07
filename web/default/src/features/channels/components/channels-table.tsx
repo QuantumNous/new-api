@@ -5,6 +5,7 @@ import {
   getCoreRowModel,
   useReactTable,
   getExpandedRowModel,
+  type OnChangeFn,
   type SortingState,
   type VisibilityState,
   type ExpandedState,
@@ -33,12 +34,21 @@ import {
   getChannelTypeIcon,
   getChannelTypeLabel,
 } from '../lib'
-import type { Channel } from '../types'
+import type { Channel, ChannelSortBy } from '../types'
 import { useChannelsColumns } from './channels-columns'
 import { useChannels } from './channels-provider'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 
 const route = getRouteApi('/_authenticated/channels/')
+
+const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
+  'id',
+  'name',
+  'priority',
+  'balance',
+  'response_time',
+  'test_time',
+])
 
 function isDisabledChannelRow(channel: Channel) {
   return (
@@ -121,6 +131,31 @@ export function ChannelsTable() {
   // Determine whether to use search or regular list API
   const shouldSearch = Boolean(globalFilter?.trim() || modelFilter.trim())
 
+  const sortParams = useMemo(() => {
+    const activeSort = sorting[0]
+    if (
+      !activeSort ||
+      !CHANNEL_SORTABLE_COLUMNS.has(activeSort.id as ChannelSortBy)
+    ) {
+      return {}
+    }
+
+    return {
+      sort_by: activeSort.id as ChannelSortBy,
+      sort_order: activeSort.desc ? 'desc' : 'asc',
+    } as const
+  }, [sorting])
+
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting((previous) => {
+      const next = typeof updater === 'function' ? updater(previous) : updater
+      if (pagination.pageIndex > 0) {
+        onPaginationChange({ ...pagination, pageIndex: 0 })
+      }
+      return next
+    })
+  }
+
   // Fetch groups for filter
   const { data: groupsData } = useQuery({
     queryKey: ['groups'],
@@ -156,6 +191,7 @@ export function ChannelsTable() {
           : undefined,
       tag_mode: enableTagMode,
       id_sort: idSort,
+      ...sortParams,
       p: pagination.pageIndex + 1,
       page_size: pagination.pageSize,
     }),
@@ -178,6 +214,7 @@ export function ChannelsTable() {
               : undefined,
           tag_mode: enableTagMode,
           id_sort: idSort,
+          ...sortParams,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
@@ -197,6 +234,7 @@ export function ChannelsTable() {
               : undefined,
           tag_mode: enableTagMode,
           id_sort: idSort,
+          ...sortParams,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
@@ -238,7 +276,7 @@ export function ChannelsTable() {
     },
     enableRowSelection: (row: Row<Channel>) => !isTagAggregateRow(row.original),
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onColumnFiltersChange,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange,

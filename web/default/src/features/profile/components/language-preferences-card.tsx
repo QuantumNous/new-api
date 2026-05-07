@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -112,6 +113,12 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
         </div>
         <div className='flex items-center gap-2 sm:min-w-48'>
           <Select
+            items={[
+              ...LANGUAGE_OPTIONS.map((language) => ({
+                value: language.value,
+                label: language.label,
+              })),
+            ]}
             value={currentLanguage}
             onValueChange={handleLanguageChange}
             disabled={saving}
@@ -119,12 +126,14 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
             <SelectTrigger className='w-full sm:w-48'>
               <SelectValue placeholder={t('Select language')} />
             </SelectTrigger>
-            <SelectContent>
-              {LANGUAGE_OPTIONS.map((language) => (
-                <SelectItem key={language.value} value={language.value}>
-                  {language.label}
-                </SelectItem>
-              ))}
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {LANGUAGE_OPTIONS.map((language) => (
+                  <SelectItem key={language.value} value={language.value}>
+                    {language.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
           {saving && (

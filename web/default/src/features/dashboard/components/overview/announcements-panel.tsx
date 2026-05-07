@@ -44,13 +44,15 @@ export function AnnouncementsPanel() {
           {t('Announcements')}
         </span>
       }
+      description={t('Latest platform updates and notices')}
       loading={loading}
       empty={!list.length}
       emptyMessage={t('No announcements at this time')}
-      height='h-56 sm:h-64'
+      height='h-72'
+      contentClassName='p-0'
     >
-      <ScrollArea className='h-56 sm:h-64'>
-        <div className='-mx-3 sm:-mx-5'>
+      <ScrollArea className='h-72'>
+        <div>
           {list.map((item: AnnouncementItem, idx: number) => {
             const key = item.id ?? `announcement-${idx}`
             return (
@@ -65,7 +67,7 @@ export function AnnouncementsPanel() {
               >
                 <div className='flex items-start gap-2.5'>
                   <AnnouncementStatusDot type={item.type} />
-                  <div className='min-w-0 flex-1 space-y-1'>
+                  <div className='flex min-w-0 flex-1 flex-col gap-1'>
                     <p className='line-clamp-1 text-sm font-medium'>
                       {getPreviewText(item.content)}
                     </p>

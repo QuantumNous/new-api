@@ -27,7 +27,7 @@ export type DeleteLogsResponse = {
   data?: number
 }
 
-export type GeneralSettings = {
+export type SiteSettings = {
   'theme.frontend': string
   Notice: string
   SystemName: string
@@ -38,32 +38,8 @@ export type GeneralSettings = {
   ServerAddress: string
   'legal.user_agreement': string
   'legal.privacy_policy': string
-  QuotaForNewUser: number
-  PreConsumedQuota: number
-  QuotaForInviter: number
-  QuotaForInvitee: number
-  TopUpLink: string
-  'general_setting.docs_link': string
-  'quota_setting.enable_free_model_pre_consume': boolean
-  QuotaPerUnit: number
-  USDExchangeRate: number
-  'general_setting.quota_display_type': string
-  'general_setting.custom_currency_symbol': string
-  'general_setting.custom_currency_exchange_rate': number
-  RetryTimes: number
-  DisplayInCurrencyEnabled: boolean
-  DisplayTokenStatEnabled: boolean
-  DefaultCollapseSidebar: boolean
-  DemoSiteEnabled: boolean
-  SelfUseModeEnabled: boolean
-  'checkin_setting.enabled': boolean
-  'checkin_setting.min_quota': number
-  'checkin_setting.max_quota': number
-  'channel_affinity_setting.enabled': boolean
-  'channel_affinity_setting.switch_on_success': boolean
-  'channel_affinity_setting.max_entries': number
-  'channel_affinity_setting.default_ttl_seconds': number
-  'channel_affinity_setting.rules': string
+  HeaderNavModules: string
+  SidebarModulesAdmin: string
 }
 
 export type AuthSettings = {
@@ -131,28 +107,87 @@ export type ContentSettings = {
   MjActionCheckSuccessEnabled: boolean
 }
 
-export type IntegrationSettings = {
-  SMTPServer: string
-  SMTPPort: string
-  SMTPAccount: string
-  SMTPFrom: string
-  SMTPToken: string
-  SMTPSSLEnabled: boolean
-  SMTPForceAuthLogin: boolean
-  WorkerUrl: string
-  WorkerValidKey: string
-  WorkerAllowHttpImageRequestEnabled: boolean
-  ChannelDisableThreshold: string
-  QuotaRemindThreshold: string
-  AutomaticDisableChannelEnabled: boolean
-  AutomaticEnableChannelEnabled: boolean
-  AutomaticDisableKeywords: string
-  AutomaticDisableStatusCodes: string
-  AutomaticRetryStatusCodes: string
-  'monitor_setting.auto_test_channel_enabled': boolean
-  'monitor_setting.auto_test_channel_minutes': number
+export type ModelSettings = {
+  'global.pass_through_request_enabled': boolean
+  'global.thinking_model_blacklist': string
+  'global.chat_completions_to_responses_policy': string
+  'general_setting.ping_interval_enabled': boolean
+  'general_setting.ping_interval_seconds': number
+  'gemini.safety_settings': string
+  'gemini.version_settings': string
+  'gemini.supported_imagine_models': string
+  'gemini.thinking_adapter_enabled': boolean
+  'gemini.thinking_adapter_budget_tokens_percentage': number
+  'gemini.function_call_thought_signature_enabled': boolean
+  'gemini.remove_function_response_id_enabled': boolean
+  'claude.model_headers_settings': string
+  'claude.default_max_tokens': string
+  'claude.thinking_adapter_enabled': boolean
+  'claude.thinking_adapter_budget_tokens_percentage': number
+  'grok.violation_deduction_enabled': boolean
+  'grok.violation_deduction_amount': number
+  ModelPrice: string
+  ModelRatio: string
+  CacheRatio: string
+  CreateCacheRatio: string
+  CompletionRatio: string
+  ImageRatio: string
+  AudioRatio: string
+  AudioCompletionRatio: string
+  ExposeRatioEnabled: boolean
+  'billing_setting.billing_mode': string
+  'billing_setting.billing_expr': string
+  'tool_price_setting.prices': string
+  TopupGroupRatio: string
+  GroupRatio: string
+  UserUsableGroups: string
+  GroupGroupRatio: string
+  AutoGroups: string
+  DefaultUseAutoGroup: boolean
+  'group_ratio_setting.group_special_usable_group': string
+  'channel_affinity_setting.enabled': boolean
+  'channel_affinity_setting.switch_on_success': boolean
+  'channel_affinity_setting.max_entries': number
+  'channel_affinity_setting.default_ttl_seconds': number
+  'channel_affinity_setting.rules': string
   'model_deployment.ionet.api_key': string
   'model_deployment.ionet.enabled': boolean
+}
+
+export type BillingSettings = {
+  QuotaForNewUser: number
+  PreConsumedQuota: number
+  QuotaForInviter: number
+  QuotaForInvitee: number
+  TopUpLink: string
+  'general_setting.docs_link': string
+  'quota_setting.enable_free_model_pre_consume': boolean
+  QuotaPerUnit: number
+  USDExchangeRate: number
+  'general_setting.quota_display_type': string
+  'general_setting.custom_currency_symbol': string
+  'general_setting.custom_currency_exchange_rate': number
+  DisplayInCurrencyEnabled: boolean
+  DisplayTokenStatEnabled: boolean
+  ModelPrice: string
+  ModelRatio: string
+  CacheRatio: string
+  CreateCacheRatio: string
+  CompletionRatio: string
+  ImageRatio: string
+  AudioRatio: string
+  AudioCompletionRatio: string
+  ExposeRatioEnabled: boolean
+  'billing_setting.billing_mode': string
+  'billing_setting.billing_expr': string
+  'tool_price_setting.prices': string
+  TopupGroupRatio: string
+  GroupRatio: string
+  UserUsableGroups: string
+  GroupGroupRatio: string
+  AutoGroups: string
+  DefaultUseAutoGroup: boolean
+  'group_ratio_setting.group_special_usable_group': string
   PayAddress: string
   EpayId: string
   EpayKey: string
@@ -199,53 +234,36 @@ export type IntegrationSettings = {
   WaffoPancakeCurrency: string
   WaffoPancakeUnitPrice: number
   WaffoPancakeMinTopUp: number
+  'checkin_setting.enabled': boolean
+  'checkin_setting.min_quota': number
+  'checkin_setting.max_quota': number
 }
 
-export type ModelSettings = {
-  'global.pass_through_request_enabled': boolean
-  'global.thinking_model_blacklist': string
-  'global.chat_completions_to_responses_policy': string
-  'general_setting.ping_interval_enabled': boolean
-  'general_setting.ping_interval_seconds': number
-  'gemini.safety_settings': string
-  'gemini.version_settings': string
-  'gemini.supported_imagine_models': string
-  'gemini.thinking_adapter_enabled': boolean
-  'gemini.thinking_adapter_budget_tokens_percentage': number
-  'gemini.function_call_thought_signature_enabled': boolean
-  'gemini.remove_function_response_id_enabled': boolean
-  'claude.model_headers_settings': string
-  'claude.default_max_tokens': string
-  'claude.thinking_adapter_enabled': boolean
-  'claude.thinking_adapter_budget_tokens_percentage': number
-  'grok.violation_deduction_enabled': boolean
-  'grok.violation_deduction_amount': number
-  ModelPrice: string
-  ModelRatio: string
-  CacheRatio: string
-  CreateCacheRatio: string
-  CompletionRatio: string
-  ImageRatio: string
-  AudioRatio: string
-  AudioCompletionRatio: string
-  ExposeRatioEnabled: boolean
-  'billing_setting.billing_mode': string
-  'billing_setting.billing_expr': string
-  'tool_price_setting.prices': string
-  TopupGroupRatio: string
-  GroupRatio: string
-  UserUsableGroups: string
-  GroupGroupRatio: string
-  AutoGroups: string
-  DefaultUseAutoGroup: boolean
-  'group_ratio_setting.group_special_usable_group': string
-}
-
-export type MaintenanceSettings = {
-  Notice: string
+export type OperationsSettings = {
+  RetryTimes: number
+  DefaultCollapseSidebar: boolean
+  DemoSiteEnabled: boolean
+  SelfUseModeEnabled: boolean
+  ChannelDisableThreshold: string
+  QuotaRemindThreshold: string
+  AutomaticDisableChannelEnabled: boolean
+  AutomaticEnableChannelEnabled: boolean
+  AutomaticDisableKeywords: string
+  AutomaticDisableStatusCodes: string
+  AutomaticRetryStatusCodes: string
+  'monitor_setting.auto_test_channel_enabled': boolean
+  'monitor_setting.auto_test_channel_minutes': number
+  SMTPServer: string
+  SMTPPort: string
+  SMTPAccount: string
+  SMTPFrom: string
+  SMTPToken: string
+  SMTPSSLEnabled: boolean
+  SMTPForceAuthLogin: boolean
+  WorkerUrl: string
+  WorkerValidKey: string
+  WorkerAllowHttpImageRequestEnabled: boolean
   LogConsumeEnabled: boolean
-  HeaderNavModules: string
-  SidebarModulesAdmin: string
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
   'performance_setting.disk_cache_max_size_mb': number
@@ -260,7 +278,7 @@ export type MaintenanceSettings = {
   'perf_metrics_setting.retention_days': number
 }
 
-export type RequestLimitsSettings = {
+export type SecuritySettings = {
   ModelRequestRateLimitEnabled: boolean
   ModelRequestRateLimitCount: number
   ModelRequestRateLimitSuccessCount: number

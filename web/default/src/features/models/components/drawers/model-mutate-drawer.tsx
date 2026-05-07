@@ -27,6 +27,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -168,6 +169,13 @@ export function ModelMutateDrawer({
       'group_ratio_setting.group_special_usable_group': '{}',
       'grok.violation_deduction_enabled': false,
       'grok.violation_deduction_amount': 0,
+      'channel_affinity_setting.enabled': false,
+      'channel_affinity_setting.switch_on_success': true,
+      'channel_affinity_setting.max_entries': 100000,
+      'channel_affinity_setting.default_ttl_seconds': 3600,
+      'channel_affinity_setting.rules': '[]',
+      'model_deployment.ionet.api_key': '',
+      'model_deployment.ionet.enabled': false,
     }
     return getOptionValue(systemOptionsData.data, defaultModelSettings)
   }, [systemOptionsData])
@@ -694,6 +702,12 @@ export function ModelMutateDrawer({
                   <FormItem>
                     <FormLabel>{t('Vendor')}</FormLabel>
                     <Select
+                      items={[
+                        ...vendors.map((vendor) => ({
+                          value: String(vendor.id),
+                          label: vendor.name,
+                        })),
+                      ]}
                       onValueChange={(value) =>
                         field.onChange(value ? parseInt(value) : undefined)
                       }
@@ -704,12 +718,17 @@ export function ModelMutateDrawer({
                           <SelectValue placeholder={t('Select vendor')} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {vendors.map((vendor) => (
-                          <SelectItem key={vendor.id} value={String(vendor.id)}>
-                            {vendor.name}
-                          </SelectItem>
-                        ))}
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {vendors.map((vendor) => (
+                            <SelectItem
+                              key={vendor.id}
+                              value={String(vendor.id)}
+                            >
+                              {vendor.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -794,6 +813,12 @@ export function ModelMutateDrawer({
               <div className='flex items-center justify-between'>
                 <h3 className='text-sm font-semibold'>{t('Endpoints')}</h3>
                 <Select<string>
+                  items={[
+                    ...Object.keys(ENDPOINT_TEMPLATES).map((key) => ({
+                      value: key,
+                      label: key,
+                    })),
+                  ]}
                   onValueChange={(v) =>
                     v !== null && handleFillEndpointTemplate(v)
                   }
@@ -801,12 +826,14 @@ export function ModelMutateDrawer({
                   <SelectTrigger size='sm' className='w-[200px]'>
                     <SelectValue placeholder={t('Load template...')} />
                   </SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(ENDPOINT_TEMPLATES).map((key) => (
-                      <SelectItem key={key} value={key}>
-                        {key}
-                      </SelectItem>
-                    ))}
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {Object.keys(ENDPOINT_TEMPLATES).map((key) => (
+                        <SelectItem key={key} value={key}>
+                          {key}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>

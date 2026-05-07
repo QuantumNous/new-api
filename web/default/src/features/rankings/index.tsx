@@ -1,10 +1,9 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 import {
-  AppsSection,
-  CategorySections,
   MarketShareSection,
   ModelsSection,
   PulseSection,
@@ -26,7 +25,8 @@ export function Rankings() {
     ? (search.period as RankingPeriod)
     : 'week'
 
-  const snapshot = useRankings(period)
+  const rankingsQuery = useRankings(period)
+  const snapshot = rankingsQuery.data?.data
 
   const handlePeriodChange = (next: RankingPeriod) => {
     navigate({
@@ -56,37 +56,62 @@ export function Rankings() {
         <PageTransition className='relative mx-auto w-full max-w-[1280px] space-y-8 px-3 pt-16 pb-10 sm:px-6 sm:pt-20 sm:pb-12 xl:px-8'>
           <RankingsHero period={period} onPeriodChange={handlePeriodChange} />
 
-          {/* Overall (all-categories) view ----------------------------- */}
-          <ModelsSection
-            history={snapshot.models_history}
-            rows={snapshot.models}
-            period={period}
-          />
+          {rankingsQuery.isLoading ? (
+            <RankingsLoading />
+          ) : !snapshot ? (
+            <RankingsError
+              message={
+                rankingsQuery.error instanceof Error
+                  ? rankingsQuery.error.message
+                  : t('Unable to load rankings data')
+              }
+            />
+          ) : (
+            <>
+              <ModelsSection
+                history={snapshot.models_history}
+                rows={snapshot.models}
+                period={period}
+              />
 
-          <MarketShareSection
-            history={snapshot.vendor_share_history}
-            rows={snapshot.vendors}
-            period={period}
-          />
+              <MarketShareSection
+                history={snapshot.vendor_share_history}
+                rows={snapshot.vendors}
+                period={period}
+              />
 
-          <AppsSection rows={snapshot.apps} />
-
-          <PulseSection
-            movers={snapshot.top_movers}
-            droppers={snapshot.top_droppers}
-            newModels={snapshot.new_models}
-          />
-
-          {/* Per-category drill-downs --------------------------------- */}
-          <CategorySections sections={snapshot.category_sections} />
-
-          <p className='text-muted-foreground/60 mx-auto max-w-3xl text-center text-[11px] leading-relaxed'>
-            {t(
-              'Ranking data is currently simulated for preview purposes and will be replaced with live analytics once the backend integration ships.'
-            )}
-          </p>
+              <PulseSection
+                movers={snapshot.top_movers}
+                droppers={snapshot.top_droppers}
+              />
+            </>
+          )}
         </PageTransition>
       </div>
     </PublicLayout>
+  )
+}
+
+function RankingsLoading() {
+  return (
+    <div className='space-y-6'>
+      <Skeleton className='h-[420px] w-full rounded-xl' />
+      <Skeleton className='h-[360px] w-full rounded-xl' />
+      <Skeleton className='h-[180px] w-full rounded-xl' />
+    </div>
+  )
+}
+
+function RankingsError(props: { message: string }) {
+  const { t } = useTranslation()
+  return (
+    <div className='bg-card rounded-xl border border-dashed px-6 py-12 text-center'>
+      <h2 className='text-foreground text-base font-semibold'>
+        {t('Unable to load rankings')}
+      </h2>
+      <p className='text-muted-foreground mx-auto mt-2 max-w-md text-sm'>
+        {props.message}
+      </p>
+    </div>
   )
 }

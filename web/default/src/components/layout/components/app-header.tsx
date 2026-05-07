@@ -1,5 +1,4 @@
 import { useNotifications } from '@/hooks/use-notifications'
-import { useSidebarData } from '@/hooks/use-sidebar-data'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { LanguageSwitcher } from '@/components/language-switcher'
@@ -10,8 +9,8 @@ import { Search } from '@/components/search'
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import { type TopNavLink } from '../types'
 import { Header } from './header'
+import { SystemBrand } from './system-brand'
 import { TopNav } from './top-nav'
-import { WorkspaceSwitcher } from './workspace-switcher'
 
 /**
  * General application Header component
@@ -89,7 +88,6 @@ export function AppHeader({
   // Prioritize dynamically generated links from backend
   const dynamicLinks = useTopNavLinks()
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
-  const sidebarData = useSidebarData()
 
   // Notifications hook
   const notifications = useNotifications()
@@ -97,10 +95,7 @@ export function AppHeader({
   return (
     <>
       <Header>
-        <WorkspaceSwitcher
-          variant='inline'
-          workspaces={sidebarData.workspaces}
-        />
+        <SystemBrand variant='inline' />
 
         {leftContent ? (
           <div className='ms-2 flex items-center'>{leftContent}</div>

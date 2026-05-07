@@ -17,9 +17,7 @@ type RankingsHeroProps = {
 
 /**
  * Hero strip for the rankings page. Intentionally minimal — title +
- * subtitle + period tabs only. Category filtering is no longer needed
- * because every category is rendered inline as its own section further
- * down the page.
+ * subtitle + period tabs only.
  */
 export function RankingsHero(props: RankingsHeroProps) {
   const { t } = useTranslation()
@@ -35,7 +33,7 @@ export function RankingsHero(props: RankingsHeroProps) {
         </h1>
         <p className='text-muted-foreground/80 max-w-2xl text-sm'>
           {t(
-            'Discover the most-used models, top apps, and rising vendors on the platform — updated continuously across every category.'
+            'Discover the most-used models and rising vendors on the platform, updated from live usage data.'
           )}
         </p>
       </div>

@@ -14,6 +14,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -257,18 +258,26 @@ export function MultiKeyManageDialog({
             {/* Toolbar */}
             <div className='flex shrink-0 items-center justify-between'>
               <Select
+                items={[
+                  ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: t(option.label),
+                  })),
+                ]}
                 value={statusFilter === null ? 'all' : statusFilter.toString()}
                 onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
               >
                 <SelectTrigger className='w-40'>
                   <SelectValue placeholder={t('All Status')} />
                 </SelectTrigger>
-                <SelectContent>
-                  {MULTI_KEY_FILTER_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {t(option.label)}
-                    </SelectItem>
-                  ))}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {MULTI_KEY_FILTER_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(option.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
 

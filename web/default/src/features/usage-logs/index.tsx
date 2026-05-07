@@ -6,7 +6,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
-import { CommonLogsHeaderActions } from './components/common-logs-header-actions'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
   UsageLogsProvider,
@@ -106,11 +105,6 @@ function UsageLogsContent() {
         <SectionPageLayout.Description>
           {t(pageMeta.descriptionKey)}
         </SectionPageLayout.Description>
-        {activeCategory === 'common' && (
-          <SectionPageLayout.Actions>
-            <CommonLogsHeaderActions />
-          </SectionPageLayout.Actions>
-        )}
         <SectionPageLayout.Content>
           <div className='space-y-4'>
             {showTaskSwitcher && (

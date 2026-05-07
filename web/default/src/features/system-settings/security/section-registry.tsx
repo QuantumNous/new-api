@@ -1,15 +1,15 @@
-import type { RequestLimitsSettings } from '../types'
+import { RateLimitSection } from '../request-limits/rate-limit-section'
+import { SensitiveWordsSection } from '../request-limits/sensitive-words-section'
+import { SSRFSection } from '../request-limits/ssrf-section'
+import type { SecuritySettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
-import { RateLimitSection } from './rate-limit-section'
-import { SensitiveWordsSection } from './sensitive-words-section'
-import { SSRFSection } from './ssrf-section'
 
-const REQUEST_LIMITS_SECTIONS = [
+const SECURITY_SECTIONS = [
   {
     id: 'rate-limit',
     titleKey: 'Rate Limiting',
     descriptionKey: 'Configure model request rate limiting',
-    build: (settings: RequestLimitsSettings) => (
+    build: (settings: SecuritySettings) => (
       <RateLimitSection
         defaultValues={{
           ModelRequestRateLimitEnabled: settings.ModelRequestRateLimitEnabled,
@@ -27,7 +27,7 @@ const REQUEST_LIMITS_SECTIONS = [
     id: 'sensitive-words',
     titleKey: 'Sensitive Words',
     descriptionKey: 'Configure sensitive word filtering',
-    build: (settings: RequestLimitsSettings) => (
+    build: (settings: SecuritySettings) => (
       <SensitiveWordsSection
         defaultValues={{
           CheckSensitiveEnabled: settings.CheckSensitiveEnabled,
@@ -41,7 +41,7 @@ const REQUEST_LIMITS_SECTIONS = [
     id: 'ssrf',
     titleKey: 'SSRF Protection',
     descriptionKey: 'Configure SSRF (Server-Side Request Forgery) protection',
-    build: (settings: RequestLimitsSettings) => (
+    build: (settings: SecuritySettings) => (
       <SSRFSection
         defaultValues={{
           'fetch_setting.enable_ssrf_protection':
@@ -64,23 +64,19 @@ const REQUEST_LIMITS_SECTIONS = [
   },
 ] as const
 
-export type RequestLimitsSectionId =
-  (typeof REQUEST_LIMITS_SECTIONS)[number]['id']
+export type SecuritySectionId = (typeof SECURITY_SECTIONS)[number]['id']
 
-const requestLimitsRegistry = createSectionRegistry<
-  RequestLimitsSectionId,
-  RequestLimitsSettings
+const securityRegistry = createSectionRegistry<
+  SecuritySectionId,
+  SecuritySettings
 >({
-  sections: REQUEST_LIMITS_SECTIONS,
+  sections: SECURITY_SECTIONS,
   defaultSection: 'rate-limit',
-  basePath: '/system-settings/request-limits',
+  basePath: '/system-settings/security',
   urlStyle: 'path',
 })
 
-export const REQUEST_LIMITS_SECTION_IDS = requestLimitsRegistry.sectionIds
-export const REQUEST_LIMITS_DEFAULT_SECTION =
-  requestLimitsRegistry.defaultSection
-export const getRequestLimitsSectionNavItems =
-  requestLimitsRegistry.getSectionNavItems
-export const getRequestLimitsSectionContent =
-  requestLimitsRegistry.getSectionContent
+export const SECURITY_SECTION_IDS = securityRegistry.sectionIds
+export const SECURITY_DEFAULT_SECTION = securityRegistry.defaultSection
+export const getSecuritySectionNavItems = securityRegistry.getSectionNavItems
+export const getSecuritySectionContent = securityRegistry.getSectionContent
