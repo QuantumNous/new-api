@@ -18,6 +18,8 @@
   --sidebar-width: 256px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
+  --app-font-sans: 'Space Grotesk', Lato, 'Helvetica Neue', Arial, Helvetica,
+    'Microsoft YaHei', sans-serif;
   --app-shell-bg: linear-gradient(
     180deg,
     #f3f8ff 0%,
@@ -145,12 +147,33 @@ body.sidebar-collapsed {
 }
 
 body {
-  font-family: 'Space Grotesk', 'Outfit', Lato, 'Helvetica Neue', Arial,
-    Helvetica, 'Microsoft YaHei', sans-serif;
+  font-family: var(--app-font-sans);
   /* font-family: CoinbaseDisplay, 'SF Pro Display', 'Segoe UI', 'PingFang SC',
     'Microsoft YaHei', sans-serif; */
   color: var(--app-text-primary);
   background: var(--app-shell-bg);
+}
+
+.semi-always-light,
+.semi-always-dark,
+[class^='semi-'],
+[class*=' semi-'] {
+  font-family: var(--app-font-sans);
+}
+
+code,
+pre,
+kbd,
+samp,
+.semi-typography code,
+.semi-typography pre,
+.semi-codeHighlight,
+.semi-codeHighlight pre,
+.semi-codeHighlight code,
+.semi-json-viewer-view-line,
+.semi-json-viewer-line-number {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace !important;
 }
 
 /* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
@@ -5427,4 +5450,3 @@ html.dark .referral-rule-index {
     width: 100%;
   }
 }
-

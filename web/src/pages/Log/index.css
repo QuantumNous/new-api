@@ -340,10 +340,10 @@
   color: #ffffff !important;
 }
 
-.log-filter-button-primary.semi-button:hover,
+/* .log-filter-button-primary.semi-button:hover,
 .log-filter-button-primary.semi-button:focus {
   background: linear-gradient(135deg, #c026d3, #9333ea) !important;
-}
+} */
 
 .log-data-table {
   overflow: hidden;

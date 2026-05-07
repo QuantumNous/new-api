@@ -73,7 +73,7 @@
 .app-header-brand-title.semi-typography {
   /* color: #20314d !important;
   letter-spacing: -0.03em; */
-
+  font-weight: 700 !important;
   color: rgba(0, 0, 0, 0);
   background-clip: text;
   background-image: linear-gradient(
