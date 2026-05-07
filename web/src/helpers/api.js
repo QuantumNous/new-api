@@ -209,6 +209,34 @@ export const processModelsData = (data, currentModel) => {
   return { modelOptions, selectedModel };
 };
 
+export const isPlaygroundChatModel = (modelName) => {
+  if (typeof modelName !== 'string' || !modelName.trim()) {
+    return false;
+  }
+
+  const name = modelName.toLowerCase();
+  const blockedFragments = [
+    'embedding',
+    'rerank',
+    'whisper',
+    'tts',
+    'speech',
+    'transcribe',
+    'moderation',
+    'dall-e',
+    'imagen',
+    'veo',
+    'seedance',
+    'cogvideo',
+    'kling',
+    'jimeng',
+    'suno',
+    'tts-1',
+  ];
+
+  return !blockedFragments.some((fragment) => name.includes(fragment));
+};
+
 // 处理分组数据
 export const processGroupsData = (data, userGroup) => {
   let groupOptions = Object.entries(data).map(([group, info]) => ({

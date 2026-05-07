@@ -255,6 +255,17 @@ const MessageContent = ({
         />
       )}
 
+      {message.videoUrl && (
+        <div className='playground-video-result'>
+          <video controls preload='metadata' src={message.videoUrl}>
+            {t('当前浏览器不支持视频播放')}
+          </video>
+          <a href={message.videoUrl} target='_blank' rel='noreferrer'>
+            {t('打开视频')}
+          </a>
+        </div>
+      )}
+
       {isEditing ? (
         <div className='space-y-3'>
           <TextArea

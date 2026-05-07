@@ -329,6 +329,14 @@ func SetApiRouter(router *gin.Engine) {
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
 		}
 
+		playgroundRoute := apiRouter.Group("/playground")
+		playgroundRoute.Use(middleware.UserAuth())
+		{
+			playgroundRoute.GET("/conversations", controller.GetUserPlaygroundConversations)
+			playgroundRoute.POST("/conversations", controller.UpsertUserPlaygroundConversation)
+			playgroundRoute.DELETE("/conversations/:conversation_id", controller.DeleteUserPlaygroundConversation)
+		}
+
 		vendorRoute := apiRouter.Group("/vendors")
 		vendorRoute.Use(middleware.AdminAuth())
 		{

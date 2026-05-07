@@ -63,6 +63,74 @@ const colors = [
   'yellow',
 ];
 
+const parseJsonLike = (value) => {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === 'object') {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const pickHttpUrl = (...values) => {
+  for (const value of values) {
+    if (typeof value === 'string' && /^https?:\/\//.test(value)) {
+      return value;
+    }
+  }
+  return '';
+};
+
+const extractVideoUrlFromPayload = (payload) => {
+  const taskData = parseJsonLike(payload);
+  if (!taskData || typeof taskData !== 'object') {
+    return '';
+  }
+
+  const directUrl = pickHttpUrl(
+    taskData.video_url,
+    taskData.videoUrl,
+    taskData.result_url,
+    taskData.resultUrl,
+    taskData.url,
+    taskData?.content?.video_url,
+    taskData?.content?.videoUrl,
+    taskData?.content?.result_url,
+    taskData?.content?.resultUrl,
+  );
+  if (directUrl) {
+    return directUrl;
+  }
+
+  return (
+    extractVideoUrlFromPayload(taskData.response) ||
+    extractVideoUrlFromPayload(taskData.data) ||
+    ''
+  );
+};
+
+const extractVideoPreviewUrl = (record) => {
+  const upstreamVideoUrl = extractVideoUrlFromPayload(record?.data);
+  if (upstreamVideoUrl) {
+    return upstreamVideoUrl;
+  }
+
+  const resultUrl = record?.result_url;
+  if (typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl)) {
+    return resultUrl;
+  }
+
+  return '';
+};
+
 // Render functions
 const renderTimestamp = (timestampInSeconds) => {
   const date = new Date(timestampInSeconds * 1000); // 从秒转换为毫秒
@@ -415,8 +483,9 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_REFERENCE_GENERATE ||
           record.action === TASK_ACTION_REMIX_GENERATE;
         const isSuccess = record.status === 'SUCCESS';
-        const resultUrl = record.result_url;
-        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        const resultUrl = extractVideoPreviewUrl(record);
+        const hasResultUrl =
+          typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
         if (isSuccess && isVideoTask && hasResultUrl) {
           return (
             <a

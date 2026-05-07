@@ -17,10 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useContext,
+  useEffect,
+  useCallback,
+  useState,
+  useRef,
+} from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
+import { Modal, Toast } from '@douyinfe/semi-ui';
 
 // Context
 import { UserContext } from '../../context/User';
@@ -36,6 +42,9 @@ import { useDataLoader } from '../../hooks/playground/useDataLoader';
 
 // Constants and utils
 import {
+  API_ENDPOINTS,
+  DEBUG_TABS,
+  MESSAGE_STATUS,
   MESSAGE_ROLES,
   ERROR_MESSAGES,
 } from '../../constants/playground.constants';
@@ -48,6 +57,7 @@ import {
   getTextContent,
   buildApiPayload,
   encodeToBase64,
+  getUserIdFromLocalStorage,
 } from '../../helpers';
 
 // Components
@@ -58,7 +68,8 @@ import {
   OptimizedMessageActions,
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
-import FloatingButtons from '../../components/playground/FloatingButtons';
+import PlaygroundSidebar from '../../components/playground/PlaygroundSidebar';
+import PlaygroundTopBar from '../../components/playground/PlaygroundTopBar';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 // 生成头像
@@ -83,6 +94,8 @@ const Playground = () => {
   const isMobile = useIsMobile();
   const styleState = { isMobile };
   const [searchParams] = useSearchParams();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const videoPollingRef = useRef(new Set());
 
   const state = usePlaygroundState();
   const {
@@ -91,10 +104,14 @@ const Playground = () => {
     showDebugPanel,
     customRequestMode,
     customRequestBody,
+    playgroundMode,
     showSettings,
     models,
+    videoModels,
     groups,
     status,
+    conversations,
+    activeConversationId,
     message,
     debugData,
     activeDebugTab,
@@ -105,10 +122,14 @@ const Playground = () => {
     handleParameterToggle,
     debouncedSaveConfig,
     saveMessagesImmediately,
+    startNewConversation,
+    switchConversation,
+    deleteConversation,
     handleConfigImport,
     handleConfigReset,
     setShowSettings,
     setModels,
+    setVideoModels,
     setGroups,
     setStatus,
     setMessage,
@@ -118,6 +139,7 @@ const Playground = () => {
     setShowDebugPanel,
     setCustomRequestMode,
     setCustomRequestBody,
+    setPlaygroundMode,
   } = state;
 
   // API 请求相关
@@ -130,7 +152,14 @@ const Playground = () => {
   );
 
   // 数据加载
-  useDataLoader(userState, inputs, handleInputChange, setModels, setGroups);
+  useDataLoader(
+    userState,
+    inputs,
+    handleInputChange,
+    setModels,
+    setVideoModels,
+    setGroups,
+  );
 
   // 消息编辑
   const {
@@ -239,6 +268,11 @@ const Playground = () => {
   function onMessageSend(content, attachment) {
     console.log('attachment: ', attachment);
 
+    if (playgroundMode === 'video') {
+      submitVideoGeneration(content);
+      return;
+    }
+
     // 创建用户消息和加载消息
     const userMessage = createMessage(MESSAGE_ROLES.USER, content);
     const loadingMessage = createLoadingAssistantMessage();
@@ -304,6 +338,480 @@ const Playground = () => {
       return messagesWithLoading;
     });
   }
+
+  const extractTaskId = useCallback((data) => {
+    return (
+      data?.id ||
+      data?.task_id ||
+      data?.data?.id ||
+      data?.data?.task_id ||
+      data?.data?.TaskID
+    );
+  }, []);
+
+  const parseJsonLikeValue = useCallback((value) => {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === 'object') {
+      return value;
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(value);
+      return parsed ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const isProxyVideoUrl = useCallback((url) => {
+    if (typeof url !== 'string' || url.trim() === '') {
+      return false;
+    }
+
+    return (
+      url.includes('/v1/videos/') ||
+      url.includes('/pg/videos/') ||
+      url.startsWith('http://localhost') ||
+      url.startsWith('https://localhost') ||
+      url.startsWith('http://127.0.0.1') ||
+      url.startsWith('https://127.0.0.1')
+    );
+  }, []);
+
+  const collectVideoUrls = useCallback(
+    (value, collector = []) => {
+      if (!value) {
+        return collector;
+      }
+
+      const parsedValue = parseJsonLikeValue(value);
+      if (parsedValue == null) {
+        return collector;
+      }
+
+      if (typeof parsedValue === 'string') {
+        if (
+          parsedValue.includes('http://') ||
+          parsedValue.includes('https://') ||
+          parsedValue.includes('/v1/videos/') ||
+          parsedValue.includes('/pg/videos/')
+        ) {
+          collector.push(parsedValue);
+        }
+        return collector;
+      }
+
+      if (Array.isArray(parsedValue)) {
+        parsedValue.forEach((item) => collectVideoUrls(item, collector));
+        return collector;
+      }
+
+      if (typeof parsedValue !== 'object') {
+        return collector;
+      }
+
+      Object.entries(parsedValue || {}).forEach(([key, nestedValue]) => {
+        const lowerKey = key.toLowerCase();
+        if (
+          (lowerKey.includes('video') || lowerKey.includes('url')) &&
+          typeof nestedValue === 'string'
+        ) {
+          collector.push(nestedValue);
+        }
+        collectVideoUrls(nestedValue, collector);
+      });
+
+      return collector;
+    },
+    [parseJsonLikeValue],
+  );
+
+  const extractVideoUrl = useCallback((data, taskId) => {
+    const taskPayload =
+      parseJsonLikeValue(data?.data?.data) ||
+      parseJsonLikeValue(data?.data?.Data) ||
+      parseJsonLikeValue(data?.data);
+
+    const directCandidates = [
+      taskPayload?.content?.video_url,
+      taskPayload?.content?.videoUrl,
+      taskPayload?.video_url,
+      taskPayload?.videoUrl,
+      taskPayload?.result_url,
+      taskPayload?.data?.content?.video_url,
+      taskPayload?.data?.content?.videoUrl,
+      taskPayload?.data?.result_url,
+      data?.data?.content?.video_url,
+      data?.data?.content?.videoUrl,
+      data?.data?.result_url,
+      data?.data?.metadata?.url,
+      data?.data?.PrivateData?.result_url,
+      data?.metadata?.url,
+      data?.url,
+      data?.result_url,
+      data?.data?.url,
+    ];
+
+    const recursiveCandidates = collectVideoUrls(data, []);
+    const candidateUrls = [...directCandidates, ...recursiveCandidates].filter(
+      (url, index, array) =>
+        typeof url === 'string' &&
+        url.trim() !== '' &&
+        array.indexOf(url) === index,
+    );
+
+    const upstreamUrl = candidateUrls.find((url) => !isProxyVideoUrl(url));
+    if (upstreamUrl) {
+      return upstreamUrl;
+    }
+
+    if (candidateUrls.length > 0) {
+      return candidateUrls[0];
+    }
+
+    return taskId ? `${API_ENDPOINTS.VIDEO_CONTENT}/${taskId}/content` : '';
+  }, [collectVideoUrls, isProxyVideoUrl, parseJsonLikeValue]);
+
+  const normalizeTaskStatus = useCallback((data) => {
+    return (
+      data?.status ||
+      data?.data?.status ||
+      data?.data?.Status ||
+      'queued'
+    ).toLowerCase();
+  }, []);
+
+  const buildVideoPayload = useCallback(
+    (prompt) => {
+      const duration = Number(inputs.videoDuration) || 5;
+      const images = (inputs.imageUrls || []).filter((url) => url.trim() !== '');
+      const payload = {
+        model: inputs.videoModel,
+        prompt,
+        seconds: String(duration),
+        metadata: {
+          ratio: inputs.videoRatio || '16:9',
+          duration,
+        },
+      };
+
+      if (inputs.videoResolution) {
+        payload.metadata.resolution = inputs.videoResolution;
+      }
+      if (inputs.imageEnabled && images.length > 0) {
+        payload.images = images;
+      }
+      if (inputs.group) {
+        payload.group = inputs.group;
+      }
+
+      return payload;
+    },
+    [inputs],
+  );
+
+  const updateVideoAssistantMessage = useCallback(
+    (messageId, patch) => {
+      setMessage((prevMessages) => {
+        const nextMessages = prevMessages.map((msg) =>
+          msg.id === messageId ? { ...msg, ...patch } : msg,
+        );
+        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        return nextMessages;
+      });
+    },
+    [saveMessagesImmediately, setMessage],
+  );
+
+  const parseVideoErrorMessage = useCallback(
+    (rawError) => {
+      const fallback = t('视频任务创建失败');
+      if (!rawError) {
+        return fallback;
+      }
+
+      const parseJsonLike = (value) => {
+        if (!value || typeof value !== 'string') {
+          return null;
+        }
+        try {
+          return JSON.parse(value);
+        } catch {
+          return null;
+        }
+      };
+
+      const collectError = (value) => {
+        if (!value) {
+          return null;
+        }
+
+        if (typeof value === 'string') {
+          const parsed = parseJsonLike(value);
+          if (parsed) {
+            return collectError(parsed);
+          }
+          return { message: value };
+        }
+
+        if (typeof value === 'object') {
+          if (value.error) {
+            return collectError(value.error);
+          }
+          if (value.message) {
+            const nested = collectError(value.message);
+            if (nested?.message && nested.message !== value.message) {
+              return {
+                code: nested.code || value.code,
+                type: nested.type || value.type,
+                message: nested.message,
+              };
+            }
+            return {
+              code: value.code,
+              type: value.type,
+              message: value.message,
+            };
+          }
+        }
+
+        return null;
+      };
+
+      const details = collectError(rawError);
+      if (!details?.message) {
+        return fallback;
+      }
+
+      if (details.code === 'AccountOverdueError') {
+        return t('视频渠道上游账号已欠费，请充值或更换可用渠道。');
+      }
+
+      return details.message;
+    },
+    [t],
+  );
+
+  const fetchVideoTaskSnapshot = useCallback(
+    async (taskId) => {
+      const taskResponse = await fetch(
+        `${API_ENDPOINTS.VIDEO_GENERATION_TASK}/${taskId}`,
+        {
+          headers: {
+            'New-Api-User': getUserIdFromLocalStorage(),
+          },
+        },
+      );
+      const taskData = await taskResponse.json();
+      const taskStatus = normalizeTaskStatus(taskData);
+
+      setDebugData((prev) => ({
+        ...prev,
+        response: JSON.stringify(taskData, null, 2),
+      }));
+
+      if (!taskResponse.ok) {
+        throw new Error(parseVideoErrorMessage(taskData));
+      }
+
+      return {
+        taskData,
+        taskStatus,
+      };
+    },
+    [normalizeTaskStatus, parseVideoErrorMessage, setDebugData],
+  );
+
+  const formatVideoTaskMessage = useCallback((taskId, status, label) => {
+    const segments = [label];
+    if (taskId) {
+      segments.push(`Task ID: ${taskId}`);
+    }
+    if (status) {
+      segments.push(`Status: ${status}`);
+    }
+    return segments.join('\n\n');
+  }, []);
+
+  const pollVideoTask = useCallback(
+    async (messageId, taskId, options = {}) => {
+      if (!messageId || !taskId || videoPollingRef.current.has(messageId)) {
+        return;
+      }
+
+      const {
+        attempts = 150,
+        intervalMs = 2000,
+        pendingLabel = t('Seedance 视频生成中...'),
+        timeoutLabel = t('视频生成仍在处理中，请稍后通过任务 ID 查询'),
+      } = options;
+
+      videoPollingRef.current.add(messageId);
+
+      try {
+        for (let i = 0; i < attempts; i++) {
+          if (i > 0) {
+            await new Promise((resolve) => setTimeout(resolve, intervalMs));
+          }
+
+          const { taskData, taskStatus } = await fetchVideoTaskSnapshot(taskId);
+
+          if (['succeeded', 'success', 'completed'].includes(taskStatus)) {
+            const videoUrl = extractVideoUrl(taskData, taskId);
+            updateVideoAssistantMessage(messageId, {
+              content: `${t('视频生成完成')}\n\n[${t('点击播放视频')}](${videoUrl})`,
+              videoUrl,
+              taskId,
+              status: MESSAGE_STATUS.COMPLETE,
+              isThinkingComplete: true,
+            });
+            return;
+          }
+
+          if (['failed', 'failure', 'error'].includes(taskStatus)) {
+            throw new Error(
+              taskData?.error?.message ||
+                taskData?.data?.error?.message ||
+                taskData?.data?.fail_reason ||
+                t('视频生成失败'),
+            );
+          }
+
+          updateVideoAssistantMessage(messageId, {
+            content: formatVideoTaskMessage(taskId, taskStatus, pendingLabel),
+            taskId,
+            status: MESSAGE_STATUS.INCOMPLETE,
+          });
+        }
+
+        updateVideoAssistantMessage(messageId, {
+          content: formatVideoTaskMessage(taskId, 'processing', timeoutLabel),
+          taskId,
+          status: MESSAGE_STATUS.COMPLETE,
+          isThinkingComplete: true,
+        });
+      } catch (error) {
+        updateVideoAssistantMessage(messageId, {
+          content: t('视频请求发生错误: ') + error.message,
+          taskId,
+          status: MESSAGE_STATUS.ERROR,
+          errorCode: error.errorCode || null,
+        });
+      } finally {
+        videoPollingRef.current.delete(messageId);
+      }
+    },
+    [
+      extractVideoUrl,
+      fetchVideoTaskSnapshot,
+      formatVideoTaskMessage,
+      normalizeTaskStatus,
+      t,
+      updateVideoAssistantMessage,
+    ],
+  );
+
+  const submitVideoGeneration = useCallback(
+    async (content) => {
+      const prompt = typeof content === 'string' ? content.trim() : '';
+      if (!prompt) {
+        Toast.warning(t('请输入视频提示词'));
+        return;
+      }
+
+      const userMessage = createMessage(MESSAGE_ROLES.USER, prompt);
+      const assistantMessage = createMessage(
+        MESSAGE_ROLES.ASSISTANT,
+        t('正在创建 Seedance 视频任务...'),
+        {
+          status: MESSAGE_STATUS.LOADING,
+          reasoningContent: '',
+          isReasoningExpanded: false,
+          isThinkingComplete: false,
+        },
+      );
+      const payload = buildVideoPayload(prompt);
+
+      setMessage((prevMessage) => {
+        const nextMessages = [...prevMessage, userMessage, assistantMessage];
+        setTimeout(() => saveMessagesImmediately(nextMessages), 0);
+        return nextMessages;
+      });
+      setDebugData((prev) => ({
+        ...prev,
+        request: payload,
+        response: null,
+        timestamp: new Date().toISOString(),
+      }));
+      setActiveDebugTab(DEBUG_TABS.REQUEST);
+
+      try {
+        const createResponse = await fetch(API_ENDPOINTS.VIDEO_GENERATIONS, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'New-Api-User': getUserIdFromLocalStorage(),
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const createData = await createResponse.json();
+        setDebugData((prev) => ({
+          ...prev,
+          response: JSON.stringify(createData, null, 2),
+        }));
+        setActiveDebugTab(DEBUG_TABS.RESPONSE);
+
+        if (!createResponse.ok) {
+          throw new Error(parseVideoErrorMessage(createData));
+        }
+
+        const taskId = extractTaskId(createData);
+        if (!taskId) {
+          throw new Error(t('视频任务创建失败：未返回任务 ID'));
+        }
+
+        updateVideoAssistantMessage(assistantMessage.id, {
+          content: formatVideoTaskMessage(
+            taskId,
+            'queued',
+            t('Seedance 视频任务已提交，正在生成...'),
+          ),
+          taskId,
+          status: MESSAGE_STATUS.INCOMPLETE,
+        });
+
+        await pollVideoTask(assistantMessage.id, taskId, {
+          pendingLabel: t('Seedance 视频生成中...'),
+          timeoutLabel: t('视频生成仍在处理中，请稍后通过任务 ID 查询'),
+        });
+      } catch (error) {
+        updateVideoAssistantMessage(assistantMessage.id, {
+          content: t('视频请求发生错误: ') + error.message,
+          status: MESSAGE_STATUS.ERROR,
+          errorCode: error.errorCode || null,
+        });
+      }
+    },
+    [
+      buildVideoPayload,
+      extractTaskId,
+      extractVideoUrl,
+      formatVideoTaskMessage,
+      normalizeTaskStatus,
+      pollVideoTask,
+      saveMessagesImmediately,
+      setActiveDebugTab,
+      setDebugData,
+      setMessage,
+      t,
+      updateVideoAssistantMessage,
+    ],
+  );
 
   // 切换推理展开状态
   const toggleReasoningExpansion = useCallback(
@@ -418,6 +926,96 @@ const Playground = () => {
     setDebugData,
   ]);
 
+  useEffect(() => {
+    if (!Array.isArray(message) || message.length === 0) {
+      return;
+    }
+
+    message.forEach((msg) => {
+      if (
+        msg?.role !== MESSAGE_ROLES.ASSISTANT ||
+        !msg?.taskId ||
+        msg?.videoUrl ||
+        msg?.status === MESSAGE_STATUS.COMPLETE ||
+        msg?.status === MESSAGE_STATUS.ERROR
+      ) {
+        return;
+      }
+
+      pollVideoTask(msg.id, msg.taskId, {
+        pendingLabel: t('Seedance 视频生成中...'),
+        timeoutLabel: t('视频生成仍在处理中，请稍后通过任务 ID 查询'),
+      });
+    });
+  }, [message, pollVideoTask, t]);
+
+  useEffect(() => {
+    if (!Array.isArray(message) || message.length === 0) {
+      return;
+    }
+
+    message.forEach((msg) => {
+      if (
+        msg?.role !== MESSAGE_ROLES.ASSISTANT ||
+        !msg?.taskId ||
+        videoPollingRef.current.has(`${msg.id}:refresh`)
+      ) {
+        return;
+      }
+
+      const hasRecoverableVideoError =
+        msg?.status === MESSAGE_STATUS.ERROR &&
+        typeof msg?.content === 'string' &&
+        msg.content.includes('Cannot convert undefined or null to object');
+      const needsRefresh =
+        !msg?.videoUrl ||
+        isProxyVideoUrl(msg.videoUrl) ||
+        hasRecoverableVideoError ||
+        (typeof msg?.content === 'string' &&
+          isProxyVideoUrl(msg.content));
+
+      if (!needsRefresh) {
+        return;
+      }
+
+      const refreshKey = `${msg.id}:refresh`;
+      videoPollingRef.current.add(refreshKey);
+
+      fetchVideoTaskSnapshot(msg.taskId)
+        .then(({ taskData, taskStatus }) => {
+          if (!['succeeded', 'success', 'completed'].includes(taskStatus)) {
+            return;
+          }
+
+          const nextVideoUrl = extractVideoUrl(taskData, msg.taskId);
+          if (!nextVideoUrl || isProxyVideoUrl(nextVideoUrl)) {
+            return;
+          }
+
+          updateVideoAssistantMessage(msg.id, {
+            content: `${t('视频生成完成')}\n\n[${t('点击播放视频')}](${nextVideoUrl})`,
+            videoUrl: nextVideoUrl,
+            taskId: msg.taskId,
+            status: MESSAGE_STATUS.COMPLETE,
+            isThinkingComplete: true,
+          });
+        })
+        .catch((error) => {
+          console.error('刷新视频任务真实地址失败:', error);
+        })
+        .finally(() => {
+          videoPollingRef.current.delete(refreshKey);
+        });
+    });
+  }, [
+    extractVideoUrl,
+    fetchVideoTaskSnapshot,
+    isProxyVideoUrl,
+    message,
+    t,
+    updateVideoAssistantMessage,
+  ]);
+
   // 自动保存配置
   useEffect(() => {
     debouncedSaveConfig();
@@ -427,6 +1025,7 @@ const Playground = () => {
     showDebugPanel,
     customRequestMode,
     customRequestBody,
+    playgroundMode,
     debouncedSaveConfig,
   ]);
 
@@ -436,6 +1035,10 @@ const Playground = () => {
     // 清空对话后保存，传入空数组
     setTimeout(() => saveMessagesImmediately([]), 0);
   }, [setMessage, saveMessagesImmediately]);
+
+  const handleNewConversation = useCallback(() => {
+    startNewConversation();
+  }, [startNewConversation]);
 
   // 处理粘贴图片
   const handlePasteImage = useCallback(
@@ -459,104 +1062,94 @@ const Playground = () => {
 
   return (
     <PlaygroundProvider value={playgroundContextValue}>
-      <div className='h-full'>
-        <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
-          {(showSettings || !isMobile) && (
-            <Layout.Sider
-              className={`
-              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
-              ${
-                isMobile
-                  ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
-              }
-            `}
-              width={isMobile ? '100%' : 320}
-            >
-              <OptimizedSettingsPanel
-                inputs={inputs}
-                parameterEnabled={parameterEnabled}
-                models={models}
-                groups={groups}
-                styleState={styleState}
-                showSettings={showSettings}
-                showDebugPanel={showDebugPanel}
-                customRequestMode={customRequestMode}
-                customRequestBody={customRequestBody}
-                onInputChange={handleInputChange}
-                onParameterToggle={handleParameterToggle}
-                onCloseSettings={() => setShowSettings(false)}
-                onConfigImport={handleConfigImport}
-                onConfigReset={handleConfigReset}
-                onCustomRequestModeChange={setCustomRequestMode}
-                onCustomRequestBodyChange={setCustomRequestBody}
-                previewPayload={previewPayload}
-                messages={message}
-              />
-            </Layout.Sider>
-          )}
+      <div className='new-playground-page'>
+        <PlaygroundSidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          collapsed={sidebarCollapsed && !isMobile}
+          onNewChat={handleNewConversation}
+          onOpenSettings={() => setShowSettings(true)}
+          onSelectConversation={switchConversation}
+          onDeleteConversation={deleteConversation}
+          onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+        />
 
-          <Layout.Content className='relative flex-1 overflow-hidden'>
-            <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
-              <div className='flex-1 flex flex-col'>
-                <ChatArea
-                  chatRef={chatRef}
-                  message={message}
-                  inputs={inputs}
-                  styleState={styleState}
-                  showDebugPanel={showDebugPanel}
-                  roleInfo={roleInfo}
-                  onMessageSend={onMessageSend}
-                  onMessageCopy={messageActions.handleMessageCopy}
-                  onMessageReset={messageActions.handleMessageReset}
-                  onMessageDelete={messageActions.handleMessageDelete}
-                  onStopGenerator={onStopGenerator}
-                  onClearMessages={handleClearMessages}
-                  onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-                  renderCustomChatContent={renderCustomChatContent}
-                  renderChatBoxAction={renderChatBoxAction}
-                />
-              </div>
+        <main className='new-playground-main'>
+          <PlaygroundTopBar
+            username={userState?.user?.username}
+            showDebugPanel={showDebugPanel}
+            sidebarCollapsed={sidebarCollapsed && !isMobile}
+            onOpenSettings={() => setShowSettings(true)}
+            onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
+            onToggleSidebar={() => setSidebarCollapsed(false)}
+          />
 
-              {/* 调试面板 - 桌面端 */}
-              {showDebugPanel && !isMobile && (
-                <div className='w-96 flex-shrink-0 h-full'>
-                  <OptimizedDebugPanel
-                    debugData={debugData}
-                    activeDebugTab={activeDebugTab}
-                    onActiveDebugTabChange={setActiveDebugTab}
-                    styleState={styleState}
-                    customRequestMode={customRequestMode}
-                  />
-                </div>
-              )}
-            </div>
+          <ChatArea
+            chatRef={chatRef}
+            message={message}
+            inputs={inputs}
+            models={models}
+            videoModels={videoModels}
+            playgroundMode={playgroundMode}
+            customRequestMode={customRequestMode}
+            roleInfo={roleInfo}
+            onInputChange={handleInputChange}
+            onModeChange={setPlaygroundMode}
+            onMessageSend={onMessageSend}
+            onMessageCopy={messageActions.handleMessageCopy}
+            onMessageReset={messageActions.handleMessageReset}
+            onMessageDelete={messageActions.handleMessageDelete}
+            onStopGenerator={onStopGenerator}
+            onClearMessages={handleClearMessages}
+            renderCustomChatContent={renderCustomChatContent}
+            renderChatBoxAction={renderChatBoxAction}
+          />
+        </main>
 
-            {/* 调试面板 - 移动端覆盖层 */}
-            {showDebugPanel && isMobile && (
-              <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
-                <OptimizedDebugPanel
-                  debugData={debugData}
-                  activeDebugTab={activeDebugTab}
-                  onActiveDebugTabChange={setActiveDebugTab}
-                  styleState={styleState}
-                  showDebugPanel={showDebugPanel}
-                  onCloseDebugPanel={() => setShowDebugPanel(false)}
-                  customRequestMode={customRequestMode}
-                />
-              </div>
-            )}
-
-            {/* 浮动按钮 */}
-            <FloatingButtons
+        {showDebugPanel && (
+          <aside className='new-playground-debug-panel'>
+            <OptimizedDebugPanel
+              debugData={debugData}
+              activeDebugTab={activeDebugTab}
+              onActiveDebugTabChange={setActiveDebugTab}
               styleState={styleState}
-              showSettings={showSettings}
               showDebugPanel={showDebugPanel}
-              onToggleSettings={() => setShowSettings(!showSettings)}
-              onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
+              onCloseDebugPanel={() => setShowDebugPanel(false)}
+              customRequestMode={customRequestMode}
             />
-          </Layout.Content>
-        </Layout>
+          </aside>
+        )}
+
+        <Modal
+          title={t('模型配置')}
+          visible={showSettings}
+          onCancel={() => setShowSettings(false)}
+          footer={null}
+          width={isMobile ? '100%' : 520}
+          className='new-playground-settings-modal'
+        >
+          <OptimizedSettingsPanel
+            inputs={inputs}
+            parameterEnabled={parameterEnabled}
+            models={models}
+            videoModels={videoModels}
+            groups={groups}
+            styleState={{ ...styleState, isMobile: false }}
+            showSettings={showSettings}
+            showDebugPanel={showDebugPanel}
+            customRequestMode={customRequestMode}
+            customRequestBody={customRequestBody}
+            onInputChange={handleInputChange}
+            onParameterToggle={handleParameterToggle}
+            onCloseSettings={() => setShowSettings(false)}
+            onConfigImport={handleConfigImport}
+            onConfigReset={handleConfigReset}
+            onCustomRequestModeChange={setCustomRequestMode}
+            onCustomRequestBodyChange={setCustomRequestBody}
+            previewPayload={previewPayload}
+            messages={message}
+          />
+        </Modal>
       </div>
     </PlaygroundProvider>
   );

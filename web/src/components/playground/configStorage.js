@@ -24,6 +24,34 @@ import {
 
 const MESSAGES_STORAGE_KEY = 'playground_messages';
 
+const createConversationTitle = (messages = []) => {
+  const firstUserMessage = (messages || []).find((message) => message.role === 'user');
+  const content = firstUserMessage?.content;
+
+  let text = '';
+  if (typeof content === 'string') {
+    text = content;
+  } else if (Array.isArray(content)) {
+    text =
+      content.find((item) => item.type === 'text')?.text ||
+      '';
+  }
+
+  text = (text || '').trim();
+  return text ? text.slice(0, 30) : '新对话';
+};
+
+const createConversationRecord = (messages = [], id = null) => {
+  const now = Date.now();
+  return {
+    id: id || `pg-${now}`,
+    title: createConversationTitle(messages),
+    messages,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
 /**
  * 保存配置到 localStorage
  * @param {Object} config - 要保存的配置对象
@@ -56,6 +84,28 @@ export const saveMessages = (messages) => {
   }
 };
 
+export const saveConversationState = (conversations, activeConversationId) => {
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.CONVERSATIONS,
+      JSON.stringify({
+        conversations,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    if (activeConversationId) {
+      localStorage.setItem(
+        STORAGE_KEYS.ACTIVE_CONVERSATION,
+        activeConversationId,
+      );
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_CONVERSATION);
+    }
+  } catch (error) {
+    console.error('保存会话失败:', error);
+  }
+};
+
 /**
  * 从 localStorage 加载配置
  * @returns {Object} 配置对象，如果不存在则返回默认配置
@@ -85,6 +135,8 @@ export const loadConfig = () => {
           parsedConfig.customRequestMode || DEFAULT_CONFIG.customRequestMode,
         customRequestBody:
           parsedConfig.customRequestBody || DEFAULT_CONFIG.customRequestBody,
+        playgroundMode:
+          parsedConfig.playgroundMode || DEFAULT_CONFIG.playgroundMode,
       };
 
       return mergedConfig;
@@ -114,6 +166,74 @@ export const loadMessages = () => {
   return null;
 };
 
+export const loadConversationState = () => {
+  try {
+    const savedConversations = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
+    const activeConversationId = localStorage.getItem(
+      STORAGE_KEYS.ACTIVE_CONVERSATION,
+    );
+
+    if (savedConversations) {
+      const parsed = JSON.parse(savedConversations);
+      const conversations = Array.isArray(parsed?.conversations)
+        ? parsed.conversations
+        : [];
+
+      if (conversations.length > 0) {
+        const sortedConversations = conversations
+          .slice()
+          .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        const preferredConversation =
+          sortedConversations.find(
+            (item) => Array.isArray(item.messages) && item.messages.length > 0,
+          ) || sortedConversations[0];
+        const storedActiveConversation = activeConversationId
+          ? conversations.find((item) => item.id === activeConversationId)
+          : null;
+        const resolvedActiveId =
+          storedActiveConversation &&
+          Array.isArray(storedActiveConversation.messages) &&
+          storedActiveConversation.messages.length > 0
+            ? storedActiveConversation.id
+            : preferredConversation.id;
+
+        return {
+          conversations,
+          activeConversationId: resolvedActiveId,
+        };
+      }
+
+      return {
+        conversations: [],
+        activeConversationId: null,
+      };
+    }
+
+    const legacyMessages = loadMessages();
+    if (legacyMessages && legacyMessages.length > 0) {
+      const migratedConversation = createConversationRecord(legacyMessages);
+      const migratedState = {
+        conversations: [migratedConversation],
+        activeConversationId: migratedConversation.id,
+      };
+      saveConversationState(
+        migratedState.conversations,
+        migratedState.activeConversationId,
+      );
+      return migratedState;
+    }
+  } catch (error) {
+    console.error('加载会话失败:', error);
+  }
+
+  return {
+    conversations: [],
+    activeConversationId: null,
+  };
+};
+
+export const createStoredConversation = createConversationRecord;
+
 /**
  * 清除保存的配置
  */
@@ -121,6 +241,8 @@ export const clearConfig = () => {
   try {
     localStorage.removeItem(STORAGE_KEYS.CONFIG);
     localStorage.removeItem(STORAGE_KEYS.MESSAGES); // 同时清除消息
+    localStorage.removeItem(STORAGE_KEYS.CONVERSATIONS);
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_CONVERSATION);
   } catch (error) {
     console.error('清除配置失败:', error);
   }

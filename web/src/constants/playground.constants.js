@@ -76,14 +76,29 @@ export const DEBUG_TABS = {
 // ========== API 相关常量 ==========
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  VIDEO_GENERATIONS: '/pg/video/generations',
+  VIDEO_GENERATION_TASK: '/pg/video/generations',
+  VIDEO_CONTENT: '/v1/videos',
+  PLAYGROUND_CONVERSATIONS: '/api/playground/conversations',
+  PRICING: '/api/pricing',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 };
+
+export const SEEDANCE_VIDEO_MODELS = [
+  'doubao-seedance-1-0-pro-250528',
+  'doubao-seedance-1-0-lite-t2v',
+  'doubao-seedance-1-0-lite-i2v',
+  'doubao-seedance-1-5-pro-251215',
+  'doubao-seedance-2-0-260128',
+  'doubao-seedance-2-0-fast-260128',
+];
 
 // ========== 配置默认值 ==========
 export const DEFAULT_CONFIG = {
   inputs: {
     model: 'gpt-4o',
+    videoModel: 'doubao-seedance-1-0-lite-t2v',
     group: '',
     temperature: 0.7,
     top_p: 1,
@@ -94,6 +109,9 @@ export const DEFAULT_CONFIG = {
     stream: true,
     imageEnabled: false,
     imageUrls: [''],
+    videoDuration: 5,
+    videoRatio: '16:9',
+    videoResolution: '720p',
   },
   parameterEnabled: {
     temperature: true,
@@ -107,6 +125,7 @@ export const DEFAULT_CONFIG = {
   showDebugPanel: false,
   customRequestMode: false,
   customRequestBody: '',
+  playgroundMode: 'chat',
 };
 
 // ========== 正则表达式 ==========
@@ -128,4 +147,6 @@ export const ERROR_MESSAGES = {
 export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
+  CONVERSATIONS: 'playground_conversations',
+  ACTIVE_CONVERSATION: 'playground_active_conversation',
 };
