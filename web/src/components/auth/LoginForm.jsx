@@ -54,6 +54,7 @@ import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import TwoFAVerification from './TwoFAVerification';
 import AuthShell from './AuthShell';
 import { getAuthPageCopy } from './authShellContent';
+import SliderCaptcha from './SliderCaptcha';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
@@ -98,6 +99,9 @@ const LoginForm = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
+  const [sliderCaptchaResetSignal, setSliderCaptchaResetSignal] = useState(0);
+  const [sliderCaptchaModalVisible, setSliderCaptchaModalVisible] =
+    useState(false);
   const [githubButtonState, setGithubButtonState] = useState('idle');
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const [customOAuthLoading, setCustomOAuthLoading] = useState({});
@@ -182,6 +186,10 @@ const LoginForm = () => {
     return true;
   };
 
+  const resetSliderCaptcha = () => {
+    setSliderCaptchaResetSignal((current) => current + 1);
+  };
+
   const handleChange = (name, value) => {
     setInputs((current) => ({ ...current, [name]: value }));
   };
@@ -222,11 +230,7 @@ const LoginForm = () => {
     }
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    if (!ensureTermsAccepted() || !ensureTurnstileReady()) {
-      return;
-    }
+  const submitLogin = async () => {
     setLoginLoading(true);
     try {
       if (username && password) {
@@ -258,15 +262,40 @@ const LoginForm = () => {
           navigate('/console');
         } else {
           showError(message);
+          resetSliderCaptcha();
         }
       } else {
         showError('请输入用户名和密码！');
+        resetSliderCaptcha();
       }
     } catch (error) {
       showError('登录失败，请重试');
+      resetSliderCaptcha();
     } finally {
       setLoginLoading(false);
     }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!ensureTermsAccepted()) {
+      return;
+    }
+    if (!username || !password) {
+      showError('请输入用户名和密码！');
+      resetSliderCaptcha();
+      return;
+    }
+    if (!ensureTurnstileReady()) {
+      return;
+    }
+    resetSliderCaptcha();
+    setSliderCaptchaModalVisible(true);
+  };
+
+  const handleSliderCaptchaVerified = () => {
+    setSliderCaptchaModalVisible(false);
+    submitLogin();
   };
 
   const onTelegramLoginClicked = async (response) => {
@@ -702,6 +731,31 @@ const LoginForm = () => {
     );
   };
 
+  const renderSliderCaptchaModal = () => {
+    return (
+      <Modal
+        title={t('滑块验证码')}
+        visible={sliderCaptchaModalVisible}
+        footer={null}
+        width={380}
+        centered
+        maskClosable={!loginLoading}
+        onCancel={() => {
+          setSliderCaptchaModalVisible(false);
+          resetSliderCaptcha();
+        }}
+      >
+        <div className='pb-4'>
+          <SliderCaptcha
+            t={t}
+            onVerified={handleSliderCaptchaVerified}
+            resetSignal={sliderCaptchaResetSignal}
+          />
+        </div>
+      </Modal>
+    );
+  };
+
   return (
     <AuthShell mode='login'>
       <form className='space-y-5' onSubmit={handleSubmit}>
@@ -775,6 +829,7 @@ const LoginForm = () => {
 
       {renderWeChatLoginModal()}
       {render2FAModal()}
+      {renderSliderCaptchaModal()}
     </AuthShell>
   );
 };
