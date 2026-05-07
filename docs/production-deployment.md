@@ -2,6 +2,8 @@
 
 This repo now includes a production-oriented Docker Compose stack for an Oracle Linux 9 aarch64 host. It builds the app from the local source tree, runs `new-api`, PostgreSQL, and Redis, and binds the app only to `127.0.0.1:3000` for host Caddy.
 
+Production currently deploys from the `prod-config` branch. Keep the Oracle checkout on `prod-config` until the deployment policy intentionally changes.
+
 The expected public path is:
 
 ```text
@@ -32,13 +34,47 @@ sudo firewall-cmd --reload
 
 ## 1. Prepare Secrets
 
+Clone or update the production checkout:
+
 ```bash
-cp .env.production.example .env
-openssl rand -hex 32
-openssl rand -hex 32
+sudo mkdir -p /opt/new-api
+sudo chown opc:opc /opt/new-api
+git clone -b prod-config https://github.com/birdy-nyquiste/new-api.git /opt/new-api
+cd /opt/new-api
 ```
 
-Edit `.env` and replace every `change-me` value. Use different values for `SESSION_SECRET`, `CRYPTO_SECRET`, `POSTGRES_PASSWORD`, and `REDIS_PASSWORD`.
+For later updates:
+
+```bash
+cd /opt/new-api
+git fetch origin
+git checkout prod-config
+git pull --ff-only origin prod-config
+```
+
+Create the server-local `.env`:
+
+```bash
+cp .env.production.example .env
+chmod 600 .env
+```
+
+Generate four separate secrets:
+
+```bash
+openssl rand -hex 32  # POSTGRES_PASSWORD
+openssl rand -hex 32  # REDIS_PASSWORD
+openssl rand -hex 32  # SESSION_SECRET
+openssl rand -hex 32  # CRYPTO_SECRET
+```
+
+Edit `.env` and replace every `change-me` value. Use different values for `SESSION_SECRET`, `CRYPTO_SECRET`, `POSTGRES_PASSWORD`, and `REDIS_PASSWORD`. After changing passwords, update the matching values inside `SQL_DSN` and `REDIS_CONN_STRING`.
+
+Set `TRUSTED_REDIRECT_DOMAINS` to the production domain, for example:
+
+```env
+TRUSTED_REDIRECT_DOMAINS=example.com
+```
 
 If your generated database or Redis password contains reserved URL characters, URL-encode it in `SQL_DSN` or `REDIS_CONN_STRING`. Hex strings from `openssl rand -hex 32` do not need URL encoding.
 
@@ -47,6 +83,7 @@ If your generated database or Redis password contains reserved URL characters, U
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml ps
+curl http://127.0.0.1:3000/api/status
 ```
 
 The application container is bound only to `127.0.0.1:3000` on the host. Caddy is the only public service and proxies to that localhost port.
