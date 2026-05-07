@@ -44,13 +44,13 @@ Never render items directly inside the content container.
 
 This applies to all group-based components:
 
-| Item | Group |
-|------|-------|
-| `SelectItem`, `SelectLabel` | `SelectGroup` |
+| Item                                                       | Group               |
+| ---------------------------------------------------------- | ------------------- |
+| `SelectItem`, `SelectLabel`                                | `SelectGroup`       |
 | `DropdownMenuItem`, `DropdownMenuLabel`, `DropdownMenuSub` | `DropdownMenuGroup` |
-| `MenubarItem` | `MenubarGroup` |
-| `ContextMenuItem` | `ContextMenuGroup` |
-| `CommandItem` | `CommandGroup` |
+| `MenubarItem`                                              | `MenubarGroup`      |
+| `ContextMenuItem`                                          | `ContextMenuGroup`  |
+| `CommandItem`                                              | `CommandGroup`      |
 
 ---
 
@@ -98,20 +98,21 @@ toast("File deleted.", {
 
 ## Choosing between overlay components
 
-| Use case | Component |
-|----------|-----------|
-| Focused task that requires input | `Dialog` |
-| Destructive action confirmation | `AlertDialog` |
-| Side panel with details or filters | `Sheet` |
-| Mobile-first bottom panel | `Drawer` |
-| Quick info on hover | `HoverCard` |
-| Small contextual content on click | `Popover` |
+| Use case                           | Component     |
+| ---------------------------------- | ------------- |
+| Focused task that requires input   | `Dialog`      |
+| Destructive action confirmation    | `AlertDialog` |
+| Side panel with details or filters | `Sheet`       |
+| Mobile-first bottom panel          | `Drawer`      |
+| Quick info on hover                | `HoverCard`   |
+| Small contextual content on click  | `Popover`     |
 
 ---
 
 ## Dialog, Sheet, and Drawer always need a Title
 
-`DialogTitle`, `SheetTitle`, `DrawerTitle` are required for accessibility. Use `className="sr-only"` if visually hidden.
+`DialogTitle`, `SheetTitle`, `DrawerTitle` are required for accessibility. Use `className="sr-only"`
+if visually hidden.
 
 ```tsx
 <DialogContent>
@@ -188,8 +189,8 @@ Always include `AvatarFallback` for when the image fails to load:
 
 ## Use existing components instead of custom markup
 
-| Instead of | Use |
-|---|---|
-| `<hr>` or `<div className="border-t">` | `<Separator />` |
+| Instead of                                         | Use                                  |
+| -------------------------------------------------- | ------------------------------------ |
+| `<hr>` or `<div className="border-t">`             | `<Separator />`                      |
 | `<div className="animate-pulse">` with styled divs | `<Skeleton className="h-4 w-3/4" />` |
-| `<span className="rounded-full bg-green-100 ...">` | `<Badge variant="secondary">` |
+| `<span className="rounded-full bg-green-100 ...">` | `<Badge variant="secondary">`        |

@@ -25,7 +25,8 @@ Components reference semantic CSS variable tokens. Change the variables to chang
 
 ## Color Variables
 
-Every color follows the `name` / `name-foreground` convention. The base variable is for backgrounds, `-foreground` is for text/icons on that background.
+Every color follows the `name` / `name-foreground` convention. The base variable is for backgrounds,
+`-foreground` is for text/icons on that background.
 
 | Variable                                     | Purpose                          |
 | -------------------------------------------- | -------------------------------- |
@@ -43,7 +44,8 @@ Every color follows the `name` / `name-foreground` convention. The base variable
 | `--sidebar-*`                                | Sidebar-specific colors          |
 | `--surface` / `--surface-foreground`         | Secondary surface                |
 
-Colors use OKLCH: `--primary: oklch(0.205 0 0)` where values are lightness (0–1), chroma (0 = gray), and hue (0–360).
+Colors use OKLCH: `--primary: oklch(0.205 0 0)` where values are lightness (0–1), chroma (0 = gray),
+and hue (0–360).
 
 ---
 
@@ -86,7 +88,8 @@ Or edit CSS variables directly in `globals.css`.
 
 ## Adding Custom Colors
 
-Add variables to the file at `tailwindCssFile` from `npx shadcn@latest info` (typically `globals.css`). Never create a new CSS file for this.
+Add variables to the file at `tailwindCssFile` from `npx shadcn@latest info` (typically
+`globals.css`). Never create a new CSS file for this.
 
 ```css
 /* 1. Define in the global CSS file. */
@@ -108,7 +111,8 @@ Add variables to the file at `tailwindCssFile` from `npx shadcn@latest info` (ty
 }
 ```
 
-When `tailwindVersion` is `"v3"` (check via `npx shadcn@latest info`), register in `tailwind.config.js` instead:
+When `tailwindVersion` is `"v3"` (check via `npx shadcn@latest info`), register in
+`tailwind.config.js` instead:
 
 ```js
 // 2b. Register with Tailwind v3 (tailwind.config.js).
@@ -134,7 +138,8 @@ module.exports = {
 
 ## Border Radius
 
-`--radius` controls border radius globally. Components derive values from it (`rounded-lg` = `var(--radius)`, `rounded-md` = `calc(var(--radius) - 2px)`).
+`--radius` controls border radius globally. Components derive values from it (`rounded-lg` =
+`var(--radius)`, `rounded-md` = `calc(var(--radius) - 2px)`).
 
 ---
 
@@ -206,4 +211,5 @@ npx shadcn@latest add button --dry-run        # see all affected files
 npx shadcn@latest add button --diff button.tsx # see the diff for a specific file
 ```
 
-See [Updating Components in SKILL.md](./SKILL.md#updating-components) for the full smart merge workflow.
+See [Updating Components in SKILL.md](./SKILL.md#updating-components) for the full smart merge
+workflow.

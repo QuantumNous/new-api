@@ -1,0 +1,16 @@
+{
+  "$schema": "https://dprint.dev/schemas/v0.json",
+  "lineWidth": 100,
+  "incremental": false,
+  "newLineKind":"lf",
+  "markdown": {
+    "lineWidth": 100,
+    "newLineKind":"lf",
+    "deno": true
+  },
+  "includes": ["**/*.{md}"],
+  "excludes": [],
+  "plugins": [
+    "https://plugins.dprint.dev/markdown-0.21.1.wasm"
+  ]
+}

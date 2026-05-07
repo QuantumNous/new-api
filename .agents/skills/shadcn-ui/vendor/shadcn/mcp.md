@@ -1,6 +1,7 @@
 # shadcn MCP Server
 
-The CLI includes an MCP server that lets AI assistants search, browse, view, and install components from registries.
+The CLI includes an MCP server that lets AI assistants search, browse, view, and install components
+from registries.
 
 ---
 
@@ -13,19 +14,20 @@ shadcn mcp init   # write config for your editor
 
 Editor config files:
 
-| Editor | Config file |
-|--------|------------|
-| Claude Code | `.mcp.json` |
-| Cursor | `.cursor/mcp.json` |
-| VS Code | `.vscode/mcp.json` |
-| OpenCode | `opencode.json` |
-| Codex | `~/.codex/config.toml` (manual) |
+| Editor      | Config file                     |
+| ----------- | ------------------------------- |
+| Claude Code | `.mcp.json`                     |
+| Cursor      | `.cursor/mcp.json`              |
+| VS Code     | `.vscode/mcp.json`              |
+| OpenCode    | `opencode.json`                 |
+| Codex       | `~/.codex/config.toml` (manual) |
 
 ---
 
 ## Tools
 
-> **Tip:** MCP tools handle registry operations (search, view, install). For project configuration (aliases, framework, Tailwind version), use `npx shadcn@latest info` — there is no MCP equivalent.
+> **Tip:** MCP tools handle registry operations (search, view, install). For project configuration
+> (aliases, framework, Tailwind version), use `npx shadcn@latest info` — there is no MCP equivalent.
 
 ### `shadcn:get_project_registries`
 
@@ -43,7 +45,8 @@ Lists all items from one or more registries.
 
 Fuzzy search across registries.
 
-**Input:** `registries` (string[]), `query` (string), `limit` (number, optional), `offset` (number, optional)
+**Input:** `registries` (string[]), `query` (string), `limit` (number, optional), `offset` (number,
+optional)
 
 ### `shadcn:view_items_in_registries`
 
