@@ -1,36 +1,45 @@
 package i18n
 
+import "errors"
+
 // Message keys for i18n translations
 // Use these constants instead of hardcoded strings
 
 // Common error messages
 const (
-	MsgInvalidParams     = "common.invalid_params"
-	MsgDatabaseError     = "common.database_error"
-	MsgRetryLater        = "common.retry_later"
-	MsgGenerateFailed    = "common.generate_failed"
-	MsgNotFound          = "common.not_found"
-	MsgUnauthorized      = "common.unauthorized"
-	MsgForbidden         = "common.forbidden"
-	MsgInvalidId         = "common.invalid_id"
-	MsgIdEmpty           = "common.id_empty"
-	MsgFeatureDisabled   = "common.feature_disabled"
-	MsgOperationSuccess  = "common.operation_success"
-	MsgOperationFailed   = "common.operation_failed"
-	MsgUpdateSuccess     = "common.update_success"
-	MsgUpdateFailed      = "common.update_failed"
-	MsgCreateSuccess     = "common.create_success"
-	MsgCreateFailed      = "common.create_failed"
-	MsgDeleteSuccess     = "common.delete_success"
-	MsgDeleteFailed      = "common.delete_failed"
-	MsgAlreadyExists     = "common.already_exists"
-	MsgNameCannotBeEmpty = "common.name_cannot_be_empty"
-	MsgBatchTooMany      = "common.batch_too_many"
+	MsgInvalidParams               = "common.invalid_params"
+	MsgDatabaseError               = "common.database_error"
+	MsgRetryLater                  = "common.retry_later"
+	MsgGenerateFailed              = "common.generate_failed"
+	MsgNotFound                    = "common.not_found"
+	MsgUnauthorized                = "common.unauthorized"
+	MsgForbidden                   = "common.forbidden"
+	MsgInvalidId                   = "common.invalid_id"
+	MsgIdEmpty                     = "common.id_empty"
+	MsgFeatureDisabled             = "common.feature_disabled"
+	MsgOperationSuccess            = "common.operation_success"
+	MsgOperationFailed             = "common.operation_failed"
+	MsgUpdateSuccess               = "common.update_success"
+	MsgUpdateFailed                = "common.update_failed"
+	MsgCreateSuccess               = "common.create_success"
+	MsgCreateFailed                = "common.create_failed"
+	MsgDeleteSuccess               = "common.delete_success"
+	MsgDeleteFailed                = "common.delete_failed"
+	MsgAlreadyExists               = "common.already_exists"
+	MsgNameCannotBeEmpty           = "common.name_cannot_be_empty"
+	MsgBatchTooMany                = "common.batch_too_many"
+	MsgInvalidEmailAddress         = "common.invalid_email_address"
+	MsgEmailDomainWhitelistRestricted = "common.email_domain_whitelist_restricted"
+	MsgEmailAliasRestricted        = "common.email_alias_restricted"
+	MsgEmailAlreadyInUse           = "common.email_already_in_use"
+	MsgPasswordResetLinkInvalid    = "common.password_reset_link_invalid"
 )
 
 // Auth middleware messages
 const (
 	MsgAuthNotLoggedIn           = "auth.not_logged_in"
+	MsgAuthLoginRequired         = "auth.login_required"
+	MsgAuthInvalidSession        = "auth.invalid_session"
 	MsgAuthAccessTokenInvalid    = "auth.access_token_invalid"
 	MsgAuthUserInfoInvalid       = "auth.user_info_invalid"
 	MsgAuthUserIdNotProvided     = "auth.user_id_not_provided"
@@ -142,16 +151,30 @@ const (
 
 // Payment related messages
 const (
-	MsgPaymentNotConfigured    = "payment.not_configured"
-	MsgPaymentMethodNotExists  = "payment.method_not_exists"
-	MsgPaymentCallbackError    = "payment.callback_error"
-	MsgPaymentCreateFailed     = "payment.create_failed"
-	MsgPaymentStartFailed      = "payment.start_failed"
-	MsgPaymentAmountTooLow     = "payment.amount_too_low"
-	MsgPaymentStripeNotConfig  = "payment.stripe_not_configured"
-	MsgPaymentWebhookNotConfig = "payment.webhook_not_configured"
-	MsgPaymentPriceIdNotConfig = "payment.price_id_not_configured"
-	MsgPaymentCreemNotConfig   = "payment.creem_not_configured"
+	MsgPaymentNotConfigured             = "payment.not_configured"
+	MsgPaymentMethodNotExists           = "payment.method_not_exists"
+	MsgPaymentCallbackError             = "payment.callback_error"
+	MsgPaymentCreateFailed              = "payment.create_failed"
+	MsgPaymentStartFailed               = "payment.start_failed"
+	MsgPaymentAmountTooLow              = "payment.amount_too_low"
+	MsgPaymentStripeNotConfig           = "payment.stripe_not_configured"
+	MsgPaymentWebhookNotConfig          = "payment.webhook_not_configured"
+	MsgPaymentPriceIdNotConfig          = "payment.price_id_not_configured"
+	MsgPaymentCreemNotConfig            = "payment.creem_not_configured"
+	MsgPaymentChannelNotSupported       = "payment.channel_not_supported"
+	MsgPaymentConfigError               = "payment.config_error"
+	MsgPaymentSuccessRedirectUntrusted  = "payment.success_redirect_untrusted"
+	MsgPaymentCancelRedirectUntrusted   = "payment.cancel_redirect_untrusted"
+	MsgPaymentSelectProduct             = "payment.select_product"
+	MsgPaymentProductConfigError        = "payment.product_config_error"
+	MsgPaymentProductNotFound           = "payment.product_not_found"
+	MsgPaymentWaffoDisabled             = "payment.waffo_disabled"
+	MsgPaymentWaffoMethodNotSupported   = "payment.waffo_method_not_supported"
+	MsgPaymentWaffoPancakeDisabled      = "payment.waffo_pancake_disabled"
+	MsgPaymentWaffoPancakeConfigInvalid = "payment.waffo_pancake_config_invalid"
+	MsgPaymentMinTopup                  = "payment.min_topup"
+	MsgPaymentAmountExceedMax           = "payment.amount_exceed_max"
+	MsgPaymentUserGroupFailed           = "payment.user_group_failed"
 )
 
 // Topup related messages
@@ -212,11 +235,17 @@ const (
 
 // Passkey related messages
 const (
-	MsgPasskeyCreateFailed  = "passkey.create_failed"
-	MsgPasskeyLoginAbnormal = "passkey.login_abnormal"
-	MsgPasskeyUpdateFailed  = "passkey.update_failed"
-	MsgPasskeyInvalidUserId = "passkey.invalid_user_id"
-	MsgPasskeyVerifyFailed  = "passkey.verify_failed"
+	MsgPasskeyCreateFailed       = "passkey.create_failed"
+	MsgPasskeyLoginAbnormal      = "passkey.login_abnormal"
+	MsgPasskeyUpdateFailed       = "passkey.update_failed"
+	MsgPasskeyInvalidUserId      = "passkey.invalid_user_id"
+	MsgPasskeyVerifyFailed       = "passkey.verify_failed"
+	MsgPasskeyNotBound           = "passkey.not_bound"
+	MsgPasskeyRegisterSuccess    = "passkey.register_success"
+	MsgPasskeyUnbindSuccess      = "passkey.unbind_success"
+	MsgPasskeyResetSuccess       = "passkey.reset_success"
+	MsgPasskeyVerifySuccess      = "passkey.verify_success"
+	MsgPasskeyUserHandleMismatch = "passkey.user_handle_mismatch"
 )
 
 // 2FA related messages
@@ -320,11 +349,39 @@ const (
 
 // Custom OAuth provider related messages
 const (
-	MsgCustomOAuthNotFound          = "custom_oauth.not_found"
-	MsgCustomOAuthSlugEmpty         = "custom_oauth.slug_empty"
-	MsgCustomOAuthSlugExists        = "custom_oauth.slug_exists"
-	MsgCustomOAuthNameEmpty         = "custom_oauth.name_empty"
-	MsgCustomOAuthHasBindings       = "custom_oauth.has_bindings"
-	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
-	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
+	MsgCustomOAuthNotFound               = "custom_oauth.not_found"
+	MsgCustomOAuthSlugEmpty              = "custom_oauth.slug_empty"
+	MsgCustomOAuthSlugExists             = "custom_oauth.slug_exists"
+	MsgCustomOAuthSlugBuiltinConflict    = "custom_oauth.slug_builtin_conflict"
+	MsgCustomOAuthNameEmpty              = "custom_oauth.name_empty"
+	MsgCustomOAuthHasBindings            = "custom_oauth.has_bindings"
+	MsgCustomOAuthBindingNotFound        = "custom_oauth.binding_not_found"
+	MsgCustomOAuthProviderIdInvalid      = "custom_oauth.provider_id_field_invalid"
+	MsgCustomOAuthDiscoveryURLRequired   = "custom_oauth.discovery_url_required"
+	MsgCustomOAuthDiscoveryURLInvalid    = "custom_oauth.discovery_url_invalid"
+	MsgCustomOAuthDiscoveryRequestFailed = "custom_oauth.discovery_request_failed"
+	MsgCustomOAuthDiscoveryFetchFailed   = "custom_oauth.discovery_fetch_failed"
+	MsgCustomOAuthDiscoveryParseFailed   = "custom_oauth.discovery_parse_failed"
+	MsgCustomOAuthBindingCheckFailed     = "custom_oauth.binding_check_failed"
+)
+
+// Secure verification related messages
+const (
+	MsgSecureVerificationGetUserFailed       = "secure_verification.get_user_failed"
+	MsgSecureVerificationNoMethodEnabled     = "secure_verification.no_method_enabled"
+	MsgSecureVerificationCodeRequired        = "secure_verification.code_required"
+	MsgSecureVerificationPasskeyNotEnabled   = "secure_verification.passkey_not_enabled"
+	MsgSecureVerificationPasskeyStateError   = "secure_verification.passkey_state_error"
+	MsgSecureVerificationPasskeyVerifyFirst  = "secure_verification.passkey_verify_first"
+	MsgSecureVerificationUnsupportedMethod   = "secure_verification.unsupported_method"
+	MsgSecureVerificationFailed              = "secure_verification.failed"
+	MsgSecureVerificationSaveFailed          = "secure_verification.save_failed"
+	MsgSecureVerificationSuccess             = "secure_verification.success"
+	MsgSecureVerificationInvalidPasskeyState = "secure_verification.invalid_passkey_state"
+)
+
+// Common error variables for error checking
+var (
+	ErrInvalidParams           = errors.New("invalid_params")
+	ErrUserVerificationCodeError = errors.New("verification_code_error")
 )

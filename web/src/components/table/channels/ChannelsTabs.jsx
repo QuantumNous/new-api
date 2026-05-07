@@ -78,7 +78,7 @@ const ChannelsTabs = ({
             tab={
               <span className='flex items-center gap-2'>
                 {getChannelIcon(option.value)}
-                {option.label}
+                {t(option.label)}
                 <Tag
                   color={activeTypeKey === key ? 'red' : 'grey'}
                   shape='circle'

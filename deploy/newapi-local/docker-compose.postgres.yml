@@ -1,0 +1,97 @@
+services:
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: new-api-gateway
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:3000:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      new-api:
+        condition: service_healthy
+      seedance-compat:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  seedance-compat:
+    build:
+      context: ./seedance-compat
+    image: seedance-compat-local:latest
+    container_name: seedance-compat-local
+    restart: unless-stopped
+    expose:
+      - "3001"
+    environment:
+      LISTEN_ADDR: ":3001"
+      NEWAPI_BASE_URL: "http://new-api:3000"
+    depends_on:
+      new-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3001/healthz | grep -o '\"ok\":true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  new-api:
+    build:
+      context: ../..
+    image: new-api-local:seedance-endpoint-fix
+    container_name: new-api-local
+    restart: unless-stopped
+    command: --log-dir /app/logs
+    expose:
+      - "3000"
+    environment:
+      TZ: Asia/Shanghai
+      ERROR_LOG_ENABLED: "true"
+      MEMORY_CACHE_ENABLED: "true"
+      SYNC_UPSTREAM_BASE: "http://metadata"
+      SQL_DSN: "postgresql://${NEWAPI_POSTGRES_USER:-newapi}:${NEWAPI_POSTGRES_PASSWORD:-newapi_change_me}@postgres:5432/${NEWAPI_POSTGRES_DB:-newapi}?sslmode=disable"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      metadata:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: new-api-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${NEWAPI_POSTGRES_DB:-newapi}"
+      POSTGRES_USER: "${NEWAPI_POSTGRES_USER:-newapi}"
+      POSTGRES_PASSWORD: "${NEWAPI_POSTGRES_PASSWORD:-newapi_change_me}"
+      TZ: Asia/Shanghai
+    volumes:
+      - newapi_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  metadata:
+    image: nginx:1.27-alpine
+    container_name: new-api-metadata
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8088:80"
+    volumes:
+      - ./metadata:/usr/share/nginx/html:ro
+
+volumes:
+  newapi_pg_data:

@@ -27,6 +27,8 @@ import {
   renderQuota,
   renderQuotaWithAmount,
 } from '../../helpers';
+import { redirectToPaymentUrl } from '../../helpers/paymentNavigation';
+import { getCurrencyConfig } from '../../helpers/render';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
@@ -174,10 +176,10 @@ const TopUp = () => {
 
   const openTopUpLink = () => {
     if (!topUpLink) {
-      showError(t('超级管理员未设置充值链接！'));
+      showError(t('超级管理员未配置充值链接！'));
       return;
     }
-    window.open(topUpLink, '_blank');
+    redirectToPaymentUrl(topUpLink);
   };
 
   const preTopUp = async (payment) => {
@@ -210,7 +212,11 @@ const TopUp = () => {
       await requestAmountByPayment(payment);
 
       if (topUpCount < selectedMinTopUp) {
-        showError(t('充值数量不能小于') + selectedMinTopUp);
+        showError(
+          t('充值数量不能小于 {{min}}', {
+            min: selectedMinTopUp,
+          }),
+        );
         return;
       }
       setOpen(true);
@@ -258,7 +264,7 @@ const TopUp = () => {
     }
 
     if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+      showError(t('充值数量不能小于 {{min}}', { min: minTopUp }));
       return;
     }
     setConfirmLoading(true);
@@ -283,7 +289,7 @@ const TopUp = () => {
         if (message === 'success') {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
-            window.open(data.pay_link, '_blank');
+            redirectToPaymentUrl(data.pay_link);
           } else {
             // 普通支付表单提交
             let params = data;
@@ -372,7 +378,11 @@ const TopUp = () => {
   const waffoTopUp = async (payMethodIndex) => {
     try {
       if (topUpCount < waffoMinTopUp) {
-        showError(t('充值数量不能小于') + waffoMinTopUp);
+        showError(
+          t('充值数量不能小于 {{min}}', {
+            min: waffoMinTopUp,
+          }),
+        );
         return;
       }
       setPaymentLoading(true);
@@ -386,7 +396,7 @@ const TopUp = () => {
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success' && data?.payment_url) {
-          window.open(data.payment_url, '_blank');
+          redirectToPaymentUrl(data.payment_url);
         } else {
           showError(data || t('支付请求失败'));
         }
@@ -415,7 +425,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -430,7 +440,11 @@ const TopUp = () => {
   const waffoPancakeTopUp = async () => {
     const minTopUpValue = Number(waffoPancakeMinTopUp || 1);
     if (topUpCount < minTopUpValue) {
-      showError(t('充值数量不能小于') + minTopUpValue);
+      showError(
+        t('充值数量不能小于 {{min}}', {
+          min: minTopUpValue,
+        }),
+      );
       return;
     }
 
@@ -444,7 +458,7 @@ const TopUp = () => {
         if (message === 'success') {
           const checkoutUrl = data?.checkout_url || '';
           if (checkoutUrl) {
-            window.open(checkoutUrl, '_blank');
+            redirectToPaymentUrl(checkoutUrl);
           } else {
             showError(t('支付请求失败'));
           }
@@ -478,7 +492,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -492,7 +506,7 @@ const TopUp = () => {
 
   const processCreemCallback = (data) => {
     // 与 Stripe 保持一致的实现方式
-    window.open(data.checkout_url, '_blank');
+    redirectToPaymentUrl(data.checkout_url);
   };
 
   const getUserQuota = async () => {
@@ -717,7 +731,8 @@ const TopUp = () => {
   }, [statusState?.status]);
 
   const renderAmount = () => {
-    return amount + ' ' + t('元');
+    const { symbol } = getCurrencyConfig();
+    return `${symbol}${amount}`;
   };
 
   const getAmount = async (value) => {
@@ -735,7 +750,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -761,7 +776,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: `${t('失败')}: ${data}`, id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -842,7 +857,7 @@ const TopUp = () => {
 
       {/* Creem 充值确认模态框 */}
       <Modal
-        title={t('确定要充值 $')}
+        title={t('充值确认')}
         visible={creemOpen}
         onOk={onlineCreemTopUp}
         onCancel={handleCreemCancel}
@@ -857,7 +872,8 @@ const TopUp = () => {
               {t('产品名称')}：{selectedCreemProduct.name}
             </p>
             <p>
-              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
+              {t('价格')}：{' '}
+              {selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
               {selectedCreemProduct.price}
             </p>
             <p>

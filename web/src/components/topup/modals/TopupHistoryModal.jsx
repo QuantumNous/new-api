@@ -70,6 +70,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const isMobile = useIsMobile();
+  const { symbol } = getCurrencyConfig();
 
   const loadTopups = async (currentPage, currentPageSize) => {
     setLoading(true);

@@ -32,6 +32,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, renderQuota } from '../../helpers';
 import { getCurrencyConfig } from '../../helpers/render';
+import { redirectToPaymentUrl } from '../../helpers/paymentNavigation';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 import {
@@ -124,7 +125,7 @@ const SubscriptionPlansCard = ({
         plan_id: selectedPlan.plan.id,
       });
       if (res.data?.message === 'success') {
-        window.open(res.data.data?.pay_link, '_blank');
+        redirectToPaymentUrl(res.data.data?.pay_link);
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
@@ -152,7 +153,7 @@ const SubscriptionPlansCard = ({
         plan_id: selectedPlan.plan.id,
       });
       if (res.data?.message === 'success') {
-        window.open(res.data.data?.checkout_url, '_blank');
+        redirectToPaymentUrl(res.data.data?.checkout_url);
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {

@@ -21,6 +21,7 @@ import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
+import { getCurrencyConfig } from '../../../helpers/render';
 
 const { Text } = Typography;
 
@@ -40,6 +41,7 @@ const PaymentConfirmModal = ({
   amountNumber,
   discountRate,
 }) => {
+  const { symbol } = getCurrencyConfig();
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
   const originalAmount = hasDiscount ? amountNumber / discountRate : 0;
@@ -84,7 +86,10 @@ const PaymentConfirmModal = ({
                     {renderAmount()}
                   </Text>
                   {hasDiscount && (
-                    <Text size='small' className='payment-confirm-discount-rate'>
+                    <Text
+                      size='small'
+                      className='payment-confirm-discount-rate'
+                    >
                       {Math.round(discountRate * 100)}%
                     </Text>
                   )}
@@ -94,17 +99,13 @@ const PaymentConfirmModal = ({
             {hasDiscount && !amountLoading && (
               <>
                 <div className='payment-confirm-row flex justify-between items-center'>
-                  <Text className='payment-confirm-hint'>
-                    {t('原价')}：
-                  </Text>
+                  <Text className='payment-confirm-hint'>{t('原价')}：</Text>
                   <Text delete className='payment-confirm-hint'>
                     {`${originalAmount.toFixed(2)} ${t('元')}`}
                   </Text>
                 </div>
                 <div className='payment-confirm-row flex justify-between items-center'>
-                  <Text className='payment-confirm-hint'>
-                    {t('优惠')}：
-                  </Text>
+                  <Text className='payment-confirm-hint'>{t('优惠')}：</Text>
                   <Text className='payment-confirm-savings'>
                     {`- ${discountAmount.toFixed(2)} ${t('元')}`}
                   </Text>
@@ -189,9 +190,7 @@ const PaymentConfirmModal = ({
                             size={16}
                             color='var(--app-accent)'
                           />
-                          <Text className='payment-confirm-value'>
-                            Stripe
-                          </Text>
+                          <Text className='payment-confirm-value'>Stripe</Text>
                         </>
                       );
                     } else {

@@ -47,18 +47,18 @@ const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
         path = path.replaceAll('{model}', modelName);
       }
       const method = info.method || 'POST';
+      const aliases = Array.isArray(info.aliases) ? info.aliases : [];
       return (
-        <div
-          key={type}
-          className='model-detail-endpoint-row'
-        >
+        <div key={type} className='model-detail-endpoint-row'>
           <div className='model-detail-endpoint-main'>
             <span className='model-detail-endpoint-dot' />
             <span className='model-detail-endpoint-name'>{type}</span>
             {path && <span className='model-detail-endpoint-divider'>:</span>}
             {path && <span className='model-detail-endpoint-path'>{path}</span>}
           </div>
-          {path && <span className='model-detail-endpoint-method'>{method}</span>}
+          {path && (
+            <span className='model-detail-endpoint-method'>{method}</span>
+          )}
         </div>
       );
     });

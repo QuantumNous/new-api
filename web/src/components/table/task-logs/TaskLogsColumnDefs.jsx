@@ -150,7 +150,7 @@ const renderPlatform = (platform, t) => {
   if (option) {
     return (
       <Tag color={option.color} shape='circle'>
-        {option.label}
+        {t(option.label)}
       </Tag>
     );
   }

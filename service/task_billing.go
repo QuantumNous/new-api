@@ -42,6 +42,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.PriceData.ModelRatio > 0 {
 		other["model_ratio"] = info.PriceData.ModelRatio
 	}
+	if info.PriceData.ConditionalInputPrice > 0 {
+		other["conditional_input_price"] = info.PriceData.ConditionalInputPrice
+	}
 	other["group_ratio"] = info.PriceData.GroupRatioInfo.GroupRatio
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
@@ -123,6 +126,9 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["model_price"] = bc.ModelPrice
 		if bc.ModelRatio > 0 {
 			other["model_ratio"] = bc.ModelRatio
+		}
+		if bc.ConditionalInputPrice > 0 {
+			other["conditional_input_price"] = bc.ConditionalInputPrice
 		}
 		other["group_ratio"] = bc.GroupRatio
 		if len(bc.OtherRatios) > 0 {
@@ -256,9 +262,11 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	// 获取模型价格和倍率
 	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
-	// 只有配置了倍率(非固定价格)时才按 token 重新计费
+	// 只有配置了倍率(非固定价格)或显式条件价格时才按 token 重新计费
 	if !hasRatioSetting || modelRatio <= 0 {
-		return
+		if bc := task.PrivateData.BillingContext; bc == nil || bc.ConditionalInputPrice <= 0 {
+			return
+		}
 	}
 
 	// 获取用户和组的倍率信息
@@ -293,9 +301,15 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		}
 	}
 
-	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier
-	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
-
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
+	actualQuota := 0
+	reason := ""
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.ConditionalInputPrice > 0 {
+		actualQuota = int(bc.ConditionalInputPrice / 1000000 * float64(totalTokens) * finalGroupRatio * common.QuotaPerUnit)
+		reason = fmt.Sprintf("token重算：tokens=%d, conditionalInputPrice=%.2f, groupRatio=%.2f", totalTokens, bc.ConditionalInputPrice, finalGroupRatio)
+	} else {
+		// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier
+		actualQuota = int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
+		reason = fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
+	}
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)
 }

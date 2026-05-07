@@ -35,6 +35,10 @@ i18n
   .use(initReactI18next)
   .init({
     load: 'currentOnly',
+    detection: {
+      order: ['localStorage'],
+      caches: ['localStorage'],
+    },
     supportedLngs: supportedLanguages,
     resources: {
       en: enTranslation,
@@ -45,7 +49,7 @@ i18n
       ja: jaTranslation,
       vi: viTranslation,
     },
-    fallbackLng: 'zh-CN',
+    fallbackLng: 'en',
     nsSeparator: false,
     interpolation: {
       escapeValue: false,
