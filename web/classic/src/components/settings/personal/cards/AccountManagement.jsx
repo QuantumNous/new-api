@@ -98,6 +98,12 @@ const AccountManagement = ({
     );
   };
   const isBound = (accountId) => Boolean(accountId);
+  const getFeishuBindingValue = () =>
+    userState.user?.feishu_id ||
+    userState.user?.feishu_open_id ||
+    userState.user?.feishu_union_id ||
+    userState.user?.feishu_user_id ||
+    '';
   const [showTelegramBindModal, setShowTelegramBindModal] =
     React.useState(false);
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
@@ -535,7 +541,7 @@ const AccountManagement = ({
                         {t('飞书')}
                       </div>
                       <div className='text-sm text-gray-500 truncate'>
-                        {isBound(userState.user?.feishu_id)
+                        {isBound(getFeishuBindingValue())
                           ? t('已绑定')
                           : !status.feishu_oauth
                             ? t('未启用')
@@ -552,7 +558,7 @@ const AccountManagement = ({
                         onFeishuOAuthClicked(status.feishu_app_id)
                       }
                       disabled={
-                        isBound(userState.user?.feishu_id) ||
+                        isBound(getFeishuBindingValue()) ||
                         !status.feishu_oauth
                       }
                     >

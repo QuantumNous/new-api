@@ -146,26 +146,32 @@ type ModelStatItem struct {
 }
 
 func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string, modelNames []string, page int, pageSize int) (items []*UserStatItem, total int64, err error) {
-	tx := DB.Table("quota_data").
+	aggTx := DB.Table("quota_data").
 		Select("username, sum(count) as count, sum(token_used) as token_used, sum(quota) as quota").
 		Where("created_at >= ? and created_at <= ?", startTime, endTime)
-
 	if len(usernames) > 0 {
-		tx = tx.Where("username IN ?", usernames)
+		aggTx = aggTx.Where("username IN ?", usernames)
 	}
 	if len(modelNames) > 0 {
-		tx = tx.Where("model_name IN ?", modelNames)
+		aggTx = aggTx.Where("model_name IN ?", modelNames)
+	}
+	aggTx = aggTx.Group("username")
+
+	baseTx := DB.Table("users AS u").
+		Select("u.username as username, COALESCE(q.count, 0) as count, COALESCE(q.token_used, 0) as token_used, COALESCE(q.quota, 0) as quota").
+		Joins("LEFT JOIN (?) AS q ON q.username = u.username", aggTx)
+	if len(usernames) > 0 {
+		baseTx = baseTx.Where("u.username IN ?", usernames)
 	}
 
-	countTx := tx.Session(&gorm.Session{})
-	err = countTx.Group("username").Count(&total).Error
-	if err != nil {
+	if err = baseTx.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	err = tx.Group("username").
-		Order("sum(count) desc, sum(token_used) desc, sum(quota) desc").
-		Limit(pageSize).Offset((page - 1) * pageSize).
+	err = baseTx.
+		Order("COALESCE(q.count, 0) desc, COALESCE(q.token_used, 0) desc, COALESCE(q.quota, 0) desc, u.id asc").
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
 		Find(&items).Error
 	return items, total, err
 }

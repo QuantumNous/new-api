@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
 
-const UsersActions = ({ setShowAddUser, t }) => {
+const UsersActions = ({ setShowAddUser, setShowFeishuBatchInit, setShowFeishuTokenManager, t }) => {
   // Add new user
   const handleAddUser = () => {
     setShowAddUser(true);
@@ -28,6 +28,13 @@ const UsersActions = ({ setShowAddUser, t }) => {
 
   return (
     <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>
+      <Button
+        className='w-full md:w-auto'
+        onClick={() => setShowFeishuBatchInit(true)}
+        size='small'
+      >
+        {t('飞书批量初始化')}
+      </Button>
       <Button className='w-full md:w-auto' onClick={handleAddUser} size='small'>
         {t('添加用户')}
       </Button>

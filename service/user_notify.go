@@ -2,11 +2,13 @@ package service
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -101,26 +103,38 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 			return nil
 		}
 		return sendGotifyNotify(gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)
+	case dto.NotifyTypeFeishuApp:
+		return sendFeishuAppNotify(userId, data)
 	}
 	return nil
 }
 
-func sendEmailNotify(userEmail string, data dto.Notify) error {
-	// make email content
+func replaceNotifyValues(data dto.Notify) string {
 	content := data.Content
-	// 处理占位符
 	for _, value := range data.Values {
 		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
+	return content
+}
+
+func sanitizeToPlainText(content string) string {
+	content = strings.ReplaceAll(content, "<br/>", "\n")
+	content = strings.ReplaceAll(content, "<br>", "\n")
+	content = regexp.MustCompile(`<a [^>]*>`).ReplaceAllString(content, "")
+	content = strings.ReplaceAll(content, "</a>", "")
+	content = regexp.MustCompile(`<[^>]+>`).ReplaceAllString(content, "")
+	return strings.TrimSpace(content)
+}
+
+func sendEmailNotify(userEmail string, data dto.Notify) error {
+	// make email content
+	content := replaceNotifyValues(data)
 	return common.SendEmail(data.Title, userEmail, content)
 }
 
 func sendBarkNotify(barkURL string, data dto.Notify) error {
 	// 处理占位符
-	content := data.Content
-	for _, value := range data.Values {
-		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
-	}
+	content := replaceNotifyValues(data)
 
 	// 替换模板变量
 	finalURL := strings.ReplaceAll(barkURL, "{{title}}", url.QueryEscape(data.Title))
@@ -187,10 +201,7 @@ func sendBarkNotify(barkURL string, data dto.Notify) error {
 
 func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data dto.Notify) error {
 	// 处理占位符
-	content := data.Content
-	for _, value := range data.Values {
-		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
-	}
+	content := replaceNotifyValues(data)
 
 	// 构建完整的 Gotify API URL
 	// 确保 URL 以 /message 结尾
@@ -215,7 +226,7 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 	}
 
 	// 序列化为 JSON
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := common.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal gotify payload: %v", err)
 	}
@@ -277,5 +288,115 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 		}
 	}
 
+	return nil
+}
+
+type feishuTenantAccessTokenResp struct {
+	Code              int    `json:"code"`
+	Msg               string `json:"msg"`
+	TenantAccessToken string `json:"tenant_access_token"`
+}
+
+type feishuMessageResp struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+}
+
+func sendFeishuAppNotify(userId int, data dto.Notify) error {
+	settings := system_setting.GetFeishuSettings()
+	if settings.AppID == "" || settings.AppSecret == "" {
+		return fmt.Errorf("feishu app id/app secret is empty")
+	}
+
+	user, err := model.GetUserById(userId, true)
+	if err != nil {
+		return fmt.Errorf("failed to query user by id: %w", err)
+	}
+	openID := strings.TrimSpace(user.FeishuId)
+	if openID == "" {
+		common.SysLog(fmt.Sprintf("user %d has no feishu open_id, skip feishu app notify", userId))
+		return nil
+	}
+
+	tenantToken, err := getFeishuTenantAccessToken(settings.AppID, settings.AppSecret)
+	if err != nil {
+		return err
+	}
+
+	text := fmt.Sprintf("%s\n\n%s", data.Title, sanitizeToPlainText(replaceNotifyValues(data)))
+	return sendFeishuTextMessage(tenantToken, openID, text)
+}
+
+func getFeishuTenantAccessToken(appID, appSecret string) (string, error) {
+	reqBody, err := common.Marshal(map[string]string{
+		"app_id":     appID,
+		"app_secret": appSecret,
+	})
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest("POST", "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	client := http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var parsed feishuTenantAccessTokenResp
+	if err = common.Unmarshal(raw, &parsed); err != nil {
+		return "", err
+	}
+	if parsed.Code != 0 || strings.TrimSpace(parsed.TenantAccessToken) == "" {
+		return "", fmt.Errorf("feishu tenant token failed: code=%d msg=%s", parsed.Code, parsed.Msg)
+	}
+	return strings.TrimSpace(parsed.TenantAccessToken), nil
+}
+
+func sendFeishuTextMessage(tenantToken, openID, text string) error {
+	contentBytes, err := common.Marshal(map[string]string{"text": text})
+	if err != nil {
+		return err
+	}
+	reqBody, err := common.Marshal(map[string]string{
+		"receive_id": openID,
+		"msg_type":   "text",
+		"content":    string(contentBytes),
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+tenantToken)
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	client := http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	var parsed feishuMessageResp
+	if err = common.Unmarshal(raw, &parsed); err != nil {
+		return err
+	}
+	if parsed.Code != 0 {
+		return fmt.Errorf("feishu send message failed: code=%d msg=%s", parsed.Code, parsed.Msg)
+	}
 	return nil
 }

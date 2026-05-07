@@ -26,7 +26,6 @@ import {
   Typography,
   Popover,
   Divider,
-  Badge,
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
@@ -148,21 +147,11 @@ const renderDuration = (text, record, t) => {
 
 const renderEnabled = (text, record, t) => {
   return text ? (
-    <Tag
-      color='white'
-      shape='circle'
-      type='light'
-      prefixIcon={<Badge dot type='success' />}
-    >
+    <Tag color='green' shape='circle' size='small'>
       {t('启用')}
     </Tag>
   ) : (
-    <Tag
-      color='white'
-      shape='circle'
-      type='light'
-      prefixIcon={<Badge dot type='danger' />}
-    >
+    <Tag color='red' shape='circle' size='small'>
       {t('禁用')}
     </Tag>
   );
@@ -237,7 +226,11 @@ const renderPaymentConfig = (text, record, t, enableEpay) => {
   );
 };
 
-const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
+const renderOperations = (
+  text,
+  record,
+  { openEdit, setPlanEnabled, onManualSyncPlanGroup, t },
+) => {
   const isEnabled = record?.plan?.enabled;
 
   const handleToggle = () => {
@@ -282,6 +275,15 @@ const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
           {t('启用')}
         </Button>
       )}
+      <Button
+        theme='light'
+        type='secondary'
+        size='small'
+        disabled={!(record?.plan?.bind_group || '').trim()}
+        onClick={() => onManualSyncPlanGroup?.(record?.plan)}
+      >
+        {t('手动同步')}
+      </Button>
     </Space>
   );
 };
@@ -291,6 +293,7 @@ export const getSubscriptionsColumns = ({
   openEdit,
   setPlanEnabled,
   enableEpay,
+  onManualSyncPlanGroup,
 }) => {
   return [
     {
@@ -363,9 +366,14 @@ export const getSubscriptionsColumns = ({
       title: t('操作'),
       dataIndex: 'operate',
       fixed: 'right',
-      width: 160,
+      width: 250,
       render: (text, record) =>
-        renderOperations(text, record, { openEdit, setPlanEnabled, t }),
+        renderOperations(text, record, {
+          openEdit,
+          setPlanEnabled,
+          onManualSyncPlanGroup,
+          t,
+        }),
     },
   ];
 };

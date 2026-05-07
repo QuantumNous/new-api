@@ -1143,7 +1143,11 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 验证预警类型
-	if req.QuotaWarningType != dto.NotifyTypeEmail && req.QuotaWarningType != dto.NotifyTypeWebhook && req.QuotaWarningType != dto.NotifyTypeBark && req.QuotaWarningType != dto.NotifyTypeGotify {
+	if req.QuotaWarningType != dto.NotifyTypeEmail &&
+		req.QuotaWarningType != dto.NotifyTypeWebhook &&
+		req.QuotaWarningType != dto.NotifyTypeBark &&
+		req.QuotaWarningType != dto.NotifyTypeGotify &&
+		req.QuotaWarningType != dto.NotifyTypeFeishuApp {
 		common.ApiErrorI18n(c, i18n.MsgSettingInvalidType)
 		return
 	}
@@ -1151,6 +1155,10 @@ func UpdateUserSetting(c *gin.Context) {
 	// 验证预警阈值
 	if req.QuotaWarningThreshold <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgQuotaThresholdGtZero)
+		return
+	}
+	if req.QuotaWarningThreshold > 100 {
+		common.ApiError(c, errors.New("quota_warning_threshold must be <= 100 when using percentage strategy"))
 		return
 	}
 

@@ -3,12 +3,12 @@ package oauth
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -75,7 +75,7 @@ func (p *FeishuProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 		"code":          code,
 		"redirect_uri":  fmt.Sprintf("%s/oauth/feishu", system_setting.ServerAddress),
 	}
-	jsonData, err := json.Marshal(payload)
+	jsonData, err := common.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func (p *FeishuProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	logger.LogDebug(ctx, "[OAuth-Feishu] ExchangeToken response body: %s", bodyStr)
 
 	var tokenErr feishuTokenError
-	if err := json.Unmarshal(body, &tokenErr); err == nil && tokenErr.Error != "" {
+	if err := common.Unmarshal(body, &tokenErr); err == nil && tokenErr.Error != "" {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-Feishu] ExchangeToken failed: error=%s, desc=%s", tokenErr.Error, tokenErr.ErrorDescription))
 		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "Feishu"}, tokenErr.ErrorDescription)
 	}
@@ -124,7 +124,7 @@ func (p *FeishuProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 		Error       string `json:"error"`
 		ErrorDesc   string `json:"error_description"`
 	}
-	if err := json.Unmarshal(body, &rawRes); err != nil {
+	if err := common.Unmarshal(body, &rawRes); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-Feishu] ExchangeToken decode error: %s", err.Error()))
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (p *FeishuProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	}
 
 	var userInfoRes feishuUserInfoResponse
-	if err := json.Unmarshal(body, &userInfoRes); err != nil {
+	if err := common.Unmarshal(body, &userInfoRes); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-Feishu] GetUserInfo decode error: %s", err.Error()))
 		return nil, err
 	}
@@ -204,13 +204,28 @@ func (p *FeishuProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	logger.LogDebug(ctx, "[OAuth-Feishu] GetUserInfo success: open_id=%s, union_id=%s, name=%s, email=%s",
 		data.OpenID, data.UnionID, data.Name, data.Email)
 
+	providerUserID := data.OpenID
+	displayName := data.Name
+	if displayName == "" {
+		displayName = providerUserID
+	}
+	username := displayName
+	if username == "" {
+		if data.UserID != "" {
+			username = "feishu_" + data.UserID
+		} else {
+			username = "feishu_" + data.OpenID
+		}
+	}
+
 	return &OAuthUser{
-		ProviderUserID: data.OpenID,
-		Username:       data.Name,
-		DisplayName:    data.Name,
+		ProviderUserID: providerUserID,
+		Username:       username,
+		DisplayName:    displayName,
 		Email:          data.Email,
 		Extra: map[string]any{
 			"union_id":   data.UnionID,
+			"open_id":    data.OpenID,
 			"avatar_url": data.AvatarURL,
 			"user_id":    data.UserID,
 			"mobile":     data.Mobile,

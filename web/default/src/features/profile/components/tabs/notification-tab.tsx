@@ -22,6 +22,7 @@ const NOTIFICATION_ICONS: Record<string, typeof Mail> = {
   webhook: Webhook,
   bark: Bell,
   gotify: Server,
+  feishu_app: Bell,
 }
 
 // ============================================================================
@@ -141,10 +142,14 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
       {/* Warning Threshold */}
       <div className='space-y-2'>
-        <Label htmlFor='threshold'>{t('Quota Warning Threshold')}</Label>
+        <Label htmlFor='threshold'>
+          {t('Quota Warning Threshold (%)')}
+        </Label>
         <Input
           id='threshold'
           type='number'
+          min='1'
+          max='100'
           value={settings.quota_warning_threshold}
           onChange={(e) =>
             updateField('quota_warning_threshold', Number(e.target.value))
@@ -152,7 +157,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           placeholder={t('Enter threshold')}
         />
         <p className='text-muted-foreground text-xs'>
-          {t('Get notified when balance falls below this value')}
+          {t('Get notified when remaining subscription quota falls below this percentage')}
         </p>
       </div>
 

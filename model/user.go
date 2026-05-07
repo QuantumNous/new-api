@@ -35,6 +35,11 @@ type User struct {
 	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
 	FeishuId         string         `json:"feishu_id" gorm:"column:feishu_id;index"`
+	FeishuUnionId    string         `json:"feishu_union_id" gorm:"column:feishu_union_id;index"`
+	FeishuUserId     string         `json:"feishu_user_id" gorm:"column:feishu_user_id;index"`
+	OrgName          string         `json:"org_name" gorm:"column:org_name;type:varchar(255);default:'';index"`
+	OrgPath          string         `json:"org_path" gorm:"column:org_path;type:text"`
+	JobTitle         string         `json:"job_title" gorm:"column:job_title;type:varchar(255);default:''"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
 	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
@@ -718,11 +723,35 @@ func IsFeishuIdAlreadyTaken(feishuId string) bool {
 	return DB.Unscoped().Where("feishu_id = ?", feishuId).Find(&User{}).RowsAffected == 1
 }
 
+func IsFeishuUnionIdAlreadyTaken(feishuUnionId string) bool {
+	return DB.Unscoped().Where("feishu_union_id = ?", feishuUnionId).Find(&User{}).RowsAffected == 1
+}
+
+func IsFeishuUserIdAlreadyTaken(feishuUserId string) bool {
+	return DB.Unscoped().Where("feishu_user_id = ?", feishuUserId).Find(&User{}).RowsAffected == 1
+}
+
 func (user *User) UpdateFeishuId(newFeishuId string) error {
 	if user.Id == 0 {
 		return errors.New("user id is empty")
 	}
 	return DB.Model(user).Update("feishu_id", newFeishuId).Error
+}
+
+func (user *User) FillUserByFeishuUserId() error {
+	if user.FeishuUserId == "" {
+		return errors.New("feishu_user_id is empty")
+	}
+	DB.Where(User{FeishuUserId: user.FeishuUserId}).First(user)
+	return nil
+}
+
+func (user *User) FillUserByFeishuUnionId() error {
+	if user.FeishuUnionId == "" {
+		return errors.New("feishu_union_id is empty")
+	}
+	DB.Where(User{FeishuUnionId: user.FeishuUnionId}).First(user)
+	return nil
 }
 
 func (user *User) FillUserByFeishuId() error {

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 import CardPro from '../../common/ui/CardPro';
 import UsersTable from './UsersTable';
 import UsersActions from './UsersActions';
@@ -25,6 +25,7 @@ import UsersFilters from './UsersFilters';
 import UsersDescription from './UsersDescription';
 import AddUserModal from './modals/AddUserModal';
 import EditUserModal from './modals/EditUserModal';
+import FeishuBatchInitModal from './modals/FeishuBatchInitModal';
 import { useUsersData } from '../../../hooks/users/useUsersData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
@@ -32,6 +33,8 @@ import { createCardProPagination } from '../../../helpers/utils';
 const UsersPage = () => {
   const usersData = useUsersData();
   const isMobile = useIsMobile();
+  const [showFeishuBatchInit, setShowFeishuBatchInit] = useState(false);
+  const [showFeishuTokenManager, setShowFeishuTokenManager] = useState(false);
 
   const {
     // Modal state
@@ -77,6 +80,16 @@ const UsersPage = () => {
         editingUser={editingUser}
       />
 
+      <FeishuBatchInitModal
+        visible={showFeishuBatchInit}
+        onCancel={() => setShowFeishuBatchInit(false)}
+        onSuccess={async () => {
+          setShowFeishuBatchInit(false);
+          await refresh();
+        }}
+        t={t}
+      />
+
       <CardPro
         type='type1'
         descriptionArea={
@@ -88,7 +101,11 @@ const UsersPage = () => {
         }
         actionsArea={
           <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
-            <UsersActions setShowAddUser={setShowAddUser} t={t} />
+            <UsersActions
+              setShowAddUser={setShowAddUser}
+              setShowFeishuBatchInit={setShowFeishuBatchInit}
+              t={t}
+            />
 
             <UsersFilters
               formInitValues={formInitValues}

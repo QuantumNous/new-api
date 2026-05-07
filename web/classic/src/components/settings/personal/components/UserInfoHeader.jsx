@@ -37,7 +37,7 @@ import { Coins, BarChart2, Users } from 'lucide-react';
 const UserInfoHeader = ({ t, userState }) => {
   const getUsername = () => {
     if (userState.user) {
-      return userState.user.username;
+      return userState.user.display_name || userState.user.username;
     } else {
       return 'null';
     }

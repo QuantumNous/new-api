@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { GroupPlanMapping } from './components/group-plan-mapping'
+import { SubscriptionUsageDashboard } from './components/subscription-usage-dashboard'
 import { SubscriptionsDialogs } from './components/subscriptions-dialogs'
 import { SubscriptionsPrimaryButtons } from './components/subscriptions-primary-buttons'
 import { SubscriptionsProvider } from './components/subscriptions-provider'
@@ -41,12 +42,16 @@ export function Subscriptions() {
             <TabsList>
               <TabsTrigger value='plans'>{t('Plans')}</TabsTrigger>
               <TabsTrigger value='group-mapping'>{t('Group Mapping')}</TabsTrigger>
+              <TabsTrigger value='usage'>{t('Usage View')}</TabsTrigger>
             </TabsList>
             <TabsContent value='plans'>
               <SubscriptionsTable />
             </TabsContent>
             <TabsContent value='group-mapping'>
               <GroupPlanMapping />
+            </TabsContent>
+            <TabsContent value='usage'>
+              <SubscriptionUsageDashboard />
             </TabsContent>
           </Tabs>
         </SectionPageLayout.Content>
