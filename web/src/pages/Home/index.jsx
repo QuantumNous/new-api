@@ -637,7 +637,7 @@ response = client.chat.completions.create(
             </p>
           </motion.div>
 
-          <div className='grid gap-8 sm:grid-cols-2 lg:grid-cols-4'>
+          <div className='home-feature-grid grid gap-8 sm:grid-cols-2 lg:grid-cols-4'>
             {features.map((feature, index) => (
               <motion.div
                 key={index}

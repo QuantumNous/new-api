@@ -39,15 +39,15 @@ import {
 
 const USER_COLORS = [
   '#3b82f6',
-  '#ef4444',
+  '#0ea5e9',
   '#10b981',
-  '#f59e0b',
-  '#8b5cf6',
-  '#ec4899',
-  '#06b6d4',
-  '#f97316',
-  '#6366f1',
   '#14b8a6',
+  '#2563eb',
+  '#06b6d4',
+  '#06b6d4',
+  '#38bdf8',
+  '#1d4ed8',
+  '#22c55e',
 ];
 
 const TRANSPARENT_CHART_BACKGROUND = 'transparent';

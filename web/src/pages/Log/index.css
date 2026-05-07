@@ -40,8 +40,8 @@
   border-radius: 30px !important;
   background: radial-gradient(
       circle at top left,
-      rgba(236, 72, 153, 0.06),
-      transparent 28%
+      rgba(14, 165, 233, 0.08),
+      transparent 30%
     ),
     linear-gradient(
       180deg,
@@ -86,10 +86,10 @@
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border: 1px solid rgba(225, 141, 255, 0.35);
+  border: 1px solid rgba(125, 211, 252, 0.45);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.82);
-  color: #b423c7;
+  color: #0369a1;
   font-size: 13px;
   font-weight: 700;
 }
@@ -336,7 +336,7 @@
 
 .log-filter-button-primary.semi-button {
   border-color: transparent !important;
-  background: linear-gradient(135deg, #d946ef, #a855f7) !important;
+  background: var(--app-accent-gradient) !important;
   color: #ffffff !important;
 }
 
@@ -430,8 +430,8 @@ html.dark .log-table-card.table-scroll-card {
   border-color: rgba(53, 61, 76, 0.96) !important;
   background: radial-gradient(
       circle at top left,
-      rgba(192, 38, 211, 0.12),
-      transparent 30%
+      rgba(59, 130, 246, 0.16),
+      transparent 32%
     ),
     linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98)) !important;
   box-shadow: none !important;
@@ -460,7 +460,7 @@ html.dark .log-data-table {
 }
 
 html.dark .log-table-overview-eyebrow {
-  color: #f472b6;
+  color: var(--app-accent-strong);
 }
 
 html.dark .log-filter-date .semi-datepicker-range-input,

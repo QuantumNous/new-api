@@ -123,11 +123,11 @@
 .auth-card-shell {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border: 1px solid var(--app-panel-border);
   border-radius: 32px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.12);
+  background: var(--app-panel-bg);
+  backdrop-filter: blur(var(--app-glass-blur));
+  box-shadow: var(--app-panel-shadow);
 }
 
 .auth-card-shell::before {
@@ -180,7 +180,7 @@
   justify-content: center;
   width: 18px;
   height: 18px;
-  color: #c026d3;
+  color: var(--app-accent-cyan);
   font-size: 16px;
   line-height: 1;
   transform: translateY(-1px);
@@ -188,7 +188,7 @@
 
 .auth-card-kicker.semi-typography,
 .auth-card-kicker {
-  color: #0052ff;
+  color: var(--app-accent);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -237,27 +237,27 @@
 
 .auth-provider-button.semi-button,
 .auth-secondary-button.semi-button {
-  border: 1px solid rgba(148, 163, 184, 0.18) !important;
-  background: rgba(247, 249, 252, 0.88) !important;
+  border: 1px solid var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
   color: #111827 !important;
 }
 
 .auth-provider-button.semi-button:hover,
 .auth-secondary-button.semi-button:hover {
-  border-color: rgba(0, 82, 255, 0.22) !important;
-  background: rgba(240, 245, 255, 0.94) !important;
-  color: #0052ff !important;
+  border-color: var(--app-panel-border-strong) !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: var(--app-accent) !important;
 }
 
 .auth-primary-button.semi-button {
-  border: 1px solid #0052ff !important;
-  background: linear-gradient(135deg, #0052ff, #0667d0) !important;
+  border: 1px solid transparent !important;
+  background: var(--app-accent-gradient) !important;
   color: #ffffff !important;
-  box-shadow: 0 18px 34px rgba(0, 82, 255, 0.22);
+  box-shadow: 0 18px 34px rgba(37, 99, 235, 0.22);
 }
 
 .auth-primary-button.semi-button:hover {
-  background: linear-gradient(135deg, #0b63ff, #2d77ff) !important;
+  background: var(--app-accent-gradient-hover) !important;
 }
 
 .auth-tertiary-button.semi-button {
@@ -333,10 +333,10 @@
 .auth-card-shell .semi-input-wrapper-focus,
 .auth-card-shell .semi-select.semi-select-focus,
 .auth-card-shell .semi-input-number-focus {
-  border-color: rgba(0, 82, 255, 0.28) !important;
+  border-color: var(--app-panel-border-strong) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    0 0 0 4px rgba(0, 82, 255, 0.08) !important;
+    0 0 0 4px rgba(37, 99, 235, 0.08) !important;
   background: rgba(255, 255, 255, 0.98) !important;
 }
 
@@ -362,14 +362,14 @@
 }
 
 .auth-card-shell .semi-checkbox-checked .semi-checkbox-inner-display {
-  background-color: #0052ff !important;
-  border-color: #0052ff !important;
+  background-color: var(--app-accent) !important;
+  border-color: var(--app-accent) !important;
 }
 
 .auth-policy-link,
 .auth-switch-link,
 .auth-inline-link {
-  color: #0052ff;
+  color: var(--app-accent);
   font-weight: 700;
   text-decoration: none;
 }
@@ -377,7 +377,7 @@
 .auth-policy-link:hover,
 .auth-switch-link:hover,
 .auth-inline-link:hover {
-  color: #0667d0;
+  color: var(--app-accent-strong);
 }
 
 .auth-terms {
@@ -417,8 +417,8 @@
   height: 32px;
   margin-right: 12px;
   border-radius: 999px;
-  background: rgba(0, 82, 255, 0.1);
-  color: #0052ff;
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 
 html.dark .auth-page {
@@ -438,9 +438,9 @@ html.dark .auth-page {
 html.dark .auth-page-brand,
 html.dark .auth-page-highlight,
 html.dark .auth-card-shell {
-  border-color: rgba(71, 85, 105, 0.34) !important;
-  background: rgba(7, 12, 22, 0.76) !important;
-  box-shadow: 0 28px 80px rgba(2, 6, 23, 0.46);
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg) !important;
+  box-shadow: var(--app-panel-shadow);
 }
 
 html.dark .auth-brand-header {
@@ -470,7 +470,7 @@ html.dark .auth-card-title.semi-typography {
 }
 
 html.dark .auth-card-heading-mark {
-  color: #e879f9;
+  color: var(--app-accent-cyan);
 }
 
 html.dark .auth-page-brand-caption.semi-typography,
@@ -498,8 +498,8 @@ html.dark .auth-card-shell .semi-input-wrapper,
 html.dark .auth-card-shell .semi-input-number,
 html.dark .auth-card-shell .semi-select,
 html.dark .auth-card-shell .semi-input-number .semi-input-wrapper {
-  border-color: rgba(71, 85, 105, 0.34) !important;
-  background: rgba(15, 23, 42, 0.82) !important;
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
   color: #e2e8f0 !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
@@ -513,8 +513,8 @@ html.dark .auth-card-shell .semi-input-number:hover,
 html.dark .auth-card-shell .semi-input-wrapper-focus,
 html.dark .auth-card-shell .semi-select.semi-select-focus,
 html.dark .auth-card-shell .semi-input-number-focus {
-  border-color: rgba(96, 165, 250, 0.36) !important;
-  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: var(--app-panel-border-strong) !important;
+  background: rgba(18, 28, 44, 0.96) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 0 0 4px rgba(37, 99, 235, 0.14) !important;
@@ -534,8 +534,8 @@ html.dark .auth-card-shell .semi-textarea {
 
 html.dark .auth-input .semi-input-wrapper,
 html.dark .auth-input.semi-input-wrapper {
-  border-color: rgba(71, 85, 105, 0.34) !important;
-  background: rgba(15, 23, 42, 0.82) !important;
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
 }
 
 html.dark .auth-card-shell .semi-input::placeholder,
@@ -551,7 +551,7 @@ html.dark .auth-card-shell .semi-divider-title {
 html.dark .auth-policy-link,
 html.dark .auth-switch-link,
 html.dark .auth-inline-link {
-  color: #93c5fd;
+  color: var(--app-accent-strong);
 }
 
 html.dark .auth-policy-link:hover,

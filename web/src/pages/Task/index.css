@@ -257,13 +257,13 @@
 
 .task-filter-button-primary.semi-button {
   border-color: transparent !important;
-  background: linear-gradient(135deg, #d946ef, #a855f7) !important;
+  background: var(--app-accent-gradient) !important;
   color: #ffffff !important;
 }
 
 .task-filter-button-primary.semi-button:hover,
 .task-filter-button-primary.semi-button:focus {
-  background: linear-gradient(135deg, #c026d3, #9333ea) !important;
+  background: var(--app-accent-gradient-hover) !important;
 }
 
 .task-data-table {

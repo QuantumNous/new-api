@@ -1,8 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { getLogo } from '../../helpers';
 import './Footer.css';
 
 const Footer = () => {
+  const logo = getLogo();
   const footerLinks = {
     product: {
       title: '产品',
@@ -36,12 +38,15 @@ const Footer = () => {
         <div className='site-footer-panel'>
           <div className='site-footer-grid grid grid-cols-1 gap-8 md:grid-cols-4'>
             <div className='site-footer-brand space-y-4'>
-              <Link to='/' className='site-footer-brand-link flex items-center gap-2'>
+              <Link
+                to='/'
+                className='site-footer-brand-link flex items-center gap-2'
+              >
                 <div className='site-footer-brand-mark flex h-8 w-8 items-center justify-center rounded-lg'>
-                  <span className='text-sm font-bold text-white'>Z</span>
+                  <img src={logo} alt='logo' />
                 </div>
                 <span className='site-footer-brand-name text-lg font-semibold'>
-                  Z-UP API
+                  Z-UP API Platform
                 </span>
               </Link>
               <p className='site-footer-brand-copy text-sm'>

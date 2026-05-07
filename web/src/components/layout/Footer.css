@@ -1,7 +1,10 @@
 .site-footer {
   position: relative;
-  background:
-    linear-gradient(180deg, rgba(247, 250, 255, 0.92), rgba(255, 255, 255, 0.98)),
+  background: linear-gradient(
+      180deg,
+      rgba(247, 250, 255, 0.92),
+      rgba(255, 255, 255, 0.98)
+    ),
     #ffffff;
   border-top: 1px solid rgba(196, 207, 226, 0.55);
 }
@@ -13,9 +16,16 @@
 .site-footer-panel {
   border: 1px solid rgba(196, 207, 226, 0.5);
   border-radius: 32px;
-  background:
-    radial-gradient(circle at top left, rgba(0, 82, 255, 0.05), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.96));
+  background: radial-gradient(
+      circle at top left,
+      rgba(0, 82, 255, 0.05),
+      transparent 24%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(248, 251, 255, 0.96)
+    );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 20px 40px rgba(15, 23, 42, 0.05);
@@ -30,13 +40,22 @@
 .site-footer-group-title {
   color: #1c2536;
 }
+.site-footer-brand-name {
+  color: rgba(0, 0, 0, 0);
+  background-clip: text;
+  background-image: linear-gradient(
+    to right,
+    var(--app-accent),
+    var(--app-accent-cyan)
+  );
+}
 
 .site-footer-brand-link {
   text-decoration: none;
 }
 
 .site-footer-brand-mark {
-  background: linear-gradient(135deg, #0052ff 0%, #6ea8ff 100%);
+  /* background: linear-gradient(135deg, #0052ff 0%, #6ea8ff 100%); */
   box-shadow: 0 12px 24px rgba(0, 82, 255, 0.16);
 }
 
@@ -71,16 +90,22 @@
 }
 
 html.dark .site-footer {
-  background:
-    linear-gradient(180deg, rgba(8, 11, 17, 0.98), rgba(10, 13, 19, 0.98)),
+  background: linear-gradient(
+      180deg,
+      rgba(8, 11, 17, 0.98),
+      rgba(10, 13, 19, 0.98)
+    ),
     #07090f;
   border-top-color: rgba(43, 48, 59, 0.95);
 }
 
 html.dark .site-footer-panel {
   border-color: rgba(43, 48, 59, 0.95);
-  background:
-    radial-gradient(circle at top left, rgba(0, 82, 255, 0.1), transparent 26%),
+  background: radial-gradient(
+      circle at top left,
+      rgba(0, 82, 255, 0.1),
+      transparent 26%
+    ),
     linear-gradient(180deg, rgba(17, 19, 24, 0.98), rgba(13, 16, 22, 0.98));
   box-shadow: none;
 }

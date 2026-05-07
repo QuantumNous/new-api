@@ -86,13 +86,13 @@
 
 .token-edit-footer-button-primary.semi-button {
   border: none !important;
-  background: linear-gradient(90deg, #a855f7, #d946ef 54%, #f472b6) !important;
+  background: var(--app-accent-gradient) !important;
   color: #ffffff !important;
-  box-shadow: 0 14px 28px rgba(168, 85, 247, 0.22);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.22);
 }
 
 .token-edit-footer-button-primary.semi-button:hover {
-  background: linear-gradient(90deg, #9333ea, #c026d3 54%, #ec4899) !important;
+  background: var(--app-accent-gradient-hover) !important;
 }
 
 .token-edit-footer-button-secondary.semi-button {
@@ -151,7 +151,7 @@
 }
 
 .token-edit-section-avatar-access.semi-avatar {
-  background: linear-gradient(135deg, #a855f7, #d946ef) !important;
+  background: linear-gradient(135deg, #2563eb, #06b6d4) !important;
 }
 
 .token-edit-section-copy {
@@ -189,7 +189,7 @@
 }
 
 .token-edit-modal .semi-form-field-label-required::before {
-  color: #ec4899 !important;
+  color: var(--app-accent) !important;
 }
 
 .token-edit-modal .semi-form-field-extra {
@@ -313,7 +313,7 @@
 }
 
 .token-edit-modal .semi-form-field .semi-switch-checked {
-  background: linear-gradient(135deg, #d946ef, #a855f7) !important;
+  background: var(--app-accent-gradient) !important;
 }
 
 .token-edit-preset-group {
@@ -331,14 +331,14 @@
 }
 
 .token-edit-preset-button.semi-button:hover {
-  border-color: rgba(217, 70, 239, 0.26) !important;
-  background: rgba(250, 245, 255, 0.95) !important;
-  color: #b423c7 !important;
+  border-color: var(--app-panel-border-strong) !important;
+  background: var(--app-accent-soft) !important;
+  color: var(--app-accent) !important;
 }
 
 .token-edit-preset-button-primary.semi-button {
   border-color: transparent !important;
-  background: linear-gradient(135deg, #d946ef, #a855f7) !important;
+  background: var(--app-accent-gradient) !important;
   color: #ffffff !important;
   height: 38px;
   padding: 0 14px;
@@ -347,7 +347,7 @@
 }
 
 .token-edit-preset-button-primary.semi-button:hover {
-  background: linear-gradient(135deg, #c026d3, #9333ea) !important;
+  background: var(--app-accent-gradient-hover) !important;
   color: #ffffff !important;
 }
 
@@ -455,7 +455,7 @@ html.dark .token-edit-date .semi-input-suffix {
 }
 
 html.dark .token-edit-toggle-native-input:hover {
-  color: #f472b6 !important;
+  color: var(--app-accent-strong) !important;
 }
 
 @media (max-width: 767px) {

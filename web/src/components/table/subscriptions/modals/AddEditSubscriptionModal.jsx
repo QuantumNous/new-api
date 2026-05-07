@@ -198,19 +198,30 @@ const AddEditSubscriptionModal = ({
   return (
     <>
       <SideSheet
+        className='subscription-edit-sheet'
         placement={placement}
         title={
-          <Space>
+          <Space className='subscription-edit-sheet-title'>
             {isEdit ? (
-              <Tag color='blue' shape='circle'>
+              <Tag
+                color='white'
+                shape='circle'
+                type='light'
+                className='subscription-edit-sheet-badge is-edit'
+              >
                 {t('更新')}
               </Tag>
             ) : (
-              <Tag color='green' shape='circle'>
+              <Tag
+                color='white'
+                shape='circle'
+                type='light'
+                className='subscription-edit-sheet-badge is-create'
+              >
                 {t('新建')}
               </Tag>
             )}
-            <Title heading={4} className='m-0'>
+            <Title heading={4} className='subscription-edit-sheet-heading m-0'>
               {isEdit ? t('更新套餐信息') : t('创建新的订阅套餐')}
             </Title>
           </Space>
@@ -219,10 +230,11 @@ const AddEditSubscriptionModal = ({
         visible={visible}
         width={isMobile ? '100%' : 600}
         footer={
-          <div className='flex justify-end bg-white'>
+          <div className='subscription-edit-sheet-footer flex justify-end'>
             <Space>
               <Button
                 theme='solid'
+                className='subscription-edit-sheet-submit'
                 onClick={() => formApiRef.current?.submitForm()}
                 icon={<IconSave />}
                 loading={loading}
@@ -232,6 +244,7 @@ const AddEditSubscriptionModal = ({
               <Button
                 theme='light'
                 type='primary'
+                className='subscription-edit-sheet-cancel'
                 onClick={handleClose}
                 icon={<IconClose />}
               >
@@ -251,22 +264,21 @@ const AddEditSubscriptionModal = ({
             onSubmit={submit}
           >
             {({ values }) => (
-              <div className='p-2'>
+              <div className='subscription-edit-sheet-form p-2'>
                 {/* 基本信息 */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
-                  <div className='flex items-center mb-2'>
+                <Card className='subscription-edit-section-card !rounded-2xl shadow-sm border-0 mb-4'>
+                  <div className='subscription-edit-section-header flex items-center mb-2'>
                     <Avatar
                       size='small'
-                      color='blue'
-                      className='mr-2 shadow-md'
+                      className='subscription-edit-section-avatar is-primary mr-2 shadow-md'
                     >
                       <IconCalendarClock size={16} />
                     </Avatar>
                     <div>
-                      <Text className='text-lg font-medium'>
+                      <Text className='subscription-edit-section-title text-lg font-medium'>
                         {t('基本信息')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='subscription-edit-section-copy text-xs'>
                         {t('套餐的基本信息和定价')}
                       </div>
                     </div>
@@ -382,20 +394,19 @@ const AddEditSubscriptionModal = ({
                 </Card>
 
                 {/* 有效期设置 */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
-                  <div className='flex items-center mb-2'>
+                <Card className='subscription-edit-section-card !rounded-2xl shadow-sm border-0 mb-4'>
+                  <div className='subscription-edit-section-header flex items-center mb-2'>
                     <Avatar
                       size='small'
-                      color='green'
-                      className='mr-2 shadow-md'
+                      className='subscription-edit-section-avatar is-success mr-2 shadow-md'
                     >
                       <Clock size={16} />
                     </Avatar>
                     <div>
-                      <Text className='text-lg font-medium'>
+                      <Text className='subscription-edit-section-title text-lg font-medium'>
                         {t('有效期设置')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='subscription-edit-section-copy text-xs'>
                         {t('配置套餐的有效时长')}
                       </div>
                     </div>
@@ -444,20 +455,19 @@ const AddEditSubscriptionModal = ({
                 </Card>
 
                 {/* 额度重置 */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
-                  <div className='flex items-center mb-2'>
+                <Card className='subscription-edit-section-card !rounded-2xl shadow-sm border-0 mb-4'>
+                  <div className='subscription-edit-section-header flex items-center mb-2'>
                     <Avatar
                       size='small'
-                      color='orange'
-                      className='mr-2 shadow-md'
+                      className='subscription-edit-section-avatar is-warning mr-2 shadow-md'
                     >
                       <RefreshCw size={16} />
                     </Avatar>
                     <div>
-                      <Text className='text-lg font-medium'>
+                      <Text className='subscription-edit-section-title text-lg font-medium'>
                         {t('额度重置')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='subscription-edit-section-copy text-xs'>
                         {t('支持周期性重置套餐权益额度')}
                       </div>
                     </div>
@@ -502,20 +512,19 @@ const AddEditSubscriptionModal = ({
                 </Card>
 
                 {/* 第三方支付配置 */}
-                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
-                  <div className='flex items-center mb-2'>
+                <Card className='subscription-edit-section-card !rounded-2xl shadow-sm border-0 mb-4'>
+                  <div className='subscription-edit-section-header flex items-center mb-2'>
                     <Avatar
                       size='small'
-                      color='purple'
-                      className='mr-2 shadow-md'
+                      className='subscription-edit-section-avatar is-accent mr-2 shadow-md'
                     >
                       <IconCreditCard size={16} />
                     </Avatar>
                     <div>
-                      <Text className='text-lg font-medium'>
+                      <Text className='subscription-edit-section-title text-lg font-medium'>
                         {t('第三方支付配置')}
                       </Text>
-                      <div className='text-xs text-gray-600'>
+                      <div className='subscription-edit-section-copy text-xs'>
                         {t('Stripe/Creem 商品ID（可选）')}
                       </div>
                     </div>

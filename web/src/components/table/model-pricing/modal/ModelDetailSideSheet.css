@@ -77,7 +77,7 @@
 
 .model-detail-header-pill-muted.semi-tag {
   background: rgba(250, 245, 255, 0.95) !important;
-  color: #a855f7 !important;
+  color: var(--app-accent) !important;
 }
 
 .model-detail-modal {
@@ -133,7 +133,7 @@
 }
 
 .model-detail-section-avatar-endpoint.semi-avatar {
-  background: linear-gradient(135deg, #a855f7, #d946ef) !important;
+  background: linear-gradient(135deg, #2563eb, #06b6d4) !important;
 }
 
 .model-detail-section-avatar-pricing.semi-avatar {

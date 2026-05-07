@@ -209,8 +209,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           if (isSubscriptionTopup(record)) {
             return (
               <Tag
-                color='purple'
+                color='white'
                 shape='circle'
+                type='light'
                 size='small'
                 className='topup-history-subscription-tag'
               >

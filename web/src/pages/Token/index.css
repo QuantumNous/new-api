@@ -55,12 +55,21 @@
 
 .token-header-button-primary.semi-button {
   border: none !important;
-  background: linear-gradient(90deg, #a855f7, #d946ef 54%, #f472b6) !important;
-  box-shadow: 0 14px 32px rgba(168, 85, 247, 0.22);
+  background: var(--app-accent-gradient) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 32px rgba(37, 99, 235, 0.22);
+  text-shadow: 0 1px 1px rgba(15, 23, 42, 0.18);
 }
 
 .token-header-button-primary.semi-button:hover {
-  background: linear-gradient(90deg, #9333ea, #c026d3 54%, #ec4899) !important;
+  background: var(--app-accent-gradient-hover) !important;
+}
+
+.token-header-button-primary.semi-button .semi-button-content,
+.token-header-button-primary.semi-button .semi-button-content-left,
+.token-header-button-primary.semi-button .semi-button-content-right,
+.token-header-button-primary.semi-button svg {
+  color: currentColor !important;
 }
 
 .token-guide-card {
@@ -69,17 +78,17 @@
   gap: 18px;
   align-items: start;
   padding: 24px 26px;
-  border: 1px solid rgba(232, 210, 255, 0.9);
+  border: 1px solid rgba(224, 229, 237, 0.95);
   border-radius: 28px;
   background: radial-gradient(
       circle at top left,
-      rgba(220, 38, 255, 0.08),
+      rgba(14, 165, 233, 0.08),
       transparent 30%
     ),
     linear-gradient(
       180deg,
-      rgba(251, 245, 255, 0.96),
-      rgba(250, 250, 255, 0.96)
+      rgba(255, 255, 255, 0.98),
+      rgba(248, 250, 252, 0.98)
     );
 }
 
@@ -90,9 +99,9 @@
   width: 48px;
   height: 48px;
   border-radius: 18px;
-  background: linear-gradient(135deg, #a855f7, #d946ef);
+  background: var(--app-accent-gradient);
   color: #ffffff;
-  box-shadow: 0 14px 26px rgba(168, 85, 247, 0.22);
+  box-shadow: 0 14px 26px rgba(37, 99, 235, 0.22);
 }
 
 .token-guide-copy h3 {
@@ -117,7 +126,7 @@
   padding: 8px 14px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.82);
-  color: #a855f7;
+  color: var(--app-accent);
   font-size: 13px;
   font-weight: 700;
   word-break: break-all;
@@ -131,8 +140,8 @@
   border-radius: 30px !important;
   background: radial-gradient(
       circle at top left,
-      rgba(236, 72, 153, 0.06),
-      transparent 28%
+      rgba(14, 165, 233, 0.08),
+      transparent 30%
     ),
     linear-gradient(
       180deg,
@@ -177,10 +186,10 @@
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border: 1px solid rgba(225, 141, 255, 0.35);
+  border: 1px solid rgba(125, 211, 252, 0.45);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.82);
-  color: #b423c7;
+  color: #0369a1;
   font-size: 13px;
   font-weight: 700;
 }
@@ -288,7 +297,7 @@
 }
 .token-filter-button-primary.semi-button {
   border-color: transparent !important;
-  background: linear-gradient(135deg, #d946ef, #a855f7) !important;
+  background: var(--app-accent-gradient) !important;
   color: #ffffff !important;
 }
 
@@ -653,10 +662,10 @@ html.dark .token-table-card.table-scroll-card {
 html.dark .token-guide-card {
   background: radial-gradient(
       circle at top left,
-      rgba(192, 38, 211, 0.12),
-      transparent 30%
+      rgba(59, 130, 246, 0.16),
+      transparent 32%
     ),
-    linear-gradient(180deg, rgba(27, 20, 33, 0.98), rgba(20, 17, 26, 0.98));
+    linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98));
 }
 
 html.dark .token-guide-copy code,
@@ -679,8 +688,8 @@ html.dark .token-action-icon-button.semi-button {
 html.dark .token-table-card.table-scroll-card {
   background: radial-gradient(
       circle at top left,
-      rgba(192, 38, 211, 0.12),
-      transparent 30%
+      rgba(59, 130, 246, 0.16),
+      transparent 32%
     ),
     linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98)) !important;
   box-shadow: none !important;
@@ -695,7 +704,7 @@ html.dark .token-table-card .semi-card-footer {
 }
 
 html.dark .token-table-overview-eyebrow {
-  color: #f472b6;
+  color: var(--app-accent-strong);
 }
 
 html.dark .token-data-table .semi-table-thead > tr > th,

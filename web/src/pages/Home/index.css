@@ -65,18 +65,18 @@
 }
 
 .home-badge {
-  border: 1px solid rgba(0, 82, 255, 0.14);
+  border: 1px solid var(--app-pill-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.84);
-  color: #0052ff;
-  box-shadow: 0 8px 24px rgba(0, 82, 255, 0.06);
-  backdrop-filter: blur(12px);
+  background: var(--app-pill-bg);
+  color: var(--app-accent);
+  box-shadow: var(--app-panel-shadow-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .home-badge-dark {
-  border-color: rgba(120, 164, 255, 0.16);
-  background: rgba(18, 25, 39, 0.72);
-  color: #8bb8ff;
+  border-color: var(--app-pill-border);
+  background: var(--app-pill-bg);
+  color: var(--app-accent-strong);
 }
 
 .home-hero-title {
@@ -130,25 +130,27 @@
 }
 
 .home-button-primary {
-  background: #0052ff;
+  border: none;
+  background: var(--app-accent-gradient);
   color: #ffffff;
-  box-shadow: 0 18px 40px rgba(0, 82, 255, 0.2);
+  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.2);
 }
 
 .home-button-primary:hover {
-  background: #578bfa;
-  box-shadow: 0 20px 44px rgba(0, 82, 255, 0.24);
+  background: var(--app-accent-gradient-hover);
+  box-shadow: 0 20px 44px rgba(37, 99, 235, 0.24);
 }
 
 .home-button-secondary {
-  border-color: rgba(28, 37, 54, 0.12);
-  background: rgba(255, 255, 255, 0.88);
-  color: #233149;
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+  border-color: var(--app-panel-border);
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-primary);
+  box-shadow: var(--app-panel-shadow-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .home-button-secondary:hover {
-  background: #eef0f3;
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .home-stats-grid {
@@ -156,19 +158,15 @@
 }
 
 .home-stat-card {
-  border: 1px solid rgba(91, 97, 110, 0.14);
+  border: 1px solid var(--app-panel-border);
   border-radius: 28px;
-  background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.96),
-      rgba(248, 250, 253, 0.96)
-    ),
-    #ffffff;
-  box-shadow: 0 22px 44px rgba(15, 23, 42, 0.06);
+  background: var(--app-panel-bg);
+  box-shadow: var(--app-panel-shadow-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .home-stat-card:hover {
-  box-shadow: 0 26px 50px rgba(15, 23, 42, 0.1);
+  box-shadow: var(--app-panel-shadow);
 }
 
 .home-stat-icon-wrap {
@@ -238,15 +236,18 @@
 
 .home-provider-cloud {
   padding: 28px 24px;
-  border: 1px solid rgba(0, 82, 255, 0.1);
+  border: 1px solid var(--app-panel-border);
   border-radius: 36px;
   background: radial-gradient(
       circle at top left,
-      rgba(0, 82, 255, 0.05),
+      var(--app-accent-soft),
       transparent 30%
     ),
-    rgba(255, 255, 255, 0.8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    var(--app-panel-bg-soft);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    var(--app-panel-shadow-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .home-provider-cloud-title {
@@ -267,78 +268,71 @@
 
 .home-provider-card,
 .home-faq-item {
-  border: 1px solid rgba(91, 97, 110, 0.14);
+  border: 1px solid var(--app-panel-border);
   border-radius: 28px;
-  background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.98),
-      rgba(246, 249, 252, 0.96)
-    ),
-    #ffffff;
-  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.06);
+  background: var(--app-panel-bg);
+  box-shadow: var(--app-panel-shadow-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .home-provider-card:hover,
 .home-faq-item:hover {
-  border-color: rgba(0, 82, 255, 0.18);
-  box-shadow: 0 24px 46px rgba(15, 23, 42, 0.09);
+  border-color: var(--app-panel-border-strong);
+  box-shadow: var(--app-panel-shadow);
 }
 
 .home-provider-icon {
   color: #ffffff;
-  background: linear-gradient(135deg, #0052ff, #69a0ff);
+  background: var(--app-accent-gradient);
 }
 
 .home-provider-card:nth-child(3n + 2) .home-provider-icon {
-  background: linear-gradient(135deg, #6d28d9, #a855f7);
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
 }
 
 .home-provider-card:nth-child(4n) .home-provider-icon {
-  background: linear-gradient(135deg, #0f766e, #2dd4bf);
+  background: linear-gradient(135deg, #0f766e, #22d3ee);
 }
 
 .home-provider-card:nth-child(5n) .home-provider-icon {
-  background: linear-gradient(135deg, #c026d3, #fb7185);
+  background: linear-gradient(135deg, #0369a1, #38bdf8);
 }
 
 .home-feature-card {
-  border: 1px solid rgba(120, 164, 255, 0.12);
+  border: 1px solid var(--app-panel-border);
   border-radius: 32px;
   background: radial-gradient(
       circle at top right,
-      rgba(0, 82, 255, 0.08),
+      var(--app-accent-soft),
       transparent 30%
     ),
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.98),
-      rgba(245, 249, 255, 0.96)
-    ),
-    #ffffff;
+    var(--app-panel-bg), #ffffff;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 20px 40px rgba(15, 23, 42, 0.06);
+    var(--app-panel-shadow-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .home-feature-card:hover {
-  border-color: rgba(120, 164, 255, 0.22);
+  border-color: var(--app-panel-border-strong);
   transform: translateY(-3px);
 }
 
 .home-feature-icon {
-  background: linear-gradient(135deg, #0052ff, #578bfa);
+  color: #ffffff;
+  background: var(--app-accent-gradient);
 }
 
-.home-feature-card:nth-child(2) .home-feature-icon {
-  background: linear-gradient(135deg, #0f766e, #34d399);
+.home-feature-grid > .group:nth-child(2) .home-feature-icon {
+  background: linear-gradient(135deg, #0f766e, #22d3ee);
 }
 
-.home-feature-card:nth-child(3) .home-feature-icon {
-  background: linear-gradient(135deg, #6d28d9, #a855f7);
+.home-feature-grid > .group:nth-child(3) .home-feature-icon {
+  background: linear-gradient(135deg, #1d4ed8, #38bdf8);
 }
 
-.home-feature-card:nth-child(4) .home-feature-icon {
-  background: linear-gradient(135deg, #ea580c, #fb7185);
+.home-feature-grid > .group:nth-child(4) .home-feature-icon {
+  background: linear-gradient(135deg, #0369a1, #06b6d4);
 }
 
 .home-language-item {
@@ -423,21 +417,17 @@
 .home-plan-card.semi-card,
 .home-pricing-table-card.semi-card,
 .home-why-card.semi-card {
-  border: 1px solid rgba(91, 97, 110, 0.14) !important;
+  border: 1px solid var(--app-panel-border) !important;
   border-radius: 30px !important;
-  background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.98),
-      rgba(246, 249, 252, 0.96)
-    ),
-    #ffffff !important;
-  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.06) !important;
+  background: var(--app-panel-bg) !important;
+  box-shadow: var(--app-panel-shadow-soft) !important;
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .home-plan-card.semi-card:hover,
 .home-why-card.semi-card:hover {
-  border-color: rgba(0, 82, 255, 0.18) !important;
-  box-shadow: 0 24px 46px rgba(15, 23, 42, 0.09) !important;
+  border-color: var(--app-panel-border-strong) !important;
+  box-shadow: var(--app-panel-shadow) !important;
 }
 
 .home-plan-card.semi-card.is-popular {
@@ -493,19 +483,19 @@
 }
 
 .home-plan-button.is-primary {
-  background: #0052ff;
+  background: var(--app-accent-gradient);
   color: #ffffff;
-  box-shadow: 0 16px 30px rgba(0, 82, 255, 0.18);
+  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.18);
 }
 
 .home-plan-button.is-primary:hover {
-  background: #578bfa;
+  background: var(--app-accent-gradient-hover);
 }
 
 .home-plan-button.is-secondary {
-  border-color: rgba(28, 37, 54, 0.12);
-  background: rgba(255, 255, 255, 0.86);
-  color: #233149;
+  border-color: var(--app-panel-border);
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-primary);
 }
 
 .home-plan-button.is-secondary:hover {
@@ -578,8 +568,8 @@
 }
 
 .home-faq-chevron {
-  background: rgba(0, 82, 255, 0.08);
-  color: #0052ff;
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 
 .home-faq-answer-wrap {
@@ -597,22 +587,23 @@
 .home-cta-panel {
   position: absolute;
   inset: 0;
-  border: 1px solid rgba(120, 164, 255, 0.12);
+  border: 1px solid var(--app-panel-border);
   border-radius: 40px;
   background: radial-gradient(
       circle at top left,
-      rgba(0, 82, 255, 0.12),
+      var(--app-accent-soft-strong),
       transparent 28%
     ),
     radial-gradient(
       circle at right center,
-      rgba(96, 165, 250, 0.14),
+      rgba(34, 211, 238, 0.14),
       transparent 24%
     ),
     linear-gradient(135deg, #f7fbff 0%, #edf4ff 55%, #f8fbff 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 30px 70px rgba(15, 23, 42, 0.08);
+    var(--app-panel-shadow);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .home-cta-content {
@@ -668,9 +659,9 @@ html.dark .home-hero-orb-tertiary {
 }
 
 html.dark .home-badge {
-  border-color: rgba(120, 164, 255, 0.16);
-  background: rgba(17, 24, 39, 0.78);
-  color: #8bb8ff;
+  border-color: var(--app-pill-border);
+  background: var(--app-pill-bg);
+  color: var(--app-accent-strong);
   box-shadow: none;
 }
 
@@ -703,26 +694,21 @@ html.dark .home-button-primary {
 }
 
 html.dark .home-button-secondary {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.76);
-  color: #f8fafc;
+  border-color: var(--app-panel-border);
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-primary);
   box-shadow: none;
 }
 
 html.dark .home-button-secondary:hover {
-  background: rgba(20, 30, 49, 0.92);
+  background: rgba(18, 28, 44, 0.96);
 }
 
 html.dark .home-stat-card,
 html.dark .home-provider-card,
 html.dark .home-faq-item {
-  border-color: rgba(43, 48, 59, 0.95);
-  background: linear-gradient(
-      180deg,
-      rgba(17, 19, 24, 0.98),
-      rgba(13, 16, 22, 0.98)
-    ),
-    #111318;
+  border-color: var(--app-panel-border);
+  background: var(--app-panel-bg);
   box-shadow: none;
 }
 
@@ -758,7 +744,7 @@ html.dark .home-section-dark {
     ),
     radial-gradient(
       circle at bottom left,
-      rgba(88, 28, 135, 0.18),
+      rgba(34, 211, 238, 0.14),
       transparent 26%
     ),
     #0a0b0d;
@@ -777,25 +763,24 @@ html.dark .home-cta-description {
 }
 
 html.dark .home-provider-cloud {
-  border-color: rgba(43, 48, 59, 0.95);
+  border-color: var(--app-panel-border);
   background: radial-gradient(
       circle at top left,
-      rgba(0, 82, 255, 0.1),
+      var(--app-accent-soft),
       transparent 30%
     ),
-    rgba(16, 19, 24, 0.92);
+    var(--app-panel-bg-strong);
   box-shadow: none;
 }
 
 html.dark .home-feature-card {
-  border-color: rgba(67, 75, 91, 0.86);
+  border-color: var(--app-panel-border);
   background: radial-gradient(
       circle at top right,
-      rgba(0, 82, 255, 0.16),
+      var(--app-accent-soft),
       transparent 28%
     ),
-    linear-gradient(180deg, rgba(17, 19, 24, 0.98), rgba(12, 15, 20, 0.98)),
-    #0a0b0d;
+    var(--app-panel-bg), #0a0b0d;
 }
 
 html.dark .home-language-check {
@@ -820,13 +805,8 @@ html.dark .home-section-pricing {
 html.dark .home-plan-card.semi-card,
 html.dark .home-pricing-table-card.semi-card,
 html.dark .home-why-card.semi-card {
-  border-color: rgba(43, 48, 59, 0.95) !important;
-  background: linear-gradient(
-      180deg,
-      rgba(17, 19, 24, 0.98),
-      rgba(13, 16, 22, 0.98)
-    ),
-    #111318 !important;
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg) !important;
   box-shadow: none !important;
 }
 
@@ -859,13 +839,13 @@ html.dark .home-plan-button.is-primary {
 }
 
 html.dark .home-plan-button.is-secondary {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.76);
-  color: #f8fafc;
+  border-color: var(--app-panel-border);
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-primary);
 }
 
 html.dark .home-plan-button.is-secondary:hover {
-  background: rgba(20, 30, 49, 0.92);
+  background: rgba(18, 28, 44, 0.96);
 }
 
 html.dark .home-pricing-tabs .semi-tabs-tab-button {
@@ -924,15 +904,15 @@ html.dark .home-faq-answer-wrap {
 }
 
 html.dark .home-cta-panel {
-  border-color: rgba(53, 61, 76, 0.96);
+  border-color: var(--app-panel-border);
   background: radial-gradient(
       circle at top left,
-      rgba(0, 82, 255, 0.18),
+      var(--app-accent-soft-strong),
       transparent 28%
     ),
     radial-gradient(
       circle at right center,
-      rgba(96, 165, 250, 0.16),
+      rgba(34, 211, 238, 0.14),
       transparent 24%
     ),
     linear-gradient(135deg, #08111f 0%, #0a0f18 55%, #0d1828 100%);

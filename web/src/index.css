@@ -18,6 +18,126 @@
   --sidebar-width: 256px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
+  --app-shell-bg: linear-gradient(
+    180deg,
+    #f3f8ff 0%,
+    #eef5ff 48%,
+    #f8fbff 100%
+  );
+  --app-shell-glow-a: rgba(37, 99, 235, 0.14);
+  --app-shell-glow-b: rgba(8, 145, 178, 0.12);
+  --app-panel-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.78),
+    rgba(247, 251, 255, 0.72)
+  );
+  --app-panel-bg-solid: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.94),
+    rgba(243, 249, 255, 0.92)
+  );
+  --app-panel-bg-soft: rgba(255, 255, 255, 0.68);
+  --app-panel-bg-strong: rgba(255, 255, 255, 0.82);
+  --app-panel-border: rgba(148, 163, 184, 0.24);
+  --app-panel-border-strong: rgba(148, 163, 184, 0.34);
+  --app-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+  --app-panel-shadow-soft: 0 16px 36px rgba(15, 23, 42, 0.05);
+  --app-text-primary: #09111f;
+  --app-text-secondary: #516074;
+  --app-text-muted: #69768b;
+  --app-accent: #2563eb;
+  --app-accent-strong: #1d4ed8;
+  --app-accent-cyan: #0891b2;
+  --app-accent-soft: rgba(37, 99, 235, 0.12);
+  --app-accent-soft-strong: rgba(37, 99, 235, 0.18);
+  --app-accent-gradient: linear-gradient(
+    135deg,
+    #0f3d91 0%,
+    #2563eb 52%,
+    #06b6d4 100%
+  );
+  --app-accent-gradient-hover: linear-gradient(
+    135deg,
+    #0c347b 0%,
+    #1d4ed8 52%,
+    #0891b2 100%
+  );
+  --app-accent-gradient-soft: linear-gradient(
+    135deg,
+    rgba(15, 61, 145, 0.18),
+    rgba(37, 99, 235, 0.14) 52%,
+    rgba(6, 182, 212, 0.14) 100%
+  );
+  --app-pill-bg: rgba(255, 255, 255, 0.72);
+  --app-pill-border: rgba(148, 163, 184, 0.26);
+  --app-glass-blur: 20px;
+  --semi-color-primary: #2563eb;
+  --semi-color-primary-hover: #1d4ed8;
+  --semi-color-primary-active: #0f3d91;
+  --semi-color-primary-light-default: rgba(37, 99, 235, 0.08);
+  --semi-color-primary-light-hover: rgba(37, 99, 235, 0.14);
+  --semi-color-primary-light-active: rgba(37, 99, 235, 0.2);
+}
+
+html.dark {
+  --app-shell-bg: linear-gradient(
+    180deg,
+    #050913 0%,
+    #07101b 52%,
+    #091320 100%
+  );
+  --app-shell-glow-a: rgba(37, 99, 235, 0.24);
+  --app-shell-glow-b: rgba(34, 211, 238, 0.14);
+  --app-panel-bg: linear-gradient(
+    180deg,
+    rgba(9, 17, 30, 0.82),
+    rgba(7, 13, 24, 0.76)
+  );
+  --app-panel-bg-solid: linear-gradient(
+    180deg,
+    rgba(11, 19, 32, 0.96),
+    rgba(8, 14, 24, 0.94)
+  );
+  --app-panel-bg-soft: rgba(10, 18, 31, 0.7);
+  --app-panel-bg-strong: rgba(10, 18, 31, 0.84);
+  --app-panel-border: rgba(71, 85, 105, 0.38);
+  --app-panel-border-strong: rgba(96, 117, 146, 0.46);
+  --app-panel-shadow: 0 24px 60px rgba(2, 6, 23, 0.38);
+  --app-panel-shadow-soft: 0 16px 36px rgba(2, 6, 23, 0.26);
+  --app-text-primary: #f4f8ff;
+  --app-text-secondary: #b7c4d8;
+  --app-text-muted: #8ea0b9;
+  --app-accent: #60a5fa;
+  --app-accent-strong: #93c5fd;
+  --app-accent-cyan: #22d3ee;
+  --app-accent-soft: rgba(96, 165, 250, 0.16);
+  --app-accent-soft-strong: rgba(96, 165, 250, 0.24);
+  --app-accent-gradient: linear-gradient(
+    135deg,
+    #163b8f 0%,
+    #2563eb 48%,
+    #0ea5e9 100%
+  );
+  --app-accent-gradient-hover: linear-gradient(
+    135deg,
+    #1d4fb5 0%,
+    #3b82f6 50%,
+    #22d3ee 100%
+  );
+  --app-accent-gradient-soft: linear-gradient(
+    135deg,
+    rgba(22, 59, 143, 0.32),
+    rgba(37, 99, 235, 0.24) 52%,
+    rgba(14, 165, 233, 0.2) 100%
+  );
+  --app-pill-bg: rgba(15, 23, 42, 0.64);
+  --app-pill-border: rgba(96, 117, 146, 0.34);
+  --semi-color-primary: #60a5fa;
+  --semi-color-primary-hover: #93c5fd;
+  --semi-color-primary-active: #bfdbfe;
+  --semi-color-primary-light-default: rgba(96, 165, 250, 0.14);
+  --semi-color-primary-light-hover: rgba(96, 165, 250, 0.2);
+  --semi-color-primary-light-active: rgba(96, 165, 250, 0.28);
 }
 
 body.sidebar-collapsed {
@@ -25,10 +145,12 @@ body.sidebar-collapsed {
 }
 
 body {
-  font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
-    sans-serif;
-  color: var(--semi-color-text-0);
-  background-color: var(--semi-color-bg-0);
+  font-family: 'Space Grotesk', 'Outfit', Lato, 'Helvetica Neue', Arial,
+    Helvetica, 'Microsoft YaHei', sans-serif;
+  /* font-family: CoinbaseDisplay, 'SF Pro Display', 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif; */
+  color: var(--app-text-primary);
+  background: var(--app-shell-bg);
 }
 
 /* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
@@ -45,7 +167,17 @@ body {
 .app-layout {
   height: 100vh;
   height: 100dvh;
-  background: var(--semi-color-bg-0);
+  background: radial-gradient(
+      circle at top left,
+      var(--app-shell-glow-a),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 88% 10%,
+      var(--app-shell-glow-b),
+      transparent 24%
+    ),
+    var(--app-shell-bg);
 }
 
 .app-sider {
@@ -133,8 +265,10 @@ code {
   flex-direction: column;
   min-height: 0;
   transition: width 0.3s ease;
-  background: linear-gradient(180deg, #ffffff 0%, #fcfcfe 100%);
-  border-right: 1px solid rgba(219, 224, 234, 0.9);
+  background: var(--app-panel-bg-solid);
+  backdrop-filter: blur(var(--app-glass-blur));
+  border-right: 1px solid var(--app-panel-border);
+  box-shadow: var(--app-panel-shadow-soft);
 }
 
 .sidebar-nav {
@@ -164,23 +298,17 @@ code {
 }
 
 .sidebar-nav-item:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(202, 136, 255, 0.1),
-    rgba(46, 168, 255, 0.08)
-  );
-  color: #9d42ef;
+  background: var(--app-accent-gradient-soft);
+  color: var(--app-accent-strong);
 }
 
 .sidebar-nav-item-selected {
-  background: linear-gradient(
-    135deg,
-    rgba(202, 136, 255, 0.22),
-    rgba(46, 168, 255, 0.12)
-  );
-  color: #9d42ef;
+  background: var(--app-accent-gradient-soft);
+  color: var(--app-accent-strong);
   font-weight: 600;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 12px 28px rgba(37, 99, 235, 0.08);
 }
 
 /* 图标容器样式 */
@@ -209,13 +337,13 @@ code {
 .sidebar-divider {
   margin: 10px 16px;
   opacity: 1;
-  border-color: rgba(219, 224, 234, 0.9) !important;
+  border-color: var(--app-panel-border) !important;
 }
 
 /* 分组标签样式 */
 .sidebar-group-label {
   padding: 4px 20px 8px;
-  color: #98a2b3;
+  color: var(--app-text-muted);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -235,9 +363,9 @@ code {
   position: sticky;
   bottom: 0;
   z-index: 10;
-  box-shadow: 0 -10px 18px -10px rgba(255, 255, 255, 0.95);
+  box-shadow: 0 -10px 18px -10px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(4px);
-  border-top: 1px solid rgba(219, 224, 234, 0.9);
+  border-top: 1px solid var(--app-panel-border);
 }
 
 .sidebar-collapse-button-inner {
@@ -309,8 +437,8 @@ code {
   background-clip: text;
   background-image: linear-gradient(
     to right,
-    hsl(280 85% 65%),
-    hsl(200 90% 55%)
+    var(--app-accent),
+    var(--app-accent-cyan)
   );
 }
 
@@ -319,7 +447,8 @@ code {
   padding: 10px 12px;
   border: 1px solid rgba(219, 224, 234, 0.9);
   border-radius: 18px;
-  background: linear-gradient(180deg, #fbfbfd 0%, #f4f6fb 100%);
+  background: var(--app-panel-bg);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .sidebar-user-main {
@@ -337,7 +466,7 @@ code {
 }
 
 .sidebar-user-name {
-  color: #101828;
+  color: var(--app-text-primary);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
@@ -348,7 +477,7 @@ code {
 
 .sidebar-user-meta {
   margin-top: 3px;
-  color: #667085;
+  color: var(--app-text-secondary);
   font-size: 12px;
   line-height: 1.35;
   white-space: nowrap;
@@ -373,13 +502,13 @@ code {
 }
 
 html.dark .sidebar-container {
-  background: linear-gradient(180deg, #111318 0%, #0f1115 100%);
-  border-right-color: rgba(43, 48, 59, 0.95);
+  background: var(--app-panel-bg-solid);
+  border-right-color: var(--app-panel-border);
 }
 
 html.dark .sidebar-brand {
-  background: rgba(17, 19, 24, 0.94);
-  border-bottom-color: rgba(43, 48, 59, 0.95);
+  background: var(--app-panel-bg-strong);
+  border-bottom-color: var(--app-panel-border);
 }
 
 /* html.dark .sidebar-brand-title, */
@@ -389,39 +518,31 @@ html.dark .sidebar-user-name {
 
 html.dark .sidebar-user-meta,
 html.dark .sidebar-group-label {
-  color: #98a2b3;
+  color: var(--app-text-muted);
 }
 
 html.dark .sidebar-nav-item:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(177, 77, 241, 0.18),
-    rgba(46, 168, 255, 0.1)
-  );
-  color: #d48dff;
+  background: var(--app-accent-gradient-soft);
+  color: var(--app-accent-strong);
 }
 
 html.dark .sidebar-nav-item-selected {
-  background: linear-gradient(
-    135deg,
-    rgba(177, 77, 241, 0.24),
-    rgba(46, 168, 255, 0.12)
-  );
-  color: #d48dff;
+  background: var(--app-accent-gradient-soft);
+  color: var(--app-accent-strong);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 html.dark .sidebar-divider {
-  border-color: rgba(43, 48, 59, 0.95) !important;
+  border-color: var(--app-panel-border) !important;
 }
 
 html.dark .sidebar-user-card {
-  border-color: rgba(43, 48, 59, 0.95);
-  background: linear-gradient(180deg, #171a21 0%, #12151b 100%);
+  border-color: var(--app-panel-border);
+  background: var(--app-panel-bg);
 }
 
 html.dark .sidebar-collapse-button {
-  border-top-color: rgba(43, 48, 59, 0.95);
+  border-top-color: var(--app-panel-border);
   box-shadow: 0 -10px 18px -10px rgba(0, 0, 0, 0.45);
 }
 
@@ -546,10 +667,10 @@ html.dark .sidebar-collapse-button {
 
 /* ---- SelectableButtonGroup color variants ---- */
 .sbg-variant-violet {
-  --semi-color-primary: #6d28d9;
-  --semi-color-primary-light-default: rgba(124, 58, 237, 0.08);
-  --semi-color-primary-light-hover: rgba(124, 58, 237, 0.15);
-  --semi-color-primary-light-active: rgba(124, 58, 237, 0.22);
+  --semi-color-primary: #2563eb;
+  --semi-color-primary-light-default: rgba(37, 99, 235, 0.08);
+  --semi-color-primary-light-hover: rgba(37, 99, 235, 0.15);
+  --semi-color-primary-light-active: rgba(37, 99, 235, 0.22);
 }
 
 .sbg-variant-teal {
@@ -1105,8 +1226,8 @@ html.dark .with-pastel-balls::before {
   max-width: 1600px;
   margin: 0 auto;
   padding: clamp(16px, 2vw, 28px);
-  font-family: Inter, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
+  /* font-family: Inter, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif; */
 }
 
 .dashboard-header-panel {
@@ -1117,21 +1238,22 @@ html.dark .with-pastel-balls::before {
   gap: 24px;
   overflow: hidden;
   padding: clamp(24px, 4vw, 40px);
-  border: 1px solid rgba(200, 209, 224, 0.9);
+  border: 1px solid var(--app-panel-border);
   border-radius: 32px;
   background: radial-gradient(
       circle at top left,
-      rgba(193, 97, 255, 0.18),
+      var(--app-accent-soft-strong),
       transparent 28%
     ),
     radial-gradient(
       circle at 85% 20%,
-      rgba(37, 211, 255, 0.16),
+      rgba(34, 211, 238, 0.16),
       transparent 24%
     ),
-    linear-gradient(135deg, #fff8ff 0%, #ffffff 48%, #f4fbff 100%);
-  box-shadow: 0 18px 44px rgba(121, 88, 255, 0.08);
-  color: #111827;
+    var(--app-panel-bg-solid);
+  backdrop-filter: blur(var(--app-glass-blur));
+  box-shadow: var(--app-panel-shadow);
+  color: var(--app-text-primary);
 }
 
 .dashboard-header-panel::before,
@@ -1148,7 +1270,7 @@ html.dark .with-pastel-balls::before {
   right: 14%;
   width: 180px;
   height: 180px;
-  background: rgba(226, 94, 193, 0.14);
+  background: rgba(37, 99, 235, 0.14);
 }
 
 .dashboard-header-panel::after {
@@ -1156,7 +1278,7 @@ html.dark .with-pastel-balls::before {
   right: -24px;
   width: 220px;
   height: 220px;
-  background: rgba(42, 191, 255, 0.12);
+  background: rgba(8, 145, 178, 0.12);
 }
 
 .dashboard-header-copy {
@@ -1167,7 +1289,7 @@ html.dark .with-pastel-balls::before {
 .dashboard-panel-eyebrow {
   /* margin-bottom: 10px; */
   width: 100%;
-  color: #b14df1;
+  color: var(--app-accent-strong);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -1178,8 +1300,8 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-header-title {
   margin: 0;
-  font-family: CoinbaseDisplay, 'SF Pro Display', 'Segoe UI', 'PingFang SC',
-    'Microsoft YaHei', sans-serif;
+  /* font-family: CoinbaseDisplay, 'SF Pro Display', 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif; */
   font-size: clamp(36px, 5vw, 60px);
   font-weight: 400;
   line-height: 1.02;
@@ -1189,7 +1311,7 @@ html.dark .with-pastel-balls::before {
 .dashboard-header-subtitle {
   max-width: 560px;
   margin: 14px 0 0;
-  color: #667085;
+  color: var(--app-text-secondary);
   font-size: 16px;
   line-height: 1.6;
 }
@@ -1209,31 +1331,31 @@ html.dark .with-pastel-balls::before {
 .dashboard-uptime-refresh.semi-button {
   min-height: 48px;
   padding: 0 20px;
-  border: 1px solid rgba(212, 219, 230, 0.95);
+  border: 1px solid var(--app-panel-border);
   border-radius: 999px !important;
-  background: rgba(255, 255, 255, 0.95);
-  color: #111827;
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-primary);
   font-size: 15px;
   font-weight: 600;
   backdrop-filter: blur(12px);
-  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
+  box-shadow: var(--app-panel-shadow-soft);
 }
 
 .dashboard-header-button.semi-button:hover,
 .dashboard-uptime-refresh.semi-button:hover {
-  border-color: rgba(185, 198, 216, 1);
-  background: #ffffff;
-  color: #111827;
+  border-color: var(--app-panel-border-strong);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--app-text-primary);
 }
 
 .dashboard-header-button-primary.semi-button {
   border-color: transparent;
-  background: linear-gradient(135deg, #c454f5 0%, #ec4899 52%, #2ea8ff 100%);
+  background: var(--app-accent-gradient);
   color: #ffffff;
 }
 
 .dashboard-header-button-primary.semi-button:hover {
-  background: linear-gradient(135deg, #b54bf0 0%, #df3f93 52%, #2196f3 100%);
+  background: var(--app-accent-gradient-hover);
   color: #ffffff;
 }
 
@@ -1244,10 +1366,11 @@ html.dark .with-pastel-balls::before {
 .dashboard-metric-card.semi-card {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(217, 223, 233, 0.9);
+  border: 1px solid var(--app-panel-border);
   border-radius: 28px !important;
-  background: linear-gradient(180deg, #ffffff 0%, #fdfdff 100%);
-  box-shadow: 0 18px 36px rgba(110, 120, 160, 0.06);
+  background: var(--app-panel-bg);
+  backdrop-filter: blur(var(--app-glass-blur));
+  box-shadow: var(--app-panel-shadow-soft);
 }
 
 .dashboard-metric-card.semi-card::before {
@@ -1259,6 +1382,7 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-metric-card.semi-card::after {
+  z-index: -1;
   content: '';
   position: absolute;
   top: -42px;
@@ -1291,13 +1415,13 @@ html.dark .with-pastel-balls::before {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #0a0b0d;
+  color: var(--app-text-primary);
   font-size: 17px;
   font-weight: 600;
 }
 
 .dashboard-card-index {
-  color: rgba(10, 11, 13, 0.26);
+  color: color-mix(in srgb, var(--app-text-primary) 24%, transparent);
   font-size: 14px;
   font-weight: 700;
 }
@@ -1318,7 +1442,7 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-metric-item + .dashboard-metric-item {
-  border-top: 1px solid rgba(91, 97, 110, 0.12);
+  border-top: 1px solid var(--app-panel-border);
 }
 
 .dashboard-metric-main {
@@ -1348,7 +1472,7 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-metric-label {
-  color: #5b616e;
+  color: var(--app-text-secondary);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.3;
@@ -1356,9 +1480,9 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-metric-value {
   margin-top: 6px;
-  color: #0a0b0d;
-  font-family: CoinbaseSans, Inter, 'Segoe UI', 'PingFang SC',
-    'Microsoft YaHei', sans-serif;
+  color: var(--app-text-primary);
+  /* font-family: CoinbaseSans, Inter, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif; */
   font-size: clamp(22px, 2.3vw, 28px);
   font-weight: 700;
   line-height: 1.1;
@@ -1385,10 +1509,10 @@ html.dark .with-pastel-balls::before {
 .dashboard-uptime-count.semi-tag {
   min-height: 34px;
   padding: 0 14px;
-  border: 1px solid rgba(91, 97, 110, 0.14);
+  border: 1px solid var(--app-pill-border);
   border-radius: 999px;
-  background: #eef0f3;
-  color: #0a0b0d;
+  background: var(--app-pill-bg);
+  color: var(--app-text-primary);
   font-size: 13px;
   font-weight: 700;
 }
@@ -1401,16 +1525,10 @@ html.dark .with-pastel-balls::before {
   gap: 24px;
   overflow: hidden;
   padding: 26px 28px;
-  border: 1px solid rgba(198, 145, 255, 0.24);
+  border: 1px solid var(--app-panel-border);
   border-radius: 32px;
-  background: linear-gradient(
-    102deg,
-    #b14df1 0%,
-    #e447a4 44%,
-    #7d7df8 72%,
-    #2ea8ff 100%
-  );
-  box-shadow: 0 28px 48px rgba(177, 77, 241, 0.16);
+  background: var(--app-accent-gradient);
+  box-shadow: 0 28px 48px rgba(15, 61, 145, 0.16);
 }
 
 .dashboard-promo-glow {
@@ -1545,12 +1663,12 @@ html.dark .with-pastel-balls::before {
 .dashboard-promo-button-primary.semi-button {
   border: none;
   background: rgba(255, 255, 255, 0.96);
-  color: #b14df1;
+  color: var(--app-accent-strong);
 }
 
 .dashboard-promo-button-primary.semi-button:hover {
   background: #ffffff;
-  color: #9f3eed;
+  color: var(--app-accent);
 }
 
 .dashboard-promo-button-secondary.semi-button {
@@ -1567,21 +1685,22 @@ html.dark .with-pastel-balls::before {
 .dashboard-chart-panel.semi-card,
 .dashboard-uptime-panel.semi-card {
   overflow: hidden;
-  border: 1px solid rgba(217, 223, 233, 0.92);
+  border: 1px solid var(--app-panel-border);
   border-radius: 32px !important;
   background: radial-gradient(
       circle at top left,
-      rgba(196, 84, 245, 0.12),
+      var(--app-accent-soft-strong),
       transparent 26%
     ),
     radial-gradient(
       circle at top right,
-      rgba(46, 168, 255, 0.12),
+      rgba(34, 211, 238, 0.12),
       transparent 28%
     ),
-    linear-gradient(145deg, #ffffff 0%, #fcfdff 100%);
-  box-shadow: 0 22px 42px rgba(110, 120, 160, 0.08);
-  color: #111827;
+    var(--app-panel-bg);
+  backdrop-filter: blur(var(--app-glass-blur));
+  box-shadow: var(--app-panel-shadow);
+  color: var(--app-text-primary);
 }
 
 .dashboard-chart-panel .semi-card-header,
@@ -1635,7 +1754,7 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-chart-subtitle {
   margin: 8px 0 0;
-  color: #667085;
+  color: var(--app-text-secondary);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -1653,10 +1772,10 @@ html.dark .with-pastel-balls::before {
 .dashboard-chart-tabs .semi-tabs-tab-button {
   min-height: 40px;
   /* padding: 0 14px; */
-  border: 1px solid rgba(220, 226, 236, 0.95);
+  border: 1px solid var(--app-panel-border);
   border-radius: 999px !important;
-  background: rgba(255, 255, 255, 0.9);
-  color: #667085;
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -1664,7 +1783,7 @@ html.dark .with-pastel-balls::before {
 .dashboard-chart-tabs .semi-tabs-tab-active .semi-tabs-tab-button,
 .dashboard-chart-tabs .semi-tabs-tab-button:hover {
   border-color: transparent;
-  background: linear-gradient(135deg, #c454f5 0%, #ec4899 52%, #2ea8ff 100%);
+  background: var(--app-accent-gradient);
   color: #ffffff;
 }
 
@@ -1695,15 +1814,16 @@ html.dark .with-pastel-balls::before {
 .dashboard-announcements-panel.semi-card,
 .dashboard-faq-panel.semi-card {
   overflow: hidden;
-  border: 1px solid rgba(217, 223, 233, 0.92);
+  border: 1px solid var(--app-panel-border);
   border-radius: 28px !important;
   background: radial-gradient(
       circle at top left,
-      rgba(196, 84, 245, 0.08),
+      var(--app-accent-soft),
       transparent 24%
     ),
-    linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
-  box-shadow: 0 18px 36px rgba(110, 120, 160, 0.06);
+    var(--app-panel-bg);
+  backdrop-filter: blur(var(--app-glass-blur));
+  box-shadow: var(--app-panel-shadow-soft);
 }
 
 .dashboard-panel-scroll-wrap {
@@ -1715,7 +1835,7 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-panel-fade {
-  background: linear-gradient(transparent, #fbfcff);
+  background: linear-gradient(transparent, rgba(244, 249, 255, 0.96));
 }
 
 .dashboard-panel-empty {
@@ -1753,7 +1873,7 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-api-route {
-  color: #0a0b0d;
+  color: var(--app-text-primary);
   font-size: 15px;
   font-weight: 700;
   word-break: break-all;
@@ -1766,7 +1886,7 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-api-url {
-  color: #9a3ff3;
+  color: var(--app-accent-strong);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
@@ -1780,13 +1900,13 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-api-copy-icon {
   flex-shrink: 0;
-  color: #5b616e;
+  color: var(--app-text-secondary);
   cursor: pointer;
   transition: color 0.15s ease;
 }
 
 .dashboard-api-copy-icon:hover {
-  color: #9a3ff3;
+  color: var(--app-accent-strong);
 }
 
 .dashboard-api-description,
@@ -1795,7 +1915,7 @@ html.dark .with-pastel-balls::before {
 .dashboard-faq-answer,
 .dashboard-uptime-monitor-status,
 .dashboard-uptime-group-title {
-  color: #5b616e;
+  color: var(--app-text-secondary);
   font-size: 14px;
   line-height: 1.55;
 }
@@ -1837,7 +1957,7 @@ html.dark .with-pastel-balls::before {
 .dashboard-announcement-content p,
 .dashboard-announcement-extra p,
 .dashboard-faq-answer p {
-  color: #0a0b0d;
+  color: var(--app-text-primary);
 }
 
 .dashboard-announcement-content p,
@@ -1848,12 +1968,12 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-faq-collapse .semi-collapse-item {
-  border-bottom: 1px solid rgba(91, 97, 110, 0.12);
+  border-bottom: 1px solid var(--app-panel-border);
 }
 
 .dashboard-faq-collapse .semi-collapse-header {
   padding: 16px 18px;
-  color: #0a0b0d;
+  color: var(--app-text-primary);
   font-size: 15px;
   font-weight: 600;
 }
@@ -1865,7 +1985,7 @@ html.dark .with-pastel-balls::before {
 .dashboard-uptime-refresh.semi-button {
   min-width: 44px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--app-panel-bg-strong);
 }
 
 .dashboard-uptime-body {
@@ -1878,27 +1998,27 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-uptime-tabs .semi-tabs-tab-button {
   border-radius: 999px !important;
-  border: 1px solid rgba(220, 226, 236, 0.95);
-  background: rgba(255, 255, 255, 0.92);
-  color: #667085;
+  border: 1px solid var(--app-panel-border);
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-secondary);
 }
 
 .dashboard-uptime-tabs .semi-tabs-tab-active .semi-tabs-tab-button {
   border-color: transparent;
-  background: linear-gradient(135deg, #c454f5 0%, #ec4899 52%, #2ea8ff 100%);
+  background: var(--app-accent-gradient);
   color: #ffffff;
 }
 
 .dashboard-uptime-legend {
   padding: 14px 18px 18px;
-  border-top: 1px solid rgba(220, 226, 236, 0.9);
+  border-top: 1px solid var(--app-panel-border);
 }
 
 .dashboard-uptime-panel .dashboard-legend-label,
 .dashboard-uptime-panel .dashboard-uptime-monitor-status,
 .dashboard-uptime-panel .dashboard-uptime-group-title,
 .dashboard-uptime-panel .dashboard-uptime-monitor-percent {
-  color: #667085;
+  color: var(--app-text-secondary);
 }
 
 .dashboard-uptime-monitor-group {
@@ -1907,7 +2027,7 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-uptime-group-title {
   padding: 4px 0 10px;
-  color: #667085;
+  color: var(--app-text-secondary);
   font-weight: 600;
 }
 
@@ -1916,7 +2036,7 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-uptime-monitor-item + .dashboard-uptime-monitor-item {
-  border-top: 1px solid rgba(226, 231, 240, 0.95);
+  border-top: 1px solid var(--app-panel-border);
 }
 
 .dashboard-uptime-monitor-topline,
@@ -1931,7 +2051,7 @@ html.dark .with-pastel-balls::before {
 .dashboard-uptime-monitor-name {
   justify-content: flex-start;
   min-width: 0;
-  color: #111827;
+  color: var(--app-text-primary);
   font-size: 15px;
   font-weight: 600;
 }
@@ -1948,37 +2068,37 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-uptime-monitor-progress .semi-progress-track {
-  background: rgba(220, 226, 236, 0.95);
+  background: rgba(191, 203, 222, 0.5);
 }
 
 html.dark .dashboard-header-panel {
-  border-color: rgba(58, 66, 82, 0.9);
+  border-color: var(--app-panel-border);
   background: radial-gradient(
       circle at top left,
-      rgba(177, 77, 241, 0.16),
+      var(--app-accent-soft-strong),
       transparent 24%
     ),
     radial-gradient(
       circle at 86% 18%,
-      rgba(46, 168, 255, 0.12),
+      rgba(34, 211, 238, 0.12),
       transparent 22%
     ),
-    linear-gradient(135deg, #111318 0%, #141821 52%, #10141b 100%);
-  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.32);
-  color: #f8fafc;
+    var(--app-panel-bg-solid);
+  box-shadow: var(--app-panel-shadow);
+  color: var(--app-text-primary);
 }
 
 html.dark .dashboard-header-panel::before {
-  background: rgba(226, 94, 193, 0.12);
+  background: rgba(37, 99, 235, 0.16);
 }
 
 html.dark .dashboard-header-panel::after {
-  background: rgba(42, 191, 255, 0.1);
+  background: rgba(34, 211, 238, 0.12);
 }
 
 html.dark .dashboard-header-eyebrow,
 html.dark .dashboard-panel-eyebrow {
-  color: #d48dff;
+  color: var(--app-accent-strong);
 }
 
 html.dark .dashboard-header-title,
@@ -2009,21 +2129,21 @@ html.dark .dashboard-uptime-panel .dashboard-legend-label,
 html.dark .dashboard-uptime-panel .dashboard-uptime-monitor-status,
 html.dark .dashboard-uptime-panel .dashboard-uptime-group-title,
 html.dark .dashboard-uptime-panel .dashboard-uptime-monitor-percent {
-  color: #98a2b3;
+  color: var(--app-text-muted);
 }
 
 html.dark .dashboard-header-button.semi-button,
 html.dark .dashboard-uptime-refresh.semi-button {
-  border-color: rgba(66, 76, 94, 0.95);
-  background: rgba(19, 23, 31, 0.92);
-  color: #f8fafc;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  border-color: var(--app-panel-border);
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-primary);
+  box-shadow: var(--app-panel-shadow-soft);
 }
 
 html.dark .dashboard-header-button.semi-button:hover,
 html.dark .dashboard-uptime-refresh.semi-button:hover {
-  border-color: rgba(89, 99, 120, 1);
-  background: rgba(25, 31, 42, 0.98);
+  border-color: var(--app-panel-border-strong);
+  background: rgba(18, 28, 44, 0.96);
   color: #ffffff;
 }
 
@@ -2033,12 +2153,12 @@ html.dark .dashboard-uptime-panel.semi-card,
 html.dark .dashboard-api-panel.semi-card,
 html.dark .dashboard-announcements-panel.semi-card,
 html.dark .dashboard-faq-panel.semi-card {
-  border-color: rgba(50, 58, 73, 0.96);
-  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.22);
+  border-color: var(--app-panel-border);
+  box-shadow: var(--app-panel-shadow-soft);
 }
 
 html.dark .dashboard-metric-card.semi-card {
-  background: linear-gradient(180deg, #14161c 0%, #111318 100%);
+  background: var(--app-panel-bg);
 }
 
 html.dark .dashboard-metric-card.semi-card::after {
@@ -2054,7 +2174,7 @@ html.dark .dashboard-card-index {
 }
 
 html.dark .dashboard-metric-item + .dashboard-metric-item {
-  border-top-color: rgba(52, 60, 75, 0.92);
+  border-top-color: var(--app-panel-border);
 }
 
 html.dark .dashboard-metric-value {
@@ -2069,26 +2189,20 @@ html.dark .dashboard-metric-action-tag.semi-tag,
 html.dark .dashboard-api-tag.semi-tag,
 html.dark .dashboard-panel-badge.semi-tag,
 html.dark .dashboard-uptime-count.semi-tag {
-  border-color: rgba(58, 68, 84, 0.95);
-  background: rgba(29, 35, 46, 0.96);
-  color: #f8fafc;
+  border-color: var(--app-pill-border);
+  background: var(--app-pill-bg);
+  color: var(--app-text-primary);
 }
 
 html.dark .dashboard-promo-banner {
-  border-color: rgba(186, 120, 255, 0.2);
-  background: linear-gradient(
-    102deg,
-    #9f48df 0%,
-    #dd449d 42%,
-    #6c6ff0 72%,
-    #2a9ce8 100%
-  );
+  border-color: var(--app-panel-border);
+  background: var(--app-accent-gradient);
   box-shadow: 0 30px 54px rgba(0, 0, 0, 0.28);
 }
 
 html.dark .dashboard-promo-button-primary.semi-button {
   background: rgba(255, 255, 255, 0.96);
-  color: #a242ee;
+  color: var(--app-accent-strong);
 }
 
 html.dark .dashboard-promo-button-secondary.semi-button {
@@ -2101,23 +2215,23 @@ html.dark .dashboard-chart-panel.semi-card,
 html.dark .dashboard-uptime-panel.semi-card {
   background: radial-gradient(
       circle at top left,
-      rgba(177, 77, 241, 0.1),
+      var(--app-accent-soft),
       transparent 24%
     ),
     radial-gradient(
       circle at top right,
-      rgba(46, 168, 255, 0.08),
+      rgba(34, 211, 238, 0.08),
       transparent 26%
     ),
-    linear-gradient(145deg, #14171d 0%, #101319 100%);
-  color: #f8fafc;
+    var(--app-panel-bg);
+  color: var(--app-text-primary);
 }
 
 html.dark .dashboard-chart-tabs .semi-tabs-tab-button,
 html.dark .dashboard-uptime-tabs .semi-tabs-tab-button {
-  border-color: rgba(60, 69, 85, 0.96);
-  background: rgba(22, 27, 36, 0.95);
-  color: #98a2b3;
+  border-color: var(--app-panel-border);
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-muted);
 }
 
 /* html.dark .dashboard-chart-canvas {
@@ -2138,30 +2252,30 @@ html.dark .dashboard-announcements-panel.semi-card,
 html.dark .dashboard-faq-panel.semi-card {
   background: radial-gradient(
       circle at top left,
-      rgba(177, 77, 241, 0.08),
+      var(--app-accent-soft),
       transparent 22%
     ),
-    linear-gradient(180deg, #14171d 0%, #111318 100%);
+    var(--app-panel-bg);
 }
 
 html.dark .dashboard-panel-fade {
-  background: linear-gradient(transparent, #111318);
+  background: linear-gradient(transparent, rgba(8, 14, 24, 0.96));
 }
 
 html.dark .dashboard-api-url,
 html.dark .dashboard-api-copy-icon:hover {
-  color: #d48dff;
+  color: var(--app-accent-strong);
 }
 
 html.dark .dashboard-api-copy-icon {
-  color: #98a2b3;
+  color: var(--app-text-muted);
 }
 
 html.dark .dashboard-api-divider.semi-divider,
 html.dark .dashboard-faq-collapse .semi-collapse-item,
 html.dark .dashboard-uptime-legend,
 html.dark .dashboard-uptime-monitor-item + .dashboard-uptime-monitor-item {
-  border-color: rgba(52, 60, 75, 0.92);
+  border-color: var(--app-panel-border);
 }
 
 html.dark .dashboard-faq-collapse .semi-collapse-header {
@@ -2169,11 +2283,11 @@ html.dark .dashboard-faq-collapse .semi-collapse-header {
 }
 
 html.dark .dashboard-uptime-group-title {
-  color: #98a2b3;
+  color: var(--app-text-muted);
 }
 
 html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
-  background: rgba(39, 46, 58, 0.98);
+  background: rgba(30, 41, 59, 0.88);
 }
 
 @media (max-width: 1279px) {
@@ -2651,17 +2765,28 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
 
 .personal-settings-cta-button.semi-button,
 .personal-settings-primary-button.semi-button {
-  border-color: #0052ff;
-  background: #0052ff;
-  color: #ffffff;
-  box-shadow: 0 10px 22px rgba(0, 82, 255, 0.18);
+  border: none !important;
+  background: var(--app-accent-gradient) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.2);
+  text-shadow: 0 1px 1px rgba(15, 23, 42, 0.18);
 }
 
 .personal-settings-cta-button.semi-button:hover,
 .personal-settings-primary-button.semi-button:hover {
-  border-color: #578bfa;
-  background: #578bfa;
-  color: #ffffff;
+  background: var(--app-accent-gradient-hover) !important;
+  color: #ffffff !important;
+}
+
+.personal-settings-cta-button.semi-button .semi-button-content,
+.personal-settings-cta-button.semi-button .semi-button-content-left,
+.personal-settings-cta-button.semi-button .semi-button-content-right,
+.personal-settings-cta-button.semi-button svg,
+.personal-settings-primary-button.semi-button .semi-button-content,
+.personal-settings-primary-button.semi-button .semi-button-content-left,
+.personal-settings-primary-button.semi-button .semi-button-content-right,
+.personal-settings-primary-button.semi-button svg {
+  color: currentColor !important;
 }
 
 .personal-settings-cta-button.semi-button {
@@ -2802,7 +2927,7 @@ html.dark .dashboard-uptime-monitor-progress .semi-progress-track {
   border-radius: 16px;
   background: #ffffff;
   color: #0a0b0d;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; */
   font-size: 12px;
   line-height: 1.6;
   word-break: break-all;
@@ -3670,7 +3795,7 @@ html.dark
 
 .billing-wallet-title.semi-typography {
   margin: 0 !important;
-  color: #0a0b0d;
+  color: var(--app-text-primary);
   font-size: clamp(28px, 4vw, 42px);
   font-weight: 680;
   letter-spacing: -0.045em;
@@ -3679,7 +3804,7 @@ html.dark
 
 .billing-wallet-subtitle {
   margin: 8px 0 0;
-  color: #5b616e;
+  color: var(--app-text-secondary);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -3694,8 +3819,11 @@ html.dark
 .billing-history-button.semi-button {
   min-width: 126px;
   height: 42px;
-  border-color: rgba(91, 97, 110, 0.2);
-  background: #ffffff;
+  border-color: var(--app-panel-border);
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-primary);
+  box-shadow: var(--app-panel-shadow-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .billing-wallet-stack {
@@ -3707,10 +3835,11 @@ html.dark
 .billing-balance-card.semi-card,
 .billing-wallet-panel.semi-card {
   overflow: hidden;
-  border: 1px solid rgba(91, 97, 110, 0.2) !important;
+  border: 1px solid var(--app-panel-border) !important;
   border-radius: 24px !important;
-  background: #ffffff !important;
-  box-shadow: 0 18px 52px rgba(15, 23, 42, 0.04) !important;
+  background: var(--app-panel-bg) !important;
+  box-shadow: var(--app-panel-shadow-soft) !important;
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .billing-balance-card .semi-card-body {
@@ -3721,10 +3850,10 @@ html.dark
   padding: 24px !important;
   background: radial-gradient(
       circle at 8% 20%,
-      rgba(194, 94, 255, 0.18),
+      var(--app-accent-soft-strong),
       transparent 28%
     ),
-    linear-gradient(90deg, rgba(188, 72, 255, 0.1), rgba(255, 255, 255, 0) 58%);
+    linear-gradient(90deg, rgba(37, 99, 235, 0.1), rgba(255, 255, 255, 0) 58%);
 }
 
 .billing-balance-main {
@@ -3742,20 +3871,20 @@ html.dark
   flex: 0 0 auto;
   border-radius: 18px;
   color: #ffffff;
-  background: linear-gradient(135deg, #b72bff 0%, #e4a6ff 100%);
-  box-shadow: 0 18px 34px rgba(183, 43, 255, 0.26);
+  background: var(--app-accent-gradient);
+  box-shadow: 0 18px 34px rgba(37, 99, 235, 0.22);
 }
 
 .billing-balance-label,
 .billing-balance-side span {
-  color: #5b616e;
+  color: var(--app-text-secondary);
   font-size: 14px;
   line-height: 1.2;
 }
 
 .billing-balance-value {
   margin-top: 4px;
-  color: #0a0b0d;
+  color: var(--app-text-primary);
   font-size: clamp(30px, 5vw, 42px);
   font-weight: 760;
   letter-spacing: -0.05em;
@@ -3778,7 +3907,7 @@ html.dark
 }
 
 .billing-balance-side strong {
-  color: #a020f0;
+  color: var(--app-accent-strong);
   font-size: 15px;
   font-weight: 750;
 }
@@ -3812,8 +3941,8 @@ html.dark
   height: 30px;
   flex: 0 0 auto;
   border-radius: 10px;
-  color: #0a0b0d;
-  background: #f6f7f9;
+  color: var(--app-text-primary);
+  background: var(--app-panel-bg-strong);
 }
 
 .billing-panel-icon-warm {
@@ -3823,7 +3952,7 @@ html.dark
 
 .billing-panel-head h2 {
   margin: 0;
-  color: #0a0b0d;
+  color: var(--app-text-primary);
   font-size: 19px;
   font-weight: 720;
   letter-spacing: -0.025em;
@@ -3831,7 +3960,7 @@ html.dark
 
 .billing-panel-head p {
   margin: 4px 0 0;
-  color: #697386;
+  color: var(--app-text-muted);
   font-size: 13px;
 }
 
@@ -3856,7 +3985,7 @@ html.dark
 }
 
 .billing-wallet-form .semi-form-field-label-text {
-  color: #0a0b0d;
+  color: var(--app-text-primary);
   font-size: 14px;
   font-weight: 650;
 }
@@ -3868,7 +3997,7 @@ html.dark
 }
 
 .billing-label-row span:last-child {
-  color: #697386;
+  color: var(--app-text-muted);
   font-size: 12px;
   font-weight: 500;
 }
@@ -3883,9 +4012,10 @@ html.dark
 .billing-amount-option,
 .billing-creem-card {
   appearance: none;
-  border: 1px solid #d9dee8;
-  background: #ffffff;
-  color: #0a0b0d;
+  border: 1px solid var(--app-panel-border);
+  background: var(--app-panel-bg-strong);
+  color: var(--app-text-primary);
+  backdrop-filter: blur(var(--app-glass-blur));
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease,
@@ -3908,16 +4038,16 @@ html.dark
 .billing-pay-method:hover,
 .billing-amount-option:hover,
 .billing-creem-card:hover {
-  border-color: rgba(183, 43, 255, 0.55);
-  box-shadow: 0 12px 30px rgba(183, 43, 255, 0.1);
+  border-color: var(--app-panel-border-strong);
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.1);
   transform: translateY(-1px);
 }
 
 .billing-pay-method.is-active,
 .billing-amount-option.is-active {
-  border-color: #b72bff;
-  box-shadow: 0 0 0 2px rgba(183, 43, 255, 0.14);
-  background: rgba(183, 43, 255, 0.045);
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
+  background: var(--app-accent-soft);
 }
 
 .billing-pay-method:disabled {
@@ -3960,7 +4090,7 @@ html.dark
 .billing-amount-meta,
 .billing-amount-save {
   margin-top: 4px;
-  color: #697386;
+  color: var(--app-text-muted);
   font-size: 11px;
   line-height: 1.2;
 }
@@ -3980,9 +4110,10 @@ html.dark
 .billing-wallet-form .semi-input-wrapper,
 .billing-wallet-form .semi-input-number {
   min-height: 46px;
-  border-color: #d9dee8 !important;
+  border-color: var(--app-panel-border) !important;
   border-radius: 16px !important;
-  background: #ffffff !important;
+  background: var(--app-panel-bg-strong) !important;
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .billing-custom-amount.semi-input-number-size-large
@@ -4003,17 +4134,17 @@ html.dark
 
 .billing-wallet-form .semi-input,
 .billing-wallet-form .semi-input-number .semi-input {
-  color: #0a0b0d !important;
+  color: var(--app-text-primary) !important;
   font-size: 15px;
 }
 
 .billing-payable-text {
-  color: #697386 !important;
+  color: var(--app-text-muted) !important;
   font-size: 13px;
 }
 
 .billing-payable-text span {
-  color: #f05a00;
+  color: #d97706;
   font-weight: 700;
 }
 
@@ -4025,8 +4156,8 @@ html.dark
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: linear-gradient(90deg, #d47aff 0%, #c061f2 100%) !important;
-  box-shadow: 0 18px 34px rgba(183, 43, 255, 0.22);
+  background: var(--app-accent-gradient) !important;
+  box-shadow: 0 18px 34px rgba(37, 99, 235, 0.22);
 }
 
 .billing-creem-grid {
@@ -4050,13 +4181,13 @@ html.dark
 
 .billing-creem-card strong {
   margin-top: 6px;
-  color: #0052ff;
+  color: var(--app-accent);
   font-size: 18px;
 }
 
 .billing-creem-card small {
   margin-top: 4px;
-  color: #697386;
+  color: var(--app-text-muted);
 }
 
 .billing-redeem-callout {
@@ -4083,7 +4214,7 @@ html.dark
 
 .billing-redeem-callout span {
   margin-top: 4px;
-  color: #697386;
+  color: var(--app-text-muted);
   font-size: 13px;
 }
 
@@ -4097,6 +4228,536 @@ html.dark
 
 .billing-subscription-pane {
   padding-top: 4px;
+}
+
+/* ==================== Subscription admin / billing modals ==================== */
+.subscription-admin-description__heading,
+.subscription-edit-sheet-title {
+  align-items: center;
+}
+
+.subscription-admin-description__icon,
+.subscription-admin-description__text.semi-typography {
+  color: var(--app-accent);
+}
+
+.subscription-admin-description__text.semi-typography {
+  font-weight: 700;
+}
+
+.subscription-admin-create-button.semi-button,
+.subscription-edit-sheet-submit.semi-button,
+.subscription-purchase-pay-button.is-primary.semi-button,
+.payment-confirm-modal .semi-modal-footer .semi-button-primary {
+  border: none !important;
+  background: var(--app-accent-gradient) !important;
+  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.2);
+}
+
+.subscription-admin-create-button.semi-button:hover,
+.subscription-edit-sheet-submit.semi-button:hover,
+.subscription-purchase-pay-button.is-primary.semi-button:hover,
+.payment-confirm-modal .semi-modal-footer .semi-button-primary:hover {
+  background: var(--app-accent-gradient-hover) !important;
+}
+
+.subscription-admin-banner.semi-banner,
+.subscription-purchase-banner.semi-banner {
+  border: 1px solid var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
+  backdrop-filter: blur(var(--app-glass-blur));
+}
+
+.subscription-plan-popover {
+  color: var(--app-text-primary);
+}
+
+.subscription-plan-popover__title.semi-typography,
+.subscription-plan-title__text.semi-typography {
+  color: var(--app-text-primary) !important;
+}
+
+.subscription-plan-popover__subtitle.semi-typography,
+.subscription-plan-title__subtitle.semi-typography {
+  color: var(--app-text-secondary) !important;
+}
+
+.subscription-plan-title:hover .subscription-plan-title__text.semi-typography {
+  color: var(--app-accent) !important;
+}
+
+.subscription-price-text.semi-typography {
+  color: var(--app-accent) !important;
+  font-weight: 800;
+}
+
+.subscription-meta-text.semi-typography,
+.subscription-id-text.semi-typography {
+  color: var(--app-text-secondary) !important;
+}
+
+.subscription-meta-text.is-muted.semi-typography,
+.subscription-id-text.semi-typography {
+  color: var(--app-text-muted) !important;
+}
+
+.subscription-status-tag.semi-tag,
+.subscription-channel-tag.semi-tag,
+.subscription-edit-sheet-badge.semi-tag {
+  border-radius: 999px !important;
+  font-weight: 700;
+  backdrop-filter: blur(var(--app-glass-blur));
+}
+
+.subscription-status-tag.semi-tag {
+  border: 1px solid var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
+}
+
+.subscription-status-tag.is-enabled.semi-tag {
+  border-color: rgba(45, 212, 191, 0.3) !important;
+  background: rgba(236, 253, 245, 0.88) !important;
+  color: #0f766e !important;
+}
+
+.subscription-status-tag.is-disabled.semi-tag {
+  border-color: rgba(248, 113, 113, 0.28) !important;
+  background: rgba(254, 242, 242, 0.92) !important;
+  color: #b42318 !important;
+}
+
+.subscription-channel-tag.semi-tag {
+  border: 1px solid var(--app-pill-border) !important;
+  background: var(--app-pill-bg) !important;
+  color: var(--app-text-secondary) !important;
+}
+
+.subscription-channel-tag.is-stripe.semi-tag {
+  color: #4f46e5 !important;
+}
+
+.subscription-channel-tag.is-creem.semi-tag {
+  color: #0891b2 !important;
+}
+
+.subscription-channel-tag.is-epay.semi-tag {
+  color: #0f766e !important;
+}
+
+.subscription-action-button.semi-button,
+.subscription-edit-sheet-cancel.semi-button,
+.subscription-purchase-pay-button.is-secondary.semi-button,
+.payment-confirm-modal .semi-modal-footer .semi-button,
+.transfer-balance-modal .semi-modal-footer .semi-button {
+  border-radius: 14px !important;
+  font-weight: 700;
+}
+
+.subscription-action-button.semi-button,
+.subscription-edit-sheet-cancel.semi-button,
+.subscription-purchase-pay-button.is-secondary.semi-button,
+.payment-confirm-modal .semi-modal-footer .semi-button-tertiary,
+.payment-confirm-modal .semi-modal-footer .semi-button-light,
+.transfer-balance-modal .semi-modal-footer .semi-button-light,
+.transfer-balance-modal .semi-modal-footer .semi-button-tertiary {
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
+  color: var(--app-text-primary) !important;
+}
+
+.subscription-action-button.is-primary.semi-button {
+  color: var(--app-accent) !important;
+}
+
+.subscription-action-button.is-danger.semi-button {
+  color: #c2410c !important;
+}
+
+.subscription-edit-sheet .semi-sidesheet-content {
+  overflow: hidden;
+  border: 1px solid var(--app-panel-border);
+  border-radius: 30px 0 0 30px;
+  background: radial-gradient(
+      circle at top left,
+      rgba(59, 130, 246, 0.14),
+      transparent 28%
+    ),
+    var(--app-panel-bg);
+  box-shadow: var(--app-panel-shadow);
+  backdrop-filter: blur(var(--app-glass-blur));
+}
+
+.subscription-edit-sheet .semi-sidesheet-header {
+  padding: 26px 26px 10px;
+  border-bottom: none;
+}
+
+.subscription-edit-sheet .semi-sidesheet-body {
+  padding: 0 18px 18px;
+}
+
+.subscription-edit-sheet .semi-sidesheet-footer {
+  border-top: none;
+  padding: 0 18px 22px;
+}
+
+.subscription-edit-sheet-heading.semi-typography {
+  color: var(--app-text-primary);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.subscription-edit-sheet-badge.semi-tag {
+  border: 1px solid var(--app-pill-border) !important;
+  background: var(--app-pill-bg) !important;
+}
+
+.subscription-edit-sheet-badge.is-edit.semi-tag {
+  color: var(--app-accent) !important;
+}
+
+.subscription-edit-sheet-badge.is-create.semi-tag {
+  color: var(--app-accent-cyan) !important;
+}
+
+.subscription-edit-sheet-footer {
+  padding-top: 8px;
+}
+
+.subscription-edit-section-card.semi-card {
+  overflow: hidden;
+  border: 1px solid var(--app-panel-border) !important;
+  background: var(--app-panel-bg-soft) !important;
+  backdrop-filter: blur(var(--app-glass-blur));
+}
+
+.subscription-edit-section-card .semi-card-body {
+  padding: 22px !important;
+}
+
+.subscription-edit-section-header {
+  margin-bottom: 16px;
+}
+
+.subscription-edit-section-avatar.semi-avatar {
+  color: #eff6ff !important;
+  box-shadow: 0 12px 22px rgba(37, 99, 235, 0.18);
+}
+
+.subscription-edit-section-avatar.is-primary.semi-avatar {
+  background: linear-gradient(135deg, #2563eb, #0ea5e9) !important;
+}
+
+.subscription-edit-section-avatar.is-success.semi-avatar {
+  background: linear-gradient(135deg, #0891b2, #14b8a6) !important;
+}
+
+.subscription-edit-section-avatar.is-warning.semi-avatar {
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8) !important;
+}
+
+.subscription-edit-section-avatar.is-accent.semi-avatar {
+  background: linear-gradient(135deg, #1d4ed8, #06b6d4) !important;
+}
+
+.subscription-edit-section-title.semi-typography {
+  color: var(--app-text-primary) !important;
+  font-weight: 800;
+}
+
+.subscription-edit-section-copy {
+  color: var(--app-text-secondary);
+  line-height: 1.6;
+}
+
+.subscription-edit-sheet .semi-form-field-label-text,
+.subscription-edit-sheet .semi-form-field-extra,
+.subscription-edit-sheet .semi-form-field-extra-text,
+.subscription-edit-sheet .semi-input-number-suffix,
+.subscription-edit-sheet .semi-select-selection-text,
+.subscription-edit-sheet .semi-select-selection-placeholder,
+.subscription-edit-sheet .semi-switch-text {
+  color: var(--app-text-secondary) !important;
+}
+
+.subscription-edit-sheet .semi-input-wrapper,
+.subscription-edit-sheet .semi-input-number,
+.subscription-edit-sheet .semi-select-selection {
+  border: 1px solid var(--app-panel-border) !important;
+  border-radius: 16px !important;
+  background: var(--app-panel-bg-strong) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.subscription-edit-sheet .semi-input-wrapper:hover,
+.subscription-edit-sheet .semi-input-number:hover,
+.subscription-edit-sheet .semi-select-selection:hover {
+  border-color: var(--app-panel-border-strong) !important;
+}
+
+.subscription-edit-sheet .semi-input-wrapper-focus,
+.subscription-edit-sheet .semi-input-wrapper:focus-within,
+.subscription-edit-sheet .semi-input-number:focus-within,
+.subscription-edit-sheet .semi-select-selection:focus-within,
+.subscription-edit-sheet .semi-select.semi-select-focus .semi-select-selection {
+  border-color: var(--app-accent) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+}
+
+.subscription-edit-sheet .semi-input,
+.subscription-edit-sheet .semi-input-number .semi-input,
+.subscription-edit-sheet .semi-input-disabled,
+.subscription-edit-sheet .semi-select-selection-text {
+  color: var(--app-text-primary) !important;
+}
+
+.payment-confirm-modal .semi-modal-content,
+.subscription-purchase-modal .semi-modal-content,
+.transfer-balance-modal .semi-modal-content {
+  overflow: hidden;
+  border: 1px solid var(--app-panel-border);
+  border-radius: 28px;
+  background: var(--app-panel-bg);
+  box-shadow: var(--app-panel-shadow);
+  backdrop-filter: blur(var(--app-glass-blur));
+}
+
+.payment-confirm-modal .semi-modal-header,
+.subscription-purchase-modal .semi-modal-header,
+.transfer-balance-modal .semi-modal-header {
+  padding: 24px 24px 10px;
+}
+
+.payment-confirm-modal .semi-modal-title,
+.subscription-purchase-modal .semi-modal-title,
+.transfer-balance-modal .semi-modal-title {
+  color: var(--app-text-primary);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.payment-confirm-modal .semi-modal-body,
+.subscription-purchase-modal .semi-modal-body,
+.transfer-balance-modal .semi-modal-body {
+  padding: 0 24px 24px;
+}
+
+.payment-confirm-modal .semi-modal-footer,
+.transfer-balance-modal .semi-modal-footer {
+  gap: 12px;
+  padding: 0 24px 24px;
+  border-top: none;
+}
+
+.payment-confirm-card.semi-card,
+.subscription-purchase-card.semi-card,
+.transfer-balance-field {
+  border: 1px solid var(--app-panel-border);
+  background: var(--app-panel-bg-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
+}
+
+.payment-confirm-card.semi-card,
+.subscription-purchase-card.semi-card {
+  overflow: hidden;
+}
+
+.payment-confirm-card .semi-card-body,
+.subscription-purchase-card .semi-card-body {
+  padding: 22px !important;
+}
+
+.transfer-balance-field {
+  padding: 18px;
+  border-radius: 20px;
+}
+
+.payment-confirm-label.semi-typography,
+.subscription-purchase-label.semi-typography,
+.transfer-balance-label.semi-typography {
+  color: var(--app-text-secondary) !important;
+  font-weight: 700;
+}
+
+.payment-confirm-value.semi-typography,
+.subscription-purchase-value.semi-typography {
+  color: var(--app-text-primary) !important;
+  font-weight: 600;
+}
+
+.payment-confirm-price.semi-typography,
+.subscription-purchase-price.semi-typography {
+  color: var(--app-accent) !important;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.payment-confirm-discount-rate.semi-typography {
+  color: var(--app-accent-cyan) !important;
+  font-weight: 700;
+}
+
+.payment-confirm-hint.semi-typography,
+.subscription-purchase-section-label.semi-typography {
+  color: var(--app-text-muted) !important;
+}
+
+.payment-confirm-savings.semi-typography {
+  color: #0f766e !important;
+  font-weight: 700;
+}
+
+.payment-confirm-method,
+.subscription-purchase-provider-row {
+  gap: 10px;
+}
+
+.subscription-purchase-inline-icon {
+  color: var(--app-text-muted);
+}
+
+.subscription-purchase-select .semi-select-selection,
+.transfer-balance-input .semi-input-wrapper,
+.transfer-balance-input.semi-input-number {
+  border: 1px solid var(--app-panel-border) !important;
+  border-radius: 16px !important;
+  background: var(--app-panel-bg-strong) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.subscription-purchase-select .semi-select-selection:hover,
+.transfer-balance-input .semi-input-wrapper:hover,
+.transfer-balance-input.semi-input-number:hover {
+  border-color: var(--app-panel-border-strong) !important;
+}
+
+.subscription-purchase-select.semi-select-focus .semi-select-selection,
+.transfer-balance-input .semi-input-wrapper-focus,
+.transfer-balance-input .semi-input-wrapper:focus-within,
+.transfer-balance-input.semi-input-number:focus-within {
+  border-color: var(--app-accent) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+}
+
+.transfer-balance-input .semi-input,
+.transfer-balance-input.semi-input-number .semi-input {
+  color: var(--app-text-primary) !important;
+}
+
+html.dark .subscription-admin-banner.semi-banner,
+html.dark .subscription-purchase-banner.semi-banner,
+html.dark .subscription-edit-section-card.semi-card,
+html.dark .payment-confirm-card.semi-card,
+html.dark .subscription-purchase-card.semi-card,
+html.dark .transfer-balance-field {
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
+}
+
+html.dark .subscription-channel-tag.semi-tag,
+html.dark .subscription-status-tag.semi-tag,
+html.dark .subscription-edit-sheet-badge.semi-tag {
+  box-shadow: none !important;
+}
+
+html.dark .subscription-status-tag.is-enabled.semi-tag {
+  border-color: rgba(45, 212, 191, 0.28) !important;
+  background: rgba(15, 118, 110, 0.2) !important;
+  color: #67e8f9 !important;
+}
+
+html.dark .subscription-status-tag.is-disabled.semi-tag {
+  border-color: rgba(248, 113, 113, 0.28) !important;
+  background: rgba(127, 29, 29, 0.24) !important;
+  color: #fca5a5 !important;
+}
+
+html.dark .subscription-edit-sheet .semi-sidesheet-content {
+  border-color: var(--app-panel-border);
+  background: radial-gradient(
+      circle at top left,
+      rgba(14, 165, 233, 0.14),
+      transparent 28%
+    ),
+    var(--app-panel-bg) !important;
+  box-shadow: none;
+}
+
+html.dark .subscription-edit-sheet-heading.semi-typography,
+html.dark .subscription-edit-section-title.semi-typography,
+html.dark .payment-confirm-modal .semi-modal-title,
+html.dark .subscription-purchase-modal .semi-modal-title,
+html.dark .transfer-balance-modal .semi-modal-title,
+html.dark .payment-confirm-value.semi-typography,
+html.dark .subscription-purchase-value.semi-typography,
+html.dark .transfer-balance-input .semi-input,
+html.dark .transfer-balance-input.semi-input-number .semi-input,
+html.dark .subscription-edit-sheet .semi-input,
+html.dark .subscription-edit-sheet .semi-input-number .semi-input,
+html.dark .subscription-edit-sheet .semi-select-selection-text {
+  color: #f8fafc !important;
+}
+
+html.dark .subscription-edit-section-copy,
+html.dark .payment-confirm-hint.semi-typography,
+html.dark .subscription-purchase-section-label.semi-typography,
+html.dark .subscription-edit-sheet .semi-form-field-label-text,
+html.dark .subscription-edit-sheet .semi-form-field-extra,
+html.dark .subscription-edit-sheet .semi-form-field-extra-text,
+html.dark .subscription-edit-sheet .semi-select-selection-placeholder,
+html.dark .transfer-balance-label.semi-typography,
+html.dark .subscription-purchase-inline-icon {
+  color: #98a2b3 !important;
+}
+
+html.dark .subscription-edit-sheet .semi-input-wrapper,
+html.dark .subscription-edit-sheet .semi-input-number,
+html.dark .subscription-edit-sheet .semi-select-selection,
+html.dark .payment-confirm-modal .semi-modal-content,
+html.dark .subscription-purchase-modal .semi-modal-content,
+html.dark .transfer-balance-modal .semi-modal-content,
+html.dark .subscription-purchase-select .semi-select-selection,
+html.dark .transfer-balance-input .semi-input-wrapper,
+html.dark .transfer-balance-input.semi-input-number {
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
+  box-shadow: none !important;
+}
+
+html.dark .subscription-action-button.semi-button,
+html.dark .subscription-edit-sheet-cancel.semi-button,
+html.dark .subscription-purchase-pay-button.is-secondary.semi-button,
+html.dark .payment-confirm-modal .semi-modal-footer .semi-button-tertiary,
+html.dark .payment-confirm-modal .semi-modal-footer .semi-button-light,
+html.dark .transfer-balance-modal .semi-modal-footer .semi-button-light,
+html.dark .transfer-balance-modal .semi-modal-footer .semi-button-tertiary {
+  border-color: var(--app-panel-border) !important;
+  background: rgba(19, 28, 42, 0.84) !important;
+  color: #f8fafc !important;
+}
+
+@media (max-width: 767px) {
+  .subscription-edit-sheet .semi-sidesheet-content {
+    border-radius: 28px 28px 0 0;
+  }
+
+  .payment-confirm-modal .semi-modal-header,
+  .subscription-purchase-modal .semi-modal-header,
+  .transfer-balance-modal .semi-modal-header {
+    padding: 20px 20px 10px;
+  }
+
+  .payment-confirm-modal .semi-modal-body,
+  .subscription-purchase-modal .semi-modal-body,
+  .transfer-balance-modal .semi-modal-body,
+  .payment-confirm-modal .semi-modal-footer,
+  .transfer-balance-modal .semi-modal-footer {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
 }
 
 /* ==================== Referral page ==================== */
@@ -4116,7 +4777,7 @@ html.dark
 
 .referral-title.semi-typography {
   margin-bottom: 8px !important;
-  color: #111827;
+  color: var(--app-text-primary);
   font-size: 32px;
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -4125,7 +4786,7 @@ html.dark
 .referral-subtitle {
   margin: 0;
   max-width: 640px;
-  color: #667085;
+  color: var(--app-text-secondary);
   font-size: 15px;
   line-height: 1.65;
 }
@@ -4134,27 +4795,25 @@ html.dark
   height: 42px;
   padding: 0 18px;
   border-radius: 14px !important;
-  border-color: rgba(216, 220, 228, 0.96) !important;
-  background: rgba(255, 255, 255, 0.88) !important;
-  color: #111827 !important;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
+  color: var(--app-text-primary) !important;
+  box-shadow: var(--app-panel-shadow-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .referral-card.semi-card {
   overflow: hidden;
-  border: 1px solid rgba(224, 229, 237, 0.95) !important;
+  border: 1px solid var(--app-panel-border) !important;
   border-radius: 28px !important;
   background: radial-gradient(
       circle at top left,
-      rgba(244, 114, 182, 0.09),
+      var(--app-accent-soft),
       transparent 28%
     ),
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.98),
-      rgba(248, 250, 252, 0.98)
-    );
-  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.08);
+    var(--app-panel-bg);
+  box-shadow: var(--app-panel-shadow) !important;
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .referral-card .semi-card-body {
@@ -4172,17 +4831,17 @@ html.dark
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border: 1px solid rgba(225, 141, 255, 0.35);
+  border: 1px solid var(--app-pill-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  color: #b423c7;
+  background: var(--app-pill-bg);
+  color: var(--app-accent);
   font-size: 13px;
   font-weight: 700;
 }
 
 .referral-hero-title {
   margin: 18px 0 10px;
-  color: #101828;
+  color: var(--app-text-primary);
   font-size: 30px;
   font-weight: 800;
   line-height: 1.15;
@@ -4192,7 +4851,7 @@ html.dark
 .referral-hero-description {
   margin: 0;
   max-width: 600px;
-  color: #667085;
+  color: var(--app-text-secondary);
   font-size: 15px;
   line-height: 1.7;
 }
@@ -4205,18 +4864,18 @@ html.dark
 }
 
 .referral-identity-avatar.semi-avatar {
-  box-shadow: 0 12px 24px rgba(190, 24, 93, 0.18);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
 }
 
 .referral-identity-name {
-  color: #111827;
+  color: var(--app-text-primary);
   font-size: 17px;
   font-weight: 700;
 }
 
 .referral-identity-meta {
   margin-top: 4px;
-  color: #8a94a6;
+  color: var(--app-text-muted);
   font-size: 13px;
 }
 
@@ -4233,18 +4892,19 @@ html.dark
   justify-content: space-between;
   gap: 14px;
   padding: 13px 18px;
-  border: 1px solid rgba(229, 231, 235, 0.96);
+  border: 1px solid var(--app-panel-border);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.74);
+  background: var(--app-panel-bg-soft);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .referral-chip span {
-  color: #8a94a6;
+  color: var(--app-text-muted);
   font-size: 13px;
 }
 
 .referral-chip strong {
-  color: #111827;
+  color: var(--app-text-primary);
   font-size: 18px;
   font-weight: 800;
 }
@@ -4259,30 +4919,27 @@ html.dark
 .referral-spotlight {
   position: relative;
   padding: 24px;
-  border: 1px solid rgba(223, 227, 235, 0.95);
+  border: 1px solid var(--app-panel-border);
   border-radius: 24px;
   background: radial-gradient(
       circle at top right,
-      rgba(250, 204, 21, 0.18),
+      rgba(34, 211, 238, 0.12),
       transparent 35%
     ),
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.92),
-      rgba(248, 250, 252, 0.92)
-    );
+    var(--app-panel-bg-strong);
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .referral-spotlight-label {
   display: inline-block;
-  color: #8a94a6;
+  color: var(--app-text-muted);
   font-size: 13px;
 }
 
 .referral-spotlight-value {
   display: block;
   margin-top: 10px;
-  color: #111827;
+  color: var(--app-text-primary);
   font-size: 34px;
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -4290,7 +4947,7 @@ html.dark
 
 .referral-spotlight-note {
   margin: 10px 0 0;
-  color: #667085;
+  color: var(--app-text-secondary);
   font-size: 14px;
   line-height: 1.65;
 }
@@ -4310,24 +4967,34 @@ html.dark
 
 .referral-primary-button.semi-button {
   border: none !important;
-  background: linear-gradient(90deg, #c026d3, #fb7185 54%, #60a5fa) !important;
-  box-shadow: 0 16px 30px rgba(192, 38, 211, 0.22);
+  background: var(--app-accent-gradient) !important;
+  color: #ffffff !important;
+  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.2);
+  text-shadow: 0 1px 1px rgba(15, 23, 42, 0.18);
 }
 
 .referral-primary-button.semi-button:hover {
-  background: linear-gradient(90deg, #a21caf, #f43f5e 54%, #3b82f6) !important;
+  background: var(--app-accent-gradient-hover) !important;
+}
+
+.referral-primary-button.semi-button .semi-button-content,
+.referral-primary-button.semi-button .semi-button-content-left,
+.referral-primary-button.semi-button .semi-button-content-right,
+.referral-primary-button.semi-button svg {
+  color: currentColor !important;
 }
 
 .referral-outline-button.semi-button {
-  border-color: rgba(221, 225, 233, 0.96) !important;
-  background: rgba(255, 255, 255, 0.82) !important;
-  color: #111827 !important;
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
+  color: var(--app-text-primary) !important;
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .referral-outline-button.semi-button:hover,
 .referral-refresh-button.semi-button:hover {
-  border-color: rgba(200, 205, 214, 0.96) !important;
-  background: #ffffff !important;
+  border-color: var(--app-panel-border-strong) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
 }
 
 .referral-grid {
@@ -4364,8 +5031,8 @@ html.dark
 }
 
 .referral-section-icon-link {
-  background: rgba(232, 121, 249, 0.12);
-  color: #c026d3;
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
 }
 
 .referral-section-icon-stats {
@@ -4380,14 +5047,14 @@ html.dark
 
 .referral-section-head h3 {
   margin: 2px 0 6px;
-  color: #111827;
+  color: var(--app-text-primary);
   font-size: 21px;
   font-weight: 800;
 }
 
 .referral-section-head p {
   margin: 0;
-  color: #8a94a6;
+  color: var(--app-text-muted);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -4400,9 +5067,10 @@ html.dark
 
 .referral-share-input.semi-input-wrapper {
   min-height: 48px;
-  border: 1px solid rgba(224, 229, 237, 0.96) !important;
+  border: 1px solid var(--app-panel-border) !important;
   border-radius: 18px !important;
-  background: rgba(248, 250, 252, 0.95) !important;
+  background: var(--app-panel-bg-strong) !important;
+  backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .referral-share-input .semi-input {
@@ -4416,7 +5084,7 @@ html.dark
 
 .referral-link-note {
   margin: 14px 0 0;
-  color: #667085;
+  color: var(--app-text-secondary);
   font-size: 14px;
   line-height: 1.65;
 }
@@ -4437,14 +5105,14 @@ html.dark
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #667085;
+  color: var(--app-text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
 
 .referral-stat-value {
   margin-top: 18px;
-  color: #111827;
+  color: var(--app-text-primary);
   font-size: 30px;
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -4452,8 +5120,8 @@ html.dark
 }
 
 .referral-stat-violet {
-  border-color: rgba(217, 70, 239, 0.24);
-  background: rgba(250, 245, 255, 0.92);
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(239, 246, 255, 0.88);
 }
 
 .referral-stat-emerald {
@@ -4467,8 +5135,8 @@ html.dark
 }
 
 .referral-stat-rose {
-  border-color: rgba(244, 63, 94, 0.24);
-  background: rgba(255, 241, 242, 0.92);
+  border-color: rgba(6, 182, 212, 0.22);
+  background: rgba(236, 254, 255, 0.88);
 }
 
 .referral-rules-list {
@@ -4490,19 +5158,15 @@ html.dark
   width: 30px;
   height: 30px;
   border-radius: 999px;
-  background: linear-gradient(
-    135deg,
-    rgba(217, 70, 239, 0.18),
-    rgba(96, 165, 250, 0.2)
-  );
-  color: #b423c7;
+  background: var(--app-accent-gradient-soft);
+  color: var(--app-accent-strong);
   font-size: 13px;
   font-weight: 800;
 }
 
 .referral-rule-copy {
   padding-top: 3px;
-  color: #5b616e;
+  color: var(--app-text-secondary);
   font-size: 14px;
   line-height: 1.65;
 }
@@ -4527,23 +5191,23 @@ html.dark .billing-creem-card small,
 html.dark .billing-payable-text,
 html.dark .billing-redeem-callout span,
 html.dark .referral-rule-item {
-  color: #98a2b3 !important;
+  color: var(--app-text-muted) !important;
 }
 
 html.dark .billing-balance-card.semi-card,
 html.dark .billing-wallet-panel.semi-card {
-  border-color: rgba(58, 66, 82, 0.9) !important;
-  background: #15181e !important;
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg) !important;
   box-shadow: none !important;
 }
 
 html.dark .billing-balance-card .semi-card-body {
   background: radial-gradient(
       circle at 8% 20%,
-      rgba(194, 94, 255, 0.18),
+      var(--app-accent-soft-strong),
       transparent 32%
     ),
-    linear-gradient(90deg, rgba(188, 72, 255, 0.1), rgba(10, 11, 13, 0) 62%);
+    linear-gradient(90deg, rgba(37, 99, 235, 0.1), rgba(10, 11, 13, 0) 62%);
 }
 
 html.dark .billing-history-button.semi-button,
@@ -4554,14 +5218,14 @@ html.dark .billing-creem-card,
 html.dark .billing-custom-amount.semi-input-number,
 html.dark .billing-wallet-form .semi-input-wrapper,
 html.dark .billing-wallet-form .semi-input-number {
-  border-color: rgba(58, 66, 82, 0.95) !important;
-  background: #101318 !important;
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
 }
 
 html.dark .billing-pay-method.is-active,
 html.dark .billing-amount-option.is-active {
-  border-color: rgba(194, 94, 255, 0.85) !important;
-  background: rgba(194, 94, 255, 0.1) !important;
+  border-color: var(--app-accent) !important;
+  background: var(--app-accent-soft) !important;
 }
 
 html.dark .billing-panel-icon-warm,
@@ -4601,17 +5265,17 @@ html.dark .referral-section-head p,
 html.dark .referral-link-note,
 html.dark .referral-stat-top,
 html.dark .referral-rule-copy {
-  color: #98a2b3 !important;
+  color: var(--app-text-muted) !important;
 }
 
 html.dark .referral-card.semi-card {
-  border-color: rgba(53, 61, 76, 0.96) !important;
+  border-color: var(--app-panel-border) !important;
   background: radial-gradient(
       circle at top left,
-      rgba(192, 38, 211, 0.12),
+      var(--app-accent-soft),
       transparent 30%
     ),
-    linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98)) !important;
+    var(--app-panel-bg) !important;
   box-shadow: none !important;
 }
 
@@ -4621,21 +5285,21 @@ html.dark .referral-spotlight,
 html.dark .referral-share-input.semi-input-wrapper,
 html.dark .referral-refresh-button.semi-button,
 html.dark .referral-outline-button.semi-button {
-  border-color: rgba(58, 66, 82, 0.95) !important;
-  background: rgba(16, 19, 24, 0.92) !important;
+  border-color: var(--app-panel-border) !important;
+  background: var(--app-panel-bg-strong) !important;
 }
 
 html.dark .referral-eyebrow {
-  color: #f472b6;
+  color: var(--app-accent-strong);
 }
 
 html.dark .referral-spotlight {
   background: radial-gradient(
       circle at top right,
-      rgba(250, 204, 21, 0.14),
+      rgba(34, 211, 238, 0.12),
       transparent 35%
     ),
-    linear-gradient(145deg, rgba(20, 23, 31, 0.96), rgba(14, 17, 23, 0.96)) !important;
+    var(--app-panel-bg-strong) !important;
 }
 
 html.dark .referral-share-input.semi-input-wrapper {
@@ -4643,8 +5307,8 @@ html.dark .referral-share-input.semi-input-wrapper {
 }
 
 html.dark .referral-section-icon-link {
-  background: rgba(192, 38, 211, 0.16);
-  color: #e879f9;
+  background: rgba(37, 99, 235, 0.16);
+  color: #93c5fd;
 }
 
 html.dark .referral-section-icon-stats {
@@ -4658,8 +5322,8 @@ html.dark .referral-section-icon-rules {
 }
 
 html.dark .referral-stat-violet {
-  border-color: rgba(217, 70, 239, 0.28);
-  background: rgba(49, 29, 58, 0.7);
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(17, 40, 74, 0.68);
 }
 
 html.dark .referral-stat-emerald {
@@ -4673,17 +5337,17 @@ html.dark .referral-stat-amber {
 }
 
 html.dark .referral-stat-rose {
-  border-color: rgba(244, 63, 94, 0.28);
-  background: rgba(69, 28, 39, 0.72);
+  border-color: rgba(6, 182, 212, 0.28);
+  background: rgba(16, 56, 66, 0.7);
 }
 
 html.dark .referral-rule-index {
   background: linear-gradient(
     135deg,
-    rgba(217, 70, 239, 0.2),
-    rgba(96, 165, 250, 0.16)
+    rgba(37, 99, 235, 0.22),
+    rgba(34, 211, 238, 0.16)
   );
-  color: #f5d0fe;
+  color: #dbeafe;
 }
 
 @media (max-width: 1024px) {
@@ -4763,3 +5427,4 @@ html.dark .referral-rule-index {
     width: 100%;
   }
 }
+
