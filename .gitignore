@@ -41,3 +41,8 @@ skills-lock.json
 /*.png
 /*.openapi.json
 /tmp
+
+# scripts/ top-level: research notes & probe scripts (cf-worker/ subdir stays tracked)
+/scripts/*.md
+/scripts/*.py
+/scripts/*.sh
