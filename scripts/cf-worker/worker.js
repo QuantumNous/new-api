@@ -284,16 +284,20 @@ async function uploadToR2(b64, ext, env) {
   return key;
 }
 
+// Determines the file extension for an image payload. Magic-byte sniffing
+// wins over `claimed` because upstream sometimes silently returns PNG bytes
+// while still echoing back the requested output_format (e.g. webp). Trusting
+// `claimed` blindly results in .webp/.jpg URLs whose body is actually PNG.
 function inferExt(claimed, b64) {
-  const c = (claimed || '').toLowerCase();
-  if (c === 'jpeg' || c === 'jpg') return 'jpg';
-  if (c === 'png') return 'png';
-  if (c === 'webp') return 'webp';
-  const head = b64.slice(0, 8);
+  const head = (b64 || '').slice(0, 8);
   if (head.startsWith('iVBOR')) return 'png';
   if (head.startsWith('/9j/')) return 'jpg';
   if (head.startsWith('UklG')) return 'webp';
   if (head.startsWith('R0lGOD')) return 'gif';
+  const c = (claimed || '').toLowerCase();
+  if (c === 'jpeg' || c === 'jpg') return 'jpg';
+  if (c === 'png') return 'png';
+  if (c === 'webp') return 'webp';
   return 'png';
 }
 
@@ -512,13 +516,16 @@ async function buildImagesDataFromResponses(responsesData, opts, env) {
       typeof item.result === 'string' &&
       item.result.length > 100
     ) {
-      if (!firstFormat) firstFormat = item.output_format;
+      const ext = inferExt(item.output_format, item.result);
+      // Use the format inferred from actual bytes — upstream sometimes echoes
+      // the requested output_format while silently returning PNG, so trusting
+      // item.output_format would mismatch the file the client downloads.
+      if (!firstFormat) firstFormat = ext === 'jpg' ? 'jpeg' : ext;
       if (!firstSize) firstSize = item.size;
       const entry = {};
       if (wantB64) {
         entry.b64_json = item.result;
       } else {
-        const ext = inferExt(item.output_format, item.result);
         const key = await uploadToR2(item.result, ext, env);
         entry.url = imageBase
           ? `${imageBase}/${key}`
@@ -808,7 +815,7 @@ async function handleImagesGenerations(request, env, ctx) {
     created: Math.floor(Date.now() / 1000),
     data,
     background: responsesData.background || reqBody.background || 'auto',
-    output_format: reqBody.output_format || firstFormat || 'png',
+    output_format: firstFormat || reqBody.output_format || 'png',
     quality: reqBody.quality || 'auto',
     size: reqBody.size || firstSize || '1024x1024',
     usage: responsesData.usage,
@@ -947,7 +954,7 @@ async function handleImagesEdits(request, env, ctx) {
     created: Math.floor(Date.now() / 1000),
     data,
     background: responsesData.background || (background ? String(background) : 'auto'),
-    output_format: outputFormat ? String(outputFormat) : firstFormat || 'png',
+    output_format: firstFormat || (outputFormat ? String(outputFormat) : 'png'),
     quality: quality ? String(quality) : 'auto',
     size: size ? String(size) : firstSize || '1024x1024',
     usage: responsesData.usage,
