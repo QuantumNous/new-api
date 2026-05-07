@@ -160,6 +160,7 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
+	configureTrustedProxies(server)
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -181,7 +182,7 @@ func main() {
 		Path:     "/",
 		MaxAge:   2592000, // 30 days
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   common.GetEnvOrDefaultBool("SESSION_COOKIE_SECURE", false),
 		SameSite: http.SameSiteStrictMode,
 	})
 	server.Use(sessions.Sessions("session", store))
@@ -208,6 +209,36 @@ func main() {
 	if err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
+}
+
+func configureTrustedProxies(server *gin.Engine) {
+	rawTrustedProxies := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES"))
+	if rawTrustedProxies == "" {
+		return
+	}
+
+	if strings.EqualFold(rawTrustedProxies, "none") {
+		if err := server.SetTrustedProxies(nil); err != nil {
+			common.FatalLog("failed to disable trusted proxies: " + err.Error())
+		}
+		common.SysLog("trusted proxies disabled")
+		return
+	}
+
+	proxies := make([]string, 0)
+	for _, proxy := range strings.Split(rawTrustedProxies, ",") {
+		proxy = strings.TrimSpace(proxy)
+		if proxy != "" {
+			proxies = append(proxies, proxy)
+		}
+	}
+	if len(proxies) == 0 {
+		return
+	}
+	if err := server.SetTrustedProxies(proxies); err != nil {
+		common.FatalLog("failed to configure trusted proxies: " + err.Error())
+	}
+	common.SysLog(fmt.Sprintf("configured %d trusted proxy entries", len(proxies)))
 }
 
 func InjectUmamiAnalytics() {

@@ -1,0 +1,75 @@
+name: new-api-prod
+
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${NEW_API_IMAGE:-new-api:production}
+    restart: unless-stopped
+    command: ["--log-dir", "/app/logs"]
+    env_file:
+      - ${NEW_API_ENV_FILE:-.env}
+    ports:
+      - "${NEW_API_BIND_ADDRESS:-127.0.0.1}:${NEW_API_HOST_PORT:-3000}:3000"
+    volumes:
+      - new_api_data:/data
+      - new_api_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000/api/status | grep -q '\"success\":true'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - new_api_private
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+    volumes:
+      - new_api_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - new_api_private
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD:?REDIS_PASSWORD is required}\""]
+    volumes:
+      - new_api_redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - new_api_private
+
+volumes:
+  new_api_data:
+  new_api_logs:
+  new_api_pg_data:
+  new_api_redis_data:
+
+networks:
+  new_api_private:
+    driver: bridge

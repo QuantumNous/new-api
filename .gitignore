@@ -13,6 +13,9 @@ web/classic/dist
 web/node_modules
 web/dist
 .env
+.env.*
+!.env.example
+!.env.production.example
 one-api
 new-api
 /__debug_bin*
