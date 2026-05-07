@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+import { ThemeCustomizationProvider } from '@/context/theme-customization-provider'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Toaster } from '@/components/ui/sonner'
 import { NavigationProgress } from '@/components/navigation-progress'
@@ -18,7 +19,7 @@ function RootComponent() {
   useSystemConfig({ autoLoad: true })
 
   return (
-    <>
+    <ThemeCustomizationProvider>
       <NavigationProgress />
       <Outlet />
       <Toaster duration={5000} />
@@ -28,7 +29,7 @@ function RootComponent() {
           <TanStackRouterDevtools position='bottom-right' />
         </>
       )}
-    </>
+    </ThemeCustomizationProvider>
   )
 }
 

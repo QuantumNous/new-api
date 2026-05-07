@@ -88,7 +88,7 @@ export function DataTableBulkActions<TData>({
         break
       case 'Escape': {
         // Check if the Escape key came from a dropdown trigger or content
-        // We can't check dropdown state because Radix UI closes it before our handler runs
+        // We can't check dropdown state because the menu closes before our handler runs.
         const target = event.target as HTMLElement
         const activeElement = document.activeElement as HTMLElement
 
@@ -156,18 +156,20 @@ export function DataTableBulkActions<TData>({
           )}
         >
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant='outline'
-                size='icon'
-                onClick={handleClearSelection}
-                className='size-6 rounded-full'
-                aria-label={t('Clear selection')}
-                title={t('Clear selection (Escape)')}
-              >
-                <X />
-                <span className='sr-only'>{t('Clear selection')}</span>
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant='outline'
+                  size='icon'
+                  onClick={handleClearSelection}
+                  className='size-6 rounded-full'
+                  aria-label={t('Clear selection')}
+                  title={t('Clear selection (Escape)')}
+                />
+              }
+            >
+              <X />
+              <span className='sr-only'>{t('Clear selection')}</span>
             </TooltipTrigger>
             <TooltipContent>
               <p>{t('Clear selection (Escape)')}</p>

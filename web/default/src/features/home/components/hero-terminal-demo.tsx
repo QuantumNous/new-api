@@ -40,7 +40,8 @@ const ACCENT_CLASSES: Record<
   blue: {
     activeText: 'text-blue-600 dark:text-blue-400',
     activeBorder: 'border-blue-500 dark:border-blue-400',
-    badge: 'bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400',
+    badge:
+      'bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400',
   },
   violet: {
     activeText: 'text-violet-600 dark:text-violet-400',
@@ -80,10 +81,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     method: 'POST',
     endpoint: '/v1/responses',
     headers: ['"Authorization: Bearer sk-••••"'],
-    request: [
-      '"model": "your-model",',
-      '"input": "..."',
-    ],
+    request: ['"model": "your-model",', '"input": "..."'],
     response: [
       '{',
       '  "output": [{ "type": "output_text", "text": <text> }],',
@@ -209,10 +207,10 @@ export function HeroTerminalDemo() {
                 key={item.id}
                 onClick={() => handleSelect(index)}
                 className={cn(
-                  '-mb-px relative flex items-center gap-1.5 border-b-2 px-2.5 py-2.5 text-[11px] font-medium tracking-wide transition-colors sm:px-3 sm:text-xs',
+                  'relative -mb-px flex items-center gap-1.5 border-b-2 px-2.5 py-2.5 text-[11px] font-medium tracking-wide transition-colors sm:px-3 sm:text-xs',
                   isActive
                     ? `${tone.activeBorder} ${tone.activeText}`
-                    : 'border-transparent text-foreground/40 hover:text-foreground/70'
+                    : 'text-foreground/40 hover:text-foreground/70 border-transparent'
                 )}
               >
                 {item.label}
@@ -221,7 +219,7 @@ export function HeroTerminalDemo() {
           })}
           <div className='ml-auto flex items-center gap-2 pr-2 sm:pr-3'>
             <span className='inline-block size-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)]' />
-            <span className='font-mono text-[10px] tracking-wider text-foreground/40 uppercase'>
+            <span className='text-foreground/40 font-mono text-[10px] tracking-wider uppercase'>
               200 ok
             </span>
           </div>
@@ -244,7 +242,7 @@ export function HeroTerminalDemo() {
           </span>
           <code
             className={cn(
-              'truncate font-mono text-[12.5px] text-foreground/75 transition-opacity duration-200',
+              'text-foreground/75 truncate font-mono text-[12.5px] transition-opacity duration-200',
               transitioning ? 'opacity-0' : 'opacity-100'
             )}
           >
@@ -268,17 +266,17 @@ export function HeroTerminalDemo() {
             'border-border/40 bg-muted/30 dark:border-white/[0.05] dark:bg-white/[0.02]'
           )}
         >
-          <div className='flex items-center gap-3 text-[10px] tabular-nums text-foreground/40'>
+          <div className='text-foreground/40 flex items-center gap-3 text-[10px] tabular-nums'>
             <span className='flex items-center gap-1'>
               <span className='font-mono'>{demo.latency}</span>
               <span className='tracking-wider uppercase'>ms</span>
             </span>
-            <span className='size-1 rounded-full bg-foreground/15' />
+            <span className='bg-foreground/15 size-1 rounded-full' />
             <span className='flex items-center gap-1'>
               <span className='font-mono'>{demo.tokens}</span>
               <span className='tracking-wider uppercase'>tokens</span>
             </span>
-            <span className='size-1 rounded-full bg-foreground/15' />
+            <span className='bg-foreground/15 size-1 rounded-full' />
             <span className='flex items-center gap-1'>
               <span className='tracking-wider uppercase'>cost</span>
               <span className='font-mono'>
@@ -286,7 +284,7 @@ export function HeroTerminalDemo() {
               </span>
             </span>
           </div>
-          <span className='font-mono text-[10px] tracking-wider text-foreground/30 uppercase'>
+          <span className='text-foreground/30 font-mono text-[10px] tracking-wider uppercase'>
             stream · sse
           </span>
         </div>
@@ -352,9 +350,7 @@ function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
         )}
       >
         {demo.response.map((line, i) => (
-          <CodeLine key={i}>
-            {renderResponseLine(line, demo)}
-          </CodeLine>
+          <CodeLine key={i}>{renderResponseLine(line, demo)}</CodeLine>
         ))}
       </div>
     </div>
@@ -363,7 +359,7 @@ function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
 
 function SectionLabel(props: { children: ReactNode }) {
   return (
-    <span className='font-sans text-[10px] font-semibold tracking-[0.18em] text-foreground/30 uppercase'>
+    <span className='text-foreground/30 font-sans text-[10px] font-semibold tracking-[0.18em] uppercase'>
       {props.children}
     </span>
   )
@@ -401,9 +397,7 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
         </Accent>
       )
     } else if (placeholder === '<tokens>') {
-      segments.push(
-        <NumberText key={`ph-${idx}`}>{demo.tokens}</NumberText>
-      )
+      segments.push(<NumberText key={`ph-${idx}`}>{demo.tokens}</NumberText>)
     } else if (placeholder === '<in>') {
       segments.push(
         <NumberText key={`ph-${idx}`}>
@@ -472,7 +466,7 @@ function tokenize(input: string): ReactNode {
 
 function CodeLine(props: { children: ReactNode; indent?: number }) {
   return (
-    <div className='whitespace-pre-wrap break-words'>
+    <div className='break-words whitespace-pre-wrap'>
       {props.indent ? (
         <span
           aria-hidden
@@ -525,5 +519,7 @@ function Muted(props: { children: ReactNode }) {
 
 function Accent(props: { children: ReactNode; accent: AccentTone }) {
   const tone = ACCENT_CLASSES[props.accent]
-  return <span className={cn('font-medium', tone.activeText)}>{props.children}</span>
+  return (
+    <span className={cn('font-medium', tone.activeText)}>{props.children}</span>
+  )
 }

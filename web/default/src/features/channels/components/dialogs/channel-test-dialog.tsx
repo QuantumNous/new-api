@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -252,10 +253,8 @@ export function ChannelTestDialog({
         id: 'select',
         header: ({ table }) => (
           <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && 'indeterminate')
-            }
+            checked={table.getIsAllPageRowsSelected()}
+            indeterminate={table.getIsSomePageRowsSelected()}
             onCheckedChange={(value) =>
               table.toggleAllPageRowsSelected(!!value)
             }
@@ -432,19 +431,30 @@ export function ChannelTestDialog({
           <div className='grid gap-4 md:grid-cols-2'>
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
-              <Select value={endpointType} onValueChange={setEndpointType}>
+              <Select
+                items={[
+                  ...endpointTypeOptions.map((option) => {
+                    const itemValue = option.value
+                    return { value: itemValue, label: t(option.label) }
+                  }),
+                ]}
+                value={endpointType}
+                onValueChange={(v) => v !== null && setEndpointType(v)}
+              >
                 <SelectTrigger id='endpoint-type'>
                   <SelectValue placeholder={t('Auto detect (default)')} />
                 </SelectTrigger>
-                <SelectContent>
-                  {endpointTypeOptions.map((option) => {
-                    const itemValue = option.value
-                    return (
-                      <SelectItem key={itemValue} value={itemValue}>
-                        {t(option.label)}
-                      </SelectItem>
-                    )
-                  })}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {endpointTypeOptions.map((option) => {
+                      const itemValue = option.value
+                      return (
+                        <SelectItem key={itemValue} value={itemValue}>
+                          {t(option.label)}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <p className='text-muted-foreground text-xs'>
@@ -586,21 +596,23 @@ function TestModelsBulkActions({
   return (
     <BulkActionsToolbar table={table} entityName='model'>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            size='sm'
-            onClick={() => onTestSelected(selectedModels)}
-            disabled={disabled || selectedModels.length === 0}
-          >
-            {disabled ? (
-              <>
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                {t('Testing...')}
-              </>
-            ) : (
-              buttonLabel
-            )}
-          </Button>
+        <TooltipTrigger
+          render={
+            <Button
+              size='sm'
+              onClick={() => onTestSelected(selectedModels)}
+              disabled={disabled || selectedModels.length === 0}
+            />
+          }
+        >
+          {disabled ? (
+            <>
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              {t('Testing...')}
+            </>
+          ) : (
+            buttonLabel
+          )}
         </TooltipTrigger>
         <TooltipContent>
           <p>{t('Run tests for the selected models')}</p>

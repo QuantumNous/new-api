@@ -180,9 +180,9 @@ export function PublicHeader(props: PublicHeaderProps) {
                     <Button
                       size='sm'
                       className='h-8 rounded-lg px-3.5 text-xs font-medium'
-                      asChild
+                      render={<Link to='/sign-in' />}
                     >
-                      <Link to='/sign-in'>{t('Sign in')}</Link>
+                      {t('Sign in')}
                     </Button>
                   )}
                 </>

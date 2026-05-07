@@ -39,18 +39,24 @@ export const avatarColorMap: Record<SemanticColor, string> = {
   blue: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
   green: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400',
   cyan: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400',
-  purple: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400',
+  purple:
+    'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400',
   pink: 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-400',
   red: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
-  orange: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400',
+  orange:
+    'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400',
   amber: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400',
-  yellow: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400',
+  yellow:
+    'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400',
   lime: 'bg-lime-100 text-lime-700 dark:bg-lime-500/20 dark:text-lime-400',
-  'light-green': 'bg-green-50 text-green-600 dark:bg-green-400/20 dark:text-green-300',
+  'light-green':
+    'bg-green-50 text-green-600 dark:bg-green-400/20 dark:text-green-300',
   teal: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400',
   'light-blue': 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400',
-  indigo: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400',
-  violet: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400',
+  indigo:
+    'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400',
+  violet:
+    'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400',
   grey: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400',
 }
 

@@ -53,14 +53,17 @@ function ChatMenuItem({
   if (preset.type === 'web') {
     return (
       <SidebarMenuSubItem>
-        <SidebarMenuSubButton asChild isActive={active}>
-          <Link
-            to='/chat/$chatId'
-            params={{ chatId: preset.id }}
-            onClick={onNavigate}
-          >
-            <span>{preset.name}</span>
-          </Link>
+        <SidebarMenuSubButton
+          isActive={active}
+          render={
+            <Link
+              to='/chat/$chatId'
+              params={{ chatId: preset.id }}
+              onClick={onNavigate}
+            />
+          }
+        >
+          <span>{preset.name}</span>
         </SidebarMenuSubButton>
       </SidebarMenuSubItem>
     )
@@ -92,10 +95,10 @@ function DropdownPresetItem({
 }) {
   if (preset.type === 'web') {
     return (
-      <DropdownMenuItem asChild>
-        <Link to='/chat/$chatId' params={{ chatId: preset.id }}>
-          {preset.name}
-        </Link>
+      <DropdownMenuItem
+        render={<Link to='/chat/$chatId' params={{ chatId: preset.id }} />}
+      >
+        {preset.name}
       </DropdownMenuItem>
     )
   }
@@ -187,12 +190,12 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
     return (
       <SidebarMenuItem>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton tooltip={item.title}>
-              {item.icon && <item.icon className='h-4 w-4' />}
-              <span>{item.title}</span>
-              <ChevronRight className='ms-auto h-4 w-4 opacity-70' />
-            </SidebarMenuButton>
+          <DropdownMenuTrigger
+            render={<SidebarMenuButton tooltip={item.title} />}
+          >
+            {item.icon && <item.icon className='h-4 w-4' />}
+            <span>{item.title}</span>
+            <ChevronRight className='ms-auto h-4 w-4 opacity-70' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>
             {visiblePresets.map((preset) => (
@@ -218,40 +221,39 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
   // Expanded state - render collapsible menu
   return (
     <Collapsible
-      asChild
       defaultOpen={normalizedHref.startsWith('/chat')}
       className='group/collapsible'
+      render={<SidebarMenuItem />}
     >
-      <SidebarMenuItem>
-        <CollapsibleTrigger asChild>
-          <SidebarMenuButton>
-            {item.icon && <item.icon />}
-            <span>{item.title}</span>
-            <ChevronRight className='ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
-          </SidebarMenuButton>
-        </CollapsibleTrigger>
-        <CollapsibleContent className='CollapsibleContent'>
-          <SidebarMenuSub>
-            {visiblePresets.map((preset) => (
-              <ChatMenuItem
-                key={preset.id}
-                preset={preset}
-                active={normalizedHref === `/chat/${preset.id}`}
-                onOpen={handleOpenExternal}
-                onNavigate={() => setOpenMobile(false)}
-              />
-            ))}
-            {hasKeyDependentPresets && isKeyPending && (
-              <SidebarMenuSubItem>
-                <SidebarMenuSubButton aria-disabled='true' tabIndex={-1}>
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                  {loadingMessage}
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            )}
-          </SidebarMenuSub>
-        </CollapsibleContent>
-      </SidebarMenuItem>
+      <CollapsibleTrigger
+        className='group/collapsible-trigger'
+        render={<SidebarMenuButton />}
+      >
+        {item.icon && <item.icon />}
+        <span>{item.title}</span>
+        <ChevronRight className='ms-auto transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
+      </CollapsibleTrigger>
+      <CollapsibleContent className='CollapsibleContent'>
+        <SidebarMenuSub>
+          {visiblePresets.map((preset) => (
+            <ChatMenuItem
+              key={preset.id}
+              preset={preset}
+              active={normalizedHref === `/chat/${preset.id}`}
+              onOpen={handleOpenExternal}
+              onNavigate={() => setOpenMobile(false)}
+            />
+          ))}
+          {hasKeyDependentPresets && isKeyPending && (
+            <SidebarMenuSubItem>
+              <SidebarMenuSubButton aria-disabled='true' tabIndex={-1}>
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                {loadingMessage}
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
+          )}
+        </SidebarMenuSub>
+      </CollapsibleContent>
     </Collapsible>
   )
 }

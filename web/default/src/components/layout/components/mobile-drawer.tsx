@@ -137,10 +137,13 @@ interface MobileSignInButtonProps {
 function MobileSignInButton({ onNavigate }: MobileSignInButtonProps) {
   const { t } = useTranslation()
   return (
-    <Button variant='secondary' size='sm' asChild className='h-10 w-full'>
-      <Link to='/sign-in' onClick={onNavigate}>
-        {t('Sign in')}
-      </Link>
+    <Button
+      variant='secondary'
+      size='sm'
+      className='h-10 w-full'
+      render={<Link to='/sign-in' onClick={onNavigate} />}
+    >
+      {t('Sign in')}
     </Button>
   )
 }

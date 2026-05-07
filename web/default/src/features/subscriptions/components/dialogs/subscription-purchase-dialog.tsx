@@ -13,12 +13,13 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { GroupBadge } from '@/components/group-badge'
 import { Separator } from '@/components/ui/separator'
+import { GroupBadge } from '@/components/group-badge'
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,
@@ -65,6 +66,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
   const hasAnyPayment = hasStripe || hasCreem || hasEpay
+  const selectedEpayMethodLabel =
+    (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
+      ?.name ||
+    selectedEpayMethod ||
+    t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
   const price = Number(plan.price_amount || 0).toFixed(2)
   const limitReached =
@@ -165,7 +171,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='sm:max-w-md'>
+      <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'>
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
             <Crown className='h-5 w-5' />
@@ -173,8 +179,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className='space-y-4'>
-          <div className='bg-muted/50 space-y-3 rounded-lg border p-4'>
+        <div className='space-y-3 sm:space-y-4'>
+          <div className='bg-muted/50 space-y-2.5 rounded-lg border p-3 sm:space-y-3 sm:p-4'>
             <div className='flex justify-between'>
               <span className='text-muted-foreground text-sm'>
                 {t('Plan Name')}
@@ -239,7 +245,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 {t('Select payment method')}
               </p>
               {(hasStripe || hasCreem) && (
-                <div className='flex gap-2'>
+                <div className='grid grid-cols-2 gap-2 sm:flex'>
                   {hasStripe && (
                     <Button
                       variant='outline'
@@ -263,21 +269,31 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 </div>
               )}
               {hasEpay && (
-                <div className='flex gap-2'>
+                <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                   <Select
+                    items={[
+                      ...(props.epayMethods || []).map((m) => ({
+                        value: m.type,
+                        label: m.name || m.type,
+                      })),
+                    ]}
                     value={selectedEpayMethod}
-                    onValueChange={setSelectedEpayMethod}
+                    onValueChange={(v) =>
+                      v !== null && setSelectedEpayMethod(v)
+                    }
                     disabled={limitReached}
                   >
                     <SelectTrigger className='flex-1'>
-                      <SelectValue placeholder={t('Select payment method')} />
+                      <SelectValue>{selectedEpayMethodLabel}</SelectValue>
                     </SelectTrigger>
-                    <SelectContent>
-                      {(props.epayMethods || []).map((m) => (
-                        <SelectItem key={m.type} value={m.type}>
-                          {m.name || m.type}
-                        </SelectItem>
-                      ))}
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {(props.epayMethods || []).map((m) => (
+                          <SelectItem key={m.type} value={m.type}>
+                            {m.name || m.type}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <Button

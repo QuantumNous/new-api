@@ -56,7 +56,7 @@ export function MessageActions({
     : 'opacity-0 group-hover:opacity-100 max-md:opacity-100'
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delay={300}>
       <div
         className={`flex items-center gap-0.5 transition-opacity ${visibilityClass} ${className}`}
       >

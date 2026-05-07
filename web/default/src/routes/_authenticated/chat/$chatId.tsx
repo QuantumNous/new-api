@@ -87,8 +87,8 @@ function ChatRouteComponent() {
             {t('The requested chat preset does not exist or has been removed.')}
           </p>
         </div>
-        <Button variant='outline' asChild>
-          <Link to='/dashboard'>{t('Return to dashboard')}</Link>
+        <Button variant='outline' render={<Link to='/dashboard' />}>
+          {t('Return to dashboard')}
         </Button>
       </div>
     )
@@ -107,8 +107,8 @@ function ChatRouteComponent() {
             )}
           </p>
         </div>
-        <Button variant='outline' asChild>
-          <Link to='/dashboard'>{t('Return to dashboard')}</Link>
+        <Button variant='outline' render={<Link to='/dashboard' />}>
+          {t('Return to dashboard')}
         </Button>
       </div>
     )

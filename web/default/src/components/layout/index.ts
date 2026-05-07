@@ -16,7 +16,7 @@ export { Main } from './components/main'
 export { PageFooterPortal } from './components/page-footer'
 export { NavGroup } from './components/nav-group'
 export { SectionPageLayout } from './components/section-page-layout'
-export { WorkspaceSwitcher } from './components/workspace-switcher'
+export { SystemBrand } from './components/system-brand'
 export { TopNav } from './components/top-nav'
 export { MobileDrawer } from './components/mobile-drawer'
 

@@ -71,9 +71,7 @@ export function processChartData(
     return (array: TooltipLineItem[]) => {
       const modelItems = array.filter((item) => !isOtherTooltipKey(item.key))
       const otherItems = array.filter((item) => isOtherTooltipKey(item.key))
-      modelItems.sort(
-        (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
-      )
+      modelItems.sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
       array = [...modelItems, ...otherItems]
 
       let sum = 0
@@ -91,13 +89,15 @@ export function processChartData(
 
       if (collapseOverflow && array.length > MAX_TOOLTIP_MODELS) {
         const visible = modelItems.slice(0, MAX_TOOLTIP_MODELS)
-        const otherSum = [...modelItems.slice(MAX_TOOLTIP_MODELS), ...otherItems]
-          .reduce((sum, item) => {
-            const raw = item.datum
-              ? Number((item.datum as Record<string, unknown>)?.rawQuota) || 0
-              : 0
-            return sum + raw
-          }, 0)
+        const otherSum = [
+          ...modelItems.slice(MAX_TOOLTIP_MODELS),
+          ...otherItems,
+        ].reduce((sum, item) => {
+          const raw = item.datum
+            ? Number((item.datum as Record<string, unknown>)?.rawQuota) || 0
+            : 0
+          return sum + raw
+        }, 0)
         array = [
           ...visible,
           {

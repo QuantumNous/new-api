@@ -132,7 +132,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 
             <div className='flex flex-wrap gap-4'>
               <Button onClick={form.handleSubmit(onSave)} disabled={isSaving}>
-                {isSaving ? t('Saving...') : t('Save model ratios')}
+                {isSaving ? t('Saving...') : t('Save model prices')}
               </Button>
               <Button
                 type='button'
@@ -140,7 +140,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                 onClick={onReset}
                 disabled={isResetting}
               >
-                {t('Reset ratios')}
+                {t('Reset prices')}
               </Button>
             </div>
           </div>
@@ -323,7 +323,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 
             <div className='flex flex-wrap gap-4'>
               <Button type='submit' disabled={isSaving}>
-                {isSaving ? t('Saving...') : t('Save model ratios')}
+                {isSaving ? t('Saving...') : t('Save model prices')}
               </Button>
               <Button
                 type='button'
@@ -331,7 +331,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                 onClick={onReset}
                 disabled={isResetting}
               >
-                {t('Reset ratios')}
+                {t('Reset prices')}
               </Button>
             </div>
           </form>

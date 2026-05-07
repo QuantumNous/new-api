@@ -53,10 +53,8 @@ export function ModelsPrimaryButtons() {
 
       {/* More Actions */}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant='outline' size='sm'>
-            <MoreHorizontal className='h-4 w-4' />
-          </Button>
+        <DropdownMenuTrigger render={<Button variant='outline' size='sm' />}>
+          <MoreHorizontal className='h-4 w-4' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-56'>
           <DropdownMenuItem onClick={handleMissingModels}>

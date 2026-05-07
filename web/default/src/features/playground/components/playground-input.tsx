@@ -114,16 +114,18 @@ export function PlaygroundInput({
         <PromptInputFooter className='p-2.5'>
           <PromptInputTools>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <PromptInputButton
-                  className='!rounded-full border font-medium'
-                  disabled={disabled}
-                  variant='outline'
-                >
-                  <PaperclipIcon size={16} />
-                  <span className='hidden sm:inline'>{t('Attach')}</span>
-                  <span className='sr-only sm:hidden'>{t('Attach')}</span>
-                </PromptInputButton>
+              <DropdownMenuTrigger
+                render={
+                  <PromptInputButton
+                    className='!rounded-full border font-medium'
+                    disabled={disabled}
+                    variant='outline'
+                  />
+                }
+              >
+                <PaperclipIcon size={16} />
+                <span className='hidden sm:inline'>{t('Attach')}</span>
+                <span className='sr-only sm:hidden'>{t('Attach')}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start'>
                 <DropdownMenuItem

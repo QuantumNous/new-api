@@ -926,6 +926,9 @@
     "取消": "Annuler",
     "取消全选": "Annuler la sélection",
     "取消选择": "Deselect",
+    "切换到新版前端": "Passer au nouveau frontend",
+    "切换后页面会自动刷新，并进入新版前端。是否继续？": "La page sera actualisée et ouvrira le nouveau frontend. Continuer ?",
+    "切换失败，请稍后重试": "Le changement a échoué, veuillez réessayer plus tard",
     "变换": "Variation",
     "变更": "Modification",
     "变焦": "Zoom",
@@ -1358,6 +1361,7 @@
     "已发起支付": "Paiement initié",
     "已发送到 Fluent": "Envoyé à Fluent",
     "已取消 Passkey 注册": "Enregistrement du Passkey annulé",
+    "已切换到新版前端，正在刷新页面": "Passage au nouveau frontend effectué, actualisation de la page",
     "已同步到渠道": "Synced to Channel",
     "已启用": "Activé",
     "已启用 Passkey，无需密码即可登录": "Passkey activé. Connexion sans mot de passe disponible.",
@@ -2513,6 +2517,7 @@
     "确认删除该规则？": "Confirm delete this rule?",
     "确认取消密码登录": "Confirmer l'annulation de la connexion par mot de passe",
     "确认启用": "Confirmer l'activation",
+    "确认切换": "Confirmer le changement",
     "确认密码": "Confirmer le mot de passe",
     "确认导入配置": "Confirmer l'importation de la configuration",
     "确认延长": "Confirm Extension",
@@ -3642,6 +3647,8 @@
     "默认折叠侧边栏": "Réduire la barre latérale par défaut",
     "默认测试模型": "Modèle de test par défaut",
     "默认用户消息": "Bonjour",
-    "默认补全倍率": "Taux de complétion par défaut"
+    "默认补全倍率": "Taux de complétion par défaut",
+    "阶梯计费（表达式解析失败）": "Facturation par paliers (échec de l'analyse de l'expression)",
+    "阶梯计费（未匹配到对应阶梯）": "Facturation par paliers (aucun palier correspondant)"
   }
 }

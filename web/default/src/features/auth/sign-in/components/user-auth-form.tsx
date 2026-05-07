@@ -305,6 +305,7 @@ export function UserAuthForm({
 
         {/* Submit Button */}
         <Button
+          type='submit'
           className='mt-2 w-full justify-center gap-2'
           disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
         >

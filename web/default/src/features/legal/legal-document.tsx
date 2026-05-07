@@ -96,10 +96,16 @@ export function LegalDocument({
                   'The administrator configured an external link for this document.'
                 )}
               </p>
-              <Button asChild>
-                <a href={rawContent} target='_blank' rel='noopener noreferrer'>
-                  {t('View document')}
-                </a>
+              <Button
+                render={
+                  <a
+                    href={rawContent}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  />
+                }
+              >
+                {t('View document')}
               </Button>
             </CardContent>
           </Card>

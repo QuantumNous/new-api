@@ -226,7 +226,7 @@ export function CheckinCalendarCard({
   }
 
   return (
-    <TooltipProvider delayDuration={100}>
+    <TooltipProvider delay={100}>
       <Dialog
         open={turnstileModalVisible}
         onOpenChange={(open) => {
@@ -425,7 +425,7 @@ export function CheckinCalendarCard({
                     if (isCheckedIn && dayObj.isCurrentMonth) {
                       return (
                         <Tooltip key={idx}>
-                          <TooltipTrigger asChild>{dayButton}</TooltipTrigger>
+                          <TooltipTrigger render={dayButton}></TooltipTrigger>
                           <TooltipContent>
                             <div className='text-xs'>
                               <div className='font-medium'>

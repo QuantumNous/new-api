@@ -4,6 +4,7 @@
 @import '@fontsource-variable/public-sans';
 
 @import './theme.css';
+@import './theme-presets.css';
 
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {
@@ -28,7 +29,7 @@
     @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full font-sans;
   }
 
-  /* Override Radix scroll locking for sticky headers */
+  /* Keep sticky headers stable while primitives lock body scrolling. */
   body[data-scroll-locked] {
     overflow: unset !important;
   }
@@ -158,10 +159,10 @@
   overflow: hidden;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .CollapsibleContent[data-state='open'] {
+  .CollapsibleContent[data-open] {
     animation: slideDown 300ms ease-out;
   }
-  .CollapsibleContent[data-state='closed'] {
+  .CollapsibleContent:not([data-open]) {
     animation: slideUp 300ms ease-out;
   }
 }
@@ -171,13 +172,13 @@
     height: 0;
   }
   to {
-    height: var(--radix-collapsible-content-height);
+    height: var(--collapsible-panel-height);
   }
 }
 
 @keyframes slideUp {
   from {
-    height: var(--radix-collapsible-content-height);
+    height: var(--collapsible-panel-height);
   }
   to {
     height: 0;

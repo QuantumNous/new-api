@@ -47,14 +47,16 @@ export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant='ghost'
-          className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
-        >
-          <MoreHorizontal className='h-4 w-4' />
-          <span className='sr-only'>{t('Open menu')}</span>
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant='ghost'
+            className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+          />
+        }
+      >
+        <MoreHorizontal className='h-4 w-4' />
+        <span className='sr-only'>{t('Open menu')}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-48'>
         {/* Edit Tag */}

@@ -326,20 +326,22 @@ export function UserBindingDialog(props: Props) {
                 )}
                 <TooltipProvider>
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-7 gap-1.5 px-2 text-xs'
-                        onClick={() => setShowBoundOnly((v) => !v)}
-                      >
-                        {showBoundOnly ? (
-                          <Eye className='h-3.5 w-3.5' />
-                        ) : (
-                          <EyeOff className='h-3.5 w-3.5' />
-                        )}
-                        {showBoundOnly ? t('Show All') : t('Bound Only')}
-                      </Button>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-7 gap-1.5 px-2 text-xs'
+                          onClick={() => setShowBoundOnly((v) => !v)}
+                        />
+                      }
+                    >
+                      {showBoundOnly ? (
+                        <Eye className='h-3.5 w-3.5' />
+                      ) : (
+                        <EyeOff className='h-3.5 w-3.5' />
+                      )}
+                      {showBoundOnly ? t('Show All') : t('Bound Only')}
                     </TooltipTrigger>
                     <TooltipContent>
                       {showBoundOnly

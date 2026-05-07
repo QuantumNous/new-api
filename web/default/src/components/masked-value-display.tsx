@@ -26,10 +26,12 @@ export function MaskedValueDisplay(props: MaskedValueDisplayProps) {
   return (
     <div className='flex items-center'>
       <Popover>
-        <PopoverTrigger asChild>
-          <Button variant='ghost' size='sm' className='h-7 font-mono'>
-            {props.maskedValue}
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button variant='ghost' size='sm' className='h-7 font-mono' />
+          }
+        >
+          {props.maskedValue}
         </PopoverTrigger>
         <PopoverContent
           className='w-auto max-w-[min(90vw,28rem)]'

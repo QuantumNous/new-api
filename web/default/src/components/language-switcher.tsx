@@ -41,11 +41,17 @@ export function LanguageSwitcher() {
 
   return (
     <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button variant='ghost' size='icon' className='h-9 w-9 rounded-full'>
-          <Languages className='size-[1.2rem]' />
-          <span className='sr-only'>{t('Change language')}</span>
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-9 w-9 rounded-full'
+          />
+        }
+      >
+        <Languages className='size-[1.2rem]' />
+        <span className='sr-only'>{t('Change language')}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         {languages.map((lang) => (

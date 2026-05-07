@@ -42,6 +42,16 @@ export async function updateUserSettings(
 }
 
 /**
+ * Update interface language preference
+ */
+export async function updateUserLanguage(
+  language: string
+): Promise<ApiResponse> {
+  const res = await api.put('/api/user/self', { language })
+  return res.data
+}
+
+/**
  * Delete user account
  */
 export async function deleteUserAccount(

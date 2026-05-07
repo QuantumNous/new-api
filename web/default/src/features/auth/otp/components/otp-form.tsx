@@ -183,7 +183,11 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
           )}
         />
 
-        <Button className='mt-2 w-full' disabled={!isFormValid || isLoading}>
+        <Button
+          type='submit'
+          className='mt-2 w-full'
+          disabled={!isFormValid || isLoading}
+        >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           {t('Verify and Sign In')}
         </Button>

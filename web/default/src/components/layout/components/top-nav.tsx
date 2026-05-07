@@ -37,34 +37,37 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
       {/* 移动端下拉菜单 */}
       <div className='lg:hidden'>
         <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <Button size='icon' variant='outline' className='size-7'>
-              <Menu />
-            </Button>
+          <DropdownMenuTrigger
+            render={<Button size='icon' variant='outline' className='size-7' />}
+          >
+            <Menu />
           </DropdownMenuTrigger>
           <DropdownMenuContent side='bottom' align='start'>
             {normalizedLinks.map(
               ({ title, href, isActive, disabled, external }) => (
-                <DropdownMenuItem key={`${title}-${href}`} asChild>
-                  {external ? (
-                    <a
-                      href={href}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className={!isActive ? 'text-muted-foreground' : ''}
-                    >
-                      {title}
-                    </a>
-                  ) : (
-                    <Link
-                      to={href}
-                      className={!isActive ? 'text-muted-foreground' : ''}
-                      disabled={disabled}
-                    >
-                      {title}
-                    </Link>
-                  )}
-                </DropdownMenuItem>
+                <DropdownMenuItem
+                  key={`${title}-${href}`}
+                  render={
+                    external ? (
+                      <a
+                        href={href}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className={!isActive ? 'text-muted-foreground' : ''}
+                      >
+                        {title}
+                      </a>
+                    ) : (
+                      <Link
+                        to={href}
+                        className={!isActive ? 'text-muted-foreground' : ''}
+                        disabled={disabled}
+                      >
+                        {title}
+                      </Link>
+                    )
+                  }
+                ></DropdownMenuItem>
               )
             )}
           </DropdownMenuContent>

@@ -31,17 +31,19 @@ export function MessageActionButton({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant='ghost'
-          size='icon'
-          className={`${baseStyle} ${className}`}
-          onClick={onClick}
-          disabled={disabled}
-          aria-label={label}
-        >
-          <Icon className={MESSAGE_ACTION_BUTTON_STYLES.ICON} />
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            variant='ghost'
+            size='icon'
+            className={`${baseStyle} ${className}`}
+            onClick={onClick}
+            disabled={disabled}
+            aria-label={label}
+          />
+        }
+      >
+        <Icon className={MESSAGE_ACTION_BUTTON_STYLES.ICON} />
       </TooltipTrigger>
       <TooltipContent>
         <p>{label}</p>

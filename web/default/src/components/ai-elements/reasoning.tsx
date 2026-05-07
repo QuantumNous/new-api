@@ -8,8 +8,8 @@ import {
   useEffect,
   useState,
 } from 'react'
-import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { BrainIcon, ChevronDownIcon } from 'lucide-react'
+import { useControllableState } from '@/lib/use-controllable-state'
 import { cn } from '@/lib/utils'
 import {
   Collapsible,
@@ -171,7 +171,7 @@ export const ReasoningContent = memo(
     <CollapsibleContent
       className={cn(
         'mt-4 text-sm',
-        'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground data-[state=closed]:animate-out data-[state=open]:animate-in outline-none',
+        'data-closed:fade-out-0 data-closed:slide-out-to-top-2 data-open:slide-in-from-top-2 text-muted-foreground data-closed:animate-out data-open:animate-in outline-none',
         className
       )}
       {...props}

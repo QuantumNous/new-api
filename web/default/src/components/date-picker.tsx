@@ -36,19 +36,21 @@ export function DatePicker({
     calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant='outline'
-          data-empty={!selected}
-          className='data-[empty=true]:text-muted-foreground w-[240px] justify-start text-start font-normal'
-        >
-          {selected ? (
-            dayjs(selected).format('YYYY-MM-DD')
-          ) : (
-            <span>{placeholderText}</span>
-          )}
-          <CalendarIcon className='ms-auto h-4 w-4 opacity-50' />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant='outline'
+            data-empty={!selected}
+            className='data-[empty=true]:text-muted-foreground w-[240px] justify-start text-start font-normal'
+          />
+        }
+      >
+        {selected ? (
+          dayjs(selected).format('YYYY-MM-DD')
+        ) : (
+          <span>{placeholderText}</span>
+        )}
+        <CalendarIcon className='ms-auto h-4 w-4 opacity-50' />
       </PopoverTrigger>
       <PopoverContent className='w-auto p-0'>
         <Calendar

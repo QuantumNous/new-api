@@ -33,12 +33,12 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
 
   if (pageLoading || loading) {
     return (
-      <Card className='overflow-hidden'>
-        <CardHeader>
+      <Card className='gap-0 overflow-hidden py-0'>
+        <CardHeader className='p-3 sm:p-5'>
           <Skeleton className='h-6 w-48' />
           <Skeleton className='mt-2 h-4 w-64' />
         </CardHeader>
-        <CardContent>
+        <CardContent className='p-3 sm:p-5'>
           <Skeleton className='h-20 w-full' />
         </CardContent>
       </Card>
@@ -47,17 +47,17 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
 
   return (
     <>
-      <Card className='overflow-hidden'>
-        <CardHeader>
-          <CardTitle className='text-xl tracking-tight'>
+      <Card className='gap-0 overflow-hidden py-0'>
+        <CardHeader className='p-3 sm:p-5'>
+          <CardTitle className='text-lg tracking-tight sm:text-xl'>
             {t('Two-Factor Authentication')}
           </CardTitle>
-          <CardDescription>
+          <CardDescription className='text-xs sm:text-sm'>
             {t('Add an extra layer of security to your account')}
           </CardDescription>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className='p-3 sm:p-5'>
           <div className='space-y-6'>
             {/* Status Section */}
             <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row'>

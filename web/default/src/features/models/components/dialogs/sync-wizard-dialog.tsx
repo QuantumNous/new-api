@@ -110,11 +110,7 @@ export function SyncWizardDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className='flex max-h-[90vh] w-full flex-col gap-4 p-4 sm:max-w-2xl sm:p-6'
-        onOpenAutoFocus={(event) => {
-          if (isMobile) {
-            event.preventDefault()
-          }
-        }}
+        initialFocus={!isMobile}
       >
         <DialogHeader className='flex-shrink-0 text-start'>
           <DialogTitle>{t('Sync Upstream Models')}</DialogTitle>

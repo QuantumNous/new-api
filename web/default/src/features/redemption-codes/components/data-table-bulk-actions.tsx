@@ -73,18 +73,20 @@ export function DataTableBulkActions<TData>({
         />
 
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='destructive'
-              size='icon'
-              onClick={() => setShowDeleteInvalidConfirm(true)}
-              className='size-8'
-              aria-label={t('Delete invalid redemption codes')}
-              title={t('Delete invalid redemption codes')}
-            >
-              <Trash2 />
-              <span className='sr-only'>{t('Delete invalid codes')}</span>
-            </Button>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='destructive'
+                size='icon'
+                onClick={() => setShowDeleteInvalidConfirm(true)}
+                className='size-8'
+                aria-label={t('Delete invalid redemption codes')}
+                title={t('Delete invalid redemption codes')}
+              />
+            }
+          >
+            <Trash2 />
+            <span className='sr-only'>{t('Delete invalid codes')}</span>
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Delete invalid codes (used/disabled/expired)')}</p>

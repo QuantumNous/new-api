@@ -387,11 +387,11 @@ export function ChannelAffinitySection(props: Props) {
             JSON
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='outline' size='sm'>
-                <Plus className='mr-1 h-3 w-3' />
-                {t('Add Rule')}
-              </Button>
+            <DropdownMenuTrigger
+              render={<Button variant='outline' size='sm' />}
+            >
+              <Plus className='mr-1 h-3 w-3' />
+              {t('Add Rule')}
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem

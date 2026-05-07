@@ -1,0 +1,327 @@
+/*
+ * Theme presets — color palettes, border radius, and density scaling.
+ *
+ * Usage: applied via data attributes on <body>:
+ *   <body data-theme-preset="rose-garden" data-theme-radius="lg" data-theme-scale="sm" />
+ *
+ * - `data-theme-preset` overrides the color palette defined in ./theme.css and
+ *   ships a curated default `--radius` value to match the preset's mood
+ *   (e.g. rose-garden uses 1rem, ocean-breeze uses 0.3rem).
+ * - Each preset declares both light and dark color values; dark values use
+ *   the `.dark` ancestor selector so they apply when html has the `.dark` class.
+ * - `data-theme-radius` and `data-theme-scale` adjust visual density
+ *   independently. The radius block is intentionally placed AFTER the preset
+ *   blocks so an explicit user choice overrides the preset's default radius.
+ */
+
+/* ── Underground ──────────────────────────────────────────────────────── */
+[data-theme-preset='underground'] {
+  --primary: oklch(0.5315 0.0694 156.19);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.5748 0.0862 336.52);
+  --secondary-foreground: oklch(1 0 0);
+  --ring: oklch(0.5315 0.0694 156.19);
+  --chart-1: oklch(0.5315 0.0694 156.19);
+  --chart-2: oklch(0.5748 0.0862 336.52);
+  --chart-3: oklch(0.8603 0.0731 158.6);
+  --chart-4: oklch(0.8292 0.0422 332);
+  --chart-5: oklch(0.9564 0.0234 159.23);
+  --sidebar-primary: oklch(0.5315 0.0694 156.19);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.9687 0.0051 247.88);
+  --sidebar-accent-foreground: oklch(0.279 0.0299 260.05);
+  --sidebar-ring: oklch(0.5315 0.0694 156.19);
+  --radius: 0.5rem;
+}
+.dark [data-theme-preset='underground'] {
+  --primary: oklch(0.6147 0.0867 154.73);
+  --primary-foreground: oklch(0.129 0.0306 264.71);
+  --secondary: oklch(0.6624 0.0855 334.26);
+  --secondary-foreground: oklch(0.129 0.0306 264.71);
+  --ring: oklch(0.6147 0.0867 154.73);
+  --chart-1: oklch(0.6147 0.0867 154.73);
+  --chart-2: oklch(0.6624 0.0855 334.26);
+  --chart-3: oklch(0.7122 0.0991 154.66);
+  --chart-4: oklch(0.7308 0.07 333.6);
+  --chart-5: oklch(0.781 0.0975 156.24);
+  --sidebar-primary: oklch(0.6147 0.0867 154.73);
+  --sidebar-primary-foreground: oklch(0.129 0.0306 264.71);
+  --sidebar-accent: oklch(0.279 0.0299 260.05);
+  --sidebar-accent-foreground: oklch(0.929 0.0095 255.53);
+  --sidebar-ring: oklch(0.6147 0.0867 154.73);
+}
+
+/* ── Rose Garden ──────────────────────────────────────────────────────── */
+[data-theme-preset='rose-garden'] {
+  --primary: oklch(0.5827 0.2418 12.23);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.8131 0.1129 5.67);
+  --secondary-foreground: oklch(0.2686 0.0032 34.85);
+  --ring: oklch(0.5827 0.2418 12.23);
+  --chart-1: oklch(0.5827 0.2418 12.23);
+  --chart-2: oklch(0.8938 0.0563 3.77);
+  --chart-3: oklch(0.7135 0.1879 7.69);
+  --chart-4: oklch(0.8131 0.1129 5.67);
+  --chart-5: oklch(0.9429 0.0283 5.52);
+  --sidebar-primary: oklch(0.5827 0.2418 12.23);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.5827 0.2418 12.23);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.5827 0.2418 12.23);
+  --radius: 1rem;
+}
+.dark [data-theme-preset='rose-garden'] {
+  --primary: oklch(0.6476 0.2348 10.36);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.8131 0.1129 5.67);
+  --secondary-foreground: oklch(0.9227 0.0029 34.49);
+  --ring: oklch(0.6476 0.2348 10.36);
+  --chart-1: oklch(0.6476 0.2348 10.36);
+  --chart-2: oklch(0.8938 0.0563 3.77);
+  --chart-3: oklch(0.7135 0.1879 7.69);
+  --chart-4: oklch(0.8131 0.1129 5.67);
+  --chart-5: oklch(0.9429 0.0283 5.52);
+  --sidebar-primary: oklch(0.6476 0.2348 10.36);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.6476 0.2348 10.36);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.6476 0.2348 10.36);
+}
+
+/* ── Lake View ────────────────────────────────────────────────────────── */
+[data-theme-preset='lake-view'] {
+  --primary: oklch(0.765 0.177 163.22);
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.551 0.0899 200.52);
+  --secondary-foreground: oklch(1 0 0);
+  --ring: oklch(0.765 0.177 163.22);
+  --chart-1: oklch(0.765 0.177 163.22);
+  --chart-2: oklch(0.551 0.0899 200.52);
+  --chart-3: oklch(0.845 0.143 164.98);
+  --chart-4: oklch(0.8576 0.1202 192.38);
+  --chart-5: oklch(0.95 0.052 163.05);
+  --sidebar-primary: oklch(0.765 0.177 163.22);
+  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-accent: oklch(0.765 0.177 163.22);
+  --sidebar-accent-foreground: oklch(0.2742 0.0208 165.96);
+  --sidebar-ring: oklch(0.765 0.177 163.22);
+  --radius: 0.75rem;
+}
+.dark [data-theme-preset='lake-view'] {
+  --primary: oklch(0.765 0.177 163.22);
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.551 0.0899 200.52);
+  --secondary-foreground: oklch(1 0 0);
+  --ring: oklch(0.765 0.177 163.22);
+  --chart-1: oklch(0.765 0.177 163.22);
+  --chart-2: oklch(0.551 0.0899 200.52);
+  --chart-3: oklch(0.845 0.143 164.98);
+  --chart-4: oklch(0.8576 0.1202 192.38);
+  --chart-5: oklch(0.95 0.052 163.05);
+  --sidebar-primary: oklch(0.765 0.177 163.22);
+  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-accent: oklch(0.765 0.177 163.22);
+  --sidebar-accent-foreground: oklch(0 0 0);
+  --sidebar-ring: oklch(0.765 0.177 163.22);
+}
+
+/* ── Sunset Glow ──────────────────────────────────────────────────────── */
+[data-theme-preset='sunset-glow'] {
+  --primary: oklch(0.5591 0.1882 25.33);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.7938 0.1248 42.42);
+  --secondary-foreground: oklch(0 0 0);
+  --ring: oklch(0.5591 0.1882 25.33);
+  --chart-1: oklch(0.5591 0.1882 25.33);
+  --chart-2: oklch(0.7938 0.1248 42.42);
+  --chart-3: oklch(0.809 0.0875 17.95);
+  --chart-4: oklch(0.8964 0.0724 43.73);
+  --chart-5: oklch(0.9381 0.0241 16.66);
+  --sidebar-primary: oklch(0.5591 0.1882 25.33);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.5591 0.1882 25.33);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.5591 0.1882 25.33);
+  --radius: 1rem;
+}
+.dark [data-theme-preset='sunset-glow'] {
+  --primary: oklch(0.6387 0.1822 23.51);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.7938 0.1248 42.42);
+  --secondary-foreground: oklch(0 0 0);
+  --ring: oklch(0.6387 0.1822 23.51);
+  --chart-1: oklch(0.6387 0.1822 23.51);
+  --chart-2: oklch(0.7938 0.1248 42.42);
+  --chart-3: oklch(0.809 0.0875 17.95);
+  --chart-4: oklch(0.8964 0.0724 43.73);
+  --chart-5: oklch(0.9381 0.0241 16.66);
+  --sidebar-primary: oklch(0.6387 0.1822 23.51);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.6387 0.1822 23.51);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.6387 0.1822 23.51);
+}
+
+/* ── Forest Whisper ───────────────────────────────────────────────────── */
+[data-theme-preset='forest-whisper'] {
+  --primary: oklch(0.5276 0.1072 182.22);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.5236 0.0505 250.18);
+  --secondary-foreground: oklch(1 0 0);
+  --ring: oklch(0.5276 0.1072 182.22);
+  --chart-1: oklch(0.5276 0.1072 182.22);
+  --chart-2: oklch(0.5236 0.0505 250.18);
+  --chart-3: oklch(0.7741 0.1676 178.16);
+  --chart-4: oklch(0.7294 0.0416 244.67);
+  --chart-5: oklch(0.9511 0.0547 177.24);
+  --sidebar-primary: oklch(0.5276 0.1072 182.22);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.5276 0.1072 182.22);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.5276 0.1072 182.22);
+  --radius: 0.5rem;
+}
+.dark [data-theme-preset='forest-whisper'] {
+  --primary: oklch(0.5991 0.1318 180.39);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.6578 0.0485 247.35);
+  --secondary-foreground: oklch(1 0 0);
+  --ring: oklch(0.5991 0.1318 180.39);
+  --chart-1: oklch(0.5991 0.1318 180.39);
+  --chart-2: oklch(0.6578 0.0485 247.35);
+  --chart-3: oklch(0.7741 0.1676 178.16);
+  --chart-4: oklch(0.7294 0.0416 244.67);
+  --chart-5: oklch(0.9511 0.0547 177.24);
+  --sidebar-primary: oklch(0.5991 0.1318 180.39);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.5991 0.1318 180.39);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.5991 0.1318 180.39);
+}
+
+/* ── Ocean Breeze ─────────────────────────────────────────────────────── */
+[data-theme-preset='ocean-breeze'] {
+  --primary: oklch(0.5461 0.2152 262.88);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.5854 0.2041 277.12);
+  --secondary-foreground: oklch(1 0 0);
+  --ring: oklch(0.5461 0.2152 262.88);
+  --chart-1: oklch(0.5461 0.2152 262.88);
+  --chart-2: oklch(0.5854 0.2041 277.12);
+  --chart-3: oklch(0.809 0.0922 251.81);
+  --chart-4: oklch(0.785 0.1007 274.72);
+  --chart-5: oklch(0.932 0.0281 255.58);
+  --sidebar-primary: oklch(0.5461 0.2152 262.88);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.5461 0.2152 262.88);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.5461 0.2152 262.88);
+  --radius: 0.3rem;
+}
+.dark [data-theme-preset='ocean-breeze'] {
+  --primary: oklch(0.623 0.188 259.81);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.5854 0.2041 277.12);
+  --secondary-foreground: oklch(0 0 0);
+  --ring: oklch(0.623 0.188 259.81);
+  --chart-1: oklch(0.623 0.188 259.81);
+  --chart-2: oklch(0.5854 0.2041 277.12);
+  --chart-3: oklch(0.809 0.0922 251.81);
+  --chart-4: oklch(0.785 0.1007 274.72);
+  --chart-5: oklch(0.932 0.0281 255.58);
+  --sidebar-primary: oklch(0.623 0.188 259.81);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.623 0.188 259.81);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.623 0.188 259.81);
+}
+
+/* ── Lavender Dream ───────────────────────────────────────────────────── */
+[data-theme-preset='lavender-dream'] {
+  --primary: oklch(0.5709 0.1808 306.89);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.811 0.0589 201.14);
+  --secondary-foreground: oklch(0 0 0);
+  --ring: oklch(0.5709 0.1808 306.89);
+  --chart-1: oklch(0.5709 0.1808 306.89);
+  --chart-2: oklch(0.811 0.0589 201.14);
+  --chart-3: oklch(0.8281 0.078 309.73);
+  --chart-4: oklch(0.8611 0.0504 198.03);
+  --chart-5: oklch(0.947 0.0212 309.77);
+  --sidebar-primary: oklch(0.5709 0.1808 306.89);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.5709 0.1808 306.89);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.5709 0.1808 306.89);
+  --radius: 1rem;
+}
+.dark [data-theme-preset='lavender-dream'] {
+  --primary: oklch(0.6359 0.1699 307.95);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.811 0.0589 201.14);
+  --secondary-foreground: oklch(0 0 0);
+  --ring: oklch(0.6359 0.1699 307.95);
+  --chart-1: oklch(0.6359 0.1699 307.95);
+  --chart-2: oklch(0.811 0.0589 201.14);
+  --chart-3: oklch(0.8281 0.078 309.73);
+  --chart-4: oklch(0.8611 0.0504 198.03);
+  --chart-5: oklch(0.947 0.0212 309.77);
+  --sidebar-primary: oklch(0.6359 0.1699 307.95);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.6359 0.1699 307.95);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-ring: oklch(0.6359 0.1699 307.95);
+}
+
+/* ── Border radius ────────────────────────────────────────────────────── */
+[data-theme-radius='none'] {
+  --radius: 0rem;
+}
+[data-theme-radius='sm'] {
+  --radius: 0.3rem;
+}
+[data-theme-radius='md'] {
+  --radius: 0.5rem;
+}
+[data-theme-radius='lg'] {
+  --radius: 0.75rem;
+}
+[data-theme-radius='xl'] {
+  --radius: 1rem;
+}
+
+/* ── Density scale ────────────────────────────────────────────────────── */
+/* `sm` = compact UI; `lg` = comfortable. Default (no attribute) keeps Tailwind defaults. */
+[data-theme-scale='sm'] {
+  --text-xs: 0.7rem;
+  --text-sm: 0.78rem;
+  --text-base: 0.88rem;
+  --text-lg: 1rem;
+  --text-xl: 1.13rem;
+  --text-2xl: 1.38rem;
+  --text-3xl: 1.7rem;
+  --spacing: 0.225rem;
+}
+[data-theme-scale='lg'] {
+  --text-xs: 0.84rem;
+  --text-sm: 0.95rem;
+  --text-base: 1.075rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.35rem;
+  --text-2xl: 1.65rem;
+  --text-3xl: 2rem;
+  --spacing: 0.28rem;
+}
+
+/* ── Content layout ───────────────────────────────────────────────────── */
+/* `centered` clamps inset content to a comfortable reading width on large screens.
+ * Targets every direct child of <SidebarInset> so router outlet wrappers and
+ * page content alike are centered. Only kicks in once the viewport exceeds the
+ * clamp value. */
+@media (min-width: 1280px) {
+  [data-theme-content-layout='centered'] [data-slot='sidebar-inset'] > * {
+    max-width: var(--max-content-width, 1280px);
+    margin-inline: auto;
+    width: 100%;
+  }
+}

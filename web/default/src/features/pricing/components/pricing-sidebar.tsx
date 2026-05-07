@@ -88,7 +88,9 @@ function FilterChip(props: {
       )}
       title={props.option.label}
     >
-      {props.option.icon && <span className='shrink-0'>{props.option.icon}</span>}
+      {props.option.icon && (
+        <span className='shrink-0'>{props.option.icon}</span>
+      )}
       <span className='truncate'>{props.option.label}</span>
       {(props.option.suffix || props.option.count != null) && (
         <span
@@ -108,12 +110,15 @@ function FilterChip(props: {
 
 function FilterSection(props: FilterSectionProps) {
   return (
-    <Collapsible defaultOpen className='border-border/70 border-b pb-3 last:border-b-0'>
+    <Collapsible
+      defaultOpen
+      className='border-border/70 border-b pb-3 last:border-b-0'
+    >
       <CollapsibleTrigger className='group flex w-full items-center justify-between py-2.5 text-left'>
         <span className='text-foreground text-sm font-semibold'>
           {props.title}
         </span>
-        <ChevronDown className='text-muted-foreground size-4 transition-transform group-data-[state=open]:rotate-180' />
+        <ChevronDown className='text-muted-foreground size-4 transition-transform group-data-[panel-open]:rotate-180' />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className='flex flex-wrap gap-1.5'>
@@ -213,19 +218,15 @@ export function PricingSidebar(props: PricingSidebarProps) {
       .map(([value, label]) => ({
         value,
         label,
-        count: countBy(props.models, (model) =>
-          model.supported_endpoint_types?.includes(value) ?? false
+        count: countBy(
+          props.models,
+          (model) => model.supported_endpoint_types?.includes(value) ?? false
         ),
       })),
   ]
 
   return (
-    <aside
-      className={cn(
-        'rounded-xl border p-3',
-        props.className
-      )}
-    >
+    <aside className={cn('rounded-xl border p-3', props.className)}>
       <div className='mb-2.5 flex items-center justify-between gap-2'>
         <div>
           <h2 className='text-foreground text-sm font-bold'>{t('Filter')}</h2>

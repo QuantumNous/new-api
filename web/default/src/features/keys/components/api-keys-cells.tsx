@@ -54,14 +54,16 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   return (
     <div className='flex items-center'>
       <Popover open={popoverOpen} onOpenChange={handlePopoverOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='text-muted-foreground h-7 font-mono text-xs'
-          >
-            {maskedKey}
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='sm'
+              className='text-muted-foreground h-7 font-mono text-xs'
+            />
+          }
+        >
+          {maskedKey}
         </PopoverTrigger>
         <PopoverContent
           className='w-auto max-w-[min(90vw,28rem)]'
@@ -89,22 +91,24 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
         </PopoverContent>
       </Popover>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='size-7 shrink-0'
-            onClick={handleCopy}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className='size-3.5 animate-spin' />
-            ) : isCopied ? (
-              <Check className='size-3.5 text-green-600' />
-            ) : (
-              <Copy className='size-3.5' />
-            )}
-          </Button>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon'
+              className='size-7 shrink-0'
+              onClick={handleCopy}
+              disabled={isLoading}
+            />
+          }
+        >
+          {isLoading ? (
+            <Loader2 className='size-3.5 animate-spin' />
+          ) : isCopied ? (
+            <Check className='size-3.5 text-green-600' />
+          ) : (
+            <Copy className='size-3.5' />
+          )}
         </TooltipTrigger>
         <TooltipContent>
           {isLoading
@@ -131,14 +135,12 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <span>
-          <StatusBadge
-            label={t('{{count}} model(s)', { count: models.length })}
-            variant='neutral'
-            copyable={false}
-          />
-        </span>
+      <TooltipTrigger render={<span />}>
+        <StatusBadge
+          label={t('{{count}} model(s)', { count: models.length })}
+          variant='neutral'
+          copyable={false}
+        />
       </TooltipTrigger>
       <TooltipContent side='top' className='max-w-xs'>
         <div className='max-h-[200px] space-y-0.5 overflow-y-auto text-xs'>
@@ -174,14 +176,12 @@ export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <span>
-          <StatusBadge
-            label={t('{{count}} IP(s)', { count: ips.length })}
-            variant='neutral'
-            copyable={false}
-          />
-        </span>
+      <TooltipTrigger render={<span />}>
+        <StatusBadge
+          label={t('{{count}} IP(s)', { count: ips.length })}
+          variant='neutral'
+          copyable={false}
+        />
       </TooltipTrigger>
       <TooltipContent side='top' className='max-w-xs'>
         <div className='max-h-[200px] space-y-0.5 overflow-y-auto text-xs'>

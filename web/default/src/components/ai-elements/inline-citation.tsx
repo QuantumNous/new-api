@@ -52,7 +52,7 @@ export const InlineCitationText = ({
 export type InlineCitationCardProps = ComponentProps<typeof HoverCard>
 
 export const InlineCitationCard = (props: InlineCitationCardProps) => (
-  <HoverCard closeDelay={0} openDelay={0} {...props} />
+  <HoverCard {...props} />
 )
 
 export type InlineCitationCardTriggerProps = ComponentProps<typeof Badge> & {
@@ -64,22 +64,26 @@ export const InlineCitationCardTrigger = ({
   className,
   ...props
 }: InlineCitationCardTriggerProps) => (
-  <HoverCardTrigger asChild>
-    <Badge
-      className={cn('ml-1 rounded-full', className)}
-      variant='secondary'
-      {...props}
-    >
-      {sources[0] ? (
-        <>
-          {new URL(sources[0]).hostname}{' '}
-          {sources.length > 1 && `+${sources.length - 1}`}
-        </>
-      ) : (
-        'unknown'
-      )}
-    </Badge>
-  </HoverCardTrigger>
+  <HoverCardTrigger
+    delay={0}
+    closeDelay={0}
+    render={
+      <Badge
+        className={cn('ml-1 rounded-full', className)}
+        variant='secondary'
+        {...props}
+      >
+        {sources[0] ? (
+          <>
+            {new URL(sources[0]).hostname}{' '}
+            {sources.length > 1 && `+${sources.length - 1}`}
+          </>
+        ) : (
+          'unknown'
+        )}
+      </Badge>
+    }
+  />
 )
 
 export type InlineCitationCardBodyProps = ComponentProps<'div'>

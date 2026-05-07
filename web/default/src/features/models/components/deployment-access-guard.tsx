@@ -87,7 +87,10 @@ export function DeploymentAccessGuard({
   const navigate = useNavigate()
 
   const handleGoToSettings = () => {
-    navigate({ to: '/system-settings/integrations' })
+    navigate({
+      to: '/system-settings/models/$section',
+      params: { section: 'model-deployment' },
+    })
   }
 
   // Combined loading state with step indicator

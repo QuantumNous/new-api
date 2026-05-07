@@ -93,17 +93,19 @@ export function DateTimePicker({
   return (
     <div className={cn('flex gap-2', className)}>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant='outline'
-            className={cn(
-              'flex-1 justify-between font-normal',
-              !date && 'text-muted-foreground'
-            )}
-          >
-            {date ? dayjs(date).format('YYYY-MM-DD') : placeholderText}
-            <ChevronDownIcon className='h-4 w-4 opacity-50' />
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button
+              variant='outline'
+              className={cn(
+                'flex-1 justify-between font-normal',
+                !date && 'text-muted-foreground'
+              )}
+            />
+          }
+        >
+          {date ? dayjs(date).format('YYYY-MM-DD') : placeholderText}
+          <ChevronDownIcon className='h-4 w-4 opacity-50' />
         </PopoverTrigger>
         <PopoverContent className='w-auto overflow-hidden p-0' align='start'>
           <Calendar

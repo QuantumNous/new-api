@@ -129,7 +129,7 @@ export function useSidebarData(): SidebarData {
           },
           {
             title: t('System Settings'),
-            url: '/system-settings/general',
+            url: '/system-settings/site',
             activeUrls: ['/system-settings'],
             icon: Settings,
           },

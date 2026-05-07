@@ -55,15 +55,21 @@ export const TaskTrigger = ({
   title,
   ...props
 }: TaskTriggerProps) => (
-  <CollapsibleTrigger asChild className={cn('group', className)} {...props}>
-    {children ?? (
+  <CollapsibleTrigger
+    className={cn('group', className)}
+    {...props}
+    render={
       <div className='text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-center gap-2 text-sm transition-colors'>
-        <SearchIcon className='size-4' />
-        <p className='text-sm'>{title}</p>
-        <ChevronDownIcon className='size-4 transition-transform group-data-[state=open]:rotate-180' />
+        {children ?? (
+          <>
+            <SearchIcon className='size-4' />
+            <p className='text-sm'>{title}</p>
+            <ChevronDownIcon className='size-4 transition-transform group-data-[panel-open]:rotate-180' />
+          </>
+        )}
       </div>
-    )}
-  </CollapsibleTrigger>
+    }
+  />
 )
 
 export type TaskContentProps = ComponentProps<typeof CollapsibleContent>
@@ -75,7 +81,7 @@ export const TaskContent = ({
 }: TaskContentProps) => (
   <CollapsibleContent
     className={cn(
-      'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground data-[state=closed]:animate-out data-[state=open]:animate-in outline-none',
+      'data-closed:fade-out-0 data-closed:slide-out-to-top-2 data-open:slide-in-from-top-2 text-popover-foreground data-closed:animate-out data-open:animate-in outline-none',
       className
     )}
     {...props}

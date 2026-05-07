@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -276,22 +277,31 @@ export function RuleEditorDialog(props: Props) {
               {keySources.map((src, idx) => (
                 <div key={idx} className='flex items-center gap-2'>
                   <Select
+                    items={[
+                      ...KEY_SOURCE_TYPES.map((t) => ({ value: t, label: t })),
+                    ]}
                     value={src.type}
-                    onValueChange={(v: KeySource['type']) => {
+                    onValueChange={(v) => {
+                      if (v === null) return
                       const next = [...keySources]
-                      next[idx] = normalizeKeySource({ ...src, type: v })
+                      next[idx] = normalizeKeySource({
+                        ...src,
+                        type: v as KeySource['type'],
+                      })
                       setKeySources(next)
                     }}
                   >
                     <SelectTrigger className='w-[160px]'>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      {KEY_SOURCE_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ))}
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {KEY_SOURCE_TYPES.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <Input
@@ -333,14 +343,16 @@ export function RuleEditorDialog(props: Props) {
 
           {/* Advanced */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-            <CollapsibleTrigger asChild>
-              <Button
-                type='button'
-                variant='ghost'
-                className='w-full justify-start'
-              >
-                {advancedOpen ? '▼' : '▶'} {t('Advanced Settings')}
-              </Button>
+            <CollapsibleTrigger
+              render={
+                <Button
+                  type='button'
+                  variant='ghost'
+                  className='w-full justify-start'
+                />
+              }
+            >
+              {advancedOpen ? '▼' : '▶'} {t('Advanced Settings')}
             </CollapsibleTrigger>
             <CollapsibleContent className='space-y-3 pt-2'>
               <div className='grid gap-1.5'>

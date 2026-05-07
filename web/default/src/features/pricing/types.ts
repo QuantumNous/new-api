@@ -37,7 +37,39 @@ export type PricingModel = {
   billing_expr?: string
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
+  /**
+   * Optional model metadata fields. These are not yet returned by the backend
+   * and are populated client-side from {@link inferModelMetadata}.
+   * When the backend ships these fields, the inference layer becomes a
+   * fallback rather than the source of truth.
+   */
+  context_length?: number
+  max_output_tokens?: number
+  knowledge_cutoff?: string
+  release_date?: string
+  parameter_count?: string
+  input_modalities?: Modality[]
+  output_modalities?: Modality[]
+  capabilities?: ModelCapability[]
 }
+
+/** Input/output modalities supported by a model. */
+export type Modality = 'text' | 'image' | 'audio' | 'video' | 'file'
+
+/** Functional capabilities a model exposes. */
+export type ModelCapability =
+  | 'function_calling'
+  | 'streaming'
+  | 'vision'
+  | 'json_mode'
+  | 'structured_output'
+  | 'reasoning'
+  | 'tools'
+  | 'system_prompt'
+  | 'web_search'
+  | 'code_interpreter'
+  | 'caching'
+  | 'embeddings'
 
 export type PricingData = {
   success: boolean

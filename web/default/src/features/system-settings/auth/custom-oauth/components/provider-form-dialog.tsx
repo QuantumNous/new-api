@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -302,6 +303,12 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormItem>
                     <FormLabel>{t('Auth Style')}</FormLabel>
                     <Select
+                      items={[
+                        ...AUTH_STYLE_OPTIONS.map((option) => ({
+                          value: String(option.value),
+                          label: t(option.labelKey),
+                        })),
+                      ]}
                       value={String(field.value)}
                       onValueChange={(val) => field.onChange(Number(val))}
                     >
@@ -310,15 +317,17 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {AUTH_STYLE_OPTIONS.map((option) => (
-                          <SelectItem
-                            key={option.value}
-                            value={String(option.value)}
-                          >
-                            {t(option.labelKey)}
-                          </SelectItem>
-                        ))}
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {AUTH_STYLE_OPTIONS.map((option) => (
+                            <SelectItem
+                              key={option.value}
+                              value={String(option.value)}
+                            >
+                              {t(option.labelKey)}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormDescription>

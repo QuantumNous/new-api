@@ -1,6 +1,4 @@
-import type { MaintenanceSettings } from '../types'
-
-export type HeaderNavPricingConfig = {
+export type HeaderNavAccessConfig = {
   enabled: boolean
   requireAuth: boolean
 }
@@ -8,10 +6,11 @@ export type HeaderNavPricingConfig = {
 export type HeaderNavModulesConfig = {
   home: boolean
   console: boolean
-  pricing: HeaderNavPricingConfig
+  pricing: HeaderNavAccessConfig
+  rankings: HeaderNavAccessConfig
   docs: boolean
   about: boolean
-  [key: string]: boolean | HeaderNavPricingConfig
+  [key: string]: boolean | HeaderNavAccessConfig
 }
 
 export type SidebarSectionConfig = {
@@ -25,6 +24,10 @@ export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
   home: true,
   console: true,
   pricing: {
+    enabled: true,
+    requireAuth: false,
+  },
+  rankings: {
     enabled: true,
     requireAuth: false,
   },
@@ -62,21 +65,6 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
   },
 }
 
-export const DEFAULT_MAINTENANCE_SETTINGS: MaintenanceSettings = {
-  Notice: '',
-  LogConsumeEnabled: false,
-  HeaderNavModules: JSON.stringify(HEADER_NAV_DEFAULT),
-  SidebarModulesAdmin: JSON.stringify(SIDEBAR_MODULES_DEFAULT),
-  'performance_setting.disk_cache_enabled': false,
-  'performance_setting.disk_cache_threshold_mb': 10,
-  'performance_setting.disk_cache_max_size_mb': 1024,
-  'performance_setting.disk_cache_path': '',
-  'performance_setting.monitor_enabled': false,
-  'performance_setting.monitor_cpu_threshold': 90,
-  'performance_setting.monitor_memory_threshold': 90,
-  'performance_setting.monitor_disk_threshold': 95,
-}
-
 const toBoolean = (value: unknown, fallback: boolean): boolean => {
   if (typeof value === 'boolean') return value
   if (typeof value === 'number') return value === 1
@@ -91,7 +79,32 @@ const toBoolean = (value: unknown, fallback: boolean): boolean => {
 const cloneHeaderNavDefault = (): HeaderNavModulesConfig => ({
   ...HEADER_NAV_DEFAULT,
   pricing: { ...HEADER_NAV_DEFAULT.pricing },
+  rankings: { ...HEADER_NAV_DEFAULT.rankings },
 })
+
+const parseAccessModule = (
+  raw: unknown,
+  fallback: HeaderNavAccessConfig
+): HeaderNavAccessConfig => {
+  if (
+    typeof raw === 'boolean' ||
+    typeof raw === 'string' ||
+    typeof raw === 'number'
+  ) {
+    return {
+      enabled: toBoolean(raw, fallback.enabled),
+      requireAuth: fallback.requireAuth,
+    }
+  }
+  if (raw && typeof raw === 'object') {
+    const record = raw as Record<string, unknown>
+    return {
+      enabled: toBoolean(record.enabled, fallback.enabled),
+      requireAuth: toBoolean(record.requireAuth, fallback.requireAuth),
+    }
+  }
+  return { ...fallback }
+}
 
 const cloneSidebarDefault = (): SidebarModulesAdminConfig =>
   Object.entries(SIDEBAR_MODULES_DEFAULT).reduce<SidebarModulesAdminConfig>(
@@ -114,23 +127,16 @@ export function parseHeaderNavModules(
     const result: HeaderNavModulesConfig = {
       ...base,
       pricing: { ...base.pricing },
+      rankings: { ...base.rankings },
     }
 
     Object.entries(parsed).forEach(([key, raw]) => {
       if (key === 'pricing') {
-        if (raw && typeof raw === 'object') {
-          const rawPricing = raw as Record<string, unknown>
-          result.pricing = {
-            enabled: toBoolean(
-              rawPricing.enabled,
-              base.pricing?.enabled ?? true
-            ),
-            requireAuth: toBoolean(
-              rawPricing.requireAuth,
-              base.pricing?.requireAuth ?? false
-            ),
-          }
-        }
+        result.pricing = parseAccessModule(raw, base.pricing)
+        return
+      }
+      if (key === 'rankings') {
+        result.rankings = parseAccessModule(raw, base.rankings)
         return
       }
 

@@ -140,7 +140,7 @@ export function useDrawingLogsColumns(
             autoColor={mjId}
             size='sm'
             showDot={false}
-            className='max-w-full truncate rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono'
+            className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
           />
         </div>
       )

@@ -183,15 +183,17 @@ export function PrefillGroupManagementDialog({
                 </DialogDescription>
               </DialogHeader>
 
-              <DialogClose asChild>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  className='text-muted-foreground hover:text-foreground absolute top-4 right-4 rounded-full border border-transparent sm:top-5 sm:right-6'
-                >
-                  <span className='sr-only'>{t('Close dialog')}</span>
-                  <X className='h-4 w-4' />
-                </Button>
+              <DialogClose
+                render={
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    className='text-muted-foreground hover:text-foreground absolute top-4 right-4 rounded-full border border-transparent sm:top-5 sm:right-6'
+                  />
+                }
+              >
+                <span className='sr-only'>{t('Close dialog')}</span>
+                <X className='h-4 w-4' />
               </DialogClose>
             </div>
 

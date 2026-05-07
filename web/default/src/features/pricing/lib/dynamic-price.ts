@@ -1,5 +1,6 @@
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { TOKEN_UNIT_DIVISORS } from '../constants'
+import type { PricingModel, TokenUnit } from '../types'
 import {
   BILLING_PRICING_VARS,
   parseTiersFromExpr,
@@ -8,7 +9,6 @@ import {
   type BillingVar,
   type ParsedTier,
 } from './billing-expr'
-import type { PricingModel, TokenUnit } from '../types'
 
 type DynamicPriceOptions = {
   tokenUnit: TokenUnit
@@ -98,7 +98,9 @@ export function formatDynamicUnitPrice(
 
 export function getDynamicPricingTiers(model: PricingModel): ParsedTier[] {
   if (!isDynamicPricingModel(model)) return []
-  const { billingExpr } = splitBillingExprAndRequestRules(model.billing_expr || '')
+  const { billingExpr } = splitBillingExprAndRequestRules(
+    model.billing_expr || ''
+  )
   return parseTiersFromExpr(billingExpr)
 }
 

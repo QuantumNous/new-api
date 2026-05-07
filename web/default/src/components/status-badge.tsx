@@ -110,7 +110,8 @@ export function StatusBadge({
     onClick?.(e)
   }
 
-  const content = children ?? (label ? <span className='truncate'>{label}</span> : null)
+  const content =
+    children ?? (label ? <span className='truncate'>{label}</span> : null)
 
   return (
     <span
