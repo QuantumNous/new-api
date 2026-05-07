@@ -5,7 +5,9 @@ import { renderQuota } from '../../helpers';
 
 const COLUMNS = {
   userTotal: (t) => [
+    { title: t('用户ID'), dataIndex: 'user_id', key: 'user_id' },
     { title: t('用户'), dataIndex: 'username', key: 'username' },
+    { title: t('用户分组'), dataIndex: 'user_group', key: 'user_group' },
     { title: t('请求次数'), dataIndex: 'count', key: 'count' },
     { title: t('总 Tokens'), dataIndex: 'token_used', key: 'token_used' },
     {
@@ -32,7 +34,9 @@ const COLUMNS = {
     },
   ],
   detail: (t) => [
+    { title: t('用户ID'), dataIndex: 'user_id', key: 'user_id' },
     { title: t('用户'), dataIndex: 'username', key: 'username' },
+    { title: t('用户分组'), dataIndex: 'user_group', key: 'user_group' },
     {
       title: t('模型'),
       dataIndex: 'model_name',

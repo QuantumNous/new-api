@@ -505,14 +505,21 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		}
 
 		userSetting := relayInfo.UserSetting
-		threshold := common.QuotaRemindThreshold
-		if userSetting.QuotaWarningThreshold != 0 {
-			threshold = int(userSetting.QuotaWarningThreshold)
-		}
-
 		usedAfter := relayInfo.SubscriptionAmountUsedAfterPreConsume + relayInfo.SubscriptionPostDelta
 		remaining := relayInfo.SubscriptionAmountTotal - usedAfter
-		if remaining >= int64(threshold) {
+		if remaining < 0 {
+			remaining = 0
+		}
+
+		thresholdPercent := userSetting.QuotaWarningThreshold
+		if thresholdPercent <= 0 {
+			thresholdPercent = 20
+		}
+		if thresholdPercent > 100 {
+			thresholdPercent = 100
+		}
+		remainingPercent := (float64(remaining) / float64(relayInfo.SubscriptionAmountTotal)) * 100
+		if remainingPercent > thresholdPercent {
 			return
 		}
 
@@ -532,6 +539,9 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		} else if notifyType == dto.NotifyTypeGotify {
 			content = "{{value}}，当前剩余额度为 {{value}}，请及时充值。"
 			values = []interface{}{prompt, logger.FormatQuota(int(remaining))}
+		} else if notifyType == dto.NotifyTypeFeishuApp {
+			content = "{{value}}，当前剩余额度为 {{value}}（约 {{value}}%），请及时充值。充值链接：{{value}}"
+			values = []interface{}{prompt, logger.FormatQuota(int(remaining)), fmt.Sprintf("%.2f", remainingPercent), topUpLink}
 		} else {
 			content = "{{value}}，当前剩余额度为 {{value}}，为了不影响您的使用，请及时充值。<br/>充值链接：<a href='{{value}}'>{{value}}</a>"
 			values = []interface{}{prompt, logger.FormatQuota(int(remaining)), topUpLink, topUpLink}

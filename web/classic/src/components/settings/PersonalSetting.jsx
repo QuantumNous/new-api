@@ -84,8 +84,8 @@ const PersonalSetting = () => {
     setPasskeyRequiredVerificationMethod,
   ] = useState(null);
   const [notificationSettings, setNotificationSettings] = useState({
-    warningType: 'email',
-    warningThreshold: 100000,
+    warningType: 'feishu_app',
+    warningThreshold: 20,
     webhookUrl: '',
     webhookSecret: '',
     notificationEmail: '',
@@ -184,8 +184,8 @@ const PersonalSetting = () => {
     if (userState?.user?.setting) {
       const settings = JSON.parse(userState.user.setting);
       setNotificationSettings({
-        warningType: settings.notify_type || 'email',
-        warningThreshold: settings.quota_warning_threshold || 500000,
+        warningType: settings.notify_type || 'feishu_app',
+        warningThreshold: settings.quota_warning_threshold || 20,
         webhookUrl: settings.webhook_url || '',
         webhookSecret: settings.webhook_secret || '',
         notificationEmail: settings.notification_email || '',

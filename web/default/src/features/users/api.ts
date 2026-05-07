@@ -163,3 +163,100 @@ export async function adminUnbindCustomOAuth(
   )
   return res.data
 }
+
+export interface FeishuBatchInitUserItem {
+  feishu_open_id?: string
+  feishu_union_id?: string
+  feishu_user_id?: string
+  username?: string
+  display_name?: string
+  password?: string
+  group?: string
+  quota?: number
+  role?: number
+  remark?: string
+}
+
+export interface FeishuBatchInitResponse {
+  total: number
+  success: number
+  skipped: number
+  failed: number
+  errors?: string[]
+  results?: Array<{
+    feishu_open_id?: string
+    feishu_union_id?: string
+    feishu_user_id?: string
+    user_id?: number
+    username?: string
+    action?: string
+    error?: string
+  }>
+}
+
+export async function batchCreateFeishuUsers(
+  users: FeishuBatchInitUserItem[]
+): Promise<ApiResponse<FeishuBatchInitResponse>> {
+  const res = await api.post('/api/user/feishu/users/batch', { users })
+  return res.data
+}
+
+export interface FeishuTokenItem {
+  id: number
+  user_id: number
+  name: string
+  key: string
+  status: number
+  created_time: number
+  expired_time: number
+  remain_quota: number
+  unlimited_quota: boolean
+  used_quota: number
+  group: string
+}
+
+export interface FeishuTokenListResponse {
+  items: FeishuTokenItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface FeishuCreateTokenRequest {
+  feishu_open_id?: string
+  feishu_user_id?: string
+  name?: string
+  remain_quota?: number
+  unlimited_quota?: boolean
+  expired_time?: number
+  model_limits_enabled?: boolean
+  model_limits?: string
+  allow_ips?: string
+  group?: string
+  cross_group_retry?: boolean
+}
+
+export interface FeishuCreateTokenResponse {
+  feishu_open_id: string
+  user_id: number
+  token_id: number
+  token_name: string
+  key: string
+}
+
+export async function getFeishuTokens(params: {
+  feishu_open_id?: string
+  feishu_user_id?: string
+  p?: number
+  page_size?: number
+}): Promise<ApiResponse<FeishuTokenListResponse>> {
+  const res = await api.get('/api/user/feishu/tokens', { params })
+  return res.data
+}
+
+export async function createFeishuToken(
+  payload: FeishuCreateTokenRequest
+): Promise<ApiResponse<FeishuCreateTokenResponse>> {
+  const res = await api.post('/api/user/feishu/tokens', payload)
+  return res.data
+}

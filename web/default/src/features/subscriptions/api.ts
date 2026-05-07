@@ -150,3 +150,65 @@ export async function getGroups(): Promise<ApiResponse<string[]>> {
   const res = await api.get('/api/group')
   return res.data
 }
+
+export interface SubscriptionPlanUsageItem {
+  user_id: number
+  username: string
+  display_name: string
+  user_group: string
+  org_name: string
+  user_subscription_id?: number
+  plan_id?: number
+  plan_title?: string
+  amount_total: number
+  amount_used: number
+  start_time: number
+  end_time: number
+  status: string
+}
+
+export interface OrgUsageItem {
+  org_name: string
+  total_users: number
+  active_users: number
+  token_used: number
+  quota: number
+}
+
+export interface InactiveUserItem {
+  user_id: number
+  username: string
+  display_name: string
+  user_group: string
+  org_name: string
+  last_login_at: number
+}
+
+export async function getSubscriptionPlanUsage(params: {
+  plan_id?: number
+  group?: string
+  org_name?: string
+  include_no_plan?: boolean
+  no_plan_only?: boolean
+  p?: number
+  page_size?: number
+}): Promise<ApiResponse<{ items: SubscriptionPlanUsageItem[]; total: number }>> {
+  const res = await api.get('/api/subscription/admin/plan-usage', { params })
+  return res.data
+}
+
+export async function getOrgUsage(params?: {
+  days?: number
+}): Promise<ApiResponse<OrgUsageItem[]>> {
+  const res = await api.get('/api/subscription/admin/org-usage', { params })
+  return res.data
+}
+
+export async function getInactiveUsers(params?: {
+  days?: number
+  p?: number
+  page_size?: number
+}): Promise<ApiResponse<{ items: InactiveUserItem[]; total: number }>> {
+  const res = await api.get('/api/subscription/admin/inactive-users', { params })
+  return res.data
+}

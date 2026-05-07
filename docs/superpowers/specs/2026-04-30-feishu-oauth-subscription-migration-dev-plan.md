@@ -184,8 +184,8 @@
 **涉及文件**：
 | 操作 | 文件 |
 |------|------|
-| 新增 | `web/default/src/assets/brand-icons/icon-feishu.tsx` |
-| 修改 | `web/default/src/assets/brand-icons/index.ts` |
+| 新增 | `web/classic/src/assets/brand-icons/icon-feishu.tsx` |
+| 修改 | `web/classic/src/assets/brand-icons/index.ts` |
 
 **开发内容**：
 - 从飞书官方获取 SVG path 数据（品牌 logo，蓝绿色 `#3370FF`）
@@ -204,11 +204,11 @@
 **涉及文件**：
 | 操作 | 文件 |
 |------|------|
-| 修改 | `web/default/src/features/auth/sign-in/components/user-auth-form.tsx` |
-| 修改 | `web/default/src/features/auth/components/oauth-providers.tsx` |
-| 修改 | `web/default/src/features/auth/hooks/use-oauth-login.ts` |
-| 修改 | `web/default/src/features/auth/lib/oauth.ts` |
-| 修改 | `web/default/src/features/auth/types.ts` |
+| 修改 | `web/classic/src/features/auth/sign-in/components/user-auth-form.tsx` |
+| 修改 | `web/classic/src/features/auth/components/oauth-providers.tsx` |
+| 修改 | `web/classic/src/features/auth/hooks/use-oauth-login.ts` |
+| 修改 | `web/classic/src/features/auth/lib/oauth.ts` |
+| 修改 | `web/classic/src/features/auth/types.ts` |
 
 **开发内容**：
 - `types.ts`：`SystemStatus` 新增 `feishu_oauth: boolean`、`auth_policy: string`
@@ -232,7 +232,7 @@
 **涉及文件**：
 | 操作 | 文件 |
 |------|------|
-| 修改 | `web/default/src/features/system-settings/auth/oauth-section.tsx` |
+| 修改 | `web/classic/src/features/system-settings/auth/oauth-section.tsx` |
 
 **开发内容**：
 - TabsList 从 6 列变 7 列，新增"飞书"Tab
@@ -256,9 +256,9 @@
 **涉及文件**：
 | 操作 | 文件 |
 |------|------|
-| 新增 | `web/default/src/features/subscriptions/components/group-plan-mapping.tsx` |
-| 修改 | `web/default/src/features/subscriptions/components/subscriptions-mutate-drawer.tsx` |
-| 修改 | `web/default/src/features/subscriptions/api.ts` |
+| 新增 | `web/classic/src/features/subscriptions/components/group-plan-mapping.tsx` |
+| 修改 | `web/classic/src/features/subscriptions/components/subscriptions-mutate-drawer.tsx` |
+| 修改 | `web/classic/src/features/subscriptions/api.ts` |
 | 修改 | 订阅管理主页面（添加 Tab 切换） |
 
 **开发内容**：
@@ -283,8 +283,8 @@
 **涉及文件**：
 | 操作 | 文件 |
 |------|------|
-| 新增 | `web/default/src/features/auth/components/feishu-binding-management.tsx` |
-| 新增 | `web/default/src/features/auth/api-feishu-admin.ts` |
+| 新增 | `web/classic/src/features/auth/components/feishu-binding-management.tsx` |
+| 新增 | `web/classic/src/features/auth/api-feishu-admin.ts` |
 | 修改 | 管理端路由或用户管理页面（嵌入/新 Tab） |
 
 **开发内容**：
@@ -305,10 +305,10 @@
 **涉及文件**：
 | 操作 | 文件 |
 |------|------|
-| 修改 | `web/default/src/i18n/static-keys.ts` |
-| 修改 | `web/default/src/i18n/locales/en.json` |
-| 修改 | `web/default/src/i18n/locales/zh.json` |
-| 修改 | `web/default/src/i18n/locales/fr.json`、`ja.json`、`ru.json`、`vi.json` |
+| 修改 | `web/classic/src/i18n/static-keys.ts` |
+| 修改 | `web/classic/src/i18n/locales/en.json` |
+| 修改 | `web/classic/src/i18n/locales/zh.json` |
+| 修改 | `web/classic/src/i18n/locales/fr.json`、`ja.json`、`ru.json`、`vi.json` |
 
 **开发内容**：
 - 在 `static-keys.ts` 注册所有新增 key（约 25 条）
@@ -334,6 +334,55 @@
 6. 测试批量导入
 7. 切换 `feishu_only` 模式验证
 8. 监控关键指标：飞书登录成功率、密码拒绝率、用户名冲突率
+
+---
+
+## 补充变更记录（2026-05-07 前端订阅管理迭代）
+
+### 变更 B：订阅管理页需求对齐与入口收敛
+
+**目标**：按最新业务口径收敛页面入口，减少误操作与未开放模块曝光。
+
+**变更点**：
+- 订阅管理页 Tab 调整为：`套餐管理 / 套餐用量 / 非活跃用户`。
+- 移除“组织用量”入口（后续再开放）。
+- 保留套餐管理主流程与编辑流程不变。
+
+### 变更 C：手动同步入口下沉到套餐行级
+
+**目标**：让“手动补齐同步”在业务语义上直接对应某个绑定分组套餐。
+
+**变更点**：
+- 在套餐管理列表操作列新增`手动同步`按钮。
+- 仅当`bind_group`存在时可点击。
+- 调用`/api/user/group-sync`，参数按分组定向：`full=false, group_name=<bind_group>, only_missing=true`。
+
+### 变更 D：非活跃用户查询交互改造
+
+**目标**：避免自由输入导致的参数歧义，统一查询粒度。
+
+**变更点**：
+- 查询条件由输入框改为固定时间段选择（7/15/30/60/90天）。
+- 默认值为15天。
+
+### 变更 E：套餐用量功能重开发（稳定优先）
+
+**目标**：在 React #130 反复出现背景下，先确保功能稳定可用。
+
+**变更点**：
+- 重构`SubscriptionUsageView`渲染实现，保留原有后端接口与数据结构。
+- 套餐用量：支持按月份查询并展示用户-套餐-用量表格。
+- 同步提供非活跃用户查询与列表展示。
+- 在稳定版基础上追加样式优化（卡片容器、工具栏、表头/斑马纹、空态提示）。
+
+### 变更 F：排障与验证规范补充
+
+**执行规范**：
+1. 每次前端改动后必须构建并确认新 hash 生效。
+2. 服务重启后先确认3000端口监听，再验证页面。
+3. 遇到登录态异常（401 / securecookie invalid）先重新登录再判定前端问题。
+4. 对 #130 类问题优先采用“单页面最小渲染面”定位法。
+
 
 ---
 
@@ -732,3 +781,88 @@ API 返回 `SubscriptionSummary` 嵌套结构：
 - `getOptions` 加载数据时映射后端 key 到前端 field
 - `submitFeishuSettings` 保存时映射前端 field 回后端 key
 - `feishu.enabled` checkbox 不受影响（使用 `handleCheckboxChange` 即时保存，不走 submitFeishuSettings）
+
+## 补充变更记录（2026-05-06 第四轮迭代）
+
+### 变更 J：飞书身份键与姓名同步修复
+
+- Feishu OAuth 绑定主键改为优先 `union_id`（缺失时回退 `open_id`）
+- 登录回调增加 `username/display_name` 同步，避免残留 `feishu_xxx` 占位用户名
+- 新增 `feishu_user_id` 字段用于管理员初始化和匹配
+
+### 变更 K：手动分组套餐重同步入口增强
+
+- 强化 `POST /api/user/group-sync` 为生产修复入口
+- 新增 `only_missing` 参数（默认 `true`），支持“一键补齐未生效用户”
+- 返回结构新增 `skipped`，便于统计覆盖面
+- 修复该接口的跨数据库分组列兼容（PostgreSQL/MySQL/SQLite）
+
+### 变更 L：套餐额度变更同步
+
+- 当套餐 `total_amount` 变更且 `bind_group` 未变更时，自动同步更新该套餐下 `source=bind_group` 的用户订阅额度
+
+## 补充变更记录（2026-05-06 第五轮迭代，当前工作区汇总）
+
+> 本节用于对齐“中断后续做”的全部实际代码变更点，覆盖后端/前端/配置/文档。
+
+### 变更 M：订阅管理新增“使用视图”能力（后端统计接口 + 前端看板）
+
+- 新增后端接口：
+  - `GET /api/subscription/admin/plan-usage`
+  - `GET /api/subscription/admin/org-usage`
+  - `GET /api/subscription/admin/inactive-users`
+- 订阅页新增 `Usage View` Tab，并接入上述接口。
+
+### 变更 N：飞书标识增强与组织字段落库
+
+- 用户模型新增字段：
+  - `feishu_union_id`
+  - `feishu_user_id`
+  - `org_name`
+  - `org_path`
+  - `job_title`
+- OAuth 回调与管理员批量初始化/更新支持三类飞书标识协同：
+  - `feishu_open_id` / `feishu_union_id` / `feishu_user_id`
+- 飞书登录回调增加用户名与显示名同步，减少占位用户名残留。
+
+### 变更 O：飞书批量初始化与批量更新能力增强
+
+- 批量初始化：
+  - 支持多标识输入与自动补齐（本地映射优先，飞书 API best-effort 补齐）
+  - 支持组织字段写入
+  - 支持分组赋值后自动触发 `bind_group` 订阅同步
+- 批量更新：
+  - 支持通过 `open_id/union_id/user_id/user_id(username)` 多维定位用户
+  - 支持组织字段更新
+  - 分组变更后自动同步订阅并刷新用户缓存
+
+### 变更 P：第 8 点预警策略落地（飞书应用机器人 + 百分比阈值 + 每日限频）
+
+- 新增通知类型：`feishu_app`（飞书应用机器人按用户推送）。
+- 订阅额度预警阈值改为“剩余额度百分比”语义（默认 20，范围 1~100）。
+- 预警频控改为：`quota_exceed` 同一用户每日最多一次。
+
+### 变更 Q：第 12 点收尾（专用明文 Key 管理 + 细粒度权限）
+
+- 用户管理页新增：
+  - `Feishu Batch Init`（已完成）
+  - `Feishu Keys` 专用管理入口（本轮完成）
+- `Feishu Keys` 页能力：
+  - 按 `feishu_open_id` 或 `feishu_user_id` 检索该用户全部 token（含明文 key）
+  - 直接创建 token 并展示新明文 key
+- 后端权限隔离：
+  - 明文 key 相关接口默认仅 Root 可用
+  - 新增配置 `feishu.allow_admin_manage_plaintext_tokens`，可选择放开给 Admin
+
+### 变更 R：分组同步修复接口增强
+
+- `POST /api/user/group-sync` 增加 `only_missing` 参数（默认 true）：
+  - 仅补齐缺失订阅用户，避免重复覆盖
+- 返回结构新增 `skipped`，便于执行结果评估。
+- 查询条件改造为跨数据库兼容写法（避免保留字列名兼容风险）。
+
+### 变更 S：前端与类型收尾
+
+- Profile 通知设置新增 `feishu_app` 选项。
+- 额度预警输入文案与交互改为百分比语义。
+- 修复若干 TS 未使用变量/导入，保证 `bun run typecheck` 通过。

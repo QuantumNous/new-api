@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -196,6 +198,42 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 }
 
 // findOrCreateOAuthUser finds existing user or creates new user
+func canUseOAuthUsername(username string) bool {
+	name := strings.TrimSpace(username)
+	if name == "" {
+		return false
+	}
+	return utf8.RuneCountInString(name) <= model.UserNameMaxLength
+}
+
+func buildFeishuOAuthUsername(oauthUser *oauth.OAuthUser) string {
+	if oauthUser == nil {
+		return ""
+	}
+	baseName := strings.TrimSpace(oauthUser.DisplayName)
+	if baseName == "" {
+		baseName = strings.TrimSpace(oauthUser.Username)
+	}
+	if baseName == "" {
+		return ""
+	}
+	employeeNo := ""
+	if userIDRaw, ok := oauthUser.Extra["user_id"].(string); ok {
+		employeeNo = strings.TrimSpace(userIDRaw)
+	}
+	candidate := baseName
+	if employeeNo != "" {
+		candidate = candidate + "_" + employeeNo
+	}
+	if canUseOAuthUsername(candidate) {
+		return candidate
+	}
+	if canUseOAuthUsername(baseName) {
+		return baseName
+	}
+	return ""
+}
+
 func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, session sessions.Session) (*model.User, error) {
 	user := &model.User{}
 
@@ -212,21 +250,136 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 		if provider.GetName() == "Feishu" {
 			updates := map[string]interface{}{}
+			feishuPreferredUsername := buildFeishuOAuthUsername(oauthUser)
+			if feishuPreferredUsername != "" && user.Username != feishuPreferredUsername {
+				if exists, checkErr := model.CheckUserExistOrDeleted(feishuPreferredUsername, ""); checkErr == nil && !exists {
+					updates["username"] = feishuPreferredUsername
+				}
+			}
 			if oauthUser.DisplayName != "" && user.DisplayName != oauthUser.DisplayName {
 				updates["display_name"] = oauthUser.DisplayName
+			}
+			if userIdRaw, ok := oauthUser.Extra["user_id"].(string); ok {
+				userIdRaw = strings.TrimSpace(userIdRaw)
+				if userIdRaw != "" && user.FeishuUserId != userIdRaw {
+					updates["feishu_user_id"] = userIdRaw
+				}
+			}
+			if unionIDRaw, ok := oauthUser.Extra["union_id"].(string); ok {
+				unionIDRaw = strings.TrimSpace(unionIDRaw)
+				if unionIDRaw != "" && user.FeishuUnionId != unionIDRaw {
+					updates["feishu_union_id"] = unionIDRaw
+				}
 			}
 			if len(updates) > 0 {
 				if err := model.DB.Model(user).Updates(updates).Error; err != nil {
 					common.SysError(fmt.Sprintf("[OAuth-Feishu] Failed to sync profile for user %d: %s", user.Id, err.Error()))
 				} else {
+					if un, ok := updates["username"]; ok {
+						user.Username = un.(string)
+					}
 					if dn, ok := updates["display_name"]; ok {
 						user.DisplayName = dn.(string)
+					}
+					if fuid, ok := updates["feishu_user_id"]; ok {
+						user.FeishuUserId = fuid.(string)
+					}
+					if funion, ok := updates["feishu_union_id"]; ok {
+						user.FeishuUnionId = funion.(string)
 					}
 				}
 			}
 		}
 
 		return user, nil
+	}
+
+	// Try to find user with Feishu union_id and user_id as secondary binding keys.
+	if provider.GetName() == "Feishu" {
+		if unionIDRaw, ok := oauthUser.Extra["union_id"].(string); ok {
+			unionIDRaw = strings.TrimSpace(unionIDRaw)
+			if unionIDRaw != "" {
+				userByUnionID := &model.User{FeishuUnionId: unionIDRaw}
+				if err := userByUnionID.FillUserByFeishuUnionId(); err == nil && userByUnionID.Id > 0 {
+					updates := map[string]any{}
+					if userByUnionID.FeishuId != oauthUser.ProviderUserID {
+						updates["feishu_id"] = oauthUser.ProviderUserID
+					}
+					if userByUnionID.FeishuUnionId != unionIDRaw {
+						updates["feishu_union_id"] = unionIDRaw
+					}
+					if oauthUser.DisplayName != "" && userByUnionID.DisplayName != oauthUser.DisplayName {
+						updates["display_name"] = oauthUser.DisplayName
+					}
+					if oauthUser.Username != "" && userByUnionID.Username != oauthUser.Username {
+						if exists, checkErr := model.CheckUserExistOrDeleted(oauthUser.Username, ""); checkErr == nil && !exists && canUseOAuthUsername(oauthUser.Username) {
+							updates["username"] = oauthUser.Username
+						}
+					}
+					if userIDRaw, ok := oauthUser.Extra["user_id"].(string); ok && strings.TrimSpace(userIDRaw) != "" && userByUnionID.FeishuUserId != strings.TrimSpace(userIDRaw) {
+						updates["feishu_user_id"] = strings.TrimSpace(userIDRaw)
+					}
+					if len(updates) > 0 {
+						_ = model.DB.Model(userByUnionID).Updates(updates).Error
+						if v, ok := updates["feishu_id"]; ok {
+							userByUnionID.FeishuId = v.(string)
+						}
+						if v, ok := updates["feishu_union_id"]; ok {
+							userByUnionID.FeishuUnionId = v.(string)
+						}
+						if v, ok := updates["feishu_user_id"]; ok {
+							userByUnionID.FeishuUserId = v.(string)
+						}
+						if v, ok := updates["display_name"]; ok {
+							userByUnionID.DisplayName = v.(string)
+						}
+						if v, ok := updates["username"]; ok {
+							userByUnionID.Username = v.(string)
+						}
+					}
+					return userByUnionID, nil
+				}
+			}
+		}
+		if userIDRaw, ok := oauthUser.Extra["user_id"].(string); ok {
+			userIDRaw = strings.TrimSpace(userIDRaw)
+			if userIDRaw != "" {
+				userByFeishuUserID := &model.User{FeishuUserId: userIDRaw}
+				if err := userByFeishuUserID.FillUserByFeishuUserId(); err == nil && userByFeishuUserID.Id > 0 {
+					updates := map[string]any{}
+					if userByFeishuUserID.FeishuId != oauthUser.ProviderUserID {
+						updates["feishu_id"] = oauthUser.ProviderUserID
+					}
+					if unionIDRaw, ok := oauthUser.Extra["union_id"].(string); ok && strings.TrimSpace(unionIDRaw) != "" && userByFeishuUserID.FeishuUnionId != strings.TrimSpace(unionIDRaw) {
+						updates["feishu_union_id"] = strings.TrimSpace(unionIDRaw)
+					}
+					if oauthUser.DisplayName != "" && userByFeishuUserID.DisplayName != oauthUser.DisplayName {
+						updates["display_name"] = oauthUser.DisplayName
+					}
+					if oauthUser.Username != "" && userByFeishuUserID.Username != oauthUser.Username {
+						if exists, checkErr := model.CheckUserExistOrDeleted(oauthUser.Username, ""); checkErr == nil && !exists && canUseOAuthUsername(oauthUser.Username) {
+							updates["username"] = oauthUser.Username
+						}
+					}
+					if len(updates) > 0 {
+						_ = model.DB.Model(userByFeishuUserID).Updates(updates).Error
+						if v, ok := updates["feishu_id"]; ok {
+							userByFeishuUserID.FeishuId = v.(string)
+						}
+						if v, ok := updates["feishu_union_id"]; ok {
+							userByFeishuUserID.FeishuUnionId = v.(string)
+						}
+						if v, ok := updates["display_name"]; ok {
+							userByFeishuUserID.DisplayName = v.(string)
+						}
+						if v, ok := updates["username"]; ok {
+							userByFeishuUserID.Username = v.(string)
+						}
+					}
+					return userByFeishuUserID, nil
+				}
+			}
+		}
 	}
 
 	// Try to find user with legacy ID (for GitHub migration from login to numeric ID)
@@ -268,10 +421,16 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	// Set up new user
 	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
 
-	if oauthUser.Username != "" {
+	if provider.GetName() == "Feishu" {
+		feishuPreferredUsername := buildFeishuOAuthUsername(oauthUser)
+		if feishuPreferredUsername != "" {
+			if exists, err := model.CheckUserExistOrDeleted(feishuPreferredUsername, ""); err == nil && !exists {
+				user.Username = feishuPreferredUsername
+			}
+		}
+	} else if oauthUser.Username != "" {
 		if exists, err := model.CheckUserExistOrDeleted(oauthUser.Username, ""); err == nil && !exists {
-			// 防止索引退化
-			if len(oauthUser.Username) <= model.UserNameMaxLength {
+			if canUseOAuthUsername(oauthUser.Username) {
 				user.Username = oauthUser.Username
 			}
 		}
@@ -352,6 +511,12 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				"feishu_id":   user.FeishuId,
 			}
 			if provider.GetName() == "Feishu" {
+				if userIdRaw, ok := oauthUser.Extra["user_id"].(string); ok && strings.TrimSpace(userIdRaw) != "" {
+					updates["feishu_user_id"] = strings.TrimSpace(userIdRaw)
+				}
+				if unionIDRaw, ok := oauthUser.Extra["union_id"].(string); ok && strings.TrimSpace(unionIDRaw) != "" {
+					updates["feishu_union_id"] = strings.TrimSpace(unionIDRaw)
+				}
 				updates["quota"] = 0
 				updates["group"] = user.Group
 			}

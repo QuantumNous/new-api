@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -35,11 +37,11 @@ func GetFeishuBindings(c *gin.Context) {
 	var users []model.User
 	var total int64
 
-	query := model.DB.Unscoped().Model(&model.User{}).Where("feishu_id != '' AND feishu_id IS NOT NULL")
+	query := model.DB.Unscoped().Model(&model.User{}).Where("(feishu_id != '' AND feishu_id IS NOT NULL) OR (feishu_union_id != '' AND feishu_union_id IS NOT NULL)")
 
 	if keyword != "" {
-		query = query.Where("username LIKE ? OR display_name LIKE ? OR feishu_id LIKE ?",
-			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+		query = query.Where("username LIKE ? OR display_name LIKE ? OR feishu_id LIKE ? OR feishu_union_id LIKE ?",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -74,9 +76,11 @@ func ImportFeishuBindings(c *gin.Context) {
 	}
 
 	for _, item := range req.Bindings {
-		if item.UnionID == "" {
+		openID := strings.TrimSpace(item.OpenID)
+		unionID := strings.TrimSpace(item.UnionID)
+		if openID == "" && unionID == "" {
 			result.Failed++
-			result.Errors = append(result.Errors, "union_id is required for user_id="+strconv.Itoa(item.UserID))
+			result.Errors = append(result.Errors, "open_id or union_id is required for user_id="+strconv.Itoa(item.UserID))
 			continue
 		}
 
@@ -87,29 +91,28 @@ func ImportFeishuBindings(c *gin.Context) {
 			continue
 		}
 
-		if user.FeishuId != "" {
-			if user.FeishuId == item.UnionID {
-				result.Skipped++
-			} else {
-				result.Failed++
-				result.Errors = append(result.Errors, "user_id="+strconv.Itoa(item.UserID)+" already bound to another feishu account")
-			}
-			continue
-		}
-
-		existingUser := model.User{}
-		if model.IsFeishuIdAlreadyTaken(item.UnionID) {
-			if err := model.DB.Where("feishu_id = ?", item.UnionID).First(&existingUser).Error; err == nil {
-				if existingUser.Id != item.UserID {
+		updates := map[string]interface{}{}
+		if openID != "" {
+			existingUser := model.User{}
+			if model.IsFeishuIdAlreadyTaken(openID) {
+				if err := model.DB.Where("feishu_id = ?", openID).First(&existingUser).Error; err == nil && existingUser.Id != item.UserID {
 					result.Failed++
-					result.Errors = append(result.Errors, "union_id="+item.UnionID+" already bound to user_id="+strconv.Itoa(existingUser.Id))
+					result.Errors = append(result.Errors, "open_id="+openID+" already bound to user_id="+strconv.Itoa(existingUser.Id))
 					continue
 				}
 			}
+			updates["feishu_id"] = openID
 		}
-
-		updates := map[string]interface{}{
-			"feishu_id": item.UnionID,
+		if unionID != "" {
+			existingUser := model.User{}
+			if model.IsFeishuUnionIdAlreadyTaken(unionID) {
+				if err := model.DB.Where("feishu_union_id = ?", unionID).First(&existingUser).Error; err == nil && existingUser.Id != item.UserID {
+					result.Failed++
+					result.Errors = append(result.Errors, "union_id="+unionID+" already bound to user_id="+strconv.Itoa(existingUser.Id))
+					continue
+				}
+			}
+			updates["feishu_union_id"] = unionID
 		}
 
 		if err := model.DB.Model(&model.User{}).Where("id = ?", item.UserID).Updates(updates).Error; err != nil {
@@ -118,7 +121,7 @@ func ImportFeishuBindings(c *gin.Context) {
 			continue
 		}
 
-		model.RecordLog(user.Id, model.LogTypeSystem, "管理员导入飞书绑定，union_id="+item.UnionID)
+		model.RecordLog(user.Id, model.LogTypeSystem, "管理员导入飞书绑定，open_id="+openID+" union_id="+unionID)
 		result.Success++
 	}
 
@@ -163,14 +166,32 @@ func AdminSetUserGroup(c *gin.Context) {
 }
 
 type GroupSyncRequest struct {
-	GroupName string `json:"group_name"`
-	Full      bool   `json:"full"`
+	GroupName   string `json:"group_name"`
+	Full        bool   `json:"full"`
+	OnlyMissing *bool  `json:"only_missing"`
 }
 
 type GroupSyncResult struct {
 	AffectedUsers int      `json:"affected_users"`
 	Updated       int      `json:"updated"`
+	Skipped       int      `json:"skipped"`
 	Errors        []string `json:"errors,omitempty"`
+}
+
+func hasActiveBindGroupSubscriptions(userId int, planIDs []int) (bool, error) {
+	if userId <= 0 || len(planIDs) == 0 {
+		return false, nil
+	}
+	now := common.GetTimestamp()
+	var count int64
+	err := model.DB.Model(&model.UserSubscription{}).
+		Where("user_id = ? AND source = ? AND plan_id IN ? AND status = ? AND (end_time = 0 OR end_time > ?)",
+			userId, "bind_group", planIDs, "active", now).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return int(count) >= len(planIDs), nil
 }
 
 func AdminGroupSync(c *gin.Context) {
@@ -183,10 +204,14 @@ func AdminGroupSync(c *gin.Context) {
 	result := GroupSyncResult{
 		Errors: make([]string, 0),
 	}
+	onlyMissing := true
+	if req.OnlyMissing != nil {
+		onlyMissing = *req.OnlyMissing
+	}
 
 	query := model.DB.Unscoped().Model(&model.User{})
 	if !req.Full && req.GroupName != "" {
-		query = query.Where("`group` = ?", req.GroupName)
+		query = query.Where(fmt.Sprintf("%s = ?", model.CommonGroupColumnName()), req.GroupName)
 	}
 
 	var users []model.User
@@ -199,14 +224,42 @@ func AdminGroupSync(c *gin.Context) {
 
 	for i := range users {
 		user := &users[i]
-		if user.FeishuId == "" {
+		groupName := strings.TrimSpace(user.Group)
+		if groupName == "" || groupName == "pending" {
+			result.Skipped++
 			continue
 		}
 
-		if user.Group == "" || user.Group == "pending" {
+		var plans []model.SubscriptionPlan
+		if err := model.DB.Where("bind_group = ? AND enabled = ?", groupName, true).Find(&plans).Error; err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("user_id=%d query plans failed: %s", user.Id, err.Error()))
+			continue
+		}
+		if len(plans) == 0 {
+			result.Skipped++
 			continue
 		}
 
+		planIDs := make([]int, 0, len(plans))
+		for _, p := range plans {
+			planIDs = append(planIDs, p.Id)
+		}
+		if onlyMissing {
+			ok, err := hasActiveBindGroupSubscriptions(user.Id, planIDs)
+			if err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("user_id=%d check existing failed: %s", user.Id, err.Error()))
+				continue
+			}
+			if ok {
+				result.Skipped++
+				continue
+			}
+		}
+
+		if err := model.SyncUserBindGroupSubscriptions(user.Id, "", groupName); err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("user_id=%d sync failed: %s", user.Id, err.Error()))
+			continue
+		}
 		result.Updated++
 	}
 

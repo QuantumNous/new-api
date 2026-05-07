@@ -35,6 +35,7 @@ const SubscriptionsTable = (subscriptionsData) => {
     setPlanEnabled,
     t,
     enableEpay,
+    onManualSyncPlanGroup,
   } = subscriptionsData;
 
   const columns = useMemo(() => {
@@ -43,8 +44,9 @@ const SubscriptionsTable = (subscriptionsData) => {
       openEdit,
       setPlanEnabled,
       enableEpay,
+      onManualSyncPlanGroup,
     });
-  }, [t, openEdit, setPlanEnabled, enableEpay]);
+  }, [t, openEdit, setPlanEnabled, enableEpay, onManualSyncPlanGroup]);
 
   const tableColumns = useMemo(() => {
     return compactMode
@@ -68,14 +70,7 @@ const SubscriptionsTable = (subscriptionsData) => {
       loading={loading}
       rowKey={(row) => row?.plan?.id}
       empty={
-        <Empty
-          image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-          darkModeImage={
-            <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-          }
-          description={t('暂无订阅套餐')}
-          style={{ padding: 30 }}
-        />
+        <Empty description={t('暂无订阅套餐')} style={{ padding: 30 }} />
       }
       className='overflow-hidden'
       size='middle'

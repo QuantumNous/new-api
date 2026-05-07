@@ -3,11 +3,12 @@ package system_setting
 import "github.com/QuantumNous/new-api/setting/config"
 
 type FeishuSettings struct {
-	Enabled      bool   `json:"enabled"`
-	AppID        string `json:"app_id"`
-	AppSecret    string `json:"app_secret"`
-	DefaultGroup string `json:"default_group"`
-	AuthPolicy   string `json:"auth_policy"`
+	Enabled                         bool   `json:"enabled"`
+	AppID                           string `json:"app_id"`
+	AppSecret                       string `json:"app_secret"`
+	DefaultGroup                    string `json:"default_group"`
+	AuthPolicy                      string `json:"auth_policy"`
+	AllowAdminManagePlaintextTokens bool   `json:"allow_admin_manage_plaintext_tokens"`
 }
 
 var defaultFeishuSettings = FeishuSettings{

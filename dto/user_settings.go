@@ -19,8 +19,9 @@ type UserSetting struct {
 }
 
 var (
-	NotifyTypeEmail   = "email"   // Email 邮件
-	NotifyTypeWebhook = "webhook" // Webhook
-	NotifyTypeBark    = "bark"    // Bark 推送
-	NotifyTypeGotify  = "gotify"  // Gotify 推送
+	NotifyTypeEmail     = "email"      // Email 邮件
+	NotifyTypeWebhook   = "webhook"    // Webhook
+	NotifyTypeBark      = "bark"       // Bark 推送
+	NotifyTypeGotify    = "gotify"     // Gotify 推送
+	NotifyTypeFeishuApp = "feishu_app" // 飞书应用机器人推送
 )

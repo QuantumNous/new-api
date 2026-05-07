@@ -777,7 +777,7 @@ func SyncPlanBindGroupChange(planId int, oldBindGroup, newBindGroup string, tota
 	}
 	if newBindGroup != "" {
 		var users []User
-		if err := DB.Where("`group` = ?", newBindGroup).Find(&users).Error; err != nil {
+		if err := DB.Where(fmt.Sprintf("%s = ?", commonGroupCol), newBindGroup).Find(&users).Error; err != nil {
 			common.SysLog(fmt.Sprintf("SyncPlanBindGroupChange: failed to find users for group %s: %s", newBindGroup, err.Error()))
 			return
 		}
@@ -806,6 +806,17 @@ func SyncPlanBindGroupChange(planId int, oldBindGroup, newBindGroup string, tota
 				common.SysLog(fmt.Sprintf("SyncPlanBindGroupChange: failed to create sub for user %d: %s", u.Id, err.Error()))
 			}
 		}
+	}
+}
+
+func SyncPlanTotalAmountChange(planId int, totalAmount int64) {
+	if planId <= 0 {
+		return
+	}
+	if err := DB.Model(&UserSubscription{}).
+		Where("plan_id = ? AND source = ?", planId, "bind_group").
+		Update("amount_total", totalAmount).Error; err != nil {
+		common.SysLog(fmt.Sprintf("SyncPlanTotalAmountChange: failed to update plan %d amount_total=%d: %s", planId, totalAmount, err.Error()))
 	}
 }
 
@@ -1180,7 +1191,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 
 		var subs []UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+			Where("user_id = ? AND status = ? AND (end_time > ? OR end_time = 0)", userId, "active", now).
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
 			return errors.New("no active subscription")

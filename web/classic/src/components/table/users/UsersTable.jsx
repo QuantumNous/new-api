@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useMemo, useState } from 'react';
 import { Empty } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
@@ -32,6 +13,7 @@ import DeleteUserModal from './modals/DeleteUserModal';
 import ResetPasskeyModal from './modals/ResetPasskeyModal';
 import ResetTwoFAModal from './modals/ResetTwoFAModal';
 import UserSubscriptionsModal from './modals/UserSubscriptionsModal';
+import UserTokenManagerModal from './modals/FeishuTokenManagerModal';
 
 const UsersTable = (usersData) => {
   const {
@@ -53,7 +35,6 @@ const UsersTable = (usersData) => {
     t,
   } = usersData;
 
-  // Modal states
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [showDemoteModal, setShowDemoteModal] = useState(false);
   const [showEnableDisableModal, setShowEnableDisableModal] = useState(false);
@@ -64,8 +45,9 @@ const UsersTable = (usersData) => {
   const [showResetTwoFAModal, setShowResetTwoFAModal] = useState(false);
   const [showUserSubscriptionsModal, setShowUserSubscriptionsModal] =
     useState(false);
+  const [showUserTokenManagerModal, setShowUserTokenManagerModal] =
+    useState(false);
 
-  // Modal handlers
   const showPromoteUserModal = (user) => {
     setModalUser(user);
     setShowPromoteModal(true);
@@ -102,7 +84,11 @@ const UsersTable = (usersData) => {
     setShowUserSubscriptionsModal(true);
   };
 
-  // Modal confirm handlers
+  const showUserTokenManagerUserModal = (user) => {
+    setModalUser(user);
+    setShowUserTokenManagerModal(true);
+  };
+
   const handlePromoteConfirm = () => {
     manageUser(modalUser.id, 'promote', modalUser);
     setShowPromoteModal(false);
@@ -128,7 +114,6 @@ const UsersTable = (usersData) => {
     setShowResetTwoFAModal(false);
   };
 
-  // Get all columns
   const columns = useMemo(() => {
     return getUsersColumns({
       t,
@@ -141,6 +126,7 @@ const UsersTable = (usersData) => {
       showResetPasskeyModal: showResetPasskeyUserModal,
       showResetTwoFAModal: showResetTwoFAUserModal,
       showUserSubscriptionsModal: showUserSubscriptionsUserModal,
+      showUserTokenManagerModal: showUserTokenManagerUserModal,
     });
   }, [
     t,
@@ -153,9 +139,9 @@ const UsersTable = (usersData) => {
     showResetPasskeyUserModal,
     showResetTwoFAUserModal,
     showUserSubscriptionsUserModal,
+    showUserTokenManagerUserModal,
   ]);
 
-  // Handle compact mode by removing fixed positioning
   const tableColumns = useMemo(() => {
     return compactMode
       ? columns.map((col) => {
@@ -200,7 +186,6 @@ const UsersTable = (usersData) => {
         size='middle'
       />
 
-      {/* Modal components */}
       <PromoteUserModal
         visible={showPromoteModal}
         onCancel={() => setShowPromoteModal(false)}
@@ -254,11 +239,18 @@ const UsersTable = (usersData) => {
       />
 
       <UserSubscriptionsModal
-        visible={showUserSubscriptionsModal}
+        visible={showUserSubscriptionsModal && !!modalUser}
         onCancel={() => setShowUserSubscriptionsModal(false)}
         user={modalUser}
         t={t}
         onSuccess={() => refresh?.()}
+      />
+
+      <UserTokenManagerModal
+        visible={showUserTokenManagerModal && !!modalUser}
+        onCancel={() => setShowUserTokenManagerModal(false)}
+        initialUser={modalUser}
+        t={t}
       />
     </>
   );

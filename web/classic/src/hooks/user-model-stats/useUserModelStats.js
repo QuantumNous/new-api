@@ -28,6 +28,7 @@ export const useUserModelStats = () => {
     end_timestamp: timestamp2string(new Date().getTime() / 1000 + 3600),
     username: '',
     model_name: '',
+    user_group: '',
   });
   const [pagination, setPagination] = useState({ page: 1, pageSize: 20 });
 
@@ -40,6 +41,7 @@ export const useUserModelStats = () => {
     params.append('end_timestamp', localEndTimestamp);
     if (inputs.username) params.append('username', inputs.username);
     if (inputs.model_name) params.append('model_name', inputs.model_name);
+    if (inputs.user_group) params.append('user_group', inputs.user_group);
     return `${base}?${params.toString()}`;
   }, [localStartTimestamp, localEndTimestamp, inputs]);
 
@@ -73,10 +75,23 @@ export const useUserModelStats = () => {
     setPagination({ page: 1, pageSize: 20 });
   }, []);
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
     const viewType = EXPORT_TYPE_MAP[activeTab] || 'by_user';
     const url = `${buildQuery('/api/data/export')}&view_type=${viewType}`;
-    window.open(url, '_blank');
+    try {
+      const res = await API.get(url, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `user-model-stats-${viewType}-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      showError(err?.message || '导出失败');
+    }
   }, [activeTab, buildQuery]);
 
   return {

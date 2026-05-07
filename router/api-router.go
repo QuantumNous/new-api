@@ -175,6 +175,10 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.POST("/users/:id/subscriptions", controller.AdminCreateUserSubscription)
 			subscriptionAdminRoute.POST("/user_subscriptions/:id/invalidate", controller.AdminInvalidateUserSubscription)
 			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
+			subscriptionAdminRoute.GET("/plan-usage", controller.AdminGetSubscriptionPlanUsage)
+			subscriptionAdminRoute.GET("/org-usage", controller.AdminGetOrgUsage)
+			subscriptionAdminRoute.GET("/inactive-users", controller.AdminGetInactiveUsers)
+			subscriptionAdminRoute.GET("/inactive-users/export", controller.AdminExportInactiveUsers)
 		}
 
 		// Subscription payment callbacks (no auth)

@@ -227,7 +227,7 @@ G. `Frontend - Admin Auth Policy & Feishu Management`：管理端登录策略与
 
 ### 9.1 飞书品牌图标组件
 
-**文件位置**：`web/default/src/assets/brand-icons/icon-feishu.tsx`
+**文件位置**：`web/classic/src/assets/brand-icons/icon-feishu.tsx`
 
 **图标来源**：飞书官方品牌 logo SVG，取自飞书品牌配置接口（`applink.feishu.cn/api/tenant/applink/brand_config`）返回的 `logo_url`，或从飞书开放平台下载官方 SVG 矢量图。
 
@@ -257,11 +257,11 @@ export function IconFeishu({ className, ...props }: SVGProps<SVGSVGElement>) {
 ### 9.2 登录页 - 飞书专属登录
 
 **涉及文件**：
-- `web/default/src/features/auth/components/oauth-providers.tsx`
-- `web/default/src/features/auth/hooks/use-oauth-login.ts`
-- `web/default/src/features/auth/lib/oauth.ts`（新增 `buildFeishuOAuthUrl`）
-- `web/default/src/features/auth/types.ts`（status 新增 `feishu_oauth` 字段）
-- `web/default/src/features/auth/sign-in/components/user-auth-form.tsx`
+- `web/classic/src/features/auth/components/oauth-providers.tsx`
+- `web/classic/src/features/auth/hooks/use-oauth-login.ts`
+- `web/classic/src/features/auth/lib/oauth.ts`（新增 `buildFeishuOAuthUrl`）
+- `web/classic/src/features/auth/types.ts`（status 新增 `feishu_oauth` 字段）
+- `web/classic/src/features/auth/sign-in/components/user-auth-form.tsx`
 
 #### 9.2.1 布局设计
 
@@ -346,9 +346,9 @@ export function IconFeishu({ className, ...props }: SVGProps<SVGSVGElement>) {
 ### 9.3 管理端 - 套餐分组可视化配置
 
 **涉及文件**：
-- `web/default/src/features/subscriptions/components/subscriptions-mutate-drawer.tsx`（增强）
-- 新增 `web/default/src/features/subscriptions/components/group-plan-mapping.tsx`
-- `web/default/src/features/subscriptions/api.ts`（新增分组-套餐映射 API 调用）
+- `web/classic/src/features/subscriptions/components/subscriptions-mutate-drawer.tsx`（增强）
+- 新增 `web/classic/src/features/subscriptions/components/group-plan-mapping.tsx`
+- `web/classic/src/features/subscriptions/api.ts`（新增分组-套餐映射 API 调用）
 
 #### 9.3.1 套餐编辑抽屉增强
 
@@ -419,7 +419,7 @@ export function IconFeishu({ className, ...props }: SVGProps<SVGSVGElement>) {
 
 #### 9.4.1 登录策略配置（OAuth Settings 页面增强）
 
-**涉及文件**：`web/default/src/features/system-settings/auth/oauth-section.tsx`
+**涉及文件**：`web/classic/src/features/system-settings/auth/oauth-section.tsx`
 
 在现有 OAuth Integrations 页面中新增飞书 Tab：
 
@@ -577,6 +577,31 @@ TabsList: GitHub | Discord | OIDC | Telegram | LinuxDO | WeChat | 飞书
 - 管理端 OAuth 设置页面包含飞书 Tab（启用/配置/策略切换）
 - 管理端飞书绑定管理页面支持导入/查询/重放
 - 管理端飞书绑定管理页面可查看用户当前分组，支持直接将 `pending` 用户变更至正式分组
+
+---
+
+## 附录B：2026-05-07 对话回顾与需求收敛（同步更新）
+
+### B.1 最终确认需求
+
+1. 手动同步未生效订阅用户按钮放在“套餐管理列表行级操作”，不放在用量页。
+2. 组织用量暂不开放，不在订阅管理中展示入口。
+3. 非活跃用户查询使用固定期间选择（默认最近15天），不使用自由输入。
+4. 在 React #130 背景下，套餐用量模块可独立重开发，先保稳定再做美观。
+
+### B.2 已实现状态（截至本次会话）
+
+- 订阅管理入口：Tab 为`套餐管理 / 套餐用量 / 非活跃用户`。
+- 行级手动同步：套餐行操作已接入 `/api/user/group-sync`（按 `group_name` 定向补齐）。
+- 非活跃用户查询：固定 `7/15/30/60/90` 天，默认15天。
+- 套餐用量模块：已独立重构前端实现，接口不变，并追加视觉优化（卡片容器、工具栏、表格样式、空态）。
+
+### B.3 排障经验沉淀（React #130）
+
+- 必须先确认构建哈希与线上加载哈希一致，再判断代码是否生效。
+- 出现登录态异常（401 + securecookie invalid）时先重新登录，避免误判为渲染故障。
+- 对该类问题优先采用“最小渲染面二分定位法”，一次仅变更一个可疑区块。
+
 - 管理端 OAuth 设置飞书 Tab 包含"默认分组"配置项
 - 所有新增文案均有 i18n 翻译
 

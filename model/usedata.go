@@ -124,7 +124,9 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 }
 
 type UserModelStatItem struct {
+	UserID    int    `json:"user_id"`
 	Username  string `json:"username"`
+	UserGroup string `json:"user_group"`
 	ModelName string `json:"model_name"`
 	Count     int    `json:"count"`
 	TokenUsed int    `json:"token_used"`
@@ -132,7 +134,9 @@ type UserModelStatItem struct {
 }
 
 type UserStatItem struct {
+	UserID    int    `json:"user_id"`
 	Username  string `json:"username"`
+	UserGroup string `json:"user_group"`
 	Count     int    `json:"count"`
 	TokenUsed int    `json:"token_used"`
 	Quota     int    `json:"quota"`
@@ -145,76 +149,102 @@ type ModelStatItem struct {
 	Quota     int    `json:"quota"`
 }
 
-func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string, modelNames []string, page int, pageSize int) (items []*UserStatItem, total int64, err error) {
-	tx := DB.Table("quota_data").
-		Select("username, sum(count) as count, sum(token_used) as token_used, sum(quota) as quota").
-		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*UserStatItem, total int64, err error) {
+	groupCol := CommonGroupColumnName()
+	selectGroup := fmt.Sprintf("u.%s as user_group", groupCol)
 
+	aggTx := DB.Table("quota_data").
+		Select("user_id, sum(count) as count, sum(token_used) as token_used, sum(quota) as quota").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
 	if len(usernames) > 0 {
-		tx = tx.Where("username IN ?", usernames)
+		aggTx = aggTx.Where("username IN ?", usernames)
 	}
 	if len(modelNames) > 0 {
-		tx = tx.Where("model_name IN ?", modelNames)
+		aggTx = aggTx.Where("model_name IN ?", modelNames)
+	}
+	aggTx = aggTx.Group("user_id")
+
+	baseTx := DB.Table("users AS u").
+		Select("u.id as user_id, u.username as username, "+selectGroup+", COALESCE(q.count, 0) as count, COALESCE(q.token_used, 0) as token_used, COALESCE(q.quota, 0) as quota").
+		Joins("LEFT JOIN (?) AS q ON q.user_id = u.id", aggTx)
+	if len(usernames) > 0 {
+		baseTx = baseTx.Where("u.username IN ?", usernames)
+	}
+	if userGroup != "" {
+		baseTx = baseTx.Where(fmt.Sprintf("u.%s = ?", groupCol), userGroup)
+	}
+
+	if err = baseTx.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err = baseTx.
+		Order("COALESCE(q.count, 0) desc, COALESCE(q.token_used, 0) desc, COALESCE(q.quota, 0) desc, u.id asc").
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		Find(&items).Error
+	return items, total, err
+}
+
+func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*ModelStatItem, total int64, err error) {
+	groupCol := CommonGroupColumnName()
+	selectGroup := fmt.Sprintf("u.%s as user_group", groupCol)
+
+	tx := DB.Table("quota_data q").
+		Select("q.model_name as model_name, "+selectGroup+", sum(q.count) as count, sum(q.token_used) as token_used, sum(q.quota) as quota").
+		Joins("LEFT JOIN users u ON u.id = q.user_id").
+		Where("q.created_at >= ? and q.created_at <= ?", startTime, endTime)
+
+	if len(usernames) > 0 {
+		tx = tx.Where("q.username IN ?", usernames)
+	}
+	if len(modelNames) > 0 {
+		tx = tx.Where("q.model_name IN ?", modelNames)
+	}
+	if userGroup != "" {
+		tx = tx.Where(fmt.Sprintf("u.%s = ?", groupCol), userGroup)
 	}
 
 	countTx := tx.Session(&gorm.Session{})
-	err = countTx.Group("username").Count(&total).Error
+	err = countTx.Group("q.model_name, " + groupCol).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	err = tx.Group("username").
-		Order("sum(count) desc, sum(token_used) desc, sum(quota) desc").
+	err = tx.Group("q.model_name, " + groupCol).
+		Order("sum(q.count) desc, sum(q.token_used) desc, sum(q.quota) desc").
 		Limit(pageSize).Offset((page - 1) * pageSize).
 		Find(&items).Error
 	return items, total, err
 }
 
-func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string, modelNames []string, page int, pageSize int) (items []*ModelStatItem, total int64, err error) {
-	tx := DB.Table("quota_data").
-		Select("model_name, sum(count) as count, sum(token_used) as token_used, sum(quota) as quota").
-		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+func GetUserModelStatsByDetail(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*UserModelStatItem, total int64, err error) {
+	groupCol := CommonGroupColumnName()
+	selectGroup := fmt.Sprintf("u.%s as user_group", groupCol)
+
+	tx := DB.Table("quota_data q").
+		Select("q.user_id as user_id, u.username as username, "+selectGroup+", q.model_name as model_name, sum(q.count) as count, sum(q.token_used) as token_used, sum(q.quota) as quota").
+		Joins("LEFT JOIN users u ON u.id = q.user_id").
+		Where("q.created_at >= ? and q.created_at <= ?", startTime, endTime)
 
 	if len(usernames) > 0 {
-		tx = tx.Where("username IN ?", usernames)
+		tx = tx.Where("q.username IN ?", usernames)
 	}
 	if len(modelNames) > 0 {
-		tx = tx.Where("model_name IN ?", modelNames)
+		tx = tx.Where("q.model_name IN ?", modelNames)
+	}
+	if userGroup != "" {
+		tx = tx.Where(fmt.Sprintf("u.%s = ?", groupCol), userGroup)
 	}
 
 	countTx := tx.Session(&gorm.Session{})
-	err = countTx.Group("model_name").Count(&total).Error
+	err = countTx.Group("q.user_id, q.model_name, u.username, " + groupCol).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	err = tx.Group("model_name").
-		Order("sum(count) desc, sum(token_used) desc, sum(quota) desc").
-		Limit(pageSize).Offset((page - 1) * pageSize).
-		Find(&items).Error
-	return items, total, err
-}
-
-func GetUserModelStatsByDetail(startTime int64, endTime int64, usernames []string, modelNames []string, page int, pageSize int) (items []*UserModelStatItem, total int64, err error) {
-	tx := DB.Table("quota_data").
-		Select("username, model_name, sum(count) as count, sum(token_used) as token_used, sum(quota) as quota").
-		Where("created_at >= ? and created_at <= ?", startTime, endTime)
-
-	if len(usernames) > 0 {
-		tx = tx.Where("username IN ?", usernames)
-	}
-	if len(modelNames) > 0 {
-		tx = tx.Where("model_name IN ?", modelNames)
-	}
-
-	countTx := tx.Session(&gorm.Session{})
-	err = countTx.Group("username, model_name").Count(&total).Error
-	if err != nil {
-		return nil, 0, err
-	}
-
-	err = tx.Group("username, model_name").
-		Order("sum(count) desc, sum(token_used) desc, sum(quota) desc").
+	err = tx.Group("q.user_id, q.model_name, u.username, " + groupCol).
+		Order("sum(q.count) desc, sum(q.token_used) desc, sum(q.quota) desc").
 		Limit(pageSize).Offset((page - 1) * pageSize).
 		Find(&items).Error
 	return items, total, err

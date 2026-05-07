@@ -68,7 +68,7 @@ export interface UserProfile {
 /**
  * Notification type
  */
-export type NotifyType = 'email' | 'webhook' | 'bark' | 'gotify'
+export type NotifyType = 'email' | 'webhook' | 'bark' | 'gotify' | 'feishu_app'
 
 /**
  * Parsed user settings

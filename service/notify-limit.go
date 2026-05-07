@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/bytedance/gopkg/util/gopool"
 )
 
@@ -25,6 +26,16 @@ type limitCount struct {
 func getDuration() time.Duration {
 	minute := constant.NotificationLimitDurationMinute
 	return time.Duration(minute) * time.Minute
+}
+
+func getLimitWindow(notifyType string) (string, time.Duration, int) {
+	// Quota warnings are throttled to once per user per day.
+	if notifyType == dto.NotifyTypeQuotaExceed {
+		now := time.Now()
+		nextDay := now.Add(24 * time.Hour).Truncate(24 * time.Hour)
+		return now.Format("20060102"), nextDay.Sub(now), 1
+	}
+	return time.Now().Format("2006010215"), getDuration(), constant.NotifyLimitCount
 }
 
 // startCleanupTask starts a background task to clean up expired entries
@@ -55,7 +66,8 @@ func CheckNotificationLimit(userId int, notifyType string) (bool, error) {
 }
 
 func checkRedisLimit(userId int, notifyType string) (bool, error) {
-	key := fmt.Sprintf("notify_limit:%d:%s:%s", userId, notifyType, time.Now().Format("2006010215"))
+	windowKey, ttl, limit := getLimitWindow(notifyType)
+	key := fmt.Sprintf("notify_limit:%d:%s:%s", userId, notifyType, windowKey)
 
 	// Get current count
 	count, err := common.RedisGet(key)
@@ -65,12 +77,11 @@ func checkRedisLimit(userId int, notifyType string) (bool, error) {
 
 	// If key doesn't exist, initialize it
 	if count == "" {
-		err = common.RedisSet(key, "1", getDuration())
+		err = common.RedisSet(key, "1", ttl)
 		return true, err
 	}
 
 	currentCount, _ := strconv.Atoi(count)
-	limit := constant.NotifyLimitCount
 
 	// Check if limit is already reached
 	if currentCount >= limit {
@@ -90,7 +101,8 @@ func checkMemoryLimit(userId int, notifyType string) (bool, error) {
 	// Ensure cleanup task is started
 	cleanupOnce.Do(startCleanupTask)
 
-	key := fmt.Sprintf("%d:%s:%s", userId, notifyType, time.Now().Format("2006010215"))
+	windowKey, _, limit := getLimitWindow(notifyType)
+	key := fmt.Sprintf("%d:%s:%s", userId, notifyType, windowKey)
 	now := time.Now()
 
 	// Get current limit count or initialize new one
@@ -107,9 +119,6 @@ func checkMemoryLimit(userId int, notifyType string) (bool, error) {
 
 	// Increment count
 	currentLimit.Count++
-
-	// Check against limits
-	limit := constant.NotifyLimitCount
 
 	// Store updated count
 	notifyLimitStore.Store(key, currentLimit)

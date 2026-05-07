@@ -432,29 +432,30 @@ const NotificationSettings = ({
                   <Radio value='webhook'>{t('Webhook通知')}</Radio>
                   <Radio value='bark'>{t('Bark通知')}</Radio>
                   <Radio value='gotify'>{t('Gotify通知')}</Radio>
+                  <Radio value='feishu_app'>{t('飞书应用通知')}</Radio>
                 </Form.RadioGroup>
 
                 <Form.AutoComplete
                   field='warningThreshold'
                   label={
                     <span>
-                      {t('额度预警阈值')}{' '}
+                      {t('额度预警阈值(%)')}{' '}
                       {renderQuotaWithPrompt(
                         notificationSettings.warningThreshold,
                       )}
                     </span>
                   }
-                  placeholder={t('请输入预警额度')}
+                  placeholder={t('请输入预警百分比(1-100)')}
                   data={[
-                    { value: 100000, label: '0.2$' },
-                    { value: 500000, label: '1$' },
-                    { value: 1000000, label: '2$' },
-                    { value: 5000000, label: '10$' },
+                    { value: 10, label: '10%' },
+                    { value: 20, label: '20%' },
+                    { value: 30, label: '30%' },
+                    { value: 50, label: '50%' },
                   ]}
                   onChange={(val) => handleFormChange('warningThreshold', val)}
                   prefix={<IconBell />}
                   extraText={t(
-                    '当钱包或订阅剩余额度低于此数值时，系统将通过选择的方式发送通知',
+                    '当订阅剩余额度比例低于此百分比时，系统将通过选择的方式发送通知（同一用户每日最多一次）',
                   )}
                   style={{ width: '100%', maxWidth: '300px' }}
                   rules={[
@@ -462,8 +463,8 @@ const NotificationSettings = ({
                     {
                       validator: (rule, value) => {
                         const numValue = Number(value);
-                        if (isNaN(numValue) || numValue <= 0) {
-                          return Promise.reject(t('预警阈值必须为正数'));
+                        if (isNaN(numValue) || numValue <= 0 || numValue > 100) {
+                          return Promise.reject(t('预警阈值必须在 1-100 之间'));
                         }
                         return Promise.resolve();
                       },

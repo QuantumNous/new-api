@@ -81,7 +81,6 @@ export function UserAuthForm({
     (requiresLegalConsent && !agreedToLegal)
   const hasWeChatLogin = Boolean(status?.wechat_login)
   const isFeishuOnly = (status?.feishu_auth_policy ?? status?.data?.feishu_auth_policy) === 'feishu_only'
-  const isFeishuEnabled = Boolean(status?.feishu_oauth ?? status?.data?.feishu_oauth)
   const showPasswordForm = !isFeishuOnly
 
   useEffect(() => {

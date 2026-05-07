@@ -292,6 +292,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 
 	if oldPlan.BindGroup != req.Plan.BindGroup {
 		go model.SyncPlanBindGroupChange(id, oldPlan.BindGroup, req.Plan.BindGroup, req.Plan.TotalAmount)
+	} else if oldPlan.TotalAmount != req.Plan.TotalAmount {
+		go model.SyncPlanTotalAmountChange(id, req.Plan.TotalAmount)
 	}
 
 	model.InvalidateSubscriptionPlanCache(id)

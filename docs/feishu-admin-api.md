@@ -8,9 +8,9 @@
 
 ---
 
-## 1. 批量初始化用户（通过飞书 OpenID）
+## 1. 批量初始化用户（通过飞书标识）
 
-根据飞书 OpenID 批量创建用户，支持指定用户名、分组、额度、角色等信息。
+根据飞书标识批量创建用户，支持指定用户名、分组、额度、角色等信息。
 
 ```
 POST /api/user/feishu/users/batch
@@ -23,6 +23,8 @@ POST /api/user/feishu/users/batch
   "users": [
     {
       "feishu_open_id": "ou_xxxxx1",
+      "feishu_union_id": "on_xxxxx1",
+      "feishu_user_id": "u_xxxxx1",
       "username": "zhangsan",
       "display_name": "张三",
       "password": "optional_password",
@@ -43,7 +45,9 @@ POST /api/user/feishu/users/batch
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `users` | array | 是 | 用户初始化列表 |
-| `users[].feishu_open_id` | string | 是 | 飞书 OpenID |
+| `users[].feishu_open_id` | string | 是 | 飞书 OpenID（主键） |
+| `users[].feishu_union_id` | string | 否 | 飞书 UnionID（辅助标识） |
+| `users[].feishu_user_id` | string | 否 | 飞书 UserID（辅助标识） |
 | `users[].username` | string | 否 | 用户名（留空则自动生成 `feishu_<open_id>`） |
 | `users[].display_name` | string | 否 | 显示名（留空则使用用户名） |
 | `users[].password` | string | 否 | 密码（留空则随机生成12位密码） |
@@ -91,9 +95,9 @@ POST /api/user/feishu/users/batch
 
 ---
 
-## 2. 批量修改用户信息（通过飞书 OpenID）
+## 2. 批量修改用户信息（通过飞书标识）
 
-根据飞书 OpenID 批量更新已有用户的信息，支持修改显示名、密码、分组、额度、状态、备注。
+根据飞书标识批量更新已有用户的信息，支持修改显示名、密码、分组、额度、状态、备注。
 
 ```
 PUT /api/user/feishu/users/batch
@@ -106,6 +110,7 @@ PUT /api/user/feishu/users/batch
   "users": [
     {
       "feishu_open_id": "ou_xxxxx1",
+      "feishu_union_id": "on_xxxxx1",
       "display_name": "张三丰",
       "group": "premium",
       "quota": 1000000,
@@ -125,7 +130,10 @@ PUT /api/user/feishu/users/batch
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `users` | array | 是 | 用户更新列表 |
-| `users[].feishu_open_id` | string | 是 | 飞书 OpenID |
+| `users[].feishu_open_id` | string | 否 | 飞书 OpenID（主键） |
+| `users[].feishu_union_id` | string | 否 | 飞书 UnionID（辅助标识） |
+| `users[].feishu_user_id` | string | 否 | 飞书 UserID（辅助标识） |
+用户定位条件：至少提供 `feishu_open_id` / `feishu_union_id` / `feishu_user_id` / `user_id` / `username` 之一。
 | `users[].display_name` | string | 否 | 显示名（空则不修改） |
 | `users[].password` | string | 否 | 新密码（空则不修改） |
 | `users[].group` | string | 否 | 新分组（空则不修改） |
@@ -182,9 +190,9 @@ PUT /api/user/feishu/users/batch
 
 ---
 
-## 3. 为用户创建令牌（通过飞书 OpenID）
+## 3. 为用户创建令牌（通过飞书标识）
 
-通过飞书 OpenID 为指定用户创建一个 API 令牌。
+通过飞书标识为指定用户创建一个 API 令牌。
 
 ```
 POST /api/user/feishu/tokens
@@ -195,6 +203,7 @@ POST /api/user/feishu/tokens
 ```json
 {
   "feishu_open_id": "ou_xxxxx",
+  "feishu_user_id": "u_xxxxx",
   "name": "我的API Key",
   "remain_quota": 1000000,
   "unlimited_quota": false,
@@ -211,7 +220,9 @@ POST /api/user/feishu/tokens
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `feishu_open_id` | string | 是 | 飞书 OpenID |
+| `feishu_open_id` | string | 否 | 飞书 OpenID |
+| `feishu_user_id` | string | 否 | 飞书 UserID |
+用户定位条件：至少提供 `feishu_open_id` 或 `feishu_user_id` 之一。
 | `name` | string | 否 | 令牌名称（默认 `admin-created`） |
 | `remain_quota` | int | 否 | 剩余额度（默认 0） |
 | `unlimited_quota` | bool | 否 | 是否无限额度（默认 true） |
@@ -241,6 +252,11 @@ POST /api/user/feishu/tokens
 
 - 飞书 OpenID 对应用户不存在：返回提示先创建用户
 - 用户令牌数量达到上限：返回限制提示
+
+### 权限与安全限制
+
+- 返回明文 key 的接口（创建/批量创建/查询）默认仅 `Root` 可调用。
+- 可通过配置 `feishu.allow_admin_manage_plaintext_tokens=true` 放开给 `Admin`。
 
 ---
 
@@ -311,19 +327,22 @@ POST /api/user/feishu/tokens/batch
 
 ---
 
-## 5. 查询用户令牌（通过飞书 OpenID）
+## 5. 查询用户令牌（通过飞书标识）
 
-通过飞书 OpenID 查询对应用户的所有令牌列表。
+通过飞书标识查询对应用户的所有令牌列表（返回明文 key）。
 
 ```
 GET /api/user/feishu/tokens?feishu_open_id=ou_xxxxx&page=1&page_size=10
+GET /api/user/feishu/tokens?feishu_user_id=u_xxxxx&page=1&page_size=10
 ```
 
 ### 查询参数
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `feishu_open_id` | string | 是 | 飞书 OpenID |
+| `feishu_open_id` | string | 否 | 飞书 OpenID |
+| `feishu_user_id` | string | 否 | 飞书 UserID |
+用户定位条件：至少提供 `feishu_open_id` 或 `feishu_user_id` 之一。
 | `page` | int | 否 | 页码（默认 1） |
 | `page_size` | int | 否 | 每页数量（默认 10） |
 
@@ -358,10 +377,52 @@ GET /api/user/feishu/tokens?feishu_open_id=ou_xxxxx&page=1&page_size=10
 
 - 令牌 key 返回完整明文（如 `sk-xxxxxxxxxxxxxxxxxxxxxxxx`），不脱敏，方便管理员分发
 - 支持分页
+- 受“权限与安全限制”约束
+
+---
+
+## 6. 管理端页面状态（任务 12 对齐）
+
+### 已完成
+
+- 用户管理页新增“飞书批量初始化”入口（可视化 JSON 批量导入）。
+- 用户管理页新增“Feishu Keys”专用入口：
+  - 支持按 `feishu_open_id` / `feishu_user_id` 检索指定用户全部 token
+  - 支持创建 token，并在结果中展示新明文 key
+- 后端权限隔离已落地（默认 Root，支持配置放开给 Admin）。
 
 ---
 
 ## 订阅套餐同步机制
+
+### 手动重同步入口（修复未生效用户）
+
+`POST /api/user/group-sync`
+
+用于生产环境“已建套餐但部分用户未生效”的一次性修复/补齐。
+
+请求体示例：
+
+```json
+{
+  "group_name": "default",
+  "full": false,
+  "only_missing": true
+}
+```
+
+参数说明：
+- `group_name`（可选）：指定分组；`full=false` 且传值时只扫描该分组
+- `full`（可选）：`true` 表示扫描所有用户
+- `only_missing`（可选，默认 `true`）：
+  - `true`：仅补齐“缺少 bind_group 有效订阅”的用户
+  - `false`：对命中用户都执行重同步补齐
+
+响应字段：
+- `affected_users`：扫描到的用户数
+- `updated`：本次实际执行同步的用户数
+- `skipped`：被跳过用户数（如 `pending` 组、无绑定套餐、已生效）
+- `errors`：失败明细
 
 ### 分组绑定订阅（bind_group）说明
 
