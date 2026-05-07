@@ -22,11 +22,39 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+func userValidationErrorMessage(err error) string {
+	var validationErrors validator.ValidationErrors
+	if !errors.As(err, &validationErrors) || len(validationErrors) == 0 {
+		return err.Error()
+	}
+	for _, fieldErr := range validationErrors {
+		switch fieldErr.StructField() {
+		case "Username":
+			if fieldErr.Tag() == "max" {
+				return fmt.Sprintf("用户名长度不能超过 %s 个字符", fieldErr.Param())
+			}
+		case "Password":
+			switch fieldErr.Tag() {
+			case "min":
+				return fmt.Sprintf("密码长度不能小于 %s 个字符", fieldErr.Param())
+			case "max":
+				return fmt.Sprintf("密码长度不能超过 %s 个字符", fieldErr.Param())
+			}
+		case "Email":
+			if fieldErr.Tag() == "max" {
+				return fmt.Sprintf("邮箱长度不能超过 %s 个字符", fieldErr.Param())
+			}
+		}
+	}
+	return err.Error()
 }
 
 func Login(c *gin.Context) {
@@ -143,13 +171,13 @@ func Register(c *gin.Context) {
 		return
 	}
 	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	err := common.DecodeJson(c.Request.Body, &user)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	if err := common.Validate.Struct(&user); err != nil {
-		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
+		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": userValidationErrorMessage(err)})
 		return
 	}
 	if common.EmailVerificationEnabled {
