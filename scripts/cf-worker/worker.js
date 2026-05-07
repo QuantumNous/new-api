@@ -43,13 +43,13 @@ export default {
         request.method === 'POST' &&
         url.pathname === '/v1/images/generations'
       ) {
-        return handleImagesGenerations(request, env);
+        return handleImagesGenerations(request, env, ctx);
       }
       if (
         request.method === 'POST' &&
         url.pathname === '/v1/images/edits'
       ) {
-        return handleImagesEdits(request, env);
+        return handleImagesEdits(request, env, ctx);
       }
 
       // Self-healing: if a caller (e.g. new-api) sends an image-generation
@@ -64,7 +64,7 @@ export default {
         let parsed = null;
         try { parsed = JSON.parse(bodyText); } catch {}
         if (parsed && isImageModel(parsed.model)) {
-          return handleChatCompletionsAsImage(parsed, request, env);
+          return handleChatCompletionsAsImage(parsed, request, env, ctx);
         }
         // Not an image model — reconstruct request and passthrough.
         const passReq = new Request(request, { body: bodyText });
@@ -496,6 +496,45 @@ async function fetchWithFastFailRetry(url, init, opts) {
 // `{created, data: [{url|b64_json}]}` envelope so existing OpenAI SDK clients
 // (and new-api's image-generation billing path) work unchanged.
 
+// Builds the {data, ...} portion of an Images-API envelope from a /v1/responses
+// "response" object. Uploads any base64 image_generation_call.result to R2 and
+// rewrites it as a public URL when IMAGE_BASE is configured.
+async function buildImagesDataFromResponses(responsesData, opts, env) {
+  const { wantB64, originalPrompt } = opts;
+  const imageBase = (env.IMAGE_BASE || '').replace(/\/$/, '');
+  const data = [];
+  let firstFormat;
+  let firstSize;
+
+  for (const item of responsesData.output || []) {
+    if (
+      item?.type === 'image_generation_call' &&
+      typeof item.result === 'string' &&
+      item.result.length > 100
+    ) {
+      if (!firstFormat) firstFormat = item.output_format;
+      if (!firstSize) firstSize = item.size;
+      const entry = {};
+      if (wantB64) {
+        entry.b64_json = item.result;
+      } else {
+        const ext = inferExt(item.output_format, item.result);
+        const key = await uploadToR2(item.result, ext, env);
+        entry.url = imageBase
+          ? `${imageBase}/${key}`
+          : `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${item.result}`;
+      }
+      const revised =
+        (typeof item.revised_prompt === 'string' && item.revised_prompt) ||
+        extractMessageText(responsesData) ||
+        originalPrompt;
+      if (revised) entry.revised_prompt = revised;
+      data.push(entry);
+    }
+  }
+  return { data, firstFormat, firstSize };
+}
+
 // Detects model names that should be routed through the image pipeline,
 // even when the caller arrives via /v1/chat/completions.
 function isImageModel(model) {
@@ -533,7 +572,7 @@ function extractPromptFromMessages(messages) {
 // image link (most chat UIs render it natively). When the original request
 // asked for stream:true, the response is delivered as a minimal SSE stream
 // so streaming clients don't break.
-async function handleChatCompletionsAsImage(reqBody, originalRequest, env) {
+async function handleChatCompletionsAsImage(reqBody, originalRequest, env, ctx) {
   const prompt = extractPromptFromMessages(reqBody.messages);
   if (!prompt) {
     return jsonError(400, 'no user prompt found in messages');
@@ -559,7 +598,7 @@ async function handleChatCompletionsAsImage(reqBody, originalRequest, env) {
     body: JSON.stringify(imageReq),
   });
 
-  const imageResp = await handleImagesGenerations(syntheticRequest, env);
+  const imageResp = await handleImagesGenerations(syntheticRequest, env, ctx);
 
   if (!imageResp.ok) {
     // Pass through upstream error as-is.
@@ -699,7 +738,7 @@ function jsonError(status, message) {
   );
 }
 
-async function handleImagesGenerations(request, env) {
+async function handleImagesGenerations(request, env, ctx) {
   let reqBody;
   try {
     reqBody = await request.json();
@@ -756,39 +795,14 @@ async function handleImagesGenerations(request, env) {
   }
 
   const responsesData = await upstreamResp.json();
-  const imageBase = (env.IMAGE_BASE || '').replace(/\/$/, '');
   const wantB64 = reqBody.response_format === 'b64_json';
   const originalPrompt = String(reqBody.prompt ?? reqBody.input ?? '');
 
-  const data = [];
-  let firstFormat;
-  let firstSize;
-  for (const item of responsesData.output || []) {
-    if (
-      item?.type === 'image_generation_call' &&
-      typeof item.result === 'string' &&
-      item.result.length > 100
-    ) {
-      if (!firstFormat) firstFormat = item.output_format;
-      if (!firstSize) firstSize = item.size;
-      const entry = {};
-      if (wantB64) {
-        entry.b64_json = item.result;
-      } else {
-        const ext = inferExt(item.output_format, item.result);
-        const key = await uploadToR2(item.result, ext, env);
-        entry.url = imageBase
-          ? `${imageBase}/${key}`
-          : `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${item.result}`;
-      }
-      const revised =
-        (typeof item.revised_prompt === 'string' && item.revised_prompt) ||
-        extractMessageText(responsesData) ||
-        originalPrompt;
-      if (revised) entry.revised_prompt = revised;
-      data.push(entry);
-    }
-  }
+  const { data, firstFormat, firstSize } = await buildImagesDataFromResponses(
+    responsesData,
+    { wantB64, originalPrompt },
+    env
+  );
 
   const out = {
     created: Math.floor(Date.now() / 1000),
@@ -819,7 +833,7 @@ async function handleImagesGenerations(request, env) {
 // upstream, then re-shapes the response back into the classic Images-API
 // envelope.
 
-async function handleImagesEdits(request, env) {
+async function handleImagesEdits(request, env, ctx) {
   let formData;
   try {
     formData = await request.formData();
@@ -920,39 +934,14 @@ async function handleImagesEdits(request, env) {
   }
 
   const responsesData = await upstreamResp.json();
-  const imageBase = (env.IMAGE_BASE || '').replace(/\/$/, '');
   const wantB64 = responseFormat === 'b64_json';
   const originalPrompt = String(prompt);
 
-  const data = [];
-  let firstFormat;
-  let firstSize;
-  for (const item of responsesData.output || []) {
-    if (
-      item?.type === 'image_generation_call' &&
-      typeof item.result === 'string' &&
-      item.result.length > 100
-    ) {
-      if (!firstFormat) firstFormat = item.output_format;
-      if (!firstSize) firstSize = item.size;
-      const entry = {};
-      if (wantB64) {
-        entry.b64_json = item.result;
-      } else {
-        const ext = inferExt(item.output_format, item.result);
-        const key = await uploadToR2(item.result, ext, env);
-        entry.url = imageBase
-          ? `${imageBase}/${key}`
-          : `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${item.result}`;
-      }
-      const revised =
-        (typeof item.revised_prompt === 'string' && item.revised_prompt) ||
-        extractMessageText(responsesData) ||
-        originalPrompt;
-      if (revised) entry.revised_prompt = revised;
-      data.push(entry);
-    }
-  }
+  const { data, firstFormat, firstSize } = await buildImagesDataFromResponses(
+    responsesData,
+    { wantB64, originalPrompt },
+    env
+  );
 
   const out = {
     created: Math.floor(Date.now() / 1000),

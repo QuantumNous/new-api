@@ -560,6 +560,25 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
+	// Image edits/generations: upstream model can take 60-120s. Flush response
+	// headers + a single whitespace byte BEFORE reading the body so the CF
+	// edge in front of this gateway sees TTFB within its 100s window. JSON
+	// parsers ignore leading whitespace, so the eventual envelope still parses
+	// cleanly on the client.
+	earlyFlushed := false
+	if c.Writer != nil && resp != nil && resp.StatusCode == http.StatusOK {
+		for k, v := range resp.Header {
+			if k == "Content-Length" || k == "Transfer-Encoding" {
+				continue
+			}
+			c.Writer.Header().Set(k, v[0])
+		}
+		c.Writer.WriteHeader(resp.StatusCode)
+		_, _ = c.Writer.Write([]byte(" "))
+		c.Writer.Flush()
+		earlyFlushed = true
+	}
+
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
@@ -571,8 +590,13 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
+	if earlyFlushed {
+		// Headers + leading byte already on the wire; stream the body.
+		_, _ = c.Writer.Write(responseBody)
+		c.Writer.Flush()
+	} else {
+		service.IOCopyBytesGracefully(c, resp, responseBody)
+	}
 
 	// Once we've written to the client, we should not return errors anymore
 	// because the upstream has already consumed resources and returned content
