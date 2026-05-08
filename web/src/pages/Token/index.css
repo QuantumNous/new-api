@@ -301,10 +301,10 @@
   color: #ffffff !important;
 }
 
-.token-toolbar-button.semi-button {
+/* .token-toolbar-button.semi-button {
   border-color: rgba(226, 232, 240, 0.95) !important;
   background: rgba(255, 255, 255, 0.9) !important;
-}
+} */
 
 .token-toolbar-danger.semi-button {
   box-shadow: none;
