@@ -1061,3 +1061,63 @@ status: boundary_confirmed
 ### 下一步最小任务
 
 阶段 4 后端实现：新增管理员只读查询接口，复用 `common.PageInfo` 分页和 GORM 主库查询，仅支持最小过滤字段，不修改返利 service、消费挂接或 model 结构。
+
+## 阶段 4 后端实现记录
+
+任务名：阶段 4 后端：邀请返利流水管理员只读查询接口
+status: completed
+
+### 本子步骤实际修改文件
+
+- `controller/invitation_rebate.go`
+- `router/api-router.go`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 新增管理员只读查询 handler：`GetAllInvitationRebateRecords`。
+- 新增管理员路由：`GET /api/user/invitation_rebate`，挂在 `AdminAuth()` 保护的 `adminRoute` 下。
+- 查询主库 `model.DB` 中的 `InvitationRebateRecord`，不依赖 `LOG_DB`。
+- 支持分页：复用 `common.GetPageQuery(c)`、`common.PageInfo`、`common.ApiSuccess`。
+- 支持最小过滤：`inviter_user_id`、`invitee_user_id`、`source_type`、`source_key`、`status`。
+- 默认排序：`created_at desc, id desc`。
+- 第一版不 join `users`，只返回返利记录表已有 user_id 字段。
+
+### 本子步骤未修改范围
+
+- 未修改消费挂接逻辑。
+- 未修改返利 service。
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改异步任务 / Midjourney。
+- 未修改 model 结构或 migration。
+- 未修改 option / setting 结构。
+- 未修改依赖文件。
+
+### 本子步骤验证命令
+
+- `gofmt -w controller/invitation_rebate.go router/api-router.go`
+- `git status --short`
+- `git diff --stat`
+- `git diff`
+- `go test ./controller/...`
+- `go test ./model/...`
+- `git diff --cached --stat`
+- `git diff --cached`
+
+### 本子步骤自审查结果
+
+通过；后端 staged diff 仅包含 `.ai/TASK.md`、`controller/invitation_rebate.go`、`router/api-router.go`。接口只读查询主库返利记录，使用管理员权限路由；没有修改消费挂接逻辑、返利 service、充值链路、注册 / OAuth、异步任务 / Midjourney、model 结构、migration、option / setting 结构、依赖文件或任何 token / secret / sk- key / bearer token。
+
+### 本子步骤验证结果
+
+- `go test ./controller/...` 通过。
+- `go test ./model/...` 通过。
+
+### commit hash
+
+- 阶段 4 后端实现 commit：提交后由最终响应记录。
+
+### 下一步最小任务
+
+阶段 4 前端实现：在系统设置 Billing 页面新增邀请返利流水只读表格，接入该管理员查询接口，补齐六语言 i18n，并执行前端最小验证。
