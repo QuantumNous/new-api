@@ -188,10 +188,9 @@ func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string,
 
 func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*ModelStatItem, total int64, err error) {
 	groupCol := CommonGroupColumnName()
-	selectGroup := fmt.Sprintf("u.%s as user_group", groupCol)
 
 	tx := DB.Table("quota_data q").
-		Select("q.model_name as model_name, "+selectGroup+", sum(q.count) as count, sum(q.token_used) as token_used, sum(q.quota) as quota").
+		Select("q.model_name as model_name, sum(q.count) as count, sum(q.token_used) as token_used, sum(q.quota) as quota").
 		Joins("LEFT JOIN users u ON u.id = q.user_id").
 		Where("q.created_at >= ? and q.created_at <= ?", startTime, endTime)
 
@@ -206,12 +205,12 @@ func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string
 	}
 
 	countTx := tx.Session(&gorm.Session{})
-	err = countTx.Group("q.model_name, " + groupCol).Count(&total).Error
+	err = countTx.Group("q.model_name").Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	err = tx.Group("q.model_name, " + groupCol).
+	err = tx.Group("q.model_name").
 		Order("sum(q.count) desc, sum(q.token_used) desc, sum(q.quota) desc").
 		Limit(pageSize).Offset((page - 1) * pageSize).
 		Find(&items).Error
