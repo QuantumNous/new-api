@@ -558,3 +558,79 @@ status: implementation_verified_with_scope_note
 ### 下一阶段建议
 
 阶段 3B：后台配置页面最小接入，仅展示和编辑 `InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota`；不改消费逻辑、不改返利 service、不新增复杂流水页面。
+
+## 阶段 3B 只读审查记录
+
+任务名：阶段 3B：确认邀请返利后台配置接入边界
+
+status: review_completed
+
+### 本阶段模式
+
+- 启用阶段内自治执行与多 agent 只读审查。
+- 已启动 4 个只读 subagents：A 后台配置 API 审查、B 前端系统设置结构审查、C i18n 与文案审查、D 前端验证策略审查。
+- 所有 subagents 均未修改文件、未执行 `.agents/skills`、未连接真实 New API 实例、未输出 token / secret / sk- key / bearer token。
+
+### Subagent A：后台配置 API 审查结论
+
+- `InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota` 已在 `common/constants.go` 和 `model/option.go` 注册。
+- `controller.GetOptions` 通过现有 `/api/option/` 返回 `common.OptionMap`，三个 key 不属于敏感 key 过滤范围。
+- `controller.UpdateOption` 通过现有 `/api/option/` 统一写入 option；`model.updateOptionMap` 已支持这三个 key。
+- `InvitationRebateRatioBps` 已在后端钳制到 `0..10000`，`InvitationRebateMinQuota` 已将负数归零。
+- 结论：本阶段不需要新增后端 API，不需要修改后端 option 白名单或 key 列表。
+
+### Subagent B：前端系统设置结构审查结论
+
+- 邀请消费返利配置适合放在 Billing 设置页，因其属于实际消费结算后的奖励策略。
+- 建议新增独立 `Invitation Rebate` section，避免和 `Quota Settings` 中的注册邀请奖励 `QuotaForInviter` / `QuotaForInvitee` 混淆。
+- 复用 `SettingsSection`、系统设置表单组件、`Switch`、`Input type="number"`、`Button`、`useSettingsForm`、`useUpdateOption`、`FormDirtyIndicator`、`FormNavigationGuard`。
+- 最小前端修改点为 `BillingSettings` 类型、billing 默认值、billing section registry、新增邀请返利设置组件。
+- `api.ts` 不需要修改。
+
+### Subagent C：i18n 与文案审查结论
+
+- 新增 UI 文案必须继续使用 `useTranslation()` 和 `t('English key')`。
+- 需要在 `en`、`zh`、`fr`、`ja`、`ru`、`vi` 六个 locale 中补齐同一批 key。
+- 本阶段不执行 `i18n-translate` skill，不执行会产生额外写入的 skill 命令。
+- 可手动最小补齐 locale；若不执行 `bun run i18n:sync`，需人工确认六个 locale key 一致。
+- 文案必须说明返利基于实际消费而非充值，`10000 bps = 100%`，`1000 bps = 10%`。
+
+### Subagent D：前端验证策略审查结论
+
+- `web/default/package.json` 提供 `typecheck`、`lint`、`build`、`build:check` 脚本。
+- 最小验证建议为 `bun run typecheck`、`bun run lint`、`bun run build`；如需合并类型检查和构建可用 `bun run build:check`，但仍需单独 lint。
+- 若当前环境缺少 Bun 或 `web/default/node_modules`，不得自行安装依赖，必须记录阻塞。
+- 若本阶段只改前端系统设置页和 i18n，不需要执行后端测试。
+
+### 进入实现判断
+
+- 现有 option 接口可读写三个邀请返利 key：确认。
+- 前端设置页有明确最小接入点：确认，新增 Billing 下独立 `Invitation Rebate` section。
+- 不需要修改消费挂接逻辑：确认。
+- 不需要修改返利 service：确认。
+- 不需要修改 model / migration：确认。
+- 不需要修改充值、注册、OAuth：确认。
+- 不需要执行 `.agents/skills` 命令：确认。
+- 有最小构建或类型验证方案：确认，但需以本地 Bun / 依赖可用性为准。
+
+结论：允许进入阶段 3B 最小实现。
+
+### 阶段 3B 审查验证命令
+
+- `git status --short`
+- `git diff -- .ai/TASK.md`
+- `git add .ai/TASK.md`
+- `git diff --cached --stat`
+- `git diff --cached`
+
+### 阶段 3B 审查自审查结果
+
+通过；本子步骤只修改 `.ai/TASK.md`，没有 Go 代码、前端业务代码、消费挂接逻辑、返利 service、充值链路、注册 / OAuth、异步任务、Midjourney、model / migration、依赖或密钥变更。
+
+### commit hash
+
+提交创建后由最终响应记录。
+
+### 下一子步骤
+
+阶段 3B 最小实现：在 Billing 设置页新增独立邀请消费返利配置 section，展示并编辑 `InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota`，手动补齐六语言 locale；不修改后端、消费挂接逻辑、返利 service、充值、注册 / OAuth、model / migration 或依赖。
