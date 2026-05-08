@@ -1332,7 +1332,7 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-header-subtitle {
-  max-width: 560px;
+  max-width: 600px;
   margin: 14px 0 0;
   color: var(--app-text-secondary);
   font-size: 16px;

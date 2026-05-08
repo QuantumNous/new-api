@@ -23,7 +23,6 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 
 import DashboardHeader from './DashboardHeader';
-import DashboardPromoBanner from './DashboardPromoBanner';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
 import ApiInfoPanel from './ApiInfoPanel';
@@ -181,11 +180,6 @@ const Dashboard = () => {
         getTrendSpec={getTrendSpec}
         CARD_PROPS={CARD_PROPS}
         CHART_CONFIG={CHART_CONFIG}
-      />
-
-      <DashboardPromoBanner
-        navigate={dashboardData.navigate}
-        t={dashboardData.t}
       />
 
       {/* API信息和图表面板 */}
