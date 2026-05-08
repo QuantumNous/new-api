@@ -1008,3 +1008,56 @@ status: completed
 ### 下一阶段建议
 
 阶段 4 前置：只读确认返利记录查询与后台展示的最小入口，先设计接口、权限、分页、过滤字段和 i18n 文案，不直接扩大到复杂用户详情或财务报表。
+
+## 阶段 4 边界审查记录
+
+任务名：阶段 4：邀请返利流水查询与后台展示边界确认
+status: boundary_confirmed
+
+### 本阶段目标
+
+- 只实现邀请消费返利记录的最小只读查询与后台展示。
+- 不做返利补发、手动修改、删除、导出或多级邀请。
+- 不修改消费挂接逻辑、返利 service、充值链路、注册 / OAuth、异步任务 / Midjourney、model 结构、migration、option / setting 结构或依赖。
+
+### 多 agent 只读审查结论
+
+- Subagent A（后端接口与权限审查，真实 subagent）：建议新增 `controller/invitation_rebate.go`，接口放在管理员查询边界内；路由使用 `middleware.AdminAuth()`，不使用 `RootAuth()`；最小路径建议为 `GET /api/user/invitation_rebate`；只开放管理员查询，不开放普通用户查询。
+- Subagent B（查询模型与分页审查，真实 subagent）：建议第一版不 join `users`，只返回 `inviter_user_id` / `invitee_user_id` 等返利记录本表字段；过滤字段使用 `inviter_user_id`、`invitee_user_id`、`source_type`、`source_key`、`status`；分页复用 `common.GetPageQuery(c)` 和 `common.PageInfo`；查询主库 `model.DB`，不依赖 `LOG_DB`；使用 GORM `Where` / `Count` / `Order` / `Limit` / `Offset` / `Find`，保持 SQLite / MySQL / PostgreSQL 兼容。
+- Subagent C（前端展示入口审查，主流程模拟）：返利流水适合放在后台系统设置的 Billing 页面，与已有 `Invitation Rebate` 配置相邻；第一版新增同页 section，不新增独立菜单或复杂路由；最小字段为 ID、邀请人 ID、被邀请人 ID、来源类型、来源 key、请求 ID、消费 quota、返利 quota、返利比例 bps、状态、创建时间；最小筛选为邀请人 ID、被邀请人 ID、source_key、status，可额外支持 source_type；可以先做只读表格，不做详情页。
+- Subagent D（验证与测试审查，主流程模拟）：后端有 Go 改动时执行 `gofmt` 和对应包最小 `go test`；前端执行 `bun run typecheck`、`bun run build`、`bun run lint`、locale JSON/key 检查和 `git diff --check`；已知 `bun run lint` 可能仍因非本轮既有文件失败，若失败必须做路径归因，本轮文件无交集时记录为既有 lint 债务豁免。
+
+### 进入实现条件确认
+
+- 查询接口权限边界明确：管理员权限，使用 `AdminAuth()`。
+- 查询只读，只读取 `invitation_rebate_records`，不修改返利记录。
+- 不需要修改消费挂接逻辑。
+- 不需要修改返利 service。
+- 不需要修改 model 结构或 migration。
+- 不需要修改充值、注册、OAuth、异步任务或 Midjourney。
+- 分页和返回结构可复用现有 `common.PageInfo` / `common.ApiSuccess` 风格。
+- 前端展示入口明确：系统设置 Billing 页面内的只读 section。
+- 验证方案明确：后端最小 Go 测试、前端 typecheck/build/lint 及 locale 检查。
+- 不需要新增依赖，不执行 `.agents/skills` 命令。
+
+结论：允许进入阶段 4 最小实现。
+
+### 本轮验证命令
+
+- `git status --short`
+- `git diff -- .ai/TASK.md`
+- `git add .ai/TASK.md`
+- `git diff --cached --stat`
+- `git diff --cached`
+
+### 本轮自审查结果
+
+通过；staged diff 仅包含 `.ai/TASK.md` 的阶段 4 边界审查记录。没有 Go 业务代码、前端代码、数据库迁移、model 结构、option / setting、依赖文件、消费挂接逻辑、返利 service、充值链路、注册 / OAuth、异步任务 / Midjourney 或密钥变更。
+
+### commit hash
+
+- 阶段 4 边界文档 commit：提交后由最终响应记录。
+
+### 下一步最小任务
+
+阶段 4 后端实现：新增管理员只读查询接口，复用 `common.PageInfo` 分页和 GORM 主库查询，仅支持最小过滤字段，不修改返利 service、消费挂接或 model 结构。
