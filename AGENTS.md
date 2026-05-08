@@ -135,3 +135,22 @@ For request structs that are parsed from client JSON and then re-marshaled to up
 ### Rule 7: Billing Expression System — Read `pkg/billingexpr/expr.md`
 
 When working on tiered/dynamic billing (expression-based pricing), you MUST read `pkg/billingexpr/expr.md` first. It documents the design philosophy, expression language (variables, functions, examples), full system architecture (editor → storage → pre-consume → settlement → log display), token normalization rules (`p`/`c` auto-exclusion), quota conversion, and expression versioning. All code changes to the billing expression system must follow the patterns described in that document.
+
+## AI Workflow Overlay
+
+- Each AI coding round must first read `AGENTS.md`, `.ai/PROJECT.md`, and `.ai/TASK.md`.
+- Only the first unfinished task in `.ai/TASK.md` may be executed.
+- After code or documentation changes, `.ai/TASK.md` must be updated with the result, verification commands, and next minimal task.
+- Every coding round that changes code must perform a self-review before completion.
+- Every round that changes files must update `.ai/TASK.md` with changed files, verification commands, self-review result, and next minimal task.
+- After successful self-review and verification, create a git commit with a Chinese commit message.
+- Failed verification must not be marked as completed.
+- If verification fails, do not commit and do not mark the task completed.
+- The final response must include the commit hash when a commit is created.
+- Avoid unrelated refactors, full-file formatting, and broad replacements.
+- Codex may read `.agents/skills` documentation for local guidance.
+- Do not invoke skills or commands that connect to external services unless explicitly authorized.
+- Do not create, modify, copy, inject, or display tokens by default.
+- Do not output plaintext secrets, access tokens, `sk-` keys, or bearer tokens.
+- Skills that can write local files, install components, update translations, modify configs, connect to registries, MCP servers, or real New API instances require explicit user authorization.
+- Invitation rebate development does not depend on `.agents/skills` by default.
