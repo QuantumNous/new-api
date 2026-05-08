@@ -304,18 +304,19 @@ const (
 
 // Distributor related messages
 const (
-	MsgDistributorInvalidRequest      = "distributor.invalid_request"
-	MsgDistributorInvalidChannelId    = "distributor.invalid_channel_id"
-	MsgDistributorChannelDisabled     = "distributor.channel_disabled"
-	MsgDistributorTokenNoModelAccess  = "distributor.token_no_model_access"
-	MsgDistributorTokenModelForbidden = "distributor.token_model_forbidden"
-	MsgDistributorModelNameRequired   = "distributor.model_name_required"
-	MsgDistributorInvalidPlayground   = "distributor.invalid_playground_request"
-	MsgDistributorGroupAccessDenied   = "distributor.group_access_denied"
-	MsgDistributorGetChannelFailed    = "distributor.get_channel_failed"
-	MsgDistributorNoAvailableChannel  = "distributor.no_available_channel"
-	MsgDistributorInvalidMidjourney   = "distributor.invalid_midjourney_request"
-	MsgDistributorInvalidParseModel   = "distributor.invalid_request_parse_model"
+	MsgDistributorInvalidRequest          = "distributor.invalid_request"
+	MsgDistributorInvalidChannelId        = "distributor.invalid_channel_id"
+	MsgDistributorChannelDisabled         = "distributor.channel_disabled"
+	MsgDistributorAffinityChannelDisabled = "distributor.affinity_channel_disabled"
+	MsgDistributorTokenNoModelAccess      = "distributor.token_no_model_access"
+	MsgDistributorTokenModelForbidden     = "distributor.token_model_forbidden"
+	MsgDistributorModelNameRequired       = "distributor.model_name_required"
+	MsgDistributorInvalidPlayground       = "distributor.invalid_playground_request"
+	MsgDistributorGroupAccessDenied       = "distributor.group_access_denied"
+	MsgDistributorGetChannelFailed        = "distributor.get_channel_failed"
+	MsgDistributorNoAvailableChannel      = "distributor.no_available_channel"
+	MsgDistributorInvalidMidjourney       = "distributor.invalid_midjourney_request"
+	MsgDistributorInvalidParseModel       = "distributor.invalid_request_parse_model"
 )
 
 // Custom OAuth provider related messages
