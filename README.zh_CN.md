@@ -474,3 +474,131 @@ docker run --name new-api -d --restart always \
 <sub>Built with ❤️ by QuantumNous</sub>
 
 </div>
+
+🛠️ 编译命令
+根据 makefile，正确的编译流程是：
+方式一：使用 Makefile（推荐）
+bash
+# 编译所有前端 + 启动后端
+make all
+
+# 或者分步执行：
+
+# 1. 编译 Default 主题前端
+make build-frontend
+
+# 2. 编译 Classic 主题前端
+make build-frontend-classic
+
+# 3. 编译两个前端
+make build-all-frontends
+
+# 4. 启动后端
+make start-backend
+方式二：手动编译
+bash
+# 1. 编译 Default 主题
+cd web/default
+bun install
+DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat ../../VERSION) bun run build
+cd ../..
+
+# 2. 编译 Classic 主题
+cd web/classic
+bun install
+VITE_REACT_APP_VERSION=$(cat ../../VERSION) bun run build
+cd ../..
+
+# 3. 编译 Go 后端（会自动嵌入两个前端）
+go build -o new-api main.go
+方式三：开发模式
+bash
+# 启动 Default 主题前端开发服务器
+make dev-web
+
+# 启动 Classic 主题前端开发服务器
+make dev-web-classic
+
+# 启动后端 API（需要 Docker）
+make dev-api
+
+
+如果没有make，那么完整编译流程
+powershell
+# 1. 编译 Default 主题前端
+cd web\default
+bun install
+$env:DISABLE_ESLINT_PLUGIN='true'
+$version = Get-Content ..\..\VERSION
+$env:VITE_REACT_APP_VERSION = $version
+bun run build
+cd ..\..
+
+# 2. 编译 Classic 主题前端
+cd web\classic
+bun install
+$version = Get-Content ..\..\VERSION
+$env:VITE_REACT_APP_VERSION = $version
+bun run build
+cd ..\..
+
+# 3. 编译 Go 后端
+go build -o new-api.exe main.go
+
+# 4. 运行程序
+.\new-api.exe
+
+
+
+简化版脚本
+创建一个 build.ps1 文件：
+```
+powershell
+# build.ps1 - 一键编译脚本
+
+Write-Host "=== 开始编译 New API ===" -ForegroundColor Cyan
+
+# 获取版本号
+$VERSION = Get-Content VERSION
+
+# 编译 Default 主题
+Write-Host "`n[1/3] 编译 Default 主题前端..." -ForegroundColor Yellow
+Set-Location web\default
+bun install
+$env:DISABLE_ESLINT_PLUGIN = 'true'
+$env:VITE_REACT_APP_VERSION = $VERSION
+bun run build
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Default 主题编译失败！" -ForegroundColor Red
+    exit 1
+}
+Set-Location ..\..
+
+# 编译 Classic 主题
+Write-Host "`n[2/3] 编译 Classic 主题前端..." -ForegroundColor Yellow
+Set-Location web\classic
+bun install
+$env:VITE_REACT_APP_VERSION = $VERSION
+bun run build
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Classic 主题编译失败！" -ForegroundColor Red
+    exit 1
+}
+Set-Location ..\..
+
+# 编译后端
+Write-Host "`n[3/3] 编译 Go 后端..." -ForegroundColor Yellow
+go build -o new-api.exe main.go
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "后端编译失败！" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "`n✅ 编译完成！可执行文件: new-api.exe" -ForegroundColor Green
+```
+
+使用方法：
+```
+powershell
+.\build.ps1
+```
