@@ -935,6 +935,11 @@ export const renderGroupOption = (item) => {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    boxSizing: 'border-box',
     padding: '8px 16px',
     cursor: disabled ? 'not-allowed' : 'pointer',
     backgroundColor: focused ? 'var(--semi-color-fill-0)' : 'transparent',
@@ -965,11 +970,29 @@ export const renderGroupOption = (item) => {
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <Typography.Text strong type={disabled ? 'tertiary' : undefined}>
+      <div
+        style={{
+          display: 'flex',
+          flex: 1,
+          minWidth: 0,
+          flexDirection: 'column',
+          gap: '4px',
+        }}
+      >
+        <Typography.Text
+          strong
+          type={disabled ? 'tertiary' : undefined}
+          ellipsis={{ showTooltip: true }}
+          style={{ maxWidth: '100%' }}
+        >
           {value}
         </Typography.Text>
-        <Typography.Text type='secondary' size='small'>
+        <Typography.Text
+          type='secondary'
+          size='small'
+          ellipsis={{ showTooltip: true, rows: 2 }}
+          style={{ maxWidth: '100%', lineHeight: '18px' }}
+        >
           {label}
         </Typography.Text>
       </div>
