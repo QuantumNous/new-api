@@ -3914,6 +3914,10 @@
     "Cookie 政策": "Cookie Policy",
     "企业级 AI API 网关，统一接入 GPT-5、Claude、Gemini 等 50+ 模型。": "Enterprise-grade AI API gateway with unified access to 50+ models including GPT-5, Claude, and Gemini.",
     "保留所有权利。": "All rights reserved.",
-    "所有系统正常运行": "All systems operational"
+    "所有系统正常运行": "All systems operational",
+    "重置密码": "Reset Password",
+    "输入邮箱后，我们会向你发送密码重置链接。": "Enter your email and we'll send you a password reset link.",
+    "确认重置": "Confirm Reset",
+    "确认后系统会重新生成密码，并复制到剪贴板。": "After confirmation, the system will generate a new password and copy it to your clipboard."
   }
 }

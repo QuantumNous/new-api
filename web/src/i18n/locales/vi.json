@@ -4312,6 +4312,10 @@
     "Cookie 政策": "Chính sách cookie",
     "企业级 AI API 网关，统一接入 GPT-5、Claude、Gemini 等 50+ 模型。": "Cổng AI API cấp doanh nghiệp với truy cập thống nhất tới hơn 50 mô hình như GPT-5, Claude và Gemini.",
     "保留所有权利。": "Bảo lưu mọi quyền.",
-    "所有系统正常运行": "Tất cả hệ thống đang hoạt động bình thường"
+    "所有系统正常运行": "Tất cả hệ thống đang hoạt động bình thường",
+    "重置密码": "Đặt lại mật khẩu",
+    "输入邮箱后，我们会向你发送密码重置链接。": "Nhập email của bạn, chúng tôi sẽ gửi liên kết đặt lại mật khẩu.",
+    "确认重置": "Xác nhận đặt lại",
+    "确认后系统会重新生成密码，并复制到剪贴板。": "Sau khi xác nhận, hệ thống sẽ tạo mật khẩu mới và sao chép vào bảng nhớ tạm."
   }
 }
