@@ -240,6 +240,70 @@ export function ImageWorkbench() {
   }
 
   const resultImages = images.length > 0 ? images : history.slice(0, 2)
+  const imageContent = (() => {
+    if (isGenerating) {
+      return (
+        <div className='bg-muted/30 flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed'>
+          <Loader2 className='text-muted-foreground animate-spin' />
+          <p className='text-muted-foreground text-sm'>
+            {t('Generating image...')}
+          </p>
+        </div>
+      )
+    }
+
+    if (resultImages.length === 0) {
+      return (
+        <div className='bg-muted/30 flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed'>
+          <ImageIcon className='text-muted-foreground' />
+          <p className='text-muted-foreground text-sm'>
+            {t('Your generated images will appear here.')}
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div className='grid gap-4 xl:grid-cols-2'>
+        {resultImages.map((image) => (
+          <div
+            key={image.id}
+            className='group bg-card overflow-hidden rounded-lg border'
+          >
+            <div className='bg-muted aspect-square overflow-hidden'>
+              <img
+                src={image.src}
+                alt={image.prompt}
+                className='size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]'
+              />
+            </div>
+            <div className='flex flex-col gap-3 p-3'>
+              <div className='flex flex-wrap items-center gap-2'>
+                <Badge variant='secondary'>{image.model}</Badge>
+                <Badge variant='outline'>{image.size}</Badge>
+                <Badge variant='outline'>{image.quality}</Badge>
+              </div>
+              <p className='line-clamp-2 text-sm'>{image.prompt}</p>
+              {image.revisedPrompt && (
+                <p className='text-muted-foreground line-clamp-2 text-xs'>
+                  {image.revisedPrompt}
+                </p>
+              )}
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => downloadImage(image)}
+              >
+                <Download data-icon='inline-start' />
+                {t('Download')}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  })()
 
   return (
     <div className='bg-background flex size-full min-h-0 flex-col overflow-hidden'>
@@ -466,62 +530,7 @@ export function ImageWorkbench() {
                 )}
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {isGenerating ? (
-                <div className='bg-muted/30 flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed'>
-                  <Loader2 className='text-muted-foreground animate-spin' />
-                  <p className='text-muted-foreground text-sm'>
-                    {t('Generating image...')}
-                  </p>
-                </div>
-              ) : resultImages.length === 0 ? (
-                <div className='bg-muted/30 flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed'>
-                  <ImageIcon className='text-muted-foreground' />
-                  <p className='text-muted-foreground text-sm'>
-                    {t('Your generated images will appear here.')}
-                  </p>
-                </div>
-              ) : (
-                <div className='grid gap-4 xl:grid-cols-2'>
-                  {resultImages.map((image) => (
-                    <div
-                      key={image.id}
-                      className='group bg-card overflow-hidden rounded-lg border'
-                    >
-                      <div className='bg-muted aspect-square overflow-hidden'>
-                        <img
-                          src={image.src}
-                          alt={image.prompt}
-                          className='size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]'
-                        />
-                      </div>
-                      <div className='flex flex-col gap-3 p-3'>
-                        <div className='flex flex-wrap items-center gap-2'>
-                          <Badge variant='secondary'>{image.model}</Badge>
-                          <Badge variant='outline'>{image.size}</Badge>
-                          <Badge variant='outline'>{image.quality}</Badge>
-                        </div>
-                        <p className='line-clamp-2 text-sm'>{image.prompt}</p>
-                        {image.revisedPrompt && (
-                          <p className='text-muted-foreground line-clamp-2 text-xs'>
-                            {image.revisedPrompt}
-                          </p>
-                        )}
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={() => downloadImage(image)}
-                        >
-                          <Download data-icon='inline-start' />
-                          {t('Download')}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
+            <CardContent>{imageContent}</CardContent>
           </Card>
 
           {history.length > 0 && (
