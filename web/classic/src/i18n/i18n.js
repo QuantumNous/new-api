@@ -34,6 +34,7 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
+    lng: 'en',
     load: 'currentOnly',
     supportedLngs: supportedLanguages,
     resources: {
@@ -45,7 +46,7 @@ i18n
       ja: jaTranslation,
       vi: viTranslation,
     },
-    fallbackLng: 'zh-CN',
+    fallbackLng: 'en',
     nsSeparator: false,
     interpolation: {
       escapeValue: false,
