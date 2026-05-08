@@ -319,6 +319,31 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 	return "openai"
 }
 
+const invitationRebateSourceTypeSyncRelayRequest = "sync_relay_request"
+
+func grantInvitationRebateAfterSyncConsume(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, sourceQuota int) {
+	if relayInfo == nil || sourceQuota <= 0 {
+		return
+	}
+
+	sourceKey := relayInfo.RequestId
+	if sourceKey == "" {
+		logger.LogWarn(ctx, fmt.Sprintf("skip invitation rebate: empty request id, inviteeUserId=%d, sourceQuota=%d", relayInfo.UserId, sourceQuota))
+		return
+	}
+
+	_, err := TryGrantInvitationRebate(ctx, InvitationRebateInput{
+		InviteeUserId:   relayInfo.UserId,
+		SourceType:      invitationRebateSourceTypeSyncRelayRequest,
+		SourceKey:       sourceKey,
+		SourceRequestId: sourceKey,
+		SourceQuota:     sourceQuota,
+	})
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("invitation rebate failed: inviteeUserId=%d, requestId=%s, sourceQuota=%d: %s", relayInfo.UserId, sourceKey, sourceQuota, err.Error()))
+	}
+}
+
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
 	originUsage := usage
 	if usage == nil {
@@ -372,6 +397,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
+	} else {
+		grantInvitationRebateAfterSyncConsume(ctx, relayInfo, summary.Quota)
 	}
 
 	logModel := summary.ModelName

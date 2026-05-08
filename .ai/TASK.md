@@ -483,3 +483,78 @@ status: completed
 ### 下一子步骤
 
 条件阶段 3A：在 `PostTextConsumeQuota`、`PostAudioConsumeQuota`、`PostWssConsumeQuota` 的 `SettleBilling` 成功之后最小挂接 `TryGrantInvitationRebate`，并新增定向测试；仍不接入异步任务、Midjourney、充值、注册 / OAuth 或前端。
+
+## 条件阶段 3A 实现记录
+
+任务名：条件阶段 3A：挂接同步消费邀请返利触发
+
+status: implementation_verified_with_scope_note
+
+### 本阶段实际修改文件
+
+- `service/text_quota.go`
+- `service/quota.go`
+- `service/invitation_rebate_test.go`
+- `.ai/TASK.md`
+
+### 实际挂接点
+
+- `service.PostTextConsumeQuota`：最终 quota 计算完成且 `SettleBilling(ctx, relayInfo, summary.Quota)` 成功返回后调用。
+- `service.PostAudioConsumeQuota`：最终 quota 计算完成且 `SettleBilling(ctx, relayInfo, quota)` 成功返回后调用。
+- `service.PostWssConsumeQuota`：最终 quota 计算完成且 `SettleBilling(ctx, relayInfo, quota)` 成功返回后调用。
+- 未在 `SettleBilling` 内部挂接，避免异步任务复用路径被误接入。
+
+### 挂接行为说明
+
+- 新增同步挂接 helper：`grantInvitationRebateAfterSyncConsume`。
+- `SourceType` 使用稳定字符串常量 `sync_relay_request`。
+- `SourceKey` / `SourceRequestID` 使用 `relayInfo.RequestId`。
+- `SourceQuota` 使用 `SettleBilling` 成功后的实际结算 quota。
+- `relayInfo == nil`、`sourceQuota <= 0` 或 `relayInfo.RequestId == ""` 时跳过；空 request id 不生成伪 key。
+- `TryGrantInvitationRebate` 返回 skipped 或 `already_granted` 时不影响主流程。
+- `TryGrantInvitationRebate` 返回 error 时只通过 `logger.LogError` 记录，不向上传播，不回滚消费，不改变响应结构。
+
+### 本阶段未接入范围
+
+- 未接入异步任务链路。
+- 未接入 Midjourney。
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改前端。
+- 未修改 model / migration / option / setting 结构。
+- 未修改依赖。
+
+### 测试覆盖说明
+
+- 新增 `TestGrantInvitationRebateAfterSyncConsumeEmptyRequestIdSkips`：确认 `source_key` 为空不触发返利。
+- 新增 `TestGrantInvitationRebateAfterSyncConsumeDuplicateRequestIdGrantsOnce`：确认同步成功后同一 request id 重复调用只返利一次。
+- 新增 `TestGrantInvitationRebateAfterSyncConsumeErrorIsIsolated`：确认返利 service 异常时挂接 helper 不 panic、不向上传播。
+- 保留并通过阶段 2A 的 `TestTryGrantInvitationRebate*` 定向测试。
+
+### 本阶段验证命令
+
+- `gofmt -w service/text_quota.go service/quota.go service/invitation_rebate_test.go`
+- `git status --short`
+- `git diff --stat`
+- `git diff`
+- `go test ./service -run 'TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume' -count=1`
+- `go test ./service -run TestTryGrantInvitationRebate -count=1`
+- `go test ./service/...`
+
+### 验证结果
+
+- 邀请返利定向测试通过。
+- `go test ./service/...` 仍未通过，失败点仍为既有 `service/channel_affinity_usage_cache_test.go` 的 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode` 与 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`；该问题已在阶段 2A 记录，本阶段未修改该范围。
+
+### 本阶段自审查结果
+
+通过；staged diff 仅包含同步消费后置挂接、邀请返利定向测试和 `.ai/TASK.md` 记录；没有修改异步任务链路、Midjourney、充值、注册 / OAuth、前端、model / migration / config 结构、依赖或响应结构；没有在预扣、失败、refund、rollback、负 quota 返还路径触发返利；返利失败不影响主消费；`source_key` 为空不触发返利；未写入 token / secret / sk- key / bearer token。
+
+### commit hash
+
+- 阶段 2B 文档 commit：`deb6edff6e9254cb9e66fd96a5f4721715addf24`
+- 条件阶段 3A 实现 commit：提交创建后由最终响应记录。
+
+### 下一阶段建议
+
+阶段 3B：后台配置页面最小接入，仅展示和编辑 `InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota`；不改消费逻辑、不改返利 service、不新增复杂流水页面。

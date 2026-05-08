@@ -3,11 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -268,4 +271,74 @@ func TestTryGrantInvitationRebateConcurrentDuplicateIsIdempotent(t *testing.T) {
 	inviter := getInvitationRebateUser(t, 1)
 	require.Equal(t, 10, inviter.AffQuota)
 	require.Equal(t, 10, inviter.AffHistoryQuota)
+}
+
+func newInvitationRebateGinContext() *gin.Context {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	return ctx
+}
+
+func TestGrantInvitationRebateAfterSyncConsumeEmptyRequestIdSkips(t *testing.T) {
+	setupInvitationRebateTest(t)
+	enableInvitationRebate(1000, 0)
+	seedInvitationRebateUser(t, 1, 0, 5, 7)
+	seedInvitationRebateUser(t, 2, 1, 0, 0)
+
+	grantInvitationRebateAfterSyncConsume(newInvitationRebateGinContext(), &relaycommon.RelayInfo{
+		UserId:    2,
+		RequestId: "",
+	}, 100)
+
+	require.Equal(t, int64(0), countInvitationRebateRecords(t))
+	inviter := getInvitationRebateUser(t, 1)
+	require.Equal(t, 5, inviter.AffQuota)
+	require.Equal(t, 7, inviter.AffHistoryQuota)
+}
+
+func TestGrantInvitationRebateAfterSyncConsumeDuplicateRequestIdGrantsOnce(t *testing.T) {
+	setupInvitationRebateTest(t)
+	enableInvitationRebate(1000, 0)
+	seedInvitationRebateUser(t, 1, 0, 5, 7)
+	seedInvitationRebateUser(t, 2, 1, 0, 0)
+	ctx := newInvitationRebateGinContext()
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:    2,
+		RequestId: "req_sync_hook",
+	}
+
+	grantInvitationRebateAfterSyncConsume(ctx, relayInfo, 100)
+	grantInvitationRebateAfterSyncConsume(ctx, relayInfo, 100)
+
+	require.Equal(t, int64(1), countInvitationRebateRecords(t))
+	inviter := getInvitationRebateUser(t, 1)
+	require.Equal(t, 15, inviter.AffQuota)
+	require.Equal(t, 17, inviter.AffHistoryQuota)
+	var record model.InvitationRebateRecord
+	require.NoError(t, model.DB.Where("source_type = ? AND source_key = ?", invitationRebateSourceTypeSyncRelayRequest, "req_sync_hook").First(&record).Error)
+	require.Equal(t, 100, record.SourceQuota)
+	require.Equal(t, 10, record.RebateQuota)
+}
+
+func TestGrantInvitationRebateAfterSyncConsumeErrorIsIsolated(t *testing.T) {
+	oldDB := model.DB
+	oldEnabled := common.InvitationRebateEnabled
+	oldRatioBps := common.InvitationRebateRatioBps
+	oldMinQuota := common.InvitationRebateMinQuota
+	t.Cleanup(func() {
+		model.DB = oldDB
+		common.InvitationRebateEnabled = oldEnabled
+		common.InvitationRebateRatioBps = oldRatioBps
+		common.InvitationRebateMinQuota = oldMinQuota
+	})
+	enableInvitationRebate(1000, 0)
+	model.DB = nil
+
+	require.NotPanics(t, func() {
+		grantInvitationRebateAfterSyncConsume(newInvitationRebateGinContext(), &relaycommon.RelayInfo{
+			UserId:    2,
+			RequestId: "req_rebate_error_isolated",
+		}, 100)
+	})
 }
