@@ -79,28 +79,28 @@ const HomePage = () => {
   const stats = [
     {
       value: '99.9%',
-      label: '可用性 SLA',
+      label: t('可用性 SLA'),
       icon: Shield,
       color: 'from-emerald-400 to-emerald-600',
       bgColor: 'bg-emerald-100',
     },
     {
       value: '<100ms',
-      label: '平均延迟',
+      label: t('平均延迟'),
       icon: Zap,
       color: 'from-amber-400 to-amber-600',
       bgColor: 'bg-amber-100',
     },
     {
       value: '50+',
-      label: 'AI 模型',
+      label: t('AI 模型'),
       icon: Cpu,
       color: 'from-violet-400 to-violet-600',
       bgColor: 'bg-violet-100',
     },
     {
       value: '5min',
-      label: '迁移时间',
+      label: t('迁移时间'),
       icon: Globe,
       color: 'from-rose-400 to-rose-600',
       bgColor: 'bg-rose-100',
@@ -109,26 +109,26 @@ const HomePage = () => {
 
   const features = [
     {
-      title: '智能路由',
-      description: '自动负载均衡与故障转移，确保高可用，延迟最低化',
+      title: t('智能路由'),
+      description: t('自动负载均衡与故障转移，确保高可用，延迟最低化'),
       icon: Workflow,
       gradient: 'from-amber-500 to-orange-500',
     },
     {
-      title: '安全可靠',
-      description: 'Cloudflare WAF 防护，API Key 加密，多层安全机制',
+      title: t('安全可靠'),
+      description: t('Cloudflare WAF 防护，API Key 加密，多层安全机制'),
       icon: Shield,
       gradient: 'from-emerald-500 to-teal-500',
     },
     {
-      title: '实时监控',
-      description: 'Prometheus 指标收集，Grafana 可视化，告警即时通知',
+      title: t('实时监控'),
+      description: t('Prometheus 指标收集，Grafana 可视化，告警即时通知'),
       icon: BarChart3,
       gradient: 'from-violet-500 to-purple-500',
     },
     {
-      title: '全球加速',
-      description: 'Cloudflare CDN 全球节点，就近接入，极速响应',
+      title: t('全球加速'),
+      description: t('Cloudflare CDN 全球节点，就近接入，极速响应'),
       icon: Globe2,
       gradient: 'from-rose-500 to-pink-500',
     },
@@ -140,89 +140,95 @@ const HomePage = () => {
       category: 'OpenAI',
       icon: MessageSquare,
       color: 'from-green-400 to-emerald-500',
-      desc: '最强对话模型',
+      desc: t('最强对话模型'),
     },
     {
       name: 'Claude 4.5',
       category: 'Anthropic',
       icon: Sparkles,
       color: 'from-orange-400 to-amber-500',
-      desc: '超长上下文',
+      desc: t('超长上下文'),
     },
     {
       name: 'Gemini 2.5',
       category: 'Google',
       icon: Cpu,
       color: 'from-blue-400 to-indigo-500',
-      desc: '多模态王者',
+      desc: t('多模态王者'),
     },
     {
       name: 'Sora 2',
       category: 'OpenAI',
       icon: Video,
       color: 'from-pink-400 to-rose-500',
-      desc: '视频生成',
+      desc: t('视频生成'),
     },
     {
       name: 'VEO 3',
       category: 'Google',
       icon: Video,
       color: 'from-cyan-400 to-blue-500',
-      desc: '高清视频',
+      desc: t('高清视频'),
     },
     {
       name: 'DALL-E 3',
       category: 'OpenAI',
       icon: ImageIcon,
       color: 'from-purple-400 to-violet-500',
-      desc: '图像生成',
+      desc: t('图像生成'),
     },
     {
       name: 'Stable Diffusion',
       category: 'Stability',
       icon: ImageIcon,
       color: 'from-indigo-400 to-purple-500',
-      desc: '开源绘图',
+      desc: t('开源绘图'),
     },
     {
       name: 'Midjourney',
       category: 'Midjourney',
       icon: ImageIcon,
       color: 'from-fuchsia-400 to-pink-500',
-      desc: '艺术创作',
+      desc: t('艺术创作'),
     },
   ];
 
   const faqs = [
     {
-      question: '如何从 OpenAI 迁移到 Z-UP?',
-      answer:
+      question: t('如何从 OpenAI 迁移到 Z-UP?'),
+      answer: t(
         '只需将 Base URL 改为 https://api.z-up.app/v1，保留现有 OpenAI SDK 代码，5 分钟即可完成迁移。',
+      ),
     },
     {
-      question: 'Z-UP 支持哪些 AI 模型?',
-      answer:
+      question: t('Z-UP 支持哪些 AI 模型?'),
+      answer: t(
         '支持 GPT-5、Claude Sonnet 4.5、Gemini 2.5、Sora2、VEO3 等 50+ 模型，一个 API 统一接入。',
+      ),
     },
     {
-      question: 'SLA 和价格如何?',
-      answer:
+      question: t('SLA 和价格如何?'),
+      answer: t(
         '99.9% SLA 保障，智能路由与自动故障转移。按 Token 计费，无订阅费，比官方更实惠，企业享批量折扣。',
+      ),
     },
     {
-      question: '如何保证数据安全?',
-      answer:
+      question: t('如何保证数据安全?'),
+      answer: t(
         '采用端到端加密，数据不存储，请求日志 7 天自动清除，符合 GDPR 和 SOC2 标准。',
+      ),
     },
     {
-      question: '支持哪些编程语言?',
-      answer:
+      question: t('支持哪些编程语言?'),
+      answer: t(
         '支持 Python、Node.js/TypeScript、Go、Java、Ruby、PHP 等所有主流语言，以及任何 HTTP client。',
+      ),
     },
     {
-      question: '支持图像和视频生成吗?',
-      answer:
+      question: t('支持图像和视频生成吗?'),
+      answer: t(
         '支持 DALL-E 3、Midjourney、Stable Diffusion 等图像生成，以及 Sora、VEO 等视频生成模型。',
+      ),
     },
   ];
 
@@ -242,105 +248,113 @@ response = client.chat.completions.create(
 
   const plans = [
     {
-      name: '免费版',
-      description: '适合个人尝试和学习',
+      name: t('免费版'),
+      description: t('适合个人尝试和学习'),
       price: '$0',
-      period: '永久免费',
+      period: t('永久免费'),
       features: [
-        '每月 $1 免费额度',
-        '支持所有开放模型',
-        'OpenAI 兼容 API',
-        '基础技术支持',
-        '社区文档访问',
+        t('每月 $1 免费额度'),
+        t('支持所有开放模型'),
+        t('OpenAI 兼容 API'),
+        t('基础技术支持'),
+        t('社区文档访问'),
       ],
-      cta: '免费开始',
+      cta: t('免费开始'),
       popular: false,
     },
     {
-      name: '专业版',
-      description: '适合开发者和小团队',
-      price: '按量付费',
-      period: '充值即用',
+      name: t('专业版'),
+      description: t('适合开发者和小团队'),
+      price: t('按量付费'),
+      period: t('充值即用'),
       features: [
-        '无月费，按实际使用计费',
-        '所有模型无限制',
-        '高优先级请求队列',
-        '更低的模型倍率',
-        '邮件技术支持',
-        '详细使用分析',
+        t('无月费，按实际使用计费'),
+        t('所有模型无限制'),
+        t('高优先级请求队列'),
+        t('更低的模型倍率'),
+        t('邮件技术支持'),
+        t('详细使用分析'),
       ],
-      cta: '立即充值',
+      cta: t('立即充值'),
       popular: true,
     },
     {
-      name: '企业版',
-      description: '适合大规模商业应用',
-      price: '定制',
-      period: '联系我们',
+      name: t('企业版'),
+      description: t('适合大规模商业应用'),
+      price: t('定制'),
+      period: t('联系我们'),
       features: [
-        '专属客户经理',
-        '自定义 SLA 保障',
-        '专用高可用通道',
-        '私有化部署支持',
-        'API 优先访问权',
-        '发票与合同支持',
+        t('专属客户经理'),
+        t('自定义 SLA 保障'),
+        t('专用高可用通道'),
+        t('私有化部署支持'),
+        t('API 优先访问权'),
+        t('发票与合同支持'),
       ],
-      cta: '联系销售',
+      cta: t('联系销售'),
       popular: false,
     },
   ];
 
   const imageModels = [
-    { model: 'gpt-4o-image', price: '$0.006', unit: 'per image' },
+    { model: 'gpt-4o-image', price: '$0.006', unit: t('每张图片') },
     {
       model: 'gemini-2.5-flash-image-preview',
       price: '$0.015',
-      unit: 'per image',
+      unit: t('每张图片'),
     },
     {
       model: 'gemini-3.1-flash-image-preview',
       price: '$0.015',
-      unit: 'per image',
+      unit: t('每张图片'),
     },
-    { model: 'doubao-seedance-4-0', price: '$0.0175', unit: 'per image' },
-    { model: 'doubao-seedance-4-5', price: '$0.0325', unit: 'per image' },
-    { model: 'gemini-3-pro-image-preview', price: '$0.12', unit: 'per image' },
+    { model: 'doubao-seedance-4-0', price: '$0.0175', unit: t('每张图片') },
+    { model: 'doubao-seedance-4-5', price: '$0.0325', unit: t('每张图片') },
+    {
+      model: 'gemini-3-pro-image-preview',
+      price: '$0.12',
+      unit: t('每张图片'),
+    },
   ];
 
   const videoModels = [
-    { model: 'sora-2', price: '$0.1', unit: 'per video' },
-    { model: 'sora-2-vip', price: '$0.1', unit: 'per video' },
-    { model: 'veo3.1-fast', price: '$0.1', unit: 'per video' },
-    { model: 'veo3.1-quality', price: '$0.8', unit: 'per video' },
-    { model: 'MiniMax-Hailuo-02', price: '$0.8', unit: 'per video' },
+    { model: 'sora-2', price: '$0.1', unit: t('每个视频') },
+    { model: 'sora-2-vip', price: '$0.1', unit: t('每个视频') },
+    { model: 'veo3.1-fast', price: '$0.1', unit: t('每个视频') },
+    { model: 'veo3.1-quality', price: '$0.8', unit: t('每个视频') },
+    { model: 'MiniMax-Hailuo-02', price: '$0.8', unit: t('每个视频') },
     {
       model: 'doubao-seedance-1-0-pro-quality',
       price: '$0.8',
-      unit: 'per video',
+      unit: t('每个视频'),
     },
-    { model: 'doubao-seedance-1-0-pro-fast', price: '$0.9', unit: 'per video' },
-    { model: 'wan2.6', price: '$0.9', unit: 'per video' },
-    { model: 'sora-2-pro', price: '$1', unit: 'per video' },
+    {
+      model: 'doubao-seedance-1-0-pro-fast',
+      price: '$0.9',
+      unit: t('每个视频'),
+    },
+    { model: 'wan2.6', price: '$0.9', unit: t('每个视频') },
+    { model: 'sora-2-pro', price: '$1', unit: t('每个视频') },
   ];
 
   const priceFeatures = [
     {
-      title: '99.9% 高可用',
-      description: '智能路由与自动故障转移，确保您的业务永不中断',
+      title: t('99.9% 高可用'),
+      description: t('智能路由与自动故障转移，确保您的业务永不中断'),
       icon: Shield,
       color: 'bg-emerald-100',
       iconColor: 'text-emerald-600',
     },
     {
-      title: '全球加速',
-      description: 'Cloudflare 全球 CDN 节点，就近接入，极速响应',
+      title: t('全球加速'),
+      description: t('Cloudflare 全球 CDN 节点，就近接入，极速响应'),
       icon: Zap,
       color: 'bg-amber-100',
       iconColor: 'text-amber-600',
     },
     {
-      title: '实时监控',
-      description: '详细的使用统计和成本分析，帮您优化支出',
+      title: t('实时监控'),
+      description: t('详细的使用统计和成本分析，帮您优化支出'),
       icon: BarChart3,
       color: 'bg-violet-100',
       iconColor: 'text-violet-600',
@@ -349,12 +363,12 @@ response = client.chat.completions.create(
 
   const columns = [
     {
-      title: '模型',
+      title: t('模型'),
       dataIndex: 'model',
       render: (text) => <code className='text-sm text-slate-700'>{text}</code>,
     },
     {
-      title: '价格',
+      title: t('价格'),
       dataIndex: 'price',
       render: (text) => (
         <span className='font-semibold text-black'>{text}</span>
@@ -389,7 +403,7 @@ response = client.chat.completions.create(
             >
               <span className='home-badge inline-flex items-center gap-2 px-4 py-2 text-sm font-medium'>
                 <Sparkles className='h-4 w-4 text-amber-500' />
-                支持 GPT-5、Claude 4.5、Gemini 2.5
+                {t('支持 GPT-5、Claude 4.5、Gemini 2.5')}
               </span>
             </motion.div>
 
@@ -409,7 +423,7 @@ response = client.chat.completions.create(
                 </>
               </h1>
               <span className='home-hero-title-secondary text-4xl font-light sm:text-5xl lg:text-6xl'>
-                接入全球顶尖模型
+                {t('接入全球顶尖模型')}
               </span>
             </motion.h1>
 
@@ -428,8 +442,9 @@ response = client.chat.completions.create(
               transition={{ duration: 0.6, delay: 0.3 }}
               className='home-hero-description mx-auto mb-10 max-w-2xl text-lg'
             >
-              只需修改 Base URL，即可接入 50+ AI 模型。无需改代码，5
-              分钟完成迁移。
+              {t(
+                '只需修改 Base URL，即可接入 50+ AI 模型。无需改代码，5 分钟完成迁移。',
+              )}
             </motion.p>
 
             <motion.div
@@ -440,13 +455,13 @@ response = client.chat.completions.create(
             >
               <button className='home-button home-button-primary group relative overflow-hidden px-8 py-4 text-base font-semibold'>
                 <span className='relative z-10 flex items-center gap-2'>
-                  进入控制台
+                  {t('进入控制台')}
                   <ArrowRight className='h-4 w-4 transition-transform group-hover:translate-x-1' />
                 </span>
               </button>
               <button className='home-button home-button-secondary group px-8 py-4 text-base font-semibold'>
                 <span className='flex items-center gap-2'>
-                  查看文档
+                  {t('查看文档')}
                   <ArrowRight className='h-4 w-4 transition-transform group-hover:translate-x-1' />
                 </span>
               </button>
@@ -493,13 +508,15 @@ response = client.chat.completions.create(
           >
             <span className='home-badge mb-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium'>
               <Layers className='h-4 w-4' />
-              支持的模型
+              {t('支持的模型')}
             </span>
             <h2 className='home-section-title mb-4 text-4xl font-bold sm:text-5xl'>
-              一个 API，接入所有大模型
+              {t('一个 API，接入所有大模型')}
             </h2>
             <p className='home-section-description mx-auto max-w-2xl text-lg'>
-              无需管理多个 API Key，统一接口调用 GPT、Claude、Gemini 等 50+ 模型
+              {t(
+                '无需管理多个 API Key，统一接口调用 GPT、Claude、Gemini 等 50+ 模型',
+              )}
             </p>
           </motion.div>
 
@@ -627,13 +644,13 @@ response = client.chat.completions.create(
           >
             <span className='home-badge home-badge-dark mb-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium'>
               <ZapIcon className='h-4 w-4' />
-              核心特性
+              {t('核心特性')}
             </span>
             <h2 className='home-section-title home-section-title-dark mb-4 text-4xl font-bold sm:text-5xl'>
-              企业级基础设施
+              {t('企业级基础设施')}
             </h2>
             <p className='home-section-description home-section-description-dark mx-auto max-w-2xl text-lg'>
-              为高可用、高性能的 AI 应用打造
+              {t('为高可用、高性能的 AI 应用打造')}
             </p>
           </motion.div>
 
@@ -677,13 +694,15 @@ response = client.chat.completions.create(
             >
               <span className='home-badge mb-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium'>
                 <Code2 className='h-4 w-4' />
-                极简集成
+                {t('极简集成')}
               </span>
               <h2 className='home-section-title mb-6 text-4xl font-bold'>
-                一行代码即可迁移
+                {t('一行代码即可迁移')}
               </h2>
               <p className='home-section-description mb-8 text-lg'>
-                完全兼容 OpenAI SDK，只需修改 base_url，无需改动任何业务代码。
+                {t(
+                  '完全兼容 OpenAI SDK，只需修改 base_url，无需改动任何业务代码。',
+                )}
               </p>
               <ul className='home-language-list space-y-4'>
                 {[
@@ -776,15 +795,17 @@ response = client.chat.completions.create(
             className='home-section-head mb-16 text-center'
           >
             <span className='home-badge mb-6 inline-flex items-center rounded-full px-3 py-1 text-sm font-medium'>
-              透明定价，按量付费
+              {t('透明定价，按量付费')}
             </span>
             <h1 className='home-section-title mb-4 text-4xl font-bold sm:text-5xl'>
-              简单透明的
+              {t('简单透明的')}
               <br />
-              API 定价
+              {t('API 定价')}
             </h1>
             <p className='home-section-description mx-auto max-w-2xl'>
-              无隐藏费用，无月度订阅。按实际使用量付费，与官方价格持平或更低。
+              {t(
+                '无隐藏费用，无月度订阅。按实际使用量付费，与官方价格持平或更低。',
+              )}
             </p>
           </motion.div>
 
@@ -800,7 +821,7 @@ response = client.chat.completions.create(
                   {plan.popular && (
                     <div className='absolute -top-3 left-1/2 z-20 -translate-x-1/2'>
                       <span className='home-plan-popular inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold text-white shadow-md'>
-                        最受欢迎
+                        {t('最受欢迎')}
                       </span>
                     </div>
                   )}
@@ -864,13 +885,13 @@ response = client.chat.completions.create(
             className='home-section-head mb-12 text-center'
           >
             <span className='home-badge mb-4 inline-flex items-center rounded-full px-3 py-1 text-sm font-medium'>
-              Pricing
+              {t('价格概览')}
             </span>
             <h2 className='home-section-title mb-4 text-3xl font-bold'>
-              模型价格一览
+              {t('模型价格一览')}
             </h2>
             <p className='home-section-description'>
-              以下价格为参考价格，实际价格可能因用户组和促销活动有所不同
+              {t('以下价格为参考价格，实际价格可能因用户组和促销活动有所不同')}
             </p>
           </motion.div>
 
@@ -881,7 +902,7 @@ response = client.chat.completions.create(
               onChange={setActiveTab}
               className='home-pricing-tabs mb-6'
             >
-              <Tabs.TabPane tab='Image Generation' itemKey='image'>
+              <Tabs.TabPane tab={t('图像生成')} itemKey='image'>
                 <Table
                   dataSource={imageModels}
                   columns={columns}
@@ -889,7 +910,7 @@ response = client.chat.completions.create(
                   className='home-pricing-table border-0'
                 />
               </Tabs.TabPane>
-              <Tabs.TabPane tab='Video Generation' itemKey='video'>
+              <Tabs.TabPane tab={t('视频生成')} itemKey='video'>
                 <Table
                   dataSource={videoModels}
                   columns={columns}
@@ -901,7 +922,7 @@ response = client.chat.completions.create(
           </Card>
 
           <p className='home-pricing-note mt-6 text-center text-sm'>
-            * 价格可能随官方调整而变化，以实际计费为准
+            {t('* 价格可能随官方调整而变化，以实际计费为准')}
           </p>
         </div>
       </section>
@@ -916,7 +937,7 @@ response = client.chat.completions.create(
             className='home-section-head mb-12 text-center'
           >
             <h2 className='home-section-title text-3xl font-bold'>
-              为什么选择 Z-UP
+              {t('为什么选择 Z-UP')}
             </h2>
           </motion.div>
 
@@ -958,10 +979,10 @@ response = client.chat.completions.create(
           >
             <span className='home-badge mb-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium'>
               <MessageSquare className='h-4 w-4' />
-              常见问题
+              {t('常见问题')}
             </span>
             <h2 className='home-section-title text-4xl font-bold'>
-              还有疑问？
+              {t('还有疑问？')}
             </h2>
           </motion.div>
 
@@ -1007,16 +1028,16 @@ response = client.chat.completions.create(
             className='home-cta-content relative z-10'
           >
             <h2 className='home-cta-title mb-6 text-5xl font-bold'>
-              准备好开始了吗？
+              {t('准备好开始了吗？')}
             </h2>
             <p className='home-cta-description mb-10 text-xl'>
-              免费注册，即刻获得 $1 体验额度。无需绑定信用卡。
+              {t('免费注册，即刻获得 $1 体验额度。无需绑定信用卡。')}
             </p>
             <div className='flex flex-wrap items-center justify-center gap-4'>
               <Link to='/pricing'>
                 <button className='home-button home-button-primary group px-8 py-4 text-base font-semibold'>
                   <span className='flex items-center gap-2'>
-                    免费开始
+                    {t('免费开始')}
                     <ArrowRight className='h-4 w-4 transition-transform group-hover:translate-x-1' />
                   </span>
                 </button>
@@ -1024,7 +1045,7 @@ response = client.chat.completions.create(
               <button className='home-button home-button-secondary group px-8 py-4 text-base font-semibold'>
                 <span className='flex items-center gap-2'>
                   <Terminal className='h-4 w-4' />
-                  查看文档
+                  {t('查看文档')}
                 </span>
               </button>
             </div>

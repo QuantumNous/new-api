@@ -1,33 +1,35 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { getLogo } from '../../helpers';
+import { useTranslation } from 'react-i18next';
 import './Footer.css';
 
 const Footer = () => {
+  const { t } = useTranslation();
   const logo = getLogo();
   const footerLinks = {
     product: {
-      title: '产品',
+      title: t('产品'),
       links: [
-        { label: 'API 文档', href: '#' },
-        { label: '定价方案', href: '#/pricing' },
-        { label: '模型广场', href: '#' },
+        { label: t('API 文档'), href: '#' },
+        { label: t('定价方案'), href: '#/pricing' },
+        { label: t('模型广场'), href: '#' },
       ],
     },
     company: {
-      title: '公司',
+      title: t('公司'),
       links: [
-        { label: '关于我们', href: '#' },
-        { label: '博客', href: '#' },
-        { label: '联系我们', href: '#' },
+        { label: t('关于我们'), href: '#' },
+        { label: t('博客'), href: '#' },
+        { label: t('联系我们'), href: '#' },
       ],
     },
     legal: {
-      title: '法律',
+      title: t('法律'),
       links: [
-        { label: '隐私政策', href: '#' },
-        { label: '服务条款', href: '#' },
-        { label: 'Cookie 政策', href: '#' },
+        { label: t('隐私政策'), href: '#' },
+        { label: t('服务条款'), href: '#' },
+        { label: t('Cookie 政策'), href: '#' },
       ],
     },
   };
@@ -50,7 +52,9 @@ const Footer = () => {
                 </span>
               </Link>
               <p className='site-footer-brand-copy text-sm'>
-                企业级 AI API 网关，统一接入 GPT-5、Claude、Gemini 等 50+ 模型。
+                {t(
+                  '企业级 AI API 网关，统一接入 GPT-5、Claude、Gemini 等 50+ 模型。',
+                )}
               </p>
             </div>
 
@@ -74,11 +78,11 @@ const Footer = () => {
 
           <div className='site-footer-bottom mt-12 flex items-center justify-between pt-8'>
             <p className='site-footer-copyright text-sm'>
-              &copy; 2026 Z-UP API. 保留所有权利。
+              &copy; 2026 Z-UP API. {t('保留所有权利。')}
             </p>
             <div className='site-footer-status flex items-center gap-2 text-sm'>
               <span className='site-footer-status-dot flex h-2 w-2 rounded-full'></span>
-              所有系统正常运行
+              {t('所有系统正常运行')}
             </div>
           </div>
         </div>
