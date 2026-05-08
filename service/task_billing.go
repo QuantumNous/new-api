@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
@@ -181,6 +182,74 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	})
 }
 
+func adjustFundingTx(tx *gorm.DB, task *model.Task, delta int, updatedAt int64) error {
+	if delta == 0 {
+		return nil
+	}
+	if taskIsSubscription(task) {
+		var sub model.UserSubscription
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", task.PrivateData.SubscriptionId).
+			First(&sub).Error; err != nil {
+			return err
+		}
+		newUsed := sub.AmountUsed + int64(delta)
+		if newUsed < 0 {
+			newUsed = 0
+		}
+		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+		}
+		return tx.Model(&model.UserSubscription{}).
+			Where("id = ?", task.PrivateData.SubscriptionId).
+			Updates(map[string]any{"amount_used": newUsed, "updated_at": updatedAt}).Error
+	}
+	if delta > 0 {
+		return tx.Model(&model.User{}).
+			Where("id = ?", task.UserId).
+			Update("quota", gorm.Expr("quota - ?", delta)).Error
+	}
+	return tx.Model(&model.User{}).
+		Where("id = ?", task.UserId).
+		Update("quota", gorm.Expr("quota + ?", -delta)).Error
+}
+
+func settleTaskQuotaInTransaction(task *model.Task, actualQuota int, quotaDelta int, updatedAt int64) error {
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		persistResult := tx.Model(&model.Task{}).
+			Where("id = ?", task.ID).
+			Updates(map[string]any{"quota": actualQuota, "updated_at": updatedAt})
+		if persistResult.Error != nil {
+			return persistResult.Error
+		}
+		if persistResult.RowsAffected == 0 {
+			return fmt.Errorf("persist quota matched 0 rows (id=%d)", task.ID)
+		}
+
+		if err := adjustFundingTx(tx, task, quotaDelta, updatedAt); err != nil {
+			return err
+		}
+		if quotaDelta > 0 {
+			// NOTE: settle deliberately bypasses common.BatchUpdateEnabled.
+			// Async task settlement is low-frequency and these usage counters
+			// must commit atomically with tasks.quota and wallet/subscription
+			// accounting; routing through batch helpers would defer the writes
+			// and break that guarantee.
+			if err := tx.Model(&model.User{}).Where("id = ?", task.UserId).
+				Update("used_quota", gorm.Expr("used_quota + ?", quotaDelta)).Error; err != nil {
+				return err
+			}
+			if task.ChannelId > 0 {
+				if err := tx.Model(&model.Channel{}).Where("id = ?", task.ChannelId).
+					Update("used_quota", gorm.Expr("used_quota + ?", quotaDelta)).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
+
 // RecalculateTaskQuota 通用的异步差额结算。
 // actualQuota 是任务完成后的实际应扣额度，与预扣额度 (task.Quota) 做差额结算。
 // reason 用于日志记录（例如 "token重算" 或 "adaptor调整"）。
@@ -205,33 +274,18 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		reason,
 	))
 
-	// 调整资金来源
-	if err := taskAdjustFunding(task, quotaDelta); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("差额结算资金调整失败 task %s: %s", task.TaskID, err.Error()))
-		return
-	}
-
-	// 调整令牌额度
-	taskAdjustTokenQuota(ctx, task, quotaDelta)
-
-	task.Quota = actualQuota
-
-	var logType int
-	var logQuota int
+	updatedAt := common.GetTimestamp()
+	logType := model.LogTypeRefund
+	logQuota := -quotaDelta
 	if quotaDelta > 0 {
 		logType = model.LogTypeConsume
 		logQuota = quotaDelta
-		model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quotaDelta)
-		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
-	} else {
-		logType = model.LogTypeRefund
-		logQuota = -quotaDelta
 	}
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
-	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+	logParams := model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   logType,
 		Content:   reason,
@@ -241,7 +295,33 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		TokenId:   task.PrivateData.TokenId,
 		Group:     task.Group,
 		Other:     other,
-	})
+	}
+
+	// Persist the task row, funding adjustment, and usage stats in one DB
+	// transaction. Billing logs intentionally stay best-effort (matching
+	// model.RecordTaskBillingLog) and are written only after the accounting
+	// transaction commits, so a transient log-table issue cannot block
+	// refunds/settles.
+	if err := settleTaskQuotaInTransaction(task, actualQuota, quotaDelta, updatedAt); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("RecalculateTaskQuota: settle transaction failed for task %s, aborting settle: %s", task.TaskID, err.Error()))
+		return
+	}
+	model.RecordTaskBillingLog(logParams)
+	if !taskIsSubscription(task) {
+		// Wallet settlements update users.quota through the transaction instead
+		// of model.Increase/DecreaseUserQuota, so invalidate the Redis user cache
+		// after commit to avoid serving a stale quota value.
+		if err := model.InvalidateUserCache(task.UserId); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("RecalculateTaskQuota: invalidate user cache failed for task %s: %s", task.TaskID, err.Error()))
+		}
+	}
+
+	task.Quota = actualQuota
+	task.UpdatedAt = updatedAt
+
+	// Token quota/cache adjustment stays best-effort and outside the DB
+	// transaction because token cache updates are intentionally asynchronous.
+	taskAdjustTokenQuota(ctx, task, quotaDelta)
 }
 
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。
@@ -249,7 +329,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 // 与预扣费的差额进行补扣或退还。支持钱包和订阅计费来源。
 //
 // 注意：tiered_expr 模型的结算由 adaptor.AdjustBillingOnComplete 处理
-// （在 task_polling.go:settleTaskBillingOnComplete 中优先调用），
+// （在 task_polling.go:SettleTaskBillingOnComplete 中优先调用），
 // 此函数仅作为倍率计费路径的回退。
 func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTokens int) {
 	if totalTokens <= 0 {

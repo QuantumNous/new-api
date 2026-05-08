@@ -156,6 +156,58 @@ func TestAdjustBillingOnComplete_ParamResolution(t *testing.T) {
 	}
 }
 
+// TestAdjustBillingOnComplete_CallbackPath_FlagsCarryResolution verifies that
+// TieredVolcFlags.Resolution/Duration/ServiceTier are used when task.Data only
+// contains {"id":...} (callback-enabled deployments where the Volc fetch
+// response is never stored).
+func TestAdjustBillingOnComplete_CallbackPath_FlagsCarryResolution(t *testing.T) {
+	exprStr := `param("resolution") == "1080p" ? tier("hd", c * 20) : tier("sd", c * 10)`
+	snap := buildSnapshot(exprStr, 500.0, 1.0)
+	flags := &model.TieredVolcFlags{
+		Resolution:  "1080p",
+		Duration:    5,
+		ServiceTier: "default",
+	}
+	// task.Data is the raw submit response — only contains {"id":...}, no
+	// resolution / duration / service_tier. Without flags fallback the
+	// settle would silently pick the "sd" tier.
+	task := buildTask(snap, flags, `{"id":"task_xyz"}`)
+	taskResult := &relaycommon.TaskInfo{CompletionTokens: 243_000}
+
+	a := &TaskAdaptor{}
+	got := a.AdjustBillingOnComplete(task, taskResult)
+
+	// Should hit the "hd" tier because flags.Resolution == "1080p".
+	wantQuota := 2430 // 4_860_000 / 1e6 * 500 = 2430
+	if got != wantQuota {
+		t.Errorf("callback path (flags resolution) = %d, want %d (settle picked the wrong tier)", got, wantQuota)
+	}
+}
+
+// TestAdjustBillingOnComplete_FlagsTakePriorityOverTaskData verifies that
+// when both sources have a value, the submit-time flags win. This covers the
+// case where Volc's fetch response defaults a field to something different
+// from what the user actually submitted (e.g. the user submitted with no
+// service_tier, Volc filled in "default", but we want to bill against the
+// submitted value).
+func TestAdjustBillingOnComplete_FlagsTakePriorityOverTaskData(t *testing.T) {
+	exprStr := `param("service_tier") == "flex" ? tier("flex", c * 5) : tier("default", c * 10)`
+	snap := buildSnapshot(exprStr, 500.0, 1.0)
+	flags := &model.TieredVolcFlags{ServiceTier: "flex"}
+	// task.Data says "default" — flags should override.
+	task := buildTask(snap, flags, `{"resolution":"720p","duration":5,"service_tier":"default"}`)
+	taskResult := &relaycommon.TaskInfo{CompletionTokens: 100_000}
+
+	a := &TaskAdaptor{}
+	got := a.AdjustBillingOnComplete(task, taskResult)
+
+	// flex tier: 100_000 * 5 / 1e6 * 500 = 250
+	wantQuota := 250
+	if got != wantQuota {
+		t.Errorf("flags should take priority over task.Data: got=%d, want=%d", got, wantQuota)
+	}
+}
+
 // TestAdjustBillingOnComplete_WithVolcFlags verifies that TieredVolcFlags
 // (generate_audio, draft, has_video_input) are accessible via param() in the expression.
 //

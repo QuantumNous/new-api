@@ -116,12 +116,14 @@ func (a *TaskAdaptor) EstimateBillingTokens(c *gin.Context, info *relaycommon.Re
 
 // AdjustBillingOnComplete implements tiered_expr settlement for Volc tasks.
 //
-// It is called by task_polling.go:settleTaskBillingOnComplete BEFORE the
+// It is called by task_polling.go:SettleTaskBillingOnComplete BEFORE the
 // ratio-based RecalculateTaskQuotaByTokens fallback. Returning a positive
 // value causes the caller to use that quota and skip the fallback.
 //
 // When BillingContext has a TieredSnapshot + TieredVolcFlags, this method:
-//  1. Reads resolution/duration/service_tier from task.Data (Volc fetch response)
+//  1. Reads resolution/duration/service_tier from TieredVolcFlags first
+//     (captured at submit time), falling back to task.Data (Volc fetch
+//     response) only when flags are absent
 //  2. Reads generate_audio/draft/has_video_input from TieredVolcFlags
 //  3. Synthesizes a minimal request body JSON for param() lookups
 //  4. Re-runs the billing expression with actual completion tokens
@@ -173,8 +175,12 @@ type volcFetchResponse struct {
 	ServiceTier string `json:"service_tier"`
 }
 
-// buildSynthesizedBody constructs a minimal JSON body for param() lookups
-// from task.Data (Volc fetch response) and TieredVolcFlags.
+// buildSynthesizedBody constructs a minimal JSON body for param() lookups.
+// Source priority for resolution/duration/service_tier:
+//  1. TieredVolcFlags (captured at submit time — works on callback-enabled
+//     deployments where task.Data is just {"id":...})
+//  2. Volc fetch response in task.Data (polling deployments — covers values
+//     the user didn't supply explicitly but Volc filled in, e.g. defaults)
 func buildSynthesizedBody(task *model.Task, bc *model.TaskBillingContext) ([]byte, error) {
 	// Parse the Volc fetch response from task.Data
 	var fetchResp volcFetchResponse
@@ -182,21 +188,28 @@ func buildSynthesizedBody(task *model.Task, bc *model.TaskBillingContext) ([]byt
 		_ = json.Unmarshal(task.Data, &fetchResp) // best-effort, ignore error
 	}
 
-	// Build synthesized body map
+	// Build synthesized body map. Flags first; task.Data fills only the gaps.
 	body := map[string]interface{}{}
+	flags := bc.TieredVolcFlags
 
-	if fetchResp.Resolution != "" {
+	if flags != nil && flags.Resolution != "" {
+		body["resolution"] = flags.Resolution
+	} else if fetchResp.Resolution != "" {
 		body["resolution"] = fetchResp.Resolution
 	}
-	if fetchResp.Duration > 0 {
+	if flags != nil && flags.Duration > 0 {
+		body["duration"] = flags.Duration
+	} else if fetchResp.Duration > 0 {
 		body["duration"] = fetchResp.Duration
 	}
-	if fetchResp.ServiceTier != "" {
+	if flags != nil && flags.ServiceTier != "" {
+		body["service_tier"] = flags.ServiceTier
+	} else if fetchResp.ServiceTier != "" {
 		body["service_tier"] = fetchResp.ServiceTier
 	}
 
 	// Apply Volc-specific flags captured at submit time
-	if flags := bc.TieredVolcFlags; flags != nil {
+	if flags != nil {
 		if flags.GenerateAudio != nil {
 			body["generate_audio"] = *flags.GenerateAudio
 		}

@@ -1,11 +1,15 @@
 package controller
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -628,16 +632,19 @@ func RelayTask(c *gin.Context) {
 	}
 }
 
-// extractVolcFlags parses the 3 Volc-specific billing flags from a raw request
-// body JSON. Used at task submission time to snapshot the flags that are needed
-// for billing expression settlement but are not available in the Volc fetch response.
+// extractVolcFlags parses Volc-specific billing inputs from a raw request body.
+// Used at task submission time to snapshot fields needed for tiered_expr
+// settlement that may be missing from callback payloads or may not be
+// persisted into task.Data on callback-enabled Volc deployments.
 func extractVolcFlags(body []byte) *model.TieredVolcFlags {
 	if len(body) == 0 {
 		return nil
 	}
 	flags := &model.TieredVolcFlags{}
 	var parsed map[string]interface{}
-	if err := common.Unmarshal(body, &parsed); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
+	if err := dec.Decode(&parsed); err != nil {
 		return flags
 	}
 	if v, ok := parsed["generate_audio"]; ok {
@@ -648,6 +655,25 @@ func extractVolcFlags(body []byte) *model.TieredVolcFlags {
 	if v, ok := parsed["draft"]; ok {
 		if b, ok := v.(bool); ok {
 			flags.Draft = &b
+		}
+	}
+	// Capture resolution/duration/service_tier from the submit body so the
+	// tiered_expr settle path (buildSynthesizedBody) can evaluate the
+	// corresponding param() lookups even on callback-enabled deployments
+	// where task.Data never picks up the Volc fetch response.
+	if v, ok := parsed["resolution"]; ok {
+		if s, ok := v.(string); ok {
+			flags.Resolution = s
+		}
+	}
+	if v, ok := parsed["duration"]; ok {
+		if duration, ok := parseVolcDuration(v); ok {
+			flags.Duration = duration
+		}
+	}
+	if v, ok := parsed["service_tier"]; ok {
+		if s, ok := v.(string); ok {
+			flags.ServiceTier = s
 		}
 	}
 	// HasVideoInput: true if content[] contains any video_url item
@@ -668,6 +694,43 @@ func extractVolcFlags(body []byte) *model.TieredVolcFlags {
 		}
 	}
 	return flags
+}
+
+func parseVolcDuration(v any) (int, bool) {
+	maxInt := int(^uint(0) >> 1)
+	switch n := v.(type) {
+	case float64:
+		// Reject non-integer, negative, or out-of-int-range values rather than
+		// silently truncating/overflowing (e.g. 15.9 -> 15).
+		if n < 0 || n != math.Trunc(n) || n > float64(maxInt) {
+			return 0, false
+		}
+		return int(n), true
+	case int:
+		if n < 0 {
+			return 0, false
+		}
+		return n, true
+	case int64:
+		if n < 0 || n > int64(maxInt) {
+			return 0, false
+		}
+		return int(n), true
+	case json.Number:
+		i, err := strconv.Atoi(n.String())
+		if err != nil || i < 0 {
+			return 0, false
+		}
+		return i, true
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		if err != nil || i < 0 {
+			return 0, false
+		}
+		return i, true
+	default:
+		return 0, false
+	}
 }
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）

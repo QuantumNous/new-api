@@ -123,21 +123,32 @@ type TaskBillingContext struct {
 	// actual token counts returned by the upstream at task completion.
 	TieredSnapshot *billingexpr.BillingSnapshot `json:"tiered_snapshot,omitempty"`
 
-	// TieredVolcFlags holds the three submit-time flags needed by the billing
-	// expression for Volc-native (ChannelTypeVolcAdapter) tasks. Replaces the
-	// former TieredRequestBody []byte field (~1-2 KB) with a ~30-byte struct.
-	// These flags, combined with resolution/duration/service_tier from task.Data,
-	// allow volcadapter.AdjustBillingOnComplete to synthesize the param() body.
+	// TieredVolcFlags holds submit-time Volc request fields needed by the
+	// billing expression for Volc-native (ChannelTypeVolcAdapter) tasks.
+	// Replaces the former TieredRequestBody []byte field (~1-2 KB) with a
+	// compact struct that lets volcadapter.AdjustBillingOnComplete synthesize
+	// the param() body even when callback deployments never populate task.Data
+	// with a fetch response.
 	TieredVolcFlags *TieredVolcFlags `json:"tiered_volc_flags,omitempty"`
 }
 
-// TieredVolcFlags stores the three Volc-specific billing flags captured at task
+// TieredVolcFlags stores Volc-specific billing inputs captured at task
 // submission time. Pointer fields distinguish "not present in request" (nil) from
 // "explicitly set to false".
 type TieredVolcFlags struct {
 	GenerateAudio *bool `json:"generate_audio,omitempty"` // nil = absent in request
 	Draft         *bool `json:"draft,omitempty"`          // nil = absent in request
 	HasVideoInput bool  `json:"has_video_input"`          // true if content[] had a video_url item
+	// Resolution / Duration / ServiceTier are captured from the submit body
+	// so the tiered_expr settle path (buildSynthesizedBody) can evaluate
+	// param("resolution")/param("duration")/param("service_tier") in
+	// callback-enabled deployments. task.Data at submit time is just
+	// {"id":...} and the Volc callback payload doesn't include these
+	// fields, so the polling-only fallback (reading from task.Data)
+	// silently uses empty params and produces wrong tiered_expr quotas.
+	Resolution  string `json:"resolution,omitempty"`
+	Duration    int    `json:"duration,omitempty"`
+	ServiceTier string `json:"service_tier,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
