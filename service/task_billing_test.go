@@ -352,7 +352,7 @@ func TestRecalculate_PositiveDelta(t *testing.T) {
 
 	usedQuota, requestCount := getUserUsedQuotaAndRequestCount(t, userID)
 	assert.Equal(t, actualQuota-preConsumed, usedQuota)
-	assert.Equal(t, 0, requestCount, "delta settlement should not count as a new request")
+	assert.Equal(t, 0, requestCount, "settle must not increment request_count (already counted at submit time)")
 	assert.Equal(t, int64(actualQuota-preConsumed), getChannelUsedQuota(t, channelID))
 
 	// task.Quota should be updated to actualQuota
@@ -1051,6 +1051,157 @@ func TestRecalculate_FundingFailureRollsBackTaskQuotaAndLog(t *testing.T) {
 	var fetched model.Task
 	require.NoError(t, model.DB.First(&fetched, task.ID).Error)
 	assert.Equal(t, preConsumed, fetched.Quota, "tasks.quota should roll back with the funding failure")
+}
+
+// TestRecalculate_CASGuard_IdempotentSkip verifies that a concurrent settle
+// (simulated by pre-changing tasks.quota in the DB to a value other than
+// preConsumedQuota) causes settleTaskQuotaInTransaction to return the
+// errSettleAlreadyApplied sentinel, which RecalculateTaskQuota treats as an
+// idempotent no-op (info-level log, no wallet/log side-effects, in-memory
+// task.Quota unchanged).
+//
+// Scenario: two polling workers read the same in-memory task snapshot with
+// quota=preConsumedQuota. Worker A settles first and updates tasks.quota to
+// actualQuota. Worker B then attempts settleTaskQuotaInTransaction; its
+// WHERE id=? AND quota=preConsumedQuota predicate matches zero rows and the
+// sentinel is returned. Worker B must silently skip — not double-settle.
+func TestRecalculate_CASGuard_IdempotentSkip(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 50, 50, 50
+	const initQuota, preConsumed = 10000, 5000
+	const actualQuota = 3000 // what both workers would settle to
+	const tokenRemain = 8000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-cas-guard", tokenRemain)
+	seedChannel(t, channelID)
+
+	task := seedTask(t, userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+
+	// Simulate Worker A having already settled: change tasks.quota to
+	// actualQuota in the DB so the CAS predicate no longer matches.
+	require.NoError(t, model.DB.Model(&model.Task{}).
+		Where("id = ?", task.ID).
+		Update("quota", actualQuota).Error)
+
+	logsBefore := countLogs(t)
+
+	// Worker B still holds the stale in-memory snapshot with quota=preConsumed.
+	// RecalculateTaskQuota should detect the CAS miss and abort.
+	RecalculateTaskQuota(ctx, task, actualQuota, "duplicate settle attempt")
+
+	// Wallet must not change (Worker A already did it; Worker B was blocked).
+	assert.Equal(t, initQuota, getUserQuota(t, userID), "wallet must not change on CAS-guard abort")
+
+	// tasks.quota stays at actualQuota (set by Worker A).
+	var fetched model.Task
+	require.NoError(t, model.DB.First(&fetched, task.ID).Error)
+	assert.Equal(t, actualQuota, fetched.Quota, "tasks.quota should remain at Worker A's settled value")
+
+	// In-memory task.Quota must not be mutated: Worker B's snapshot retains the
+	// pre-consumed value because the idempotent skip returns before the
+	// task.Quota = actualQuota assignment.
+	assert.Equal(t, preConsumed, task.Quota, "in-memory task.Quota must not be updated on CAS-guard idempotent skip")
+
+	// No billing log written by Worker B.
+	assert.Equal(t, logsBefore, countLogs(t), "no billing log should be written on CAS-guard abort")
+}
+
+// setUserUsedQuota sets users.used_quota directly for test setup.
+func setUserUsedQuota(t *testing.T, id int, usedQuota int) {
+	t.Helper()
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", id).Update("used_quota", usedQuota).Error)
+}
+
+// setChannelUsedQuota sets channels.used_quota directly for test setup.
+func setChannelUsedQuota(t *testing.T, id int, usedQuota int64) {
+	t.Helper()
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", id).Update("used_quota", usedQuota).Error)
+}
+
+// TestRecalculate_NegativeDelta_UpdatesUsedQuota verifies that a settle refund
+// (actualQuota < preConsumedQuota) correctly decrements used_quota on both the
+// user and the channel, while leaving request_count unchanged.
+func TestRecalculate_NegativeDelta_UpdatesUsedQuota(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 60, 60, 60
+	const initQuota, preConsumed = 10000, 3000
+	const actualQuota = 1000 // over-charged by 2000 → refund delta = -2000
+	const tokenRemain = 5000
+	const initUsedQuota = 5000
+
+	seedUser(t, userID, initQuota)
+	setUserUsedQuota(t, userID, initUsedQuota)
+	seedToken(t, tokenID, userID, "sk-neg-used", tokenRemain)
+	seedChannel(t, channelID)
+	setChannelUsedQuota(t, channelID, int64(initUsedQuota))
+
+	task := seedTask(t, userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+
+	RecalculateTaskQuota(ctx, task, actualQuota, "refund used_quota")
+
+	// Wallet refunded: quota increases by abs(delta)
+	assert.Equal(t, initQuota+(preConsumed-actualQuota), getUserQuota(t, userID))
+
+	// used_quota must decrease by abs(delta) = 2000
+	// expected: 5000 + (1000 - 3000) = 3000
+	usedQuota, requestCount := getUserUsedQuotaAndRequestCount(t, userID)
+	assert.Equal(t, initUsedQuota+(actualQuota-preConsumed), usedQuota,
+		"used_quota should decrease on refund settle")
+	assert.Equal(t, 0, requestCount,
+		"request_count must not change on refund settle")
+
+	// Channel used_quota must also decrease by abs(delta)
+	assert.Equal(t, int64(initUsedQuota)+(int64(actualQuota)-int64(preConsumed)), getChannelUsedQuota(t, channelID),
+		"channel used_quota should decrease on refund settle")
+}
+
+// TestRecalculate_PositiveDelta_DoesNotDoubleCountRequest verifies that the
+// settle path does NOT increment request_count even when quotaDelta > 0.
+// Async tasks already count the request via LogTaskConsumption →
+// UpdateUserUsedQuotaAndRequestCount at submit time; incrementing again during
+// settlement would double-count requests in user statistics.
+func TestRecalculate_PositiveDelta_DoesNotDoubleCountRequest(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 61, 61, 61
+	const initQuota, preConsumed = 10000, 2000
+	const actualQuota = 3500 // under-charged by 1500 → positive delta
+	const tokenRemain = 5000
+	const initUsedQuota = 1000
+	const initRequestCount = 5 // pre-existing count from submit time
+
+	seedUser(t, userID, initQuota)
+	setUserUsedQuota(t, userID, initUsedQuota)
+	// Seed request_count=5 to simulate that LogTaskConsumption already ran at submit.
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", userID).
+		Update("request_count", initRequestCount).Error)
+	seedToken(t, tokenID, userID, "sk-pos-reqcount", tokenRemain)
+	seedChannel(t, channelID)
+	setChannelUsedQuota(t, channelID, int64(initUsedQuota))
+
+	task := seedTask(t, userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+
+	RecalculateTaskQuota(ctx, task, actualQuota, "positive delta settle")
+
+	// Wallet debited by delta
+	assert.Equal(t, initQuota-(actualQuota-preConsumed), getUserQuota(t, userID))
+
+	// used_quota increases by delta; request_count must remain unchanged at 5.
+	usedQuota, requestCount := getUserUsedQuotaAndRequestCount(t, userID)
+	assert.Equal(t, initUsedQuota+(actualQuota-preConsumed), usedQuota,
+		"used_quota should increase on positive-delta settle")
+	assert.Equal(t, initRequestCount, requestCount,
+		"request_count must not change during settlement — already counted at submit time")
+
+	// Channel used_quota increases too
+	assert.Equal(t, int64(initUsedQuota)+(int64(actualQuota)-int64(preConsumed)), getChannelUsedQuota(t, channelID),
+		"channel used_quota should increase on positive-delta settle")
 }
 
 func TestSettle_NonPerCall_AdaptorAdjustWorks(t *testing.T) {

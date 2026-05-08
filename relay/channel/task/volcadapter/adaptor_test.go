@@ -270,6 +270,73 @@ func TestAdjustBillingOnComplete_ZeroTokens(t *testing.T) {
 }
 
 // ─────────────────────────────────────────
+// Token fallback tests (fix #6)
+// ─────────────────────────────────────────
+
+// TestAdjustBillingOnComplete_TotalTokensFallback verifies that when only
+// TotalTokens is set (CompletionTokens == 0), the correct quota is computed.
+// This mirrors the behaviour of effectiveTokenCount in service/task_polling.go.
+//
+//	Expression: tier("base", c * 10), QuotaPerUnit=500, GroupRatio=1.0
+//	tokens = TotalTokens = 108_000
+//	cost = 108_000 * 10 = 1_080_000; quota = 1_080_000 / 1e6 * 500 = 540
+func TestAdjustBillingOnComplete_TotalTokensFallback(t *testing.T) {
+	exprStr := `tier("base", c * 10)`
+	snap := buildSnapshot(exprStr, 500.0, 1.0)
+	task := buildTask(snap, nil, `{"resolution":"720p","duration":5,"service_tier":"default"}`)
+	// Only TotalTokens is set; CompletionTokens == 0 (simulates Volc Ark callback)
+	taskResult := &relaycommon.TaskInfo{TotalTokens: 108_000, CompletionTokens: 0}
+
+	a := &TaskAdaptor{}
+	got := a.AdjustBillingOnComplete(task, taskResult)
+
+	wantQuota := 540 // 1_080_000 / 1e6 * 500 = 540
+	if got != wantQuota {
+		t.Errorf("TotalTokens fallback: got=%d, want=%d", got, wantQuota)
+	}
+}
+
+// TestAdjustBillingOnComplete_TotalTokensPreferred verifies that TotalTokens
+// takes priority over CompletionTokens when both are set.
+//
+//	tokens = TotalTokens = 200_000 (not CompletionTokens = 108_000)
+//	cost = 200_000 * 10 = 2_000_000; quota = 2_000_000 / 1e6 * 500 = 1000
+func TestAdjustBillingOnComplete_TotalTokensPreferred(t *testing.T) {
+	exprStr := `tier("base", c * 10)`
+	snap := buildSnapshot(exprStr, 500.0, 1.0)
+	task := buildTask(snap, nil, `{"resolution":"720p","duration":5,"service_tier":"default"}`)
+	taskResult := &relaycommon.TaskInfo{TotalTokens: 200_000, CompletionTokens: 108_000}
+
+	a := &TaskAdaptor{}
+	got := a.AdjustBillingOnComplete(task, taskResult)
+
+	wantQuota := 1000 // 2_000_000 / 1e6 * 500 = 1000 (TotalTokens wins)
+	if got != wantQuota {
+		t.Errorf("TotalTokens preferred: got=%d, want=%d", got, wantQuota)
+	}
+}
+
+// TestAdjustBillingOnComplete_CompletionTokensFallbackWhenTotalZero verifies that
+// CompletionTokens is used when TotalTokens is 0.
+//
+//	tokens = CompletionTokens = 108_000
+//	quota = 540 (same expression as above)
+func TestAdjustBillingOnComplete_CompletionTokensFallbackWhenTotalZero(t *testing.T) {
+	exprStr := `tier("base", c * 10)`
+	snap := buildSnapshot(exprStr, 500.0, 1.0)
+	task := buildTask(snap, nil, `{"resolution":"720p","duration":5,"service_tier":"default"}`)
+	taskResult := &relaycommon.TaskInfo{TotalTokens: 0, CompletionTokens: 108_000}
+
+	a := &TaskAdaptor{}
+	got := a.AdjustBillingOnComplete(task, taskResult)
+
+	wantQuota := 540
+	if got != wantQuota {
+		t.Errorf("CompletionTokens fallback when TotalTokens=0: got=%d, want=%d", got, wantQuota)
+	}
+}
+
+// ─────────────────────────────────────────
 // ValidateRequestAndSetAction tests (Volc-native path)
 // ─────────────────────────────────────────
 

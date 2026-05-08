@@ -147,12 +147,21 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *rela
 		return 0
 	}
 
+	// Prefer TotalTokens for the expression variable c because Volc Ark
+	// callbacks typically report total_tokens for video tasks and may omit
+	// completion_tokens. Fall back to CompletionTokens when only that is set.
+	// This mirrors the effectiveTokenCount logic in service/task_polling.go.
+	tokens := taskResult.TotalTokens
+	if tokens <= 0 {
+		tokens = taskResult.CompletionTokens
+	}
+
 	requestInput := billingexpr.RequestInput{
 		Body: synthBody,
 	}
 	params := billingexpr.TokenParams{
-		C:   float64(taskResult.CompletionTokens),
-		Len: float64(taskResult.CompletionTokens),
+		C:   float64(tokens),
+		Len: float64(tokens),
 	}
 
 	cost, trace, err := billingexpr.RunExprByHashWithRequest(snap.ExprString, snap.ExprHash, params, requestInput)

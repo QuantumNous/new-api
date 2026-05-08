@@ -266,8 +266,11 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	} else if strings.HasPrefix(c.Request.URL.Path, "/api/v3/contents/generations/tasks") {
 		// Volc-native task routes (/api/v3/contents/generations/tasks and .../tasks/:id).
 		// GET requests (task fetch and list) do not need channel selection.
+		// DELETE requests (task cancel) operate on a task that already has a channel
+		// stored in the DB; no model body is present, so channel selection must be
+		// skipped to avoid a parse error.
 		// POST requests (task submit) extract model from the request body.
-		if c.Request.Method == http.MethodGet {
+		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodDelete {
 			shouldSelectChannel = false
 		} else if c.Request.Method == http.MethodPost {
 			req, err := getModelFromRequest(c)

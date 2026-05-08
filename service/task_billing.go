@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -14,6 +15,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+// errSettleAlreadyApplied is returned by settleTaskQuotaInTransaction when the
+// CAS predicate (WHERE id=? AND quota=preConsumedQuota) matches zero rows,
+// meaning another worker already settled this task. Callers should treat this
+// as an idempotent no-op rather than a real failure.
+var errSettleAlreadyApplied = errors.New("task settlement already applied (CAS no-op)")
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
 // 实际扣费已由 BillingSession（PreConsumeBilling + SettleBilling）完成。
@@ -214,27 +221,35 @@ func adjustFundingTx(tx *gorm.DB, task *model.Task, delta int, updatedAt int64) 
 		Update("quota", gorm.Expr("quota + ?", -delta)).Error
 }
 
-func settleTaskQuotaInTransaction(task *model.Task, actualQuota int, quotaDelta int, updatedAt int64) error {
+func settleTaskQuotaInTransaction(task *model.Task, preConsumedQuota int, actualQuota int, quotaDelta int, updatedAt int64) error {
 	return model.DB.Transaction(func(tx *gorm.DB) error {
 		persistResult := tx.Model(&model.Task{}).
-			Where("id = ?", task.ID).
+			Where("id = ? AND quota = ?", task.ID, preConsumedQuota).
 			Updates(map[string]any{"quota": actualQuota, "updated_at": updatedAt})
 		if persistResult.Error != nil {
 			return persistResult.Error
 		}
 		if persistResult.RowsAffected == 0 {
-			return fmt.Errorf("persist quota matched 0 rows (id=%d)", task.ID)
+			return errSettleAlreadyApplied
 		}
 
 		if err := adjustFundingTx(tx, task, quotaDelta, updatedAt); err != nil {
 			return err
 		}
-		if quotaDelta > 0 {
+		if quotaDelta != 0 {
 			// NOTE: settle deliberately bypasses common.BatchUpdateEnabled.
 			// Async task settlement is low-frequency and these usage counters
 			// must commit atomically with tasks.quota and wallet/subscription
 			// accounting; routing through batch helpers would defer the writes
 			// and break that guarantee.
+			//
+			// used_quota is updated for both positive and negative deltas so
+			// that the statistic stays consistent with the final settled quota.
+			//
+			// NOTE: request_count is intentionally not adjusted in settlement.
+			// For async tasks, the request was already counted at submit time via
+			// LogTaskConsumption → UpdateUserUsedQuotaAndRequestCount; settle only
+			// reconciles used_quota to the actual cost.
 			if err := tx.Model(&model.User{}).Where("id = ?", task.UserId).
 				Update("used_quota", gorm.Expr("used_quota + ?", quotaDelta)).Error; err != nil {
 				return err
@@ -302,7 +317,13 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	// model.RecordTaskBillingLog) and are written only after the accounting
 	// transaction commits, so a transient log-table issue cannot block
 	// refunds/settles.
-	if err := settleTaskQuotaInTransaction(task, actualQuota, quotaDelta, updatedAt); err != nil {
+	if err := settleTaskQuotaInTransaction(task, preConsumedQuota, actualQuota, quotaDelta, updatedAt); err != nil {
+		if errors.Is(err, errSettleAlreadyApplied) {
+			// CAS guard: another worker already settled this task; this is an
+			// expected idempotent skip, not a real failure.
+			logger.LogInfo(ctx, fmt.Sprintf("RecalculateTaskQuota: settle skipped (already applied) for task %s", task.TaskID))
+			return
+		}
 		logger.LogError(ctx, fmt.Sprintf("RecalculateTaskQuota: settle transaction failed for task %s, aborting settle: %s", task.TaskID, err.Error()))
 		return
 	}
