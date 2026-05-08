@@ -22,28 +22,24 @@ func TestGetEndpointTypesByChannelType(t *testing.T) {
 	}
 
 	cases := []testCase{
-		// --- VolcAdapter (ch 58): image-gen models → [volc-image, image-generation, openai] ---
+		// --- VolcAdapter (ch 58): image-gen models → [volc-image] only ---
+		// VolcAdapter only supports Volc-native endpoints; EndpointTypeImageGeneration
+		// (OpenAI path) is absent because ConvertImageRequest returns an error for this
+		// channel type — advertising it would mislead pricing/abilities.
 		{
-			name:        "VolcAdapter + seedream model → volc-image first",
+			name:        "VolcAdapter + seedream model → volc-image only",
 			channelType: constant.ChannelTypeVolcAdapter,
 			modelName:   "doubao-seedream-5-0-260128",
 			wantFirst:   constant.EndpointTypeVolcImage,
-			exactSlice: []constant.EndpointType{
-				constant.EndpointTypeVolcImage,
-				constant.EndpointTypeImageGeneration,
-				constant.EndpointTypeOpenAI,
-			},
+			exactSlice:  []constant.EndpointType{constant.EndpointTypeVolcImage},
 		},
-		// --- VolcAdapter (ch 58): video/non-image models → [volc-video, openai-video] ---
+		// --- VolcAdapter (ch 58): video/task models → [volc-video] only ---
 		{
-			name:        "VolcAdapter + seedance model → volc-video first",
+			name:        "VolcAdapter + seedance model → volc-video only",
 			channelType: constant.ChannelTypeVolcAdapter,
 			modelName:   "doubao-seedance-2-0-260128",
 			wantFirst:   constant.EndpointTypeVolcVideo,
-			exactSlice: []constant.EndpointType{
-				constant.EndpointTypeVolcVideo,
-				constant.EndpointTypeOpenAIVideo,
-			},
+			exactSlice:  []constant.EndpointType{constant.EndpointTypeVolcVideo},
 		},
 		// --- Regression: VolcEngine (45) with seedream must NOT include volc-image ---
 		{
