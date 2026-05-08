@@ -397,3 +397,89 @@ status: implementation_verified_with_scope_note
 ### 下一阶段建议
 
 阶段 2B：只做同步消费链路挂接前的 source key 只读复核与最小接入点确认；先确认 `relayInfo.RequestId` 在目标同步消费落点必定稳定、非空、同一实际消费只触发一次，再决定是否进入挂接实现。
+
+## 阶段 2B 只读审查记录
+
+任务名：阶段 2B：确认邀请返利同步消费挂接边界
+
+status: completed
+
+### 本阶段模式
+
+- 启用阶段内自治执行。
+- 已启动 2 个只读 subagents：A `source_key` 稳定性审查、B 同步消费成功点审查。
+- Subagent C / D 因当前 agent 线程上限未能启动，由主 Codex 按独立只读审查小节模拟完成。
+- 所有审查均未修改文件、未执行 `.agents/skills`、未连接真实 New API 实例、未输出 token / secret / sk- key / bearer token。
+
+### Subagent A：source_key 稳定性审查结论
+
+- 同步消费路径存在稳定 request id：`middleware.RequestId()` 在入口生成 `X-Oneapi-Request-Id` 并写入 gin context。
+- `relay/common/genBaseRelayInfo` 会把 context 中的 request id 复制到 `relayInfo.RequestId`；若 context 缺失，也有非空兜底生成。
+- 同一次 `controller.Relay` 请求只生成一个 `relayInfo`，内部 channel retry 复用同一个 `relayInfo.RequestId`。
+- 内部 retry 不会产生新 request id；客户端外部重发会产生新 HTTP 请求并获得新 request id。
+- 第一版可使用 `source_type = "sync_relay_request"`、`source_key = relayInfo.RequestId`、`source_request_id = relayInfo.RequestId`。
+- 不依赖 `LOG_DB` 或消费日志 id；`model.Log.Id` 不适合作为幂等来源，因为 `LOG_DB` 可独立于主库。
+- 必须限域到标准同步 relay 消费成功路径；不得挂到全局 `PostConsumeQuota`、异步 task、Midjourney、退款或失败补偿路径。
+
+### Subagent B：同步消费成功点审查结论
+
+- 同步消费最终成功后置点为：
+  - `service.PostTextConsumeQuota`
+  - `service.PostAudioConsumeQuota`
+  - `service.PostWssConsumeQuota`
+- 最小挂接点必须在最终 quota 计算完成、`SettleBilling(...)` 成功返回之后。
+- `SettleBilling` 本身不能挂接，因为它同时被异步任务提交成功路径复用。
+- 本轮必须排除异步任务、Midjourney、`PreWssConsumeQuota` 分段扣费、violation fee、`PostConsumeQuota`、退款、失败补偿、负 quota 返还和 `SettleBilling` 全局挂接。
+- 正常同步成功请求通常只触发一次；异常重复调用仍依赖 `(source_type, source_key)` 幂等保护。
+- 返利调用不得影响主消费返回；`Post*ConsumeQuota` 当前无 error 返回，返利错误只能记录日志。
+
+### Subagent C：失败隔离与日志审查结论（主流程模拟）
+
+- `TryGrantInvitationRebate` 返回 error 时，挂接点只调用 `logger.LogError` 记录，不向上返回，不回滚消费，不改变响应结构。
+- skipped 状态包括配置关闭、比例为 0、空 source、quota 不满足、无邀请人、邀请人不存在、自邀、返利为 0 等，不需要记录 error。
+- `already_granted` 属于幂等成功，不需要记录 error。
+- 日志不得输出 token key、access token、sk- key、bearer token、上游 api key 或完整请求头；可记录非敏感的 user id、request id、quota、status。
+- 可复用现有 `logger.LogError` / `logger.LogWarn`，不新增日志结构。
+
+### Subagent D：挂接测试策略审查结论（主流程模拟）
+
+- 最小测试建议放在 `service/invitation_rebate_test.go`，直接覆盖同步挂接 helper 的行为，避免引入完整 handler / relay 外部依赖。
+- 可测试 `source_key` 为空不触发返利。
+- 可测试同步成功后同一 request id 触发一次返利，重复调用只返一次。
+- “返利失败不影响主消费”可通过挂接 helper 无返回值、仅记录错误的实现自审确认；若要强造数据库异常，当前 service 测试环境会扩大影响，不作为本轮最小测试。
+- 保留阶段 2A 的 `TryGrantInvitationRebate` 定向测试作为核心验证；不强制修复既有 `go test ./service/...` 的 channel affinity 失败。
+
+### 进入条件阶段 3A 判断
+
+- 稳定、非空、同一实际消费唯一的 `source_key`：确认，来源为 `relayInfo.RequestId`。
+- 不依赖可能独立的 `LOG_DB`：确认。
+- 最小同步消费成功后置点：确认，为 `PostTextConsumeQuota`、`PostAudioConsumeQuota`、`PostWssConsumeQuota` 中 `SettleBilling` 成功之后。
+- 不接入异步任务：确认。
+- 不接入 Midjourney：确认。
+- 不在预扣、失败、退款、回滚路径触发：确认。
+- 返利失败不影响主消费成功：确认，挂接 helper 不返回 error。
+- 只需要修改极少数同步消费后置函数所在文件：确认，预计为 `service/text_quota.go`、`service/quota.go`。
+- 有最小验证方案：确认，定向测试新增在 `service/invitation_rebate_test.go`。
+- 不需要修改 model、migration、配置结构、前端或依赖：确认。
+
+结论：允许进入条件阶段 3A。
+
+### 阶段 2B 验证命令
+
+- `git status --short`
+- `git diff -- .ai/TASK.md`
+- `git add .ai/TASK.md`
+- `git diff --cached --stat`
+- `git diff --cached`
+
+### 阶段 2B 自审查结果
+
+通过；本子步骤只修改 `.ai/TASK.md`，没有 Go 业务代码、异步任务、Midjourney、充值、注册 / OAuth、前端、model、migration、配置结构或依赖变更；未写入 token / secret / sk- key / bearer token；已明确 3A 只允许限域挂接同步消费成功路径。
+
+### commit hash
+
+提交创建后由最终响应记录。
+
+### 下一子步骤
+
+条件阶段 3A：在 `PostTextConsumeQuota`、`PostAudioConsumeQuota`、`PostWssConsumeQuota` 的 `SettleBilling` 成功之后最小挂接 `TryGrantInvitationRebate`，并新增定向测试；仍不接入异步任务、Midjourney、充值、注册 / OAuth 或前端。
