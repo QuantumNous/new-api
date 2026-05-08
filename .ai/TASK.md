@@ -392,7 +392,7 @@ status: implementation_verified_with_scope_note
 ### commit hash
 
 - 多 agent 只读审查文档 commit：`5d5cff79b16fae2306d616e1aedf2afdab9ecd0e`
-- service 实现 commit：提交创建后由最终响应记录，避免在同一 commit 中写入自引用 hash。
+- service 实现 commit：`2a1ecf5f9c3ea749a76a2b3961f40ac6578293c7`
 
 ### 下一阶段建议
 
