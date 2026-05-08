@@ -47,7 +47,7 @@ const PricingPage = () => {
     <div className='pricing-page-surface'>
       <div className='pricing-overview'>
         <div className='pricing-overview-copy'>
-          <div className='pricing-overview-kicker'>Pricing</div>
+          <div className='pricing-overview-kicker'>{pricingData.t('定价')}</div>
           <h1 className='pricing-overview-title'>
             {pricingData.t('模型定价')}
           </h1>
