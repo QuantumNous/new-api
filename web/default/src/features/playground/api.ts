@@ -1,11 +1,31 @@
 import { api } from '@/lib/api'
 import { API_ENDPOINTS } from './constants'
+import { inferPlaygroundEndpoint } from './lib/endpoint'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   ModelOption,
   GroupOption,
+  PlaygroundEndpoint,
+  PlaygroundRequest,
 } from './types'
+
+const ENDPOINT_URLS: Record<PlaygroundEndpoint, string> = {
+  'chat-completions': API_ENDPOINTS.CHAT_COMPLETIONS,
+  responses: API_ENDPOINTS.RESPONSES,
+  'claude-messages': API_ENDPOINTS.CLAUDE_MESSAGES,
+  'image-generations': API_ENDPOINTS.IMAGE_GENERATIONS,
+}
+
+export async function sendPlaygroundRequest<TResponse = unknown>(
+  endpoint: PlaygroundEndpoint,
+  payload: PlaygroundRequest
+): Promise<TResponse> {
+  const res = await api.post(ENDPOINT_URLS[endpoint], payload, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
 
 /**
  * Send chat completion request (non-streaming)
@@ -13,10 +33,7 @@ import type {
 export async function sendChatCompletion(
   payload: ChatCompletionRequest
 ): Promise<ChatCompletionResponse> {
-  const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
-    skipErrorHandler: true,
-  } as Record<string, unknown>)
-  return res.data
+  return sendPlaygroundRequest<ChatCompletionResponse>('chat-completions', payload)
 }
 
 /**
@@ -33,6 +50,7 @@ export async function getUserModels(): Promise<ModelOption[]> {
   return data.data.map((model: string) => ({
     label: model,
     value: model,
+    endpoint: inferPlaygroundEndpoint(model),
   }))
 }
 

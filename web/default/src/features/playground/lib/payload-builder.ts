@@ -3,8 +3,45 @@ import type {
   Message,
   PlaygroundConfig,
   ParameterEnabled,
+  ResponsesRequest,
+  ClaudeMessagesRequest,
+  ImageGenerationRequest,
+  PlaygroundEndpoint,
+  PlaygroundRequest,
 } from '../types'
-import { formatMessageForAPI, isValidMessage } from './message-utils'
+import {
+  formatMessageForAPI,
+  getCurrentVersion,
+  isValidMessage,
+} from './message-utils'
+
+function getProcessedMessages(messages: Message[]) {
+  return messages.filter(isValidMessage).map(formatMessageForAPI)
+}
+
+function getLastUserPrompt(messages: Message[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message?.from === 'user') {
+      return getCurrentVersion(message).content
+    }
+  }
+  return ''
+}
+
+function applyCommonTextParameters(
+  payload: Record<string, unknown>,
+  config: PlaygroundConfig,
+  parameterEnabled: ParameterEnabled,
+  maxTokenKey: 'max_tokens' | 'max_output_tokens'
+) {
+  if (parameterEnabled.temperature) payload.temperature = config.temperature
+  if (parameterEnabled.top_p) payload.top_p = config.top_p
+  if (parameterEnabled.max_tokens) payload[maxTokenKey] =
+    maxTokenKey === 'max_output_tokens'
+      ? config.max_output_tokens
+      : config.max_tokens
+}
 
 /**
  * Build API request payload from messages and config
@@ -14,19 +51,13 @@ export function buildChatCompletionPayload(
   config: PlaygroundConfig,
   parameterEnabled: ParameterEnabled
 ): ChatCompletionRequest {
-  // Filter and format valid messages
-  const processedMessages = messages
-    .filter(isValidMessage)
-    .map(formatMessageForAPI)
-
   const payload: ChatCompletionRequest = {
     model: config.model,
     group: config.group,
-    messages: processedMessages,
+    messages: getProcessedMessages(messages),
     stream: config.stream,
   }
 
-  // Add enabled parameters
   const parameterKeys: Array<keyof ParameterEnabled> = [
     'temperature',
     'top_p',
@@ -46,4 +77,104 @@ export function buildChatCompletionPayload(
   })
 
   return payload
+}
+
+export function buildResponsesPayload(
+  messages: Message[],
+  config: PlaygroundConfig,
+  parameterEnabled: ParameterEnabled
+): ResponsesRequest {
+  const processedMessages = getProcessedMessages(messages)
+  const systemMessages = processedMessages.filter((m) => m.role === 'system')
+  const input = processedMessages.filter((m) => m.role !== 'system')
+  const payload: ResponsesRequest = {
+    model: config.model,
+    group: config.group,
+    input,
+    stream: config.stream,
+  }
+
+  if (systemMessages.length > 0) {
+    payload.instructions = systemMessages
+      .map((m) => (typeof m.content === 'string' ? m.content : ''))
+      .filter(Boolean)
+      .join('\n\n')
+  }
+
+  applyCommonTextParameters(
+    payload as unknown as Record<string, unknown>,
+    config,
+    parameterEnabled,
+    'max_output_tokens'
+  )
+
+  return payload
+}
+
+export function buildClaudeMessagesPayload(
+  messages: Message[],
+  config: PlaygroundConfig,
+  parameterEnabled: ParameterEnabled
+): ClaudeMessagesRequest {
+  const processedMessages = getProcessedMessages(messages)
+  const systemMessages = processedMessages.filter((m) => m.role === 'system')
+  const payload: ClaudeMessagesRequest = {
+    model: config.model,
+    group: config.group,
+    messages: processedMessages.filter((m) => m.role !== 'system'),
+    stream: config.stream,
+    max_tokens: config.max_tokens,
+  }
+
+  if (systemMessages.length > 0) {
+    payload.system = systemMessages
+      .map((m) => (typeof m.content === 'string' ? m.content : ''))
+      .filter(Boolean)
+      .join('\n\n')
+  }
+
+  applyCommonTextParameters(
+    payload as unknown as Record<string, unknown>,
+    config,
+    parameterEnabled,
+    'max_tokens'
+  )
+  payload.max_tokens = config.max_tokens
+
+  return payload
+}
+
+export function buildImageGenerationPayload(
+  messages: Message[],
+  config: PlaygroundConfig
+): ImageGenerationRequest {
+  const payload: ImageGenerationRequest = {
+    model: config.model,
+    group: config.group,
+    prompt: getLastUserPrompt(messages),
+    n: config.image_n,
+    size: config.image_size,
+    quality: config.image_quality,
+    response_format: config.image_response_format,
+  }
+
+  return payload
+}
+
+export function buildPlaygroundPayload(
+  endpoint: PlaygroundEndpoint,
+  messages: Message[],
+  config: PlaygroundConfig,
+  parameterEnabled: ParameterEnabled
+): PlaygroundRequest {
+  switch (endpoint) {
+    case 'responses':
+      return buildResponsesPayload(messages, config, parameterEnabled)
+    case 'claude-messages':
+      return buildClaudeMessagesPayload(messages, config, parameterEnabled)
+    case 'image-generations':
+      return buildImageGenerationPayload(messages, config)
+    default:
+      return buildChatCompletionPayload(messages, config, parameterEnabled)
+  }
 }

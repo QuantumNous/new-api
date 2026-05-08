@@ -230,16 +230,49 @@ export function PlaygroundChat({
                                       {actions}
                                     </>
                                   ) : (
-                                    showMessageContent && (
+                                    (showMessageContent ||
+                                      !!message.images?.length) && (
                                       <>
-                                        <MessageContent
-                                          variant='flat'
-                                          className={cn(
-                                            getMessageContentStyles()
-                                          )}
-                                        >
-                                          <Response>{displayContent}</Response>
-                                        </MessageContent>
+                                        {showMessageContent && (
+                                          <MessageContent
+                                            variant='flat'
+                                            className={cn(
+                                              getMessageContentStyles()
+                                            )}
+                                          >
+                                            <Response>{displayContent}</Response>
+                                          </MessageContent>
+                                        )}
+                                        {!!message.images?.length && (
+                                          <div className='mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                                            {message.images.map(
+                                              (image, imageIndex) => {
+                                                const src = image.url
+                                                  ? image.url
+                                                  : image.b64_json
+                                                    ? `data:${image.mime_type || 'image/png'};base64,${image.b64_json}`
+                                                    : ''
+                                                if (!src) return null
+                                                return (
+                                                  <a
+                                                    className='border-border bg-muted/30 block overflow-hidden rounded-lg border'
+                                                    download={`playground-image-${imageIndex + 1}.png`}
+                                                    href={src}
+                                                    key={`${message.key}-image-${imageIndex}`}
+                                                    rel='noreferrer'
+                                                    target='_blank'
+                                                  >
+                                                    <img
+                                                      alt={`Generated image ${imageIndex + 1}`}
+                                                      className='h-auto w-full object-contain'
+                                                      src={src}
+                                                    />
+                                                  </a>
+                                                )
+                                              }
+                                            )}
+                                          </div>
+                                        )}
                                         {actions}
                                       </>
                                     )

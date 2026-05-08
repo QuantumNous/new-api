@@ -38,6 +38,7 @@ import { useDataLoader } from '../../hooks/playground/useDataLoader';
 import {
   MESSAGE_ROLES,
   ERROR_MESSAGES,
+  PLAYGROUND_ENDPOINTS,
 } from '../../constants/playground.constants';
 import {
   getLogo,
@@ -48,7 +49,12 @@ import {
   getTextContent,
   buildApiPayload,
   encodeToBase64,
+  inferPlaygroundEndpoint,
 } from '../../helpers';
+import {
+  isImageGenerationEndpoint,
+  validateImageSize,
+} from '../../helpers/playgroundValidation';
 
 // Components
 import {
@@ -120,6 +126,10 @@ const Playground = () => {
     setCustomRequestBody,
   } = state;
 
+  const inferredEndpoint = inferPlaygroundEndpoint(inputs.model);
+  const effectiveEndpoint =
+    inputs.endpointOverride || inferredEndpoint || PLAYGROUND_ENDPOINTS.CHAT_COMPLETIONS;
+
   // API 请求相关
   const { sendRequest, onStopGenerator } = useApiRequest(
     setMessage,
@@ -146,6 +156,7 @@ const Playground = () => {
     parameterEnabled,
     sendRequest,
     saveMessagesImmediately,
+    effectiveEndpoint,
   );
 
   // 消息和自定义请求体同步
@@ -228,16 +239,21 @@ const Playground = () => {
         }
       }
 
-      return buildApiPayload(messages, null, inputs, parameterEnabled);
+      return buildApiPayload(
+        messages,
+        null,
+        inputs,
+        parameterEnabled,
+        effectiveEndpoint,
+      );
     } catch (error) {
       console.error('构造预览请求体失败:', error);
       return null;
     }
-  }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
+  }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody, effectiveEndpoint]);
 
   // 发送消息
   function onMessageSend(content, attachment) {
-    console.log('attachment: ', attachment);
 
     // 创建用户消息和加载消息
     const userMessage = createMessage(MESSAGE_ROLES.USER, content);
@@ -252,7 +268,7 @@ const Playground = () => {
           const newMessages = [...prevMessage, userMessage, loadingMessage];
 
           // 发送自定义请求体
-          sendRequest(customPayload, customPayload.stream !== false);
+          sendRequest(customPayload, customPayload.stream !== false, effectiveEndpoint);
 
           // 发送消息后保存，传入新消息列表
           setTimeout(() => saveMessagesImmediately(newMessages), 0);
@@ -269,6 +285,14 @@ const Playground = () => {
 
     // 默认模式
     const validImageUrls = inputs.imageUrls.filter((url) => url.trim() !== '');
+    if (isImageGenerationEndpoint(effectiveEndpoint)) {
+      const imageSizeError = validateImageSize(inputs.image_size);
+      if (imageSizeError) {
+        Toast.error(t(imageSizeError));
+        return;
+      }
+    }
+
     const messageContent = buildMessageContent(
       content,
       validImageUrls,
@@ -287,8 +311,13 @@ const Playground = () => {
         null,
         inputs,
         parameterEnabled,
+        effectiveEndpoint,
       );
-      sendRequest(payload, inputs.stream);
+      sendRequest(
+        payload,
+        inputs.stream && effectiveEndpoint !== PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS,
+        effectiveEndpoint,
+      );
 
       // 禁用图片模式
       if (inputs.imageEnabled) {
@@ -317,6 +346,18 @@ const Playground = () => {
       );
     },
     [setMessage],
+  );
+
+  const handleEndpointChange = useCallback(
+    (value) => {
+      if (value === inferredEndpoint) {
+        handleInputChange('endpointOverride', null);
+        return;
+      }
+
+      handleInputChange('endpointOverride', value);
+    },
+    [handleInputChange, inferredEndpoint],
   );
 
   // 渲染函数
@@ -483,7 +524,15 @@ const Playground = () => {
                 showDebugPanel={showDebugPanel}
                 customRequestMode={customRequestMode}
                 customRequestBody={customRequestBody}
-                onInputChange={handleInputChange}
+                activeEndpoint={effectiveEndpoint}
+                inferredEndpoint={inferredEndpoint}
+                onEndpointChange={handleEndpointChange}
+                onInputChange={(name, value) => {
+                  handleInputChange(name, value);
+                  if (name === 'model') {
+                    handleInputChange('endpointOverride', null);
+                  }
+                }}
                 onParameterToggle={handleParameterToggle}
                 onCloseSettings={() => setShowSettings(false)}
                 onConfigImport={handleConfigImport}

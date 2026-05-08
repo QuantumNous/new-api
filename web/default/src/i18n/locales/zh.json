@@ -1752,7 +1752,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -4403,6 +4403,18 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Endpoint (auto inferred)": "端点（自动识别）",
+    "Auto inferred": "自动识别",
+    "Image quality": "图片质量",
+    "Image size": "图片大小",
+    "Quality": "质量",
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "auto": "自动",
+    "Size must use axb format with positive integer dimensions": "大小必须使用 axb 格式，且宽高为正整数",
+    "Size width and height must be less than or equal to 3840": "大小的宽和高都必须小于或等于 3840",
+    "请选择质量": "请选择质量"
   }
 }

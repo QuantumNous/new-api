@@ -25,7 +25,10 @@ import {
   buildApiPayload,
   createLoadingAssistantMessage,
 } from '../../helpers';
-import { MESSAGE_ROLES } from '../../constants/playground.constants';
+import {
+  MESSAGE_ROLES,
+  PLAYGROUND_ENDPOINTS,
+} from '../../constants/playground.constants';
 
 export const useMessageEdit = (
   setMessage,
@@ -33,6 +36,7 @@ export const useMessageEdit = (
   parameterEnabled,
   sendRequest,
   saveMessages,
+  endpoint,
 ) => {
   const { t } = useTranslation();
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -102,12 +106,17 @@ export const useMessageEdit = (
                   null,
                   inputs,
                   parameterEnabled,
+                  endpoint,
                 );
                 setMessage((prevMsg) => [
                   ...prevMsg,
                   createLoadingAssistantMessage(),
                 ]);
-                sendRequest(payload, inputs.stream);
+                sendRequest(
+                  payload,
+                  inputs.stream && endpoint !== PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS,
+                  endpoint,
+                );
               }, 100);
             },
             onCancel: () => {

@@ -21,16 +21,115 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SSE } from 'sse.js';
 import {
-  API_ENDPOINTS,
   MESSAGE_STATUS,
   DEBUG_TABS,
+  PLAYGROUND_ENDPOINTS,
 } from '../../constants/playground.constants';
 import {
   getUserIdFromLocalStorage,
+  getPlaygroundEndpointUrl,
   handleApiError,
   processThinkTags,
   processIncompleteThinkTags,
 } from '../../helpers';
+
+const extractTextFromContent = (content) => {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+
+  return content
+    .map((part) => {
+      if (!part || typeof part !== 'object') return '';
+      if (typeof part.text === 'string') return part.text;
+      if (typeof part.content === 'string') return part.content;
+      if (part.type === 'text' && typeof part.value === 'string') return part.value;
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n');
+};
+
+const extractImages = (value) => {
+  const images = [];
+
+  const visit = (node) => {
+    if (!node || typeof node !== 'object') return;
+
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+
+    const maybeImage = {};
+    if (typeof node.url === 'string') maybeImage.url = node.url;
+    if (typeof node.image_url === 'string') maybeImage.url = node.image_url;
+    if (typeof node.b64_json === 'string') maybeImage.b64_json = node.b64_json;
+    if (typeof node.result === 'string') maybeImage.b64_json = node.result;
+    if (typeof node.mime_type === 'string') maybeImage.mime_type = node.mime_type;
+
+    if (maybeImage.url || maybeImage.b64_json) {
+      images.push(maybeImage);
+    }
+
+    Object.values(node).forEach(visit);
+  };
+
+  visit(value);
+  return images;
+};
+
+const normalizePlaygroundResponse = (endpoint, response) => {
+  if (endpoint === PLAYGROUND_ENDPOINTS.RESPONSES) {
+    const images = extractImages(response?.output);
+    if (typeof response?.output_text === 'string' && response.output_text) {
+      return { content: response.output_text, images };
+    }
+
+    const output = Array.isArray(response?.output) ? response.output : [];
+    const content = output
+      .map((item) => extractTextFromContent(item?.content))
+      .filter(Boolean)
+      .join('\n');
+    return { content, images };
+  }
+
+  if (endpoint === PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES) {
+    const content = extractTextFromContent(response?.content);
+    const reasoning = Array.isArray(response?.content)
+      ? response.content
+          .map((part) => {
+            if (!part || typeof part !== 'object') return '';
+            if (
+              (part.type === 'thinking' || part.type === 'reasoning') &&
+              typeof part.thinking === 'string'
+            ) {
+              return part.thinking;
+            }
+            if (
+              (part.type === 'thinking' || part.type === 'reasoning') &&
+              typeof part.text === 'string'
+            ) {
+              return part.text;
+            }
+            return '';
+          })
+          .filter(Boolean)
+          .join('\n')
+      : '';
+    return { content, reasoning };
+  }
+
+  if (endpoint === PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS) {
+    return { content: '', images: extractImages(response?.data) };
+  }
+
+  const choice = response?.choices?.[0];
+  return {
+    content: choice?.message?.content || '',
+    reasoning:
+      choice?.message?.reasoning_content || choice?.message?.reasoning || '',
+  };
+};
 
 export const useApiRequest = (
   setMessage,
@@ -41,32 +140,61 @@ export const useApiRequest = (
 ) => {
   const { t } = useTranslation();
 
-  // 处理消息自动关闭逻辑的公共函数
-  const applyAutoCollapseLogic = useCallback(
-    (message, isThinkingComplete = true) => {
-      const shouldAutoCollapse =
-        isThinkingComplete && !message.hasAutoCollapsed;
-      return {
-        isThinkingComplete,
-        hasAutoCollapsed: shouldAutoCollapse || message.hasAutoCollapsed,
-        isReasoningExpanded: shouldAutoCollapse
-          ? false
-          : message.isReasoningExpanded,
-      };
+  const applyAutoCollapseLogic = useCallback((message, isThinkingComplete = true) => {
+    const shouldAutoCollapse = isThinkingComplete && !message.hasAutoCollapsed;
+    return {
+      isThinkingComplete,
+      hasAutoCollapsed: shouldAutoCollapse || message.hasAutoCollapsed,
+      isReasoningExpanded: shouldAutoCollapse ? false : message.isReasoningExpanded,
+    };
+  }, []);
+
+  const updateLastAssistantWithResult = useCallback(
+    (result, status = MESSAGE_STATUS.COMPLETE) => {
+      setMessage((prevMessage) => {
+        const lastMessage = prevMessage[prevMessage.length - 1];
+        if (!lastMessage || lastMessage.role !== 'assistant') return prevMessage;
+        if (
+          lastMessage.status === MESSAGE_STATUS.COMPLETE ||
+          lastMessage.status === MESSAGE_STATUS.ERROR
+        ) {
+          return prevMessage;
+        }
+
+        const processed = processThinkTags(
+          result?.content ?? lastMessage.content ?? '',
+          result?.reasoning ?? lastMessage.reasoningContent ?? '',
+        );
+        const autoCollapseState = applyAutoCollapseLogic(lastMessage, true);
+        const updatedMessages = [
+          ...prevMessage.slice(0, -1),
+          {
+            ...lastMessage,
+            content: processed.content,
+            reasoningContent: processed.reasoningContent,
+            images: result?.images?.length ? result.images : lastMessage.images,
+            status,
+            ...autoCollapseState,
+          },
+        ];
+
+        if (status === MESSAGE_STATUS.COMPLETE || status === MESSAGE_STATUS.ERROR) {
+          setTimeout(() => saveMessages(updatedMessages), 0);
+        }
+
+        return updatedMessages;
+      });
     },
-    [],
+    [setMessage, applyAutoCollapseLogic, saveMessages],
   );
 
-  // 流式消息更新
   const streamMessageUpdate = useCallback(
     (textChunk, type) => {
       setMessage((prevMessage) => {
         const lastMessage = prevMessage[prevMessage.length - 1];
         if (!lastMessage) return prevMessage;
         if (lastMessage.role !== 'assistant') return prevMessage;
-        if (lastMessage.status === MESSAGE_STATUS.ERROR) {
-          return prevMessage;
-        }
+        if (lastMessage.status === MESSAGE_STATUS.ERROR) return prevMessage;
 
         if (
           lastMessage.status === MESSAGE_STATUS.LOADING ||
@@ -77,23 +205,15 @@ export const useApiRequest = (
           if (type === 'reasoning') {
             newMessage = {
               ...newMessage,
-              reasoningContent:
-                (lastMessage.reasoningContent || '') + textChunk,
+              reasoningContent: (lastMessage.reasoningContent || '') + textChunk,
               status: MESSAGE_STATUS.INCOMPLETE,
               isThinkingComplete: false,
             };
           } else if (type === 'content') {
-            const shouldCollapseReasoning =
-              !lastMessage.content && lastMessage.reasoningContent;
             const newContent = (lastMessage.content || '') + textChunk;
-
-            let shouldCollapseFromThinkTag = false;
             let thinkingCompleteFromTags = lastMessage.isThinkingComplete;
 
-            if (
-              lastMessage.isReasoningExpanded &&
-              newContent.includes('</think>')
-            ) {
+            if (lastMessage.isReasoningExpanded && newContent.includes('</think>')) {
               const thinkMatches = newContent.match(/<think>/g);
               const thinkCloseMatches = newContent.match(/<\/think>/g);
               if (
@@ -101,17 +221,13 @@ export const useApiRequest = (
                 thinkCloseMatches &&
                 thinkCloseMatches.length >= thinkMatches.length
               ) {
-                shouldCollapseFromThinkTag = true;
-                thinkingCompleteFromTags = true; // think标签闭合也标记思考完成
+                thinkingCompleteFromTags = true;
               }
             }
 
-            // 如果开始接收content内容，且之前有reasoning内容，或者think标签已闭合，则标记思考完成
             const isThinkingComplete =
-              (lastMessage.reasoningContent &&
-                !lastMessage.isThinkingComplete) ||
+              (lastMessage.reasoningContent && !lastMessage.isThinkingComplete) ||
               thinkingCompleteFromTags;
-
             const autoCollapseState = applyAutoCollapseLogic(
               lastMessage,
               isThinkingComplete,
@@ -134,7 +250,6 @@ export const useApiRequest = (
     [setMessage, applyAutoCollapseLogic],
   );
 
-  // 完成消息
   const completeMessage = useCallback(
     (status = MESSAGE_STATUS.COMPLETE) => {
       setMessage((prevMessage) => {
@@ -147,45 +262,39 @@ export const useApiRequest = (
         }
 
         const autoCollapseState = applyAutoCollapseLogic(lastMessage, true);
-
         const updatedMessages = [
           ...prevMessage.slice(0, -1),
           {
             ...lastMessage,
-            status: status,
+            status,
             ...autoCollapseState,
           },
         ];
 
-        // 在消息完成时保存，传入更新后的消息列表
-        if (
-          status === MESSAGE_STATUS.COMPLETE ||
-          status === MESSAGE_STATUS.ERROR
-        ) {
+        if (status === MESSAGE_STATUS.COMPLETE || status === MESSAGE_STATUS.ERROR) {
           setTimeout(() => saveMessages(updatedMessages), 0);
         }
 
         return updatedMessages;
       });
     },
-    [setMessage, applyAutoCollapseLogic, saveMessages],
+    [setMessage, applyAutoCollapseLogic, saveMessages, t],
   );
 
-  // 非流式请求
   const handleNonStreamRequest = useCallback(
-    async (payload) => {
+    async (payload, endpoint) => {
       setDebugData((prev) => ({
         ...prev,
         request: payload,
         timestamp: new Date().toISOString(),
         response: null,
-        sseMessages: null, // 非流式请求清除 SSE 消息
+        sseMessages: null,
         isStreaming: false,
       }));
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
       try {
-        const response = await fetch(API_ENDPOINTS.CHAT_COMPLETIONS, {
+        const response = await fetch(getPlaygroundEndpointUrl(endpoint), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -200,19 +309,13 @@ export const useApiRequest = (
           try {
             errorBody = await response.text();
             const errorJson = JSON.parse(errorBody);
-            if (errorJson?.error) {
-              parsedError = errorJson.error;
-            }
+            if (errorJson?.error) parsedError = errorJson.error;
           } catch (e) {
-            if (!errorBody) {
-              errorBody = '无法读取错误响应体';
-            }
+            if (!errorBody) errorBody = '无法读取错误响应体';
           }
 
           const errorInfo = handleApiError(
-            new Error(
-              `HTTP error! status: ${response.status}, body: ${errorBody}`,
-            ),
+            new Error(`HTTP error! status: ${response.status}, body: ${errorBody}`),
             response,
           );
 
@@ -232,43 +335,13 @@ export const useApiRequest = (
         }
 
         const data = await response.json();
-
         setDebugData((prev) => ({
           ...prev,
           response: JSON.stringify(data, null, 2),
         }));
         setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
-        if (data.choices?.[0]) {
-          const choice = data.choices[0];
-          let content = choice.message?.content || '';
-          let reasoningContent =
-            choice.message?.reasoning_content ||
-            choice.message?.reasoning ||
-            '';
-
-          const processed = processThinkTags(content, reasoningContent);
-
-          setMessage((prevMessage) => {
-            const newMessages = [...prevMessage];
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage?.status === MESSAGE_STATUS.LOADING) {
-              const autoCollapseState = applyAutoCollapseLogic(
-                lastMessage,
-                true,
-              );
-
-              newMessages[newMessages.length - 1] = {
-                ...lastMessage,
-                content: processed.content,
-                reasoningContent: processed.reasoningContent,
-                status: MESSAGE_STATUS.COMPLETE,
-                ...autoCollapseState,
-              };
-            }
-            return newMessages;
-          });
-        }
+        updateLastAssistantWithResult(normalizePlaygroundResponse(endpoint, data));
       } catch (error) {
         console.error('Non-stream request error:', error);
 
@@ -297,23 +370,29 @@ export const useApiRequest = (
         });
       }
     },
-    [setDebugData, setActiveDebugTab, setMessage, t, applyAutoCollapseLogic],
+    [
+      setDebugData,
+      setActiveDebugTab,
+      setMessage,
+      t,
+      applyAutoCollapseLogic,
+      updateLastAssistantWithResult,
+    ],
   );
 
-  // SSE请求
   const handleSSE = useCallback(
-    (payload) => {
+    (payload, endpoint) => {
       setDebugData((prev) => ({
         ...prev,
         request: payload,
         timestamp: new Date().toISOString(),
         response: null,
-        sseMessages: [], // 新增：存储 SSE 消息数组
-        isStreaming: true, // 新增：标记流式状态
+        sseMessages: [],
+        isStreaming: true,
       }));
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
-      const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
+      const source = new SSE(getPlaygroundEndpointUrl(endpoint), {
         headers: {
           'Content-Type': 'application/json',
           'New-Api-User': getUserIdFromLocalStorage(),
@@ -326,17 +405,17 @@ export const useApiRequest = (
 
       let responseData = '';
       let hasReceivedFirstResponse = false;
-      let isStreamComplete = false; // 添加标志位跟踪流是否正常完成
+      let isStreamComplete = false;
 
-      source.addEventListener('message', (e) => {
-        if (e.data === '[DONE]') {
-          isStreamComplete = true; // 标记流正常完成
+      const handleStreamData = (data, eventType) => {
+        if (data === '[DONE]') {
+          isStreamComplete = true;
           source.close();
           sseSourceRef.current = null;
           setDebugData((prev) => ({
             ...prev,
             response: responseData,
-            sseMessages: [...(prev.sseMessages || []), '[DONE]'], // 添加 DONE 标记
+            sseMessages: [...(prev.sseMessages || []), '[DONE]'],
             isStreaming: false,
           }));
           completeMessage();
@@ -344,31 +423,76 @@ export const useApiRequest = (
         }
 
         try {
-          const payload = JSON.parse(e.data);
-          responseData += e.data + '\n';
+          const parsed = JSON.parse(data);
+          responseData += data + '\n';
 
           if (!hasReceivedFirstResponse) {
             setActiveDebugTab(DEBUG_TABS.RESPONSE);
             hasReceivedFirstResponse = true;
           }
 
-          // 新增：将 SSE 消息添加到数组
           setDebugData((prev) => ({
             ...prev,
-            sseMessages: [...(prev.sseMessages || []), e.data],
+            sseMessages: [...(prev.sseMessages || []), data],
           }));
 
-          const delta = payload.choices?.[0]?.delta;
+          if (endpoint === PLAYGROUND_ENDPOINTS.RESPONSES) {
+            const type = parsed.type || eventType;
+            if (
+              (type === 'response.output_text.delta' ||
+                type === 'response.reasoning_text.delta') &&
+              typeof parsed.delta === 'string'
+            ) {
+              streamMessageUpdate(
+                parsed.delta,
+                type === 'response.reasoning_text.delta' ? 'reasoning' : 'content',
+              );
+            }
+            if (type === 'response.completed' && parsed.response) {
+              isStreamComplete = true;
+              source.close();
+              sseSourceRef.current = null;
+              setDebugData((prev) => ({
+                ...prev,
+                response: responseData,
+                isStreaming: false,
+              }));
+              updateLastAssistantWithResult(
+                normalizePlaygroundResponse(PLAYGROUND_ENDPOINTS.RESPONSES, parsed.response),
+              );
+            }
+            return;
+          }
+
+          if (endpoint === PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES) {
+            const type = parsed.type || eventType;
+            if (type === 'content_block_delta' && parsed.delta) {
+              if (typeof parsed.delta.thinking === 'string') {
+                streamMessageUpdate(parsed.delta.thinking, 'reasoning');
+              }
+              if (typeof parsed.delta.text === 'string') {
+                streamMessageUpdate(parsed.delta.text, 'content');
+              }
+            }
+            if (type === 'message_stop') {
+              isStreamComplete = true;
+              source.close();
+              sseSourceRef.current = null;
+              setDebugData((prev) => ({
+                ...prev,
+                response: responseData,
+                isStreaming: false,
+              }));
+              completeMessage();
+            }
+            return;
+          }
+
+          const delta = parsed.choices?.[0]?.delta;
           if (delta) {
-            if (delta.reasoning_content) {
-              streamMessageUpdate(delta.reasoning_content, 'reasoning');
-            }
-            if (delta.reasoning) {
-              streamMessageUpdate(delta.reasoning, 'reasoning');
-            }
-            if (delta.content) {
-              streamMessageUpdate(delta.content, 'content');
-            }
+            if (delta.reasoning_content) streamMessageUpdate(delta.reasoning_content, 'reasoning');
+            if (delta.reasoning) streamMessageUpdate(delta.reasoning, 'reasoning');
+            if (delta.content) streamMessageUpdate(delta.content, 'content');
           }
         } catch (error) {
           console.error('Failed to parse SSE message:', error);
@@ -377,7 +501,7 @@ export const useApiRequest = (
           setDebugData((prev) => ({
             ...prev,
             response: responseData + `\n\nError: ${errorInfo}`,
-            sseMessages: [...(prev.sseMessages || []), e.data], // 即使解析失败也保存原始数据
+            sseMessages: [...(prev.sseMessages || []), data],
             isStreaming: false,
           }));
           setActiveDebugTab(DEBUG_TABS.RESPONSE);
@@ -385,10 +509,25 @@ export const useApiRequest = (
           streamMessageUpdate(t('解析响应数据时发生错误'), 'content');
           completeMessage(MESSAGE_STATUS.ERROR);
         }
-      });
+      };
+
+      const addDataListener = (eventName) => {
+        source.addEventListener(eventName, (e) => handleStreamData(e.data, eventName));
+      };
+
+      if (endpoint === PLAYGROUND_ENDPOINTS.RESPONSES) {
+        [
+          'response.output_text.delta',
+          'response.reasoning_text.delta',
+          'response.completed',
+        ].forEach(addDataListener);
+      } else if (endpoint === PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES) {
+        ['content_block_delta', 'message_stop'].forEach(addDataListener);
+      } else {
+        addDataListener('message');
+      }
 
       source.addEventListener('error', (e) => {
-        // 只有在流没有正常完成且连接状态异常时才处理错误
         if (!isStreamComplete && source.readyState !== 2) {
           console.error('SSE Error:', e);
           let errorMessage = e.data || t('请求发生错误');
@@ -401,9 +540,7 @@ export const useApiRequest = (
                 errorMessage = errorJson.error.message || errorMessage;
                 errorCode = errorJson.error.code || null;
               }
-            } catch (_) {
-              // not JSON, use raw data as error message
-            }
+            } catch (_) {}
           }
 
           const errorInfo = handleApiError(new Error(errorMessage));
@@ -411,21 +548,22 @@ export const useApiRequest = (
 
           setDebugData((prev) => ({
             ...prev,
-            response:
-              responseData +
-              '\n\nSSE Error:\n' +
-              JSON.stringify(errorInfo, null, 2),
+            response: responseData + '\n\nSSE Error:\n' + JSON.stringify(errorInfo, null, 2),
           }));
           setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
             const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage && lastMessage.status !== MESSAGE_STATUS.COMPLETE && lastMessage.status !== MESSAGE_STATUS.ERROR) {
+            if (
+              lastMessage &&
+              lastMessage.status !== MESSAGE_STATUS.COMPLETE &&
+              lastMessage.status !== MESSAGE_STATUS.ERROR
+            ) {
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
                 content: (lastMessage.content || '') + errorMessage,
-                errorCode: errorCode,
+                errorCode,
                 status: MESSAGE_STATUS.ERROR,
               };
             }
@@ -437,7 +575,6 @@ export const useApiRequest = (
       });
 
       source.addEventListener('readystatechange', (e) => {
-        // 检查 HTTP 状态错误，但避免与正常关闭重复处理
         if (
           e.readyState >= 2 &&
           source.status !== undefined &&
@@ -450,10 +587,7 @@ export const useApiRequest = (
 
           setDebugData((prev) => ({
             ...prev,
-            response:
-              responseData +
-              '\n\nHTTP Error:\n' +
-              JSON.stringify(errorInfo, null, 2),
+            response: responseData + '\n\nHTTP Error:\n' + JSON.stringify(errorInfo, null, 2),
           }));
           setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
@@ -485,20 +619,18 @@ export const useApiRequest = (
       setMessage,
       streamMessageUpdate,
       completeMessage,
+      updateLastAssistantWithResult,
       t,
-      applyAutoCollapseLogic,
+      sseSourceRef,
     ],
   );
 
-  // 停止生成
   const onStopGenerator = useCallback(() => {
-    // 如果仍有活动的 SSE 连接，首先关闭
     if (sseSourceRef.current) {
       sseSourceRef.current.close();
       sseSourceRef.current = null;
     }
 
-    // 无论是否存在 SSE 连接，都尝试处理最后一条正在生成的消息
     setMessage((prevMessage) => {
       if (prevMessage.length === 0) return prevMessage;
       const lastMessage = prevMessage[prevMessage.length - 1];
@@ -513,7 +645,6 @@ export const useApiRequest = (
         );
 
         const autoCollapseState = applyAutoCollapseLogic(lastMessage, true);
-
         const updatedMessages = [
           ...prevMessage.slice(0, -1),
           {
@@ -525,22 +656,19 @@ export const useApiRequest = (
           },
         ];
 
-        // 停止生成时也保存，传入更新后的消息列表
         setTimeout(() => saveMessages(updatedMessages), 0);
-
         return updatedMessages;
       }
       return prevMessage;
     });
-  }, [setMessage, applyAutoCollapseLogic, saveMessages]);
+  }, [setMessage, applyAutoCollapseLogic, saveMessages, sseSourceRef]);
 
-  // 发送请求
   const sendRequest = useCallback(
-    (payload, isStream) => {
-      if (isStream) {
-        handleSSE(payload);
+    (payload, isStream, endpoint = PLAYGROUND_ENDPOINTS.CHAT_COMPLETIONS) => {
+      if (isStream && endpoint !== PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS) {
+        handleSSE(payload, endpoint);
       } else {
-        handleNonStreamRequest(payload);
+        handleNonStreamRequest(payload, endpoint);
       }
     },
     [handleSSE, handleNonStreamRequest],

@@ -1752,7 +1752,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Принудительно возвращать синтаксически корректный JSON",
@@ -4403,6 +4403,18 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Endpoint (auto inferred)": "Эндпоинт (автоопределение)",
+    "Auto inferred": "Автоопределение",
+    "Image quality": "Качество изображения",
+    "Image size": "Размер изображения",
+    "Quality": "Качество",
+    "low": "низкое",
+    "medium": "среднее",
+    "high": "высокое",
+    "auto": "авто",
+    "Size must use axb format with positive integer dimensions": "Размер должен быть в формате axb с положительными целыми значениями",
+    "Size width and height must be less than or equal to 3840": "Ширина и высота должны быть не больше 3840",
+    "请选择质量": "Выберите качество"
   }
 }

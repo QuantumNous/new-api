@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   PaperclipIcon,
   FileIcon,
@@ -23,6 +23,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   PromptInput,
   PromptInputButton,
   PromptInputFooter,
@@ -32,7 +39,14 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
-import type { ModelOption, GroupOption } from '../types'
+import { Input } from '@/components/ui/input'
+import {
+  IMAGE_QUALITY_OPTIONS,
+  isImageGenerationEndpoint,
+  validateImageSize,
+} from '../lib/validation'
+import { getEndpointDescription, getEndpointLabel } from '../lib'
+import type { ModelOption, GroupOption, PlaygroundEndpoint } from '../types'
 
 interface PlaygroundInputProps {
   onSubmit: (text: string) => void
@@ -46,6 +60,13 @@ interface PlaygroundInputProps {
   groups: GroupOption[]
   groupValue: string
   onGroupChange: (value: string) => void
+  endpointValue: PlaygroundEndpoint
+  inferredEndpoint: PlaygroundEndpoint
+  onEndpointChange: (value: PlaygroundEndpoint) => void
+  imageQuality: string
+  imageSize: string
+  onImageQualityChange: (value: string) => void
+  onImageSizeChange: (value: string) => void
 }
 
 const suggestions = [
@@ -55,6 +76,13 @@ const suggestions = [
   { icon: CodeSquareIcon, text: 'Code', color: '#6c71ff' },
   { icon: GraduationCapIcon, text: 'Get advice', color: '#76d0eb' },
   { icon: null, text: 'More' },
+]
+
+const endpointOptions: PlaygroundEndpoint[] = [
+  'chat-completions',
+  'responses',
+  'claude-messages',
+  'image-generations',
 ]
 
 export function PlaygroundInput({
@@ -69,6 +97,13 @@ export function PlaygroundInput({
   groups,
   groupValue,
   onGroupChange,
+  endpointValue,
+  inferredEndpoint,
+  onEndpointChange,
+  imageQuality,
+  imageSize,
+  onImageQualityChange,
+  onImageSizeChange,
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -76,6 +111,11 @@ export function PlaygroundInput({
   const isModelSelectDisabled =
     disabled || isModelLoading || models.length === 0
   const isGroupSelectDisabled = disabled || groups.length === 0
+  const showImageOptions = isImageGenerationEndpoint(endpointValue)
+  const imageSizeError = useMemo(
+    () => (showImageOptions ? validateImageSize(imageSize) : null),
+    [showImageOptions, imageSize]
+  )
 
   const handleSubmit = (message: PromptInputMessage) => {
     if (!message.text?.trim() || disabled) return
@@ -107,6 +147,87 @@ export function PlaygroundInput({
           placeholder={t('Ask anything')}
           value={text}
         />
+
+        <div className='border-border flex flex-col gap-3 border-b px-2.5 pb-2.5'>
+          <ModelGroupSelector
+            selectedModel={modelValue}
+            models={models}
+            onModelChange={onModelChange}
+            selectedGroup={groupValue}
+            groups={groups}
+            onGroupChange={onGroupChange}
+            disabled={isModelSelectDisabled || isGroupSelectDisabled}
+            className='flex-col items-stretch'
+          />
+
+          <div className='flex flex-col gap-1'>
+            <span className='text-muted-foreground text-xs'>{t('Endpoint (auto inferred)')}</span>
+            <Select
+              value={endpointValue}
+              onValueChange={(value) =>
+                onEndpointChange(value as PlaygroundEndpoint)
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger className='w-full justify-between' size='sm'>
+                <SelectValue>{getEndpointLabel(endpointValue)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent align='end' className='w-72 max-w-[calc(100vw-2rem)]'>
+                {endpointOptions.map((endpoint) => (
+                  <SelectItem key={endpoint} value={endpoint}>
+                    <div className='flex flex-col gap-0.5'>
+                      <span>{getEndpointLabel(endpoint)}</span>
+                      <span className='text-muted-foreground text-xs'>
+                        {endpoint === inferredEndpoint ? `${t('Auto inferred')} · ` : ''}
+                        {getEndpointDescription(endpoint)}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {showImageOptions && (
+            <>
+              <div className='flex flex-col gap-1'>
+                <span className='text-muted-foreground text-xs'>{t('Image quality')}</span>
+                <Select
+                  value={imageQuality}
+                  onValueChange={onImageQualityChange}
+                  disabled={disabled}
+                >
+                  <SelectTrigger className='w-full justify-between' size='sm'>
+                    <SelectValue>{t(imageQuality)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent align='end'>
+                    {IMAGE_QUALITY_OPTIONS.map((quality) => (
+                      <SelectItem key={quality} value={quality}>
+                        {t(quality)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className='flex flex-col gap-1'>
+                <span className='text-muted-foreground text-xs'>{t('Image size')}</span>
+                <Input
+                  aria-invalid={!!imageSizeError}
+                  disabled={disabled}
+                  onChange={(event) => onImageSizeChange(event.target.value)}
+                  placeholder='1024x1024'
+                  value={imageSize}
+                />
+                {imageSizeError && (
+                  <span className='text-destructive text-xs'>
+                    {t(imageSizeError)}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         <PromptInputFooter className='p-2.5'>
           <PromptInputTools>
@@ -165,16 +286,6 @@ export function PlaygroundInput({
           </PromptInputTools>
 
           <div className='flex items-center gap-1.5 md:gap-2'>
-            <ModelGroupSelector
-              selectedModel={modelValue}
-              models={models}
-              onModelChange={onModelChange}
-              selectedGroup={groupValue}
-              groups={groups}
-              onGroupChange={onGroupChange}
-              disabled={isModelSelectDisabled || isGroupSelectDisabled}
-            />
-
             {isGenerating && onStop ? (
               <PromptInputButton
                 className='text-foreground font-medium'

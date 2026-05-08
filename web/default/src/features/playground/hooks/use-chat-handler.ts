@@ -1,14 +1,19 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
-import { sendChatCompletion } from '../api'
+import { sendPlaygroundRequest } from '../api'
 import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
 import {
-  buildChatCompletionPayload,
-  updateAssistantMessageWithError,
-  updateLastAssistantMessage,
-  processStreamingContent,
+  buildPlaygroundPayload,
   finalizeMessage,
+  inferPlaygroundEndpoint,
+  normalizePlaygroundError,
+  normalizePlaygroundResponse,
+  processStreamingContent,
+  updateAssistantMessageWithError,
+  updateCurrentVersionContent,
+  updateLastAssistantMessage,
 } from '../lib'
+import { isImageGenerationEndpoint } from '../lib/validation'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
 
@@ -27,16 +32,19 @@ export function useChatHandler({
   onMessageUpdate,
 }: UseChatHandlerOptions) {
   const { sendStreamRequest, stopStream, isStreaming } = useStreamRequest()
+  const endpoint = useMemo(
+    () => config.endpointOverride ?? inferPlaygroundEndpoint(config.model),
+    [config.endpointOverride, config.model]
+  )
 
   // Handle stream update
   const handleStreamUpdate = useCallback(
-    (type: 'reasoning' | 'content', chunk: string) => {
+    ({ type, chunk }: { type: 'reasoning' | 'content'; chunk: string }) => {
       onMessageUpdate((prev) =>
         updateLastAssistantMessage(prev, (message) => {
           if (message.status === MESSAGE_STATUS.ERROR) return message
 
           if (type === 'reasoning') {
-            // Direct API reasoning_content
             return {
               ...message,
               reasoning: {
@@ -48,7 +56,6 @@ export function useChatHandler({
             }
           }
 
-          // Content streaming: handle <think> tags
           return {
             ...processStreamingContent(message, chunk),
             status: MESSAGE_STATUS.STREAMING,
@@ -60,16 +67,35 @@ export function useChatHandler({
   )
 
   // Handle stream complete
-  const handleStreamComplete = useCallback(() => {
-    onMessageUpdate((prev) =>
-      updateLastAssistantMessage(prev, (message) =>
-        message.status === MESSAGE_STATUS.COMPLETE ||
-        message.status === MESSAGE_STATUS.ERROR
-          ? message
-          : { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+  const handleStreamComplete = useCallback(
+    (result?: { content?: string; reasoning?: string; images?: Message['images'] }) => {
+      onMessageUpdate((prev) =>
+        updateLastAssistantMessage(prev, (message) => {
+          if (
+            message.status === MESSAGE_STATUS.COMPLETE ||
+            message.status === MESSAGE_STATUS.ERROR
+          ) {
+            return message
+          }
+
+          const withCompletedContent = result?.content
+            ? updateCurrentVersionContent(message, result.content)
+            : message
+          const finalized = finalizeMessage(
+            withCompletedContent,
+            result?.reasoning
+          )
+
+          return {
+            ...finalized,
+            images: result?.images?.length ? result.images : finalized.images,
+            status: MESSAGE_STATUS.COMPLETE,
+          }
+        })
       )
-    )
-  }, [onMessageUpdate])
+    },
+    [onMessageUpdate]
+  )
 
   // Handle stream error
   const handleStreamError = useCallback(
@@ -85,12 +111,14 @@ export function useChatHandler({
   // Send streaming chat request
   const sendStreamingChat = useCallback(
     (messages: Message[]) => {
-      const payload = buildChatCompletionPayload(
+      const payload = buildPlaygroundPayload(
+        endpoint,
         messages,
         config,
         parameterEnabled
       )
       sendStreamRequest(
+        endpoint,
         payload,
         handleStreamUpdate,
         handleStreamComplete,
@@ -98,6 +126,7 @@ export function useChatHandler({
       )
     },
     [
+      endpoint,
       config,
       parameterEnabled,
       sendStreamRequest,
@@ -110,62 +139,48 @@ export function useChatHandler({
   // Send non-streaming chat request
   const sendNonStreamingChat = useCallback(
     async (messages: Message[]) => {
-      const payload = buildChatCompletionPayload(
+      const payload = buildPlaygroundPayload(
+        endpoint,
         messages,
         config,
         parameterEnabled
       )
 
       try {
-        const response = await sendChatCompletion(payload)
-        const choice = response.choices?.[0]
-        if (!choice) return
+        const response = await sendPlaygroundRequest(endpoint, payload)
+        const normalized = normalizePlaygroundResponse(endpoint, response)
 
         onMessageUpdate((prev) =>
           updateLastAssistantMessage(prev, (message) => ({
             ...finalizeMessage(
-              {
-                ...message,
-                versions: [
-                  {
-                    ...message.versions[0],
-                    content: choice.message?.content || '',
-                  },
-                ],
-              },
-              choice.message?.reasoning_content
+              updateCurrentVersionContent(message, normalized.content),
+              normalized.reasoning
             ),
+            images: normalized.images?.length ? normalized.images : message.images,
             status: MESSAGE_STATUS.COMPLETE,
           }))
         )
       } catch (error: unknown) {
-        const err = error as {
-          response?: {
-            data?: { message?: string; error?: { code?: string } }
-          }
-          message?: string
-        }
+        const normalized = normalizePlaygroundError(error)
         handleStreamError(
-          err?.response?.data?.message ||
-            err?.message ||
-            ERROR_MESSAGES.API_REQUEST_ERROR,
-          err?.response?.data?.error?.code || undefined
+          normalized.message || ERROR_MESSAGES.API_REQUEST_ERROR,
+          normalized.code
         )
       }
     },
-    [config, parameterEnabled, onMessageUpdate, handleStreamError]
+    [endpoint, config, parameterEnabled, onMessageUpdate, handleStreamError]
   )
 
   // Send chat request (stream or non-stream based on config)
   const sendChat = useCallback(
     (messages: Message[]) => {
-      if (config.stream) {
+      if (config.stream && !isImageGenerationEndpoint(endpoint)) {
         sendStreamingChat(messages)
       } else {
         sendNonStreamingChat(messages)
       }
     },
-    [config.stream, sendStreamingChat, sendNonStreamingChat]
+    [config.stream, endpoint, sendStreamingChat, sendNonStreamingChat]
   )
 
   // Stop generation

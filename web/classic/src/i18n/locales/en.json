@@ -2599,7 +2599,11 @@
     "站点额度展示类型及汇率": "Site quota display type and exchange rate",
     "端口号必须在1-65535之间": "Port number must be between 1-65535",
     "端口配置详细说明": "Restrict external requests to specific ports. Use single ports (80, 443) or ranges (8000-8999). Empty list allows all ports. Default includes common web ports.",
-    "端点": "Endpoint",
+    "端点（自动识别）": "Endpoint (auto-detected)",
+    "你知道你正在做什么吗？确定要继续吗？": "Do you know what you are doing? Are you sure you want to continue?",
+    "图片不会被持久化保存。如有需要，请立即下载生成的图片，服务器不会保存图片记忆。": "Images are not persisted. Download generated images immediately if needed; the server does not store image history.",
+    "生成的图片 {{index}}": "Generated image {{index}}",
+    "图片数据缺失": "Image data missing",
     "端点 URL 必须以 http:// 或 https:// 开头：": "Endpoint URL must start with http:// or https://: ",
     "端点 URL 必须是完整地址（以 http:// 或 https:// 开头）": "Endpoint URL must be a full address (starting with http:// or https://)",
     "端点映射": "Endpoint mapping",
@@ -3794,6 +3798,18 @@
     "见上方动态计费详情": "See dynamic pricing details above",
     "含时间条件": "Time rules",
     "含请求条件": "Request rules",
-    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)"
+    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)",
+    "Endpoint (auto inferred)": "Endpoint (auto inferred)",
+    "Auto inferred": "Auto inferred",
+    "Image quality": "Image quality",
+    "Image size": "Image size",
+    "Quality": "Quality",
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+    "auto": "auto",
+    "Size must use axb format with positive integer dimensions": "Size must use axb format with positive integer dimensions",
+    "Size width and height must be less than or equal to 3840": "Size width and height must be less than or equal to 3840",
+    "请选择质量": "Please select quality"
   }
 }

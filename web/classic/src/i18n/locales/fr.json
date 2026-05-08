@@ -2587,7 +2587,11 @@
     "站点额度展示类型及汇率": "Type d'affichage du quota du site et taux de change",
     "端口号必须在1-65535之间": "Port number must be between 1-65535",
     "端口配置详细说明": "Limitez les requêtes externes à des ports spécifiques. Utilisez des ports uniques (80, 443) ou des plages (8000-8999). Une liste vide autorise tous les ports. La valeur par défaut inclut les ports Web courants.",
-    "端点": "Point de terminaison",
+    "端点（自动识别）": "Point de terminaison (détection automatique)",
+    "你知道你正在做什么吗？确定要继续吗？": "Savez-vous ce que vous faites ? Voulez-vous vraiment continuer ?",
+    "图片不会被持久化保存。如有需要，请立即下载生成的图片，服务器不会保存图片记忆。": "Les images ne sont pas conservées. Téléchargez-les immédiatement si nécessaire ; le serveur ne stocke pas l’historique des images.",
+    "生成的图片 {{index}}": "Image générée {{index}}",
+    "图片数据缺失": "Données d’image manquantes",
     "端点 URL 必须是完整地址（以 http:// 或 https:// 开头）": "L'URL du point de terminaison doit être une adresse complète (commençant par http:// ou https://)",
     "端点映射": "Mappage de points de terminaison",
     "端点类型": "Type de point de terminaison",
@@ -3649,6 +3653,18 @@
     "默认用户消息": "Bonjour",
     "默认补全倍率": "Taux de complétion par défaut",
     "阶梯计费（表达式解析失败）": "Facturation par paliers (échec de l'analyse de l'expression)",
-    "阶梯计费（未匹配到对应阶梯）": "Facturation par paliers (aucun palier correspondant)"
+    "阶梯计费（未匹配到对应阶梯）": "Facturation par paliers (aucun palier correspondant)",
+    "Endpoint (auto inferred)": "Point de terminaison (détection automatique)",
+    "Auto inferred": "Détection automatique",
+    "Image quality": "Qualité de l’image",
+    "Image size": "Taille de l’image",
+    "Quality": "Qualité",
+    "low": "faible",
+    "medium": "moyenne",
+    "high": "élevée",
+    "auto": "auto",
+    "Size must use axb format with positive integer dimensions": "La taille doit utiliser le format axb avec des dimensions entières positives",
+    "Size width and height must be less than or equal to 3840": "La largeur et la hauteur doivent être inférieures ou égales à 3840",
+    "请选择质量": "Veuillez choisir la qualité"
   }
 }

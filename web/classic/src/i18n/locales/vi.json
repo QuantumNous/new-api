@@ -2811,7 +2811,11 @@
     "站点额度展示类型及汇率": "Loại hiển thị hạn ngạch trang web và tỷ giá hối đoái",
     "端口号必须在1-65535之间": "Port number must be between 1-65535",
     "端口配置详细说明": "Hạn chế các yêu cầu bên ngoài đến các cổng cụ thể. Sử dụng cổng đơn (80, 443) hoặc phạm vi (8000-8999). Danh sách trống cho phép tất cả các cổng. Mặc định bao gồm các cổng web phổ biến.",
-    "端点": "Điểm cuối",
+    "端点（自动识别）": "Điểm cuối (tự động nhận diện)",
+    "你知道你正在做什么吗？确定要继续吗？": "Bạn có biết mình đang làm gì không? Bạn chắc chắn muốn tiếp tục chứ?",
+    "图片不会被持久化保存。如有需要，请立即下载生成的图片，服务器不会保存图片记忆。": "Hình ảnh sẽ không được lưu lâu dài. Nếu cần, hãy tải ảnh đã tạo xuống ngay; máy chủ không lưu lịch sử hình ảnh.",
+    "生成的图片 {{index}}": "Ảnh đã tạo {{index}}",
+    "图片数据缺失": "Thiếu dữ liệu hình ảnh",
     "端点 URL 必须是完整地址（以 http:// 或 https:// 开头）": "URL endpoint phải là địa chỉ đầy đủ (bắt đầu bằng http:// hoặc https://)",
     "端点映射": "Ánh xạ điểm cuối",
     "端点类型": "Loại điểm cuối",
@@ -4183,6 +4187,18 @@
     "默认用户消息": "Xin chào",
     "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
     "阶梯计费（表达式解析失败）": "Thanh toán theo bậc (không phân tích được biểu thức)",
-    "阶梯计费（未匹配到对应阶梯）": "Thanh toán theo bậc (không tìm thấy bậc phù hợp)"
+    "阶梯计费（未匹配到对应阶梯）": "Thanh toán theo bậc (không tìm thấy bậc phù hợp)",
+    "Endpoint (auto inferred)": "Điểm cuối (tự động nhận diện)",
+    "Auto inferred": "Tự động nhận diện",
+    "Image quality": "Chất lượng ảnh",
+    "Image size": "Kích thước ảnh",
+    "Quality": "Chất lượng",
+    "low": "thấp",
+    "medium": "trung bình",
+    "high": "cao",
+    "auto": "tự động",
+    "Size must use axb format with positive integer dimensions": "Kích thước phải dùng định dạng axb với chiều rộng và chiều cao là số nguyên dương",
+    "Size width and height must be less than or equal to 3840": "Chiều rộng và chiều cao phải nhỏ hơn hoặc bằng 3840",
+    "请选择质量": "Vui lòng chọn chất lượng"
   }
 }

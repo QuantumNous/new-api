@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -138,6 +140,44 @@ func GetAndValidateResponsesCompactionRequest(c *gin.Context) (*dto.OpenAIRespon
 	return request, nil
 }
 
+var imageSizePattern = regexp.MustCompile(`^([1-9]\d*)x([1-9]\d*)$`)
+
+var validImageQualities = map[string]struct{}{
+	"low":      {},
+	"medium":   {},
+	"high":     {},
+	"auto":     {},
+	"standard": {},
+	"hd":       {},
+}
+
+func validateOpenAIImageRequest(imageRequest *dto.ImageRequest) error {
+	if imageRequest.Quality != "" {
+		if _, ok := validImageQualities[imageRequest.Quality]; !ok {
+			return errors.New("invalid quality, must be one of: low, medium, high, auto, standard, hd")
+		}
+	}
+
+	if strings.Contains(imageRequest.Size, "×") {
+		return errors.New("size an unexpected error occurred in the parameter, please use 'x' instead of the multiplication sign '×'")
+	}
+
+	if imageRequest.Size != "" {
+		matches := imageSizePattern.FindStringSubmatch(imageRequest.Size)
+		if matches == nil {
+			return errors.New("size must use axb format with positive integer dimensions")
+		}
+
+		width, _ := strconv.Atoi(matches[1])
+		height, _ := strconv.Atoi(matches[2])
+		if width > 3840 || height > 3840 {
+			return errors.New("size width and height must be less than or equal to 3840")
+		}
+	}
+
+	return nil
+}
+
 func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageRequest, error) {
 	imageRequest := &dto.ImageRequest{}
 
@@ -156,6 +196,10 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			imageRequest.Size = formData.Get("size")
 			if imageValue := formData.Get("image"); imageValue != "" {
 				imageRequest.Image, _ = common.Marshal(imageValue)
+			}
+
+			if err := validateOpenAIImageRequest(imageRequest); err != nil {
+				return nil, err
 			}
 
 			if imageRequest.Model == "gpt-image-1" {
@@ -182,12 +226,11 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		}
 
 		if imageRequest.Model == "" {
-			//imageRequest.Model = "dall-e-3"
 			return nil, errors.New("model is required")
 		}
 
-		if strings.Contains(imageRequest.Size, "×") {
-			return nil, errors.New("size an unexpected error occurred in the parameter, please use 'x' instead of the multiplication sign '×'")
+		if err := validateOpenAIImageRequest(imageRequest); err != nil {
+			return nil, err
 		}
 
 		// Not "256x256", "512x512", or "1024x1024"
@@ -213,10 +256,6 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				imageRequest.Quality = "auto"
 			}
 		}
-
-		//if imageRequest.Prompt == "" {
-		//	return nil, errors.New("prompt is required")
-		//}
 
 		if imageRequest.N == nil || *imageRequest.N == 0 {
 			imageRequest.N = common.GetPointer(uint(1))

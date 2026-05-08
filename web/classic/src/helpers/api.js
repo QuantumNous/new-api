@@ -22,9 +22,13 @@ import {
   showError,
   formatMessageForAPI,
   isValidMessage,
+  getLastUserMessage,
 } from './utils';
 import axios from 'axios';
-import { MESSAGE_ROLES } from '../constants/playground.constants';
+import {
+  MESSAGE_ROLES,
+  PLAYGROUND_ENDPOINTS,
+} from '../constants/playground.constants';
 
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
@@ -108,19 +112,116 @@ API.interceptors.response.use(
 
 // playground
 
-// 构建API请求负载
-export const buildApiPayload = (
-  messages,
-  systemPrompt,
-  inputs,
-  parameterEnabled,
-) => {
-  const processedMessages = messages
-    .filter(isValidMessage)
-    .map(formatMessageForAPI)
-    .filter(Boolean);
+export const inferPlaygroundEndpoint = (model = '') => {
+  const normalized = String(model).toLowerCase();
 
-  // 如果有系统提示，插入到消息开头
+  if (
+    normalized.includes('gpt-image') ||
+    normalized.includes('dall-e') ||
+    normalized.includes('imagen-') ||
+    normalized.includes('flux-') ||
+    normalized.includes('flux.1-')
+  ) {
+    return PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS;
+  }
+
+  if (
+    normalized.includes('claude') ||
+    normalized.includes('haiku') ||
+    normalized.includes('sonnet') ||
+    normalized.includes('opus')
+  ) {
+    return PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES;
+  }
+
+  if (
+    normalized.startsWith('gpt-') ||
+    normalized.startsWith('chatgpt') ||
+    /^o\d/.test(normalized)
+  ) {
+    return PLAYGROUND_ENDPOINTS.RESPONSES;
+  }
+
+  return PLAYGROUND_ENDPOINTS.CHAT_COMPLETIONS;
+};
+
+export const getPlaygroundEndpointLabel = (endpoint) => {
+  switch (endpoint) {
+    case PLAYGROUND_ENDPOINTS.RESPONSES:
+      return 'Responses (/v1/responses)';
+    case PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES:
+      return 'Claude Messages (/v1/messages)';
+    case PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS:
+      return 'Images (/v1/images/generations)';
+    default:
+      return 'Chat Completions (/v1/chat/completions)';
+  }
+};
+
+export const getPlaygroundEndpointDescription = (endpoint) => {
+  switch (endpoint) {
+    case PLAYGROUND_ENDPOINTS.RESPONSES:
+      return 'GPT text models, including Responses image_generation_call results.';
+    case PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES:
+      return 'Claude Haiku, Sonnet, and Opus models.';
+    case PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS:
+      return 'Dedicated image models such as gpt-image and dall-e.';
+    default:
+      return 'Legacy OpenAI-compatible chat completion models.';
+  }
+};
+
+export const getPlaygroundEndpointUrl = (endpoint) => {
+  switch (endpoint) {
+    case PLAYGROUND_ENDPOINTS.RESPONSES:
+      return '/pg/responses';
+    case PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES:
+      return '/pg/messages';
+    case PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS:
+      return '/pg/images/generations';
+    default:
+      return '/pg/chat/completions';
+  }
+};
+
+const extractTextFromMessageContent = (content) => {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+
+  return content
+    .map((part) => {
+      if (!part || typeof part !== 'object') return '';
+      if (part.type === 'text' && typeof part.text === 'string') {
+        return part.text;
+      }
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n');
+};
+
+const getProcessedMessages = (messages) =>
+  messages.filter(isValidMessage).map(formatMessageForAPI).filter(Boolean);
+
+const getLastUserPrompt = (messages) => {
+  const lastUserMessage = getLastUserMessage(messages);
+  return lastUserMessage ? extractTextFromMessageContent(lastUserMessage.content) : '';
+};
+
+const applyCommonTextParameters = (payload, inputs, parameterEnabled, maxTokenKey) => {
+  if (parameterEnabled.temperature) payload.temperature = inputs.temperature;
+  if (parameterEnabled.top_p) payload.top_p = inputs.top_p;
+  if (parameterEnabled.max_tokens) {
+    payload[maxTokenKey] =
+      maxTokenKey === 'max_output_tokens'
+        ? inputs.max_output_tokens
+        : inputs.max_tokens;
+  }
+};
+
+const buildChatCompletionPayload = (messages, systemPrompt, inputs, parameterEnabled) => {
+  const processedMessages = getProcessedMessages(messages);
+
   if (systemPrompt && systemPrompt.trim()) {
     processedMessages.unshift({
       role: MESSAGE_ROLES.SYSTEM,
@@ -135,7 +236,6 @@ export const buildApiPayload = (
     stream: inputs.stream,
   };
 
-  // 添加启用的参数
   const parameterMappings = {
     temperature: 'temperature',
     top_p: 'top_p',
@@ -150,23 +250,104 @@ export const buildApiPayload = (
     const value = inputs[param];
     const hasValue = value !== undefined && value !== null;
 
-    if (!enabled) {
-      return;
-    }
+    if (!enabled) return;
 
     if (param === 'max_tokens') {
-      if (typeof value === 'number') {
-        payload[param] = value;
-      }
+      if (typeof value === 'number') payload[param] = value;
       return;
     }
 
-    if (hasValue) {
-      payload[param] = value;
-    }
+    if (hasValue) payload[param] = value;
   });
 
   return payload;
+};
+
+const buildResponsesPayload = (messages, systemPrompt, inputs, parameterEnabled) => {
+  const processedMessages = getProcessedMessages(messages);
+  const systemMessages = processedMessages.filter((m) => m.role === MESSAGE_ROLES.SYSTEM);
+  const input = processedMessages.filter((m) => m.role !== MESSAGE_ROLES.SYSTEM);
+  const payload = {
+    model: inputs.model,
+    group: inputs.group,
+    input,
+    stream: inputs.stream,
+  };
+
+  const instructionParts = [];
+  if (systemPrompt && systemPrompt.trim()) {
+    instructionParts.push(systemPrompt.trim());
+  }
+  instructionParts.push(
+    ...systemMessages
+      .map((m) => (typeof m.content === 'string' ? m.content : ''))
+      .filter(Boolean),
+  );
+  if (instructionParts.length > 0) {
+    payload.instructions = instructionParts.join('\n\n');
+  }
+
+  applyCommonTextParameters(payload, inputs, parameterEnabled, 'max_output_tokens');
+  return payload;
+};
+
+const buildClaudeMessagesPayload = (messages, systemPrompt, inputs, parameterEnabled) => {
+  const processedMessages = getProcessedMessages(messages);
+  const systemMessages = processedMessages.filter((m) => m.role === MESSAGE_ROLES.SYSTEM);
+  const payload = {
+    model: inputs.model,
+    group: inputs.group,
+    messages: processedMessages.filter((m) => m.role !== MESSAGE_ROLES.SYSTEM),
+    stream: inputs.stream,
+    max_tokens: inputs.max_tokens,
+  };
+
+  const systemParts = [];
+  if (systemPrompt && systemPrompt.trim()) {
+    systemParts.push(systemPrompt.trim());
+  }
+  systemParts.push(
+    ...systemMessages
+      .map((m) => (typeof m.content === 'string' ? m.content : ''))
+      .filter(Boolean),
+  );
+  if (systemParts.length > 0) {
+    payload.system = systemParts.join('\n\n');
+  }
+
+  applyCommonTextParameters(payload, inputs, parameterEnabled, 'max_tokens');
+  payload.max_tokens = inputs.max_tokens;
+  return payload;
+};
+
+const buildImageGenerationPayload = (messages, inputs) => ({
+  model: inputs.model,
+  group: inputs.group,
+  prompt: getLastUserPrompt(messages),
+  n: inputs.image_n,
+  size: inputs.image_size,
+  quality: inputs.image_quality,
+  response_format: inputs.image_response_format,
+});
+
+// 构建API请求负载
+export const buildApiPayload = (
+  messages,
+  systemPrompt,
+  inputs,
+  parameterEnabled,
+  endpoint = inferPlaygroundEndpoint(inputs.model),
+) => {
+  switch (endpoint) {
+    case PLAYGROUND_ENDPOINTS.RESPONSES:
+      return buildResponsesPayload(messages, systemPrompt, inputs, parameterEnabled);
+    case PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES:
+      return buildClaudeMessagesPayload(messages, systemPrompt, inputs, parameterEnabled);
+    case PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS:
+      return buildImageGenerationPayload(messages, inputs);
+    default:
+      return buildChatCompletionPayload(messages, systemPrompt, inputs, parameterEnabled);
+  }
 };
 
 // 处理API错误响应

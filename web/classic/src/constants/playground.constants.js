@@ -30,6 +30,13 @@ export const MESSAGE_ROLES = {
   SYSTEM: 'system',
 };
 
+export const PLAYGROUND_ENDPOINTS = {
+  CHAT_COMPLETIONS: 'chat-completions',
+  RESPONSES: 'responses',
+  CLAUDE_MESSAGES: 'claude-messages',
+  IMAGE_GENERATIONS: 'image-generations',
+};
+
 // 默认消息示例 - 使用函数生成以支持 i18n
 export const getDefaultMessages = (t) => [
   {
@@ -76,6 +83,9 @@ export const DEBUG_TABS = {
 // ========== API 相关常量 ==========
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  RESPONSES: '/pg/responses',
+  CLAUDE_MESSAGES: '/pg/messages',
+  IMAGE_GENERATIONS: '/pg/images/generations',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 };
@@ -85,15 +95,21 @@ export const DEFAULT_CONFIG = {
   inputs: {
     model: 'gpt-4o',
     group: '',
+    endpointOverride: null,
     temperature: 0.7,
     top_p: 1,
     max_tokens: 4096,
+    max_output_tokens: 4096,
     frequency_penalty: 0,
     presence_penalty: 0,
     seed: null,
     stream: true,
     imageEnabled: false,
     imageUrls: [''],
+    image_size: '1024x1024',
+    image_quality: 'high',
+    image_n: 1,
+    image_response_format: 'url',
   },
   parameterEnabled: {
     temperature: true,

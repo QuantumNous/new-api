@@ -22,8 +22,6 @@ import {
   DEFAULT_CONFIG,
 } from '../../constants/playground.constants';
 
-const MESSAGES_STORAGE_KEY = 'playground_messages';
-
 /**
  * 保存配置到 localStorage
  * @param {Object} config - 要保存的配置对象

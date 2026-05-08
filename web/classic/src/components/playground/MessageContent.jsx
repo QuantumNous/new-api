@@ -42,6 +42,47 @@ const MessageContent = ({
 
   const isThinkingStatus =
     message.status === 'loading' || message.status === 'incomplete';
+  const generatedImages = Array.isArray(message.images) ? message.images : [];
+
+  const getGeneratedImageSrc = (image) => {
+    if (image.url) {
+      return image.url;
+    }
+
+    if (image.b64_json) {
+      return `data:${image.mime_type || 'image/png'};base64,${image.b64_json}`;
+    }
+
+    return '';
+  };
+
+  const getTextFromContentPart = (item) => {
+    if (!item || typeof item !== 'object') return '';
+    if (typeof item.text === 'string') return item.text;
+    if (typeof item.value === 'string') return item.value;
+    if (typeof item.content === 'string') return item.content;
+    return '';
+  };
+
+  const getTextContent = (content) => {
+    if (Array.isArray(content)) {
+      return content.map(getTextFromContentPart).filter(Boolean).join('\n');
+    } else if (typeof content === 'string') {
+      return content;
+    }
+    return '';
+  };
+
+  const getContentImageSrc = (item) => {
+    if (!item || typeof item !== 'object') return '';
+    if (typeof item.image_url === 'string') return item.image_url;
+    if (typeof item.image_url?.url === 'string') return item.image_url.url;
+    if (typeof item.url === 'string') return item.url;
+    if (typeof item.b64_json === 'string') {
+      return `data:${item.mime_type || 'image/png'};base64,${item.b64_json}`;
+    }
+    return '';
+  };
 
   useEffect(() => {
     if (!isThinkingStatus) {
@@ -54,11 +95,7 @@ const MessageContent = ({
     let errorText;
 
     if (Array.isArray(message.content)) {
-      const textContent = message.content.find((item) => item.type === 'text');
-      errorText =
-        textContent && textContent.text && typeof textContent.text === 'string'
-          ? textContent.text
-          : t('请求发生错误');
+      errorText = getTextContent(message.content) || t('请求发生错误');
     } else if (typeof message.content === 'string') {
       errorText = message.content;
     } else {
@@ -111,22 +148,8 @@ const MessageContent = ({
   }
 
   let currentExtractedThinkingContent = null;
-  let currentDisplayableFinalContent = '';
+  let currentDisplayableFinalContent = getTextContent(message.content);
   let thinkingSource = null;
-
-  const getTextContent = (content) => {
-    if (Array.isArray(content)) {
-      const textItem = content.find((item) => item.type === 'text');
-      return textItem && textItem.text && typeof textItem.text === 'string'
-        ? textItem.text
-        : '';
-    } else if (typeof content === 'string') {
-      return content;
-    }
-    return '';
-  };
-
-  currentDisplayableFinalContent = getTextContent(message.content);
 
   if (message.role === 'assistant') {
     let baseContentForDisplay = getTextContent(message.content);
@@ -296,21 +319,19 @@ const MessageContent = ({
       ) : (
         (() => {
           if (Array.isArray(message.content)) {
-            const textContent = message.content.find(
-              (item) => item.type === 'text',
-            );
-            const imageContents = message.content.filter(
-              (item) => item.type === 'image_url',
-            );
+            const displayableTextContent = getTextContent(message.content);
+            const imageContents = message.content
+              .map((item) => ({ item, src: getContentImageSrc(item) }))
+              .filter(({ src }) => src);
 
             return (
               <div>
                 {imageContents.length > 0 && (
                   <div className='mb-3 space-y-2'>
-                    {imageContents.map((imgItem, index) => (
+                    {imageContents.map(({ item, src }, index) => (
                       <div key={index} className='max-w-sm'>
                         <img
-                          src={imgItem.image_url.url}
+                          src={src}
                           alt={`用户上传的图片 ${index + 1}`}
                           className='rounded-lg max-w-full h-auto shadow-sm border'
                           style={{ maxHeight: '300px' }}
@@ -323,30 +344,25 @@ const MessageContent = ({
                           className='text-red-500 text-sm p-2 bg-red-50 rounded-lg border border-red-200'
                           style={{ display: 'none' }}
                         >
-                          图片加载失败: {imgItem.image_url.url}
+                          图片加载失败: {src}
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {textContent &&
-                  textContent.text &&
-                  typeof textContent.text === 'string' &&
-                  textContent.text.trim() !== '' && (
-                    <div
-                      className={`prose prose-xs sm:prose-sm prose-gray max-w-none overflow-x-auto text-xs sm:text-sm ${message.role === 'user' ? 'user-message' : ''}`}
-                    >
-                      <MarkdownRenderer
-                        content={textContent.text}
-                        className={
-                          message.role === 'user' ? 'user-message' : ''
-                        }
-                        animated={false}
-                        previousContentLength={0}
-                      />
-                    </div>
-                  )}
+                {displayableTextContent.trim() !== '' && (
+                  <div
+                    className={`prose prose-xs sm:prose-sm prose-gray max-w-none overflow-x-auto text-xs sm:text-sm ${message.role === 'user' ? 'user-message' : ''}`}
+                  >
+                    <MarkdownRenderer
+                      content={displayableTextContent}
+                      className={message.role === 'user' ? 'user-message' : ''}
+                      animated={false}
+                      previousContentLength={0}
+                    />
+                  </div>
+                )}
               </div>
             );
           }
@@ -404,6 +420,31 @@ const MessageContent = ({
 
           return null;
         })()
+      )}
+
+      {generatedImages.length > 0 && (
+        <div className='mt-3 grid gap-3 sm:grid-cols-2'>
+          {generatedImages.map((image, index) => {
+            const src = getGeneratedImageSrc(image);
+
+            return (
+              <div key={index} className='overflow-hidden rounded-lg border'>
+                {src ? (
+                  <img
+                    src={src}
+                    alt={t('生成的图片 {{index}}', { index: index + 1 })}
+                    className='block h-auto w-full'
+                    style={{ maxHeight: '320px', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div className='flex min-h-40 items-center justify-center bg-gray-50 text-sm text-gray-500'>
+                    {t('图片数据缺失')}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

@@ -1752,7 +1752,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Pour les déploiements privés, format : https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Imposer une réponse JSON syntaxiquement valide",
@@ -4403,6 +4403,18 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Endpoint (auto inferred)": "Point de terminaison (détection automatique)",
+    "Auto inferred": "Détection automatique",
+    "Image quality": "Qualité de l’image",
+    "Image size": "Taille de l’image",
+    "Quality": "Qualité",
+    "low": "faible",
+    "medium": "moyenne",
+    "high": "élevée",
+    "auto": "auto",
+    "Size must use axb format with positive integer dimensions": "La taille doit utiliser le format axb avec des dimensions entières positives",
+    "Size width and height must be less than or equal to 3840": "La largeur et la hauteur doivent être inférieures ou égales à 3840",
+    "请选择质量": "Veuillez choisir la qualité"
   }
 }

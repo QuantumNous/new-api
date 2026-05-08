@@ -1752,7 +1752,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -4403,6 +4403,18 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Endpoint (auto inferred)": "Endpoint (auto inferred)",
+    "Auto inferred": "Auto inferred",
+    "Image quality": "Image quality",
+    "Image size": "Image size",
+    "Quality": "Quality",
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+    "auto": "auto",
+    "Size must use axb format with positive integer dimensions": "Size must use axb format with positive integer dimensions",
+    "Size width and height must be less than or equal to 3840": "Size width and height must be less than or equal to 3840",
+    "请选择质量": "Please select quality"
   }
 }

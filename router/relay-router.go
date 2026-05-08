@@ -10,6 +10,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func playgroundHandler(relayFormat types.RelayFormat) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		controller.Playground(c, relayFormat)
+	}
+}
+
 func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.CORS())
 	router.Use(middleware.DecompressRequestMiddleware())
@@ -64,7 +70,10 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundRouter.Use(middleware.SystemPerformanceCheck())
 	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
 	{
-		playgroundRouter.POST("/chat/completions", controller.Playground)
+		playgroundRouter.POST("/chat/completions", playgroundHandler(types.RelayFormatOpenAI))
+		playgroundRouter.POST("/responses", playgroundHandler(types.RelayFormatOpenAIResponses))
+		playgroundRouter.POST("/messages", playgroundHandler(types.RelayFormatClaude))
+		playgroundRouter.POST("/images/generations", playgroundHandler(types.RelayFormatOpenAIImage))
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))

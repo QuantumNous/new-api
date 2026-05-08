@@ -18,14 +18,43 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui';
+import { Card, Select, Typography, Button, Switch, Input } from '@douyinfe/semi-ui';
 import { Sparkles, Users, ToggleLeft, X, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { renderGroupOption, selectFilter } from '../../helpers';
+import {
+  getPlaygroundEndpointDescription,
+  getPlaygroundEndpointLabel,
+  renderGroupOption,
+  selectFilter,
+} from '../../helpers';
+import { PLAYGROUND_ENDPOINTS } from '../../constants/playground.constants';
+import {
+  IMAGE_QUALITY_OPTIONS,
+  validateImageSize,
+} from '../../helpers/playgroundValidation';
 import ParameterControl from './ParameterControl';
 import ImageUrlInput from './ImageUrlInput';
 import ConfigManager from './ConfigManager';
 import CustomRequestEditor from './CustomRequestEditor';
+
+const endpointOptions = [
+  {
+    label: getPlaygroundEndpointLabel(PLAYGROUND_ENDPOINTS.CHAT_COMPLETIONS),
+    value: PLAYGROUND_ENDPOINTS.CHAT_COMPLETIONS,
+  },
+  {
+    label: getPlaygroundEndpointLabel(PLAYGROUND_ENDPOINTS.RESPONSES),
+    value: PLAYGROUND_ENDPOINTS.RESPONSES,
+  },
+  {
+    label: getPlaygroundEndpointLabel(PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES),
+    value: PLAYGROUND_ENDPOINTS.CLAUDE_MESSAGES,
+  },
+  {
+    label: getPlaygroundEndpointLabel(PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS),
+    value: PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS,
+  },
+];
 
 const SettingsPanel = ({
   inputs,
@@ -45,6 +74,9 @@ const SettingsPanel = ({
   onCustomRequestBodyChange,
   previewPayload,
   messages,
+  activeEndpoint,
+  inferredEndpoint,
+  onEndpointChange,
 }) => {
   const { t } = useTranslation();
 
@@ -55,6 +87,8 @@ const SettingsPanel = ({
     customRequestMode,
     customRequestBody,
   };
+  const showImageOptions = activeEndpoint === PLAYGROUND_ENDPOINTS.IMAGE_GENERATIONS;
+  const imageSizeError = showImageOptions ? validateImageSize(inputs.image_size) : null;
 
   return (
     <Card
@@ -175,6 +209,100 @@ const SettingsPanel = ({
             disabled={customRequestMode}
           />
         </div>
+
+        {/* 端点选择 */}
+        <div className={customRequestMode ? 'opacity-50' : ''}>
+          <div className='flex items-center gap-2 mb-2'>
+            <Settings size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
+              {t('端点（自动识别）')}
+            </Typography.Text>
+            {customRequestMode && (
+              <Typography.Text className='text-xs text-orange-600'>
+                ({t('已在自定义模式中忽略')})
+              </Typography.Text>
+            )}
+          </div>
+          <Select
+            placeholder={t('请选择端点')}
+            name='endpoint'
+            selection
+            autoClearSearchValue={false}
+            onChange={(value) => onEndpointChange(value)}
+            value={activeEndpoint}
+            autoComplete='new-password'
+            optionList={endpointOptions}
+            style={{ width: '100%' }}
+            dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+            className='!rounded-lg'
+            disabled={customRequestMode}
+          />
+          <Typography.Text className='text-xs text-gray-500 mt-2 block'>
+            {getPlaygroundEndpointDescription(inferredEndpoint)}
+          </Typography.Text>
+        </div>
+
+        {showImageOptions && (
+          <>
+            <div className={customRequestMode ? 'opacity-50' : ''}>
+              <div className='flex items-center gap-2 mb-2'>
+                <Settings size={16} className='text-gray-500' />
+                <Typography.Text strong className='text-sm'>
+                  {t('Image quality')}
+                </Typography.Text>
+                {customRequestMode && (
+                  <Typography.Text className='text-xs text-orange-600'>
+                    ({t('已在自定义模式中忽略')})
+                  </Typography.Text>
+                )}
+              </div>
+              <Select
+                placeholder={t('请选择质量')}
+                name='image_quality'
+                selection
+                autoClearSearchValue={false}
+                onChange={(value) => onInputChange('image_quality', value)}
+                value={inputs.image_quality}
+                autoComplete='new-password'
+                optionList={IMAGE_QUALITY_OPTIONS.map((quality) => ({
+                  label: t(quality),
+                  value: quality,
+                }))}
+                style={{ width: '100%' }}
+                dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+                className='!rounded-lg'
+                disabled={customRequestMode}
+              />
+            </div>
+
+            <div className={customRequestMode ? 'opacity-50' : ''}>
+              <div className='flex items-center gap-2 mb-2'>
+                <Settings size={16} className='text-gray-500' />
+                <Typography.Text strong className='text-sm'>
+                  {t('Image size')}
+                </Typography.Text>
+                {customRequestMode && (
+                  <Typography.Text className='text-xs text-orange-600'>
+                    ({t('已在自定义模式中忽略')})
+                  </Typography.Text>
+                )}
+              </div>
+              <Input
+                value={inputs.image_size}
+                onChange={(value) => onInputChange('image_size', value)}
+                placeholder='1024x1024'
+                disabled={customRequestMode}
+                className='!rounded-lg'
+                style={{ width: '100%' }}
+              />
+              {imageSizeError && (
+                <Typography.Text className='text-xs text-red-500 mt-2 block'>
+                  {t(imageSizeError)}
+                </Typography.Text>
+              )}
+            </div>
+          </>
+        )}
 
         {/* 图片URL输入 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>

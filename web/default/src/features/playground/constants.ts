@@ -17,6 +17,9 @@ export const MESSAGE_STATUS = {
 // API endpoints
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  RESPONSES: '/pg/responses',
+  CLAUDE_MESSAGES: '/pg/messages',
+  IMAGE_GENERATIONS: '/pg/images/generations',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const
@@ -28,13 +31,19 @@ export const DEFAULT_GROUP = 'auto' as const
 export const DEFAULT_CONFIG: PlaygroundConfig = {
   model: 'gpt-4o',
   group: DEFAULT_GROUP,
+  endpointOverride: null,
   temperature: 0.7,
   top_p: 1,
   max_tokens: 4096,
+  max_output_tokens: 4096,
   frequency_penalty: 0,
   presence_penalty: 0,
   seed: null,
   stream: true,
+  image_size: '1024x1024',
+  image_quality: 'high',
+  image_n: 1,
+  image_response_format: 'url',
 }
 
 export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
