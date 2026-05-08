@@ -288,9 +288,9 @@
   font-weight: 700 !important;
 }
 
-.auth-card-shell .semi-form-field {
+/* .auth-card-shell .semi-form-field {
   margin-bottom: 16px;
-}
+} */
 
 .auth-card-shell .semi-form-field:last-child {
   margin-bottom: 0;

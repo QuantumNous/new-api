@@ -576,7 +576,7 @@ const RegisterForm = () => {
           />
 
           <Row gutter={12} className='auth-register-grid'>
-            <Col xs={24} sm={24} md={12}>
+            <Col xs={24} sm={24} md={24}>
               <Form.Input
                 className='auth-input'
                 field='password'
@@ -588,7 +588,7 @@ const RegisterForm = () => {
                 prefix={<IconLock />}
               />
             </Col>
-            <Col xs={24} sm={24} md={12}>
+            <Col xs={24} sm={24} md={24}>
               <Form.Input
                 className='auth-input'
                 field='password2'
@@ -604,7 +604,7 @@ const RegisterForm = () => {
 
           {showEmailVerification && (
             <Row gutter={12} className='auth-register-grid'>
-              <Col xs={24} sm={24} md={14}>
+              <Col xs={24} sm={24} md={24}>
                 <Form.Input
                   className='auth-input'
                   field='email'
@@ -616,7 +616,7 @@ const RegisterForm = () => {
                   prefix={<IconMail />}
                 />
               </Col>
-              <Col xs={24} sm={24} md={10}>
+              <Col xs={24} sm={24} md={24}>
                 <Form.Input
                   className='auth-input'
                   field='verification_code'
