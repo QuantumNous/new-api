@@ -31,3 +31,5 @@ export type GeneratedImage = {
   outputFormat: string
   createdAt: string
 }
+
+export type ImageHistoryItem = Omit<GeneratedImage, 'src'>

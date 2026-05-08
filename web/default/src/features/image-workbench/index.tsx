@@ -40,7 +40,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { getUserGroups, getUserModels } from '@/features/playground/api'
 import { DEFAULT_GROUP } from '@/features/playground/constants'
 import { generateWorkbenchImages } from './api'
-import type { GeneratedImage, ImageWorkbenchData } from './types'
+import type {
+  GeneratedImage,
+  ImageHistoryItem,
+  ImageWorkbenchData,
+} from './types'
 
 const IMAGE_WORKBENCH_HISTORY_KEY = 'image_workbench_history'
 const IMAGE_MODEL_KEYWORDS = [
@@ -88,22 +92,37 @@ function imageSource(data: ImageWorkbenchData, outputFormat: string) {
   return ''
 }
 
-function loadHistory(): GeneratedImage[] {
+function toHistoryItem(
+  image: ImageHistoryItem | GeneratedImage
+): ImageHistoryItem {
+  return {
+    id: image.id,
+    prompt: image.prompt,
+    revisedPrompt: image.revisedPrompt,
+    model: image.model,
+    size: image.size,
+    quality: image.quality,
+    outputFormat: image.outputFormat,
+    createdAt: image.createdAt,
+  }
+}
+
+function loadHistory(): ImageHistoryItem[] {
   try {
     const raw = window.localStorage.getItem(IMAGE_WORKBENCH_HISTORY_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.slice(0, 12) : []
+    return Array.isArray(parsed) ? parsed.slice(0, 12).map(toHistoryItem) : []
   } catch {
     return []
   }
 }
 
-function persistHistory(items: GeneratedImage[]) {
+function persistHistory(items: ImageHistoryItem[]) {
   try {
     window.localStorage.setItem(
       IMAGE_WORKBENCH_HISTORY_KEY,
-      JSON.stringify(items.slice(0, 12))
+      JSON.stringify(items.slice(0, 12).map(toHistoryItem))
     )
   } catch {
     /* empty */
@@ -131,7 +150,9 @@ export function ImageWorkbench() {
   const [count, setCount] = useState(1)
   const [isGenerating, setIsGenerating] = useState(false)
   const [images, setImages] = useState<GeneratedImage[]>([])
-  const [history, setHistory] = useState<GeneratedImage[]>(() => loadHistory())
+  const [history, setHistory] = useState<ImageHistoryItem[]>(() =>
+    loadHistory()
+  )
   const [error, setError] = useState('')
 
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
@@ -224,7 +245,7 @@ export function ImageWorkbench() {
 
       setImages(nextImages)
       setHistory((prev) => {
-        const merged = [...nextImages, ...prev].slice(0, 12)
+        const merged = [...nextImages.map(toHistoryItem), ...prev].slice(0, 12)
         persistHistory(merged)
         return merged
       })
@@ -239,7 +260,7 @@ export function ImageWorkbench() {
     }
   }
 
-  const resultImages = images.length > 0 ? images : history.slice(0, 2)
+  const resultImages = images
   const imageContent = (() => {
     if (isGenerating) {
       return (
@@ -546,7 +567,7 @@ export function ImageWorkbench() {
                         type='button'
                         className='hover:bg-muted/60 flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors'
                         onClick={() => {
-                          setImages([item])
+                          setImages([])
                           setPrompt(item.prompt)
                           setModel(item.model)
                           setSize(item.size)
@@ -556,11 +577,9 @@ export function ImageWorkbench() {
                           }
                         }}
                       >
-                        <img
-                          src={item.src}
-                          alt={item.prompt}
-                          className='size-14 shrink-0 rounded-md object-cover'
-                        />
+                        <div className='bg-muted text-muted-foreground flex size-14 shrink-0 items-center justify-center rounded-md'>
+                          <ImageIcon className='size-5' />
+                        </div>
                         <div className='min-w-0 flex-1'>
                           <p className='truncate text-sm font-medium'>
                             {item.prompt}
