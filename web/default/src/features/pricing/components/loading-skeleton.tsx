@@ -67,7 +67,7 @@ function FilterBarSkeleton() {
           {[80, 90, 75, 85, 70].map((width, i) => (
             <Skeleton
               key={i}
-              className='h-8 rounded-full'
+              className='h-8 rounded-lg'
               style={{ width: `${width}px` }}
             />
           ))}

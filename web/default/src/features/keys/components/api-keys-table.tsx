@@ -62,7 +62,7 @@ function ApiKeysMobileSkeleton() {
         >
           <div className='flex items-center justify-between'>
             <Skeleton className='h-4 w-32' />
-            <Skeleton className='h-5 w-16 rounded-full' />
+            <Skeleton className='h-5 w-16 rounded-md' />
           </div>
           <div className='flex items-center justify-between gap-3'>
             <Skeleton className='h-7 w-44' />

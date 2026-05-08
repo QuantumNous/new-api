@@ -42,13 +42,7 @@ export function LanguageSwitcher() {
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger
-        render={
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-9 w-9 rounded-full'
-          />
-        }
+        render={<Button variant='ghost' size='icon' className='h-9 w-9' />}
       >
         <Languages className='size-[1.2rem]' />
         <span className='sr-only'>{t('Change language')}</span>

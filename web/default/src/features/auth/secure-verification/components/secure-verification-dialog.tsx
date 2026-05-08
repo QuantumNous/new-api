@@ -92,7 +92,7 @@ export function SecureVerificationDialog({
           <div className='flex-1 overflow-y-auto px-6 py-5'>
             {availableTabs.length === 0 ? (
               <div className='grid place-items-center gap-4 text-center'>
-                <div className='bg-muted flex h-16 w-16 items-center justify-center rounded-full'>
+                <div className='bg-muted flex h-16 w-16 items-center justify-center rounded-2xl'>
                   <ShieldCheck className='text-muted-foreground h-8 w-8' />
                 </div>
                 <p className='text-muted-foreground text-sm'>

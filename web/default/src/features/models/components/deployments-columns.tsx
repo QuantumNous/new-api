@@ -85,7 +85,6 @@ export function useDeploymentsColumns(opts: {
             showDot={config.showDot}
             size='sm'
             copyable={false}
-            rounded='full'
           />
         )
       },
@@ -117,7 +116,6 @@ export function useDeploymentsColumns(opts: {
             autoColor={String(provider)}
             size='sm'
             copyable={false}
-            rounded='full'
           />
         )
       },
@@ -161,7 +159,6 @@ export function useDeploymentsColumns(opts: {
                   variant='info'
                   size='sm'
                   copyable={false}
-                  rounded='full'
                 />
               ) : null}
             </div>

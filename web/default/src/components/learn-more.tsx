@@ -25,7 +25,7 @@ export function LearnMore({
     <Popover {...props}>
       <PopoverTrigger
         {...triggerProps}
-        className={cn('size-5 rounded-full', triggerProps?.className)}
+        className={cn('size-5', triggerProps?.className)}
         render={<Button variant='outline' size='icon' />}
       >
         <span className='sr-only'>{t('Learn more')}</span>

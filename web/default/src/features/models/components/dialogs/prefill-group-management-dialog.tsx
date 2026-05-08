@@ -188,7 +188,7 @@ export function PrefillGroupManagementDialog({
                   <Button
                     variant='ghost'
                     size='icon'
-                    className='text-muted-foreground hover:text-foreground absolute top-4 right-4 rounded-full border border-transparent sm:top-5 sm:right-6'
+                    className='text-muted-foreground hover:text-foreground absolute top-4 right-4 border border-transparent sm:top-5 sm:right-6'
                   />
                 }
               >

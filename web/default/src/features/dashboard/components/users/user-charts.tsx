@@ -129,6 +129,7 @@ export function UserCharts() {
       t,
       topUserLimit,
       customization.preset,
+      customization.radius,
     ]
   )
 

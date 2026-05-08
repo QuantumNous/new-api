@@ -70,7 +70,7 @@ export function MultiSelect({
                   variant='ghost'
                   size='icon-sm'
                   aria-label='Remove'
-                  className='ml-1 size-auto rounded-full p-0'
+                  className='ml-1 size-auto p-0'
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       handleUnselect(value)

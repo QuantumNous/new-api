@@ -179,7 +179,7 @@ export function DynamicPricingBreakdown({
     return (
       <section className='min-w-0 py-4'>
         <div className='mb-3 flex items-center gap-2'>
-          <span className='inline-flex size-6 items-center justify-center rounded-full bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
+          <span className='inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
             <TagIcon className='size-3.5' />
           </span>
           <div>
@@ -212,7 +212,7 @@ export function DynamicPricingBreakdown({
   return (
     <section className='min-w-0 py-3 sm:py-4'>
       <div className='mb-3 flex items-start gap-2 sm:mb-4'>
-        <span className='mt-0.5 inline-flex size-6 items-center justify-center rounded-full bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
+        <span className='mt-0.5 inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
           <TagIcon className='size-3.5' />
         </span>
         <div>

@@ -264,7 +264,7 @@ function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
           <div className='text-muted-foreground flex flex-wrap items-center gap-2 text-xs'>
             {props.description && <span>{props.description}</span>}
             {props.meteredFeature && (
-              <span className='bg-muted/60 inline-flex max-w-full items-center gap-2 rounded-full px-2 py-0.5'>
+              <span className='bg-muted/60 inline-flex max-w-full items-center gap-2 rounded-md px-2 py-0.5'>
                 <span className='text-[11px]'>metered_feature</span>
                 <span className='min-w-0 font-mono text-xs break-all'>
                   {props.meteredFeature}

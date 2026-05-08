@@ -1,7 +1,10 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { formatLatency, formatThroughput } from '../lib/mock-stats'
+import {
+  formatLatency,
+  formatThroughput,
+} from '@/features/performance-metrics/lib/format'
 
 export type ModelPerfBadgeData = {
   avg_latency_ms: number

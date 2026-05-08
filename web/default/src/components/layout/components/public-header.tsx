@@ -195,8 +195,11 @@ export function PublicHeader(props: PublicHeaderProps) {
               {showAuthButtons && !loading && isAuthenticated && (
                 <ProfileDropdown />
               )}
-              <button
-                className='hover:bg-muted/40 flex size-9 items-center justify-center rounded-lg transition-colors'
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='size-9'
                 onClick={() => setMobileOpen((v) => !v)}
                 aria-label={t('Toggle navigation menu')}
               >
@@ -220,7 +223,7 @@ export function PublicHeader(props: PublicHeaderProps) {
                     )}
                   />
                 </div>
-              </button>
+              </Button>
             </div>
           </nav>
         </div>

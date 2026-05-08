@@ -68,11 +68,7 @@ export const InlineCitationCardTrigger = ({
     delay={0}
     closeDelay={0}
     render={
-      <Badge
-        className={cn('ml-1 rounded-full', className)}
-        variant='secondary'
-        {...props}
-      >
+      <Badge className={cn('ml-1', className)} variant='secondary' {...props}>
         {sources[0] ? (
           <>
             {new URL(sources[0]).hostname}{' '}

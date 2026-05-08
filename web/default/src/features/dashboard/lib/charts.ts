@@ -80,7 +80,8 @@ export function processChartData(
   data: QuotaDataItem[],
   timeGranularity: TimeGranularity = 'day',
   t?: TFunction,
-  themeKey?: string
+  themeKey?: string,
+  chartCornerRadius?: number
 ): ProcessedChartData {
   const tt: TFunction = t ?? ((x) => x)
   const otherLabel = tt('Other')
@@ -472,7 +473,8 @@ export function processChartData(
       valueField: 'value',
       categoryField: 'type',
       pie: {
-        style: { cornerRadius: 10 },
+        style:
+          chartCornerRadius == null ? {} : { cornerRadius: chartCornerRadius },
         state: {
           hover: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
           selected: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
