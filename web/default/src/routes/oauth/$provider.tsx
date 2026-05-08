@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import type { AxiosRequestConfig } from 'axios'
 import {
   createFileRoute,
   useNavigate,
@@ -9,13 +8,9 @@ import {
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
-import { api, getSelf } from '@/lib/api'
+import { api, getSelf, type ApiRequestConfig } from '@/lib/api'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
-
-type OAuthRequestConfig = AxiosRequestConfig & {
-  skipBusinessError?: boolean
-}
 
 function OAuthCallback() {
   const navigate = useNavigate()
@@ -145,7 +140,7 @@ function OAuthCallback() {
       }
 
       try {
-        const config: OAuthRequestConfig = {
+        const config: ApiRequestConfig = {
           params: { code: search.code, state: search.state },
           skipBusinessError: true,
         }

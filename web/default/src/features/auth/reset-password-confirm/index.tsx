@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { useCountdown } from '@/hooks/use-countdown'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -45,9 +45,10 @@ export function ResetPasswordConfirm({
     startCountdown()
     setLoading(true)
     try {
-      const res = await api.post('/api/user/reset', { email, token }, {
+      const config: ApiRequestConfig = {
         skipBusinessError: true,
-      } as Record<string, unknown>)
+      }
+      const res = await api.post('/api/user/reset', { email, token }, config)
 
       if (res?.data?.success) {
         const password = res.data.data

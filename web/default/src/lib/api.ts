@@ -1,7 +1,14 @@
 import axios from 'axios'
+import type { AxiosRequestConfig } from 'axios'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+
+export type ApiRequestConfig = AxiosRequestConfig & {
+  skipErrorHandler?: boolean
+  skipBusinessError?: boolean
+  disableDuplicate?: boolean
+}
 
 // ============================================================================
 // Axios Instance Configuration
@@ -28,14 +35,11 @@ export const api = axios.create({
 const inFlightGet = new Map<string, Promise<unknown>>()
 const originalGet = api.get.bind(api)
 
-api.get = ((url: string, config = {}) => {
-  const disableDuplicate = (config as unknown as Record<string, unknown>)
-    ?.disableDuplicate
+api.get = ((url: string, config: ApiRequestConfig = {}) => {
+  const disableDuplicate = config.disableDuplicate
   if (disableDuplicate) return originalGet(url, config)
 
-  const params = (config as unknown as Record<string, unknown>)?.params
-    ? JSON.stringify((config as unknown as Record<string, unknown>).params)
-    : '{}'
+  const params = config.params ? JSON.stringify(config.params) : '{}'
   const key = `${url}?${params}`
 
   // Return existing in-flight request if available
@@ -54,8 +58,7 @@ api.get = ((url: string, config = {}) => {
 // Handle business logic errors and HTTP errors globally
 api.interceptors.response.use(
   (response) => {
-    const skipBusiness = (response.config as unknown as Record<string, unknown>)
-      ?.skipBusinessError
+    const skipBusiness = (response.config as ApiRequestConfig).skipBusinessError
 
     // Unified business response format: { success, message, data }
     if (
@@ -73,7 +76,8 @@ api.interceptors.response.use(
     return response
   },
   (error) => {
-    const skip = error?.config?.skipErrorHandler
+    const skip = (error?.config as ApiRequestConfig | undefined)
+      ?.skipErrorHandler
     if (!skip) {
       const status = error?.response?.status
 
@@ -154,10 +158,11 @@ api.interceptors.request.use((config) => {
 
 // Get current user info
 export async function getSelf() {
-  const res = await api.get('/api/user/self', {
+  const config: ApiRequestConfig = {
     // Avoid global 401 toast during guards/preloads
     skipErrorHandler: true,
-  } as Record<string, unknown>)
+  }
+  const res = await api.get('/api/user/self', config)
   return res.data
 }
 
