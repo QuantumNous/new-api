@@ -634,3 +634,377 @@ status: review_completed
 ### 下一子步骤
 
 阶段 3B 最小实现：在 Billing 设置页新增独立邀请消费返利配置 section，展示并编辑 `InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota`，手动补齐六语言 locale；不修改后端、消费挂接逻辑、返利 service、充值、注册 / OAuth、model / migration 或依赖。
+
+## 阶段 3B 最小实现记录
+
+任务名：阶段 3B：后台配置页面最小接入邀请消费返利配置
+
+status: validation_blocked
+
+### 本阶段实际修改文件
+
+- `web/default/src/features/system-settings/billing/index.tsx`
+- `web/default/src/features/system-settings/billing/section-registry.tsx`
+- `web/default/src/features/system-settings/general/invitation-rebate-settings-section.tsx`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/i18n/locales/en.json`
+- `web/default/src/i18n/locales/zh.json`
+- `web/default/src/i18n/locales/fr.json`
+- `web/default/src/i18n/locales/ja.json`
+- `web/default/src/i18n/locales/ru.json`
+- `web/default/src/i18n/locales/vi.json`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 在 Billing 设置页新增独立 `Invitation Rebate` section。
+- 新增后台可编辑字段：
+  - `InvitationRebateEnabled`：启用邀请消费返利。
+  - `InvitationRebateRatioBps`：返利比例 bps，前端表单范围 `0..10000`。
+  - `InvitationRebateMinQuota`：最小触发消费 quota，前端表单最小值 `0`。
+- 继续复用现有 `/api/option/` 保存协议、`useUpdateOption`、`useSettingsForm`、`SettingsSection`、`Switch`、`Input type="number"`。
+- 页面文案已说明返利基于实际消费而非充值，并说明 `10000 bps = 100%`、`1000 bps = 10%`。
+- 手动补齐 `en`、`zh`、`fr`、`ja`、`ru`、`vi` 六个 locale 的新增 key；未执行 `i18n-translate` skill，未执行 `bun run i18n:sync`。
+
+### 本阶段未修改范围
+
+- 未修改消费挂接逻辑。
+- 未修改返利 service。
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改异步任务 / Midjourney。
+- 未修改 model / migration。
+- 未修改后端 option / setting 结构。
+- 未修改依赖。
+- 未执行 `.agents/skills` 命令。
+- 未连接真实 New API 实例。
+- 未写入或输出 token / secret / sk- key / bearer token。
+
+### 本阶段验证命令
+
+- `git status --short`
+- `git diff --stat`
+- `git diff`
+- `Get-Command bun -ErrorAction SilentlyContinue`
+- `Test-Path web/default/node_modules`
+- `bun run typecheck`
+- `bun run lint`
+- `bun run build`
+- `node --version`
+- `node -` locale JSON parse 与新增 key 完整性检查
+
+### 验证结果
+
+- `node --version` 通过，当前为 `v24.14.1`。
+- `node -` locale JSON parse 与新增 key 完整性检查通过：`en.json`、`zh.json`、`fr.json`、`ja.json`、`ru.json`、`vi.json` 均包含本阶段新增的 8 个 i18n key。
+- `bun run typecheck` 未执行成功：当前环境未安装 `bun`。
+- `bun run lint` 未执行成功：当前环境未安装 `bun`。
+- `bun run build` 未执行成功：当前环境未安装 `bun`。
+- `web/default/node_modules` 当前不存在。
+- 按工作流规则，前端实现验证未通过，本阶段实现不提交 commit，不标记 completed。
+
+### 本阶段自审查结果
+
+通过范围自审但验证阻塞；当前 diff 仅包含后台系统设置前端最小接入、六语言 i18n key 和 `.ai/TASK.md` 记录。没有消费挂接逻辑、返利 service、充值、注册 / OAuth、异步任务、Midjourney、model / migration、依赖或密钥变更。因 `bun` 缺失且 `node_modules` 不存在，无法完成 typecheck / lint / build，因此不创建实现 commit。
+
+### commit hash
+
+- 阶段 3B 边界文档 commit：`ac64f4ed774581cb0b3e6c93478d14aaaadab423`
+- 阶段 3B 前端实现 commit：未创建，原因是前端验证被当前环境缺少 `bun` 和 `web/default/node_modules` 阻塞。
+
+### 下一阶段建议
+
+阶段 3B 验证恢复：在明确授权或环境准备好 `bun` 与 `web/default/node_modules` 后，先只运行 `cd web/default && bun run typecheck && bun run lint && bun run build`；若验证通过，再 staged diff 自审并提交 `前端：接入邀请消费返利后台配置`。在验证通过前，不进入返利流水展示或新的业务开发。
+
+## 阶段 3B 补验证记录
+
+任务名：阶段 3B 补验证与提交
+
+status: validation_blocked
+
+### 本轮目标
+
+- 只补做阶段 3B 前端实现验证。
+- 若 `typecheck`、`lint`、`build` 全部通过，再提交 `前端：接入邀请消费返利后台配置`。
+- 不进入阶段 4，不新增功能，不扩大范围。
+
+### 本轮实际修改文件
+
+- `.ai/TASK.md`
+
+### 环境检查结果
+
+- `node --version` 可用，结果为 `v24.14.1`。
+- `bun --version` 不可用，PowerShell 返回 `bun : The term 'bun' is not recognized...`。
+- `Test-Path web/default/node_modules` 返回 `False`。
+- `web/default/package.json` 已读取，脚本包含 `typecheck`、`lint`、`build`、`build:check`。
+- `web/default/bun.lock` 存在，但因当前环境没有 `bun`，不能执行 `bun install --frozen-lockfile`。
+- `Get-Command tsc -ErrorAction SilentlyContinue` 未发现可用 `tsc`，无法执行 TS / TSX 基础语法检查。
+
+### 本轮执行验证命令
+
+- `git status --short`
+- `git diff --stat`
+- `git diff`
+- `node --version`
+- `bun --version`
+- `Test-Path web/default/node_modules`
+- `Get-Content web/default/package.json`
+- `git diff --check`
+- `node -` locale JSON parse 与新增 key 完整性检查
+- `Get-Command tsc -ErrorAction SilentlyContinue`
+- `Get-ChildItem web/default -File | Where-Object { $_.Name -match 'lock|bun' }`
+
+### 本轮验证结果
+
+- `git diff --check` 通过，未发现 whitespace error。
+- `node -` locale JSON parse 与新增 key 完整性检查通过：`en.json`、`zh.json`、`fr.json`、`ja.json`、`ru.json`、`vi.json` 均包含阶段 3B 新增的 8 个 i18n key。
+- `bun run typecheck` 未执行：当前环境没有 `bun`。
+- `bun run lint` 未执行：当前环境没有 `bun`。
+- `bun run build` 未执行：当前环境没有 `bun`。
+- 未执行 `bun install --frozen-lockfile`：当前环境没有 `bun`。
+
+### 本轮自审查结果
+
+通过范围自审但验证仍阻塞；当前 diff 仍仅包含阶段 3B 后台配置前端接入、六语言 i18n key 和 `.ai/TASK.md` 记录。没有消费挂接逻辑、返利 service、充值链路、注册 / OAuth、异步任务 / Midjourney、model / migration、后端 option 逻辑、依赖文件、token / secret / sk- key / bearer token 变更。因缺少 `bun` 且 `web/default/node_modules` 不存在，未满足提交条件，不创建实现 commit。
+
+### commit hash
+
+- 阶段 3B 实现 commit：未创建。
+
+### 下一阶段建议
+
+仍停留在阶段 3B 验证恢复：准备好 `bun` 和 `web/default/node_modules` 后，先执行 `cd web/default && bun run typecheck && bun run lint && bun run build`；全部通过后再 staged diff 自审并提交 `前端：接入邀请消费返利后台配置`。验证通过前不要进入阶段 4。
+
+## 阶段 3B 补齐 Bun 后验证记录
+
+任务名：阶段 3B 补齐前端验证环境后复验
+
+status: validation_blocked_existing_lint
+
+### 本轮目标
+
+- 在当前 Codex 环境安装或启用 Bun。
+- 使用 `web/default/bun.lock` 执行 `bun install --frozen-lockfile`。
+- 执行阶段 3B 前端验证，并在通过后提交 `前端：接入邀请消费返利后台配置`。
+
+### 本轮实际修改文件
+
+- `.ai/TASK.md`
+
+### 环境与依赖处理结果
+
+- 官方 PowerShell 安装脚本 `irm https://bun.sh/install.ps1 | iex` 因网络/TLS 连接断开失败，未写入仓库文件。
+- 使用 `npm install --prefix $env:TEMP/codex-bun-tool bun@latest` 在临时目录安装 Bun 执行工具，未写入仓库。
+- 临时 Bun 版本：`1.3.13`。
+- `web/default/bun.lock` 存在。
+- 已在 `web/default` 执行 `bun install --frozen-lockfile`，安装成功。
+- `web/default/node_modules` 已存在，但未 staged、不会提交。
+- `web/default/package.json`、`web/default/bun.lock` 及其他依赖定义 / lock 文件无 diff。
+
+### 本轮执行验证命令
+
+- `git status --short`
+- `git diff --stat`
+- `node --version`
+- `bun --version`
+- `Test-Path web/default/node_modules`
+- `Get-Content web/default/package.json`
+- `Get-ChildItem web/default -File | Where-Object { $_.Name -match 'lock|bun' }`
+- `npm install --prefix $env:TEMP/codex-bun-tool bun@latest`
+- `$env:TEMP/codex-bun-tool/node_modules/.bin/bun.cmd --version`
+- `cd web/default && bun install --frozen-lockfile`
+- `cd web/default && bun run typecheck`
+- `cd web/default && bun run lint`
+- `git diff -- web/default/package.json web/default/bun.lock web/default/package-lock.json web/default/yarn.lock web/default/pnpm-lock.yaml`
+- `git diff --check`
+
+### 本轮验证结果
+
+- `bun run typecheck` 通过。
+- `bun run lint` 未通过，失败点均位于既有非阶段 3B 文件：
+  - `web/default/src/features/keys/components/api-keys-dialogs.tsx`
+  - `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+  - `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+  - `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`
+  - `web/default/src/features/usage-logs/components/common-logs-filter-bar.tsx`
+  - `web/default/src/features/usage-logs/components/task-logs-filter-bar.tsx`
+  - `web/default/src/lib/theme-radius.ts`
+  - 另有既有 warnings 位于 `channels-table.tsx` 和 `user-charts.tsx`。
+- lint 失败不来自阶段 3B 新增的邀请返利设置组件、billing registry、types 或 locale。
+- 因 lint 未通过，未继续执行 `bun run build`，未创建实现 commit。
+- `git diff --check` 通过。
+- 依赖定义文件和 lockfile 没有变更。
+
+### 本轮自审查结果
+
+通过范围自审但提交条件未满足；当前 diff 仍仅包含阶段 3B 后台配置前端接入、六语言 i18n key 和 `.ai/TASK.md` 记录。没有修改消费挂接逻辑、返利 service、充值链路、注册 / OAuth、异步任务 / Midjourney、model / migration、后端 option 逻辑或依赖定义文件；没有提交 `node_modules`；没有写入 token / secret / sk- key / bearer token。按本轮规则，既有 lint 问题不在允许修复范围内，因此停止且不提交。
+
+### commit hash
+
+- 阶段 3B 实现 commit：未创建。
+
+### 下一阶段建议
+
+阶段 3B 仍需补验证：先由单独任务处理或临时豁免既有 `bun run lint` 失败；随后重新执行 `cd web/default && bun run lint && bun run build`。若 lint 和 build 均通过，再 staged diff 自审并提交 `前端：接入邀请消费返利后台配置`。验证通过前不要进入阶段 4。
+
+## 阶段 3B 再次补齐 Bun 后复验记录
+
+任务名：阶段 3B 再次补齐前端验证环境并复验
+
+status: validation_blocked_existing_lint
+
+### 本轮目标
+
+- 继续停留在阶段 3B，只补齐前端验证环境并验证上一轮后台配置页面实现。
+- 若 `typecheck`、`lint`、`build` 全部通过，再提交 `前端：接入邀请消费返利后台配置`。
+- 不进入阶段 4，不新增功能，不扩大修改范围。
+
+### 本轮实际修改文件
+
+- `.ai/TASK.md`
+
+### 环境与依赖处理结果
+
+- `node --version` 可用，结果为 `v24.14.1`。
+- 全局 `bun --version` 仍不可用。
+- 复用临时目录 `$env:TEMP/codex-bun-tool/node_modules/.bin/bun.cmd` 中的 Bun，版本为 `1.3.13`。
+- `web/default/bun.lock` 存在。
+- `web/default/node_modules` 已存在。
+- 已在 `web/default` 执行 `bun install --frozen-lockfile`，结果为 no changes。
+- `web/default/package.json`、`web/default/bun.lock`、`package-lock.json`、`yarn.lock`、`pnpm-lock.yaml` 无 diff。
+- 未提交 `node_modules`，未修改依赖定义文件。
+
+### 本轮执行验证命令
+
+- `git status --short`
+- `git diff --stat`
+- `git diff`
+- `node --version`
+- `bun --version`
+- `Test-Path web/default/node_modules`
+- `Get-Content web/default/package.json`
+- `Get-ChildItem web/default -File | Where-Object { $_.Name -match 'lock|bun|package' }`
+- `$env:TEMP/codex-bun-tool/node_modules/.bin/bun.cmd --version`
+- `cd web/default && bun install --frozen-lockfile`
+- `cd web/default && bun run typecheck`
+- `cd web/default && bun run lint`
+- `cd web/default && bun run build`
+- `git diff -- web/default/package.json web/default/bun.lock web/default/package-lock.json web/default/yarn.lock web/default/pnpm-lock.yaml`
+- `git diff --check`
+- `node -` locale JSON parse 与新增 key 完整性检查
+
+### 本轮验证结果
+
+- `bun install --frozen-lockfile` 通过，依赖安装检查显示 no changes。
+- `bun run typecheck` 通过。
+- `bun run build` 通过。
+- `git diff --check` 通过。
+- `node -` locale JSON parse 与新增 key 完整性检查通过：`en`、`zh`、`fr`、`ja`、`ru`、`vi` 的 `translation` 对象均包含阶段 3B 新增的 8 个 i18n key。
+- `bun run lint` 未通过，失败点仍位于既有非阶段 3B 文件：
+  - `web/default/src/features/keys/components/api-keys-dialogs.tsx`
+  - `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+  - `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+  - `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`
+  - `web/default/src/features/usage-logs/components/common-logs-filter-bar.tsx`
+  - `web/default/src/features/usage-logs/components/task-logs-filter-bar.tsx`
+  - `web/default/src/lib/theme-radius.ts`
+  - 另有既有 warnings 位于 `channels-table.tsx` 和 `user-charts.tsx`。
+- lint 失败不来自阶段 3B 新增的邀请返利设置组件、billing registry、types 或 locale。
+- 因本轮要求 `typecheck`、`lint`、`build` 全部通过后才允许提交，且既有 lint 问题不在允许修复范围内，因此未创建实现 commit。
+
+### 本轮自审查结果
+
+通过范围自审但提交条件仍未满足；当前 diff 仅包含阶段 3B 后台配置前端接入、六语言 i18n key 和 `.ai/TASK.md` 记录。没有修改消费挂接逻辑、返利 service、充值链路、注册 / OAuth、异步任务 / Midjourney、model / migration、后端 option 逻辑或依赖定义文件；没有提交 `node_modules`；没有写入 token / secret / sk- key / bearer token。按本轮规则，既有 lint 问题不在允许修复范围内，因此停止且不提交。
+
+### commit hash
+
+- 阶段 3B 实现 commit：未创建。
+
+### 下一阶段建议
+
+阶段 3B 仍需补验证：先由单独任务处理既有 `bun run lint` 失败，或由用户明确调整本阶段提交门槛；随后重新执行 `cd web/default && bun run lint`，必要时再复跑 `bun run typecheck` 和 `bun run build`。验证策略满足后，再 staged diff 自审并提交 `前端：接入邀请消费返利后台配置`。验证通过前不要进入阶段 4。
+
+## 阶段 3B lint 归因与实现提交记录
+
+任务名：阶段 3B：后台配置页面最小接入 lint 归因与提交
+
+status: completed
+
+### 本轮目标
+
+- 只做阶段 3B 前端实现的 lint 失败归因。
+- 如果 lint 失败完全来自非本轮修改文件，则记录为既有 lint 债务，并允许提交阶段 3B 实现。
+- 不进入阶段 4，不新增功能，不修复无关既有 lint 文件。
+
+### 本轮实际修改文件
+
+- `.ai/TASK.md`
+- `web/default/src/features/system-settings/billing/index.tsx`
+- `web/default/src/features/system-settings/billing/section-registry.tsx`
+- `web/default/src/features/system-settings/general/invitation-rebate-settings-section.tsx`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/i18n/locales/en.json`
+- `web/default/src/i18n/locales/zh.json`
+- `web/default/src/i18n/locales/fr.json`
+- `web/default/src/i18n/locales/ja.json`
+- `web/default/src/i18n/locales/ru.json`
+- `web/default/src/i18n/locales/vi.json`
+
+### lint 归因结论
+
+- 使用临时 Bun `1.3.13` 执行 `bun run lint`，仍未通过。
+- lint 失败文件清单：
+  - `web/default/src/features/keys/components/api-keys-dialogs.tsx`：`react-hooks/set-state-in-effect`
+  - `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`：`react-hooks/set-state-in-effect`
+  - `web/default/src/features/system-settings/models/ratio-settings-card.tsx`：`react-hooks/preserve-manual-memoization`
+  - `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`：`react-hooks/set-state-in-effect`
+  - `web/default/src/features/usage-logs/components/common-logs-filter-bar.tsx`：`react-hooks/set-state-in-effect`
+  - `web/default/src/features/usage-logs/components/task-logs-filter-bar.tsx`：`react-hooks/set-state-in-effect`
+  - `web/default/src/lib/theme-radius.ts`：`react-hooks/set-state-in-effect`
+- lint warnings 文件清单：
+  - `web/default/src/features/channels/components/channels-table.tsx`：`react-hooks/exhaustive-deps`
+  - `web/default/src/features/dashboard/components/users/user-charts.tsx`：`react-hooks/exhaustive-deps`
+- 将 lint 失败路径与 `git diff --name-only` 加 `git ls-files --others --exclude-standard` 的本轮修改文件集合对照，交集为 `NONE`。
+- 结论：lint 失败完全来自非本轮修改文件，判断为既有 lint 债务；本轮未修改这些既有 lint 文件，且不在阶段 3B 允许修复范围内。
+- 因本轮用户授权在确认 lint 失败完全不涉及本轮修改文件时记录为既有 lint 债务并允许提交，阶段 3B 实现可以提交。
+
+### 本轮验证命令
+
+- `git status --short`
+- `git diff --name-only`
+- `git diff --stat`
+- `git diff`
+- `$env:TEMP/codex-bun-tool/node_modules/.bin/bun.cmd --version`
+- `Test-Path web/default/node_modules`
+- `cd web/default && bun run lint`
+- lint 失败文件与本轮修改文件交叉对照脚本
+- `cd web/default && bun run typecheck`
+- `cd web/default && bun run build`
+- `node -` locale JSON parse 与新增 key 完整性检查
+- `git diff --check`
+- `git diff -- web/default/package.json web/default/bun.lock web/default/package-lock.json web/default/yarn.lock web/default/pnpm-lock.yaml`
+- `git add .ai/TASK.md web/default/src/features/system-settings web/default/src/i18n/locales`
+- `git diff --cached --stat`
+- `git diff --cached`
+
+### 本轮验证结果
+
+- `bun run lint` 未通过，但失败文件与本轮修改文件无交集，按本轮规则记为既有 lint 债务。
+- `bun run typecheck` 通过。
+- `bun run build` 通过。
+- locale JSON parse 与新增 key 完整性检查通过。
+- `git diff --check` 通过。
+- 依赖定义文件和 lockfile 无 diff。
+
+### 本轮自审查结果
+
+通过；staged diff 只包含阶段 3B 后台配置页面、六语言 locale 和 `.ai/TASK.md` 记录。没有修改消费挂接逻辑、返利 service、后端 option、充值链路、注册 / OAuth、异步任务 / Midjourney、model / migration、依赖文件；没有提交 `node_modules`；没有写入 token / secret / sk- key / bearer token。lint 仍失败，但已经证明失败只来自非本轮修改文件。
+
+### commit hash
+
+- 阶段 3B 实现 commit：提交后由最终响应记录。
+
+### 下一阶段建议
+
+阶段 4 前置：只读确认返利记录查询与后台展示的最小入口，先设计接口、权限、分页、过滤字段和 i18n 文案，不直接扩大到复杂用户详情或财务报表。

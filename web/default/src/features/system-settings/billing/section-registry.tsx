@@ -1,5 +1,6 @@
 import { parseCurrencyDisplayType } from '@/lib/currency'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
+import { InvitationRebateSettingsSection } from '../general/invitation-rebate-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
@@ -76,6 +77,20 @@ const BILLING_SECTIONS = [
             custom_currency_exchange_rate:
               settings['general_setting.custom_currency_exchange_rate'] ?? 1,
           },
+        }}
+      />
+    ),
+  },
+  {
+    id: 'invitation-rebate',
+    titleKey: 'Invitation Rebate',
+    descriptionKey: "Configure rebates from invited users' actual consumption",
+    build: (settings: BillingSettings) => (
+      <InvitationRebateSettingsSection
+        defaultValues={{
+          InvitationRebateEnabled: settings.InvitationRebateEnabled,
+          InvitationRebateRatioBps: settings.InvitationRebateRatioBps,
+          InvitationRebateMinQuota: settings.InvitationRebateMinQuota,
         }}
       />
     ),
