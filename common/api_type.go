@@ -76,7 +76,7 @@ func ChannelType2APIType(channelType int) (int, bool) {
 	case constant.ChannelTypeCodex:
 		apiType = constant.APITypeCodex
 	case constant.ChannelTypeVolcAdapter:
-		apiType = constant.APITypeVolcEngine
+		apiType = constant.APITypeVolcAdapter
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

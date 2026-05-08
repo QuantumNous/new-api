@@ -8,7 +8,7 @@ import (
 )
 
 // TestGetAdaptorVolcAdapter verifies that ChannelTypeVolcAdapter maps through
-// ChannelType2APIType to APITypeVolcEngine and that GetAdaptor returns a non-nil
+// ChannelType2APIType to APITypeVolcAdapter and that GetAdaptor returns a non-nil
 // adaptor for it.
 func TestGetAdaptorVolcAdapter(t *testing.T) {
 	apiType, ok := common.ChannelType2APIType(constant.ChannelTypeVolcAdapter)
@@ -16,13 +16,13 @@ func TestGetAdaptorVolcAdapter(t *testing.T) {
 		t.Fatalf("ChannelType2APIType(%d) returned ok=false; VolcAdapter is not registered",
 			constant.ChannelTypeVolcAdapter)
 	}
-	if apiType != constant.APITypeVolcEngine {
-		t.Errorf("expected APITypeVolcEngine (%d), got %d", constant.APITypeVolcEngine, apiType)
+	if apiType != constant.APITypeVolcAdapter {
+		t.Errorf("expected APITypeVolcAdapter (%d), got %d", constant.APITypeVolcAdapter, apiType)
 	}
 
 	adaptor := GetAdaptor(apiType)
 	if adaptor == nil {
-		t.Fatalf("GetAdaptor(APITypeVolcEngine) returned nil")
+		t.Fatalf("GetAdaptor(APITypeVolcAdapter) returned nil")
 	}
 }
 

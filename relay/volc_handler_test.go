@@ -51,7 +51,7 @@ func TestVolcImageHelper_WrongRequestType(t *testing.T) {
 		Request: &dto.ImageRequest{Model: "test"},
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType: constant.ChannelTypeVolcAdapter,
-			ApiType:     constant.APITypeVolcEngine,
+			ApiType:     constant.APITypeVolcAdapter,
 		},
 	}
 
@@ -155,7 +155,7 @@ func TestVolcImageHelper_BodyStorageReusable(t *testing.T) {
 }
 
 // TestVolcImageHelper_ConvertVolcRequest_CalledOnVolcChannel verifies that
-// volcengine.Adaptor implements volcImageConverter and ConvertVolcRequest
+// volcadapter.Adaptor implements volcImageConverter and ConvertVolcRequest
 // returns no error (it is a no-op pass-through for the native Volc channel).
 func TestVolcImageHelper_ConvertVolcRequest_CalledOnVolcChannel(t *testing.T) {
 	body := []byte(`{"model":"high-aes-general-v21-L","prompt":"test"}`)
@@ -166,7 +166,7 @@ func TestVolcImageHelper_ConvertVolcRequest_CalledOnVolcChannel(t *testing.T) {
 		Request: req,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType: constant.ChannelTypeVolcAdapter,
-			ApiType:     constant.APITypeVolcEngine,
+			ApiType:     constant.APITypeVolcAdapter,
 			ApiKey:      "test-key",
 		},
 	}
@@ -175,17 +175,17 @@ func TestVolcImageHelper_ConvertVolcRequest_CalledOnVolcChannel(t *testing.T) {
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
-		t.Fatal("GetAdaptor returned nil for APITypeVolcEngine")
+		t.Fatal("GetAdaptor returned nil for APITypeVolcAdapter")
 	}
 	adaptor.Init(info)
 
 	converter, ok := adaptor.(volcImageConverter)
 	if !ok {
-		t.Fatal("volcengine.Adaptor does not implement volcImageConverter")
+		t.Fatal("volcadapter.Adaptor does not implement volcImageConverter")
 	}
 	_, err := converter.ConvertVolcRequest(c, info, req)
 	if err != nil {
-		t.Errorf("ConvertVolcRequest on volcengine channel returned error: %v", err)
+		t.Errorf("ConvertVolcRequest on volcadapter channel returned error: %v", err)
 	}
 }
 

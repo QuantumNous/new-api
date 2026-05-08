@@ -17,7 +17,7 @@ import (
 )
 
 // volcImageConverter is implemented by adaptors that natively accept
-// Volc-format image requests (volcengine and volcadapter).
+// Volc-format image requests (the volcadapter channel).
 type volcImageConverter interface {
 	ConvertVolcRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.VolcImageRequest) (any, error)
 }
@@ -71,7 +71,7 @@ func VolcImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	}
 	adaptor.Init(info)
 
-	// Only volcengine and volcadapter channels implement ConvertVolcRequest.
+	// Only the volcadapter channel implements ConvertVolcRequest.
 	// All other adaptors do not support the Volc-native image format.
 	converter, ok := adaptor.(volcImageConverter)
 	if !ok {
