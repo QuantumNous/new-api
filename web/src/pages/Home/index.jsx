@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Card, Typography, Table, Tabs } from '@douyinfe/semi-ui';
 import {
   Shield,
@@ -22,7 +22,8 @@ import {
 } from 'lucide-react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { StatusContext } from '../../context/Status';
 import './index.css';
 import {
   Moonshot,
@@ -51,11 +52,14 @@ const { Text } = Typography;
 
 const HomePage = () => {
   const { t, i18n } = useTranslation();
+  const [statusState] = useContext(StatusContext);
+  const navigate = useNavigate();
   const scrollY = useMotionValue(0);
   const [activeTab, setActiveTab] = useState('image');
   const heroY = useTransform(scrollY, [0, 800], [0, 200]);
   const heroOpacity = useTransform(scrollY, [0, 600], [1, 0]);
   const isChinese = i18n.language.startsWith('zh');
+  const docsLink = statusState?.status?.docs_link || '';
 
   useEffect(() => {
     const scrollContainer = document.getElementById('app-scroll-shell');
@@ -75,6 +79,26 @@ const HomePage = () => {
       window.removeEventListener('scroll', syncScroll);
     };
   }, [scrollY]);
+
+  const isLoggedIn = () => !!localStorage.getItem('user');
+
+  const handleConsoleEntry = () => {
+    navigate(isLoggedIn() ? '/console' : '/login');
+  };
+
+  const handleTopupEntry = () => {
+    navigate(isLoggedIn() ? '/console/topup' : '/login');
+  };
+
+  const handleDocsOpen = () => {
+    if (docsLink) {
+      window.open(docsLink, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleContactSales = () => {
+    window.location.href = 'mailto:support@z-up.com';
+  };
 
   const stats = [
     {
@@ -248,6 +272,7 @@ response = client.chat.completions.create(
 
   const plans = [
     {
+      id: 'free',
       name: t('免费版'),
       description: t('适合个人尝试和学习'),
       price: '$0',
@@ -263,6 +288,7 @@ response = client.chat.completions.create(
       popular: false,
     },
     {
+      id: 'pro',
       name: t('专业版'),
       description: t('适合开发者和小团队'),
       price: t('按量付费'),
@@ -279,6 +305,7 @@ response = client.chat.completions.create(
       popular: true,
     },
     {
+      id: 'enterprise',
       name: t('企业版'),
       description: t('适合大规模商业应用'),
       price: t('定制'),
@@ -381,6 +408,22 @@ response = client.chat.completions.create(
     },
   ];
 
+  const handlePlanAction = (planId) => {
+    switch (planId) {
+      case 'free':
+        handleConsoleEntry();
+        break;
+      case 'pro':
+        handleTopupEntry();
+        break;
+      case 'enterprise':
+        handleContactSales();
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <div className='home-page min-h-screen overflow-x-hidden'>
       {/* Hero Section */}
@@ -453,13 +496,21 @@ response = client.chat.completions.create(
               transition={{ duration: 0.6, delay: 0.4 }}
               className='home-hero-actions mb-16 flex flex-wrap items-center justify-center gap-4'
             >
-              <button className='home-button home-button-primary group relative overflow-hidden px-8 py-4 text-base font-semibold'>
+              <button
+                type='button'
+                onClick={handleConsoleEntry}
+                className='home-button home-button-primary group relative overflow-hidden px-8 py-4 text-base font-semibold'
+              >
                 <span className='relative z-10 flex items-center gap-2'>
                   {t('进入控制台')}
                   <ArrowRight className='h-4 w-4 transition-transform group-hover:translate-x-1' />
                 </span>
               </button>
-              <button className='home-button home-button-secondary group px-8 py-4 text-base font-semibold'>
+              <button
+                type='button'
+                onClick={handleDocsOpen}
+                className='home-button home-button-secondary group px-8 py-4 text-base font-semibold'
+              >
                 <span className='flex items-center gap-2'>
                   {t('查看文档')}
                   <ArrowRight className='h-4 w-4 transition-transform group-hover:translate-x-1' />
@@ -861,6 +912,8 @@ response = client.chat.completions.create(
                       ))}
                     </ul>
                     <button
+                      type='button'
+                      onClick={() => handlePlanAction(plan.id)}
                       className={`home-plan-button w-full py-3 text-base font-medium transition-all duration-200 ${
                         plan.popular ? 'is-primary' : 'is-secondary'
                       }`}
@@ -1034,15 +1087,21 @@ response = client.chat.completions.create(
               {t('免费注册，即刻获得 $1 体验额度。无需绑定信用卡。')}
             </p>
             <div className='flex flex-wrap items-center justify-center gap-4'>
-              <Link to='/pricing'>
-                <button className='home-button home-button-primary group px-8 py-4 text-base font-semibold'>
-                  <span className='flex items-center gap-2'>
-                    {t('免费开始')}
-                    <ArrowRight className='h-4 w-4 transition-transform group-hover:translate-x-1' />
-                  </span>
-                </button>
-              </Link>
-              <button className='home-button home-button-secondary group px-8 py-4 text-base font-semibold'>
+              <button
+                type='button'
+                onClick={handleConsoleEntry}
+                className='home-button home-button-primary group px-8 py-4 text-base font-semibold'
+              >
+                <span className='flex items-center gap-2'>
+                  {t('免费开始')}
+                  <ArrowRight className='h-4 w-4 transition-transform group-hover:translate-x-1' />
+                </span>
+              </button>
+              <button
+                type='button'
+                onClick={handleDocsOpen}
+                className='home-button home-button-secondary group px-8 py-4 text-base font-semibold'
+              >
                 <span className='flex items-center gap-2'>
                   <Terminal className='h-4 w-4' />
                   {t('查看文档')}
