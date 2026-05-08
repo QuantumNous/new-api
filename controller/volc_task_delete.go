@@ -1,10 +1,10 @@
 package controller
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -60,17 +60,33 @@ func VolcTaskDelete(c *gin.Context) {
 		return
 	}
 
+	if ch.Type != constant.ChannelTypeVolcAdapter {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("task does not belong to a VolcAdapter channel (channel type=%d)", ch.Type),
+		})
+		return
+	}
+
 	baseURL := constant.ChannelBaseURLs[ch.Type]
 	if ch.GetBaseURL() != "" {
 		baseURL = ch.GetBaseURL()
 	}
 	upstreamTaskID := task.GetUpstreamTaskID()
-	deleteURL := strings.TrimRight(baseURL, "/") + "/api/v3/contents/generations/tasks/" + upstreamTaskID
+	deleteURL := strings.TrimRight(baseURL, "/") + "/api/v3/contents/generations/tasks/" + url.PathEscape(upstreamTaskID)
 
-	apiKey := ch.Key
-	// Use private key override if stored (Gemini/Vertex pattern).
-	if task.PrivateData.Key != "" {
-		apiKey = task.PrivateData.Key
+	// Prefer the key that was selected at submit time (stored in PrivateData.Key)
+	// to guarantee cancel uses the same credential as submit.
+	// When not present, fall through to the multi-key selector so we never
+	// send the raw newline-separated key bundle as a Bearer token.
+	apiKey := strings.TrimSpace(task.PrivateData.Key)
+	if apiKey == "" {
+		selected, _, keyErr := ch.GetNextEnabledKey()
+		if keyErr != nil {
+			logger.LogError(c, fmt.Sprintf("VolcTaskDelete: select api key for channel %d failed: %s", ch.Id, keyErr.Error()))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			return
+		}
+		apiKey = strings.TrimSpace(selected)
 	}
 
 	proxy := ch.GetSetting().Proxy
@@ -81,7 +97,11 @@ func VolcTaskDelete(c *gin.Context) {
 		return
 	}
 
-	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodDelete, deleteURL, nil)
+	// Use the incoming request context so that client disconnects and server
+	// timeouts propagate to the upstream DELETE call and the settle step.
+	ctx := c.Request.Context()
+
+	req, reqErr := http.NewRequestWithContext(ctx, http.MethodDelete, deleteURL, nil)
 	if reqErr != nil {
 		logger.LogError(c, "VolcTaskDelete: build DELETE request failed: "+reqErr.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
@@ -112,9 +132,7 @@ func VolcTaskDelete(c *gin.Context) {
 	}
 
 	// 5. Volc confirmed cancellation — update local task.
-	ctx := context.Background()
 	now := time.Now().Unix()
-	snap := task.Snapshot()
 
 	task.Status = model.TaskStatusFailure
 	task.Progress = "100%"
@@ -123,10 +141,37 @@ func VolcTaskDelete(c *gin.Context) {
 		task.FinishTime = now
 	}
 
-	won, updateErr := task.UpdateWithStatus(snap.Status)
-	if updateErr != nil {
-		logger.LogError(ctx, "VolcTaskDelete: UpdateWithStatus failed for task "+task.TaskID+": "+updateErr.Error())
-	} else if won && task.Quota != 0 {
+	// Allow cancellation update from any non-terminal state (queued/running/in_progress);
+	// only refuse if the task already reached a terminal state (success/failure).
+	// Strict CAS on the snapshot status would lose the cancellation when polling has
+	// concurrently moved queued→running but the task is still in flight.
+	result := model.DB.Model(&model.Task{}).
+		Where("id = ? AND status NOT IN ?", task.ID,
+			[]model.TaskStatus{model.TaskStatusSuccess, model.TaskStatusFailure}).
+		Updates(map[string]interface{}{
+			"status":      task.Status,
+			"progress":    task.Progress,
+			"fail_reason": task.FailReason,
+			"finish_time": task.FinishTime,
+		})
+	if result.Error != nil {
+		logger.LogError(ctx, "VolcTaskDelete: cancellation update failed for task "+task.TaskID+": "+result.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+	won := result.RowsAffected > 0
+	if !won {
+		// Non-terminal guard rejected update — task already reached a terminal state.
+		// Re-fetch the canonical state from DB and return that instead of the
+		// in-memory cancelled snapshot.
+		refreshed, exist, err := model.GetByTaskId(userID, publicTaskID)
+		if err != nil || !exist || refreshed == nil {
+			logger.LogError(ctx, "VolcTaskDelete: terminal guard lost and refetch failed for task "+task.TaskID)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			return
+		}
+		task = refreshed
+	} else if task.Quota != 0 {
 		// Refund the pre-charge since the task was cancelled.
 		svc.RefundTaskQuota(ctx, task, "cancelled")
 	}
@@ -153,8 +198,11 @@ func buildVolcDeleteResp(t *model.Task) []byte {
 	}
 	if t.FailReason != "" {
 		code := "task_failed"
-		if t.FailReason == "cancelled" {
+		switch t.FailReason {
+		case "cancelled":
 			code = "cancelled"
+		case "expired":
+			code = "expired"
 		}
 		synth["error"] = map[string]string{
 			"message": t.FailReason,
@@ -163,7 +211,11 @@ func buildVolcDeleteResp(t *model.Task) []byte {
 	}
 	b, err := common.Marshal(synth)
 	if err != nil {
-		return []byte(`{"id":"` + t.TaskID + `","status":"` + arkStatus + `"}`)
+		// Fallback: use common.Marshal for individual values to avoid JSON injection
+		// from task IDs or status strings containing special characters.
+		idJSON, _ := common.Marshal(t.TaskID)
+		statusJSON, _ := common.Marshal(arkStatus)
+		return []byte(`{"id":` + string(idJSON) + `,"status":` + string(statusJSON) + `}`)
 	}
 	return b
 }
@@ -174,14 +226,19 @@ func isTerminalStatus(s model.TaskStatus) bool {
 }
 
 // volcDeleteMapStatus maps internal task status to Volc Ark status strings.
-// For a DELETE operation, a task that was cancelled keeps its "cancelled" status.
+// Cancelled and expired tasks are distinguished from generic failures via
+// FailReason so the SDK can handle them correctly — consistent with the
+// fetch path in relay/relay_task.go:mapTaskStatusToArkStatus.
 func volcDeleteMapStatus(status model.TaskStatus, failReason string) string {
 	switch status {
 	case model.TaskStatusSuccess:
 		return "succeeded"
 	case model.TaskStatusFailure:
-		if failReason == "cancelled" {
+		switch failReason {
+		case "cancelled":
 			return "cancelled"
+		case "expired":
+			return "expired"
 		}
 		return "failed"
 	case model.TaskStatusInProgress:

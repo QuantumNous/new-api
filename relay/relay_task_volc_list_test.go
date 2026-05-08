@@ -229,3 +229,67 @@ func TestVideoFetchListRespBuilder_PlatformCoexistence(t *testing.T) {
 		t.Fatalf("expected va_task_1, got %s", resp.Items[0].ID)
 	}
 }
+
+// TestCountFilteredVolcVideoTasks_Cap verifies that countFilteredVolcVideoTasks
+// scans at most countFilteredVolcVideoTasksCap tasks, even when the DB contains
+// more entries.
+func TestCountFilteredVolcVideoTasks_Cap(t *testing.T) {
+	setupVolcListTestDB(t)
+
+	const userID = 7777
+	const total = countFilteredVolcVideoTasksCap + 1 // one beyond the cap
+
+	// Seed total tasks for user 7777.
+	for i := 0; i < total; i++ {
+		insertVolcTask(t, userID, "cap_task_"+strconv.Itoa(i), model.TaskStatusQueued, "doubao-seedance-2-0-260128")
+	}
+
+	queryParams := model.SyncTaskQueryParams{
+		Platform: volcAdapterPlatform,
+	}
+
+	// Pass a modelFilter so countFilteredVolcVideoTasks is invoked.
+	count := countFilteredVolcVideoTasks(userID, queryParams, "doubao-seedance-2-0-260128", nil)
+
+	// With the cap in place we must scan at most countFilteredVolcVideoTasksCap
+	// tasks.  The count may be less than total, but MUST NOT exceed the cap.
+	if count > countFilteredVolcVideoTasksCap {
+		t.Errorf("count=%d exceeds cap=%d — scan was not bounded", count, countFilteredVolcVideoTasksCap)
+	}
+}
+
+// TestBuildVolcNativeTaskFetchResp_JSONInjection verifies that task IDs containing
+// JSON-special characters do not produce malformed JSON in the fallback path.
+func TestBuildVolcNativeTaskFetchResp_JSONInjection(t *testing.T) {
+	specialIDs := []string{
+		`task_"inject"`,
+		`task_\backslash`,
+		"task_\x00null",
+		"task_\nnewline",
+	}
+
+	for _, id := range specialIDs {
+		task := &model.Task{
+			TaskID: id,
+			Status: model.TaskStatusQueued,
+			Properties: model.Properties{OriginModelName: "doubao-seedance-2-0-260128"},
+		}
+		resp := buildVolcNativeTaskFetchResp(task)
+
+		// Response must be parseable JSON.
+		var parsed map[string]interface{}
+		if err := common.Unmarshal(resp, &parsed); err != nil {
+			t.Errorf("task ID %q: response is not valid JSON: %v\nBody: %s", id, err, resp)
+			continue
+		}
+		// The "id" field must round-trip back to the original string.
+		gotID, ok := parsed["id"].(string)
+		if !ok {
+			t.Errorf("task ID %q: 'id' field missing or not a string in response: %s", id, resp)
+			continue
+		}
+		if gotID != id {
+			t.Errorf("task ID %q: round-trip failed, got %q", id, gotID)
+		}
+	}
+}

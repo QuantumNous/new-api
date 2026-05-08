@@ -449,8 +449,12 @@ func buildVolcNativeTaskFetchResp(t *model.Task) []byte {
 			if _, hasStatus := probe["status"]; hasStatus {
 				// task.Data is an upstream Volc response — return it with the
 				// public task ID so the SDK's polling loop can match responses.
-				probe["id"] = json.RawMessage(`"` + t.TaskID + `"`)
-				if patched, err := json.Marshal(probe); err == nil {
+				// Use common.Marshal to safely encode the task ID as a JSON string
+				// value, preventing JSON injection from IDs containing special chars.
+				if idJSON, err := common.Marshal(t.TaskID); err == nil {
+					probe["id"] = json.RawMessage(idJSON)
+				}
+				if patched, err := common.Marshal(probe); err == nil {
 					return patched
 				}
 				return t.Data
@@ -487,7 +491,10 @@ func buildVolcNativeTaskFetchResp(t *model.Task) []byte {
 	}
 	b, err := common.Marshal(synth)
 	if err != nil {
-		return []byte(`{"id":"` + t.TaskID + `","status":"` + arkStatus + `"}`)
+		// Fallback: use common.Marshal for individual values to avoid JSON injection.
+		idJSON, _ := common.Marshal(t.TaskID)
+		statusJSON, _ := common.Marshal(arkStatus)
+		return []byte(`{"id":` + string(idJSON) + `,"status":` + string(statusJSON) + `}`)
 	}
 	return b
 }
@@ -573,13 +580,23 @@ func videoFetchListRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	return resp, nil
 }
 
+// countFilteredVolcVideoTasksCap is the maximum number of tasks scanned in
+// countFilteredVolcVideoTasks. Queries beyond this cap return an approximate
+// count based on the scanned window rather than scanning unboundedly.
+const countFilteredVolcVideoTasksCap = 5000
+
 func countFilteredVolcVideoTasks(userID int, queryParams model.SyncTaskQueryParams, modelFilter string, taskIDsFilter map[string]bool) int64 {
 	totalBase := model.TaskCountAllUserTask(userID, queryParams)
 	if totalBase <= 0 {
 		return 0
 	}
 	// DB layer has no model/task_ids columns for direct filtering; fetch then filter in-memory.
-	allTasks := model.TaskGetAllUserTask(userID, 0, int(totalBase), queryParams)
+	// Cap the scan window to avoid unbounded memory consumption on large task sets.
+	scanLimit := int(totalBase)
+	if scanLimit > countFilteredVolcVideoTasksCap {
+		scanLimit = countFilteredVolcVideoTasksCap
+	}
+	allTasks := model.TaskGetAllUserTask(userID, 0, scanLimit, queryParams)
 	var filteredCount int64
 	for _, task := range allTasks {
 		if len(taskIDsFilter) > 0 && !taskIDsFilter[task.TaskID] {
