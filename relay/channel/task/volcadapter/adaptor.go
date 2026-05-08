@@ -83,6 +83,18 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			}
 		}
 	}
+
+	// Apply param override after model patch so callers can override any field.
+	// This must happen before injectSafetyIdentifier / injectCallbackURL so that
+	// compliance-required fields are always appended last and cannot be overridden.
+	if len(info.ParamOverride) > 0 {
+		overridden, err := relaycommon.ApplyParamOverrideWithRelayInfo(rawBytes, info)
+		if err != nil {
+			return nil, fmt.Errorf("BuildRequestBody (volc native): apply param override failed: %w", err)
+		}
+		rawBytes = overridden
+	}
+
 	return bytes.NewReader(rawBytes), nil
 }
 

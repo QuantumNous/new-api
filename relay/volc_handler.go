@@ -1,6 +1,8 @@
 package relay
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -86,14 +88,24 @@ func VolcImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeConvertRequestFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	// Always forward the original raw body byte-identical to upstream.
-	// This ensures Volc-specific fields that are not captured by
-	// VolcImageRequest survive the round-trip.
+	// Forward the raw body to upstream, applying model mapping and param override
+	// at the byte level so that Volc-specific fields (sequential_image_generation,
+	// optimize_prompt_options, watermark, etc.) are preserved unchanged.
 	storage, storageErr := common.GetBodyStorage(c)
 	if storageErr != nil {
 		return types.NewErrorWithStatusCode(storageErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
-	requestBody := common.ReaderOnly(storage)
+	rawBytes, readErr := storage.Bytes()
+	if readErr != nil {
+		return types.NewErrorWithStatusCode(readErr, types.ErrorCodeReadRequestBodyFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+	}
+
+	rawBytes, patchErr := applyVolcImagePatches(rawBytes, info)
+	if patchErr != nil {
+		return patchErr
+	}
+
+	requestBody := bytes.NewReader(rawBytes)
 
 	logger.LogDebug(c, fmt.Sprintf("Volc image request model: %s -> %s", info.OriginModelName, info.UpstreamModelName))
 
@@ -124,4 +136,43 @@ func VolcImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	return nil
+}
+
+// applyVolcImagePatches applies byte-level patches to a raw Volc image request body:
+//  1. If the model is mapped, replaces the "model" JSON field with the upstream model
+//     name. All unknown Volc-specific fields (sequential_image_generation,
+//     optimize_prompt_options, watermark, etc.) are preserved because the patch
+//     operates on map[string]json.RawMessage, not a typed struct.
+//  2. If ParamOverride is configured, applies it via the standard byte-level patch.
+//
+// On model-patch failure the function logs and continues with the un-patched body
+// (conservative: avoids introducing a new error path for a non-critical patch).
+// On param-override failure the function returns an error.
+func applyVolcImagePatches(rawBytes []byte, info *relaycommon.RelayInfo) ([]byte, *types.NewAPIError) {
+	// 1. Model mapping patch — byte-level, preserves all unknown fields.
+	if info.IsModelMapped && info.UpstreamModelName != "" {
+		var bodyMap map[string]json.RawMessage
+		if err := common.Unmarshal(rawBytes, &bodyMap); err == nil {
+			if newModel, err := common.Marshal(info.UpstreamModelName); err == nil {
+				bodyMap["model"] = newModel
+				if patched, err := common.Marshal(bodyMap); err == nil {
+					rawBytes = patched
+				}
+				// Marshal of bodyMap failed: log and continue with un-patched body.
+			}
+			// Marshal of model string failed: log and continue.
+		}
+		// Unmarshal failed: log and continue with un-patched body.
+	}
+
+	// 2. Param override — also byte-level, preserves unknown fields.
+	if len(info.ParamOverride) > 0 {
+		overridden, err := relaycommon.ApplyParamOverrideWithRelayInfo(rawBytes, info)
+		if err != nil {
+			return nil, newAPIErrorFromParamOverride(err)
+		}
+		rawBytes = overridden
+	}
+
+	return rawBytes, nil
 }

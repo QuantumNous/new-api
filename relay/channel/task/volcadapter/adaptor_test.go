@@ -439,3 +439,70 @@ func TestValidateVolcNativeTaskRequest_InvalidJSONBody(t *testing.T) {
 		t.Errorf("expected 400, got %d", taskErr.StatusCode)
 	}
 }
+
+// ─────────────────────────────────────────
+// BuildRequestBody tests
+// ─────────────────────────────────────────
+
+// TestBuildRequestBody_AppliesParamOverride verifies that ParamOverride fields are
+// injected into the forwarded body by BuildRequestBody. Unknown Volc-specific fields
+// must be preserved (byte-level patch, not struct marshal/unmarshal).
+func TestBuildRequestBody_AppliesParamOverride(t *testing.T) {
+	rawBody := []byte(`{"model":"doubao-seedance-2-0","prompt":"test","tools":[{"type":"web_search"}],"custom_field":"preserved"}`)
+	c := newVolcTaskTestContext(t, rawBody)
+
+	info := &relaycommon.RelayInfo{
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"service_tier": "turbo",
+			},
+		},
+	}
+
+	a := &TaskAdaptor{}
+	reader, err := a.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody returned unexpected error: %v", err)
+	}
+
+	// Drain the reader into a buffer.
+	var buf bytes.Buffer
+	tmp := make([]byte, 512)
+	for {
+		n, readErr := reader.Read(tmp)
+		if n > 0 {
+			buf.Write(tmp[:n])
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	gotBytes := buf.Bytes()
+
+	var result map[string]json.RawMessage
+	if err := json.Unmarshal(gotBytes, &result); err != nil {
+		t.Fatalf("result is not valid JSON: %v\nbody: %s", err, gotBytes)
+	}
+
+	// Verify the param override field was injected.
+	tierRaw, ok := result["service_tier"]
+	if !ok {
+		t.Fatal("service_tier was not injected by ParamOverride")
+	}
+	var tier string
+	if err := json.Unmarshal(tierRaw, &tier); err != nil || tier != "turbo" {
+		t.Errorf("service_tier: want %q, got %q (raw: %s)", "turbo", tier, tierRaw)
+	}
+
+	// Verify existing fields are preserved.
+	if _, ok := result["prompt"]; !ok {
+		t.Error("prompt field was dropped after ParamOverride")
+	}
+	if _, ok := result["tools"]; !ok {
+		t.Error("tools field was dropped after ParamOverride")
+	}
+	if _, ok := result["custom_field"]; !ok {
+		t.Error("custom_field was dropped after ParamOverride")
+	}
+}

@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -218,5 +219,166 @@ func TestVolcImageHelper_ConvertVolcRequest_ErrorOnNonVolcChannel(t *testing.T) 
 	apiErr := VolcImageHelper(c2, info2)
 	if apiErr == nil {
 		t.Error("expected VolcImageHelper to return error for non-Volc channel, got nil")
+	}
+}
+
+// ─────────────────────────────────────────
+// applyVolcImagePatches unit tests
+// ─────────────────────────────────────────
+
+// TestApplyVolcImagePatches_ModelMapping verifies that when IsModelMapped is true
+// and UpstreamModelName is set, the "model" field in the raw body is replaced with
+// the upstream model name. All Volc-specific unknown fields must be preserved.
+func TestApplyVolcImagePatches_ModelMapping(t *testing.T) {
+	rawBody := []byte(`{"model":"foo","prompt":"cinematic shot","watermark":false,"sequential_image_generation":"auto","optimize_prompt_options":{"mode":"fast"}}`)
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			IsModelMapped:     true,
+			UpstreamModelName: "bar",
+		},
+	}
+
+	got, apiErr := applyVolcImagePatches(rawBody, info)
+	if apiErr != nil {
+		t.Fatalf("applyVolcImagePatches returned unexpected error: %v", apiErr)
+	}
+
+	var result map[string]json.RawMessage
+	if err := json.Unmarshal(got, &result); err != nil {
+		t.Fatalf("result is not valid JSON: %v", err)
+	}
+
+	// Verify model was patched.
+	var model string
+	if err := json.Unmarshal(result["model"], &model); err != nil || model != "bar" {
+		t.Errorf("model: want %q, got %q (raw: %s)", "bar", model, result["model"])
+	}
+
+	// Verify unknown Volc-specific fields are preserved.
+	if _, ok := result["watermark"]; !ok {
+		t.Error("watermark field was dropped")
+	}
+	if _, ok := result["sequential_image_generation"]; !ok {
+		t.Error("sequential_image_generation field was dropped")
+	}
+	if _, ok := result["optimize_prompt_options"]; !ok {
+		t.Error("optimize_prompt_options field was dropped")
+	}
+	if _, ok := result["prompt"]; !ok {
+		t.Error("prompt field was dropped")
+	}
+}
+
+// TestApplyVolcImagePatches_NoModelMappingSkipsModelPatch verifies that when
+// IsModelMapped is false the "model" field is left untouched.
+func TestApplyVolcImagePatches_NoModelMappingSkipsModelPatch(t *testing.T) {
+	rawBody := []byte(`{"model":"original-model","prompt":"test"}`)
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			IsModelMapped:     false,
+			UpstreamModelName: "should-not-be-used",
+		},
+	}
+
+	got, apiErr := applyVolcImagePatches(rawBody, info)
+	if apiErr != nil {
+		t.Fatalf("unexpected error: %v", apiErr)
+	}
+
+	var result map[string]json.RawMessage
+	if err := json.Unmarshal(got, &result); err != nil {
+		t.Fatalf("result is not valid JSON: %v", err)
+	}
+	var model string
+	if err := json.Unmarshal(result["model"], &model); err != nil || model != "original-model" {
+		t.Errorf("model should be unchanged: want %q, got %q", "original-model", model)
+	}
+}
+
+// TestApplyVolcImagePatches_ParamOverride verifies that ParamOverride fields are
+// injected into the forwarded body. Unknown Volc-specific fields must be preserved.
+func TestApplyVolcImagePatches_ParamOverride(t *testing.T) {
+	rawBody := []byte(`{"model":"seedance-2-0","prompt":"test","watermark":false,"sequential_image_generation":"auto"}`)
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"size": "4K",
+			},
+		},
+	}
+
+	got, apiErr := applyVolcImagePatches(rawBody, info)
+	if apiErr != nil {
+		t.Fatalf("applyVolcImagePatches returned unexpected error: %v", apiErr)
+	}
+
+	var result map[string]json.RawMessage
+	if err := json.Unmarshal(got, &result); err != nil {
+		t.Fatalf("result is not valid JSON: %v", err)
+	}
+
+	// Verify the param override field was injected.
+	sizeRaw, ok := result["size"]
+	if !ok {
+		t.Fatal("size field was not injected by ParamOverride")
+	}
+	var size string
+	if err := json.Unmarshal(sizeRaw, &size); err != nil || size != "4K" {
+		t.Errorf("size: want %q, got %q (raw: %s)", "4K", size, sizeRaw)
+	}
+
+	// Verify unknown Volc-specific fields are preserved.
+	if _, ok := result["watermark"]; !ok {
+		t.Error("watermark field was dropped after ParamOverride")
+	}
+	if _, ok := result["sequential_image_generation"]; !ok {
+		t.Error("sequential_image_generation field was dropped after ParamOverride")
+	}
+}
+
+// TestApplyVolcImagePatches_ModelMappingAndParamOverride verifies that both model
+// mapping and param override are applied together correctly.
+func TestApplyVolcImagePatches_ModelMappingAndParamOverride(t *testing.T) {
+	rawBody := []byte(`{"model":"foo","prompt":"test","watermark":false}`)
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			IsModelMapped:     true,
+			UpstreamModelName: "bar",
+			ParamOverride: map[string]interface{}{
+				"size": "1440x1440",
+			},
+		},
+	}
+
+	got, apiErr := applyVolcImagePatches(rawBody, info)
+	if apiErr != nil {
+		t.Fatalf("unexpected error: %v", apiErr)
+	}
+
+	var result map[string]json.RawMessage
+	if err := json.Unmarshal(got, &result); err != nil {
+		t.Fatalf("result is not valid JSON: %v", err)
+	}
+
+	var model string
+	if err := json.Unmarshal(result["model"], &model); err != nil || model != "bar" {
+		t.Errorf("model: want %q, got %q", "bar", model)
+	}
+
+	sizeRaw, ok := result["size"]
+	if !ok {
+		t.Fatal("size field was not injected by ParamOverride")
+	}
+	var size string
+	if err := json.Unmarshal(sizeRaw, &size); err != nil || size != "1440x1440" {
+		t.Errorf("size: want %q, got %q", "1440x1440", size)
+	}
+
+	if _, ok := result["watermark"]; !ok {
+		t.Error("watermark field was dropped")
 	}
 }
