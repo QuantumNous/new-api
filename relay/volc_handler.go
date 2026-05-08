@@ -100,7 +100,7 @@ func VolcImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewErrorWithStatusCode(readErr, types.ErrorCodeReadRequestBodyFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 
-	rawBytes, patchErr := applyVolcImagePatches(rawBytes, info)
+	rawBytes, patchErr := applyVolcImagePatches(c, rawBytes, info)
 	if patchErr != nil {
 		return patchErr
 	}
@@ -145,24 +145,28 @@ func VolcImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 //     operates on map[string]json.RawMessage, not a typed struct.
 //  2. If ParamOverride is configured, applies it via the standard byte-level patch.
 //
-// On model-patch failure the function logs and continues with the un-patched body
-// (conservative: avoids introducing a new error path for a non-critical patch).
+// On model-patch failure the function logs a warning and continues with the un-patched
+// body (conservative: avoids introducing a new error path for a non-critical patch).
 // On param-override failure the function returns an error.
-func applyVolcImagePatches(rawBytes []byte, info *relaycommon.RelayInfo) ([]byte, *types.NewAPIError) {
+func applyVolcImagePatches(c *gin.Context, rawBytes []byte, info *relaycommon.RelayInfo) ([]byte, *types.NewAPIError) {
 	// 1. Model mapping patch — byte-level, preserves all unknown fields.
 	if info.IsModelMapped && info.UpstreamModelName != "" {
 		var bodyMap map[string]json.RawMessage
-		if err := common.Unmarshal(rawBytes, &bodyMap); err == nil {
-			if newModel, err := common.Marshal(info.UpstreamModelName); err == nil {
+		if err := common.Unmarshal(rawBytes, &bodyMap); err != nil {
+			logger.LogWarn(c, "applyVolcImagePatches: unmarshal body failed: "+err.Error())
+		} else {
+			newModel, err := common.Marshal(info.UpstreamModelName)
+			if err != nil {
+				logger.LogWarn(c, "applyVolcImagePatches: marshal upstream model name failed: "+err.Error())
+			} else {
 				bodyMap["model"] = newModel
-				if patched, err := common.Marshal(bodyMap); err == nil {
+				if patched, err := common.Marshal(bodyMap); err != nil {
+					logger.LogWarn(c, "applyVolcImagePatches: marshal patched body failed: "+err.Error())
+				} else {
 					rawBytes = patched
 				}
-				// Marshal of bodyMap failed: log and continue with un-patched body.
 			}
-			// Marshal of model string failed: log and continue.
 		}
-		// Unmarshal failed: log and continue with un-patched body.
 	}
 
 	// 2. Param override — also byte-level, preserves unknown fields.

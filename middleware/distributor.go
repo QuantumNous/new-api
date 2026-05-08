@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -304,6 +305,28 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	if strings.HasSuffix(c.Request.URL.Path, "embeddings") {
 		if modelRequest.Model == "" {
 			modelRequest.Model = c.Param("model")
+		}
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/api/v3/images/generations") && modelRequest.Model == "" {
+		// Volc Ark image generation accepts model_name and req_key as aliases for model.
+		// The body has already been buffered by getModelFromRequest above, so we can
+		// unmarshal from the reusable storage a second time without re-reading the wire.
+		var probe struct {
+			ModelName *string `json:"model_name,omitempty"`
+			ReqKey    *string `json:"req_key,omitempty"`
+		}
+		if bs, bsErr := common.GetBodyStorage(c); bsErr == nil {
+			if raw, rawErr := bs.Bytes(); rawErr == nil && len(raw) > 0 {
+				if jerr := common.Unmarshal(raw, &probe); jerr == nil {
+					if probe.ModelName != nil && *probe.ModelName != "" {
+						modelRequest.Model = *probe.ModelName
+					} else if probe.ReqKey != nil && *probe.ReqKey != "" {
+						modelRequest.Model = *probe.ReqKey
+					}
+				}
+				// Restore read position so downstream handlers can re-read the body.
+				_, _ = bs.Seek(0, io.SeekStart)
+			}
 		}
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {

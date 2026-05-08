@@ -24,6 +24,16 @@ func init() {
 	service.InitHttpClient()
 }
 
+// newTestGinContext returns a minimal gin.Context for unit tests that only need
+// a context for logging purposes (e.g. applyVolcImagePatches).
+func newTestGinContext(t *testing.T) *gin.Context {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v3/images/generations", nil)
+	return c
+}
+
 // newTestGinContextWithBody creates a gin.Context with a JSON body stored in
 // common.KeyBodyStorage so it can be retrieved via common.GetBodyStorage.
 func newTestGinContextWithBody(t *testing.T, body []byte) *gin.Context {
@@ -239,7 +249,7 @@ func TestApplyVolcImagePatches_ModelMapping(t *testing.T) {
 		},
 	}
 
-	got, apiErr := applyVolcImagePatches(rawBody, info)
+	got, apiErr := applyVolcImagePatches(newTestGinContext(t), rawBody, info)
 	if apiErr != nil {
 		t.Fatalf("applyVolcImagePatches returned unexpected error: %v", apiErr)
 	}
@@ -282,7 +292,7 @@ func TestApplyVolcImagePatches_NoModelMappingSkipsModelPatch(t *testing.T) {
 		},
 	}
 
-	got, apiErr := applyVolcImagePatches(rawBody, info)
+	got, apiErr := applyVolcImagePatches(newTestGinContext(t), rawBody, info)
 	if apiErr != nil {
 		t.Fatalf("unexpected error: %v", apiErr)
 	}
@@ -310,7 +320,7 @@ func TestApplyVolcImagePatches_ParamOverride(t *testing.T) {
 		},
 	}
 
-	got, apiErr := applyVolcImagePatches(rawBody, info)
+	got, apiErr := applyVolcImagePatches(newTestGinContext(t), rawBody, info)
 	if apiErr != nil {
 		t.Fatalf("applyVolcImagePatches returned unexpected error: %v", apiErr)
 	}
@@ -354,7 +364,7 @@ func TestApplyVolcImagePatches_ModelMappingAndParamOverride(t *testing.T) {
 		},
 	}
 
-	got, apiErr := applyVolcImagePatches(rawBody, info)
+	got, apiErr := applyVolcImagePatches(newTestGinContext(t), rawBody, info)
 	if apiErr != nil {
 		t.Fatalf("unexpected error: %v", apiErr)
 	}

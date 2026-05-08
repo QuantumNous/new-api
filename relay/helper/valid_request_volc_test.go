@@ -221,3 +221,66 @@ func TestGetAndValidateVolcImageRequest_DeeplyNestedUnexpectedFields(t *testing.
 		t.Error("expected array field 'arr' captured in Extra")
 	}
 }
+
+// ── model_name / req_key fallback tests ─────────────────────────────────────
+
+// TestGetAndValidateVolcImageRequest_ModelNameFallback verifies that when
+// "model" is absent but "model_name" is present, req.Model is populated with
+// the model_name value so downstream logic works uniformly.
+func TestGetAndValidateVolcImageRequest_ModelNameFallback(t *testing.T) {
+	body := `{"model_name":"high-aes-general-v21-L","prompt":"cinematic shot"}`
+	c := newTestContextWithBody(t, body)
+
+	req, err := GetAndValidateVolcImageRequest(c)
+	if err != nil {
+		t.Fatalf("unexpected error for body with model_name: %v", err)
+	}
+	if req.Model != "high-aes-general-v21-L" {
+		t.Errorf("expected model=%q (from model_name), got %q", "high-aes-general-v21-L", req.Model)
+	}
+}
+
+// TestGetAndValidateVolcImageRequest_ReqKeyFallback verifies that when both
+// "model" and "model_name" are absent, req.Model is populated from "req_key".
+func TestGetAndValidateVolcImageRequest_ReqKeyFallback(t *testing.T) {
+	body := `{"req_key":"high-aes-general-v21-L","prompt":"cinematic shot"}`
+	c := newTestContextWithBody(t, body)
+
+	req, err := GetAndValidateVolcImageRequest(c)
+	if err != nil {
+		t.Fatalf("unexpected error for body with req_key: %v", err)
+	}
+	if req.Model != "high-aes-general-v21-L" {
+		t.Errorf("expected model=%q (from req_key), got %q", "high-aes-general-v21-L", req.Model)
+	}
+}
+
+// TestGetAndValidateVolcImageRequest_ModelTakesPrecedence verifies that when
+// "model", "model_name", and "req_key" are all present, "model" wins.
+func TestGetAndValidateVolcImageRequest_ModelTakesPrecedence(t *testing.T) {
+	body := `{"model":"primary-model","model_name":"secondary","req_key":"tertiary"}`
+	c := newTestContextWithBody(t, body)
+
+	req, err := GetAndValidateVolcImageRequest(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if req.Model != "primary-model" {
+		t.Errorf("expected 'primary-model' to take precedence, got %q", req.Model)
+	}
+}
+
+// TestGetAndValidateVolcImageRequest_AllFieldsMissing verifies that when none
+// of model/model_name/req_key are present, an error is returned.
+func TestGetAndValidateVolcImageRequest_AllFieldsMissing(t *testing.T) {
+	body := `{"prompt":"cinematic shot"}`
+	c := newTestContextWithBody(t, body)
+
+	_, err := GetAndValidateVolcImageRequest(c)
+	if err == nil {
+		t.Fatal("expected error when no model identifier is present, got nil")
+	}
+	if err.Error() != "model is required" {
+		t.Errorf("error message: got %q, want %q", err.Error(), "model is required")
+	}
+}

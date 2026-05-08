@@ -345,12 +345,38 @@ func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*dto.GeminiBatch
 // Only model presence is strictly validated; prompt/image validation is relaxed
 // because Volc supports both t2i (prompt required) and i2i (image required) in
 // the same endpoint and we want to pass all other fields through byte-identical.
+//
+// Volc Ark accepts three different field names for the model identifier:
+//   - "model"      — standard field
+//   - "model_name" — legacy Volc-specific field name
+//   - "req_key"    — another Volc alias used by some API versions
+//
+// If "model" is absent or empty, the function looks up "model_name" and then
+// "req_key" from the Extra map (which captures all non-standard fields) and
+// copies the found value into req.Model so that downstream model-mapping and
+// billing logic works uniformly.
 func GetAndValidateVolcImageRequest(c *gin.Context) (*dto.VolcImageRequest, error) {
 	req := &dto.VolcImageRequest{}
 	if err := common.UnmarshalBodyReusable(c, req); err != nil {
 		return nil, err
 	}
-	// Accept model, model_name, or req_key as model identifier (Volc uses all three)
+	// Accept model, model_name, or req_key as model identifier (Volc uses all three).
+	if req.Model == "" {
+		if v, ok := req.Extra["model_name"]; ok {
+			var s string
+			if err := common.Unmarshal(v, &s); err == nil && s != "" {
+				req.Model = s
+			}
+		}
+	}
+	if req.Model == "" {
+		if v, ok := req.Extra["req_key"]; ok {
+			var s string
+			if err := common.Unmarshal(v, &s); err == nil && s != "" {
+				req.Model = s
+			}
+		}
+	}
 	if req.Model == "" {
 		return nil, errors.New("model is required")
 	}

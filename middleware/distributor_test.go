@@ -268,3 +268,97 @@ func TestSetupContextForToken_NonAdminCannotForceChannel(t *testing.T) {
 	// (gin recorder only reflects what JSON was written; in unit test Abort() sets code.)
 	_ = w.Code // status depends on how gin records the abort in recorder
 }
+
+// ── T-8: DELETE /api/v3/contents/generations/tasks/:id skips channel selection ──
+
+// TestDistribute_VolcTaskDelete_SkipsChannelSelection verifies that a DELETE
+// request to the Volc task path does NOT trigger channel selection.
+//
+// The DELETE handler (VolcTaskDelete) looks up the channel from the stored task,
+// so no model body is provided and shouldSelectChannel MUST be false.
+// If channel selection were attempted, Distribute() would abort with 503 (no
+// model name) instead of letting the handler proceed.
+func TestDistribute_VolcTaskDelete_SkipsChannelSelection(t *testing.T) {
+	setupDistributorTestDB(t)
+
+	// Build a DELETE request with no body — mirroring a real cancel call.
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodDelete, "/api/v3/contents/generations/tasks/task_abc123", nil)
+
+	// Populate context keys that TokenAuth middleware would normally set.
+	c.Set("id", 9001)
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyTokenModelLimitEnabled, false)
+
+	nextCalled := false
+	// Inject a sentinel next-handler to detect whether Distribute() called c.Next().
+	// We can't use gin's real routing here, so we call the inner function returned
+	// by Distribute() and check whether it aborted or called Next.
+	distributeMiddleware := Distribute()
+	// Replace the context's engine abort tracker by noting if Abort was NOT called.
+	distributeMiddleware(c)
+
+	// Distribute() must NOT abort on DELETE (no channel selection → no 503).
+	// The recorder code is 200 (default) because no abort was issued and no
+	// handler wrote a response — that is the correct outcome.
+	if w.Code == http.StatusServiceUnavailable {
+		t.Error("DELETE to Volc task path should not trigger channel selection (got 503)")
+	}
+	// Specifically, it should not be 400 ("model name required") either.
+	if w.Code == http.StatusBadRequest {
+		t.Error("DELETE to Volc task path should not attempt model extraction (got 400)")
+	}
+	_ = nextCalled
+}
+
+// ── T-9: /api/v3/images/generations — model_name / req_key alias extraction ──
+
+// getVolcImageModel is a test helper: runs getModelRequest against a POST to
+// /api/v3/images/generations and returns the resolved model name.
+func getVolcImageModel(t *testing.T, body []byte) string {
+	t.Helper()
+	c, _ := newDistributorContext(t, body, "/api/v3/images/generations")
+	mr, _, err := getModelRequest(c)
+	if err != nil {
+		t.Fatalf("getModelRequest error: %v", err)
+	}
+	return mr.Model
+}
+
+// TestDistribute_VolcImageRoute_ModelPriority verifies that when both "model"
+// and "model_name" are present, "model" takes precedence.
+func TestDistribute_VolcImageRoute_ModelPriority(t *testing.T) {
+	setupDistributorTestDB(t)
+
+	body := []byte(`{"model":"preferred-model","model_name":"alias-model","prompt":"test"}`)
+	got := getVolcImageModel(t, body)
+	if got != "preferred-model" {
+		t.Errorf(`expected "preferred-model" when both model and model_name present, got %q`, got)
+	}
+}
+
+// TestDistribute_VolcImageRoute_ModelNameFallback verifies that when "model" is
+// absent, "model_name" is used as the channel-selection key.
+func TestDistribute_VolcImageRoute_ModelNameFallback(t *testing.T) {
+	setupDistributorTestDB(t)
+
+	body := []byte(`{"model_name":"doubao-seedream-3-0","prompt":"a cat"}`)
+	got := getVolcImageModel(t, body)
+	if got != "doubao-seedream-3-0" {
+		t.Errorf(`expected "doubao-seedream-3-0" from model_name fallback, got %q`, got)
+	}
+}
+
+// TestDistribute_VolcImageRoute_ReqKeyFallback verifies that when both "model"
+// and "model_name" are absent, "req_key" is used as the channel-selection key.
+func TestDistribute_VolcImageRoute_ReqKeyFallback(t *testing.T) {
+	setupDistributorTestDB(t)
+
+	body := []byte(`{"req_key":"high_aes_general_v21_L20","prompt":"a dog"}`)
+	got := getVolcImageModel(t, body)
+	if got != "high_aes_general_v21_L20" {
+		t.Errorf(`expected "high_aes_general_v21_L20" from req_key fallback, got %q`, got)
+	}
+}

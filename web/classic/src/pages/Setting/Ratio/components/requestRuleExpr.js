@@ -315,9 +315,17 @@ function tryParseTimeCondition(expr) {
 }
 
 // Unescape a JSON-string-escaped path (e.g. content.#(type==\"video_url\") → content.#(type=="video_url")).
-// Only handles the two escape sequences that JSON.stringify emits for path strings: \" and \\.
+// Uses JSON.parse to handle all JSON escape sequences (\", \\, \n, \t, \uXXXX, etc.)
+// so that build/parse always round-trips correctly regardless of which escape
+// sequences JSON.stringify emitted. Returns null if parsing fails (invalid escape
+// sequence typed by admin), allowing the caller to treat the rule as non-matching.
 function unescapePath(raw) {
-  return raw.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  try {
+    const parsed = JSON.parse(`"${raw}"`);
+    return typeof parsed === 'string' && parsed ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 // Parse a quoted string literal (already including surrounding quotes) with
@@ -395,7 +403,9 @@ function tryParseRequestCondition(expr) {
   if (m) {
     const parsedValue = parseExprLiteral(m[3]);
     if (parsedValue === null) return null;
-    return { source: m[1], path: unescapePath(m[2]), mode: MATCH_EQ, value: String(parsedValue) };
+    const path = unescapePath(m[2]);
+    if (path === null) return null;
+    return { source: m[1], path, mode: MATCH_EQ, value: String(parsedValue) };
   }
 
   return null;
