@@ -3965,6 +3965,26 @@
     "重置密码": "Reset Password",
     "输入邮箱后，我们会向你发送密码重置链接。": "Enter your email and we'll send you a password reset link.",
     "确认重置": "Confirm Reset",
-    "确认后系统会重新生成密码，并复制到剪贴板。": "After confirmation, the system will generate a new password and copy it to your clipboard."
+    "确认后系统会重新生成密码，并复制到剪贴板。": "After confirmation, the system will generate a new password and copy it to your clipboard.",
+    "按步骤了解奖励发放与划转方式": "Understand how rewards are issued and transferred step by step",
+    "当前可划转奖励": "Currently transferable reward",
+    "兑换码": "Redemption code",
+    "分享邀请链接，持续获得奖励": "Share your invitation link and keep earning rewards",
+    "复制链接并分享给好友完成注册": "Copy the link and share it with friends to complete registration",
+    "复制邀请链接": "Copy invitation link",
+    "复制专属链接分享给好友，好友完成注册并充值后，奖励将自动进入您的邀请账户。": "Copy and share your exclusive link with friends. Once they register and top up, rewards will be credited to your referral account automatically.",
+    "管理员未开启 Waffo 充值！": "The administrator has not enabled Waffo top-up!",
+    "好友通过该链接注册并充值后，奖励会自动发放到您的邀请账户。": "When friends register and top up through this link, rewards will be automatically credited to your referral account.",
+    "累计邀请收益": "Total referral earnings",
+    "满足最低划转额度后，可直接转入余额继续消费。": "Once the minimum transfer amount is reached, you can move it directly into your balance for continued spending.",
+    "输入兑换码即可到账": "Enter a redemption code to credit your account",
+    "输入有效兑换码，立即领取额度": "Enter a valid redemption code to claim quota instantly",
+    "推广伙伴": "Promotion partner",
+    "推广计划": "Promotion program",
+    "为账户充值额度，查看余额和账单记录": "Top up your account quota and view your balance and billing records",
+    "选择支付方式和充值额度": "Choose a payment method and top-up amount",
+    "邀请好友注册并完成充值后，奖励会自动累计到您的邀请额度中": "After invited friends register and complete a top-up, rewards will automatically accumulate in your referral quota",
+    "用更清晰的卡片查看邀请表现和奖励累积": "View referral performance and reward accumulation with clearer cards",
+    "在线充值": "Online top-up"
   }
 }

@@ -58,7 +58,7 @@ const PAYMENT_METHOD_MAP = {
   wxpay: '微信',
 };
 
-function maskMiddle(str, keepStart = 8, keepEnd = 4, mask = '****') {
+function maskMiddle(str, keepStart = 6, keepEnd = 4, mask = '***') {
   if (str.length <= keepStart + keepEnd) return str;
   return str.slice(0, keepStart) + mask + str.slice(-keepEnd);
 }
