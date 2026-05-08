@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import type { AxiosRequestConfig } from 'axios'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 import { getOAuthState } from '../api'
 import {
   buildGitHubOAuthUrl,
@@ -12,10 +11,6 @@ import {
   buildLinuxDOOAuthUrl,
 } from '../lib/oauth'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
-
-type LogoutRequestConfig = AxiosRequestConfig & {
-  skipErrorHandler?: boolean
-}
 
 /**
  * Hook for managing OAuth login
@@ -45,9 +40,10 @@ export function useOAuthLogin(status: SystemStatus | null) {
       // ignore store reset errors
     }
     try {
-      await api.get('/api/user/logout', {
+      const config: ApiRequestConfig = {
         skipErrorHandler: true,
-      } as LogoutRequestConfig)
+      }
+      await api.get('/api/user/logout', config)
     } catch (_error) {
       // ignore logout errors
     }

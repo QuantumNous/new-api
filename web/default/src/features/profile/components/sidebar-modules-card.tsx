@@ -47,6 +47,11 @@ export function SidebarModulesCard() {
           description: t('AI model testing environment'),
         },
         {
+          key: 'image_workspace',
+          title: t('Image Workspace'),
+          description: t('Image generation workspace'),
+        },
+        {
           key: 'chat',
           title: t('Chat'),
           description: t('Chat session management'),

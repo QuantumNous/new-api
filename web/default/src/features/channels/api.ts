@@ -1,5 +1,4 @@
-import type { AxiosRequestConfig } from 'axios'
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 import { getGroups as getUserGroups } from '@/features/users/api'
 import type {
   AddChannelRequest,
@@ -20,12 +19,6 @@ import type {
   SearchChannelsResponse,
   TagOperationParams,
 } from './types'
-
-// Extended API config types
-interface ExtendedApiConfig extends AxiosRequestConfig {
-  skipBusinessError?: boolean
-  disableDuplicate?: boolean
-}
 
 export type CodexOAuthStartResponse = {
   success: boolean
@@ -239,7 +232,7 @@ export async function getChannelKey(
 // ============================================================================
 
 export async function startCodexOAuth(): Promise<CodexOAuthStartResponse> {
-  const config: ExtendedApiConfig = { skipBusinessError: true }
+  const config: ApiRequestConfig = { skipBusinessError: true }
   const res = await api.post('/api/channel/codex/oauth/start', {}, config)
   return res.data
 }
@@ -247,7 +240,7 @@ export async function startCodexOAuth(): Promise<CodexOAuthStartResponse> {
 export async function completeCodexOAuth(
   input: string
 ): Promise<CodexOAuthCompleteResponse> {
-  const config: ExtendedApiConfig = { skipBusinessError: true }
+  const config: ApiRequestConfig = { skipBusinessError: true }
   const res = await api.post(
     '/api/channel/codex/oauth/complete',
     { input },
@@ -259,7 +252,7 @@ export async function completeCodexOAuth(
 export async function refreshCodexCredential(
   channelId: number
 ): Promise<CodexCredentialRefreshResponse> {
-  const config: ExtendedApiConfig = { skipBusinessError: true }
+  const config: ApiRequestConfig = { skipBusinessError: true }
   const res = await api.post(
     `/api/channel/${channelId}/codex/refresh`,
     {},
@@ -271,7 +264,7 @@ export async function refreshCodexCredential(
 export async function getCodexUsage(
   channelId: number
 ): Promise<CodexUsageResponse> {
-  const config: ExtendedApiConfig = {
+  const config: ApiRequestConfig = {
     skipBusinessError: true,
     disableDuplicate: true,
   }

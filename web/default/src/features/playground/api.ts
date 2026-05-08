@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 import { API_ENDPOINTS } from './constants'
 import type {
   ChatCompletionRequest,
@@ -13,9 +13,10 @@ import type {
 export async function sendChatCompletion(
   payload: ChatCompletionRequest
 ): Promise<ChatCompletionResponse> {
-  const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
+  const config: ApiRequestConfig = {
     skipErrorHandler: true,
-  } as Record<string, unknown>)
+  }
+  const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, config)
   return res.data
 }
 

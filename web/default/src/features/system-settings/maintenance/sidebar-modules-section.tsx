@@ -64,6 +64,10 @@ export function SidebarModulesSection({
         title: t('Playground'),
         description: t('Experiment with prompts and models in real time.'),
       },
+      image_workspace: {
+        title: t('Image Workspace'),
+        description: t('Generate images with relay billing.'),
+      },
       chat: {
         title: t('Chat'),
         description: t('Access previous conversations and start new ones.'),

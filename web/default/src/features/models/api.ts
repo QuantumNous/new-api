@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 import type {
   GetModelsParams,
   GetModelsResponse,
@@ -288,9 +288,7 @@ export async function testDeploymentConnection(): Promise<{
   success: boolean
   message?: string
 }> {
-  const config = { skipErrorHandler: true } as unknown as Parameters<
-    typeof api.post
-  >[2]
+  const config: ApiRequestConfig = { skipErrorHandler: true }
   const res = await api.post(
     '/api/deployments/settings/test-connection',
     {},
@@ -312,9 +310,7 @@ export async function testDeploymentConnectionWithKey(
     typeof apiKey === 'string' && apiKey.trim()
       ? { api_key: apiKey.trim() }
       : {}
-  const config = { skipErrorHandler: true } as unknown as Parameters<
-    typeof api.post
-  >[2]
+  const config: ApiRequestConfig = { skipErrorHandler: true }
   const res = await api.post(
     '/api/deployments/settings/test-connection',
     payload,
