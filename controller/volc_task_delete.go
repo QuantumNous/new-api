@@ -1,4 +1,4 @@
-package graylight
+package controller
 
 import (
 	"context"
