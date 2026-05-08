@@ -421,8 +421,10 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return err
 		}
 
-		// Creem 直接使用 Amount 作为充值额度（整数）
-		quota = topUp.Amount
+		// Creem 产品配置的 quota 字段与 Stripe/Waffo 语义一致，
+		// 存储的是美元等价单位数（如 50 表示 $50 额度），
+		// 需乘以 QuotaPerUnit 换算为系统内部 raw quota 值。
+		quota = int64(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
 
 		// 构建更新字段，优先使用邮箱，如果邮箱为空则使用用户名
 		updateFields := map[string]interface{}{
