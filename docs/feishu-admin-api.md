@@ -71,6 +71,9 @@ POST /api/user/feishu/users/batch
         "feishu_open_id": "ou_xxxxx1",
         "user_id": 101,
         "username": "zhangsan",
+        "token_id": 501,
+        "token_name": "feishu-init",
+        "token_key": "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
         "action": "created"
       },
       {
@@ -91,6 +94,7 @@ POST /api/user/feishu/users/batch
 - 如果用户名冲突，自动追加数字后缀（如 `zhangsan_1`）
 - 如果指定了 `quota`，创建后会覆写系统默认额度
 - 如果指定了非 `default` 分组，自动触发 `SyncUserBindGroupSubscriptions`（同步该分组绑定的订阅套餐）
+- **创建用户成功后自动创建一个令牌**（默认名 `feishu-init`），并在结果中返回 `token_id/token_name/token_key`
 - 写入系统日志记录操作
 
 ---
@@ -389,7 +393,7 @@ GET /api/user/feishu/tokens?feishu_user_id=u_xxxxx&page=1&page_size=10
 - 用户管理页新增“Feishu Keys”专用入口：
   - 支持按 `feishu_open_id` / `feishu_user_id` 检索指定用户全部 token
   - 支持创建 token，并在结果中展示新明文 key
-- 后端权限隔离已落地（默认 Root，支持配置放开给 Admin）。
+- 后端权限隔离已落地（默认 Root 与 Admin 可用，可通过配置收紧为仅 Root）。
 
 ---
 
@@ -447,7 +451,7 @@ GET /api/user/feishu/tokens?feishu_user_id=u_xxxxx&page=1&page_size=10
 
 ---
 
-## 通用说明
+## 9. 通用说明
 
 ### 认证
 

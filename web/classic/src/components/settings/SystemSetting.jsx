@@ -105,6 +105,7 @@ const SystemSetting = () => {
     feishu_app_secret: '',
     feishu_default_group: '',
     feishu_auth_policy: '',
+    feishu_init_webhook_secret: '',
     ServerAddress: '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
@@ -659,6 +660,7 @@ const SystemSetting = () => {
       'feishu.app_secret': 'feishu_app_secret',
       'feishu.default_group': 'feishu_default_group',
       'feishu.auth_policy': 'feishu_auth_policy',
+      'feishu.init_webhook_secret': 'feishu_init_webhook_secret',
     };
     const options = [];
     for (const [backendKey, formField] of Object.entries(fieldMapping)) {
@@ -1641,6 +1643,18 @@ const SystemSetting = () => {
                           { value: 'parallel', label: '并行模式 (飞书 + 密码登录)' },
                           { value: 'feishu_only', label: '仅飞书模式 (禁用密码登录)' },
                         ]}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Input
+                        field='feishu_init_webhook_secret'
+                        label={t('初始化 Webhook 密钥')}
+                        type='password'
+                        placeholder={t('用于 /api/feishu/users/init/webhook 的共享密钥')}
                       />
                     </Col>
                   </Row>

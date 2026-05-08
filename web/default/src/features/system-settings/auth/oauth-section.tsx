@@ -54,6 +54,7 @@ const oauthSchema = z.object({
   'feishu.app_secret': z.string().optional(),
   'feishu.default_group': z.string().optional(),
   'feishu.auth_policy': z.string().optional(),
+  'feishu.init_webhook_secret': z.string().optional(),
 })
 
 type OAuthFormValues = z.infer<typeof oauthSchema>
@@ -94,6 +95,8 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     'feishu.app_secret': defaultValues['feishu.app_secret'] ?? '',
     'feishu.default_group': defaultValues['feishu.default_group'] ?? 'pending',
     'feishu.auth_policy': defaultValues['feishu.auth_policy'] ?? 'parallel',
+    'feishu.init_webhook_secret':
+      defaultValues['feishu.init_webhook_secret'] ?? '',
   }
 
   const form = useForm<OAuthFormValues>({

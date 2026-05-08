@@ -103,6 +103,7 @@ export type AuthSettings = {
   'feishu.app_secret': string
   'feishu.default_group': string
   'feishu.auth_policy': string
+  'feishu.init_webhook_secret': string
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,8 +61,27 @@ type FeishuUserInitResultItem struct {
 	DisplayName   string `json:"display_name,omitempty"`
 	OrgName       string `json:"org_name,omitempty"`
 	JobTitle      string `json:"job_title,omitempty"`
+	TokenId       int    `json:"token_id,omitempty"`
+	TokenName     string `json:"token_name,omitempty"`
+	TokenKey      string `json:"token_key,omitempty"`
 	Action        string `json:"action"`
 	Error         string `json:"error,omitempty"`
+}
+
+type FeishuInitWebhookRequest struct {
+	Users []FeishuUserInitItem `json:"users" binding:"required,dive"`
+}
+
+type createTokenOptions struct {
+	Name               string
+	RemainQuota        *int
+	UnlimitedQuota     *bool
+	ExpiredTime        *int64
+	ModelLimitsEnabled *bool
+	ModelLimits        string
+	AllowIps           string
+	Group              string
+	CrossGroupRetry    *bool
 }
 
 type feishuTenantAccessTokenResp struct {
@@ -393,6 +413,96 @@ func allocateAvailableUsername(base string) (string, error) {
 	return "", fmt.Errorf("unable to allocate username")
 }
 
+func verifyFeishuInitWebhookSecret(c *gin.Context) bool {
+	secret := strings.TrimSpace(system_setting.GetFeishuSettings().InitWebhookSecret)
+	if secret == "" {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "feishu.init_webhook_secret is not configured"})
+		return false
+	}
+	headerSecret := strings.TrimSpace(c.GetHeader("X-Feishu-Init-Secret"))
+	if subtle.ConstantTimeCompare([]byte(headerSecret), []byte(secret)) != 1 {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "invalid webhook secret"})
+		return false
+	}
+	return true
+}
+
+func createTokenForUser(user *model.User, opts *createTokenOptions) (*model.Token, string, error) {
+	maxTokens := operation_setting.GetMaxUserTokens()
+	count, err := model.CountUserTokens(user.Id)
+	if err != nil {
+		return nil, "", err
+	}
+	if int(count) >= maxTokens {
+		return nil, "", fmt.Errorf("user reached max tokens limit (%d)", maxTokens)
+	}
+
+	tokenName := "feishu-init"
+	if opts != nil && strings.TrimSpace(opts.Name) != "" {
+		tokenName = strings.TrimSpace(opts.Name)
+	}
+
+	key, err := common.GenerateKey()
+	if err != nil {
+		return nil, "", err
+	}
+
+	remainQuota := 0
+	if opts != nil && opts.RemainQuota != nil {
+		remainQuota = *opts.RemainQuota
+	}
+	unlimitedQuota := true
+	if opts != nil && opts.UnlimitedQuota != nil {
+		unlimitedQuota = *opts.UnlimitedQuota
+	}
+	expiredTime := int64(-1)
+	if opts != nil && opts.ExpiredTime != nil {
+		expiredTime = *opts.ExpiredTime
+	}
+	modelLimitsEnabled := false
+	if opts != nil && opts.ModelLimitsEnabled != nil {
+		modelLimitsEnabled = *opts.ModelLimitsEnabled
+	}
+	var allowIps *string
+	if opts != nil && strings.TrimSpace(opts.AllowIps) != "" {
+		allowIpsValue := strings.TrimSpace(opts.AllowIps)
+		allowIps = &allowIpsValue
+	}
+	crossGroupRetry := false
+	if opts != nil && opts.CrossGroupRetry != nil {
+		crossGroupRetry = *opts.CrossGroupRetry
+	}
+	group := ""
+	if opts != nil {
+		group = strings.TrimSpace(opts.Group)
+	}
+
+	modelLimits := ""
+	if opts != nil {
+		modelLimits = opts.ModelLimits
+	}
+
+	token := &model.Token{
+		UserId:             user.Id,
+		Name:               tokenName,
+		Key:                key,
+		CreatedTime:        common.GetTimestamp(),
+		AccessedTime:       common.GetTimestamp(),
+		ExpiredTime:        expiredTime,
+		RemainQuota:        remainQuota,
+		UnlimitedQuota:     unlimitedQuota,
+		ModelLimitsEnabled: modelLimitsEnabled,
+		ModelLimits:        modelLimits,
+		AllowIps:           allowIps,
+		Group:              group,
+		CrossGroupRetry:    crossGroupRetry,
+	}
+	if err = token.Insert(); err != nil {
+		return nil, "", err
+	}
+	return token, key, nil
+}
+
 func BatchCreateFeishuUsers(c *gin.Context) {
 	var req BatchCreateFeishuUsersRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -411,11 +521,9 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 	for _, item := range req.Users {
 		openId, unionId, userId := resolveFeishuIdentifiers(c, item.FeishuOpenId, item.FeishuUnionId, item.FeishuUserId)
 		resolvedName := strings.TrimSpace(item.DisplayName)
-		resolvedOrgName := strings.TrimSpace(item.OrgName)
-		resolvedJobTitle := strings.TrimSpace(item.JobTitle)
 		resolvedEmployeeNo := strings.TrimSpace(item.EmployeeID)
 		if openId == "" && unionId == "" && userId == "" {
-			openId, unionId, userId, resolvedName, resolvedOrgName, resolvedJobTitle, resolvedEmployeeNo = resolveFeishuIdentifiersFromReadable(c, item.EmployeeID, item.Mobile, item.Email)
+			openId, unionId, userId, resolvedName, _, _, resolvedEmployeeNo = resolveFeishuIdentifiersFromReadable(c, item.EmployeeID, item.Mobile, item.Email)
 		}
 		if openId == "" && unionId == "" && userId == "" {
 			result.Failed++
@@ -436,8 +544,6 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 				FeishuUnionId: unionId,
 				FeishuUserId:  userId,
 				DisplayName:   resolvedName,
-				OrgName:       resolvedOrgName,
-				JobTitle:      resolvedJobTitle,
 				Username:      resolvedEmployeeNo,
 				Action:        "preview_only",
 				Error:         "请确认用户信息后再初始化（confirmed=true）",
@@ -557,12 +663,34 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 			fmt.Sprintf("管理员通过飞书OpenID批量创建用户，open_id=%s，分组=%s", openId, group))
 
 		result.Success++
+		createdToken, tokenKey, tokenErr := createTokenForUser(&newUser, &createTokenOptions{
+			Name: "feishu-init",
+		})
+		if tokenErr != nil {
+			result.Failed++
+			result.Success--
+			result.Errors = append(result.Errors, fmt.Sprintf("open_id=%s: token create failed: %s", openId, tokenErr.Error()))
+			result.Results = append(result.Results, FeishuUserInitResultItem{
+				FeishuOpenId:  openId,
+				FeishuUnionId: unionId,
+				FeishuUserId:  userId,
+				UserId:        newUser.Id,
+				Username:      newUser.Username,
+				Action:        "failed",
+				Error:         "token create failed: " + tokenErr.Error(),
+			})
+			continue
+		}
+
 		result.Results = append(result.Results, FeishuUserInitResultItem{
 			FeishuOpenId:  openId,
 			FeishuUnionId: unionId,
 			FeishuUserId:  userId,
 			UserId:        newUser.Id,
 			Username:      newUser.Username,
+			TokenId:       createdToken.Id,
+			TokenName:     createdToken.Name,
+			TokenKey:      tokenKey,
 			Action:        "created",
 		})
 	}
@@ -946,6 +1074,121 @@ func AdminGetTokensByFeishu(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(tokens)
 	common.ApiSuccess(c, pageInfo)
+}
+
+func FeishuInitWebhook(c *gin.Context) {
+	if !verifyFeishuInitWebhookSecret(c) {
+		return
+	}
+
+	var req FeishuInitWebhookRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	result := BatchCreateFeishuUsersResult{
+		Total:   len(req.Users),
+		Results: make([]FeishuUserInitResultItem, 0, len(req.Users)),
+		Errors:  make([]string, 0),
+	}
+
+	for _, item := range req.Users {
+		item.Confirmed = true
+		openId, unionId, userId := resolveFeishuIdentifiers(c, item.FeishuOpenId, item.FeishuUnionId, item.FeishuUserId)
+		resolvedName := strings.TrimSpace(item.DisplayName)
+		resolvedEmployeeNo := strings.TrimSpace(item.EmployeeID)
+		if openId == "" && unionId == "" && userId == "" {
+			openId, unionId, userId, resolvedName, _, _, resolvedEmployeeNo = resolveFeishuIdentifiersFromReadable(c, item.EmployeeID, item.Mobile, item.Email)
+		}
+		if openId == "" && unionId == "" && userId == "" {
+			result.Failed++
+			result.Errors = append(result.Errors, "cannot resolve feishu identifiers from feishu ids/readable identifiers")
+			result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: strings.TrimSpace(item.FeishuOpenId), Action: "failed", Error: "no valid feishu identifier found"})
+			continue
+		}
+
+		existingUser := model.User{}
+		err := model.DB.Where("feishu_id = ?", openId).First(&existingUser).Error
+		if err == nil && existingUser.Id > 0 {
+			result.Skipped++
+			result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: existingUser.Id, Username: existingUser.Username, Action: "skipped_exists"})
+			continue
+		}
+
+		username := strings.TrimSpace(item.Username)
+		if username == "" {
+			if resolvedName != "" {
+				username = resolvedName
+			} else if displayName := strings.TrimSpace(item.DisplayName); displayName != "" {
+				username = displayName
+			} else {
+				username = "feishu_user"
+			}
+		}
+		if resolvedEmployeeNo != "" {
+			username = username + "_" + resolvedEmployeeNo
+		}
+		username, err = allocateAvailableUsername(username)
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("open_id=%s: allocate username failed: %s", openId, err.Error()))
+			result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, Action: "failed", Error: "allocate username failed: " + err.Error()})
+			continue
+		}
+
+		displayName := strings.TrimSpace(item.DisplayName)
+		if displayName == "" {
+			displayName = username
+		}
+		password := item.Password
+		if password == "" {
+			password = common.GetRandomString(12)
+		}
+		group := "default"
+		if item.Group != "" {
+			group = item.Group
+		}
+		role := common.RoleCommonUser
+		if item.Role != nil {
+			role = *item.Role
+		}
+		if role >= common.RoleAdminUser {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("open_id=%s: cannot create user with role >= admin", openId))
+			result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, Action: "failed", Error: "cannot create user with role >= admin"})
+			continue
+		}
+
+		newUser := model.User{Username: username, Password: password, DisplayName: displayName, FeishuId: openId, FeishuUnionId: unionId, FeishuUserId: userId, Role: role, Status: common.UserStatusEnabled, Group: group, Remark: item.Remark, OrgName: strings.TrimSpace(item.OrgName), OrgPath: strings.TrimSpace(item.OrgPath), JobTitle: strings.TrimSpace(item.JobTitle)}
+		if err := newUser.Insert(0); err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("open_id=%s: create user failed: %s", openId, err.Error()))
+			result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, Action: "failed", Error: "create user failed: " + err.Error()})
+			continue
+		}
+
+		if item.Quota != nil {
+			if err := model.DB.Model(&model.User{}).Where("id = ?", newUser.Id).Update("quota", *item.Quota).Error; err != nil {
+				common.SysError(fmt.Sprintf("failed to set quota for feishu user %d: %s", newUser.Id, err.Error()))
+			}
+		}
+		if group != "" && group != "default" {
+			_ = model.SyncUserBindGroupSubscriptions(newUser.Id, "", group)
+		}
+		createdToken, tokenKey, tokenErr := createTokenForUser(&newUser, &createTokenOptions{Name: "feishu-init"})
+		if tokenErr != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("open_id=%s: token create failed: %s", openId, tokenErr.Error()))
+			result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: newUser.Id, Username: newUser.Username, Action: "failed", Error: "token create failed: " + tokenErr.Error()})
+			continue
+		}
+
+		result.Success++
+		result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: newUser.Id, Username: newUser.Username, TokenId: createdToken.Id, TokenName: createdToken.Name, TokenKey: tokenKey, Action: "created"})
+	}
+
+	common.ApiSuccess(c, result)
 }
 
 type FeishuUserUpdateItem struct {

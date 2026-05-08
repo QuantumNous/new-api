@@ -9,11 +9,13 @@ type FeishuSettings struct {
 	DefaultGroup                    string `json:"default_group"`
 	AuthPolicy                      string `json:"auth_policy"`
 	AllowAdminManagePlaintextTokens bool   `json:"allow_admin_manage_plaintext_tokens"`
+	InitWebhookSecret               string `json:"init_webhook_secret"`
 }
 
 var defaultFeishuSettings = FeishuSettings{
-	DefaultGroup: "pending",
-	AuthPolicy:   "parallel",
+	DefaultGroup:                    "pending",
+	AuthPolicy:                      "parallel",
+	AllowAdminManagePlaintextTokens: true,
 }
 
 func init() {

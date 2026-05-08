@@ -26,6 +26,30 @@ const FeishuBatchInitModal = ({ visible, onCancel, onSuccess, t }) => {
   const [previewedUsers, setPreviewedUsers] = useState([]);
   const [previewResults, setPreviewResults] = useState([]);
   const [selectedMap, setSelectedMap] = useState({});
+  const [groupOptions, setGroupOptions] = useState([
+    { label: 'default', value: 'default' },
+  ]);
+
+  useEffect(() => {
+    const loadGroups = async () => {
+      try {
+        const res = await API.get('/api/group/');
+        if (res?.data?.success && Array.isArray(res.data.data)) {
+          const options = res.data.data
+            .map((name) => String(name || '').trim())
+            .filter(Boolean)
+            .map((name) => ({ label: name, value: name }));
+          if (options.length > 0) {
+            setGroupOptions(options);
+          }
+        }
+      } catch {
+      }
+    };
+    if (visible) {
+      loadGroups();
+    }
+  }, [visible]);
 
   const setRowField = (idx, field, value) => {
     setRows((prev) => {
@@ -212,10 +236,7 @@ const FeishuBatchInitModal = ({ visible, onCancel, onSuccess, t }) => {
           value={rows[idx]?.group || 'default'}
           onChange={(v) => setRowField(idx, 'group', v)}
           style={{ width: 120 }}
-          optionList={[
-            { label: 'default', value: 'default' },
-            { label: 'vip', value: 'vip' },
-          ]}
+          optionList={groupOptions}
         />
       ),
     },

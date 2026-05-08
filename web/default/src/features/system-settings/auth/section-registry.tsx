@@ -62,6 +62,7 @@ const AUTH_SECTIONS = [
           'feishu.app_secret': settings['feishu.app_secret'],
           'feishu.default_group': settings['feishu.default_group'],
           'feishu.auth_policy': settings['feishu.auth_policy'],
+          'feishu.init_webhook_secret': settings['feishu.init_webhook_secret'],
         }}
       />
     ),

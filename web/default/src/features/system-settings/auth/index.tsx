@@ -42,6 +42,7 @@ const defaultAuthSettings: AuthSettings = {
   'feishu.app_secret': '',
   'feishu.default_group': 'pending',
   'feishu.auth_policy': 'parallel',
+  'feishu.init_webhook_secret': '',
   TurnstileCheckEnabled: false,
   TurnstileSiteKey: '',
   TurnstileSecretKey: '',

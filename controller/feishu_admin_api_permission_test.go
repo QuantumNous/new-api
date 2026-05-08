@@ -27,13 +27,13 @@ func TestEnsureFeishuPlaintextTokenPermissionRootAllowed(t *testing.T) {
 	require.Equal(t, 200, recorder.Code)
 }
 
-func TestEnsureFeishuPlaintextTokenPermissionAdminDeniedByDefault(t *testing.T) {
+func TestEnsureFeishuPlaintextTokenPermissionAdminAllowedByDefault(t *testing.T) {
 	ctx, recorder := newFeishuPermissionTestContext(common.RoleAdminUser)
-	system_setting.GetFeishuSettings().AllowAdminManagePlaintextTokens = false
+	system_setting.GetFeishuSettings().AllowAdminManagePlaintextTokens = true
 
 	ok := ensureFeishuPlaintextTokenPermission(ctx)
-	require.False(t, ok)
-	require.Equal(t, 403, recorder.Code)
+	require.True(t, ok)
+	require.Equal(t, 200, recorder.Code)
 }
 
 func TestEnsureFeishuPlaintextTokenPermissionAdminAllowedWithFlag(t *testing.T) {
