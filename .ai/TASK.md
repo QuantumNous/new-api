@@ -1121,3 +1121,87 @@ status: completed
 ### 下一步最小任务
 
 阶段 4 前端实现：在系统设置 Billing 页面新增邀请返利流水只读表格，接入该管理员查询接口，补齐六语言 i18n，并执行前端最小验证。
+
+## 阶段 4 前端实现记录
+
+任务名：阶段 4 前端：邀请返利流水后台只读展示
+status: completed
+
+### 本子步骤实际修改文件
+
+- `web/default/src/features/system-settings/api.ts`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/features/system-settings/billing/section-registry.tsx`
+- `web/default/src/features/system-settings/general/invitation-rebate-records-section.tsx`
+- `web/default/src/i18n/locales/en.json`
+- `web/default/src/i18n/locales/zh.json`
+- `web/default/src/i18n/locales/fr.json`
+- `web/default/src/i18n/locales/ja.json`
+- `web/default/src/i18n/locales/ru.json`
+- `web/default/src/i18n/locales/vi.json`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 在系统设置 Billing 页面新增 `Invitation Rebate Records` 子 section，不新增独立菜单。
+- 新增前端 API client：`getInvitationRebateRecords`，调用管理员接口 `GET /api/user/invitation_rebate`。
+- 新增类型：`InvitationRebateRecord`、`InvitationRebateRecordQuery`、`InvitationRebateRecordsResponse`。
+- 新增只读表格，展示 ID、邀请人 ID、被邀请人 ID、source_type、source_key、source_request_id、source_quota、rebate_quota、rebate_ratio_bps、status、created_at。
+- 支持最小筛选：邀请人 ID、被邀请人 ID、source_key、status。
+- 支持固定分页，每页 10 条，提供上一页 / 下一页和刷新按钮。
+- 补齐 en / zh / fr / ja / ru / vi 六语言新增文案。
+
+### 本子步骤未修改范围
+
+- 未修改消费挂接逻辑。
+- 未修改返利 service。
+- 未修改后端 option。
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改异步任务 / Midjourney。
+- 未修改 model 结构或 migration。
+- 未修改依赖文件。
+- 未执行 `.agents/skills` 命令。
+
+### 本子步骤验证命令
+
+- `cd web/default && bun run typecheck`
+- `cd web/default && bun run build`
+- `cd web/default && bun run lint`
+- `node -` locale JSON parse 与新增 key 完整性检查
+- `git diff --check`
+- `git status --short`
+- `git diff --stat`
+- `git diff`
+- `git diff --cached --stat`
+- `git diff --cached`
+
+### 本子步骤自审查结果
+
+通过；前端 staged diff 仅包含系统设置 Billing 页的邀请返利流水只读展示、API client 类型、六语言 locale 和 `.ai/TASK.md` 记录。没有修改消费挂接逻辑、返利 service、后端 option、充值链路、注册 / OAuth、异步任务 / Midjourney、model / migration、依赖文件或任何 token / secret / sk- key / bearer token；没有提交 `node_modules`；没有修改 new-api / QuantumNous 相关标识。
+
+### 本子步骤验证结果
+
+- `bun run typecheck` 通过。
+- `bun run build` 通过。
+- locale JSON parse 与新增 key 完整性检查通过，en / zh / fr / ja / ru / vi 均包含本阶段新增 10 个 key，且新增翻译未出现字面问号损坏。
+- `git diff --check` 通过。
+- 依赖定义文件和 lockfile 无 diff。
+- `bun run lint` 未通过，但失败文件均为既有非本轮文件，且与本轮变更文件无交集：
+  - `web/default/src/features/keys/components/api-keys-dialogs.tsx`
+  - `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+  - `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+  - `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`
+  - `web/default/src/features/usage-logs/components/common-logs-filter-bar.tsx`
+  - `web/default/src/features/usage-logs/components/task-logs-filter-bar.tsx`
+  - `web/default/src/lib/theme-radius.ts`
+  - warnings: `web/default/src/features/channels/components/channels-table.tsx`、`web/default/src/features/dashboard/components/users/user-charts.tsx`
+- lint 失败按既有 lint 债务豁免，不修改无关既有文件。
+
+### commit hash
+
+- 阶段 4 前端实现 commit：提交后由最终响应记录。
+
+### 下一步最小任务
+
+阶段 5：做邀请消费返利功能的整体回归清单与文档收口，优先复跑后端定向测试和前端构建，不新增返利补发、删除、导出或多级邀请。

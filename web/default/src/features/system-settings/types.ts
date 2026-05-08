@@ -27,6 +27,42 @@ export type DeleteLogsResponse = {
   data?: number
 }
 
+export type InvitationRebateRecord = {
+  id: number
+  inviter_user_id: number
+  invitee_user_id: number
+  source_type: string
+  source_key: string
+  source_request_id: string
+  source_quota: number
+  rebate_quota: number
+  rebate_ratio_bps: number
+  status: string
+  created_at: number
+  updated_at: number
+}
+
+export type InvitationRebateRecordQuery = {
+  p: number
+  page_size: number
+  inviter_user_id?: number
+  invitee_user_id?: number
+  source_type?: string
+  source_key?: string
+  status?: string
+}
+
+export type InvitationRebateRecordsResponse = {
+  success: boolean
+  message: string
+  data: {
+    page: number
+    page_size: number
+    total: number
+    items: InvitationRebateRecord[]
+  }
+}
+
 export type SiteSettings = {
   'theme.frontend': string
   Notice: string

@@ -1,5 +1,6 @@
 import { parseCurrencyDisplayType } from '@/lib/currency'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
+import { InvitationRebateRecordsSection } from '../general/invitation-rebate-records-section'
 import { InvitationRebateSettingsSection } from '../general/invitation-rebate-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
@@ -94,6 +95,13 @@ const BILLING_SECTIONS = [
         }}
       />
     ),
+  },
+  {
+    id: 'invitation-rebate-records',
+    titleKey: 'Invitation Rebate Records',
+    descriptionKey:
+      "Read-only rebate records based on invited users' actual consumption.",
+    build: () => <InvitationRebateRecordsSection />,
   },
   {
     id: 'model-pricing',

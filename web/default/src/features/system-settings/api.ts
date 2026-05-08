@@ -2,6 +2,8 @@ import { api } from '@/lib/api'
 import type {
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
+  InvitationRebateRecordQuery,
+  InvitationRebateRecordsResponse,
   SystemOptionsResponse,
   UpdateOptionRequest,
   UpdateOptionResponse,
@@ -23,6 +25,16 @@ export async function deleteLogsBefore(targetTimestamp: number) {
   const res = await api.delete<DeleteLogsResponse>('/api/log/', {
     params: { target_timestamp: targetTimestamp },
   })
+  return res.data
+}
+
+export async function getInvitationRebateRecords(
+  params: InvitationRebateRecordQuery
+) {
+  const res = await api.get<InvitationRebateRecordsResponse>(
+    '/api/user/invitation_rebate',
+    { params }
+  )
   return res.data
 }
 
