@@ -18,8 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
-import { PieChart } from 'lucide-react';
+import { Button, Card } from '@douyinfe/semi-ui';
+import {
+  Activity,
+  BarChart3,
+  LineChart,
+  PieChart,
+  Trophy,
+  Users,
+} from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 
 const ChartsPanel = ({
@@ -38,6 +45,50 @@ const ChartsPanel = ({
   hasApiInfoPanel,
   t,
 }) => {
+  const chartTabs = [
+    {
+      key: '1',
+      label: t('消耗分布'),
+      icon: PieChart,
+      tone: 'cyan',
+    },
+    {
+      key: '2',
+      label: t('调用趋势'),
+      icon: LineChart,
+      tone: 'blue',
+    },
+    {
+      key: '3',
+      label: t('调用次数分布'),
+      icon: Activity,
+      tone: 'green',
+    },
+    {
+      key: '4',
+      label: t('调用次数排行'),
+      icon: BarChart3,
+      tone: 'orange',
+    },
+  ];
+
+  if (isAdminUser) {
+    chartTabs.push(
+      {
+        key: '5',
+        label: t('用户消耗排行'),
+        icon: Trophy,
+        tone: 'pink',
+      },
+      {
+        key: '6',
+        label: t('用户消耗趋势'),
+        icon: Users,
+        tone: 'violet',
+      },
+    );
+  }
+
   return (
     <Card
       {...CARD_PROPS}
@@ -57,23 +108,28 @@ const ChartsPanel = ({
             </div>
           </div>
           <div className='dashboard-chart-tabs-wrap'>
-            <Tabs
-              type='button'
-              className='dashboard-chart-tabs'
-              activeKey={activeChartTab}
-              onChange={setActiveChartTab}
-            >
-              <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
-              <TabPane tab={<span>{t('调用趋势')}</span>} itemKey='2' />
-              <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
-              <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
-              {isAdminUser && (
-                <TabPane tab={<span>{t('用户消耗排行')}</span>} itemKey='5' />
-              )}
-              {isAdminUser && (
-                <TabPane tab={<span>{t('用户消耗趋势')}</span>} itemKey='6' />
-              )}
-            </Tabs>
+            <div className='dashboard-chart-filter-grid'>
+              {chartTabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeChartTab === tab.key;
+
+                return (
+                  <Button
+                    key={tab.key}
+                    theme='borderless'
+                    className={`dashboard-chart-filter dashboard-chart-filter-${tab.tone} ${isActive ? 'is-active' : ''}`}
+                    onClick={() => setActiveChartTab(tab.key)}
+                  >
+                    <span className='dashboard-chart-tab-icon'>
+                      <Icon size={15} strokeWidth={2.2} />
+                    </span>
+                    <span className='dashboard-chart-tab-label'>
+                      <span className='dashboard-chart-tab-text'>{tab.label}</span>
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
           </div>
         </div>
       }
