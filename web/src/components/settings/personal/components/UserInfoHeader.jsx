@@ -75,12 +75,12 @@ const UserInfoHeader = ({ t, userState, onTopUp }) => {
     { label: t('用户 ID'), value: user?.id, copyable: true },
     { label: t('邮箱'), value: user?.email || t('未绑定') },
     { label: t('用户分组'), value: user?.group || t('默认') },
-    {
-      label: t('注册时间'),
-      value: user?.created_at
-        ? timestamp2string(user.created_at)
-        : t('暂无数据'),
-    },
+    // {
+    //   label: t('注册时间'),
+    //   value: user?.created_at
+    //     ? timestamp2string(user.created_at)
+    //     : t('暂无数据'),
+    // },
   ];
 
   return (
