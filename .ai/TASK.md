@@ -553,7 +553,7 @@ status: implementation_verified_with_scope_note
 ### commit hash
 
 - 阶段 2B 文档 commit：`deb6edff6e9254cb9e66fd96a5f4721715addf24`
-- 条件阶段 3A 实现 commit：提交创建后由最终响应记录。
+- 条件阶段 3A 实现 commit：`46462d1459417b9ae51c50e1d155521ec33f78ed`
 
 ### 下一阶段建议
 
