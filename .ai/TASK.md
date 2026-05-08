@@ -254,3 +254,76 @@ status: completed
 ### 下一轮最小任务建议
 
 阶段 2A：只实现返利 service 本体和单元测试，不挂接消费链路。
+
+## 阶段 2A 多 agent 只读审查记录
+
+任务名：阶段 2A 子步骤 1：多 agent 只读审查与采纳结论固化
+
+status: completed
+
+### 本阶段模式
+
+- 已启用阶段内自治执行模式。
+- 已使用 4 个只读 subagents：A 事务与 model 审查、B 配置读取审查、C service 风格与错误处理审查、D 测试审查。
+- subagents 均禁止修改文件、禁止执行 `.agents/skills` 命令、禁止连接真实 New API 实例、禁止输出 token / secret / access token / sk- key / bearer token。
+
+### Subagent A：事务与 model 审查结论
+
+- `model.User` 真实邀请字段已确认：`InviterId int`，数据库列 `inviter_id`。
+- 邀请奖励池字段已确认：`AffQuota int`，数据库列 `aff_quota`。
+- 历史邀请奖励字段已确认：Go 字段为 `AffHistoryQuota int`，JSON 为 `aff_history_quota`，真实数据库列为 `aff_history`；实现必须使用真实列名 `aff_history`，不得误写为 `aff_history_quota`。
+- `InvitationRebateRecord` 字段满足 service 需要，`source_type + source_key` 组合唯一约束满足幂等需要。
+- 建议用 `model.DB.Transaction`；记录创建与邀请人 `aff_quota` / `aff_history` 增量更新必须同事务完成。
+- 唯一约束冲突优先用 GORM `clause.OnConflict{DoNothing: true}` 规避三库错误码解析，必要时再按 `(source_type, source_key)` 查询既有记录。
+- 主 Codex 采纳：使用 `OnConflict DoNothing`，新增 service 内部 helper，不新增跨项目 duplicate-key 解析 helper。
+
+### Subagent B：配置读取审查结论
+
+- `InvitationRebateEnabled` 默认 `false`，已进入 `InitOptionMap` 和 `updateOptionMap`。
+- `InvitationRebateRatioBps` 默认 `0`，读取时钳制到 `0..10000`，并同步安全值到内存 `OptionMap`。
+- `InvitationRebateMinQuota` 默认 `0`，读取时负数归零，并同步安全值到内存 `OptionMap`。
+- 默认值保证现有行为不变；当前没有消费链路读取这些配置。
+- 主 Codex 采纳：service 直接读取 `common.InvitationRebate*`，并在 service 内再做防御性钳制。
+
+### Subagent C：service 风格与错误处理审查结论
+
+- 建议新增 `service/invitation_rebate.go`，测试放 `service/invitation_rebate_test.go`。
+- 建议公开 `InvitationRebateInput`、`InvitationRebateResult`，内部拆 `grantInvitationRebateTx`。
+- 建议 service 返回普通 `error`，不返回 `*types.NewAPIError`。
+- 建议 service result status 使用 typed string 常量，避免与 model 记录 status 混淆。
+- skipped / nil error：配置关闭、比例为 0、quota <= 0、低于最小触发、返利向下取整为 0、无邀请人、邀请人不存在、自邀、已发放。
+- error：数据库查询异常、事务提交失败、记录创建失败且查不到既有记录、记录创建后更新邀请人字段失败。
+- 主 Codex 采纳：本轮不接入消费链路，未来调用方只记录返利 error，不影响主消费响应。
+
+### Subagent D：测试审查结论
+
+- 建议新增 `service/invitation_rebate_test.go`，同包 `package service`。
+- service 包已有 `TestMain`，不新增第二个 `TestMain`。
+- 测试使用现有 service 包 SQLite memory DB；本轮测试 helper 内仅对 `model.InvitationRebateRecord` 做本地 AutoMigrate。
+- 需要覆盖配置关闭、比例为 0、SourceKey 为空、无邀请人、低于最小触发、正常返利、重复幂等、向下取整、邀请人不存在、并发重复调用。
+- 并发幂等测试可做，但不使用 `t.Parallel()`；SQLite 单连接足以验证只创建一条记录、只加一次奖励池。
+- 主 Codex 采纳：不测试完整 relay / 消费链路，不连接外部服务。
+
+### 本子步骤修改文件
+
+- `.ai/TASK.md`
+
+### 本子步骤验证命令
+
+- `git status --short`
+- `git diff -- .ai/TASK.md`
+- `git add .ai/TASK.md`
+- `git diff --cached --stat`
+- `git diff --cached`
+
+### 本子步骤自审查结果
+
+通过；本子步骤只修改 `.ai/TASK.md`，无 Go 代码、model、migration、配置代码、消费链路、充值链路、注册 / OAuth、前端页面或依赖变更；未写入任何 token / secret / access token / sk- key / bearer token；审查结论覆盖字段真实命名、事务、幂等、配置、错误处理和测试计划。
+
+### commit hash
+
+提交创建后由后续 `.ai/TASK.md` 记录或最终响应记录。
+
+### 下一子步骤
+
+阶段 2A 子步骤 2：实现 `service/invitation_rebate.go` 和 `service/invitation_rebate_test.go`，不挂接消费链路。
