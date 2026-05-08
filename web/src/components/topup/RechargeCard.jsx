@@ -65,6 +65,8 @@ const RechargeCard = ({
   getAmount,
   setTopUpCount,
   setSelectedPreset,
+  renderAmount,
+  amountLoading,
   payMethods,
   preTopUp,
   paymentLoading,
@@ -95,6 +97,7 @@ const RechargeCard = ({
   const initialTabSetRef = useRef(false);
   const [activeTab, setActiveTab] = useState('topup');
   const [selectedPayment, setSelectedPayment] = useState('');
+  const showAmountSkeleton = useMinimumLoadingTime(amountLoading, 200);
 
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;

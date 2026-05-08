@@ -35,6 +35,7 @@ import {
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
+import { getCurrencyConfig } from '../../../helpers/render';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import './TopupHistoryModal.css';
@@ -233,7 +234,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         dataIndex: 'money',
         key: 'money',
         render: (money) => (
-          <Text className='topup-history-money'>${money.toFixed(2)}</Text>
+          <Text className='topup-history-money'>
+            {symbol}
+            {money.toFixed(2)}
+          </Text>
         ),
       },
       {
