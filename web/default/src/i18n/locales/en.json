@@ -1986,6 +1986,8 @@
     "Image to Video": "Image to Video",
     "Image Tokens": "Image Tokens",
     "Image Workspace": "Image Workspace",
+    "imageWorkbench.auto": "Auto",
+    "imageWorkbench.circuitBreaker": "Circuit Breaker",
     "Generate images with relay billing.": "Generate images with relay billing.",
     "Generate images through the same relay and billing flow.": "Generate images through the same relay and billing flow.",
     "Costs are settled by model pricing, group ratio, and image count.": "Costs are settled by model pricing, group ratio, and image count.",

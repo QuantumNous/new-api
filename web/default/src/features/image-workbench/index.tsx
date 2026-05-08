@@ -161,13 +161,13 @@ export function ImageWorkbench() {
       : [
           {
             value: DEFAULT_GROUP,
-            label: 'Auto',
+            label: t('imageWorkbench.auto'),
             ratio: 1,
-            desc: 'Circuit Breaker',
+            desc: t('imageWorkbench.circuitBreaker'),
           },
           ...groups,
         ]
-  }, [groupsData])
+  }, [groupsData, t])
 
   useEffect(() => {
     if (imageModels.length === 0) return

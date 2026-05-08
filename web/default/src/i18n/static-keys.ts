@@ -401,6 +401,8 @@ export const STATIC_I18N_KEYS = [
   'AI model testing environment',
   'Image Workspace',
   'Image generation workspace',
+  'imageWorkbench.auto',
+  'imageWorkbench.circuitBreaker',
   'Chat session management',
   'Console Area',
   'Data management and log viewing',

@@ -1986,6 +1986,8 @@
     "Image to Video": "图生视频",
     "Image Tokens": "图像 Token",
     "Image Workspace": "生图工作台",
+    "imageWorkbench.auto": "自动",
+    "imageWorkbench.circuitBreaker": "熔断",
     "Generate images with relay billing.": "通过 Relay 计费生成图片。",
     "Generate images through the same relay and billing flow.": "通过同一套 Relay 与计费流程生成图片。",
     "Costs are settled by model pricing, group ratio, and image count.": "费用按模型价格、分组倍率和生图数量结算。",
