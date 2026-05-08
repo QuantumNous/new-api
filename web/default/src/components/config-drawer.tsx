@@ -64,7 +64,7 @@ export function ConfigDrawer() {
             variant='ghost'
             aria-label={t('Open theme settings')}
             aria-describedby='config-drawer-description'
-            className='rounded-full max-md:hidden'
+            className='max-md:hidden'
           />
         }
       >
@@ -119,7 +119,7 @@ function SectionTitle(props: {
         <Button
           size='icon'
           variant='secondary'
-          className='size-4 rounded-full'
+          className='size-4'
           onClick={props.onReset}
           aria-label='Reset'
         >
@@ -148,7 +148,7 @@ function RadioGroupItem(props: {
     >
       <div
         className={cn(
-          'ring-border relative rounded-[6px] ring-[1px]',
+          'ring-border relative rounded-md ring-[1px]',
           'group-data-checked:ring-primary group-data-checked:shadow-2xl',
           'group-focus-visible:ring-2'
         )}

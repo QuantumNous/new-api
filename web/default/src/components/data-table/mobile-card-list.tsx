@@ -60,7 +60,7 @@ function ListSkeleton() {
         <div key={i} className='px-3 py-2.5'>
           <div className='flex items-center justify-between'>
             <Skeleton className='h-4 w-32' />
-            <Skeleton className='h-5 w-16 rounded-full' />
+            <Skeleton className='h-5 w-16 rounded-md' />
           </div>
           <div className='mt-1.5 grid grid-cols-2 gap-2'>
             <div className='flex-1'>

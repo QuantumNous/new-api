@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart as PieChartIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useThemeRadiusPx } from '@/lib/theme-radius'
 import type { TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
@@ -39,6 +40,10 @@ export function ModelCharts(props: ModelChartsProps) {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
   const { customization } = useThemeCustomization()
+  const chartRadius = useThemeRadiusPx(
+    '--radius-md',
+    `${customization.preset}:${customization.radius}`
+  )
   const [activeTab, setActiveTab] = useState<ModelAnalyticsChartTab>(
     props.defaultChartTab ?? 'trend'
   )
@@ -77,9 +82,17 @@ export function ModelCharts(props: ModelChartsProps) {
         props.loading ? [] : props.data,
         timeGranularity,
         t,
-        customization.preset
+        customization.preset,
+        chartRadius
       ),
-    [props.data, props.loading, timeGranularity, t, customization.preset]
+    [
+      props.data,
+      props.loading,
+      timeGranularity,
+      t,
+      customization.preset,
+      chartRadius,
+    ]
   )
 
   const spec = chartData[CHART_SPEC_KEYS[activeTab]]

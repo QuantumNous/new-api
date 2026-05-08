@@ -12,13 +12,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { GroupBadge } from '@/components/group-badge'
-import { getPerfMetrics, type PerformanceGroup } from '../api'
+import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
-  type UptimeDayPoint,
-} from '../lib/mock-stats'
+} from '@/features/performance-metrics/lib/format'
+import type { PerformanceGroup } from '@/features/performance-metrics/types'
+import { type UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { UptimeSparkline } from './model-details-uptime-sparkline'
@@ -142,7 +143,10 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     queryFn: () => getPerfMetrics(props.model.model_name, 24),
     staleTime: 60 * 1000,
   })
-  const groups = metricsQuery.data?.data.groups ?? []
+  const groups = useMemo(
+    () => metricsQuery.data?.data.groups ?? [],
+    [metricsQuery.data]
+  )
   const performances = useMemo<PerformanceRow[]>(
     () =>
       groups.map((group) => ({

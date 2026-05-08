@@ -73,8 +73,6 @@ export interface StatusBadgeProps extends Omit<
   showDot?: boolean
   variant?: StatusVariant | null
   size?: 'sm' | 'md' | 'lg' | null
-  /** @deprecated No longer applicable in flat design */
-  rounded?: 'full' | 'md' | 'sm' | 'lg'
   copyable?: boolean
   copyText?: string
   autoColor?: string
@@ -88,7 +86,6 @@ export function StatusBadge({
   size = 'sm',
   pulse = false,
   showDot = true,
-  rounded: _rounded,
   copyable = true,
   copyText,
   autoColor,

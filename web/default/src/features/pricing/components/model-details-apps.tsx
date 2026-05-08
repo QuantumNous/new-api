@@ -41,7 +41,7 @@ function RankBadge(props: { rank: number }) {
   return (
     <span
       className={cn(
-        'inline-flex size-7 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold tabular-nums',
+        'inline-flex size-7 shrink-0 items-center justify-center rounded-md font-mono text-xs font-bold tabular-nums',
         palette
       )}
     >

@@ -637,7 +637,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                   <Tooltip>
                     <TooltipTrigger
                       render={
-                        <span className='border-border bg-muted text-primary inline-flex h-6 w-6 items-center justify-center rounded-full border' />
+                        <span className='border-border bg-muted text-primary inline-flex h-6 w-6 items-center justify-center rounded-md border' />
                       }
                     >
                       <MultiKeyModeIcon className='h-3.5 w-3.5' />

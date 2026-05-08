@@ -15,7 +15,7 @@ export function GatewayCard({ logo, systemName }: GatewayCardProps) {
   const features = getGatewayFeatures(t)
 
   return (
-    <div className='glass-3 group border-border/50 dark:border-border/20 relative overflow-hidden rounded-[32px] border p-10 shadow-2xl transition-all duration-500 sm:p-12 dark:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.4)]'>
+    <div className='glass-3 group border-border/50 dark:border-border/20 relative overflow-hidden rounded-4xl border p-10 shadow-2xl transition-all duration-500 sm:p-12 dark:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.4)]'>
       {/* Top gradient border effect */}
       <Separator className='absolute top-0 left-[10%] h-[2px] w-[80%] bg-gradient-to-r from-transparent via-amber-500/80 to-transparent' />
 

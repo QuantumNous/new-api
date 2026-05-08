@@ -464,26 +464,6 @@ export function aggregateUptime(points: UptimeDayPoint[]): {
   }
 }
 
-/** Format throughput for display: "0" → "—". */
-export function formatThroughput(tps: number): string {
-  if (tps <= 0) return '—'
-  if (tps >= 1_000) return `${(tps / 1_000).toFixed(1)}K t/s`
-  return `${tps.toFixed(tps < 10 ? 2 : 1)} t/s`
-}
-
-/** Format latency in ms with proper unit selection. */
-export function formatLatency(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return '—'
-  if (ms >= 1_000) return `${(ms / 1_000).toFixed(2)}s`
-  return `${Math.round(ms)}ms`
-}
-
-/** Format uptime percentage with 2 decimal places. */
-export function formatUptimePct(pct: number): string {
-  if (!Number.isFinite(pct)) return '—'
-  return `${pct.toFixed(2)}%`
-}
-
 /** Compact integer formatter for token counts in apps tab. */
 export function formatTokenVolume(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return '0'

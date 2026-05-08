@@ -1,9 +1,11 @@
 import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { useTranslation } from 'react-i18next'
+import { useThemeRadiusPx } from '@/lib/theme-radius'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
+import { useThemeCustomization } from '@/context/theme-customization-provider'
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 
 function formatHourLabel(iso: string): string {
@@ -246,6 +248,11 @@ export function ThroughputBarChart(props: {
 }) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
+  const { customization } = useThemeCustomization()
+  const barRadius = useThemeRadiusPx(
+    '--radius-sm',
+    `${customization.preset}:${customization.radius}`
+  )
 
   const filtered = useMemo(
     () => props.rows.filter((r) => r.throughput_tps > 0),
@@ -261,7 +268,10 @@ export function ThroughputBarChart(props: {
       xField: 'throughput_tps',
       yField: 'group',
       bar: {
-        style: { fill: '#6366f1', cornerRadius: 2 },
+        style: {
+          fill: '#6366f1',
+          ...(barRadius == null ? {} : { cornerRadius: barRadius }),
+        },
       },
       label: {
         visible: true,
@@ -294,7 +304,7 @@ export function ThroughputBarChart(props: {
         },
       },
     }
-  }, [filtered, t])
+  }, [barRadius, filtered, t])
 
   if (filtered.length === 0) {
     return null

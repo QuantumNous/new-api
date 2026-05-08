@@ -2,8 +2,10 @@ import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useThemeRadiusPx } from '@/lib/theme-radius'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
+import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { formatShare, formatTokens } from '../lib/format'
 import type { RankingPeriod, VendorRanking, VendorShareSeries } from '../types'
 import { VendorLink } from './entity-links'
@@ -84,6 +86,11 @@ type MarketShareSectionProps = {
 export function MarketShareSection(props: MarketShareSectionProps) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
+  const { customization } = useThemeCustomization()
+  const barRadius = useThemeRadiusPx(
+    '--radius-sm',
+    `${customization.preset}:${customization.radius}`
+  )
 
   const colourMap = useMemo(
     () => buildVendorColourMap(props.history.vendors.map((v) => v.name)),
@@ -112,7 +119,9 @@ export function MarketShareSection(props: MarketShareSectionProps) {
       stack: true,
       paddingInner: 0.12,
       legends: { visible: false },
-      bar: { style: { cornerRadius: 1 } },
+      bar: {
+        style: barRadius == null ? {} : { cornerRadius: barRadius },
+      },
       color: { specified: colourMap },
       axes: [
         {
@@ -175,7 +184,7 @@ export function MarketShareSection(props: MarketShareSectionProps) {
       },
       animationAppear: { duration: 500 },
     }
-  }, [colourMap, orderedPoints])
+  }, [barRadius, colourMap, orderedPoints])
 
   const visible = props.rows.slice(0, MAX_VENDORS_IN_LIST)
   const half = Math.ceil(visible.length / 2)

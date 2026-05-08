@@ -162,7 +162,7 @@ export function DataTableBulkActions<TData>({
                   variant='outline'
                   size='icon'
                   onClick={handleClearSelection}
-                  className='size-6 rounded-full'
+                  className='size-6'
                   aria-label={t('Clear selection')}
                   title={t('Clear selection (Escape)')}
                 />

@@ -429,7 +429,7 @@ export type PromptInputProps = Omit<
   ) => void | Promise<void>
   /**
    * Optional className applied to the inner InputGroup wrapper
-   * (useful for customizing rounded corners, e.g., rounded-[20px]).
+   * (useful for layout or semantic radius utilities such as rounded-xl).
    */
   groupClassName?: string
 }
