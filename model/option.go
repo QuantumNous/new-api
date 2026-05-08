@@ -135,6 +135,9 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	common.OptionMap["InvitationRebateEnabled"] = strconv.FormatBool(common.InvitationRebateEnabled)
+	common.OptionMap["InvitationRebateRatioBps"] = strconv.Itoa(common.InvitationRebateRatioBps)
+	common.OptionMap["InvitationRebateMinQuota"] = strconv.Itoa(common.InvitationRebateMinQuota)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -329,6 +332,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case "InvitationRebateEnabled":
+			common.InvitationRebateEnabled = boolValue
 		}
 	}
 	switch key {
@@ -481,6 +486,21 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	case "InvitationRebateRatioBps":
+		common.InvitationRebateRatioBps, _ = strconv.Atoi(value)
+		if common.InvitationRebateRatioBps < 0 {
+			common.InvitationRebateRatioBps = 0
+		}
+		if common.InvitationRebateRatioBps > 10000 {
+			common.InvitationRebateRatioBps = 10000
+		}
+		common.OptionMap[key] = strconv.Itoa(common.InvitationRebateRatioBps)
+	case "InvitationRebateMinQuota":
+		common.InvitationRebateMinQuota, _ = strconv.Atoi(value)
+		if common.InvitationRebateMinQuota < 0 {
+			common.InvitationRebateMinQuota = 0
+		}
+		common.OptionMap[key] = strconv.Itoa(common.InvitationRebateMinQuota)
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

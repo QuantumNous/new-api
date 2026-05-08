@@ -71,3 +71,81 @@ in_progress
 
 阶段 1：只实现后端配置读取和数据结构草案。
 注意：下一轮也不能直接挂接消费链路，必须先确认表结构、setting key、迁移方式、跨库兼容性、幂等 source_key 设计。
+
+## 阶段 1 本轮任务记录
+
+任务名：阶段 1：后端配置读取与邀请返利记录结构最小基础设施
+
+status: completed
+
+### 本轮允许修改
+
+- `common/constants.go`
+- `model/option.go`
+- `model/main.go`
+- `model/invitation_rebate_record.go`
+- `.ai/TASK.md`
+
+### 本轮实际修改文件
+
+- `common/constants.go`
+- `model/option.go`
+- `model/main.go`
+- `model/invitation_rebate_record.go`
+- `.ai/TASK.md`
+
+### 只读确认摘要
+
+- 配置项通过 `model.Option` key-value 存储，`model.InitOptionMap` 写入默认值，`loadOptionsFromDatabase` 读取数据库覆盖值，`model.UpdateOption` 持久化后调用 `updateOptionMap` 更新内存变量。
+- 后台 option / setting 已有统一 key-value 模式，`controller/option.go` 会返回 `common.OptionMap` 中的配置；本轮未新增 API，也未改变返回结构。
+- 主库迁移通过 `model/main.go` 的 `DB.AutoMigrate` 和 `migrateDBFast` migration 列表注册 model；日志库 `LOG_DB` 只迁移 `Log`，返利记录应放主库。
+- 新增表使用 GORM model、普通 `int` / `int64` / `varchar` 字段、组合唯一索引，不使用 JSONB、外键约束、数据库特有函数或 raw SQL，兼容 SQLite / MySQL / PostgreSQL。
+- 可参考 model 写法包括 `User`、`Log`、`TopUp`、`SubscriptionPreConsumeRecord`、`Checkin`，组合唯一索引可参考 `Checkin` 和 OAuth binding 相关 model。
+- quota 字段惯例以 `int` 为主：`User.Quota`、`User.UsedQuota`、`User.AffQuota`、`User.AffHistoryQuota`、`Log.Quota` 均为 `int`。
+- 现有邀请奖励配置 key 为 `QuotaForNewUser`、`QuotaForInviter`、`QuotaForInvitee`；它们是注册奖励，不适合作为实际消费返利配置，因此本轮新增独立 key。
+
+### 本轮实现摘要
+
+- 新增后端配置默认值：`InvitationRebateEnabled=false`、`InvitationRebateRatioBps=0`、`InvitationRebateMinQuota=0`。
+- 新增配置读取逻辑：`InvitationRebateEnabled` 按布尔值读取；`InvitationRebateRatioBps` 按 int 读取并限制在 `0..10000`；`InvitationRebateMinQuota` 按 int 读取并将负数归零；越界值会同步回内存 `OptionMap` 的安全值。
+- 新增主库 model：`InvitationRebateRecord`，默认表名 `invitation_rebate_records`。
+- 新增字段：`id`、`inviter_user_id`、`invitee_user_id`、`source_type`、`source_key`、`source_request_id`、`source_quota`、`rebate_quota`、`rebate_ratio_bps`、`status`、`created_at`、`updated_at`。
+- 新增 `(source_type, source_key)` 组合唯一索引用于防重复返利，`source_type` 与 `source_key` 在创建前校验为非空。
+- 新增 `BeforeCreate` / `BeforeUpdate` 时间戳维护，未实现任何返利服务或消费链路挂接。
+
+### 本轮未修改范围
+
+- 未修改消费扣费链路。
+- 未修改充值链路。
+- 未修改注册 / OAuth 邀请绑定逻辑。
+- 未修改前端页面。
+- 未新增后台页面。
+- 未新增 API。
+- 未修改依赖。
+- 未执行 `.agents/skills` 命令。
+
+### 验证命令
+
+已执行：
+
+- `gofmt -w common/constants.go model/option.go model/main.go model/invitation_rebate_record.go`
+- `git status --short`
+- `git diff --stat`
+- `git diff`
+- `go test ./model/...`
+- `git diff --cached --stat`
+- `git diff --cached`
+
+验证结果：通过；`go test ./model/...` 返回 `ok github.com/QuantumNous/new-api/model`。
+
+### 自审查结果
+
+通过；本轮 staged diff 仅包含后端配置读取、返利记录 model、AutoMigrate 注册和 `.ai/TASK.md` 记录更新。未修改消费扣费链路、充值链路、注册 / OAuth 绑定逻辑、前端页面、依赖、数据库破坏性迁移或任何 token / secret / access token / sk- key / bearer token 值。
+
+### commit hash
+
+提交创建后由最终响应记录；不写入同一个 commit 的内容中，避免 commit 自引用导致 hash 变化。
+
+### 下一轮最小任务建议
+
+阶段 2 前置确认：只设计并审查返利 service 的事务边界、幂等 `source_key` 生成规则、邀请人更新字段和失败处理策略；仍不直接挂接消费链路，直到确认同步消费落点与退款/回滚风险。
