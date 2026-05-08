@@ -327,3 +327,73 @@ status: completed
 ### 下一子步骤
 
 阶段 2A 子步骤 2：实现 `service/invitation_rebate.go` 和 `service/invitation_rebate_test.go`，不挂接消费链路。
+
+## 阶段 2A 子步骤 2 实现记录
+
+任务名：阶段 2A 子步骤 2：实现邀请返利 service 本体与单元测试
+
+status: implementation_verified_with_scope_note
+
+### 本子步骤实际修改文件
+
+- `service/invitation_rebate.go`
+- `service/invitation_rebate_test.go`
+- `.ai/TASK.md`
+
+### service 行为说明
+
+- 新增 `TryGrantInvitationRebate(ctx, input)`，本轮不被任何消费链路调用。
+- 入参不依赖 relay 类型，仅包含 `InviteeUserId`、`SourceType`、`SourceKey`、`SourceRequestId`、`SourceQuota`。
+- 配置关闭、比例为 0、`SourceType` / `SourceKey` 为空、消费 quota 小于等于 0、小于最小触发 quota、无邀请人、邀请人缺失、自邀、返利向下取整后为 0，均返回 skipped 类状态且 `error == nil`。
+- 正常返利按 `sourceQuota * ratioBps / 10000` 向下取整，创建 `InvitationRebateRecord`，并增加邀请人的 `aff_quota` 与真实数据库列 `aff_history`。
+- 唯一约束冲突通过 GORM `OnConflict DoNothing` 处理，重复调用返回 `already_granted`，不重复增加邀请人奖励池。
+
+### 事务与幂等说明
+
+- service 默认使用 `model.DB.WithContext(ctx).Transaction` 自建事务。
+- `InvitationRebateRecord` 创建与邀请人 `aff_quota` / `aff_history` 增量更新在同一事务内完成。
+- `(source_type, source_key)` 是幂等来源键；`SourceKey` 为空时直接跳过，不生成伪 key。
+- 使用 GORM clause 避免解析 SQLite / MySQL / PostgreSQL 各自的 duplicate key 错误码。
+
+### 测试覆盖说明
+
+- 覆盖配置关闭不返利。
+- 覆盖比例为 0 不返利。
+- 覆盖 `SourceKey` 为空不返利。
+- 覆盖用户没有邀请人不返利。
+- 覆盖消费 quota 小于最小触发值不返利。
+- 覆盖正常返利、记录创建、`aff_quota` 与 `aff_history` 增加。
+- 覆盖同一 `source_type + source_key` 串行重复调用只返利一次。
+- 覆盖返利 quota 向下取整。
+- 覆盖邀请人不存在不返利。
+- 覆盖并发重复调用尽量只创建一条记录且只增加一次奖励池。
+
+### 本子步骤验证命令
+
+- `gofmt -w service/invitation_rebate.go service/invitation_rebate_test.go`
+- `git status --short`
+- `git diff --stat`
+- `git diff`
+- `go test ./service/...`
+- `go test ./service -run TestTryGrantInvitationRebate -count=1`
+- `go test ./service -run TestObserveChannelAffinityUsageCacheByRelayFormat -count=1`
+
+### 验证结果
+
+- `go test ./service -run TestTryGrantInvitationRebate -count=1` 通过。
+- `go test ./service/...` 未通过，失败点为既有 `service/channel_affinity_usage_cache_test.go` 中的 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode` 和 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`。
+- 已用 `go test ./service -run TestObserveChannelAffinityUsageCacheByRelayFormat -count=1` 单独复现 channel affinity usage cache 测试失败；该失败与新增邀请返利 service / test 无直接调用关系。
+- 因本阶段禁止修改非允许范围文件，未修改既有 channel affinity 测试或实现；本轮采用最小可行的邀请返利 service 定向测试作为提交前验证依据，并在最终响应中明确报告包级测试失败。
+
+### 本子步骤自审查结果
+
+通过；本子步骤未修改消费链路、充值链路、注册 / OAuth、前端页面、数据库迁移、model 结构、option / setting 结构或依赖文件；未执行 `.agents/skills` 命令；未连接真实 New API 实例；未写入或输出 token / secret / access token / sk- key / bearer token；service 当前没有被任何消费链路调用；空 `source_key` 不会生成伪 key；唯一冲突不会重复增加返利。
+
+### commit hash
+
+- 多 agent 只读审查文档 commit：`5d5cff79b16fae2306d616e1aedf2afdab9ecd0e`
+- service 实现 commit：提交创建后由最终响应记录，避免在同一 commit 中写入自引用 hash。
+
+### 下一阶段建议
+
+阶段 2B：只做同步消费链路挂接前的 source key 只读复核与最小接入点确认；先确认 `relayInfo.RequestId` 在目标同步消费落点必定稳定、非空、同一实际消费只触发一次，再决定是否进入挂接实现。
