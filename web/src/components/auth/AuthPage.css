@@ -250,7 +250,7 @@
 }
 
 .auth-primary-button.semi-button {
-  border: 1px solid transparent !important;
+  border: none !important;
   background: var(--app-accent-gradient) !important;
   color: #ffffff !important;
   box-shadow: 0 18px 34px rgba(37, 99, 235, 0.22);

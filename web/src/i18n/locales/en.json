@@ -3788,6 +3788,27 @@
     "通义万相": "Tongyi Wanxiang",
     "Sora": "Sora",
     "Vidu": "Vidu",
-    "SubModel": "SubModel"
+    "SubModel": "SubModel",
+    "统一入口": "Unified Access",
+    "一个账号即可访问控制台、充值、令牌和模型广场。": "One account gives access to the console, top-ups, tokens, and the model marketplace.",
+    "更快登录": "Faster Sign-In",
+    "支持邮箱、OAuth、Passkey、Telegram 等多种方式。": "Supports email, OAuth, Passkey, Telegram, and more.",
+    "安全校验": "Security Checks",
+    "Turnstile、2FA 与协议确认会按站点配置自动启用。": "Turnstile, 2FA, and agreement confirmation are enabled automatically based on site settings.",
+    "安全登录": "Secure Sign-In",
+    "进入控制台，管理令牌、账单、日志和模型。": "Enter the console to manage tokens, billing, logs, and models.",
+    "欢迎回来": "Welcome Back",
+    "一站式访问你的 AI 网关控制台，兼顾效率与安全。": "Access your AI gateway console in one place, built for both efficiency and security.",
+    "快速创建": "Quick Setup",
+    "几步即可开通账户，直接进入控制台使用。": "Create your account in just a few steps and head straight into the console.",
+    "多种接入": "Multiple Sign-Up Options",
+    "支持邮箱注册，也支持 OAuth 和 Telegram 注册。": "Supports email sign-up, as well as OAuth and Telegram registration.",
+    "默认安全": "Security by Default",
+    "验证码、Turnstile 与协议确认按站点配置自动启用。": "Verification codes, Turnstile, and agreement confirmation are enabled automatically based on site settings.",
+    "创建账户": "Create Account",
+    "完成注册后即可登录并开始使用控制台。": "Sign in after registration and start using the console.",
+    "开始使用": "Get Started",
+    "用更少步骤创建你的账户，尽快进入产品体验。": "Create your account in fewer steps and get into the product faster.",
+    "智能 API 网关控制台": "Smart API Gateway Console"
   }
 }

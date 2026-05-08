@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Typography } from '@douyinfe/semi-ui';
 import { getLogo, getSystemName } from '../../helpers';
+import { useTranslation } from 'react-i18next';
 import './AuthPage.css';
 
 const { Text } = Typography;
@@ -28,10 +29,12 @@ const AuthLayout = ({
   children,
   turnstile,
   variant = 'default',
-  subtitle = '智能 API 网关控制台',
+  subtitle,
 }) => {
+  const { t } = useTranslation();
   const logo = getLogo();
   const systemName = getSystemName();
+  const resolvedSubtitle = subtitle || t('智能 API 网关控制台');
 
   return (
     <div className={`auth-page auth-page-${variant}`}>
@@ -45,7 +48,7 @@ const AuthLayout = ({
             </div>
             <Text className='auth-brand-name'>{systemName}</Text>
           </div>
-          <Text className='auth-brand-subtitle'>{subtitle}</Text>
+          <Text className='auth-brand-subtitle'>{resolvedSubtitle}</Text>
         </header>
         <section className='auth-page-panel'>
           {children}
