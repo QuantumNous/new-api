@@ -1205,3 +1205,183 @@ status: completed
 ### 下一步最小任务
 
 阶段 5：做邀请消费返利功能的整体回归清单与文档收口，优先复跑后端定向测试和前端构建，不新增返利补发、删除、导出或多级邀请。
+
+## 阶段 5 最终回归与文档收口记录
+
+任务名：阶段 5：邀请消费返利功能最终回归、风险复核与文档收口
+status: completed
+
+### 本轮执行模式
+
+- 真实 subagents 启动失败，原因是当前会话达到 agent thread limit。
+- 按用户授权降级为主流程模拟 4 个只读 subagent 审查小节。
+- 本轮未执行 `.agents/skills` 命令。
+- 本轮未连接真实 New API 实例。
+- 本轮未输出 token / secret / sk- key / bearer token。
+
+### Subagent A 模拟结论：后端返利链路回归审查
+
+- 配置默认值 `InvitationRebateEnabled=false`、`InvitationRebateRatioBps=0`、`InvitationRebateMinQuota=0`，默认不会改变现有行为。
+- `InvitationRebateRatioBps` 在配置读取和 service 内均限制在 `0..10000`。
+- `InvitationRebateMinQuota` 负数会归零。
+- `SourceType` 或 `SourceKey` 为空时返回 `skipped_invalid_source`，不会生成伪 key。
+- 幂等依赖 `invitation_rebate_records` 的 `(source_type, source_key)` 唯一约束，service 使用 GORM `OnConflict DoNothing` 避免重复加款。
+- 正常返利在同一事务内创建返利记录并更新邀请人 `aff_quota` / `aff_history` 列；`model.User.AffHistoryQuota` 的真实 GORM 列名是 `aff_history`。
+- 同步消费挂接只在 `SettleBilling` 成功后调用，使用实际结算 quota。
+- 返利失败只记录日志，不影响主消费成功路径。
+- 代码搜索未发现误接异步任务、Midjourney、充值、注册或 OAuth 链路。
+- 未发现明显重复返利风险、越权风险或越界风险。
+
+### Subagent B 模拟结论：后台配置与流水接口审查
+
+- 三个配置项复用现有 option 读写协议，没有新增单独保存协议。
+- 返利流水接口为 `GET /api/user/invitation_rebate`，仅查询 `InvitationRebateRecord`，不修改返利记录。
+- 路由挂在 `adminRoute` 下并使用 `middleware.AdminAuth()`。
+- 查询分页复用 `common.GetPageQuery` / `common.PageInfo` / `common.ApiSuccess` 风格。
+- 最小过滤字段为 `inviter_user_id`、`invitee_user_id`、`source_type`、`source_key`、`status`。
+- 第一版不 join 用户表，仅返回记录中的 user_id，避免扩大查询风险。
+- 未发现普通用户越权查看风险，未发现返利记录修改接口。
+- 不需要本轮 bugfix。
+
+### Subagent C 模拟结论：前端与 i18n 回归审查
+
+- 后台配置项已说明返利基于被邀请用户实际消费，不是充值。
+- bps 文案已说明 `10000 bps = 100%`、`1000 bps = 10%`。
+- 返利流水展示为只读表格，仅包含筛选、分页和刷新，不包含补发、删除、导出或修改。
+- en / zh / fr / ja / ru / vi 的 `translation` key 一致。
+- `bun run typecheck` 和 `bun run build` 通过，未发现本功能文件的明显类型错误、缺失 import 或命名不一致。
+- 本轮不需要执行 i18n sync；新增 key 已手动补齐六语言，且未执行 `.agents/skills`。
+- 不需要本轮 bugfix。
+
+### Subagent D 模拟结论：测试与发布风险审查
+
+- 必须复跑后端：`go test ./model/...`、`go test ./controller/...`、`go test ./service -run 'TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume' -count=1`。
+- 建议额外复现 `go test ./service/...` 已知失败，确认仍为既有 channel affinity usage cache 测试失败。
+- 必须复跑前端：`bun run typecheck`、`bun run build`、`bun run lint`。
+- `bun run lint` 若失败，需要归因失败文件；本轮确认失败文件均为既有非邀请返利文件。
+- 不需要新增测试；邀请返利 service、同步挂接 helper、管理员查询接口和前端构建已由现有定向测试 / typecheck / build 覆盖。
+- 发布风险主要在真实运行配置、历史数据库 AutoMigrate、新表唯一索引创建、管理员启用比例配置和 request id 透传，需要上线前人工检查。
+
+### 最终功能范围
+
+- 后端配置读取：`InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota`。
+- 主库返利记录表：`invitation_rebate_records`。
+- 幂等唯一约束：`source_type + source_key`。
+- 返利 service：`TryGrantInvitationRebate(ctx, input)`。
+- 同步消费成功后置点挂接：`PostTextConsumeQuota`、`PostAudioConsumeQuota`、`PostWssConsumeQuota`。
+- `source_key` 来源：`relayInfo.RequestId`，为空时跳过。
+- 返利失败隔离：只记录日志，不影响主消费。
+- 后台配置页面：管理员可编辑三个邀请返利配置项。
+- 管理员只读流水接口：`GET /api/user/invitation_rebate`。
+- Billing 页面只读流水展示：筛选、分页、刷新。
+
+### 已完成文件清单
+
+- `common/constants.go`
+- `model/option.go`
+- `model/main.go`
+- `model/invitation_rebate_record.go`
+- `service/invitation_rebate.go`
+- `service/invitation_rebate_test.go`
+- `service/text_quota.go`
+- `service/quota.go`
+- `controller/invitation_rebate.go`
+- `router/api-router.go`
+- `web/default/src/features/system-settings/api.ts`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/features/system-settings/billing/index.tsx`
+- `web/default/src/features/system-settings/billing/section-registry.tsx`
+- `web/default/src/features/system-settings/general/invitation-rebate-settings-section.tsx`
+- `web/default/src/features/system-settings/general/invitation-rebate-records-section.tsx`
+- `web/default/src/i18n/locales/en.json`
+- `web/default/src/i18n/locales/zh.json`
+- `web/default/src/i18n/locales/fr.json`
+- `web/default/src/i18n/locales/ja.json`
+- `web/default/src/i18n/locales/ru.json`
+- `web/default/src/i18n/locales/vi.json`
+- `.ai/TASK.md`
+
+### 已完成 commit 清单
+
+- `8e65745a8f4befd21c80d620a81ab265c344b9f0`：文档：固化邀请返利工作流与自动审查提交规则
+- `4a1a5958611ceb859a7a43c6cc7d6412ff775dc1`：后端：新增邀请消费返利配置与记录结构
+- `5498ea278f759248c3961d430276eb9959a8bb71`：文档：明确邀请返利服务事务与幂等设计
+- `5d5cff79b16fae2306d616e1aedf2afdab9ecd0e`：文档：记录邀请返利服务多代理审查结论
+- `2a1ecf5f9c3ea749a76a2b3961f40ac6578293c7`：后端：实现邀请返利服务与单元测试
+- `fdb4fc20e36dfcf6f36395bb26c9b503410ea3dc`：文档：记录阶段2A实现提交哈希
+- `deb6edff6e9254cb9e66fd96a5f4721715addf24`：文档：确认邀请返利同步消费挂接边界
+- `46462d1459417b9ae51c50e1d155521ec33f78ed`：后端：挂接同步消费邀请返利触发
+- `f6af9f2a67f3577535203369aa8e3de0eb042971`：文档：记录阶段3A实现提交哈希
+- `ac64f4ed774581cb0b3e6c93478d14aaaadab423`：文档：确认邀请返利后台配置接入边界
+- `cbc9c8706be42c5c83e01aedbc8507850d7b5350`：前端：接入邀请消费返利后台配置
+- `37a777343708c6898a3600e6880718a74df8b9c9`：文档：确认邀请返利流水查询展示边界
+- `6d03307feead91e13f0e2f12b4228cbc426dae32`：后端：新增邀请返利流水查询接口
+- `3cbaf5fab60fc6e1a5cb35cf7694a50609ff55b0`：前端：新增邀请返利流水后台展示
+- 本轮收口 commit：提交后由最终响应记录，避免在同一 commit 中自引用造成 hash 变化。
+
+### 最终验证命令与结果
+
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./service -run 'TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume' -count=1`：通过。
+- `go test ./service/...`：未通过，失败仍为既有 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`，与邀请返利无直接关系。
+- `cd web/default && bun run typecheck`：通过。
+- `cd web/default && bun run build`：通过。
+- `cd web/default && bun run lint`：未通过，失败文件均为既有非邀请返利文件。
+- `node -` locale JSON parse 与 `translation` key 一致性检查：通过，en / zh / fr / ja / ru / vi 均与英文基准一致。
+- `git diff --check`：通过。
+- `git status --short`：文档更新前为空；文档更新后仅 `.ai/TASK.md`。
+- `git diff --stat` / `git diff`：用于确认本轮只更新 `.ai/TASK.md` 收口文档。
+
+### 已知既有失败与豁免依据
+
+- `go test ./service/...` 失败文件：`service/channel_affinity_usage_cache_test.go`，失败用例为 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`；该测试属于 channel affinity usage cache，不在邀请返利改动范围内。邀请返利 service 与挂接 helper 的定向测试已通过。
+- `bun run lint` 失败文件：
+  - `web/default/src/features/keys/components/api-keys-dialogs.tsx`
+  - `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+  - `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+  - `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`
+  - `web/default/src/features/usage-logs/components/common-logs-filter-bar.tsx`
+  - `web/default/src/features/usage-logs/components/task-logs-filter-bar.tsx`
+  - `web/default/src/lib/theme-radius.ts`
+- `bun run lint` warnings：
+  - `web/default/src/features/channels/components/channels-table.tsx`
+  - `web/default/src/features/dashboard/components/users/user-charts.tsx`
+- 上述 lint 失败 / warnings 与本轮收口文档、邀请返利 service、同步挂接、后台配置和流水展示文件无交集，按既有 lint 债务豁免，不在本阶段修复。
+
+### 上线前人工检查清单
+
+- 确认生产环境执行正常启动迁移，`invitation_rebate_records` 表和 `(source_type, source_key)` 唯一索引创建成功。
+- 确认后台配置默认关闭，启用前先设置合理的 `InvitationRebateRatioBps` 和 `InvitationRebateMinQuota`。
+- 使用一笔低风险同步文本 / 音频 / WSS 消费在测试环境验证返利流水只生成一次。
+- 确认 `relayInfo.RequestId` 在实际同步消费请求中非空。
+- 确认邀请人 `aff_quota` 和 `aff_history` 增量与返利记录一致。
+- 确认返利失败日志可观察，且不会改变主消费响应。
+- 确认管理员账号可以查看流水，普通用户不能访问管理员流水接口。
+- 确认后台 Billing 页面配置保存和流水分页筛选符合预期。
+
+### 明确未实现范围
+
+- 多级邀请。
+- 异步任务返利。
+- Midjourney 返利。
+- 手动补发返利。
+- 手动修改返利记录。
+- 删除返利流水。
+- 导出返利流水。
+- 普通用户返利记录页。
+- 充值返利。
+- 注册奖励逻辑改造。
+
+### 最终风险结论
+
+阶段 5 未发现邀请消费返利功能范围内必须修复的 bug。本轮仅做 `.ai/TASK.md` 文档收口；未新增功能，未修改业务逻辑，未修改依赖，未提交 `node_modules`，未写入任何 token / secret / sk- key / bearer token。当前功能范围满足第一版最小可交付目标：后台可配置、同步消费成功后触发、幂等防重复、失败隔离、管理员可只读查看流水。
+
+### 后续可选优化项
+
+- 修复既有 `channel_affinity_usage_cache_test.go` 测试失败后恢复 `go test ./service/...` 全包绿灯。
+- 处理既有前端 lint 债务后取消 lint 豁免。
+- 为管理员流水接口补充 handler 级权限测试。
+- 为后台流水表格增加更细的日期范围筛选。
+- 在测试环境增加真实同步请求的端到端验收脚本。
+- 若未来有主库 usage ledger，可将 `source_key` 从 request id 演进到主库结算流水 id。
