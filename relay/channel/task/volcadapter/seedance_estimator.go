@@ -1,7 +1,6 @@
 package volcadapter
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -137,31 +136,21 @@ func EstimateSeedanceTokens(modelName string, body []byte) int64 {
 
 // parseResolution converts a resolution string to (width, height) in pixels.
 //
-// Supported formats:
+// Supported formats (Volc Ark doubao-seedance accepted values):
 //   - "480p"  → 854×480
 //   - "720p"  → 1280×720
 //   - "1080p" → 1920×1080
-//   - "WxH"   → W×H (e.g. "1280x720")
 //
 // Unknown formats fall back to 1280×720 (720p).
 func parseResolution(res string) (int, int) {
-	res = strings.ToLower(strings.TrimSpace(res))
-	switch res {
+	switch strings.ToLower(strings.TrimSpace(res)) {
 	case "480p":
 		return 854, 480
 	case "720p":
 		return 1280, 720
 	case "1080p":
 		return 1920, 1080
+	default:
+		return 1280, 720
 	}
-	// Try "WxH" format (ASCII 'x').
-	if idx := strings.IndexByte(res, 'x'); idx > 0 {
-		w, errW := strconv.Atoi(res[:idx])
-		h, errH := strconv.Atoi(res[idx+1:])
-		if errW == nil && errH == nil && w > 0 && h > 0 {
-			return w, h
-		}
-	}
-	// Fallback to 720p.
-	return 1280, 720
 }

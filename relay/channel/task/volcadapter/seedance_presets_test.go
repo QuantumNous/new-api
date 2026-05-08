@@ -3,7 +3,7 @@ package volcadapter_test
 // Regression tests for doubao-seedance-* billing preset expressions.
 //
 // These expressions are kept in sync with the PRESET_GROUPS["请求条件"] block in
-// web/src/pages/Setting/Ratio/components/TieredPricingEditor.jsx.
+// web/classic/src/pages/Setting/Ratio/components/TieredPricingEditor.jsx.
 // If you change one side, change the other.
 //
 // Expression structure: combineBillingExpr(expr, buildRequestRuleExpr(requestRules))
@@ -47,7 +47,10 @@ const seedance20Expr = `(tier("base", c * 46)) * (param("resolution") == "1080p"
 
 const seedance20FastExpr = `(tier("base", c * 37)) * (param("content.#(type==\"video_url\")") != nil ? 0.594595 : 1)`
 
-const seedance15ProExpr = `(tier("base", c * 16)) * (param("generate_audio") == false ? 0.5 : 1)`
+// seedance15ProExpr matches the UI preset: base is silent price (c*8); when
+// generate_audio is explicitly true, multiply by 2 to get the with-audio price.
+// When the field is absent (nil) or false the silent price applies.
+const seedance15ProExpr = `(tier("base", c * 8)) * (param("generate_audio") == true ? 2 : 1)`
 
 const seedance10ProExpr = `(tier("base", c * 15)) * (param("service_tier") == "flex" ? 0.5 : 1)`
 
@@ -183,17 +186,20 @@ func TestSeedance15ProPricing(t *testing.T) {
 		wantPrice float64
 	}{
 		{
-			"with-audio (field absent, defaults true)",
+			// generate_audio absent → param() returns nil → nil == true is false → ×1 → silent price
+			"silent (generate_audio field absent)",
 			`{"model":"doubao-seedance-1-5-pro-251215","content":[{"type":"text","text":"hi"}]}`,
-			16,
+			8,
 		},
 		{
+			// generate_audio=false → false == true is false → ×1 → silent price
 			"silent (generate_audio=false)",
 			`{"model":"doubao-seedance-1-5-pro-251215","content":[{"type":"text","text":"hi"}],"generate_audio":false}`,
 			8,
 		},
 		{
-			"with-audio explicit (generate_audio=true)",
+			// generate_audio=true → true == true is true → ×2 → with-audio price
+			"with-audio (generate_audio=true)",
 			`{"model":"doubao-seedance-1-5-pro-251215","content":[{"type":"text","text":"hi"}],"generate_audio":true}`,
 			16,
 		},
@@ -247,12 +253,12 @@ func TestSeedance10ProFastPricing(t *testing.T) {
 	}{
 		{
 			"online",
-			`{"model":"doubao-seedance-1-0-pro-fast","content":[{"type":"text","text":"hi"}]}`,
+			`{"model":"doubao-seedance-1-0-pro-fast-251015","content":[{"type":"text","text":"hi"}]}`,
 			4.2,
 		},
 		{
 			"flex",
-			`{"model":"doubao-seedance-1-0-pro-fast","content":[{"type":"text","text":"hi"}],"service_tier":"flex"}`,
+			`{"model":"doubao-seedance-1-0-pro-fast-251015","content":[{"type":"text","text":"hi"}],"service_tier":"flex"}`,
 			2.1,
 		},
 	}
@@ -276,12 +282,12 @@ func TestSeedance10LitePricing(t *testing.T) {
 	}{
 		{
 			"online",
-			`{"model":"doubao-seedance-1-0-lite","content":[{"type":"text","text":"hi"}]}`,
+			`{"model":"doubao-seedance-1-0-lite-t2v-250428","content":[{"type":"text","text":"hi"}]}`,
 			10,
 		},
 		{
 			"flex",
-			`{"model":"doubao-seedance-1-0-lite","content":[{"type":"text","text":"hi"}],"service_tier":"flex"}`,
+			`{"model":"doubao-seedance-1-0-lite-t2v-250428","content":[{"type":"text","text":"hi"}],"service_tier":"flex"}`,
 			5,
 		},
 	}

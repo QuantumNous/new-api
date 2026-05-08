@@ -609,10 +609,11 @@ func RelayTask(c *gin.Context) {
 		// Persist tiered_expr snapshot for settlement-time re-evaluation.
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 			bc.TieredSnapshot = snap
-			// For VolcAdapter tasks, persist only the 3 minimal flags needed by
-			// volcadapter.AdjustBillingOnComplete to synthesize the param() body.
-			// Other fields (resolution, duration, service_tier) are read from
-			// task.Data (the Volc fetch response) at settlement time.
+			// For VolcAdapter tasks, extractVolcFlags captures all 6 fields:
+			// generate_audio, draft, has_video_input (always from the submit body),
+			// plus resolution, duration, service_tier (also from the submit body,
+			// so settlement works on callback-enabled deployments where task.Data
+			// never receives a full Volc fetch response).
 			if relayInfo.ChannelType == constant.ChannelTypeVolcAdapter &&
 				relayInfo.BillingRequestInput != nil && len(relayInfo.BillingRequestInput.Body) > 0 {
 				bc.TieredVolcFlags = extractVolcFlags(relayInfo.BillingRequestInput.Body)

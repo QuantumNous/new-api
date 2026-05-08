@@ -13,10 +13,8 @@ func TestParseResolution(t *testing.T) {
 		{"480p", 854, 480},
 		{"720p", 1280, 720},
 		{"1080p", 1920, 1080},
-		{"1280x720", 1280, 720},
-		{"1920x1080", 1920, 1080},
-		{"", 1280, 720},   // fallback
-		{"bad", 1280, 720}, // fallback
+		{"", 1280, 720},    // unknown → fallback 720p
+		{"foo", 1280, 720}, // unknown → fallback 720p
 	}
 	for _, tt := range cases {
 		t.Run(tt.res, func(t *testing.T) {

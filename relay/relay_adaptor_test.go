@@ -27,7 +27,8 @@ func TestGetAdaptorVolcAdapter(t *testing.T) {
 }
 
 // TestGetTaskAdaptorVolcAdapter verifies that GetTaskAdaptor returns a non-nil
-// adaptor for the VolcAdapter channel type (same taskdoubao adaptor as 45/54).
+// adaptor for the VolcAdapter channel type (routes to task/volcadapter.TaskAdaptor,
+// distinct from the taskdoubao adaptor used by legacy channels 45/54).
 func TestGetTaskAdaptorVolcAdapter(t *testing.T) {
 	platform := constant.TaskPlatform("58") // ChannelTypeVolcAdapter
 	adaptor := GetTaskAdaptor(platform)

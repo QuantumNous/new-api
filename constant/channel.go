@@ -55,8 +55,18 @@ const (
 	ChannelTypeSora           = 55
 	ChannelTypeReplicate      = 56
 	ChannelTypeCodex          = 57
-	ChannelTypeVolcAdapter    = 58
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	ChannelTypeVolcAdapter = 58
+	// ChannelTypeDummy is a sentinel that always equals the highest defined
+	// channel type (currently ChannelTypeVolcAdapter = 58); used as an upper
+	// bound when iterating channel types.
+	//
+	// When adding a new channel type, append it after the last existing entry
+	// with an explicit value (e.g. ChannelTypeFoo = 59), then update
+	// ChannelTypeDummy to equal the new highest value.
+	//
+	// Do NOT renumber or reuse existing channel type IDs — doing so would break
+	// compatibility with existing installations and stored configurations.
+	ChannelTypeDummy = ChannelTypeVolcAdapter
 
 )
 

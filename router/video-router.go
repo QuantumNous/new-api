@@ -43,10 +43,13 @@ func SetVideoRouter(router *gin.Engine) {
 		klingV1Router.GET("/videos/image2video/:task_id", controller.RelayTaskFetch)
 	}
 
-	// Volc Ark compatible task routes — native pass-through (no body rewriting).
-	// Body bytes flow byte-identical to upstream without any normalization.
+	// Volc Ark compatible task routes — preserves unknown Volc fields without
+	// schema normalization. Body bytes flow byte-identical to upstream EXCEPT
+	// when model mapping (info.IsModelMapped) or ParamOverride is configured;
+	// those paths apply byte-level JSON patches that re-serialize the body
+	// while still preserving any unknown fields.
 	// relay_format = "volc" signals RelayTask / RelayTaskFetch to use RelayFormatVolc
-	// so the downstream adaptor forwards the body byte-identical to upstream.
+	// so the downstream adaptor selects the Volc-native code path.
 	volcV3Router := router.Group("/api/v3")
 	volcV3Router.Use(middleware.RouteTag("relay"))
 	volcV3Router.Use(middleware.TokenAuth(), middleware.Distribute())

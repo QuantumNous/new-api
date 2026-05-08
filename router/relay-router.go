@@ -177,9 +177,12 @@ func SetRelayRouter(router *gin.Engine) {
 	registerMjRouterGroup(relayMjModeRouter)
 	//relayMjRouter.Use()
 
-	// Volc Ark compatible image route — native pass-through (no body rewriting).
-	// The raw Volc body (including sequential_image_generation, optimize_prompt_options,
-	// watermark, 2K/4K size literals, etc.) is forwarded byte-identical to upstream.
+	// Volc Ark compatible image route — preserves unknown Volc fields without
+	// schema normalization. Default behavior: forward request body byte-identical
+	// to the upstream Volc API (including sequential_image_generation,
+	// optimize_prompt_options, watermark, 2K/4K size literals, etc.).
+	// When model mapping (info.IsModelMapped) or ParamOverride is configured,
+	// byte-level JSON patches are applied; unknown fields are still preserved.
 	volcV3ImageRouter := router.Group("/api/v3")
 	volcV3ImageRouter.Use(middleware.RouteTag("relay"))
 	volcV3ImageRouter.Use(middleware.TokenAuth(), middleware.Distribute())

@@ -27,10 +27,17 @@ type volcImageConverter interface {
 // VolcImageHelper handles the /api/v3/images/generations endpoint using the
 // native Volc Ark API format (RelayFormatVolc).
 //
-// The request body is forwarded byte-identical to the upstream Volc API;
-// no field transformation is performed so Volc-specific fields such as
-// sequential_image_generation, optimize_prompt_options, watermark, 2K/4K
-// size literals etc. are preserved as-is.
+// Default behavior: forward request body byte-identical to the upstream
+// Volc API; Volc-specific fields such as sequential_image_generation,
+// optimize_prompt_options, watermark, 2K/4K size literals etc. are preserved.
+//
+// Optional patches via applyVolcImagePatches:
+//   - When info.IsModelMapped: rewrite the "model" field to the upstream name
+//   - When len(info.ParamOverride) > 0: apply byte-level JSON patches
+//
+// Both patch paths preserve unknown fields by operating on
+// map[string]json.RawMessage, so caller-supplied Volc-specific keys are
+// never dropped.
 //
 // This mirrors the structure of GeminiHelper; the key difference is that
 // the upstream URL is always the Volc /api/v3/images/generations path and

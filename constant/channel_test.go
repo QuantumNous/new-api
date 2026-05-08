@@ -10,9 +10,11 @@ func TestChannelTypeVolcAdapterRegistration(t *testing.T) {
 		t.Errorf("expected ChannelTypeVolcAdapter=58, got %d", ChannelTypeVolcAdapter)
 	}
 
-	// ChannelTypeDummy in Go const blocks without iota repeats the previous explicit
-	// value, so Dummy == VolcAdapter == 58. This is the intended design: Dummy is a
-	// sentinel for "number of channel types" so loops use <= ChannelTypeDummy.
+	// ChannelTypeDummy is explicitly assigned to equal ChannelTypeVolcAdapter
+	// (the highest defined channel type). When adding a new channel type, append
+	// it after the last existing one with an explicit numeric value, then update
+	// ChannelTypeDummy to equal the new highest. The explicit assignment avoids
+	// confusion with iota's implicit-repeat semantics.
 	if ChannelTypeDummy != ChannelTypeVolcAdapter {
 		t.Errorf("expected ChannelTypeDummy == ChannelTypeVolcAdapter (%d), got %d",
 			ChannelTypeVolcAdapter, ChannelTypeDummy)

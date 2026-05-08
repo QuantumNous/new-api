@@ -12,40 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// TestVolcTaskDelete_Returns501 verifies that the DELETE route for volc tasks
-// returns 501 Not Implemented with a recognizable message.
-// The route uses an inline handler (no dedicated controller function).
-func TestVolcTaskDelete_Returns501(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	router := gin.New()
-
-	// Mirror the inline handler registered in router/video-router.go.
-	router.DELETE("/api/v3/contents/generations/tasks/:id", func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{
-			"code":        "not_implemented",
-			"message":     "DELETE /api/v3/contents/generations/tasks/:id is not supported yet",
-			"status_code": http.StatusNotImplemented,
-		})
-	})
-
-	req := httptest.NewRequest(http.MethodDelete, "/api/v3/contents/generations/tasks/task_abc123", nil)
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusNotImplemented {
-		t.Errorf("expected 501, got %d", w.Code)
-	}
-
-	var resp map[string]interface{}
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	msg, ok := resp["message"].(string)
-	if !ok || msg == "" {
-		t.Error("expected non-empty message in response")
-	}
-}
-
 // TestVolcTask_FetchByID_SetsTaskID verifies that the GET .../tasks/:id route
 // correctly extracts the :id parameter from the URL path.
 func TestVolcTask_FetchByID_SetsTaskID(t *testing.T) {
