@@ -3,10 +3,12 @@ package relay
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -234,6 +236,58 @@ func TestVolcTask_PathTraversal_NoAdminRouteHit(t *testing.T) {
 }
 
 // ─────────────────────────────────────────
+// mapTaskStatusToArkStatus tests
+// ─────────────────────────────────────────
+
+// TestMapTaskStatusToArkStatus verifies that cancelled/expired FailReason values
+// are correctly mapped to their Ark status strings, distinct from generic "failed".
+func TestMapTaskStatusToArkStatus(t *testing.T) {
+	cases := []struct {
+		status     model.TaskStatus
+		failReason string
+		want       string
+	}{
+		{model.TaskStatusSuccess, "", "succeeded"},
+		{model.TaskStatusFailure, "", "failed"},
+		{model.TaskStatusFailure, "cancelled", "cancelled"},
+		{model.TaskStatusFailure, "expired", "expired"},
+		{model.TaskStatusFailure, "upstream error", "failed"},
+		{model.TaskStatusInProgress, "", "running"},
+		{model.TaskStatusQueued, "", "queued"},
+		{model.TaskStatusNotStart, "", "queued"},
+	}
+	for _, tc := range cases {
+		got := mapTaskStatusToArkStatus(tc.status, tc.failReason)
+		if got != tc.want {
+			t.Errorf("mapTaskStatusToArkStatus(%s, %q) = %q, want %q",
+				tc.status, tc.failReason, got, tc.want)
+		}
+	}
+}
+
+// TestMapFailReasonToErrorCode verifies that the error.code field in synthesized
+// fetch responses distinguishes cancelled/expired from generic task_failed.
+func TestMapFailReasonToErrorCode(t *testing.T) {
+	cases := []struct {
+		failReason string
+		want       string
+	}{
+		{"cancelled", "cancelled"},
+		{"expired", "expired"},
+		{"upstream error", "task_failed"},
+		{"", "task_failed"},
+		{"rate_limited", "task_failed"},
+	}
+	for _, tc := range cases {
+		got := mapFailReasonToErrorCode(tc.failReason)
+		if got != tc.want {
+			t.Errorf("mapFailReasonToErrorCode(%q) = %q, want %q",
+				tc.failReason, got, tc.want)
+		}
+	}
+}
+
+// ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
 
@@ -270,7 +324,7 @@ func (m *memBodyStorage) Seek(offset int64, _ int) (int64, error) {
 
 func (m *memBodyStorage) Read(p []byte) (int, error) {
 	if m.offset >= len(m.data) {
-		return 0, bytes.ErrTooLarge // fake EOF
+		return 0, io.EOF
 	}
 	n := copy(p, m.data[m.offset:])
 	m.offset += n

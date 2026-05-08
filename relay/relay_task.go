@@ -463,7 +463,7 @@ func buildVolcNativeTaskFetchResp(t *model.Task) []byte {
 	}
 
 	// No polled data yet — synthesize a minimal response.
-	arkStatus := mapInternalTaskStatusToArk(t.Status)
+	arkStatus := mapTaskStatusToArkStatus(t.Status, t.FailReason)
 	modelName := t.Properties.OriginModelName
 	if modelName == "" {
 		modelName = t.Properties.UpstreamModelName
@@ -486,7 +486,7 @@ func buildVolcNativeTaskFetchResp(t *model.Task) []byte {
 	if t.FailReason != "" {
 		synth["error"] = map[string]string{
 			"message": t.FailReason,
-			"code":    "task_failed",
+			"code":    mapFailReasonToErrorCode(t.FailReason),
 		}
 	}
 	b, err := common.Marshal(synth)
@@ -525,8 +525,14 @@ func videoFetchListRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		Platform: constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeVolcAdapter)),
 	}
 
-	if status := strings.TrimSpace(c.Query("filter.status")); status != "" {
-		queryParams.Status = mapArkTaskStatusToInternal(status)
+	// rawFilterStatus is the original filter.status string from the request.
+	// It is preserved so that matchesVolcListFilter can apply a secondary
+	// FailReason filter for "cancelled" and "expired" (which both map to the
+	// same internal TaskStatusFailure at the DB layer).
+	rawFilterStatus := strings.ToLower(strings.TrimSpace(c.Query("filter.status")))
+
+	if rawFilterStatus != "" {
+		queryParams.Status = mapArkTaskStatusToInternal(rawFilterStatus)
 		if queryParams.Status == "" {
 			emptyResp, err := common.Marshal(volcVideoTaskListResponse{
 				Items: []volcVideoTaskListItem{},
@@ -539,19 +545,32 @@ func videoFetchListRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		}
 	}
 
-	tasks := model.TaskGetAllUserTask(userID, startIdx, pageSize, queryParams)
-
 	modelFilter := strings.TrimSpace(c.Query("filter.model"))
 	taskIDsFilter := parseVolcTaskIDs(c)
-	filtered := make([]*model.Task, 0, len(tasks))
-	for _, task := range tasks {
-		if len(taskIDsFilter) > 0 && !taskIDsFilter[task.TaskID] {
-			continue
-		}
-		if modelFilter != "" && task.Properties.OriginModelName != modelFilter && task.Properties.UpstreamModelName != modelFilter {
-			continue
-		}
-		filtered = append(filtered, task)
+
+	// needsSecondaryStatusFilter is true when the caller requested a status that
+	// maps to TaskStatusFailure at the DB layer but requires further narrowing
+	// in-memory via FailReason:
+	//   "cancelled" — only tasks with FailReason=="cancelled"
+	//   "expired"   — only tasks with FailReason=="expired"
+	//   "failed"    — genuine failures only (FailReason != "cancelled" && != "expired")
+	// All three cases share the same internal DB status (TaskStatusFailure), so the
+	// DB layer cannot distinguish them; we apply matchesVolcListFilter after fetch.
+	needsSecondaryStatusFilter := rawFilterStatus == "cancelled" || rawFilterStatus == "expired" || rawFilterStatus == "failed"
+
+	var filtered []*model.Task
+	var total int64
+
+	if modelFilter == "" && len(taskIDsFilter) == 0 && !needsSecondaryStatusFilter {
+		// No client-side filters: delegate offset/limit directly to the DB layer.
+		filtered = model.TaskGetAllUserTask(userID, startIdx, pageSize, queryParams)
+		total = model.TaskCountAllUserTask(userID, queryParams)
+	} else {
+		// Client-side filters (model name, task_ids, or FailReason sub-class) are
+		// applied after fetch because the DB layer has no columns for these predicates.
+		// To avoid pagination skew we scan forward through the entire user task set
+		// (up to listScanCap rows) and collect matching rows, then slice by page.
+		filtered, total = listFilteredVolcVideoTasks(userID, queryParams, modelFilter, taskIDsFilter, rawFilterStatus, startIdx, pageSize)
 	}
 
 	items := make([]volcVideoTaskListItem, 0, len(filtered))
@@ -559,15 +578,10 @@ func videoFetchListRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		items = append(items, volcVideoTaskListItem{
 			ID:        task.TaskID,
 			Model:     task.Properties.OriginModelName,
-			Status:    mapInternalTaskStatusToArk(task.Status),
+			Status:    mapTaskStatusToArkStatus(task.Status, task.FailReason),
 			CreatedAt: task.CreatedAt,
 			UpdatedAt: task.UpdatedAt,
 		})
-	}
-
-	total := model.TaskCountAllUserTask(userID, queryParams)
-	if modelFilter != "" || len(taskIDsFilter) > 0 {
-		total = countFilteredVolcVideoTasks(userID, queryParams, modelFilter, taskIDsFilter)
 	}
 
 	resp, err := common.Marshal(volcVideoTaskListResponse{
@@ -580,34 +594,94 @@ func videoFetchListRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	return resp, nil
 }
 
-// countFilteredVolcVideoTasksCap is the maximum number of tasks scanned in
-// countFilteredVolcVideoTasks. Queries beyond this cap return an approximate
-// count based on the scanned window rather than scanning unboundedly.
-const countFilteredVolcVideoTasksCap = 5000
+// listScanCap is the maximum number of tasks scanned when client-side filters
+// (model name, task_ids, or FailReason sub-class) are active.  Beyond this cap
+// the page slice is computed from the scanned window only, and the returned
+// total reflects the capped scan rather than the true full count.
+const listScanCap = 5000
 
-func countFilteredVolcVideoTasks(userID int, queryParams model.SyncTaskQueryParams, modelFilter string, taskIDsFilter map[string]bool) int64 {
-	totalBase := model.TaskCountAllUserTask(userID, queryParams)
-	if totalBase <= 0 {
-		return 0
+// matchesVolcListFilter reports whether task passes all in-memory list filters.
+// It applies:
+//  1. taskIDsFilter — exact task ID allowlist (skipped when empty).
+//  2. modelFilter   — exact model name match on origin or upstream name (skipped when "").
+//  3. rawFilterStatus secondary filter — when the caller requested "cancelled" or
+//     "expired" the DB returns all TaskStatusFailure rows; here we narrow to the
+//     specific FailReason sub-class.  For "failed" we include tasks whose FailReason
+//     is neither "cancelled" nor "expired" (i.e. genuine failures).  For any other
+//     status (or empty) no secondary filtering is applied because the DB already
+//     filters by the exact internal status.
+func matchesVolcListFilter(task *model.Task, modelFilter string, taskIDsFilter map[string]bool, rawFilterStatus string) bool {
+	if len(taskIDsFilter) > 0 && !taskIDsFilter[task.TaskID] {
+		return false
 	}
-	// DB layer has no model/task_ids columns for direct filtering; fetch then filter in-memory.
-	// Cap the scan window to avoid unbounded memory consumption on large task sets.
-	scanLimit := int(totalBase)
-	if scanLimit > countFilteredVolcVideoTasksCap {
-		scanLimit = countFilteredVolcVideoTasksCap
+	if modelFilter != "" && task.Properties.OriginModelName != modelFilter && task.Properties.UpstreamModelName != modelFilter {
+		return false
 	}
-	allTasks := model.TaskGetAllUserTask(userID, 0, scanLimit, queryParams)
-	var filteredCount int64
-	for _, task := range allTasks {
-		if len(taskIDsFilter) > 0 && !taskIDsFilter[task.TaskID] {
-			continue
+	switch rawFilterStatus {
+	case "cancelled":
+		return task.FailReason == "cancelled"
+	case "expired":
+		return task.FailReason == "expired"
+	case "failed":
+		// "failed" means a genuine failure — exclude tasks that are only
+		// sub-classified as cancelled or expired (they have their own status).
+		return task.FailReason != "cancelled" && task.FailReason != "expired"
+	}
+	return true
+}
+
+// listFilteredVolcVideoTasks scans forward through the user's task set (up to
+// listScanCap rows) applying in-memory filters via matchesVolcListFilter, then
+// returns the requested page slice and the total number of matching rows found.
+//
+// Unlike the previous single-page fetch, this guarantees that a page of
+// pageSize matching tasks is returned even when matching rows are sparse, as
+// long as they fall within the scan cap.
+func listFilteredVolcVideoTasks(
+	userID int,
+	queryParams model.SyncTaskQueryParams,
+	modelFilter string,
+	taskIDsFilter map[string]bool,
+	rawFilterStatus string,
+	startIdx int,
+	pageSize int,
+) ([]*model.Task, int64) {
+	const chunkSize = 200
+	var collected []*model.Task
+	need := startIdx + pageSize // stop scanning once we have enough to satisfy this page
+
+	for chunkStart := 0; chunkStart < listScanCap; chunkStart += chunkSize {
+		remaining := listScanCap - chunkStart
+		fetch := chunkSize
+		if fetch > remaining {
+			fetch = remaining
 		}
-		if modelFilter != "" && task.Properties.OriginModelName != modelFilter && task.Properties.UpstreamModelName != modelFilter {
-			continue
+		chunk := model.TaskGetAllUserTask(userID, chunkStart, fetch, queryParams)
+		for _, task := range chunk {
+			if !matchesVolcListFilter(task, modelFilter, taskIDsFilter, rawFilterStatus) {
+				continue
+			}
+			collected = append(collected, task)
 		}
-		filteredCount++
+		if len(chunk) < fetch {
+			// DB returned fewer rows than requested — reached end of result set.
+			break
+		}
+		if len(collected) >= need {
+			// Collected enough matching rows to satisfy this page; stop early.
+			break
+		}
 	}
-	return filteredCount
+
+	total := int64(len(collected))
+	if startIdx >= len(collected) {
+		return []*model.Task{}, total
+	}
+	end := startIdx + pageSize
+	if end > len(collected) {
+		end = len(collected)
+	}
+	return collected[startIdx:end], total
 }
 
 func parseVolcPositiveInt(raw string, defaultVal int) int {
@@ -656,7 +730,10 @@ func mapArkTaskStatusToInternal(status string) string {
 	}
 }
 
-func mapInternalTaskStatusToArk(status model.TaskStatus) string {
+// mapTaskStatusToArkStatus maps an internal task status and optional fail reason
+// to the Volc Ark status string. Cancelled and expired tasks are distinguished
+// from generic failures via FailReason so the SDK can handle them correctly.
+func mapTaskStatusToArkStatus(status model.TaskStatus, failReason string) string {
 	switch status {
 	case model.TaskStatusQueued, model.TaskStatusSubmitted, model.TaskStatusNotStart:
 		return "queued"
@@ -665,10 +742,33 @@ func mapInternalTaskStatusToArk(status model.TaskStatus) string {
 	case model.TaskStatusSuccess:
 		return "succeeded"
 	case model.TaskStatusFailure:
+		switch failReason {
+		case "cancelled":
+			return "cancelled"
+		case "expired":
+			return "expired"
+		}
 		return "failed"
 	default:
 		return "running"
 	}
+}
+
+// mapFailReasonToErrorCode maps a task fail reason to the Volc error code string.
+func mapFailReasonToErrorCode(failReason string) string {
+	switch failReason {
+	case "cancelled":
+		return "cancelled"
+	case "expired":
+		return "expired"
+	}
+	return "task_failed"
+}
+
+// mapInternalTaskStatusToArk maps a task status to Ark status without fail-reason
+// context. Prefer mapTaskStatusToArkStatus when FailReason is available.
+func mapInternalTaskStatusToArk(status model.TaskStatus) string {
+	return mapTaskStatusToArkStatus(status, "")
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
