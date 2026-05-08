@@ -1985,10 +1985,14 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-chart-tabs-wrap {
-  width: min(100%, 760px);
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: min(100%, 640px);
+  margin-left: auto;
 }
 
 .dashboard-chart-filter-grid {
+  padding-top: 2px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -2810,7 +2814,7 @@ html.dark
 
 @media (min-width: 1280px) {
   .dashboard-chart-tabs-wrap {
-    width: min(100%, 840px);
+    max-width: 720px;
   }
 
   .dashboard-chart-filter-grid {
