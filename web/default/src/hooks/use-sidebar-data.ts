@@ -11,6 +11,7 @@ import {
   Command,
   Radio,
   FlaskConical,
+  Image as ImageIcon,
   MessageSquare,
   CreditCard,
   ListTodo,
@@ -41,6 +42,11 @@ export function useSidebarData(): SidebarData {
             title: t('Playground'),
             url: '/playground',
             icon: FlaskConical,
+          },
+          {
+            title: t('Image Workspace'),
+            url: '/image-workbench',
+            icon: ImageIcon,
           },
           {
             title: t('Chat'),

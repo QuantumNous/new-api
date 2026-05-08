@@ -399,6 +399,8 @@ export const STATIC_I18N_KEYS = [
   'Playground and chat functions',
   'Playground',
   'AI model testing environment',
+  'Image Workspace',
+  'Image generation workspace',
   'Chat session management',
   'Console Area',
   'Data management and log viewing',
