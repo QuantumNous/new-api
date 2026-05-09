@@ -59,7 +59,11 @@ const ParameterControl = ({
             <Typography.Text strong className='playground-field-label text-sm'>
               Temperature
             </Typography.Text>
-            <Tag size='small' shape='circle' className='playground-parameter-tag'>
+            <Tag
+              size='small'
+              shape='circle'
+              className='playground-parameter-tag'
+            >
               {inputs.temperature}
             </Tag>
           </div>
@@ -103,7 +107,11 @@ const ParameterControl = ({
             <Typography.Text strong className='playground-field-label text-sm'>
               Top P
             </Typography.Text>
-            <Tag size='small' shape='circle' className='playground-parameter-tag'>
+            <Tag
+              size='small'
+              shape='circle'
+              className='playground-parameter-tag'
+            >
               {inputs.top_p}
             </Tag>
           </div>
@@ -143,7 +151,11 @@ const ParameterControl = ({
             <Typography.Text strong className='playground-field-label text-sm'>
               Frequency Penalty
             </Typography.Text>
-            <Tag size='small' shape='circle' className='playground-parameter-tag'>
+            <Tag
+              size='small'
+              shape='circle'
+              className='playground-parameter-tag'
+            >
               {inputs.frequency_penalty}
             </Tag>
           </div>
@@ -187,7 +199,11 @@ const ParameterControl = ({
             <Typography.Text strong className='playground-field-label text-sm'>
               Presence Penalty
             </Typography.Text>
-            <Tag size='small' shape='circle' className='playground-parameter-tag'>
+            <Tag
+              size='small'
+              shape='circle'
+              className='playground-parameter-tag'
+            >
               {inputs.presence_penalty}
             </Tag>
           </div>

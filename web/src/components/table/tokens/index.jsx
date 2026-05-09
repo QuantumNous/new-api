@@ -485,7 +485,7 @@ function TokensPage() {
         })}
         t={tokensData.t}
       >
-          <TokensTable {...tokensData} />
+        <TokensTable {...tokensData} />
       </CardPro>
     </div>
   );

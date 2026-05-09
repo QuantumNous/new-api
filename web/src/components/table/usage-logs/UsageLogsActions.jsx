@@ -56,7 +56,9 @@ const LogsActions = ({
           {t('查看模型调用、请求耗时与计费细节')}
         </Text>
         <p className='log-table-overview-subtitle'>
-          {t('支持按时间范围、令牌、模型、渠道和请求 ID 交叉筛选，快速定位异常调用')}
+          {t(
+            '支持按时间范围、令牌、模型、渠道和请求 ID 交叉筛选，快速定位异常调用',
+          )}
         </p>
       </div>
 

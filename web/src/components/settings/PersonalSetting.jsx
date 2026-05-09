@@ -235,10 +235,7 @@ const PersonalSetting = () => {
         showSuccess(t('Passkey 注册成功'));
         await loadPasskeyStatus();
       } else {
-        showError(
-          finishRes.data.message ||
-            t('Passkey 注册失败，请重试'),
-        );
+        showError(finishRes.data.message || t('Passkey 注册失败，请重试'));
       }
     } catch (error) {
       if (error?.name === 'AbortError') {
@@ -331,9 +328,7 @@ const PersonalSetting = () => {
       return;
     }
     if (inputs.original_password === inputs.set_new_password) {
-      showError(
-        t('新密码需要和原密码不一致！'),
-      );
+      showError(t('新密码需要和原密码不一致！'));
       return;
     }
     if (inputs.set_new_password !== inputs.set_new_password_confirmation) {
@@ -361,9 +356,7 @@ const PersonalSetting = () => {
     }
     setDisableButton(true);
     if (turnstileEnabled && turnstileToken === '') {
-      showInfo(
-        t('请稍后几秒重试，Turnstile 正在检查用户环境！'),
-      );
+      showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
       return;
     }
     setLoading(true);

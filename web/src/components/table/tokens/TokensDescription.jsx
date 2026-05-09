@@ -38,9 +38,13 @@ const TokensDescription = ({
           <KeyRound size={15} strokeWidth={2.1} />
           <span>{t('令牌列表')}</span>
         </div>
-        <Text className='token-table-overview-title'>{t('管理您的 API 访问令牌')}</Text>
+        <Text className='token-table-overview-title'>
+          {t('管理您的 API 访问令牌')}
+        </Text>
         <p className='token-table-overview-subtitle'>
-          {t('集中查看状态、额度、过期时间和访问限制，并快速执行复制或禁用操作')}
+          {t(
+            '集中查看状态、额度、过期时间和访问限制，并快速执行复制或禁用操作',
+          )}
         </p>
       </div>
 

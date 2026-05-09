@@ -18,12 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import {
-  API,
-  copy,
-  showError,
-  showNotice,
-} from '../../helpers';
+import { API, copy, showError, showNotice } from '../../helpers';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Button, Card, Form, Typography, Banner } from '@douyinfe/semi-ui';
 import { IconMail, IconLock, IconCopy } from '@douyinfe/semi-icons';
@@ -100,10 +95,7 @@ const PasswordResetConfirm = () => {
   }
 
   return (
-    <AuthLayout
-      variant='reset-confirm'
-      subtitle={t('智能 API 网关控制台')}
-    >
+    <AuthLayout variant='reset-confirm' subtitle={t('智能 API 网关控制台')}>
       <Card className='auth-card-shell auth-reset-card'>
         <div className='auth-card-body'>
           <div className='auth-card-header'>

@@ -43,11 +43,7 @@ function renderQuotaType(type, t) {
       );
     case 0:
       return (
-        <Tag
-          className='pricing-table-status-tag'
-          color='violet'
-          shape='circle'
-        >
+        <Tag className='pricing-table-status-tag' color='violet' shape='circle'>
           {t('按量计费')}
         </Tag>
       );

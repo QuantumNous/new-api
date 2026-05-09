@@ -205,7 +205,10 @@ const SettingsPanel = ({
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
               <ToggleLeft size={16} className='playground-field-icon' />
-              <Typography.Text strong className='playground-field-label text-sm'>
+              <Typography.Text
+                strong
+                className='playground-field-label text-sm'
+              >
                 {t('流式输出')}
               </Typography.Text>
               {customRequestMode && (

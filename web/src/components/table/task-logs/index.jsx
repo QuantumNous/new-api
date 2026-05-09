@@ -59,7 +59,9 @@ const TaskLogsPage = () => {
               {taskLogsData.t('任务日志')}
             </Title>
             <p className='task-console-subtitle'>
-              {taskLogsData.t('按时间、任务 ID 与渠道维度追踪任务提交、执行进度、回传结果与失败原因')}
+              {taskLogsData.t(
+                '按时间、任务 ID 与渠道维度追踪任务提交、执行进度、回传结果与失败原因',
+              )}
             </p>
           </div>
         </div>

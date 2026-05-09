@@ -796,7 +796,9 @@ const LoginForm = () => {
                 htmlType='submit'
                 onClick={handleSubmit}
                 loading={loginLoading}
-                disabled={(hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms}
+                disabled={
+                  (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
+                }
               >
                 {t('继续')}
               </Button>

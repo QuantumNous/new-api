@@ -18,12 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import {
-  API,
-  showError,
-  showInfo,
-  showSuccess,
-} from '../../helpers';
+import { API, showError, showInfo, showSuccess } from '../../helpers';
 import Turnstile from 'react-turnstile';
 import { Button, Card, Form, Typography } from '@douyinfe/semi-ui';
 import { IconMail } from '@douyinfe/semi-icons';
@@ -81,9 +76,7 @@ const PasswordResetForm = () => {
       return;
     }
     if (turnstileEnabled && turnstileToken === '') {
-      showInfo(
-        t('请稍后几秒重试，Turnstile 正在检查用户环境！'),
-      );
+      showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
       return;
     }
     setDisableButton(true);
@@ -93,9 +86,7 @@ const PasswordResetForm = () => {
     );
     const { success, message } = res.data;
     if (success) {
-      showSuccess(
-        t('重置邮件发送成功，请检查邮箱！'),
-      );
+      showSuccess(t('重置邮件发送成功，请检查邮箱！'));
       setInputs({ ...inputs, email: '' });
     } else {
       showError(message);

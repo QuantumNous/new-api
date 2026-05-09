@@ -1,7 +1,14 @@
 .model-detail-sheet .semi-sidesheet-content {
-  background:
-    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.98));
+  background: radial-gradient(
+      circle at top left,
+      rgba(59, 130, 246, 0.08),
+      transparent 24%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(248, 250, 252, 0.98)
+    );
 }
 
 .model-detail-sheet .semi-sidesheet-header {
@@ -305,7 +312,10 @@
 }
 
 .model-detail-pricing-card .semi-table-tbody > tr:last-child > td,
-.model-detail-pricing-card .semi-table-tbody > tr:last-child > .semi-table-row-cell {
+.model-detail-pricing-card
+  .semi-table-tbody
+  > tr:last-child
+  > .semi-table-row-cell {
   border-bottom: none !important;
 }
 
@@ -359,8 +369,11 @@
 }
 
 html.dark .model-detail-sheet .semi-sidesheet-content {
-  background:
-    radial-gradient(circle at top left, rgba(192, 38, 211, 0.12), transparent 30%),
+  background: radial-gradient(
+      circle at top left,
+      rgba(192, 38, 211, 0.12),
+      transparent 30%
+    ),
     linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98));
 }
 
@@ -422,20 +435,32 @@ html.dark .model-detail-pricing-card .semi-table-container {
 }
 
 html.dark .model-detail-pricing-card .semi-table-thead > tr > th,
-html.dark .model-detail-pricing-card .semi-table-thead > tr > .semi-table-row-head {
+html.dark
+  .model-detail-pricing-card
+  .semi-table-thead
+  > tr
+  > .semi-table-row-head {
   border-bottom-color: rgba(43, 48, 59, 0.95) !important;
   background: rgba(24, 28, 35, 0.96) !important;
   color: #98a2b3 !important;
 }
 
 html.dark .model-detail-pricing-card .semi-table-tbody > tr > td,
-html.dark .model-detail-pricing-card .semi-table-tbody > tr > .semi-table-row-cell {
+html.dark
+  .model-detail-pricing-card
+  .semi-table-tbody
+  > tr
+  > .semi-table-row-cell {
   border-bottom-color: rgba(43, 48, 59, 0.95) !important;
   background: rgba(17, 19, 24, 0.96) !important;
 }
 
 html.dark .model-detail-pricing-card .semi-table-tbody > tr:hover > td,
-html.dark .model-detail-pricing-card .semi-table-tbody > tr:hover > .semi-table-row-cell {
+html.dark
+  .model-detail-pricing-card
+  .semi-table-tbody
+  > tr:hover
+  > .semi-table-row-cell {
   background: rgba(22, 26, 33, 0.98) !important;
 }
 

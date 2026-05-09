@@ -92,9 +92,7 @@ const ThinkingContent = ({
               {headerText}
             </Typography.Text>
             {thinkingSource && (
-              <Typography.Text
-                className='playground-thinking-source text-xs mt-0.5 hidden sm:block'
-              >
+              <Typography.Text className='playground-thinking-source text-xs mt-0.5 hidden sm:block'>
                 {t('来源')}: {thinkingSource}
               </Typography.Text>
             )}
@@ -103,10 +101,11 @@ const ThinkingContent = ({
         <div className='playground-thinking-status-wrap relative flex items-center gap-2 sm:gap-3'>
           {isThinkingStatus && !message.isThinkingComplete && (
             <div className='playground-thinking-status flex items-center gap-1 sm:gap-2'>
-              <Loader2 className='animate-spin' size={styleState.isMobile ? 14 : 18} />
-              <Typography.Text
-                className='playground-thinking-status-text text-xs sm:text-sm font-medium'
-              >
+              <Loader2
+                className='animate-spin'
+                size={styleState.isMobile ? 14 : 18}
+              />
+              <Typography.Text className='playground-thinking-status-text text-xs sm:text-sm font-medium'>
                 {t('思考中')}
               </Typography.Text>
             </div>

@@ -36,7 +36,9 @@ const TaskLogsActions = ({ compactMode, setCompactMode, t }) => {
           {t('查看任务队列、执行状态与结果回传细节')}
         </Text>
         <p className='task-table-overview-subtitle'>
-          {t('支持按时间范围、任务 ID 与渠道快速检索，便于排查任务排队、失败与结果异常')}
+          {t(
+            '支持按时间范围、任务 ID 与渠道快速检索，便于排查任务排队、失败与结果异常',
+          )}
         </p>
       </div>
 

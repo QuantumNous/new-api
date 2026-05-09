@@ -25,12 +25,7 @@ import './AuthPage.css';
 
 const { Text } = Typography;
 
-const AuthLayout = ({
-  children,
-  turnstile,
-  variant = 'default',
-  subtitle,
-}) => {
+const AuthLayout = ({ children, turnstile, variant = 'default', subtitle }) => {
   const { t } = useTranslation();
   const logo = getLogo();
   const systemName = getSystemName();

@@ -78,7 +78,7 @@ const PricingCardSkeleton = ({
                   />
                 )}
               </div>
-              </div>
+            </div>
 
             <div className='pricing-model-card-body'>
               <div className='pricing-model-card-price-section mb-4'>

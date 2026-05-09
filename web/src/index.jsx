@@ -51,7 +51,8 @@ function SemiLocaleWrapper({ children }) {
   );
 
   React.useEffect(() => {
-    document.documentElement.lang = i18n.resolvedLanguage || i18n.language || 'zh-CN';
+    document.documentElement.lang =
+      i18n.resolvedLanguage || i18n.language || 'zh-CN';
   }, [i18n.language, i18n.resolvedLanguage]);
 
   return <LocaleProvider locale={semiLocale}>{children}</LocaleProvider>;

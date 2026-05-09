@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState } from 'react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import {
@@ -327,7 +345,9 @@ export const buildOptionalFieldToggles = (model) => ({
   imagePrice: hasValue(model.imagePrice),
   audioInputPrice: hasValue(model.audioInputPrice),
   audioOutputPrice: hasValue(model.audioOutputPrice),
-  taskConditionPrice720pTextOnly: hasValue(model.taskConditionPrice720pTextOnly),
+  taskConditionPrice720pTextOnly: hasValue(
+    model.taskConditionPrice720pTextOnly,
+  ),
   taskConditionPrice720pVideoInput: hasValue(
     model.taskConditionPrice720pVideoInput,
   ),
@@ -648,7 +668,9 @@ export function useModelPricingEditorState({
       ImageRatio: parseOptionJSON(options.ImageRatio),
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
-      TaskConditionPrice: extractTaskConditionPriceMap(options.TaskConditionPrice),
+      TaskConditionPrice: extractTaskConditionPriceMap(
+        options.TaskConditionPrice,
+      ),
       TaskConditionPriceRaw: parseOptionJSON(options.TaskConditionPrice),
     };
 
@@ -1057,9 +1079,7 @@ export function useModelPricingEditorState({
             '720p_text_only': hasValue(model.taskConditionPrice720pTextOnly)
               ? toNormalizedNumber(model.taskConditionPrice720pTextOnly)
               : undefined,
-            '720p_video_input': hasValue(
-              model.taskConditionPrice720pVideoInput,
-            )
+            '720p_video_input': hasValue(model.taskConditionPrice720pVideoInput)
               ? toNormalizedNumber(model.taskConditionPrice720pVideoInput)
               : undefined,
             '1080p_text_only': hasValue(model.taskConditionPrice1080pTextOnly)

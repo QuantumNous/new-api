@@ -42,7 +42,9 @@ const Navigation = ({
     const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
 
     return mainNavLinks.map((link) => {
-      const linkContent = <span className='app-header-nav-link-text'>{link.text}</span>;
+      const linkContent = (
+        <span className='app-header-nav-link-text'>{link.text}</span>
+      );
 
       if (link.isExternal) {
         return (

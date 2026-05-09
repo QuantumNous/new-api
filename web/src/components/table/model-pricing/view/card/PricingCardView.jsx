@@ -342,9 +342,7 @@ const PricingCardView = ({
                     </div>
                   </div>
 
-                  <p
-                    className='pricing-model-card-description text-xs line-clamp-2 leading-relaxed'
-                  >
+                  <p className='pricing-model-card-description text-xs line-clamp-2 leading-relaxed'>
                     {getModelDescription(model)}
                   </p>
                 </div>
@@ -381,7 +379,9 @@ const PricingCardView = ({
                             {t('模型')}
                           </span>
                           <strong className='pricing-model-card-ratio-value'>
-                            {model.quota_type === 0 ? model.model_ratio : t('无')}
+                            {model.quota_type === 0
+                              ? model.model_ratio
+                              : t('无')}
                           </strong>
                         </div>
                         <div className='pricing-model-card-ratio-item'>

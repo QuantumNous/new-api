@@ -212,7 +212,11 @@ const renderTokenKey = (
 
 const renderModelLimits = (text, record, t) => {
   if (!(record.model_limits_enabled && text)) {
-    return <Tag className='token-meta-pill' shape='circle'>{t('无限制')}</Tag>;
+    return (
+      <Tag className='token-meta-pill' shape='circle'>
+        {t('无限制')}
+      </Tag>
+    );
   }
 
   const models = text.split(',').filter(Boolean);
@@ -223,7 +227,9 @@ const renderModelLimits = (text, record, t) => {
   Object.entries(categories).forEach(([key, category]) => {
     if (key === 'all' || !category.icon || !category.filter) return;
 
-    const vendorModels = models.filter((m) => category.filter({ model_name: m }));
+    const vendorModels = models.filter((m) =>
+      category.filter({ model_name: m }),
+    );
     if (vendorModels.length === 0) return;
 
     vendorAvatars.push(
@@ -271,7 +277,11 @@ const renderModelLimits = (text, record, t) => {
 
 const renderAllowIps = (text, t) => {
   if (!text || text.trim() === '') {
-    return <Tag className='token-meta-pill' shape='circle'>{t('无限制')}</Tag>;
+    return (
+      <Tag className='token-meta-pill' shape='circle'>
+        {t('无限制')}
+      </Tag>
+    );
   }
 
   const ips = text
@@ -302,7 +312,11 @@ const renderAllowIps = (text, t) => {
     );
   }
 
-  return <Space wrap className='token-ip-cell'>{ipTags}</Space>;
+  return (
+    <Space wrap className='token-ip-cell'>
+      {ipTags}
+    </Space>
+  );
 };
 
 const renderQuotaUsage = (text, record, t) => {
@@ -573,7 +587,10 @@ export const getTokensColumns = ({
       render: (text, record) => {
         if (record.expired_time === -1) {
           return (
-            <Tag className='token-meta-pill token-meta-pill-neutral' shape='circle'>
+            <Tag
+              className='token-meta-pill token-meta-pill-neutral'
+              shape='circle'
+            >
               {t('永不过期')}
             </Tag>
           );

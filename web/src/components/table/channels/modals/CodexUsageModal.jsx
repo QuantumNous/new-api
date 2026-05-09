@@ -98,10 +98,12 @@ const resolveRateLimitWindows = (data) => {
   }
 
   if (!fiveHourWindow) {
-    fiveHourWindow = windows.find((windowData) => windowData !== weeklyWindow) ?? null;
+    fiveHourWindow =
+      windows.find((windowData) => windowData !== weeklyWindow) ?? null;
   }
   if (!weeklyWindow) {
-    weeklyWindow = windows.find((windowData) => windowData !== fiveHourWindow) ?? null;
+    weeklyWindow =
+      windows.find((windowData) => windowData !== fiveHourWindow) ?? null;
   }
 
   return { fiveHourWindow, weeklyWindow };
@@ -277,7 +279,9 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
   const email = data?.email;
   const accountId = data?.account_id;
   const errorMessage =
-    payload?.success === false ? getDisplayText(payload?.message) || tt('获取用量失败') : '';
+    payload?.success === false
+      ? getDisplayText(payload?.message) || tt('获取用量失败')
+      : '';
 
   const rawText =
     typeof data === 'string' ? data : JSON.stringify(data ?? payload, null, 2);
@@ -313,7 +317,12 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
               </Tag>
             </div>
           </div>
-          <Button size='small' type='tertiary' theme='outline' onClick={onRefresh}>
+          <Button
+            size='small'
+            type='tertiary'
+            theme='outline'
+            onClick={onRefresh}
+          >
             {tt('刷新')}
           </Button>
         </div>

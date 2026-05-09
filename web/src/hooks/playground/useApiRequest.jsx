@@ -432,7 +432,11 @@ export const useApiRequest = (
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
             const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage && lastMessage.status !== MESSAGE_STATUS.COMPLETE && lastMessage.status !== MESSAGE_STATUS.ERROR) {
+            if (
+              lastMessage &&
+              lastMessage.status !== MESSAGE_STATUS.COMPLETE &&
+              lastMessage.status !== MESSAGE_STATUS.ERROR
+            ) {
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
                 content: (lastMessage.content || '') + errorMessage,
@@ -482,7 +486,8 @@ export const useApiRequest = (
 
         setDebugData((prev) => ({
           ...prev,
-          response: t('流启动失败：') + '\n' + JSON.stringify(errorInfo, null, 2),
+          response:
+            t('流启动失败：') + '\n' + JSON.stringify(errorInfo, null, 2),
         }));
         setActiveDebugTab(DEBUG_TABS.RESPONSE);
 

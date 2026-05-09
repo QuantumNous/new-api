@@ -20,7 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
-import { calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
+import {
+  calculateModelPrice,
+  getModelPriceItems,
+} from '../../../../../helpers';
 
 const { Text } = Typography;
 
@@ -130,9 +133,7 @@ const ModelPricingTable = ({
         <div className='model-detail-price-summary'>
           {items.map((item) => (
             <div key={item.key} className='model-detail-price-item'>
-              <div className='model-detail-price-item-label'>
-                {item.label}
-              </div>
+              <div className='model-detail-price-item-label'>{item.label}</div>
               <div className='model-detail-price-item-value'>{item.value}</div>
               <div className='model-detail-price-item-suffix'>
                 {item.suffix}
