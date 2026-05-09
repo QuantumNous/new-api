@@ -371,6 +371,7 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   22: 'Format: APIKey-AppId, e.g., fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041',
   23: 'Format: AppId|SecretId|SecretKey',
   33: 'Format: Ak|Sk|Region',
+  45: 'Format: AppId|AccessToken (TTS / Realtime). For new-console v3 mode the AccessToken is sent as X-Api-Key; in legacy mode AppId + AccessToken are sent as X-Api-App-Id + X-Api-Access-Key. Chat / embedding paths still use the AccessToken as Bearer.',
   50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
   51: 'Format: Access Key ID|Secret Access Key',
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',

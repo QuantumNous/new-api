@@ -1764,6 +1764,137 @@ export function ChannelMutateDrawer({
                   />
                 )}
 
+                {/* VolcEngine (type 45) - TTS v3 protocol overrides */}
+                {currentType === 45 && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name='volc_tts_protocol'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('TTS Protocol')}</FormLabel>
+                          <Select
+                            value={field.value || ''}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue
+                                  placeholder={t('Auto / WS Binary (v1)')}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value=''>
+                                {t('Auto / WS Binary (v1)')}
+                              </SelectItem>
+                              <SelectItem value='v3_ws_bidir'>
+                                {t('WS Bidirectional (v3)')}
+                              </SelectItem>
+                              <SelectItem value='v3_ws_uni'>
+                                {t('WS Unidirectional (v3)')}
+                              </SelectItem>
+                              <SelectItem value='v3_http_chunked'>
+                                {t('HTTP Chunked (v3)')}
+                              </SelectItem>
+                              <SelectItem value='v3_http_sse'>
+                                {t('HTTP SSE (v3, passthrough)')}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {t(
+                              'Select the Volcengine TTS upstream transport. SSE forwards raw text/event-stream to the client; clients must handle SSE parsing themselves.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name='volc_tts_resource_id'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('TTS Resource ID')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder='seed-tts-2.0'
+                              {...field}
+                              value={field.value || ''}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'X-Api-Resource-Id header value. Defaults to seed-tts-2.0 when empty. Common values: seed-tts-2.0, seed-tts-1.0, seed-tts-1.0-concurr, seed-icl-2.0, seed-icl-1.0, seed-icl-1.0-concurr.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name='volc_tts_auth_mode'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('TTS Auth Mode')}</FormLabel>
+                          <Select
+                            value={field.value || ''}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue
+                                  placeholder={t('New console (X-Api-Key)')}
+                                />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value=''>
+                                {t('New console (X-Api-Key)')}
+                              </SelectItem>
+                              <SelectItem value='legacy'>
+                                {t('Legacy (X-Api-App-Id + X-Api-Access-Key)')}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {t(
+                              'New console: AccessToken (second segment of the API key) is sent as X-Api-Key. Legacy: AppId + AccessToken are sent as X-Api-App-Id + X-Api-Access-Key.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name='volc_tts_require_usage'
+                      render={({ field }) => (
+                        <FormItem className='flex flex-row items-center justify-between rounded-lg border p-3'>
+                          <div className='space-y-0.5'>
+                            <FormLabel>
+                              {t('Return token usage from server')}
+                            </FormLabel>
+                            <FormDescription>
+                              {t(
+                                'Adds X-Control-Require-Usage-Tokens-Return so SessionFinished payload carries usage.text_words for billing.'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value !== false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+
                 {/* Coze (type 49) */}
                 {currentType === 49 && (
                   <FormField

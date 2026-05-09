@@ -210,6 +210,11 @@ const EditChannelModal = (props) => {
     allow_inference_geo: false,
     allow_speed: false,
     claude_beta_query: false,
+    // VolcEngine TTS v3 overrides (persisted under settings.volc_tts)
+    volc_tts_protocol: '',
+    volc_tts_resource_id: '',
+    volc_tts_auth_mode: '',
+    volc_tts_require_usage: true,
     upstream_model_update_check_enabled: false,
     upstream_model_update_auto_sync_enabled: false,
     upstream_model_update_last_check_time: 0,
@@ -911,6 +916,20 @@ const EditChannelModal = (props) => {
             parsedSettings.allow_inference_geo || false;
           data.allow_speed = parsedSettings.allow_speed || false;
           data.claude_beta_query = parsedSettings.claude_beta_query || false;
+          if (parsedSettings.volc_tts && typeof parsedSettings.volc_tts === 'object') {
+            data.volc_tts_protocol = parsedSettings.volc_tts.protocol || '';
+            data.volc_tts_resource_id = parsedSettings.volc_tts.resource_id || '';
+            data.volc_tts_auth_mode = parsedSettings.volc_tts.auth_mode || '';
+            data.volc_tts_require_usage =
+              parsedSettings.volc_tts.require_usage === undefined
+                ? true
+                : parsedSettings.volc_tts.require_usage === true;
+          } else {
+            data.volc_tts_protocol = '';
+            data.volc_tts_resource_id = '';
+            data.volc_tts_auth_mode = '';
+            data.volc_tts_require_usage = true;
+          }
           data.upstream_model_update_check_enabled =
             parsedSettings.upstream_model_update_check_enabled === true;
           data.upstream_model_update_auto_sync_enabled =
@@ -941,6 +960,10 @@ const EditChannelModal = (props) => {
           data.allow_inference_geo = false;
           data.allow_speed = false;
           data.claude_beta_query = false;
+          data.volc_tts_protocol = '';
+          data.volc_tts_resource_id = '';
+          data.volc_tts_auth_mode = '';
+          data.volc_tts_require_usage = true;
           data.upstream_model_update_check_enabled = false;
           data.upstream_model_update_auto_sync_enabled = false;
           data.upstream_model_update_last_check_time = 0;
@@ -959,6 +982,10 @@ const EditChannelModal = (props) => {
         data.allow_inference_geo = false;
         data.allow_speed = false;
         data.claude_beta_query = false;
+        data.volc_tts_protocol = '';
+        data.volc_tts_resource_id = '';
+        data.volc_tts_auth_mode = '';
+        data.volc_tts_require_usage = true;
         data.upstream_model_update_check_enabled = false;
         data.upstream_model_update_auto_sync_enabled = false;
         data.upstream_model_update_last_check_time = 0;
@@ -1803,6 +1830,38 @@ const EditChannelModal = (props) => {
       }
     }
 
+    // VolcEngine TTS v3 overrides — only emit when at least one field is set,
+    // otherwise leave settings.volc_tts absent so backend falls back to v1.
+    if (localInputs.type === 45) {
+      const volcTTS = {};
+      if (
+        localInputs.volc_tts_protocol &&
+        localInputs.volc_tts_protocol !== '' &&
+        localInputs.volc_tts_protocol !== 'v1_ws_binary'
+      ) {
+        volcTTS.protocol = localInputs.volc_tts_protocol;
+      }
+      if (localInputs.volc_tts_resource_id) {
+        volcTTS.resource_id = localInputs.volc_tts_resource_id;
+      }
+      if (
+        localInputs.volc_tts_auth_mode &&
+        localInputs.volc_tts_auth_mode !== ''
+      ) {
+        volcTTS.auth_mode = localInputs.volc_tts_auth_mode;
+      }
+      if (localInputs.volc_tts_require_usage === false) {
+        volcTTS.require_usage = false;
+      }
+      if (Object.keys(volcTTS).length > 0) {
+        settings.volc_tts = volcTTS;
+      } else if ('volc_tts' in settings) {
+        delete settings.volc_tts;
+      }
+    } else if ('volc_tts' in settings) {
+      delete settings.volc_tts;
+    }
+
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
     settings.upstream_model_update_auto_sync_enabled =
@@ -1848,6 +1907,10 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_inference_geo;
     delete localInputs.allow_speed;
     delete localInputs.claude_beta_query;
+    delete localInputs.volc_tts_protocol;
+    delete localInputs.volc_tts_resource_id;
+    delete localInputs.volc_tts_auth_mode;
+    delete localInputs.volc_tts_require_usage;
     delete localInputs.upstream_model_update_check_enabled;
     delete localInputs.upstream_model_update_auto_sync_enabled;
     delete localInputs.upstream_model_update_last_check_time;
@@ -3443,6 +3506,66 @@ const EditChannelModal = (props) => {
                             ]}
                             defaultValue='https://ark.cn-beijing.volces.com'
                             disabled={isIonetLocked}
+                          />
+                        </div>
+                      )}
+                      {inputs.type === 45 && (
+                        <div className='mt-3'>
+                          <Form.Select
+                            field='volc_tts_protocol'
+                            label={t('TTS 协议')}
+                            placeholder={t('自动 / WS Binary (v1)')}
+                            onChange={(value) =>
+                              handleInputChange('volc_tts_protocol', value)
+                            }
+                            optionList={[
+                              { value: '', label: t('自动 / WS Binary (v1)') },
+                              { value: 'v3_ws_bidir', label: t('WS 双向流 (v3)') },
+                              { value: 'v3_ws_uni', label: t('WS 单向流 (v3)') },
+                              { value: 'v3_http_chunked', label: t('HTTP Chunked (v3)') },
+                              { value: 'v3_http_sse', label: t('HTTP SSE (v3，原样透传)') },
+                            ]}
+                            extraText={t(
+                              '选择火山 TTS 上游传输协议。SSE 选项会将 text/event-stream 原样透传给客户端，需客户端自行解析。'
+                            )}
+                          />
+                          <Form.Input
+                            field='volc_tts_resource_id'
+                            label={t('TTS Resource ID')}
+                            placeholder='seed-tts-2.0'
+                            onChange={(value) =>
+                              handleInputChange('volc_tts_resource_id', value)
+                            }
+                            extraText={t(
+                              'X-Api-Resource-Id 头部值。留空时默认 seed-tts-2.0。常见值：seed-tts-2.0、seed-tts-1.0、seed-tts-1.0-concurr、seed-icl-2.0、seed-icl-1.0、seed-icl-1.0-concurr。'
+                            )}
+                          />
+                          <Form.Select
+                            field='volc_tts_auth_mode'
+                            label={t('TTS 鉴权模式')}
+                            placeholder={t('新版控制台 (X-Api-Key)')}
+                            onChange={(value) =>
+                              handleInputChange('volc_tts_auth_mode', value)
+                            }
+                            optionList={[
+                              { value: '', label: t('新版控制台 (X-Api-Key)') },
+                              { value: 'legacy', label: t('旧版控制台 (X-Api-App-Id + X-Api-Access-Key)') },
+                            ]}
+                            extraText={t(
+                              '新版控制台：取密钥第二段 AccessToken 作为 X-Api-Key 发送。旧版控制台：将 AppId 与 AccessToken 拆为 X-Api-App-Id 与 X-Api-Access-Key 发送。'
+                            )}
+                          />
+                          <Form.Switch
+                            field='volc_tts_require_usage'
+                            label={t('返回上游用量统计')}
+                            checkedText={t('开')}
+                            uncheckedText={t('关')}
+                            onChange={(value) =>
+                              handleInputChange('volc_tts_require_usage', value)
+                            }
+                            extraText={t(
+                              '开启后会发送 X-Control-Require-Usage-Tokens-Return 头部，SessionFinished 帧将携带 usage.text_words 用于计费。'
+                            )}
                           />
                         </div>
                       )}

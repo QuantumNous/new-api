@@ -230,7 +230,29 @@ func GenerateAudioOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	info["text_output"] = usage.CompletionTokenDetails.TextTokens
 	info["audio_ratio"] = audioRatio
 	info["audio_completion_ratio"] = audioCompletionRatio
+	appendVolcTTSAuditInfo(relayInfo, info)
 	return info
+}
+
+// appendVolcTTSAuditInfo records the resolved Volcengine TTS protocol & resource
+// id when present. Only writes keys when non-empty so non-Volcengine logs stay
+// untouched.
+func appendVolcTTSAuditInfo(relayInfo *relaycommon.RelayInfo, info map[string]interface{}) {
+	if relayInfo == nil || info == nil {
+		return
+	}
+	cfg := dto.VolcTTSConfig{}
+	if relayInfo.VolcTTSOverride != nil {
+		cfg = *relayInfo.VolcTTSOverride
+	} else if relayInfo.ChannelMeta != nil {
+		cfg = relayInfo.ChannelOtherSettings.ResolvedVolcTTS()
+	}
+	if cfg.Protocol != "" {
+		info["volc_tts_protocol"] = cfg.Protocol
+	}
+	if cfg.ResourceID != "" {
+		info["volc_resource_id"] = cfg.ResourceID
+	}
 }
 
 func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
