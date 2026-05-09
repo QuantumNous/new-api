@@ -4416,6 +4416,14 @@ html.dark
   margin-bottom: 24px;
 }
 
+.billing-wallet-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .billing-wallet-title.semi-typography {
   margin: 0 !important;
   color: var(--app-text-primary);
@@ -4447,6 +4455,37 @@ html.dark
   color: var(--app-text-primary);
   box-shadow: var(--app-panel-shadow-soft);
   backdrop-filter: blur(var(--app-glass-blur));
+}
+
+.billing-invite-button.semi-button {
+  border-color: color-mix(
+    in srgb,
+    var(--app-accent-strong) 22%,
+    var(--app-panel-border)
+  ) !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--app-accent-soft-strong) 46%, white) 0%,
+    color-mix(in srgb, var(--app-accent-soft) 56%, white) 100%
+  ) !important;
+  color: var(--app-accent-strong) !important;
+  box-shadow:
+    0 12px 26px color-mix(in srgb, var(--app-accent-strong) 14%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.billing-invite-button.semi-button:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--app-accent-strong) 34%,
+    var(--app-panel-border)
+  ) !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--app-accent-soft-strong) 58%, white) 0%,
+    color-mix(in srgb, var(--app-accent-soft) 68%, white) 100%
+  ) !important;
+  color: var(--app-accent-strong) !important;
 }
 
 .billing-wallet-stack {
@@ -5851,6 +5890,29 @@ html.dark .billing-amount-option.is-active {
   background: var(--app-accent-soft) !important;
 }
 
+html.dark .billing-invite-button.semi-button {
+  border-color: rgba(59, 130, 246, 0.28) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(30, 64, 175, 0.24) 0%,
+    rgba(14, 165, 233, 0.12) 100%
+  ) !important;
+  color: #dbeafe !important;
+  box-shadow:
+    0 12px 24px rgba(2, 6, 23, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+html.dark .billing-invite-button.semi-button:hover {
+  border-color: rgba(96, 165, 250, 0.38) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.3) 0%,
+    rgba(14, 165, 233, 0.16) 100%
+  ) !important;
+  color: #eff6ff !important;
+}
+
 html.dark .billing-panel-icon-warm,
 html.dark .billing-redeem-callout {
   border-color: rgba(245, 139, 0, 0.25);
@@ -5997,6 +6059,11 @@ html.dark .referral-rule-index {
   .billing-balance-card .semi-card-body {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .billing-wallet-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .billing-balance-side {

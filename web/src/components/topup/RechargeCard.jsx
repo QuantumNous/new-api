@@ -36,11 +36,13 @@ import { SiAlipay, SiStripe, SiWechat } from 'react-icons/si';
 import {
   ArrowRight,
   Coins,
+  Copy,
   CreditCard,
   Receipt,
   Sparkles,
   Wallet,
 } from 'lucide-react';
+import { copy as copyText, showSuccess } from '../../helpers';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
@@ -131,6 +133,13 @@ const RechargeCard = ({
       setActiveTab('topup');
     }
   }, [shouldShowSubscription, activeTab]);
+
+  const handleCopyInviteLink = async () => {
+    const affCode = userState?.user?.aff_code;
+    if (!affCode) return;
+    await copyText(`${window.location.origin}/register?aff=${affCode}`);
+    showSuccess(t('邀请链接已复制到剪切板'));
+  };
 
   useEffect(() => {
     if (selectedPayment) {
@@ -568,14 +577,25 @@ const RechargeCard = ({
             {t('为账户充值额度，查看余额和账单记录')}
           </p>
         </div>
-        <Button
-          icon={<Receipt size={16} />}
-          theme='outline'
-          onClick={onOpenHistory}
-          className='billing-history-button'
-        >
-          {t('充值账单')}
-        </Button>
+        <div className='billing-wallet-actions'>
+          <Button
+            icon={<Copy size={16} />}
+            theme='outline'
+            onClick={handleCopyInviteLink}
+            disabled={!userState?.user?.aff_code}
+            className='billing-history-button billing-invite-button'
+          >
+            {t('复制邀请链接')}
+          </Button>
+          <Button
+            icon={<Receipt size={16} />}
+            theme='outline'
+            onClick={onOpenHistory}
+            className='billing-history-button'
+          >
+            {t('充值账单')}
+          </Button>
+        </div>
       </div>
 
       {shouldShowSubscription ? (

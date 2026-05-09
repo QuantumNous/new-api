@@ -145,11 +145,11 @@ const SiderBar = ({
         itemKey: 'topup',
         to: '/topup',
       },
-      {
-        text: t('邀请'),
-        itemKey: 'referral',
-        to: '/referral',
-      },
+      // {
+      //   text: t('邀请'),
+      //   itemKey: 'referral',
+      //   to: '/referral',
+      // },
       {
         text: t('个人设置'),
         itemKey: 'personal',
