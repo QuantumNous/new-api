@@ -80,11 +80,15 @@
 }
 
 .home-hero-title {
-  letter-spacing: -0.055em;
-  line-height: 0.97;
+  /* letter-spacing: -0.055em;
+  line-height: 0.97; */
+  line-height: 1.06;
+  letter-spacing: -0.02em;
 }
 
 .home-hero-title-primary {
+  line-height: 1.06;
+  letter-spacing: -0.02em;
   background-image: linear-gradient(
     135deg,
     #233149 0%,
