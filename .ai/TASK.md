@@ -1761,3 +1761,86 @@ status: completed
 - 上线前保持 `InvitationRebateEnabled=false`，先在本地或备份库确认新表和唯一索引创建成功。
 - 用低风险测试账号验证低额累计、满额返利、重复请求幂等和后台流水展示。
 - 生产如发现异常，第一步关闭 `InvitationRebateEnabled`，保留 `users`、`options`、`invitation_rebate_consumptions`、`invitation_rebate_accumulations`、`invitation_rebate_records` 和消费日志用于核账。
+## 累计邀请返利审计可解释性优化记录
+
+任务名称：新增累计返利结算明细与后台只读详情
+status: completed
+
+### 本轮目标
+
+- 保留现有累计返利核心算法、消费挂接、充值、注册 / OAuth、异步任务与 Midjourney 范围不变。
+- 新增结算明细审计层，解决管理员流水只看到触发 request id、无法复盘本次累计返利覆盖哪些消费明细的问题。
+- 管理员流水列表继续保留，新增只读详情入口；不新增补发、删除、导出、手动修改、多级邀请或普通用户日志页。
+
+### 本轮实际修改文件
+
+- `model/invitation_rebate_record.go`
+- `model/main.go`
+- `service/invitation_rebate.go`
+- `service/invitation_rebate_test.go`
+- `controller/invitation_rebate.go`
+- `controller/invitation_rebate_auth_test.go`
+- `controller/invitation_rebate_test.go`
+- `router/api-router.go`
+- `web/default/src/features/system-settings/api.ts`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/features/system-settings/general/invitation-rebate-records-section.tsx`
+- `web/default/src/i18n/locales/{en,zh,fr,ja,ru,vi}.json`
+- `web/classic/src/pages/Setting/Operation/InvitationRebateRecordsModal.jsx`
+- `web/classic/src/i18n/locales/{en,zh,zh-CN,zh-TW,fr,ja,ru,vi}.json`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 新增主库表模型 `InvitationRebateSettlementItem`，记录 `rebate_record_id`、`consumption_id`、邀请人 / 被邀请人、消费 source type/key/request id、本次从该消费结算的 quota、消费发生时的比例快照、本段返利 quota、结算前后取整余数。
+- `InvitationRebateSettlementItem` 已注册到 `AutoMigrate` 和 fast migration 列表，使用 GORM 普通字段和索引，未使用数据库特有语法。
+- `TryGrantInvitationRebate` 内部改为先生成结算计划，再同事务创建返利流水、创建结算明细、更新消费明细状态、更新累计状态并增加邀请人 `aff_quota` / `aff_history`。
+- 当低比例导致本次 `rebate_quota=0` 时，仍创建 0 金额结算流水和明细用于审计复盘，但不增加邀请人返利余额。
+- 新增管理员只读详情接口 `GET /api/user/invitation_rebate/:id`，返回单条返利流水、结算明细列表以及 legacy 标记；路由继续挂在 `AdminAuth` 管理员权限组。
+- 新版前端和旧版前端的管理员返利流水均新增“详情”入口，展示本次累计结算覆盖的消费明细；旧流水无明细时展示 legacy 说明。
+- i18n 已手动补齐本轮新增 key，未执行 `.agents/skills` 命令。
+
+### 未修改范围
+
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改异步任务 / Midjourney。
+- 未扩大同步消费挂接范围。
+- 未新增补发、删除、导出、手动修改、多级邀请或普通用户返利日志。
+- 未修改依赖文件，未提交 `node_modules` 或构建产物。
+
+### 验证命令与结果
+
+- `gofmt -w model/invitation_rebate_record.go model/main.go service/invitation_rebate.go service/invitation_rebate_test.go controller/invitation_rebate.go controller/invitation_rebate_auth_test.go controller/invitation_rebate_test.go`：通过。
+- `go test ./service -run "TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume" -count=1`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./service/...`：未通过，仍失败在既有 `service/channel_affinity_usage_cache_test.go`，本轮复现用例为 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode` 和 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`，与累计返利审计明细无直接交集。
+- `cd web/default && bun run typecheck`：通过，使用临时 Bun 1.3.13。
+- `cd web/default && bun run build`：通过。
+- `cd web/classic && bun run build`：通过，仅有既有 Browserslist、lottie eval 和 chunk size warning。
+- `cd web/default && bun run lint`：未通过，失败文件均为既有非本轮修改文件。
+- `cd web/classic && bun run lint`：未通过，失败为既有 Prettier / dist 检查债务；对本轮 `InvitationRebateRecordsModal.jsx` 做定向 Prettier 后，该文件不再出现在失败清单中。
+- locale JSON parse 与本轮新增 key 完整性检查：通过。
+- `git diff --check`：通过。
+
+### 已知失败与豁免依据
+
+- `go test ./service/...` 仍受既有 channel affinity usage cache 测试失败影响；定向返利 service 测试已通过，本轮新增结算明细、事务回滚和详情接口不涉及该缓存逻辑。
+- 新版前端 lint 仍失败在既有文件：`api-keys-dialogs.tsx`、`group-ratio-visual-editor.tsx`、`ratio-settings-card.tsx`、`tiered-pricing-editor.tsx`、`common-logs-filter-bar.tsx`、`task-logs-filter-bar.tsx`、`theme-radius.ts` 等，均非本轮修改文件。
+- 旧版前端 lint 仍失败在既有大范围 Prettier / dist 检查债务；本轮修改的旧版返利流水 Modal 已定向格式化并从失败清单移除。
+
+### 自审查结果
+
+- 通过：返利流水、结算明细、消费明细状态、累计状态、邀请人返利余额仍在同一主库事务内完成，任一步失败整体回滚。
+- 通过：重复 `source_type + source_key` 不重复累计、不重复返利。
+- 通过：详情接口只读，且位于管理员权限组；普通用户权限测试覆盖列表与详情路由。
+- 通过：前端只新增管理员只读详情展示，不提供补发、删除、导出或修改。
+- 通过：未修改充值、注册 / OAuth、异步任务、Midjourney、依赖文件或构建产物。
+- 通过：未输出或写入 token / secret / sk- key / bearer token。
+
+### 下一步建议
+
+- 上线前继续保持 `InvitationRebateEnabled=false`，先在本地或备份库验证 `invitation_rebate_settlement_items` 表与索引创建成功。
+- 用测试账号验收低额累计、跨多笔消费结算、同一消费拆分结算、比例变更快照、低比例 0 金额明细、详情展示和重复 request id 幂等。
+- 生产开启前先小比例、小门槛、小流量灰度；如发现异常，第一步关闭 `InvitationRebateEnabled` 并保留 `users`、`options`、累计表、返利流水、结算明细和消费日志用于核账。

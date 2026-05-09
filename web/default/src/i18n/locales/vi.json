@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "Mỗi dòng hiển thị một yêu cầu tiêu thụ được tính trong lần quyết toán hoàn tiền tích lũy này.",
+    "Failed to load invitation rebate record detail": "Không thể tải chi tiết bản ghi hoàn tiền lời mời",
+    "Invitation Rebate Settlement Detail": "Chi tiết quyết toán hoàn tiền lời mời",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "Bản ghi hoàn tiền cũ chỉ giữ source key kích hoạt và không có chi tiết quyết toán.",
+    "No settlement item details found": "Không tìm thấy chi tiết quyết toán",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "Bản ghi quyết toán tích lũy chỉ đọc dựa trên mức tiêu thụ thực tế của người được mời.",
+    "Remainder After": "Số dư sau",
+    "Remainder Before": "Số dư trước",
+    "Settled Source Quota": "Quota tiêu thụ đã quyết toán",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

@@ -111,3 +111,45 @@ func (r *InvitationRebateAccumulation) BeforeUpdate(tx *gorm.DB) error {
 	r.UpdatedAt = common.GetTimestamp()
 	return nil
 }
+
+type InvitationRebateSettlementItem struct {
+	Id                 int    `json:"id" gorm:"primaryKey"`
+	RebateRecordId     int    `json:"rebate_record_id" gorm:"not null;index;uniqueIndex:idx_invitation_rebate_settlement_record_consumption,priority:1"`
+	ConsumptionId      int    `json:"consumption_id" gorm:"not null;index;uniqueIndex:idx_invitation_rebate_settlement_record_consumption,priority:2"`
+	InviterUserId      int    `json:"inviter_user_id" gorm:"not null;index"`
+	InviteeUserId      int    `json:"invitee_user_id" gorm:"not null;index"`
+	SourceType         string `json:"source_type" gorm:"type:varchar(32);not null;index"`
+	SourceKey          string `json:"source_key" gorm:"type:varchar(128);not null;index"`
+	SourceRequestId    string `json:"source_request_id" gorm:"type:varchar(64);index;default:''"`
+	SettledSourceQuota int    `json:"settled_source_quota" gorm:"default:0"`
+	RebateRatioBps     int    `json:"rebate_ratio_bps" gorm:"default:0"`
+	RebateQuota        int    `json:"rebate_quota" gorm:"default:0"`
+	RemainderBefore    int64  `json:"remainder_before" gorm:"default:0"`
+	RemainderAfter     int64  `json:"remainder_after" gorm:"default:0"`
+	CreatedAt          int64  `json:"created_at" gorm:"bigint;index"`
+	UpdatedAt          int64  `json:"updated_at" gorm:"bigint"`
+}
+
+func (r *InvitationRebateSettlementItem) BeforeCreate(tx *gorm.DB) error {
+	if r.RebateRecordId == 0 {
+		return errors.New("invitation rebate settlement rebate record id is required")
+	}
+	if r.ConsumptionId == 0 {
+		return errors.New("invitation rebate settlement consumption id is required")
+	}
+	if r.SourceType == "" {
+		return errors.New("invitation rebate settlement source type is required")
+	}
+	if r.SourceKey == "" {
+		return errors.New("invitation rebate settlement source key is required")
+	}
+	now := common.GetTimestamp()
+	r.CreatedAt = now
+	r.UpdatedAt = now
+	return nil
+}
+
+func (r *InvitationRebateSettlementItem) BeforeUpdate(tx *gorm.DB) error {
+	r.UpdatedAt = common.GetTimestamp()
+	return nil
+}

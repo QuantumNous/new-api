@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Empty,
@@ -80,6 +80,9 @@ export default function InvitationRebateRecordsModal({ visible, onCancel }) {
     status: '',
   });
   const [appliedFilters, setAppliedFilters] = useState(filters);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState(null);
 
   const loadRecords = async (
     currentPage = page,
@@ -132,6 +135,89 @@ export default function InvitationRebateRecordsModal({ visible, onCancel }) {
     setPage(1);
     setAppliedFilters(nextFilters);
   };
+
+  const loadRecordDetail = useCallback(
+    async (record) => {
+      setDetailVisible(true);
+      setDetailLoading(true);
+      setDetail(null);
+      try {
+        const res = await API.get(`/api/user/invitation_rebate/${record.id}`);
+        const { success, message, data } = res.data;
+        if (success) {
+          setDetail(data || null);
+        } else {
+          showError(
+            message || t('Failed to load invitation rebate record detail'),
+          );
+        }
+      } catch (error) {
+        showError(t('Failed to load invitation rebate record detail'));
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [t],
+  );
+
+  const detailColumns = useMemo(
+    () => [
+      {
+        title: 'ID',
+        dataIndex: 'id',
+        key: 'id',
+        width: 80,
+      },
+      {
+        title: t('Source Key'),
+        dataIndex: 'source_key',
+        key: 'source_key',
+        width: 180,
+        render: (text) => <Text copyable>{text || '-'}</Text>,
+      },
+      {
+        title: t('Request ID'),
+        dataIndex: 'source_request_id',
+        key: 'source_request_id',
+        width: 180,
+        render: (text) => <Text copyable>{text || '-'}</Text>,
+      },
+      {
+        title: t('Settled Source Quota'),
+        dataIndex: 'settled_source_quota',
+        key: 'settled_source_quota',
+        width: 150,
+        render: (quota) => <Tag color='grey'>{renderQuota(quota)}</Tag>,
+      },
+      {
+        title: t('Rebate Percentage'),
+        dataIndex: 'rebate_ratio_bps',
+        key: 'rebate_ratio_bps',
+        width: 130,
+        render: formatRebatePercent,
+      },
+      {
+        title: t('Rebate Quota'),
+        dataIndex: 'rebate_quota',
+        key: 'rebate_quota',
+        width: 130,
+        render: (quota) => <Tag color='green'>{renderQuota(quota)}</Tag>,
+      },
+      {
+        title: t('Remainder Before'),
+        dataIndex: 'remainder_before',
+        key: 'remainder_before',
+        width: 140,
+      },
+      {
+        title: t('Remainder After'),
+        dataIndex: 'remainder_after',
+        key: 'remainder_after',
+        width: 140,
+      },
+    ],
+    [t],
+  );
 
   const columns = useMemo(
     () => [
@@ -206,89 +292,147 @@ export default function InvitationRebateRecordsModal({ visible, onCancel }) {
         width: 180,
         render: (time) => (time ? timestamp2string(time) : '-'),
       },
+      {
+        title: t('Actions'),
+        key: 'actions',
+        width: 100,
+        render: (_, record) => (
+          <Button onClick={() => loadRecordDetail(record)}>
+            {t('Details')}
+          </Button>
+        ),
+      },
     ],
-    [t],
+    [loadRecordDetail, t],
   );
 
   return (
-    <Modal
-      title={t('邀请返利流水')}
-      visible={visible}
-      onCancel={onCancel}
-      footer={null}
-      size='large'
-    >
-      <div style={{ marginBottom: 12 }}>
-        <Text type='tertiary'>
-          {t('返利基于实际消费记录，仅管理员可查看。')}
-        </Text>
-      </div>
-      <Space wrap style={{ marginBottom: 12 }}>
-        <Input
-          style={{ width: 150 }}
-          value={filters.inviter_user_id}
-          placeholder={t('邀请人用户 ID')}
-          onChange={(value) => updateFilter('inviter_user_id', value)}
-          showClear
-        />
-        <Input
-          style={{ width: 160 }}
-          value={filters.invitee_user_id}
-          placeholder={t('被邀请人用户 ID')}
-          onChange={(value) => updateFilter('invitee_user_id', value)}
-          showClear
-        />
-        <Input
-          style={{ width: 180 }}
-          value={filters.source_key}
-          placeholder={t('来源 Key')}
-          onChange={(value) => updateFilter('source_key', value)}
-          showClear
-        />
-        <Select
-          style={{ width: 120 }}
-          value={filters.status}
-          onChange={(value) => updateFilter('status', value)}
-        >
-          <Select.Option value=''>{t('全部状态')}</Select.Option>
-          <Select.Option value='success'>{t('成功')}</Select.Option>
-        </Select>
-        <Button type='primary' onClick={handleSearch}>
-          {t('搜索')}
-        </Button>
-        <Button onClick={handleReset}>{t('重置')}</Button>
-        <Button onClick={() => loadRecords(page, pageSize)}>{t('刷新')}</Button>
-      </Space>
-      <Table
-        columns={columns}
-        dataSource={records}
-        loading={loading}
-        rowKey='id'
-        size='small'
-        scroll={{ x: 'max-content' }}
-        pagination={{
-          currentPage: page,
-          pageSize,
-          total,
-          showSizeChanger: true,
-          pageSizeOpts: PAGE_SIZE_OPTIONS,
-          onPageChange: setPage,
-          onPageSizeChange: (nextPageSize) => {
-            setPageSize(nextPageSize);
-            setPage(1);
-          },
-        }}
-        empty={
-          <Empty
-            image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-            darkModeImage={
-              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-            }
-            description={t('暂无邀请返利流水')}
-            style={{ padding: 30 }}
+    <>
+      <Modal
+        title={t('邀请返利流水')}
+        visible={visible}
+        onCancel={onCancel}
+        footer={null}
+        size='large'
+      >
+        <div style={{ marginBottom: 12 }}>
+          <Text type='tertiary'>
+            {t(
+              'Cumulative rebate records based on actual invited consumption.',
+            )}
+          </Text>
+        </div>
+        <Space wrap style={{ marginBottom: 12 }}>
+          <Input
+            style={{ width: 150 }}
+            value={filters.inviter_user_id}
+            placeholder={t('邀请人用户 ID')}
+            onChange={(value) => updateFilter('inviter_user_id', value)}
+            showClear
           />
-        }
-      />
-    </Modal>
+          <Input
+            style={{ width: 160 }}
+            value={filters.invitee_user_id}
+            placeholder={t('被邀请人用户 ID')}
+            onChange={(value) => updateFilter('invitee_user_id', value)}
+            showClear
+          />
+          <Input
+            style={{ width: 180 }}
+            value={filters.source_key}
+            placeholder={t('来源 Key')}
+            onChange={(value) => updateFilter('source_key', value)}
+            showClear
+          />
+          <Select
+            style={{ width: 120 }}
+            value={filters.status}
+            onChange={(value) => updateFilter('status', value)}
+          >
+            <Select.Option value=''>{t('全部状态')}</Select.Option>
+            <Select.Option value='success'>{t('成功')}</Select.Option>
+          </Select>
+          <Button type='primary' onClick={handleSearch}>
+            {t('搜索')}
+          </Button>
+          <Button onClick={handleReset}>{t('重置')}</Button>
+          <Button onClick={() => loadRecords(page, pageSize)}>
+            {t('刷新')}
+          </Button>
+        </Space>
+        <Table
+          columns={columns}
+          dataSource={records}
+          loading={loading}
+          rowKey='id'
+          size='small'
+          scroll={{ x: 'max-content' }}
+          pagination={{
+            currentPage: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            pageSizeOpts: PAGE_SIZE_OPTIONS,
+            onPageChange: setPage,
+            onPageSizeChange: (nextPageSize) => {
+              setPageSize(nextPageSize);
+              setPage(1);
+            },
+          }}
+          empty={
+            <Empty
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
+              darkModeImage={
+                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+              }
+              description={t('暂无邀请返利流水')}
+              style={{ padding: 30 }}
+            />
+          }
+        />
+      </Modal>
+      <Modal
+        title={t('Invitation Rebate Settlement Detail')}
+        visible={detailVisible}
+        onCancel={() => setDetailVisible(false)}
+        footer={null}
+        size='large'
+      >
+        <div style={{ marginBottom: 12 }}>
+          <Text type='tertiary'>
+            {detail?.legacy
+              ? t(
+                  'Legacy rebate records only retain the trigger source key and do not include settlement item details.',
+                )
+              : t(
+                  'Each row shows one consumed request included in this cumulative rebate settlement.',
+                )}
+          </Text>
+        </div>
+        <Table
+          columns={detailColumns}
+          dataSource={detail?.items || []}
+          loading={detailLoading}
+          rowKey='id'
+          size='small'
+          scroll={{ x: 'max-content' }}
+          pagination={false}
+          empty={
+            <Empty
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
+              darkModeImage={
+                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+              }
+              description={t('No settlement item details found')}
+              style={{ padding: 30 }}
+            />
+          }
+        />
+      </Modal>
+    </>
   );
 }

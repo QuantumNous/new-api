@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "Each row shows one consumed request included in this cumulative rebate settlement.",
+    "Failed to load invitation rebate record detail": "Failed to load invitation rebate record detail",
+    "Invitation Rebate Settlement Detail": "Invitation Rebate Settlement Detail",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "Legacy rebate records only retain the trigger source key and do not include settlement item details.",
+    "No settlement item details found": "No settlement item details found",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "Read-only cumulative settlement records based on invited users' actual consumption.",
+    "Remainder After": "Remainder After",
+    "Remainder Before": "Remainder Before",
+    "Settled Source Quota": "Settled Source Quota",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

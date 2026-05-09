@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "Каждая строка показывает один запрос потребления, включенный в это накопительное начисление реферального возврата.",
+    "Failed to load invitation rebate record detail": "Не удалось загрузить детали записи реферального возврата",
+    "Invitation Rebate Settlement Detail": "Детали начисления реферального возврата",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "Старые записи возврата содержат только trigger source key и не включают детали начисления.",
+    "No settlement item details found": "Детали начисления не найдены",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "Записи накопительных начислений только для чтения на основе фактического потребления приглашенных пользователей.",
+    "Remainder After": "Остаток после",
+    "Remainder Before": "Остаток до",
+    "Settled Source Quota": "Начисленная квота потребления",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

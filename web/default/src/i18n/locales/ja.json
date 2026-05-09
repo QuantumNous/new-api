@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "各行は、この累計リベート精算に含まれる消費リクエストを示します。",
+    "Failed to load invitation rebate record detail": "招待リベート記録の詳細を読み込めませんでした",
+    "Invitation Rebate Settlement Detail": "招待リベート精算明細",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "旧版のリベート記録にはトリガー source key のみが残り、精算明細は含まれません。",
+    "No settlement item details found": "精算明細が見つかりません",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "招待されたユーザーの実消費に基づく読み取り専用の累計精算記録です。",
+    "Remainder After": "精算後の余り",
+    "Remainder Before": "精算前の余り",
+    "Settled Source Quota": "精算済み消費クォータ",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

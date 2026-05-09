@@ -50,6 +50,8 @@ type InvitationRebateResult struct {
 	RebateRatioBps int
 }
 
+var invitationRebateBeforeInviterUpdateHook func(*gorm.DB) error
+
 func TryGrantInvitationRebate(ctx context.Context, input InvitationRebateInput) (*InvitationRebateResult, error) {
 	result := newInvitationRebateResult(input)
 	if !common.InvitationRebateEnabled {
@@ -113,6 +115,22 @@ func normalizeInvitationRebateRatioBps(ratioBps int) int {
 
 func calculateInvitationRebateQuota(sourceQuota int, ratioBps int) int {
 	return int(int64(sourceQuota) * int64(ratioBps) / 10000)
+}
+
+type invitationRebateSettlementPlanItem struct {
+	ConsumptionId         int
+	InviterUserId         int
+	InviteeUserId         int
+	SourceType            string
+	SourceKey             string
+	SourceRequestId       string
+	SettledSourceQuota    int
+	RebateRatioBps        int
+	RebateQuota           int
+	RemainderBefore       int64
+	RemainderAfter        int64
+	NewSettledSourceQuota int
+	NewStatus             string
 }
 
 func grantInvitationRebateTx(tx *gorm.DB, input InvitationRebateInput, ratioBps int) (*InvitationRebateResult, error) {
@@ -218,7 +236,7 @@ func grantInvitationRebateTx(tx *gorm.DB, input InvitationRebateInput, ratioBps 
 		return result, nil
 	}
 
-	rebateQuota, remainder, err := settleInvitationRebateConsumptionsTx(tx, state, settleQuota)
+	settlementItems, rebateQuota, remainder, err := buildInvitationRebateSettlementPlanTx(tx, state, settleQuota)
 	if err != nil {
 		return result, err
 	}
@@ -244,14 +262,6 @@ func grantInvitationRebateTx(tx *gorm.DB, input InvitationRebateInput, ratioBps 
 	state.TotalSettledSourceQuota = totalSettledAfter
 	state.TotalRebateQuota = totalRebateAfter
 	state.RebateNumeratorRemainder = remainder
-
-	if rebateQuota <= 0 {
-		if err := saveInvitationRebateAccumulationTx(tx, state); err != nil {
-			return result, err
-		}
-		result.Status = InvitationRebateResultStatusAccumulated
-		return result, nil
-	}
 
 	effectiveRatioBps, err := calculateEffectiveInvitationRebateRatioBps(settleQuota, rebateQuota)
 	if err != nil {
@@ -284,21 +294,38 @@ func grantInvitationRebateTx(tx *gorm.DB, input InvitationRebateInput, ratioBps 
 		return result, fmt.Errorf("invitation rebate record already exists for source %s/%s", input.SourceType, input.SourceKey)
 	}
 
-	updateResult := tx.Model(&model.User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
-		"aff_quota":   gorm.Expr("aff_quota + ?", rebateQuota),
-		"aff_history": gorm.Expr("aff_history + ?", rebateQuota),
-	})
-	if updateResult.Error != nil {
-		return result, updateResult.Error
+	if err := createInvitationRebateSettlementItemsTx(tx, record.Id, settlementItems); err != nil {
+		return result, err
 	}
-	if updateResult.RowsAffected == 0 {
-		return result, fmt.Errorf("invitation rebate inviter %d was not updated", inviterId)
+	if err := applyInvitationRebateSettlementPlanTx(tx, settlementItems); err != nil {
+		return result, err
+	}
+	if rebateQuota > 0 {
+		if invitationRebateBeforeInviterUpdateHook != nil {
+			if err := invitationRebateBeforeInviterUpdateHook(tx); err != nil {
+				return result, err
+			}
+		}
+		updateResult := tx.Model(&model.User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
+			"aff_quota":   gorm.Expr("aff_quota + ?", rebateQuota),
+			"aff_history": gorm.Expr("aff_history + ?", rebateQuota),
+		})
+		if updateResult.Error != nil {
+			return result, updateResult.Error
+		}
+		if updateResult.RowsAffected == 0 {
+			return result, fmt.Errorf("invitation rebate inviter %d was not updated", inviterId)
+		}
 	}
 	if err := saveInvitationRebateAccumulationTx(tx, state); err != nil {
 		return result, err
 	}
 
-	result.Status = InvitationRebateResultStatusGranted
+	if rebateQuota > 0 {
+		result.Status = InvitationRebateResultStatusGranted
+	} else {
+		result.Status = InvitationRebateResultStatusAccumulated
+	}
 	result.RecordId = record.Id
 	result.RebateRatioBps = effectiveRatioBps
 	result.PendingQuota = state.PendingSourceQuota
@@ -409,19 +436,20 @@ func calculateInvitationRebateSettleQuota(pendingQuota int, minQuota int) int {
 	return pendingQuota / minQuota * minQuota
 }
 
-func settleInvitationRebateConsumptionsTx(tx *gorm.DB, state *model.InvitationRebateAccumulation, settleQuota int) (int, int64, error) {
+func buildInvitationRebateSettlementPlanTx(tx *gorm.DB, state *model.InvitationRebateAccumulation, settleQuota int) ([]invitationRebateSettlementPlanItem, int, int64, error) {
 	var consumptions []*model.InvitationRebateConsumption
 	err := tx.Set("gorm:query_option", "FOR UPDATE").
 		Where("inviter_user_id = ? AND invitee_user_id = ? AND settled_source_quota < source_quota", state.InviterUserId, state.InviteeUserId).
 		Order("created_at asc, id asc").
 		Find(&consumptions).Error
 	if err != nil {
-		return 0, state.RebateNumeratorRemainder, err
+		return nil, 0, state.RebateNumeratorRemainder, err
 	}
 
 	remaining := settleQuota
 	rebateTotal := int64(0)
 	remainder := state.RebateNumeratorRemainder
+	settlementItems := make([]invitationRebateSettlementPlanItem, 0, len(consumptions))
 	for _, consumption := range consumptions {
 		if remaining <= 0 {
 			break
@@ -434,34 +462,85 @@ func settleInvitationRebateConsumptionsTx(tx *gorm.DB, state *model.InvitationRe
 		if used > remaining {
 			used = remaining
 		}
+		remainderBefore := remainder
 		numerator := int64(used)*int64(consumption.RebateRatioBps) + remainder
-		rebateTotal += numerator / 10000
+		itemRebate := numerator / 10000
+		rebateTotal += itemRebate
 		remainder = numerator % 10000
-		consumption.SettledSourceQuota += used
+		newSettledSourceQuota := consumption.SettledSourceQuota + used
 		remaining -= used
 
 		status := model.InvitationRebateConsumptionStatusPartiallySettled
-		if consumption.SettledSourceQuota >= consumption.SourceQuota {
+		if newSettledSourceQuota >= consumption.SourceQuota {
 			status = model.InvitationRebateConsumptionStatusSettled
 		}
-		if err := tx.Model(&model.InvitationRebateConsumption{}).
-			Where("id = ?", consumption.Id).
-			Updates(map[string]interface{}{
-				"settled_source_quota": consumption.SettledSourceQuota,
-				"status":               status,
-			}).Error; err != nil {
-			return 0, remainder, err
+		rebateQuota, err := checkedInvitationRebateInt64ToInt(itemRebate, "invitation rebate settlement item quota")
+		if err != nil {
+			return nil, 0, remainder, err
 		}
+		settlementItems = append(settlementItems, invitationRebateSettlementPlanItem{
+			ConsumptionId:         consumption.Id,
+			InviterUserId:         consumption.InviterUserId,
+			InviteeUserId:         consumption.InviteeUserId,
+			SourceType:            consumption.SourceType,
+			SourceKey:             consumption.SourceKey,
+			SourceRequestId:       consumption.SourceRequestId,
+			SettledSourceQuota:    used,
+			RebateRatioBps:        consumption.RebateRatioBps,
+			RebateQuota:           rebateQuota,
+			RemainderBefore:       remainderBefore,
+			RemainderAfter:        remainder,
+			NewSettledSourceQuota: newSettledSourceQuota,
+			NewStatus:             status,
+		})
 	}
 	if remaining > 0 {
-		return 0, remainder, fmt.Errorf("invitation rebate accumulation missing %d source quota to settle", remaining)
+		return nil, 0, remainder, fmt.Errorf("invitation rebate accumulation missing %d source quota to settle", remaining)
 	}
 
 	rebateQuota, err := checkedInvitationRebateInt64ToInt(rebateTotal, "invitation rebate quota")
 	if err != nil {
-		return 0, remainder, err
+		return nil, 0, remainder, err
 	}
-	return rebateQuota, remainder, nil
+	return settlementItems, rebateQuota, remainder, nil
+}
+
+func createInvitationRebateSettlementItemsTx(tx *gorm.DB, recordId int, planItems []invitationRebateSettlementPlanItem) error {
+	items := make([]*model.InvitationRebateSettlementItem, 0, len(planItems))
+	for _, item := range planItems {
+		items = append(items, &model.InvitationRebateSettlementItem{
+			RebateRecordId:     recordId,
+			ConsumptionId:      item.ConsumptionId,
+			InviterUserId:      item.InviterUserId,
+			InviteeUserId:      item.InviteeUserId,
+			SourceType:         item.SourceType,
+			SourceKey:          item.SourceKey,
+			SourceRequestId:    item.SourceRequestId,
+			SettledSourceQuota: item.SettledSourceQuota,
+			RebateRatioBps:     item.RebateRatioBps,
+			RebateQuota:        item.RebateQuota,
+			RemainderBefore:    item.RemainderBefore,
+			RemainderAfter:     item.RemainderAfter,
+		})
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return tx.Create(&items).Error
+}
+
+func applyInvitationRebateSettlementPlanTx(tx *gorm.DB, planItems []invitationRebateSettlementPlanItem) error {
+	for _, item := range planItems {
+		if err := tx.Model(&model.InvitationRebateConsumption{}).
+			Where("id = ?", item.ConsumptionId).
+			Updates(map[string]interface{}{
+				"settled_source_quota": item.NewSettledSourceQuota,
+				"status":               item.NewStatus,
+			}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func calculateEffectiveInvitationRebateRatioBps(settleQuota int, rebateQuota int) (int, error) {

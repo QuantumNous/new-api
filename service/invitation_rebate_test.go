@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func setupInvitationRebateTest(t *testing.T) {
@@ -25,6 +26,7 @@ func setupInvitationRebateTest(t *testing.T) {
 		&model.InvitationRebateRecord{},
 		&model.InvitationRebateConsumption{},
 		&model.InvitationRebateAccumulation{},
+		&model.InvitationRebateSettlementItem{},
 	))
 	cleanupInvitationRebateTables(t)
 
@@ -38,6 +40,7 @@ func setupInvitationRebateTest(t *testing.T) {
 
 func cleanupInvitationRebateTables(t *testing.T) {
 	t.Helper()
+	require.NoError(t, model.DB.Exec("DELETE FROM invitation_rebate_settlement_items").Error)
 	require.NoError(t, model.DB.Exec("DELETE FROM invitation_rebate_records").Error)
 	require.NoError(t, model.DB.Exec("DELETE FROM invitation_rebate_consumptions").Error)
 	require.NoError(t, model.DB.Exec("DELETE FROM invitation_rebate_accumulations").Error)
@@ -77,6 +80,27 @@ func countInvitationRebateConsumptions(t *testing.T) int64 {
 	var count int64
 	require.NoError(t, model.DB.Model(&model.InvitationRebateConsumption{}).Count(&count).Error)
 	return count
+}
+
+func countInvitationRebateSettlementItems(t *testing.T) int64 {
+	t.Helper()
+	var count int64
+	require.NoError(t, model.DB.Model(&model.InvitationRebateSettlementItem{}).Count(&count).Error)
+	return count
+}
+
+func getInvitationRebateRecordBySource(t *testing.T, sourceKey string) model.InvitationRebateRecord {
+	t.Helper()
+	var record model.InvitationRebateRecord
+	require.NoError(t, model.DB.Where("source_type = ? AND source_key = ?", "sync_relay_request", sourceKey).First(&record).Error)
+	return record
+}
+
+func getInvitationRebateSettlementItems(t *testing.T, recordId int) []model.InvitationRebateSettlementItem {
+	t.Helper()
+	var items []model.InvitationRebateSettlementItem
+	require.NoError(t, model.DB.Where("rebate_record_id = ?", recordId).Order("id asc").Find(&items).Error)
+	return items
 }
 
 func getInvitationRebateAccumulation(t *testing.T, inviterId int, inviteeId int) model.InvitationRebateAccumulation {
@@ -234,6 +258,14 @@ func TestTryGrantInvitationRebateCumulativeReachesThreshold(t *testing.T) {
 	require.NoError(t, model.DB.Where("source_type = ? AND source_key = ?", "sync_relay_request", "req_cumulative_40").First(&record).Error)
 	require.Equal(t, 100, record.SourceQuota)
 	require.Equal(t, 10, record.RebateQuota)
+	items := getInvitationRebateSettlementItems(t, record.Id)
+	require.Len(t, items, 2)
+	require.Equal(t, "req_cumulative_60", items[0].SourceKey)
+	require.Equal(t, 60, items[0].SettledSourceQuota)
+	require.Equal(t, 6, items[0].RebateQuota)
+	require.Equal(t, "req_cumulative_40", items[1].SourceKey)
+	require.Equal(t, 40, items[1].SettledSourceQuota)
+	require.Equal(t, 4, items[1].RebateQuota)
 }
 
 func TestTryGrantInvitationRebateCumulativeKeepsRemainderQuota(t *testing.T) {
@@ -257,6 +289,48 @@ func TestTryGrantInvitationRebateCumulativeKeepsRemainderQuota(t *testing.T) {
 	inviter := getInvitationRebateUser(t, 1)
 	require.Equal(t, 20, inviter.AffQuota)
 	require.Equal(t, 20, inviter.AffHistoryQuota)
+	require.Equal(t, int64(1), countInvitationRebateSettlementItems(t))
+	record := getInvitationRebateRecordBySource(t, "req_cumulative_250")
+	items := getInvitationRebateSettlementItems(t, record.Id)
+	require.Len(t, items, 1)
+	require.Equal(t, 200, items[0].SettledSourceQuota)
+	require.Equal(t, 20, items[0].RebateQuota)
+}
+
+func TestTryGrantInvitationRebateSplitsOneConsumptionAcrossSettlements(t *testing.T) {
+	setupInvitationRebateTest(t)
+	enableInvitationRebate(1000, 100)
+	seedInvitationRebateUser(t, 1, 0, 0, 0)
+	seedInvitationRebateUser(t, 2, 1, 0, 0)
+
+	first, err := TryGrantInvitationRebate(context.Background(), invitationRebateInput("req_split_250", 250))
+	require.NoError(t, err)
+	second, err := TryGrantInvitationRebate(context.Background(), invitationRebateInput("req_split_50", 50))
+	require.NoError(t, err)
+
+	require.Equal(t, InvitationRebateResultStatusGranted, first.Status)
+	require.Equal(t, 200, first.SettledQuota)
+	require.Equal(t, InvitationRebateResultStatusGranted, second.Status)
+	require.Equal(t, 100, second.SettledQuota)
+	require.Equal(t, int64(2), countInvitationRebateRecords(t))
+	require.Equal(t, int64(3), countInvitationRebateSettlementItems(t))
+
+	secondRecord := getInvitationRebateRecordBySource(t, "req_split_50")
+	items := getInvitationRebateSettlementItems(t, secondRecord.Id)
+	require.Len(t, items, 2)
+	require.Equal(t, "req_split_250", items[0].SourceKey)
+	require.Equal(t, 50, items[0].SettledSourceQuota)
+	require.Equal(t, 5, items[0].RebateQuota)
+	require.Equal(t, "req_split_50", items[1].SourceKey)
+	require.Equal(t, 50, items[1].SettledSourceQuota)
+	require.Equal(t, 5, items[1].RebateQuota)
+	state := getInvitationRebateAccumulation(t, 1, 2)
+	require.Equal(t, 0, state.PendingSourceQuota)
+	require.Equal(t, 300, state.TotalSettledSourceQuota)
+	require.Equal(t, 30, state.TotalRebateQuota)
+	inviter := getInvitationRebateUser(t, 1)
+	require.Equal(t, 30, inviter.AffQuota)
+	require.Equal(t, 30, inviter.AffHistoryQuota)
 }
 
 func TestTryGrantInvitationRebateDuplicateAccumulationIsIdempotent(t *testing.T) {
@@ -341,6 +415,35 @@ func TestTryGrantInvitationRebateAccumulatesFractionalRemainder(t *testing.T) {
 	state := getInvitationRebateAccumulation(t, 1, 2)
 	require.Equal(t, int64(0), state.RebateNumeratorRemainder)
 	require.Equal(t, 4, state.TotalSettledSourceQuota)
+}
+
+func TestTryGrantInvitationRebateZeroRebateSettlementIsTraceable(t *testing.T) {
+	setupInvitationRebateTest(t)
+	enableInvitationRebate(1, 1)
+	seedInvitationRebateUser(t, 1, 0, 0, 0)
+	seedInvitationRebateUser(t, 2, 1, 0, 0)
+
+	result, err := TryGrantInvitationRebate(context.Background(), invitationRebateInput("req_zero_trace", 1))
+	require.NoError(t, err)
+
+	require.Equal(t, InvitationRebateResultStatusAccumulated, result.Status)
+	require.Equal(t, 1, result.SettledQuota)
+	require.Equal(t, 0, result.RebateQuota)
+	require.Equal(t, int64(1), countInvitationRebateRecords(t))
+	require.Equal(t, int64(1), countInvitationRebateSettlementItems(t))
+	record := getInvitationRebateRecordBySource(t, "req_zero_trace")
+	require.Equal(t, 1, record.SourceQuota)
+	require.Equal(t, 0, record.RebateQuota)
+	items := getInvitationRebateSettlementItems(t, record.Id)
+	require.Len(t, items, 1)
+	require.Equal(t, "req_zero_trace", items[0].SourceKey)
+	require.Equal(t, 1, items[0].SettledSourceQuota)
+	require.Equal(t, 0, items[0].RebateQuota)
+	require.Equal(t, int64(0), items[0].RemainderBefore)
+	require.Equal(t, int64(1), items[0].RemainderAfter)
+	inviter := getInvitationRebateUser(t, 1)
+	require.Equal(t, 0, inviter.AffQuota)
+	require.Equal(t, 0, inviter.AffHistoryQuota)
 }
 
 func TestTryGrantInvitationRebateRatioChangeUsesConsumptionSnapshot(t *testing.T) {
@@ -523,6 +626,34 @@ func TestTryGrantInvitationRebateConcurrentAccumulationSettlesOnce(t *testing.T)
 	inviter := getInvitationRebateUser(t, 1)
 	require.Equal(t, 10, inviter.AffQuota)
 	require.Equal(t, 10, inviter.AffHistoryQuota)
+}
+
+func TestTryGrantInvitationRebateRollsBackWhenInviterUpdateFails(t *testing.T) {
+	setupInvitationRebateTest(t)
+	enableInvitationRebate(1000, 100)
+	seedInvitationRebateUser(t, 1, 0, 0, 0)
+	seedInvitationRebateUser(t, 2, 1, 0, 0)
+	oldHook := invitationRebateBeforeInviterUpdateHook
+	invitationRebateBeforeInviterUpdateHook = func(tx *gorm.DB) error {
+		return tx.Delete(&model.User{}, 1).Error
+	}
+	t.Cleanup(func() {
+		invitationRebateBeforeInviterUpdateHook = oldHook
+	})
+
+	result, err := TryGrantInvitationRebate(context.Background(), invitationRebateInput("req_rollback", 100))
+
+	require.Error(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, int64(0), countInvitationRebateRecords(t))
+	require.Equal(t, int64(0), countInvitationRebateSettlementItems(t))
+	require.Equal(t, int64(0), countInvitationRebateConsumptions(t))
+	var accumulationCount int64
+	require.NoError(t, model.DB.Model(&model.InvitationRebateAccumulation{}).Count(&accumulationCount).Error)
+	require.Equal(t, int64(0), accumulationCount)
+	inviter := getInvitationRebateUser(t, 1)
+	require.Equal(t, 0, inviter.AffQuota)
+	require.Equal(t, 0, inviter.AffHistoryQuota)
 }
 
 func newInvitationRebateGinContext() *gin.Context {

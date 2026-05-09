@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "Chaque ligne affiche une requête consommée incluse dans ce règlement cumulé de remise.",
+    "Failed to load invitation rebate record detail": "Échec du chargement du détail de l'enregistrement de remise d'invitation",
+    "Invitation Rebate Settlement Detail": "Détail du règlement de remise d'invitation",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "Les anciens enregistrements de remise ne conservent que la source key déclencheuse et n'incluent pas les détails de règlement.",
+    "No settlement item details found": "Aucun détail de règlement trouvé",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "Enregistrements de règlement cumulé en lecture seule basés sur la consommation réelle des utilisateurs invités.",
+    "Remainder After": "Reste après",
+    "Remainder Before": "Reste avant",
+    "Settled Source Quota": "Quota de consommation réglé",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "每行展示本次累计返利结算包含的一条消费请求。",
+    "Failed to load invitation rebate record detail": "加载邀请返利流水详情失败",
+    "Invitation Rebate Settlement Detail": "邀请返利结算明细",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "旧版返利流水仅保留触发 source key，不包含结算明细。",
+    "No settlement item details found": "未找到结算明细",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "只读累计结算流水，基于被邀请用户的实际消费。",
+    "Remainder After": "结算后余数",
+    "Remainder Before": "结算前余数",
+    "Settled Source Quota": "已结算消费额度",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
