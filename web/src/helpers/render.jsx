@@ -701,6 +701,14 @@ export const modelColorMap = {
   'claude-3-opus-20240229': 'rgb(255,132,31)', // 橙红色
   'claude-3-sonnet-20240229': 'rgb(253,135,93)', // 橙色
   'claude-3-haiku-20240307': 'rgb(255,175,146)', // 浅橙色
+
+  // 新出的模型，配色
+  'gpt-5.4': '#ffd24a',
+  'gpt-5.5': '#2ef7a3',
+  'MiniMax-M2.7': 'rgb(255,182,193)', // 浅粉红
+  'kimi-k2.5': 'rgb(255,174,185)', // 浅粉红色（略有区别）
+  'doubao-seedance-2-0-26018': 'rgb(255,130,171)', // 强粉色
+  'text-moderation-stable': 'rgb(255,160,122)', // 浅珊瑚色（与Babbage相同，表示同一类功能）
 };
 
 export function modelToColor(modelName) {
