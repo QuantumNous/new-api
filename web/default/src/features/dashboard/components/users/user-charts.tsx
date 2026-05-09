@@ -38,6 +38,8 @@ import {
   processUserChartData,
 } from '@/features/dashboard/lib'
 import type { ProcessedUserChartData } from '@/features/dashboard/types'
+import { DashboardAreaChart } from '@/features/dashboard/components/dashboard-area-chart'
+import { getCurrencyDisplay } from '@/lib/currency'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -151,6 +153,15 @@ export function UserCharts() {
     ]
   )
 
+  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const formatTrendValue = (v: number) => {
+    if (currencyMeta.kind === 'tokens') return v.toLocaleString()
+    const usd = v / currencyConfig.quotaPerUnit
+    const rate = 'exchangeRate' in currencyMeta ? currencyMeta.exchangeRate : 1
+    const symbol = 'symbol' in currencyMeta ? currencyMeta.symbol : '$'
+    return symbol + (usd * rate).toFixed(2)
+  }
+
   return (
     <div className='space-y-3'>
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
@@ -217,7 +228,7 @@ export function UserCharts() {
 
       <div className='grid gap-3'>
         {USER_CHARTS.map((chart) => {
-          const spec = chartData[chart.specKey]
+          const isTrend = chart.value === 'trend'
 
           return (
             <div
@@ -232,13 +243,19 @@ export function UserCharts() {
               <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
                 {isLoading ? (
                   <Skeleton className='h-full w-full' />
+                ) : isTrend ? (
+                  <DashboardAreaChart
+                    data={chartData.user_trend_chart_data}
+                    formatValue={formatTrendValue}
+                    totalLabel={t('Total:')}
+                  />
                 ) : (
                   themeReady &&
-                  spec && (
+                  chartData[chart.specKey] && (
                     <VChart
                       key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
                       spec={{
-                        ...spec,
+                        ...chartData[chart.specKey],
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',
                         background: 'transparent',
                       }}

@@ -34,18 +34,11 @@ import type {
   ModelAnalyticsChartTab,
   QuotaDataItem,
 } from '@/features/dashboard/types'
+import { DashboardAreaChart } from '@/features/dashboard/components/dashboard-area-chart'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
 > | null = null
-
-type ChartSpecKey = 'spec_model_line' | 'spec_pie' | 'spec_rank_bar'
-
-const CHART_SPEC_KEYS: Record<ModelAnalyticsChartTab, ChartSpecKey> = {
-  trend: 'spec_model_line',
-  proportion: 'spec_pie',
-  top: 'spec_rank_bar',
-}
 
 interface ModelChartsProps {
   data: QuotaDataItem[]
@@ -76,6 +69,7 @@ export function ModelCharts(props: ModelChartsProps) {
   }, [props.defaultChartTab])
 
   useEffect(() => {
+    if (activeTab === 'trend') return
     const updateTheme = async () => {
       setThemeReady(false)
 
@@ -92,7 +86,7 @@ export function ModelCharts(props: ModelChartsProps) {
     }
 
     updateTheme()
-  }, [resolvedTheme])
+  }, [resolvedTheme, activeTab])
 
   const chartData = useMemo(
     () =>
@@ -113,7 +107,11 @@ export function ModelCharts(props: ModelChartsProps) {
     ]
   )
 
-  const spec = chartData[CHART_SPEC_KEYS[activeTab]]
+  const formatCount = (v: number) =>
+    Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(v)
+
+  const vchatSpecKey = activeTab === 'proportion' ? 'spec_pie' : 'spec_rank_bar'
+  const vchatSpec = chartData[vchatSpecKey]
 
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -147,16 +145,25 @@ export function ModelCharts(props: ModelChartsProps) {
       </div>
 
       <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
-        {themeReady && spec && (
-          <VChart
-            key={`${activeTab}-${resolvedTheme}-${customization.preset}`}
-            spec={{
-              ...spec,
-              theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-              background: 'transparent',
-            }}
-            option={VCHART_OPTION}
+        {activeTab === 'trend' ? (
+          <DashboardAreaChart
+            data={chartData.model_trend_data}
+            formatValue={formatCount}
+            otherLabel={t('Other')}
+            totalLabel={t('Total:')}
           />
+        ) : (
+          themeReady && vchatSpec && (
+            <VChart
+              key={`${activeTab}-${resolvedTheme}-${customization.preset}`}
+              spec={{
+                ...vchatSpec,
+                theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+                background: 'transparent',
+              }}
+              option={VCHART_OPTION}
+            />
+          )
         )}
       </div>
     </div>

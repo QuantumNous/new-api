@@ -97,6 +97,12 @@ export type PingStatusMap = Record<string, PingStatus>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type VChartSpec = Record<string, any>
 
+export interface AreaChartSeries {
+  rows: Array<Record<string, string | number>>
+  series: string[]
+  colors: string[]
+}
+
 export interface ProcessedChartData {
   spec_pie: VChartSpec
   spec_line: VChartSpec
@@ -105,11 +111,14 @@ export interface ProcessedChartData {
   spec_rank_bar: VChartSpec
   totalQuotaDisplay: string
   totalCountDisplay: string
+  area_chart_data: AreaChartSeries
+  model_trend_data: AreaChartSeries
 }
 
 export interface ProcessedUserChartData {
   spec_user_rank: VChartSpec
   spec_user_trend: VChartSpec
+  user_trend_chart_data: AreaChartSeries
 }
 
 // ============================================================================

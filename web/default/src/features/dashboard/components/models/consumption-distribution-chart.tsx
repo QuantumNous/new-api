@@ -34,6 +34,8 @@ import type {
   ConsumptionDistributionChartType,
   QuotaDataItem,
 } from '@/features/dashboard/types'
+import { DashboardAreaChart } from '@/features/dashboard/components/dashboard-area-chart'
+import { getCurrencyDisplay } from '@/lib/currency'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -78,6 +80,7 @@ export function ConsumptionDistributionChart(
   }, [props.defaultChartType])
 
   useEffect(() => {
+    if (chartType !== 'bar') return
     const updateTheme = async () => {
       setThemeReady(false)
 
@@ -94,7 +97,7 @@ export function ConsumptionDistributionChart(
     }
 
     updateTheme()
-  }, [resolvedTheme])
+  }, [resolvedTheme, chartType])
 
   const chartData = useMemo(
     () =>
@@ -114,7 +117,15 @@ export function ConsumptionDistributionChart(
       chartRadius,
     ]
   )
-  const spec = chartType === 'bar' ? chartData.spec_line : chartData.spec_area
+
+  const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
+  const formatAreaValue = (v: number) => {
+    if (currencyMeta.kind === 'tokens') return v.toLocaleString()
+    const usd = v / currencyConfig.quotaPerUnit
+    const rate = 'exchangeRate' in currencyMeta ? currencyMeta.exchangeRate : 1
+    const symbol = 'symbol' in currencyMeta ? currencyMeta.symbol : '$'
+    return symbol + (usd * rate).toFixed(2)
+  }
 
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -150,16 +161,25 @@ export function ConsumptionDistributionChart(
       </div>
 
       <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
-        {themeReady && spec && (
-          <VChart
-            key={`${chartType}-${resolvedTheme}-${customization.preset}`}
-            spec={{
-              ...spec,
-              theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-              background: 'transparent',
-            }}
-            option={VCHART_OPTION}
+        {chartType === 'area' ? (
+          <DashboardAreaChart
+            data={chartData.area_chart_data}
+            formatValue={formatAreaValue}
+            otherLabel={t('Other')}
+            totalLabel={t('Total:')}
           />
+        ) : (
+          themeReady && chartData.spec_line && (
+            <VChart
+              key={`bar-${resolvedTheme}-${customization.preset}`}
+              spec={{
+                ...chartData.spec_line,
+                theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+                background: 'transparent',
+              }}
+              option={VCHART_OPTION}
+            />
+          )
         )}
       </div>
     </div>

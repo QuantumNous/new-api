@@ -91,6 +91,26 @@ function renderQuotaCompat(rawQuota: number, digits = 4): string {
   return symbol + fixed
 }
 
+function pivotToWide(
+  tidy: Array<{ time: string; series: string; value: number }>,
+  seriesOrder: string[]
+): Array<Record<string, string | number>> {
+  const map = new Map<string, Record<string, string | number>>()
+  for (const { time, series, value } of tidy) {
+    if (!map.has(time)) map.set(time, { Time: time })
+    map.get(time)![series] = value
+  }
+  for (const row of map.values()) {
+    for (const s of seriesOrder) {
+      if (!(s in row)) row[s] = 0
+    }
+  }
+  return Array.from(map.values())
+}
+
+const EMPTY_AREA_SERIES: import('@/features/dashboard/types').AreaChartSeries =
+  { rows: [], series: [], colors: [] }
+
 /**
  * Process and aggregate chart data
  */
@@ -237,6 +257,8 @@ export function processChartData(
       },
       totalQuotaDisplay: formatQuotaTotal(0),
       totalCountDisplay: formatInt(0),
+      area_chart_data: EMPTY_AREA_SERIES,
+      model_trend_data: EMPTY_AREA_SERIES,
     }
   }
 
@@ -481,6 +503,43 @@ export function processChartData(
     rankValues = allRankValues
   }
 
+  // Build wide-format recharts data for area charts
+  const areaSeriesOrder = [
+    ...Array.from(topAreaModels),
+    ...(areaValues.some((v) => v.Model === otherLabel) ? [otherLabel] : []),
+  ]
+  const areaColors = areaSeriesOrder.map((model) => {
+    const idx = modelColorDomain.indexOf(model)
+    const color = modelColorRange[idx]
+    return typeof color === 'string' ? color : '#888'
+  })
+  const area_chart_data = {
+    rows: pivotToWide(
+      areaValues.map((v) => ({ time: v.Time, series: v.Model, value: v.rawQuota })),
+      areaSeriesOrder
+    ),
+    series: areaSeriesOrder,
+    colors: areaColors,
+  }
+
+  const trendSeriesOrder = [
+    ...topTrendModels,
+    ...(modelLineValues.some((v) => v.Model === otherLabel) ? [otherLabel] : []),
+  ]
+  const trendColors = trendSeriesOrder.map((model) => {
+    const idx = modelColorDomain.indexOf(model)
+    const color = modelColorRange[idx]
+    return typeof color === 'string' ? color : '#888'
+  })
+  const model_trend_data = {
+    rows: pivotToWide(
+      modelLineValues.map((v) => ({ time: v.Time, series: v.Model, value: v.Count })),
+      trendSeriesOrder
+    ),
+    series: trendSeriesOrder,
+    colors: trendColors,
+  }
+
   return {
     spec_pie: {
       type: 'pie',
@@ -716,6 +775,8 @@ export function processChartData(
     },
     totalQuotaDisplay: formatQuotaTotal(totalQuotaRaw),
     totalCountDisplay: formatInt(totalTimes),
+    area_chart_data,
+    model_trend_data,
   }
 }
 
@@ -786,6 +847,7 @@ export function processUserChartData(
       point: { visible: false },
       background: { fill: 'transparent' },
     },
+    user_trend_chart_data: EMPTY_AREA_SERIES,
   }
 
   if (!data || data.length === 0) return emptyResult
@@ -851,6 +913,18 @@ export function processUserChartData(
       })
     })
   })
+
+  const userTrendColors = topUsers.map(
+    (user) => userColorMap[user] ?? '#888'
+  )
+  const user_trend_chart_data = {
+    rows: pivotToWide(
+      trendValues.map((v) => ({ time: v.Time, series: v.User, value: v.rawQuota })),
+      topUsers
+    ),
+    series: topUsers,
+    colors: userTrendColors,
+  }
 
   return {
     spec_user_rank: {
@@ -990,5 +1064,6 @@ export function processUserChartData(
       background: { fill: 'transparent' },
       animation: true,
     },
+    user_trend_chart_data,
   }
 }
