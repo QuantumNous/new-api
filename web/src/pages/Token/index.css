@@ -73,7 +73,8 @@
 }
 
 .token-guide-card {
-  display: grid;
+  display: none;
+  /* display: grid; */
   grid-template-columns: auto minmax(0, 1fr);
   gap: 18px;
   align-items: start;
