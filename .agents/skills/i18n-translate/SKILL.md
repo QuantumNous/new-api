@@ -26,7 +26,8 @@ description: >-
 cd web/default && bun run i18n:sync
 ```
 
-Read `web/default/src/i18n/locales/_reports/_sync-report.json` to see per-locale status (missingCount, extrasCount, untranslatedCount).
+Read `web/default/src/i18n/locales/_reports/_sync-report.json` to see per-locale status
+(missingCount, extrasCount, untranslatedCount).
 
 ### Step 2: Find missing keys (used in code but not in locale files)
 
@@ -224,22 +225,24 @@ Delete temporary scripts after completion.
 
 ## Translation Guidelines
 
-| Language | Code | Notes |
-|----------|------|-------|
-| English | en | Base locale, key = value |
-| Chinese | zh | Fallback locale, must be complete |
-| French | fr | Many English cognates are valid (e.g., "Configuration") |
-| Japanese | ja | Use katakana for technical loanwords |
-| Russian | ru | Use formal register |
-| Vietnamese | vi | Use standard Vietnamese |
+| Language   | Code | Notes                                                   |
+| ---------- | ---- | ------------------------------------------------------- |
+| English    | en   | Base locale, key = value                                |
+| Chinese    | zh   | Fallback locale, must be complete                       |
+| French     | fr   | Many English cognates are valid (e.g., "Configuration") |
+| Japanese   | ja   | Use katakana for technical loanwords                    |
+| Russian    | ru   | Use formal register                                     |
+| Vietnamese | vi   | Use standard Vietnamese                                 |
 
 **Keep as English (do not translate):**
+
 - Brand/product names (OpenAI, Claude, Gemini, etc.)
 - URLs and email placeholders
 - Technical identifiers (JSON keys, API paths, model names)
 - Code-like strings (gpt-3.5-turbo, price_xxx, etc.)
 
 **Always translate:**
+
 - UI labels, button text, error messages, descriptions
 - Time units (hours, minutes, months, years)
 - Action words (Move, Show, Delete, etc.)

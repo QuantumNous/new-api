@@ -28,7 +28,8 @@ Always use `FieldGroup` + `Field` — never raw `div` with `space-y-*`:
 </FieldGroup>
 ```
 
-Use `Field orientation="horizontal"` for settings pages. Use `FieldLabel className="sr-only"` for visually hidden labels.
+Use `Field orientation="horizontal"` for settings pages. Use `FieldLabel className="sr-only"` for
+visually hidden labels.
 
 **Choosing form controls:**
 
@@ -147,13 +148,15 @@ Combine with `Field` for labelled toggle groups:
 </Field>
 ```
 
-> **Note:** `defaultValue` and `type`/`multiple` props differ between base and radix. See [base-vs-radix.md](./base-vs-radix.md#togglegroup).
+> **Note:** `defaultValue` and `type`/`multiple` props differ between base and radix. See
+> [base-vs-radix.md](./base-vs-radix.md#togglegroup).
 
 ---
 
 ## FieldSet + FieldLegend for grouping related fields
 
-Use `FieldSet` + `FieldLegend` for related checkboxes, radios, or switches — not `div` with a heading:
+Use `FieldSet` + `FieldLegend` for related checkboxes, radios, or switches — not `div` with a
+heading:
 
 ```tsx
 <FieldSet>
@@ -172,7 +175,8 @@ Use `FieldSet` + `FieldLegend` for related checkboxes, radios, or switches — n
 
 ## Field validation and disabled states
 
-Both attributes are needed — `data-invalid`/`data-disabled` styles the field (label, description), while `aria-invalid`/`disabled` styles the control.
+Both attributes are needed — `data-invalid`/`data-disabled` styles the field (label, description),
+while `aria-invalid`/`disabled` styles the control.
 
 ```tsx
 // Invalid.
@@ -189,4 +193,5 @@ Both attributes are needed — `data-invalid`/`data-disabled` styles the field (
 </Field>
 ```
 
-Works for all controls: `Input`, `Textarea`, `Select`, `Checkbox`, `RadioGroupItem`, `Switch`, `Slider`, `NativeSelect`, `InputOTP`.
+Works for all controls: `Input`, `Textarea`, `Select`, `Checkbox`, `RadioGroupItem`, `Switch`,
+`Slider`, `NativeSelect`, `InputOTP`.
