@@ -1952,7 +1952,7 @@ html.dark .with-pastel-balls::before {
 .dashboard-announcements-header,
 .dashboard-uptime-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   width: 100%;
