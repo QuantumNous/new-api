@@ -63,6 +63,12 @@ export const useDashboardCharts = (
   setModelColors,
   t,
 ) => {
+  const sumField = (values, field) =>
+    (values || []).reduce((sum, item) => sum + (Number(item?.[field]) || 0), 0);
+
+  const sumPieValues = (values) =>
+    (values || []).reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
+
   // ========== 图表规格状态 ==========
   const [spec_pie, setSpecPie] = useState({
     type: 'pie',
@@ -815,6 +821,80 @@ export const useDashboardCharts = (
       isWatchingThemeSwitch: true,
     });
   }, []);
+
+  useEffect(() => {
+    setSpecPie((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('模型调用次数占比'),
+          subtext: `${t('总计')}：${renderNumber(sumPieValues(values))}`,
+        },
+      };
+    });
+
+    setSpecLine((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('模型消耗分布'),
+          subtext: `${t('总计')}：${renderQuota(sumField(values, 'rawQuota'), 2)}`,
+        },
+      };
+    });
+
+    setSpecModelLine((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('调用趋势'),
+          subtext: `${t('总计')}：${renderNumber(sumField(values, 'Count'))}`,
+        },
+      };
+    });
+
+    setSpecRankBar((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('模型调用次数排行'),
+          subtext: `${t('总计')}：${renderNumber(sumField(values, 'Count'))}`,
+        },
+      };
+    });
+
+    setSpecUserRank((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('用户消耗排行'),
+          subtext: `${t('总计')}：${renderQuota(sumField(values, 'rawQuota'), 2)}`,
+        },
+      };
+    });
+
+    setSpecUserTrend((prev) => {
+      const values = prev?.data?.[0]?.values || [];
+      return {
+        ...prev,
+        title: {
+          ...prev.title,
+          text: t('用户消耗趋势'),
+          subtext: `${t('总计')}：${renderQuota(sumField(values, 'rawQuota'), 2)}`,
+        },
+      };
+    });
+  }, [t]);
 
   return {
     spec_pie,
