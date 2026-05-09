@@ -18,7 +18,7 @@
   --sidebar-width: 256px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
-  --app-font-sans: 'Space Grotesk', Lato, 'Helvetica Neue', Arial, Helvetica,
+  --app-font-sans: 'Outfit', Lato, 'Helvetica Neue', Arial, Helvetica,
     'Microsoft YaHei', sans-serif;
   --app-shell-bg: linear-gradient(
     180deg,
@@ -45,6 +45,7 @@
   --app-panel-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
   --app-panel-shadow-soft: 0 16px 36px rgba(15, 23, 42, 0.05);
   --app-text-primary: #09111f;
+  --app-text-primary-1: #333333;
   --app-text-secondary: #516074;
   --app-text-muted: #69768b;
   --app-accent: #2563eb;
@@ -1328,7 +1329,7 @@ html.dark .with-pastel-balls::before {
   /* font-family: CoinbaseDisplay, 'SF Pro Display', 'Segoe UI', 'PingFang SC',
     'Microsoft YaHei', sans-serif; */
   font-size: clamp(28px, 3.4vw, 42px);
-  font-weight: 500;
+  font-weight: 700;
   line-height: 1.06;
   letter-spacing: -0.02em;
   white-space: nowrap;
@@ -1524,8 +1525,8 @@ html.dark .with-pastel-balls::before {
   gap: 16px;
   overflow: hidden;
   padding: 16px 16px;
-  border: 1px solid
-    color-mix(in srgb, var(--dashboard-accent, #0052ff) 14%, #e4ebf5);
+  /* border: 1px solid
+    color-mix(in srgb, var(--dashboard-accent, #0052ff) 14%, #e4ebf5); */
   border-radius: 22px;
   background: linear-gradient(
     135deg,
@@ -1574,10 +1575,10 @@ html.dark .with-pastel-balls::before {
     var(--dashboard-accent-strong, #0052ff) 28%,
     #d7e1ef
   );
-  box-shadow:
+  /* box-shadow:
     0 18px 32px
       color-mix(in srgb, var(--dashboard-accent, #0052ff) 12%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+    inset 0 1px 0 rgba(255, 255, 255, 0.86); */
 }
 
 .dashboard-metric-main {
@@ -1589,10 +1590,12 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-metric-avatar.semi-avatar {
+  display: none;
   width: 44px;
   min-width: 44px;
   height: 44px;
   color: #ffffff !important;
+  opacity: 0.3;
   background: linear-gradient(
     135deg,
     var(--dashboard-accent, #0052ff) 0%,
@@ -1611,7 +1614,7 @@ html.dark .with-pastel-balls::before {
 .dashboard-metric-label {
   color: color-mix(in srgb, var(--app-text-secondary) 88%, #334155);
   font-size: 12px;
-  font-weight: 700;
+  /* font-weight: 700; */
   letter-spacing: 0.06em;
   text-transform: uppercase;
   line-height: 1.3;
@@ -1619,7 +1622,7 @@ html.dark .with-pastel-balls::before {
 
 .dashboard-metric-value {
   margin-top: 6px;
-  color: var(--app-text-primary);
+  color: var(--app-text-primary-1);
   font-size: clamp(22px, 2.2vw, 30px);
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -1628,15 +1631,16 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-metric-trend {
+  display: none;
   position: absolute;
   top: 10px;
   right: 10px;
   width: 136px;
   height: 58px;
-  border: 1px solid
+  /* border: 1px solid
     color-mix(in srgb, var(--dashboard-accent, #0052ff) 10%, white);
-  border-radius: 18px;
-  background: linear-gradient(
+  border-radius: 18px; */
+  /* background: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.28) 0%,
     color-mix(
@@ -1645,9 +1649,9 @@ html.dark .with-pastel-balls::before {
         rgba(255, 255, 255, 0.18)
       )
       100%
-  );
-  backdrop-filter: blur(10px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  ); */
+  /* backdrop-filter: blur(10px); */
+  /* box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34); */
   pointer-events: none;
 }
 
