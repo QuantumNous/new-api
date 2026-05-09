@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useCallback, useEffect } from 'react';
 import { initVChartSemiTheme } from '@visactor/vchart-semi-theme';
+import { STACK_FIELD_TOTAL_TOP } from '@visactor/vchart/esm/constant';
 import {
   modelColorMap,
   renderNumber,
@@ -51,6 +52,8 @@ const USER_COLORS = [
 ];
 
 const TRANSPARENT_CHART_BACKGROUND = 'transparent';
+const TOP_BAR_RADIUS = [8, 8, 0, 0];
+const NO_BAR_RADIUS = [0, 0, 0, 0];
 
 export const useDashboardCharts = (
   dataExportDefaultTime,
@@ -178,7 +181,10 @@ export const useDashboardCharts = (
     },
     bar: {
       style: {
-        cornerRadius: 8,
+        cornerRadius: (datum) =>
+          datum?.isTopSegment || datum?.[STACK_FIELD_TOTAL_TOP]
+            ? TOP_BAR_RADIUS
+            : NO_BAR_RADIUS,
       },
       state: {
         hover: {
@@ -380,7 +386,7 @@ export const useDashboardCharts = (
     },
     bar: {
       style: {
-        cornerRadius: 8,
+        cornerRadius: TOP_BAR_RADIUS,
       },
       state: {
         hover: {
@@ -680,7 +686,11 @@ export const useDashboardCharts = (
 
         const timeSum = timeData.reduce((sum, item) => sum + item.rawQuota, 0);
         timeData.sort((a, b) => b.rawQuota - a.rawQuota);
-        timeData = timeData.map((item) => ({ ...item, TimeSum: timeSum }));
+        timeData = timeData.map((item, index, items) => ({
+          ...item,
+          TimeSum: timeSum,
+          isTopSegment: index === items.length - 1,
+        }));
         newLineData.push(...timeData);
       });
 
