@@ -103,6 +103,16 @@ export interface AreaChartSeries {
   colors: string[]
 }
 
+export interface PieChartSlice {
+  name: string
+  value: number
+}
+
+export interface RankBarRow {
+  name: string
+  value: number
+}
+
 export interface ProcessedChartData {
   spec_pie: VChartSpec
   spec_line: VChartSpec
@@ -113,12 +123,16 @@ export interface ProcessedChartData {
   totalCountDisplay: string
   area_chart_data: AreaChartSeries
   model_trend_data: AreaChartSeries
+  stacked_bar_data: AreaChartSeries
+  pie_data: PieChartSlice[]
+  rank_bar_data: RankBarRow[]
 }
 
 export interface ProcessedUserChartData {
   spec_user_rank: VChartSpec
   spec_user_trend: VChartSpec
   user_trend_chart_data: AreaChartSeries
+  user_rank_data: RankBarRow[]
 }
 
 // ============================================================================

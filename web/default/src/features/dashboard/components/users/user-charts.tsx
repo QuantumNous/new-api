@@ -16,15 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { VChart } from '@visactor/react-vchart'
 import { Users, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
-import { VCHART_OPTION } from '@/lib/vchart'
+import { getCurrencyDisplay } from '@/lib/currency'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
-import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import {
@@ -37,41 +35,14 @@ import {
   saveGranularity,
   processUserChartData,
 } from '@/features/dashboard/lib'
-import type { ProcessedUserChartData } from '@/features/dashboard/types'
 import { DashboardAreaChart } from '@/features/dashboard/components/dashboard-area-chart'
-import { getCurrencyDisplay } from '@/lib/currency'
-
-let themeManagerPromise: Promise<
-  (typeof import('@visactor/vchart'))['ThemeManager']
-> | null = null
-
-const USER_CHARTS: {
-  value: string
-  labelKey: string
-  specKey: keyof ProcessedUserChartData
-}[] = [
-  {
-    value: 'rank',
-    labelKey: 'User Consumption Ranking',
-    specKey: 'spec_user_rank',
-  },
-  {
-    value: 'trend',
-    labelKey: 'User Consumption Trend',
-    specKey: 'spec_user_trend',
-  },
-]
+import { DashboardBarChart } from '@/features/dashboard/components/dashboard-bar-chart'
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
 
 export function UserCharts() {
   const { t } = useTranslation()
-  const { resolvedTheme } = useTheme()
   const { customization } = useThemeCustomization()
-  const [themeReady, setThemeReady] = useState(false)
-  const themeManagerRef = useRef<
-    (typeof import('@visactor/vchart'))['ThemeManager'] | null
-  >(null)
 
   const [timeGranularity, setTimeGranularity] = useState<TimeGranularity>(() =>
     getSavedGranularity()
@@ -103,28 +74,10 @@ export function UserCharts() {
       setTimeGranularity(g)
       saveGranularity(g)
       const days = getDefaultDays(g)
-      if (days !== selectedRange) {
-        handleRangeChange(days)
-      }
+      if (days !== selectedRange) handleRangeChange(days)
     },
     [selectedRange, handleRangeChange]
   )
-
-  useEffect(() => {
-    const updateTheme = async () => {
-      setThemeReady(false)
-      if (!themeManagerPromise) {
-        themeManagerPromise = import('@visactor/vchart').then(
-          (m) => m.ThemeManager
-        )
-      }
-      const ThemeManager = await themeManagerPromise
-      themeManagerRef.current = ThemeManager
-      ThemeManager.setCurrentTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
-      setThemeReady(true)
-    }
-    updateTheme()
-  }, [resolvedTheme])
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ['dashboard', 'user-quota', timeRange],
@@ -142,25 +95,22 @@ export function UserCharts() {
         topUserLimit,
         customization.preset
       ),
-    [
-      userData,
-      isLoading,
-      timeGranularity,
-      t,
-      topUserLimit,
-      customization.preset,
-      customization.radius,
-    ]
+    [userData, isLoading, timeGranularity, t, topUserLimit, customization.preset, customization.radius]
   )
 
   const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
-  const formatTrendValue = (v: number) => {
+  const formatQuota = (v: number) => {
     if (currencyMeta.kind === 'tokens') return v.toLocaleString()
     const usd = v / currencyConfig.quotaPerUnit
     const rate = 'exchangeRate' in currencyMeta ? currencyMeta.exchangeRate : 1
     const symbol = 'symbol' in currencyMeta ? currencyMeta.symbol : '$'
     return symbol + (usd * rate).toFixed(2)
   }
+
+  const charts = [
+    { value: 'rank', labelKey: 'User Consumption Ranking' },
+    { value: 'trend', labelKey: 'User Consumption Trend' },
+  ]
 
   return (
     <div className='space-y-3'>
@@ -187,9 +137,7 @@ export function UserCharts() {
             <button
               key={opt.value}
               type='button'
-              onClick={() =>
-                handleGranularityChange(opt.value as TimeGranularity)
-              }
+              onClick={() => handleGranularityChange(opt.value as TimeGranularity)}
               className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 timeGranularity === opt.value
                   ? 'bg-primary text-primary-foreground shadow-sm'
@@ -227,46 +175,32 @@ export function UserCharts() {
       </div>
 
       <div className='grid gap-3'>
-        {USER_CHARTS.map((chart) => {
-          const isTrend = chart.value === 'trend'
-
-          return (
-            <div
-              key={chart.value}
-              className='overflow-hidden rounded-lg border'
-            >
-              <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
-                <Users className='text-muted-foreground/60 size-4' />
-                <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
-              </div>
-
-              <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
-                {isLoading ? (
-                  <Skeleton className='h-full w-full' />
-                ) : isTrend ? (
-                  <DashboardAreaChart
-                    data={chartData.user_trend_chart_data}
-                    formatValue={formatTrendValue}
-                    totalLabel={t('Total:')}
-                  />
-                ) : (
-                  themeReady &&
-                  chartData[chart.specKey] && (
-                    <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
-                      spec={{
-                        ...chartData[chart.specKey],
-                        theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                        background: 'transparent',
-                      }}
-                      option={VCHART_OPTION}
-                    />
-                  )
-                )}
-              </div>
+        {charts.map((chart) => (
+          <div key={chart.value} className='overflow-hidden rounded-lg border'>
+            <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
+              <Users className='text-muted-foreground/60 size-4' />
+              <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
             </div>
-          )
-        })}
+
+            <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
+              {isLoading ? (
+                <Skeleton className='h-full w-full' />
+              ) : chart.value === 'trend' ? (
+                <DashboardAreaChart
+                  data={chartData.user_trend_chart_data}
+                  formatValue={formatQuota}
+                  totalLabel={t('Total:')}
+                />
+              ) : (
+                <DashboardBarChart
+                  data={chartData.user_rank_data}
+                  formatValue={formatQuota}
+                  layout='horizontal'
+                />
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

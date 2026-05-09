@@ -16,15 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { VChart } from '@visactor/react-vchart'
+import { useEffect, useMemo, useState } from 'react'
 import { AreaChart, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
 import type { TimeGranularity } from '@/lib/time'
-import { VCHART_OPTION } from '@/lib/vchart'
+import { getCurrencyDisplay } from '@/lib/currency'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
-import { useTheme } from '@/context/theme-provider'
 import {
   CONSUMPTION_DISTRIBUTION_CHART_OPTIONS,
   DEFAULT_TIME_GRANULARITY,
@@ -35,18 +33,7 @@ import type {
   QuotaDataItem,
 } from '@/features/dashboard/types'
 import { DashboardAreaChart } from '@/features/dashboard/components/dashboard-area-chart'
-import { getCurrencyDisplay } from '@/lib/currency'
-
-let themeManagerPromise: Promise<
-  (typeof import('@visactor/vchart'))['ThemeManager']
-> | null = null
-
-interface ConsumptionDistributionChartProps {
-  data: QuotaDataItem[]
-  loading?: boolean
-  timeGranularity?: TimeGranularity
-  defaultChartType?: ConsumptionDistributionChartType
-}
+import { DashboardStackedBarChart } from '@/features/dashboard/components/dashboard-stacked-bar-chart'
 
 const CHART_TYPE_ICONS: Record<
   ConsumptionDistributionChartType,
@@ -56,11 +43,17 @@ const CHART_TYPE_ICONS: Record<
   area: AreaChart,
 }
 
+interface ConsumptionDistributionChartProps {
+  data: QuotaDataItem[]
+  loading?: boolean
+  timeGranularity?: TimeGranularity
+  defaultChartType?: ConsumptionDistributionChartType
+}
+
 export function ConsumptionDistributionChart(
   props: ConsumptionDistributionChartProps
 ) {
   const { t } = useTranslation()
-  const { resolvedTheme } = useTheme()
   const { customization } = useThemeCustomization()
   const chartRadius = useThemeRadiusPx(
     '--radius-md',
@@ -69,35 +62,11 @@ export function ConsumptionDistributionChart(
   const [chartType, setChartType] = useState<ConsumptionDistributionChartType>(
     props.defaultChartType ?? 'bar'
   )
-  const [themeReady, setThemeReady] = useState(false)
-  const themeManagerRef = useRef<
-    (typeof import('@visactor/vchart'))['ThemeManager'] | null
-  >(null)
   const timeGranularity = props.timeGranularity ?? DEFAULT_TIME_GRANULARITY
 
   useEffect(() => {
     if (props.defaultChartType) setChartType(props.defaultChartType)
   }, [props.defaultChartType])
-
-  useEffect(() => {
-    if (chartType !== 'bar') return
-    const updateTheme = async () => {
-      setThemeReady(false)
-
-      if (!themeManagerPromise) {
-        themeManagerPromise = import('@visactor/vchart').then(
-          (m) => m.ThemeManager
-        )
-      }
-
-      const ThemeManager = await themeManagerPromise
-      themeManagerRef.current = ThemeManager
-      ThemeManager.setCurrentTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
-      setThemeReady(true)
-    }
-
-    updateTheme()
-  }, [resolvedTheme, chartType])
 
   const chartData = useMemo(
     () =>
@@ -108,18 +77,11 @@ export function ConsumptionDistributionChart(
         customization.preset,
         chartRadius
       ),
-    [
-      props.data,
-      props.loading,
-      timeGranularity,
-      t,
-      customization.preset,
-      chartRadius,
-    ]
+    [props.data, props.loading, timeGranularity, t, customization.preset, chartRadius]
   )
 
   const { config: currencyConfig, meta: currencyMeta } = getCurrencyDisplay()
-  const formatAreaValue = (v: number) => {
+  const formatQuota = (v: number) => {
     if (currencyMeta.kind === 'tokens') return v.toLocaleString()
     const usd = v / currencyConfig.quotaPerUnit
     const rate = 'exchangeRate' in currencyMeta ? currencyMeta.exchangeRate : 1
@@ -164,22 +126,17 @@ export function ConsumptionDistributionChart(
         {chartType === 'area' ? (
           <DashboardAreaChart
             data={chartData.area_chart_data}
-            formatValue={formatAreaValue}
+            formatValue={formatQuota}
             otherLabel={t('Other')}
             totalLabel={t('Total:')}
           />
         ) : (
-          themeReady && chartData.spec_line && (
-            <VChart
-              key={`bar-${resolvedTheme}-${customization.preset}`}
-              spec={{
-                ...chartData.spec_line,
-                theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                background: 'transparent',
-              }}
-              option={VCHART_OPTION}
-            />
-          )
+          <DashboardStackedBarChart
+            data={chartData.stacked_bar_data}
+            formatValue={formatQuota}
+            otherLabel={t('Other')}
+            totalLabel={t('Total:')}
+          />
         )}
       </div>
     </div>

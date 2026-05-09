@@ -259,6 +259,9 @@ export function processChartData(
       totalCountDisplay: formatInt(0),
       area_chart_data: EMPTY_AREA_SERIES,
       model_trend_data: EMPTY_AREA_SERIES,
+      stacked_bar_data: EMPTY_AREA_SERIES,
+      pie_data: [],
+      rank_bar_data: [],
     }
   }
 
@@ -540,6 +543,26 @@ export function processChartData(
     colors: trendColors,
   }
 
+  // Stacked bar: all models, wide format for recharts
+  const stackedSeriesOrder = sortedModels
+  const stackedColors = stackedSeriesOrder.map((model) => {
+    const idx = modelColorDomain.indexOf(model)
+    const color = modelColorRange[idx]
+    return typeof color === 'string' ? color : '#888'
+  })
+  const stacked_bar_data = {
+    rows: pivotToWide(
+      lineValues.map((v) => ({ time: v.Time, series: v.Model, value: v.rawQuota })),
+      stackedSeriesOrder
+    ),
+    series: stackedSeriesOrder,
+    colors: stackedColors,
+  }
+
+  const pie_data = pieValues.map((v) => ({ name: String(v.type), value: Number(v.value) || 0 }))
+
+  const rank_bar_data = rankValues.map((v) => ({ name: String(v.Model), value: Number(v.Count) || 0 }))
+
   return {
     spec_pie: {
       type: 'pie',
@@ -777,6 +800,9 @@ export function processChartData(
     totalCountDisplay: formatInt(totalTimes),
     area_chart_data,
     model_trend_data,
+    stacked_bar_data,
+    pie_data,
+    rank_bar_data,
   }
 }
 
@@ -848,6 +874,7 @@ export function processUserChartData(
       background: { fill: 'transparent' },
     },
     user_trend_chart_data: EMPTY_AREA_SERIES,
+    user_rank_data: [],
   }
 
   if (!data || data.length === 0) return emptyResult
@@ -925,6 +952,8 @@ export function processUserChartData(
     series: topUsers,
     colors: userTrendColors,
   }
+
+  const user_rank_data = rankValues.map((v) => ({ name: String(v.User), value: Number(v.rawQuota) || 0 }))
 
   return {
     spec_user_rank: {
@@ -1065,5 +1094,6 @@ export function processUserChartData(
       animation: true,
     },
     user_trend_chart_data,
+    user_rank_data,
   }
 }

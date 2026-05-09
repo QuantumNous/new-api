@@ -16,15 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState, useRef } from 'react'
-import { VChart } from '@visactor/react-vchart'
+import { useMemo, useState } from 'react'
 import { PieChart as PieChartIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
 import type { TimeGranularity } from '@/lib/time'
-import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
-import { useTheme } from '@/context/theme-provider'
 import {
   DEFAULT_TIME_GRANULARITY,
   MODEL_ANALYTICS_CHART_OPTIONS,
@@ -35,10 +32,8 @@ import type {
   QuotaDataItem,
 } from '@/features/dashboard/types'
 import { DashboardAreaChart } from '@/features/dashboard/components/dashboard-area-chart'
-
-let themeManagerPromise: Promise<
-  (typeof import('@visactor/vchart'))['ThemeManager']
-> | null = null
+import { DashboardPieChart } from '@/features/dashboard/components/dashboard-pie-chart'
+import { DashboardBarChart } from '@/features/dashboard/components/dashboard-bar-chart'
 
 interface ModelChartsProps {
   data: QuotaDataItem[]
@@ -49,7 +44,6 @@ interface ModelChartsProps {
 
 export function ModelCharts(props: ModelChartsProps) {
   const { t } = useTranslation()
-  const { resolvedTheme } = useTheme()
   const { customization } = useThemeCustomization()
   const chartRadius = useThemeRadiusPx(
     '--radius-md',
@@ -58,35 +52,7 @@ export function ModelCharts(props: ModelChartsProps) {
   const [activeTab, setActiveTab] = useState<ModelAnalyticsChartTab>(
     props.defaultChartTab ?? 'trend'
   )
-  const [themeReady, setThemeReady] = useState(false)
-  const themeManagerRef = useRef<
-    (typeof import('@visactor/vchart'))['ThemeManager'] | null
-  >(null)
   const timeGranularity = props.timeGranularity ?? DEFAULT_TIME_GRANULARITY
-
-  useEffect(() => {
-    if (props.defaultChartTab) setActiveTab(props.defaultChartTab)
-  }, [props.defaultChartTab])
-
-  useEffect(() => {
-    if (activeTab === 'trend') return
-    const updateTheme = async () => {
-      setThemeReady(false)
-
-      if (!themeManagerPromise) {
-        themeManagerPromise = import('@visactor/vchart').then(
-          (m) => m.ThemeManager
-        )
-      }
-
-      const ThemeManager = await themeManagerPromise
-      themeManagerRef.current = ThemeManager
-      ThemeManager.setCurrentTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
-      setThemeReady(true)
-    }
-
-    updateTheme()
-  }, [resolvedTheme, activeTab])
 
   const chartData = useMemo(
     () =>
@@ -97,21 +63,11 @@ export function ModelCharts(props: ModelChartsProps) {
         customization.preset,
         chartRadius
       ),
-    [
-      props.data,
-      props.loading,
-      timeGranularity,
-      t,
-      customization.preset,
-      chartRadius,
-    ]
+    [props.data, props.loading, timeGranularity, t, customization.preset, chartRadius]
   )
 
   const formatCount = (v: number) =>
     Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(v)
-
-  const vchatSpecKey = activeTab === 'proportion' ? 'spec_pie' : 'spec_rank_bar'
-  const vchatSpec = chartData[vchatSpecKey]
 
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -145,25 +101,27 @@ export function ModelCharts(props: ModelChartsProps) {
       </div>
 
       <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
-        {activeTab === 'trend' ? (
+        {activeTab === 'trend' && (
           <DashboardAreaChart
             data={chartData.model_trend_data}
             formatValue={formatCount}
             otherLabel={t('Other')}
             totalLabel={t('Total:')}
           />
-        ) : (
-          themeReady && vchatSpec && (
-            <VChart
-              key={`${activeTab}-${resolvedTheme}-${customization.preset}`}
-              spec={{
-                ...vchatSpec,
-                theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                background: 'transparent',
-              }}
-              option={VCHART_OPTION}
-            />
-          )
+        )}
+        {activeTab === 'proportion' && (
+          <DashboardPieChart
+            data={chartData.pie_data}
+            colors={chartData.model_trend_data.colors}
+            formatValue={formatCount}
+          />
+        )}
+        {activeTab === 'top' && (
+          <DashboardBarChart
+            data={chartData.rank_bar_data}
+            formatValue={formatCount}
+            layout='vertical'
+          />
         )}
       </div>
     </div>

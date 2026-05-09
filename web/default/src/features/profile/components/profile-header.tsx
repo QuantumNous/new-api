@@ -16,14 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMemo } from 'react'
 import { Activity, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatCompactNumber, formatQuota } from '@/lib/format'
-import { getRoleLabel } from '@/lib/roles'
+import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatusBadge } from '@/components/status-badge'
-import { getUserInitials, getDisplayName } from '../lib'
+import { getDisplayName } from '../lib'
 import type { UserProfile } from '../types'
 
 // ============================================================================
@@ -37,6 +37,9 @@ interface ProfileHeaderProps {
 
 export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   const { t } = useTranslation()
+  const avatarName = profile?.username || ''
+  const avatarFallback = getUserAvatarFallback(avatarName)
+  const avatarStyle = useMemo(() => getUserAvatarStyle(avatarName), [avatarName])
 
   if (loading) {
     return (
@@ -75,8 +78,6 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   if (!profile) return null
 
   const displayName = getDisplayName(profile)
-  const initials = getUserInitials(profile)
-  const roleLabel = getRoleLabel(profile.role)
   const stats = [
     {
       label: t('Current Balance'),
@@ -103,8 +104,8 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
       <div className='p-3 sm:p-5'>
         <div className='flex items-center gap-3 text-left sm:gap-4'>
           <Avatar className='ring-background h-12 w-12 rounded-xl text-sm ring-2 sm:h-16 sm:w-16 sm:rounded-2xl sm:text-lg sm:ring-4'>
-            <AvatarFallback className='bg-primary/10 text-primary rounded-xl sm:rounded-2xl'>
-              {initials}
+            <AvatarFallback className='rounded-xl font-semibold text-white sm:rounded-2xl' style={avatarStyle}>
+              {avatarFallback}
             </AvatarFallback>
           </Avatar>
 
@@ -113,11 +114,6 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
               <h1 className='truncate text-xl font-semibold tracking-tight sm:text-2xl'>
                 {displayName}
               </h1>
-              <StatusBadge
-                label={roleLabel}
-                variant='neutral'
-                copyable={false}
-              />
             </div>
 
             <div className='text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:gap-x-4 sm:text-sm'>

@@ -17,13 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
-import { VChart } from '@visactor/react-vchart'
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts'
 import { BarChart3, Trophy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useThemeRadiusPx } from '@/lib/theme-radius'
-import { useChartTheme } from '@/lib/use-chart-theme'
-import { VCHART_OPTION } from '@/lib/vchart'
-import { useThemeCustomization } from '@/context/theme-customization-provider'
+import { ChartContainer } from '@/components/ui/chart'
+import type { ChartConfig } from '@/components/ui/chart'
 import { formatTokens } from '../lib/format'
 import type { ModelHistorySeries, ModelRanking, RankingPeriod } from '../types'
 import { ModelLeaderboard } from './model-leaderboard'
@@ -38,132 +36,68 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
 
 const TOOLTIP_MAX_ROWS = 10
 
+const MODEL_COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+]
+
+function sanitizeKey(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, '_')
+}
+
 type ModelsSectionProps = {
   history: ModelHistorySeries
   rows: ModelRanking[]
   period: RankingPeriod
 }
 
-/**
- * Combined "Top Models" card: a stacked bar chart showing token usage by
- * model over time, paired below with a two-column LLM Leaderboard. The
- * chart anchors the eye while the leaderboard provides the detailed key.
- */
 export function ModelsSection(props: ModelsSectionProps) {
   const { t } = useTranslation()
-  const { resolvedTheme, themeReady } = useChartTheme()
-  const { customization } = useThemeCustomization()
-  const barRadius = useThemeRadiusPx(
-    '--radius-sm',
-    `${customization.preset}:${customization.radius}`
-  )
-
-  // Order points so the largest model appears at the bottom of every stack.
-  const orderedPoints = useMemo(() => {
-    const order = new Map(
-      props.history.models.map((m, idx) => [m.name, idx] as const)
-    )
-    return [...props.history.points].sort((a, b) => {
-      const tsCmp = a.ts.localeCompare(b.ts)
-      if (tsCmp !== 0) return tsCmp
-      return (order.get(a.model) ?? 999) - (order.get(b.model) ?? 999)
-    })
-  }, [props.history])
 
   const totalTokens = useMemo(
     () => props.rows.reduce((s, r) => s + r.total_tokens, 0),
     [props.rows]
   )
 
-  const spec = useMemo(() => {
-    if (orderedPoints.length === 0) return null
-    return {
-      type: 'bar' as const,
-      data: [{ id: 'models-history', values: orderedPoints }],
-      xField: 'label',
-      yField: 'tokens',
-      seriesField: 'model',
-      stack: true,
-      bar: {
-        style: barRadius == null ? {} : { cornerRadius: barRadius },
-      },
-      legends: { visible: false },
-      axes: [
-        {
-          orient: 'bottom',
-          label: {
-            style: { fill: 'currentColor', fontSize: 10 },
-            autoHide: true,
-            autoLimit: true,
-          },
-          tick: { visible: false },
-        },
-        {
-          orient: 'left',
-          label: {
-            formatMethod: (val: number | string) => formatTokens(Number(val)),
-            style: { fill: 'currentColor', fontSize: 10 },
-          },
-          grid: { visible: true, style: { lineDash: [3, 3] } },
-        },
-      ],
-      tooltip: {
-        mark: {
-          content: [
-            {
-              key: (datum: Record<string, unknown>) =>
-                String(datum?.model ?? ''),
-              value: (datum: Record<string, unknown>) =>
-                formatTokens(Number(datum?.tokens) || 0),
-            },
-          ],
-        },
-        dimension: {
-          title: {
-            value: (datum: Record<string, unknown>) =>
-              String(datum?.label ?? ''),
-          },
-          content: [
-            {
-              key: (datum: Record<string, unknown>) =>
-                String(datum?.model ?? ''),
-              value: (datum: Record<string, unknown>) =>
-                Number(datum?.tokens) || 0,
-            },
-          ],
-          updateContent: (
-            array: Array<{ key: string; value: string | number }>
-          ) => {
-            array.sort((a, b) => Number(b.value) - Number(a.value))
-            const sum = array.reduce((s, x) => s + (Number(x.value) || 0), 0)
-            const visible = array.slice(0, TOOLTIP_MAX_ROWS)
-            const overflow = array.slice(TOOLTIP_MAX_ROWS)
-            const result = visible.map((item) => ({
-              key: item.key,
-              value: formatTokens(Number(item.value) || 0),
-            }))
-            if (overflow.length > 0) {
-              const otherSum = overflow.reduce(
-                (s, item) => s + (Number(item.value) || 0),
-                0
-              )
-              result.push({
-                key: t('+{{count}} more', { count: overflow.length }),
-                value: formatTokens(otherSum),
-              })
-            }
-            result.unshift({ key: t('Total:'), value: formatTokens(sum) })
-            return result
-          },
-        },
-      },
-      animationAppear: { duration: 500 },
+  const { wideRows, models, chartConfig, keyToModel } = useMemo(() => {
+    const modelList = props.history.models.map((m) => m.name)
+    const keyToModel = new Map<string, string>()
+    modelList.forEach((m) => keyToModel.set(sanitizeKey(m), m))
+
+    const cfg: ChartConfig = {}
+    modelList.forEach((m, i) => {
+      const key = sanitizeKey(m)
+      cfg[key] = {
+        label: m,
+        color: MODEL_COLORS[i % MODEL_COLORS.length],
+      }
+    })
+
+    // pivot tidy → wide
+    const map = new Map<string, Record<string, string | number>>()
+    for (const p of props.history.points) {
+      if (!map.has(p.label)) map.set(p.label, { label: p.label })
+      const key = sanitizeKey(p.model)
+      const existing = (map.get(p.label)![key] as number) ?? 0
+      map.get(p.label)![key] = existing + p.tokens
     }
-  }, [barRadius, orderedPoints, t])
+    const wideRows = Array.from(map.values())
+    // fill zeros for missing models
+    for (const row of wideRows) {
+      for (const m of modelList) {
+        const key = sanitizeKey(m)
+        if (!(key in row)) row[key] = 0
+      }
+    }
+
+    return { wideRows, models: modelList, chartConfig: cfg, keyToModel }
+  }, [props.history])
 
   return (
     <section className='bg-card overflow-hidden rounded-lg border'>
-      {/* Chart block ----------------------------------------------------- */}
       <header className='flex items-start justify-between gap-4 px-5 py-4'>
         <div className='min-w-0 flex-1'>
           <h2 className='text-foreground inline-flex items-center gap-2 text-base font-semibold'>
@@ -186,16 +120,81 @@ export function ModelsSection(props: ModelsSectionProps) {
 
       <div className='px-5 pb-5'>
         <div className='h-60 sm:h-72'>
-          {themeReady && spec ? (
-            <VChart
-              key={`models-history-${resolvedTheme}-${props.period}`}
-              spec={{
-                ...spec,
-                theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                background: 'transparent',
-              }}
-              option={VCHART_OPTION}
-            />
+          {wideRows.length > 0 ? (
+            <ChartContainer config={chartConfig} className='h-full w-full'>
+              <BarChart data={wideRows} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+                <CartesianGrid strokeDasharray='3 3' className='stroke-border/40' vertical={false} />
+                <XAxis
+                  dataKey='label'
+                  tick={{ fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval='preserveStartEnd'
+                />
+                <YAxis
+                  tickFormatter={formatTokens}
+                  tick={{ fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={48}
+                />
+                <Tooltip
+                  cursor={{ fill: 'hsl(var(--muted) / 0.4)' }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null
+                    const items = payload
+                      .map((p) => ({
+                        model: keyToModel.get(String(p.dataKey)) ?? String(p.dataKey),
+                        value: Number(p.value) || 0,
+                        color: p.color,
+                      }))
+                      .filter((p) => p.value > 0)
+                      .sort((a, b) => b.value - a.value)
+                    const total = items.reduce((s, p) => s + p.value, 0)
+                    const visible = items.slice(0, TOOLTIP_MAX_ROWS)
+                    const overflow = items.slice(TOOLTIP_MAX_ROWS)
+                    return (
+                      <div className='border-border/50 bg-background grid min-w-40 gap-1 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl'>
+                        <div className='text-muted-foreground font-medium'>{label}</div>
+                        <div className='flex justify-between gap-4 font-medium'>
+                          <span>{t('Total:')}</span>
+                          <span className='font-mono tabular-nums'>{formatTokens(total)}</span>
+                        </div>
+                        {visible.map((p) => (
+                          <div key={p.model} className='flex items-center gap-2'>
+                            <div className='h-2 w-2 shrink-0 rounded-sm' style={{ backgroundColor: p.color }} />
+                            <div className='flex flex-1 justify-between gap-3'>
+                              <span className='text-muted-foreground max-w-36 truncate'>{p.model}</span>
+                              <span className='font-mono tabular-nums'>{formatTokens(p.value)}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {overflow.length > 0 && (
+                          <div className='text-muted-foreground flex justify-between gap-3'>
+                            <span>{t('+{{count}} more', { count: overflow.length })}</span>
+                            <span className='font-mono tabular-nums'>
+                              {formatTokens(overflow.reduce((s, p) => s + p.value, 0))}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }}
+                />
+                {models.map((model) => {
+                  const key = sanitizeKey(model)
+                  return (
+                    <Bar
+                      key={key}
+                      dataKey={key}
+                      stackId='a'
+                      fill={`var(--color-${key})`}
+                      isAnimationActive={false}
+                    />
+                  )
+                })}
+              </BarChart>
+            </ChartContainer>
           ) : (
             <div className='text-muted-foreground/80 flex h-full items-center justify-center text-xs'>
               {t('No history data available')}
@@ -204,7 +203,6 @@ export function ModelsSection(props: ModelsSectionProps) {
         </div>
       </div>
 
-      {/* Leaderboard block ----------------------------------------------- */}
       <div className='border-t'>
         <header className='px-5 pt-4 pb-2'>
           <h3 className='text-foreground inline-flex items-center gap-2 text-sm font-semibold'>
