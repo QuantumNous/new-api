@@ -4952,6 +4952,7 @@ html.dark
 }
 
 .billing-payable-text {
+  display: none;
   color: var(--app-text-muted) !important;
   font-size: 13px;
 }
