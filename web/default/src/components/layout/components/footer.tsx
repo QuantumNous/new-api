@@ -22,11 +22,11 @@ interface FooterProps {
   className?: string
 }
 
-const NEW_API_FOOTER_ATTRIBUTION_KEY = [
-  'footer',
-  'new' + 'api',
-  'projectAttributionSuffix',
-].join('.')
+// const NEW_API_FOOTER_ATTRIBUTION_KEY = [
+//   'footer',
+//   'new' + 'api',
+//   'projectAttributionSuffix',
+// ].join('.')
 
 function FooterLinkItem(props: { link: FooterLink }) {
   const { t } = useTranslation()
@@ -56,26 +56,26 @@ function FooterLinkItem(props: { link: FooterLink }) {
   )
 }
 
-function ProjectAttribution(props: { currentYear: number }) {
-  const { t } = useTranslation()
+// function ProjectAttribution(props: { currentYear: number }) {
+//   const { t } = useTranslation()
 
-  return (
-    <div className='text-muted-foreground/45 text-center text-xs sm:text-right'>
-      <span className='text-muted-foreground/45'>
-        &copy; {props.currentYear}{' '}
-        <a
-          href='https://github.com/QuantumNous/new-api'
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-foreground/70 hover:text-foreground font-medium transition-colors'
-        >
-          {t('New API')}
-        </a>
-        . {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
-      </span>
-    </div>
-  )
-}
+//   return (
+//     <div className='text-muted-foreground/45 text-center text-xs sm:text-right'>
+//       <span className='text-muted-foreground/45'>
+//         &copy; {props.currentYear}{' '}
+//         <a
+//           href='https://github.com/QuantumNous/new-api'
+//           target='_blank'
+//           rel='noopener noreferrer'
+//           className='text-foreground/70 hover:text-foreground font-medium transition-colors'
+//         >
+//           {t('New API')}
+//         </a>
+//         . {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
+//       </span>
+//     </div>
+//   )
+// }
 
 export function Footer(props: FooterProps) {
   const { t } = useTranslation()
@@ -165,7 +165,7 @@ export function Footer(props: FooterProps) {
               dangerouslySetInnerHTML={{ __html: footerHtml }}
             />
             <div className='border-border/60 w-full border-t pt-4 sm:w-auto sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
-              <ProjectAttribution currentYear={currentYear} />
+              {/* <ProjectAttribution currentYear={currentYear} /> */}
             </div>
           </div>
         </div>
@@ -219,11 +219,11 @@ export function Footer(props: FooterProps) {
 
         {/* Bottom section */}
         <div className='border-border/30 mt-12 flex flex-col items-center justify-between gap-3 border-t pt-6 sm:flex-row'>
-          <p className='text-muted-foreground/40 text-xs'>
+          <p className='text-muted-foreground/40 text-center text-xs'>
             &copy; {currentYear} {displayName}.{' '}
             {props.copyright ?? t('footer.defaultCopyright')}
           </p>
-          <ProjectAttribution currentYear={currentYear} />
+          {/* <ProjectAttribution currentYear={currentYear} /> */}
         </div>
       </div>
     </footer>
