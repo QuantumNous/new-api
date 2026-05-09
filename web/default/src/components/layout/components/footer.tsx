@@ -219,7 +219,7 @@ export function Footer(props: FooterProps) {
 
         {/* Bottom section */}
         <div className='border-border/30 mt-12 flex flex-col items-center justify-center gap-3 border-t pt-6'>
-          <p className='text-muted-foreground/40 w-full text-center text-xs'>
+          <p className='text-muted-foreground/40 mx-auto text-center text-xs'>
             &copy; {currentYear} {displayName}.{' '}
             {props.copyright ?? t('footer.defaultCopyright')}
           </p>
