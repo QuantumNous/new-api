@@ -178,8 +178,9 @@ export function ApiKeysMutateDrawer({
         }
       })
     } else if (open && !isUpdate) {
-      // For create, reset to defaults
-      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup, firstGroup))
+      if (!form.formState.isDirty) {
+        form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup, firstGroup))
+      }
     }
   }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, firstGroup])
 
