@@ -276,3 +276,13 @@ custom_oauth.name_empty: "Provider name cannot be empty"
 custom_oauth.has_bindings: "Cannot delete provider with existing user bindings"
 custom_oauth.binding_not_found: "OAuth binding not found"
 custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider response"
+
+# Email messages
+email.verification.subject: "{{.SystemName}} Email Verification"
+email.verification.content: "<p>Hello,</p><p>You are verifying your email for <strong>{{.SystemName}}</strong>.</p><p>Your verification code is: <strong>{{.Code}}</strong></p><p>This code is valid for {{.Minutes}} minutes. If you did not request this, please ignore this email.</p>"
+email.password_reset.subject: "{{.SystemName}} Password Reset"
+email.password_reset.content: "<p>Hello,</p><p>You are resetting your password for <strong>{{.SystemName}}</strong>.</p><p>Click <a href='{{.Link}}'>here</a> to reset your password.</p><p>If the link does not work, copy and paste the URL below into your browser:<br>{{.Link}}</p><p>This reset link is valid for {{.Minutes}} minutes. If you did not request this, please ignore this email.</p>"
+email.channel_disabled.subject: "Channel \"{{.ChannelName}}\" (#{{.ChannelId}}) Disabled"
+email.channel_disabled.content: "Channel \"{{.ChannelName}}\" (#{{.ChannelId}}) has been automatically disabled. Reason: {{.Reason}}"
+email.channel_enabled.subject: "Channel \"{{.ChannelName}}\" (#{{.ChannelId}}) Enabled"
+email.channel_enabled.content: "Channel \"{{.ChannelName}}\" (#{{.ChannelId}}) has been automatically re-enabled."

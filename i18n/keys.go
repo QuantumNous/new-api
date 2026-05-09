@@ -329,3 +329,15 @@ const (
 	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
 	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
 )
+
+// Email related messages
+const (
+	MsgEmailVerificationSubject    = "email.verification.subject"
+	MsgEmailVerificationContent    = "email.verification.content"
+	MsgEmailPasswordResetSubject   = "email.password_reset.subject"
+	MsgEmailPasswordResetContent   = "email.password_reset.content"
+	MsgEmailChannelDisabledSubject = "email.channel_disabled.subject"
+	MsgEmailChannelDisabledContent = "email.channel_disabled.content"
+	MsgEmailChannelEnabledSubject  = "email.channel_enabled.subject"
+	MsgEmailChannelEnabledContent  = "email.channel_enabled.content"
+)
