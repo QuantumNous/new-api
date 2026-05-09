@@ -143,8 +143,9 @@ const StatsCards = ({
                         {t('充值')}
                       </Tag>
                     ) : (
-                      (loading ||
-                        (item.trendData && item.trendData.length > 0)) && (
+                      !loading &&
+                      item.trendData &&
+                      item.trendData.length > 0 && (
                         <div className='dashboard-metric-trend'>
                           <VChart
                             spec={getTrendSpec(item.trendData, item.trendColor)}

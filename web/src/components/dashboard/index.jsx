@@ -88,34 +88,44 @@ const Dashboard = () => {
   // ========== 数据处理 ==========
   const loadUserData = async () => {
     if (dashboardData.isAdminUser) {
-      const userData = await dashboardData.loadUserQuotaData();
-      if (userData && userData.length > 0) {
-        dashboardCharts.updateUserChartData(userData);
-      }
+      return dashboardData.loadUserQuotaData();
+    }
+    return [];
+  };
+
+  const applyDashboardChartData = (quotaData, userData = []) => {
+    if (quotaData && quotaData.length > 0) {
+      dashboardCharts.updateChartData(quotaData);
+    }
+    if (userData && userData.length > 0) {
+      dashboardCharts.updateUserChartData(userData);
     }
   };
 
   const initChart = async () => {
-    await dashboardData.loadQuotaData().then((data) => {
-      if (data && data.length > 0) {
-        dashboardCharts.updateChartData(data);
-      }
-    });
-    await loadUserData();
-    await dashboardData.loadUptimeData();
+    const [quotaData, userData] = await Promise.all([
+      dashboardData.loadQuotaData(),
+      loadUserData(),
+      dashboardData.loadUptimeData(),
+    ]);
+    applyDashboardChartData(quotaData, userData);
   };
 
   const handleRefresh = async () => {
-    const data = await dashboardData.refresh();
-    if (data && data.length > 0) {
-      dashboardCharts.updateChartData(data);
-    }
-    await loadUserData();
+    const [quotaData, userData] = await Promise.all([
+      dashboardData.refresh(),
+      loadUserData(),
+    ]);
+    applyDashboardChartData(quotaData, userData);
   };
 
   const handleSearchConfirm = async () => {
-    await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
-    await loadUserData();
+    const [quotaData, userData] = await Promise.all([
+      dashboardData.refresh(),
+      loadUserData(),
+    ]);
+    applyDashboardChartData(quotaData, userData);
+    dashboardData.handleCloseModal();
   };
 
   // ========== 数据准备 ==========

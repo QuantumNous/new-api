@@ -101,6 +101,7 @@ export const updateChartSpec = (
 
 export const getTrendSpec = (data, color) => ({
   type: 'line',
+  animation: false,
   data: [{ id: 'trend', values: data.map((val, idx) => ({ x: idx, y: val })) }],
   xField: 'x',
   yField: 'y',
