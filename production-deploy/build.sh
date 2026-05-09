@@ -10,6 +10,13 @@ BOLD='\033[1m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BUILD_ENV_FILE="${SCRIPT_DIR}/.build.env"
+
+if [ -f "$BUILD_ENV_FILE" ]; then
+    set -a
+    source "$BUILD_ENV_FILE"
+    set +a
+fi
 
 NEW_API_PATH="/Users/linbiqiu/new-api-test/new-api-fork"
 ACR_REGISTRY="crpi-bij57v7e3thiuuod.cn-shenzhen.personal.cr.aliyuncs.com"

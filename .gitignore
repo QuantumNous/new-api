@@ -12,7 +12,7 @@ web/default/dist
 web/classic/dist
 web/node_modules
 web/dist
-.env
+production-deploy/.build.env
 one-api
 new-api
 /__debug_bin*
