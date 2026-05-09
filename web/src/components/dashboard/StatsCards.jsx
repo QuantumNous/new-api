@@ -105,7 +105,9 @@ const StatsCards = ({
                         {item.icon}
                       </Avatar>
                       <div className='dashboard-metric-copy'>
-                        <div className='dashboard-metric-label'>{item.title}</div>
+                        <div className='dashboard-metric-label'>
+                          {item.title}
+                        </div>
                         <div className='dashboard-metric-value'>
                           <Skeleton
                             loading={loading}

@@ -22,6 +22,8 @@ import { Button, Card } from '@douyinfe/semi-ui';
 import {
   Activity,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
   LineChart,
   PieChart,
   Trophy,
@@ -45,28 +47,45 @@ const ChartsPanel = ({
   hasApiInfoPanel,
   t,
 }) => {
+  const [viewportWidth, setViewportWidth] = React.useState(() =>
+    typeof window === 'undefined' ? 1920 : window.innerWidth,
+  );
+
+  React.useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const chartTabs = [
     {
       key: '1',
       label: t('消耗分布'),
+      compactLabel: t('消耗分布'),
       icon: PieChart,
       tone: 'cyan',
     },
     {
       key: '2',
       label: t('调用趋势'),
+      compactLabel: t('调用趋势'),
       icon: LineChart,
       tone: 'blue',
     },
     {
       key: '3',
       label: t('调用次数分布'),
+      compactLabel: t('调用次数分布'),
       icon: Activity,
       tone: 'green',
     },
     {
       key: '4',
       label: t('调用次数排行'),
+      compactLabel: t('调用次数排行'),
       icon: BarChart3,
       tone: 'orange',
     },
@@ -77,17 +96,31 @@ const ChartsPanel = ({
       {
         key: '5',
         label: t('用户消耗排行'),
+        compactLabel: t('用户消耗排行'),
         icon: Trophy,
         tone: 'pink',
       },
       {
         key: '6',
         label: t('用户消耗趋势'),
+        compactLabel: t('用户消耗趋势'),
         icon: Users,
         tone: 'violet',
       },
     );
   }
+
+  const isCarouselMode = viewportWidth <= 1700 && viewportWidth > 1360;
+  const activeChartIndex = chartTabs.findIndex(
+    (tab) => tab.key === activeChartTab,
+  );
+  const currentTab = chartTabs[activeChartIndex] || chartTabs[0];
+  const prevTab =
+    chartTabs[(activeChartIndex - 1 + chartTabs.length) % chartTabs.length] ||
+    chartTabs[0];
+  const nextTab =
+    chartTabs[(activeChartIndex + 1) % chartTabs.length] || chartTabs[0];
+  const displayTabs = isCarouselMode ? [currentTab] : chartTabs;
 
   return (
     <Card
@@ -107,29 +140,56 @@ const ChartsPanel = ({
               </p>
             </div>
           </div>
-          <div className='dashboard-chart-tabs-wrap'>
-            <div className='dashboard-chart-filter-grid'>
-              {chartTabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeChartTab === tab.key;
+          <div
+            className={`dashboard-chart-tabs-wrap ${isCarouselMode ? 'is-carousel' : ''}`}
+          >
+            {isCarouselMode && (
+              <button
+                type='button'
+                className='dashboard-chart-nav-button'
+                onClick={() => setActiveChartTab(prevTab.key)}
+                aria-label={t('上一个')}
+              >
+                <ChevronLeft size={18} strokeWidth={2.4} />
+              </button>
+            )}
+            <div className='dashboard-chart-filter-window'>
+              <div className='dashboard-chart-filter-grid'>
+                {displayTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeChartTab === tab.key;
+                  const buttonLabel = isCarouselMode
+                    ? tab.compactLabel
+                    : tab.label;
 
-                return (
-                  <Button
-                    key={tab.key}
-                    theme='borderless'
-                    className={`dashboard-chart-filter dashboard-chart-filter-${tab.tone} ${isActive ? 'is-active' : ''}`}
-                    onClick={() => setActiveChartTab(tab.key)}
-                  >
-                    <span className='dashboard-chart-tab-icon'>
-                      <Icon size={15} strokeWidth={2.2} />
-                    </span>
-                    <span className='dashboard-chart-tab-label'>
-                      <span className='dashboard-chart-tab-text'>{tab.label}</span>
-                    </span>
-                  </Button>
-                );
-              })}
+                  return (
+                    <Button
+                      key={tab.key}
+                      theme='borderless'
+                      className={`dashboard-chart-filter dashboard-chart-filter-${tab.tone} ${isActive ? 'is-active' : ''}`}
+                      onClick={() => setActiveChartTab(tab.key)}
+                    >
+                      <span className='dashboard-chart-tab-icon'>
+                        <Icon size={15} strokeWidth={2.2} />
+                      </span>
+                      <span className='dashboard-chart-tab-label'>
+                        {buttonLabel}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
+            {isCarouselMode && (
+              <button
+                type='button'
+                className='dashboard-chart-nav-button'
+                onClick={() => setActiveChartTab(nextTab.key)}
+                aria-label={t('下一个')}
+              >
+                <ChevronRight size={18} strokeWidth={2.4} />
+              </button>
+            )}
           </div>
         </div>
       }
