@@ -1595,3 +1595,80 @@ status: completed
 
 - 在生产备份库按问题窗口生成漏返利 dry-run 清单，再决定是否执行一次性补发。
 - 补发后抽查 `invitation_rebate_records`、邀请人 `aff_quota` / `aff_history` 与消费记录的一致性。
+
+## 资金链路上线前全盘加固修复记录
+
+任务名称：资金链路上线前全盘加固修复
+status: completed
+
+### 本轮目标
+
+- 修复易支付充值回调本地入账非原子、且过早返回 `success` 的资金风险。
+- 修复 `model.UpdateOption` 忽略数据库写入错误导致关闭返利止血不可靠的问题。
+- 对 Stripe / Creem / Waffo / Waffo Pancake / 易支付支付日志做最小脱敏，不再记录原始 webhook body、签名、完整回调参数或完整支付响应。
+- 补齐高权重定向测试：易支付幂等入账、入账失败回滚、支付网关不匹配、option 写失败不更新内存、邀请返利流水普通用户不可访问。
+
+### 当前已修改文件
+
+- `model/option.go`
+- `model/option_test.go`
+- `model/topup.go`
+- `model/payment_method_guard_test.go`
+- `controller/topup.go`
+- `controller/topup_stripe.go`
+- `controller/topup_creem.go`
+- `controller/topup_waffo.go`
+- `controller/topup_waffo_pancake.go`
+- `controller/invitation_rebate_auth_test.go`
+- `.ai/TASK.md`
+
+### 当前实现摘要
+
+- `UpdateOption` 现在用事务执行 `FirstOrCreate` 和 `Save`；DB 写失败时直接返回 error，不调用 `updateOptionMap`。
+- 新增 `model.RechargeEpay`，在单个事务中锁定 `topups.trade_no`、校验 `PaymentProviderEpay`、校验 pending / success、更新订单成功状态并增加用户额度。
+- 易支付已 success 的订单按幂等成功返回，不重复增加用户额度。
+- 如果用户额度更新失败或用户不存在，事务回滚，订单不会被永久标记为 success。
+- 易支付事务成功后按原有语义补充用户 quota 缓存增量；缓存失败只记系统日志，不回滚已成功入账。
+- `EpayNotify` 验签成功后不再立即返回 `success`；只有本地事务成功或已幂等成功后才返回 `success`，本地失败返回 `fail` 让网关可重试。
+- 支付日志改为记录事件类型、订单号、状态、金额、用户 ID、客户端 IP、payload 字节数和错误摘要，不记录原始 body、签名、完整参数或完整响应。
+
+### 当前未修改范围
+
+- 未修改邀请返利计算语义。
+- 未修改同步消费挂接范围。
+- 未修改 model 结构 / migration。
+- 未修改前端页面。
+- 未修改依赖文件。
+- 未执行 `.agents/skills`。
+- 未连接真实 New API 实例。
+
+### 验证命令与结果
+
+- `gofmt -w model/option.go model/option_test.go model/topup.go model/payment_method_guard_test.go controller/topup.go controller/topup_stripe.go controller/topup_creem.go controller/topup_waffo.go controller/topup_waffo_pancake.go controller/invitation_rebate_auth_test.go`：通过。
+- `go test ./model -run "TestUpdateInvitationRebateOptions|TestUpdateOption|TestRechargeEpay" -count=1`：通过。
+- `go test ./controller -run "TestEpay|TestInvitationRebate" -count=1`：通过。
+- `go test ./service -run "TestBillingSessionSettle|TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume" -count=1`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./service/...`：未通过，失败仍在既有 `service/channel_affinity_usage_cache_test.go`，当前复现失败用例为 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode`，与本轮易支付、option、支付日志脱敏和邀请返利功能无直接交集。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 已确认未修改前端页面。
+- 已确认未修改邀请返利计算语义。
+- 已确认未扩大同步消费挂接范围。
+- 已确认未修改 model 结构 / migration。
+- 已确认未修改依赖文件，未提交 `node_modules` 或构建产物。
+- 已确认易支付本地入账成功前不会向网关返回 `success`；本地失败返回 `fail`，允许网关重试。
+- 已确认易支付重复 success 回调只幂等返回，不重复增加用户额度。
+- 已确认 `UpdateOption` 在 DB 写失败时不更新内存 `OptionMap`。
+- 已确认支付日志不再记录原始 webhook body、签名、完整回调参数、完整支付响应或支付链接。
+- 已确认未输出或写入 token / secret / sk- key / bearer token。
+
+### 下一步建议
+
+- 生产上先保持邀请返利关闭，完成备份和问题窗口核账。
+- 在备份库或本地库执行 dry-run，只筛出已实际扣费但缺少 `invitation_rebate_records` 的请求。
+- 如需补发，必须复用 `TryGrantInvitationRebate` 幂等语义，使用原始 request id 作为 `SourceKey` / `SourceRequestID`，不要直接 SQL 修改 `aff_quota`。
+- 单独排期修复既有 `service/channel_affinity_usage_cache_test.go`，恢复 `go test ./service/...` 全包绿灯。

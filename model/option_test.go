@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestUpdateInvitationRebateOptionsPersistNormalizedValues(t *testing.T) {
@@ -69,4 +71,37 @@ func TestUpdateInvitationRebateOptionsPersistNormalizedValues(t *testing.T) {
 			require.Equal(t, tt.expected, optionMapValue)
 		})
 	}
+}
+
+func TestUpdateOptionDoesNotUpdateMemoryWhenDatabaseWriteFails(t *testing.T) {
+	oldDB := DB
+	oldEnabled := common.InvitationRebateEnabled
+	common.OptionMapRWMutex.Lock()
+	oldOptionMap := common.OptionMap
+	common.OptionMap = map[string]string{"InvitationRebateEnabled": "false"}
+	common.OptionMapRWMutex.Unlock()
+	common.InvitationRebateEnabled = false
+
+	badDB, err := gorm.Open(sqlite.Open("file:update-option-failure?mode=memory&cache=shared"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := badDB.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+	DB = badDB
+
+	t.Cleanup(func() {
+		DB = oldDB
+		common.InvitationRebateEnabled = oldEnabled
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = oldOptionMap
+		common.OptionMapRWMutex.Unlock()
+	})
+
+	require.Error(t, UpdateOption("InvitationRebateEnabled", "true"))
+	require.False(t, common.InvitationRebateEnabled)
+
+	common.OptionMapRWMutex.RLock()
+	optionMapValue := common.OptionMap["InvitationRebateEnabled"]
+	common.OptionMapRWMutex.RUnlock()
+	require.Equal(t, "false", optionMapValue)
 }

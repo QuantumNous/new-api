@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,6 +101,61 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	require.NotNil(t, topUp)
 	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
+}
+
+func TestRechargeEpay_IdempotentSuccessOnlyCreditsOnce(t *testing.T) {
+	truncateTables(t)
+
+	userID := 901
+	tradeNo := "epay-idempotent-guard"
+	insertUserForPaymentGuardTest(t, userID, 10)
+	insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderEpay)
+
+	expectedQuota := int(decimal.NewFromInt(2).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+
+	result, err := RechargeEpay(tradeNo, "alipay")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.AlreadyProcessed)
+	assert.Equal(t, expectedQuota, result.QuotaToAdd)
+	assert.Equal(t, "alipay", result.PaymentMethod)
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+	assert.Equal(t, 10+expectedQuota, getUserQuotaForPaymentGuardTest(t, userID))
+
+	result, err = RechargeEpay(tradeNo, "alipay")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.AlreadyProcessed)
+	assert.Equal(t, 10+expectedQuota, getUserQuotaForPaymentGuardTest(t, userID))
+}
+
+func TestRechargeEpay_RollsBackWhenUserQuotaUpdateFails(t *testing.T) {
+	truncateTables(t)
+
+	tradeNo := "epay-missing-user-guard"
+	insertTopUpForPaymentGuardTest(t, tradeNo, 902, PaymentProviderEpay)
+
+	_, err := RechargeEpay(tradeNo, "alipay")
+	require.Error(t, err)
+
+	topUp := GetTopUpByTradeNo(tradeNo)
+	require.NotNil(t, topUp)
+	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
+	assert.Equal(t, PaymentProviderEpay, topUp.PaymentMethod)
+}
+
+func TestRechargeEpay_RejectsMismatchedPaymentProvider(t *testing.T) {
+	truncateTables(t)
+
+	userID := 903
+	tradeNo := "epay-provider-guard"
+	insertUserForPaymentGuardTest(t, userID, 0)
+	insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderStripe)
+
+	_, err := RechargeEpay(tradeNo, "alipay")
+	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, userID))
 }
 
 func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"gorm.io/gorm"
 )
 
 type Option struct {
@@ -211,17 +212,23 @@ func SyncOptions(frequency int) {
 
 func UpdateOption(key string, value string) error {
 	value = normalizeOptionValueForStorage(key, value)
-	// Save to database first
-	option := Option{
-		Key: key,
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		// Save to database first
+		option := Option{
+			Key: key,
+		}
+		// https://gorm.io/docs/update.html#Save-All-Fields
+		if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+			return err
+		}
+		option.Value = value
+		// Save is a combination function.
+		// If save value does not contain primary key, it will execute Create,
+		// otherwise it will execute Update (with all fields).
+		return tx.Save(&option).Error
+	}); err != nil {
+		return err
 	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
 	// Update OptionMap
 	return updateOptionMap(key, value)
 }

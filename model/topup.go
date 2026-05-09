@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
@@ -44,6 +45,15 @@ var (
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
 )
+
+type EpayRechargeResult struct {
+	UserId           int
+	TradeNo          string
+	QuotaToAdd       int
+	Money            float64
+	PaymentMethod    string
+	AlreadyProcessed bool
+}
 
 func (topUp *TopUp) Insert() error {
 	var err error
@@ -102,6 +112,84 @@ func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, ta
 		topUp.Status = targetStatus
 		return tx.Save(topUp).Error
 	})
+}
+
+func RechargeEpay(tradeNo string, actualPaymentMethod string) (*EpayRechargeResult, error) {
+	if tradeNo == "" {
+		return nil, errors.New("topup trade no is required")
+	}
+
+	result := &EpayRechargeResult{}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		topUp := &TopUp{}
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+
+		if topUp.PaymentProvider != PaymentProviderEpay {
+			return ErrPaymentMethodMismatch
+		}
+
+		result.UserId = topUp.UserId
+		result.TradeNo = topUp.TradeNo
+		result.Money = topUp.Money
+		result.PaymentMethod = topUp.PaymentMethod
+
+		if topUp.Status == common.TopUpStatusSuccess {
+			result.AlreadyProcessed = true
+			return nil
+		}
+
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+
+		if actualPaymentMethod != "" && topUp.PaymentMethod != actualPaymentMethod {
+			topUp.PaymentMethod = actualPaymentMethod
+			result.PaymentMethod = actualPaymentMethod
+		}
+
+		quotaToAdd := int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		if quotaToAdd <= 0 {
+			return errors.New("invalid topup quota")
+		}
+		result.QuotaToAdd = quotaToAdd
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+
+		update := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected == 0 {
+			return errors.New("topup user not found")
+		}
+
+		return nil
+	})
+	if err != nil {
+		common.SysError("epay topup failed: " + err.Error())
+		return nil, err
+	}
+	if result.QuotaToAdd > 0 && !result.AlreadyProcessed {
+		gopool.Go(func() {
+			if err := cacheIncrUserQuota(result.UserId, int64(result.QuotaToAdd)); err != nil {
+				common.SysLog("failed to increase user quota cache after epay recharge: " + err.Error())
+			}
+		})
+	}
+
+	return result, nil
 }
 
 func Recharge(referenceId string, customerId string, callerIp string) (err error) {
