@@ -227,7 +227,7 @@ export default function SettingsCreditLimit(props) {
               <Text strong>{t('邀请消费返利')}</Text>
               <div>
                 <Text type='tertiary'>
-                  {t('返利基于被邀请用户的实际消费额度，不基于充值。')}
+                  {t('返利基于被邀请用户的累计实际消费额度，不基于充值。')}
                 </Text>
               </div>
             </div>
@@ -238,7 +238,7 @@ export default function SettingsCreditLimit(props) {
                   label={t('启用邀请消费返利')}
                   field={'InvitationRebateEnabled'}
                   extraText={t(
-                    '开启后，同步消费成功结算后会按比例给邀请人返利。',
+                    '开启后，同步消费成功结算后会累计消费额度，达到门槛后按比例给邀请人返利。',
                   )}
                   onChange={(value) =>
                     setInputs({
@@ -273,12 +273,14 @@ export default function SettingsCreditLimit(props) {
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
-                  label={t('最小触发消费额度')}
+                  label={t('累计触发消费额度')}
                   field={'InvitationRebateMinQuota'}
                   step={1}
                   min={0}
                   suffix={'Token'}
-                  extraText={t('仅当实际消费额度达到该值时才发放返利。')}
+                  extraText={t(
+                    '累计实际消费额度达到该值时才发放返利，未满部分会继续累计。',
+                  )}
                   placeholder={t('例如：1000')}
                   onChange={(value) =>
                     setInputs({

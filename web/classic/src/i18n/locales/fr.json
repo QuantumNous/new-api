@@ -3670,6 +3670,10 @@
     "默认用户消息": "Bonjour",
     "默认补全倍率": "Taux de complétion par défaut",
     "阶梯计费（表达式解析失败）": "Facturation par paliers (échec de l'analyse de l'expression)",
-    "阶梯计费（未匹配到对应阶梯）": "Facturation par paliers (aucun palier correspondant)"
+    "阶梯计费（未匹配到对应阶梯）": "Facturation par paliers (aucun palier correspondant)",
+    "返利基于被邀请用户的累计实际消费额度，不基于充值。": "La remise est basée sur le quota de consommation réelle cumulée de l'utilisateur invité, pas sur les recharges.",
+    "开启后，同步消费成功结算后会累计消费额度，达到门槛后按比例给邀请人返利。": "Une fois activée, la consommation synchrone réglée avec succès est cumulée et la remise est accordée à l'inviteur selon le pourcentage lorsque le seuil est atteint.",
+    "累计触发消费额度": "Quota de consommation cumulée déclencheur",
+    "累计实际消费额度达到该值时才发放返利，未满部分会继续累计。": "La remise est accordée lorsque le quota de consommation réelle cumulée atteint cette valeur. La partie non réglée continue de s'accumuler."
   }
 }

@@ -4204,6 +4204,10 @@
     "默认用户消息": "Xin chào",
     "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
     "阶梯计费（表达式解析失败）": "Thanh toán theo bậc (không phân tích được biểu thức)",
-    "阶梯计费（未匹配到对应阶梯）": "Thanh toán theo bậc (không tìm thấy bậc phù hợp)"
+    "阶梯计费（未匹配到对应阶梯）": "Thanh toán theo bậc (không tìm thấy bậc phù hợp)",
+    "返利基于被邀请用户的累计实际消费额度，不基于充值。": "Hoàn thưởng dựa trên hạn mức tiêu thụ thực tế tích lũy của người được mời, không dựa trên nạp tiền.",
+    "开启后，同步消费成功结算后会累计消费额度，达到门槛后按比例给邀请人返利。": "Sau khi bật, mức tiêu thụ đồng bộ đã quyết toán thành công sẽ được tích lũy và hoàn thưởng theo phần trăm cho người mời khi đạt ngưỡng.",
+    "累计触发消费额度": "Hạn mức tiêu thụ tích lũy kích hoạt",
+    "累计实际消费额度达到该值时才发放返利，未满部分会继续累计。": "Chỉ cấp hoàn thưởng khi hạn mức tiêu thụ thực tế tích lũy đạt giá trị này; phần chưa đủ sẽ tiếp tục tích lũy."
   }
 }

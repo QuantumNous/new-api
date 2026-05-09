@@ -4424,6 +4424,10 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Configure cumulative rebates from invited users' actual consumption": "Настройка накопительных возвратов за фактическое потребление приглашенных пользователей",
+    "Accumulate invited users' actual consumed quota and grant inviter rewards after the configured threshold is reached. Rebates are not based on top-ups.": "Накапливает фактически израсходованную квоту приглашенных пользователей и начисляет вознаграждение пригласившему после достижения настроенного порога. Возвраты не основаны на пополнениях.",
+    "Cumulative Trigger Consumption Quota": "Накопительный порог потребления",
+    "Grant rebates when cumulative actual consumed quota reaches this value. Unsettled quota keeps accumulating.": "Начисляет возвраты, когда накопленная фактически израсходованная квота достигает этого значения. Нерассчитанная квота продолжает накапливаться."
   }
 }

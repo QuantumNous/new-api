@@ -1672,3 +1672,92 @@ status: completed
 - 在备份库或本地库执行 dry-run，只筛出已实际扣费但缺少 `invitation_rebate_records` 的请求。
 - 如需补发，必须复用 `TryGrantInvitationRebate` 幂等语义，使用原始 request id 作为 `SourceKey` / `SourceRequestID`，不要直接 SQL 修改 `aff_quota`。
 - 单独排期修复既有 `service/channel_affinity_usage_cache_test.go`，恢复 `go test ./service/...` 全包绿灯。
+## 累计邀请返利资金安全加固记录
+
+任务名称：将邀请消费返利改为累计消费达标返利
+status: completed
+
+### 本轮目标
+
+- 将邀请返利从单笔消费达标返利改为累计消费达标返利。
+- 所有累计入账、满额结算、返利流水创建、邀请人 `aff_quota` / `aff_history` 更新均在主库事务中完成。
+- 继续复用现有后台配置项：
+  - `InvitationRebateEnabled`
+  - `InvitationRebateRatioBps`
+  - `InvitationRebateMinQuota`
+- 不修改充值、注册 / OAuth、异步任务、Midjourney、多级邀请、补发、删除、导出逻辑。
+
+### 实现摘要
+
+- 新增主库累计消费明细模型 `InvitationRebateConsumption`，对 `source_type + source_key` 建唯一索引，确保同一次同步消费不会重复累计。
+- 新增主库累计状态模型 `InvitationRebateAccumulation`，按邀请人 / 被邀请人关系维护未结算累计额度、历史累计额度、历史已结算额度、历史返利额度和返利分子余数。
+- `TryGrantInvitationRebate` 保持入口不变，内部改为：
+  - 配置关闭、比例为 0、空 source、无邀请人、邀请人不存在、消费额度小于等于 0 时跳过。
+  - 有效消费先写入累计明细。
+  - 按后台当前 `InvitationRebateMinQuota` 动态计算是否达到累计门槛。
+  - 未满门槛返回 `accumulated`，不发放返利。
+  - 达到门槛后只结算满额部分，剩余未满部分继续保留。
+  - 每笔消费记录消费发生时的 `rebate_ratio_bps`，后续管理员改比例不追溯旧消费。
+  - 小额返利的分子余数保留到累计状态中，避免长期向下取整损失。
+  - 已发放返利继续写入 `invitation_rebate_records` 作为管理员流水。
+- 后台新版和旧版额度设置文案已改为累计门槛语义，强调基于累计实际消费而不是充值。
+- 自审时发现部分 locale 新增文案存在终端编码导致的 `????` 乱码，并且新版 locale 中受保护的 footer key 被 JSON 重写为普通拼写；已仅限 locale 文件修复为正确翻译与原有 `footer.new\u0061pi.projectAttributionSuffix` key，未改业务逻辑。
+
+### 修改文件
+
+- `model/invitation_rebate_record.go`
+- `model/main.go`
+- `service/invitation_rebate.go`
+- `service/invitation_rebate_test.go`
+- `web/default/src/features/system-settings/general/quota-settings-section.tsx`
+- `web/default/src/i18n/locales/{en,zh,fr,ja,ru,vi}.json`
+- `web/classic/src/pages/Setting/Operation/SettingsCreditLimit.jsx`
+- `web/classic/src/i18n/locales/{en,zh,zh-CN,zh-TW,fr,ja,ru,vi}.json`
+- `.ai/TASK.md`
+
+### 验证命令与结果
+
+- `gofmt -w model/invitation_rebate_record.go model/main.go service/invitation_rebate.go service/invitation_rebate_test.go`：通过。
+- `go test ./service -run "TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume" -count=1`：通过。
+- `go test ./service/...`：未通过，失败仍在既有 `service/channel_affinity_usage_cache_test.go`；本轮最新复现用例为 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode`，上一轮曾复现 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`，均与本轮累计返利模型、事务和前端文案无直接交集。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `cd web/default && bun run typecheck`：通过，使用临时 Bun 1.3.13。
+- `cd web/default && bun run build`：通过。
+- `cd web/classic && bun run build`：通过，仅有既有 Browserslist、lottie eval 和 chunk size warning。
+- `cd web/default && bun run lint`：未通过，失败文件均为既有非本轮修改文件。
+- `cd web/classic && bun run lint`：未通过，失败为旧版前端既有 Prettier / dist 检查债务，本轮修改文件未出现在失败清单中。
+- locale JSON parse 与本轮新增 key 完整性检查：通过。
+- `git diff --check`：通过。
+
+### 已知既有失败与豁免依据
+
+- 新版前端 lint 仍失败在既有文件：
+  - `web/default/src/features/keys/components/api-keys-dialogs.tsx`
+  - `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+  - `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+  - `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`
+  - `web/default/src/features/usage-logs/components/common-logs-filter-bar.tsx`
+  - `web/default/src/features/usage-logs/components/task-logs-filter-bar.tsx`
+  - `web/default/src/lib/theme-radius.ts`
+- 旧版前端 lint 仍失败在既有大范围 Prettier / dist 检查债务，本轮修改的 `SettingsCreditLimit.jsx` 与新增 locale key 不在失败清单中。
+- 上述 lint 失败均不涉及本轮累计返利后端事务、累计账本、消费挂接、充值、注册 / OAuth、异步任务或 Midjourney。
+
+### 自审查结果
+
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改异步任务 / Midjourney。
+- 未扩大同步消费挂接范围。
+- 未新增补发、删除、导出、多级邀请或普通用户返利日志。
+- 未修改依赖文件，未提交 `node_modules` 或构建产物。
+- 未输出或写入 token / secret / sk- key / bearer token。
+- 新增累计模型通过 AutoMigrate 注册，兼容项目现有 SQLite / MySQL / PostgreSQL 的 GORM 写法。
+- 重复 `source_type + source_key` 只会幂等返回，不重复累计或重复返利。
+- 返利流水创建、累计状态更新、邀请人返利额度更新在同一事务中完成；任一失败会回滚。
+
+### 下一步建议
+
+- 上线前保持 `InvitationRebateEnabled=false`，先在本地或备份库确认新表和唯一索引创建成功。
+- 用低风险测试账号验证低额累计、满额返利、重复请求幂等和后台流水展示。
+- 生产如发现异常，第一步关闭 `InvitationRebateEnabled`，保留 `users`、`options`、`invitation_rebate_consumptions`、`invitation_rebate_accumulations`、`invitation_rebate_records` 和消费日志用于核账。

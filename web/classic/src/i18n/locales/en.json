@@ -3815,6 +3815,10 @@
     "见上方动态计费详情": "See dynamic pricing details above",
     "含时间条件": "Time rules",
     "含请求条件": "Request rules",
-    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)"
+    "（当前仅支持易支付接口，默认使用上方服务器地址作为回调地址！）": "(Currently only supports Epay interface, the default callback address is the server address above!)",
+    "返利基于被邀请用户的累计实际消费额度，不基于充值。": "Rebates are based on the invited user's cumulative actual consumption quota, not top-ups.",
+    "开启后，同步消费成功结算后会累计消费额度，达到门槛后按比例给邀请人返利。": "When enabled, successful synchronous consumption is accumulated and rebates are granted to the inviter by percentage after the threshold is reached.",
+    "累计触发消费额度": "Cumulative Trigger Consumption Quota",
+    "累计实际消费额度达到该值时才发放返利，未满部分会继续累计。": "Rebates are granted when cumulative actual consumption quota reaches this value. The remaining unsettled quota keeps accumulating."
   }
 }

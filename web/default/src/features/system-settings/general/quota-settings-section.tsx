@@ -204,7 +204,9 @@ export function QuotaSettingsSection({
             <div className='space-y-1'>
               <h4 className='text-sm font-medium'>{t('Invitation Rebate')}</h4>
               <p className='text-muted-foreground text-sm'>
-                {t("Configure rebates from invited users' actual consumption")}
+                {t(
+                  "Configure cumulative rebates from invited users' actual consumption"
+                )}
               </p>
             </div>
 
@@ -219,7 +221,7 @@ export function QuotaSettingsSection({
                     </FormLabel>
                     <FormDescription>
                       {t(
-                        "Grant inviter rewards after invited users consume quota. Rebates are based on actual consumption, not top-ups."
+                        "Accumulate invited users' actual consumed quota and grant inviter rewards after the configured threshold is reached. Rebates are not based on top-ups."
                       )}
                     </FormDescription>
                   </div>
@@ -269,7 +271,9 @@ export function QuotaSettingsSection({
                 name='InvitationRebateMinQuota'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Minimum Consumption Quota')}</FormLabel>
+                    <FormLabel>
+                      {t('Cumulative Trigger Consumption Quota')}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -284,7 +288,7 @@ export function QuotaSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'Only grant rebates when actual consumed quota reaches this value.'
+                        'Grant rebates when cumulative actual consumed quota reaches this value. Unsettled quota keeps accumulating.'
                       )}
                     </FormDescription>
                     <FormMessage />

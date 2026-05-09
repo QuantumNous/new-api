@@ -4424,6 +4424,10 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Configure cumulative rebates from invited users' actual consumption": "招待ユーザーの累計実消費に基づくリベートを設定",
+    "Accumulate invited users' actual consumed quota and grant inviter rewards after the configured threshold is reached. Rebates are not based on top-ups.": "招待ユーザーの実際の消費クォータを累計し、設定したしきい値に達した後に招待者へリベートを付与します。リベートはチャージに基づきません。",
+    "Cumulative Trigger Consumption Quota": "累計消費トリガークォータ",
+    "Grant rebates when cumulative actual consumed quota reaches this value. Unsettled quota keeps accumulating.": "累計の実消費クォータがこの値に達したときにリベートを付与します。未精算のクォータは引き続き累計されます。"
   }
 }

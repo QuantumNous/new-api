@@ -4424,6 +4424,10 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Configure cumulative rebates from invited users' actual consumption": "Configurer les remises cumulées basées sur la consommation réelle des utilisateurs invités",
+    "Accumulate invited users' actual consumed quota and grant inviter rewards after the configured threshold is reached. Rebates are not based on top-ups.": "Cumule le quota réellement consommé par les utilisateurs invités et accorde des récompenses au parrain lorsque le seuil configuré est atteint. Les remises ne sont pas basées sur les recharges.",
+    "Cumulative Trigger Consumption Quota": "Quota de consommation cumulée déclencheur",
+    "Grant rebates when cumulative actual consumed quota reaches this value. Unsettled quota keeps accumulating.": "Accorde des remises lorsque le quota de consommation réelle cumulée atteint cette valeur. Le quota non réglé continue de s'accumuler."
   }
 }

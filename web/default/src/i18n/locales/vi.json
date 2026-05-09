@@ -4424,6 +4424,10 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Configure cumulative rebates from invited users' actual consumption": "Cấu hình hoàn thưởng tích lũy từ mức tiêu thụ thực tế của người được mời",
+    "Accumulate invited users' actual consumed quota and grant inviter rewards after the configured threshold is reached. Rebates are not based on top-ups.": "Tích lũy hạn mức tiêu thụ thực tế của người được mời và thưởng cho người mời sau khi đạt ngưỡng đã cấu hình. Hoàn thưởng không dựa trên nạp tiền.",
+    "Cumulative Trigger Consumption Quota": "Hạn mức tiêu thụ tích lũy kích hoạt",
+    "Grant rebates when cumulative actual consumed quota reaches this value. Unsettled quota keeps accumulating.": "Cấp hoàn thưởng khi hạn mức tiêu thụ thực tế tích lũy đạt giá trị này. Hạn mức chưa quyết toán tiếp tục được tích lũy."
   }
 }
