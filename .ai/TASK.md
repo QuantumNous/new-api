@@ -1844,3 +1844,79 @@ status: completed
 - 上线前继续保持 `InvitationRebateEnabled=false`，先在本地或备份库验证 `invitation_rebate_settlement_items` 表与索引创建成功。
 - 用测试账号验收低额累计、跨多笔消费结算、同一消费拆分结算、比例变更快照、低比例 0 金额明细、详情展示和重复 request id 幂等。
 - 生产开启前先小比例、小门槛、小流量灰度；如发现异常，第一步关闭 `InvitationRebateEnabled` 并保留 `users`、`options`、累计表、返利流水、结算明细和消费日志用于核账。
+
+## 资金链路漏洞与风险修复记录
+
+任务名称：资金链路行锁、回调入账与累计返利并发加固
+status: completed
+
+### 本轮目标
+
+- 修复资金事务中旧式 `gorm:query_option` 行锁可能不生效的问题。
+- 修复 Stripe webhook 本地入账失败仍可能返回 200 的问题。
+- 对齐充值渠道用户额度更新命中行数检查，避免订单 success 但用户额度未增加。
+- 加固累计返利消费明细结算条件更新，避免并发覆盖同一消费明细。
+- 加固邀请余额转余额、兑换码等资金相关事务边界。
+
+### 本轮修改文件
+
+- `model/locking.go`
+- `model/topup.go`
+- `model/redemption.go`
+- `model/user.go`
+- `model/subscription.go`
+- `model/task_cas_test.go`
+- `model/payment_method_guard_test.go`
+- `controller/topup_stripe.go`
+- `controller/topup_stripe_test.go`
+- `service/invitation_rebate.go`
+- `service/invitation_rebate_test.go`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 新增 `model.LockingForUpdate(tx)`，MySQL/PostgreSQL 使用 `clause.Locking{Strength: "UPDATE"}`，SQLite 保持 no-op 兼容。
+- 替换资金相关路径中的旧式 `tx.Set("gorm:query_option", "FOR UPDATE")`。
+- Stripe webhook 的本地订阅/充值处理失败会向上返回 error，webhook 返回 5xx，允许 Stripe 重试。
+- Stripe、Creem、Waffo、Waffo Pancake、易支付、管理员补单的用户额度增加均检查 `RowsAffected`，未命中用户时回滚事务。
+- Stripe 重复 success 回调和管理员重复补单保持幂等，不重复增加额度，也不重复写成功充值日志。
+- 兑换码充值用户额度更新检查 `RowsAffected`，用户不存在时回滚兑换码状态。
+- 邀请余额转余额在行锁基础上增加 `aff_quota >= quota` 条件原子更新，防止并发超扣。
+- 累计返利消费明细结算更新增加旧 `settled_source_quota` 条件，命中 0 行视为并发冲突并回滚。
+
+### 未修改范围
+
+- 未修改返利比例、累计门槛、source key 或消费挂接范围。
+- 未修改充值金额计算规则。
+- 未修改注册 / OAuth、异步任务、Midjourney。
+- 未修改 model 结构 / migration。
+- 未修改前端。
+- 未修改依赖文件，未提交 `node_modules` 或构建产物。
+- 未执行 `.agents/skills`，未连接真实 New API 实例。
+
+### 验证命令与结果
+
+- `gofmt -w model/locking.go model/topup.go model/user.go model/redemption.go model/subscription.go model/task_cas_test.go model/payment_method_guard_test.go service/invitation_rebate.go service/invitation_rebate_test.go controller/topup_stripe.go controller/topup_stripe_test.go`：通过。
+- `go test ./model -run "TestRechargeEpay|TestRechargeStripe|TestRechargeCreem|TestRechargeWaffo|TestManualCompleteTopUp|TestRedeem|TestTransferAffQuota|TestUpdatePendingTopUpStatus|TestCompleteSubscriptionOrder|TestExpireSubscriptionOrder" -count=1`：通过。
+- `go test ./controller -run "TestStripe|TestEpay|TestInvitationRebate" -count=1`：通过。
+- `go test ./service -run "TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume|TestApplyInvitationRebateSettlementPlan|TestBillingSessionSettle" -count=1`：通过。
+- `go test ./model -run "TestUpdateInvitationRebateOptions|TestUpdateOption|TestRechargeEpay|TestRechargeStripe|TestRechargeCreem|TestRechargeWaffo|TestManualCompleteTopUp|TestRedeem|TestTransferAffQuota" -count=1`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./service/...`：未通过，仍失败在既有 `service/channel_affinity_usage_cache_test.go` 的 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode` 和 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`，与本轮资金链路、充值入账、累计返利结算加固无直接交集。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- staged 前自审：本轮只改后端资金安全和对应测试，不改前端、不改依赖、不改数据库结构。
+- 已确认没有扩大邀请返利消费挂接范围，没有修改返利计算语义。
+- 已确认 Stripe 本地入账失败不会返回 200。
+- 已确认充值渠道用户额度更新未命中时会回滚订单状态。
+- 已确认累计返利消费明细结算并发冲突会回滚。
+- 已确认没有输出或写入 token / secret / sk- key / bearer token。
+
+### 下一步建议
+
+- 生产继续保持 `InvitationRebateEnabled=false`，先部署加固版本并在备份库/本地验证行锁、充值回调重试和累计返利并发场景。
+- 单独排期修复既有 `service/channel_affinity_usage_cache_test.go` 测试债务，恢复 `go test ./service/...` 全绿。
+- 如需恢复生产邀请返利，先用小比例、小门槛、测试账号跑完整消费到返利流水链路。

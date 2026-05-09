@@ -656,6 +656,46 @@ func TestTryGrantInvitationRebateRollsBackWhenInviterUpdateFails(t *testing.T) {
 	require.Equal(t, 0, inviter.AffHistoryQuota)
 }
 
+func TestApplyInvitationRebateSettlementPlanDetectsConcurrentConsumptionChange(t *testing.T) {
+	setupInvitationRebateTest(t)
+	seedInvitationRebateUser(t, 1, 0, 0, 0)
+	seedInvitationRebateUser(t, 2, 1, 0, 0)
+
+	consumption := &model.InvitationRebateConsumption{
+		InviterUserId:      1,
+		InviteeUserId:      2,
+		SourceType:         "sync_relay_request",
+		SourceKey:          "req_conflict",
+		SourceRequestId:    "req_conflict",
+		SourceQuota:        100,
+		SettledSourceQuota: 40,
+		RebateRatioBps:     1000,
+		Status:             model.InvitationRebateConsumptionStatusPartiallySettled,
+	}
+	require.NoError(t, model.DB.Create(consumption).Error)
+
+	stalePlan := []invitationRebateSettlementPlanItem{
+		{
+			ConsumptionId:         consumption.Id,
+			SettledSourceQuota:    30,
+			NewSettledSourceQuota: 70,
+			NewStatus:             model.InvitationRebateConsumptionStatusPartiallySettled,
+		},
+	}
+	require.NoError(t, model.DB.Model(&model.InvitationRebateConsumption{}).
+		Where("id = ?", consumption.Id).
+		Update("settled_source_quota", 50).Error)
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		return applyInvitationRebateSettlementPlanTx(tx, stalePlan)
+	})
+	require.Error(t, err)
+
+	var reloaded model.InvitationRebateConsumption
+	require.NoError(t, model.DB.Where("id = ?", consumption.Id).First(&reloaded).Error)
+	require.Equal(t, 50, reloaded.SettledSourceQuota)
+}
+
 func newInvitationRebateGinContext() *gin.Context {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()

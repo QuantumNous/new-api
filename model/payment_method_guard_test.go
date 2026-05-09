@@ -88,6 +88,23 @@ func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
 	return user.Quota
 }
 
+func countTopUpLogsForPaymentGuardTest(t *testing.T, userID int) int64 {
+	t.Helper()
+	var count int64
+	require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", userID, LogTypeTopup).Count(&count).Error)
+	return count
+}
+
+func insertRedemptionForPaymentGuardTest(t *testing.T, key string, quota int) {
+	t.Helper()
+	redemption := &Redemption{
+		Key:    key,
+		Status: common.RedemptionCodeStatusEnabled,
+		Quota:  quota,
+	}
+	require.NoError(t, DB.Create(redemption).Error)
+}
+
 func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	truncateTables(t)
 
@@ -101,6 +118,36 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	require.NotNil(t, topUp)
 	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
+}
+
+func TestRechargeStripe_IdempotentSuccessOnlyCreditsAndLogsOnce(t *testing.T) {
+	truncateTables(t)
+
+	userID := 904
+	tradeNo := "stripe-idempotent-guard"
+	insertUserForPaymentGuardTest(t, userID, 10)
+	insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderStripe)
+
+	expectedQuota := int(decimal.NewFromFloat(9.99).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+
+	require.NoError(t, Recharge(tradeNo, "cus_guard", "127.0.0.1"))
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+	assert.Equal(t, 10+expectedQuota, getUserQuotaForPaymentGuardTest(t, userID))
+
+	require.NoError(t, Recharge(tradeNo, "cus_guard", "127.0.0.1"))
+	assert.Equal(t, 10+expectedQuota, getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(1), countTopUpLogsForPaymentGuardTest(t, userID))
+}
+
+func TestRechargeStripe_RollsBackWhenUserQuotaUpdateFails(t *testing.T) {
+	truncateTables(t)
+
+	tradeNo := "stripe-missing-user-guard"
+	insertTopUpForPaymentGuardTest(t, tradeNo, 905, PaymentProviderStripe)
+
+	err := Recharge(tradeNo, "cus_missing", "127.0.0.1")
+	require.Error(t, err)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
 }
 
 func TestRechargeEpay_IdempotentSuccessOnlyCreditsOnce(t *testing.T) {
@@ -156,6 +203,101 @@ func TestRechargeEpay_RejectsMismatchedPaymentProvider(t *testing.T) {
 	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
 	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, userID))
+}
+
+func TestRechargeCreem_RollsBackWhenUserQuotaUpdateFails(t *testing.T) {
+	truncateTables(t)
+
+	tradeNo := "creem-missing-user-guard"
+	insertTopUpForPaymentGuardTest(t, tradeNo, 906, PaymentProviderCreem)
+
+	err := RechargeCreem(tradeNo, "", "", "127.0.0.1")
+	require.Error(t, err)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+}
+
+func TestRechargeWaffo_RollsBackWhenUserQuotaUpdateFails(t *testing.T) {
+	truncateTables(t)
+
+	tradeNo := "waffo-missing-user-guard"
+	insertTopUpForPaymentGuardTest(t, tradeNo, 907, PaymentProviderWaffo)
+
+	err := RechargeWaffo(tradeNo, "127.0.0.1")
+	require.Error(t, err)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+}
+
+func TestRechargeWaffoPancake_RollsBackWhenUserQuotaUpdateFails(t *testing.T) {
+	truncateTables(t)
+
+	tradeNo := "waffo-pancake-missing-user-guard"
+	insertTopUpForPaymentGuardTest(t, tradeNo, 908, PaymentProviderWaffoPancake)
+
+	err := RechargeWaffoPancake(tradeNo)
+	require.Error(t, err)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+}
+
+func TestManualCompleteTopUp_RollsBackWhenUserQuotaUpdateFails(t *testing.T) {
+	truncateTables(t)
+
+	tradeNo := "manual-missing-user-guard"
+	insertTopUpForPaymentGuardTest(t, tradeNo, 909, PaymentProviderEpay)
+
+	err := ManualCompleteTopUp(tradeNo, "127.0.0.1")
+	require.Error(t, err)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+}
+
+func TestManualCompleteTopUp_IdempotentSuccessSkipsDuplicateLog(t *testing.T) {
+	truncateTables(t)
+
+	userID := 910
+	tradeNo := "manual-idempotent-guard"
+	insertUserForPaymentGuardTest(t, userID, 0)
+	insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderEpay)
+
+	require.NoError(t, ManualCompleteTopUp(tradeNo, "127.0.0.1"))
+	require.NoError(t, ManualCompleteTopUp(tradeNo, "127.0.0.1"))
+	assert.Equal(t, int64(1), countTopUpLogsForPaymentGuardTest(t, userID))
+}
+
+func TestRedeem_RollsBackWhenUserQuotaUpdateFails(t *testing.T) {
+	truncateTables(t)
+
+	key := "redeem_missing_user_guard_0001"
+	insertRedemptionForPaymentGuardTest(t, key, 100)
+
+	_, err := Redeem(key, 911)
+	require.Error(t, err)
+
+	var redemption Redemption
+	require.NoError(t, DB.Where("key = ?", key).First(&redemption).Error)
+	assert.Equal(t, common.RedemptionCodeStatusEnabled, redemption.Status)
+	assert.Equal(t, 0, redemption.UsedUserId)
+}
+
+func TestTransferAffQuotaToQuotaRejectsOverTransfer(t *testing.T) {
+	truncateTables(t)
+
+	quotaUnit := int(common.QuotaPerUnit)
+	userID := 912
+	user := &User{
+		Id:       userID,
+		Username: "aff_transfer_guard_user",
+		Status:   common.UserStatusEnabled,
+		Quota:    5,
+		AffQuota: quotaUnit,
+	}
+	require.NoError(t, DB.Create(user).Error)
+
+	err := (&User{Id: userID}).TransferAffQuotaToQuota(quotaUnit + 1)
+	require.Error(t, err)
+
+	var reloaded User
+	require.NoError(t, DB.Where("id = ?", userID).First(&reloaded).Error)
+	assert.Equal(t, 5, reloaded.Quota)
+	assert.Equal(t, quotaUnit, reloaded.AffQuota)
 }
 
 func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T) {

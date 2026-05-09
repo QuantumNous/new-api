@@ -355,7 +355,7 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	defer tx.Rollback() // 确保在函数退出时事务能回滚
 
 	// 加锁查询用户以确保数据一致性
-	err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, user.Id).Error
+	err := LockingForUpdate(tx).First(&user, user.Id).Error
 	if err != nil {
 		return err
 	}
@@ -365,14 +365,21 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 		return errors.New("邀请额度不足！")
 	}
 
-	// 更新用户额度
+	// 条件原子更新，避免并发转移时绕过余额检查
+	update := tx.Model(&User{}).
+		Where("id = ? AND aff_quota >= ?", user.Id, quota).
+		Updates(map[string]interface{}{
+			"aff_quota": gorm.Expr("aff_quota - ?", quota),
+			"quota":     gorm.Expr("quota + ?", quota),
+		})
+	if update.Error != nil {
+		return update.Error
+	}
+	if update.RowsAffected == 0 {
+		return errors.New("邀请额度不足！")
+	}
 	user.AffQuota -= quota
 	user.Quota += quota
-
-	// 保存用户状态
-	if err := tx.Save(user).Error; err != nil {
-		return err
-	}
 
 	// 提交事务
 	return tx.Commit().Error

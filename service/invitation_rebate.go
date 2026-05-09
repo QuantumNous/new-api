@@ -405,7 +405,7 @@ func getInvitationRebateAccumulationForUpdateTx(tx *gorm.DB, inviterId int, invi
 	}
 
 	var state model.InvitationRebateAccumulation
-	err := tx.Set("gorm:query_option", "FOR UPDATE").
+	err := model.LockingForUpdate(tx).
 		Where("inviter_user_id = ? AND invitee_user_id = ?", inviterId, inviteeUserId).
 		First(&state).Error
 	if err != nil {
@@ -438,7 +438,7 @@ func calculateInvitationRebateSettleQuota(pendingQuota int, minQuota int) int {
 
 func buildInvitationRebateSettlementPlanTx(tx *gorm.DB, state *model.InvitationRebateAccumulation, settleQuota int) ([]invitationRebateSettlementPlanItem, int, int64, error) {
 	var consumptions []*model.InvitationRebateConsumption
-	err := tx.Set("gorm:query_option", "FOR UPDATE").
+	err := model.LockingForUpdate(tx).
 		Where("inviter_user_id = ? AND invitee_user_id = ? AND settled_source_quota < source_quota", state.InviterUserId, state.InviteeUserId).
 		Order("created_at asc, id asc").
 		Find(&consumptions).Error
@@ -531,13 +531,18 @@ func createInvitationRebateSettlementItemsTx(tx *gorm.DB, recordId int, planItem
 
 func applyInvitationRebateSettlementPlanTx(tx *gorm.DB, planItems []invitationRebateSettlementPlanItem) error {
 	for _, item := range planItems {
-		if err := tx.Model(&model.InvitationRebateConsumption{}).
-			Where("id = ?", item.ConsumptionId).
+		previousSettledSourceQuota := item.NewSettledSourceQuota - item.SettledSourceQuota
+		update := tx.Model(&model.InvitationRebateConsumption{}).
+			Where("id = ? AND settled_source_quota = ?", item.ConsumptionId, previousSettledSourceQuota).
 			Updates(map[string]interface{}{
 				"settled_source_quota": item.NewSettledSourceQuota,
 				"status":               item.NewStatus,
-			}).Error; err != nil {
-			return err
+			})
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected == 0 {
+			return fmt.Errorf("invitation rebate consumption %d settlement changed concurrently", item.ConsumptionId)
 		}
 	}
 	return nil
