@@ -2020,7 +2020,7 @@ html.dark .with-pastel-balls::before {
 }
 
 .dashboard-chart-tabs-wrap.is-carousel .dashboard-chart-filter-grid {
-  padding-top: 0;
+  padding-top: 2px;
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
 }
