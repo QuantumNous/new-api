@@ -161,11 +161,9 @@ export function ApiKeysMutateDrawer({
     })
   }
 
-  const firstGroup = Object.keys(groupsRaw)[0] || ''
-
   const form = useForm<ApiKeyFormValues>({
     resolver: zodResolver(apiKeyFormSchema),
-    defaultValues: getApiKeyFormDefaultValues(defaultUseAutoGroup, firstGroup),
+    defaultValues: getApiKeyFormDefaultValues(defaultUseAutoGroup),
   })
 
   // Load existing data when updating
@@ -178,11 +176,9 @@ export function ApiKeysMutateDrawer({
         }
       })
     } else if (open && !isUpdate) {
-      if (!form.formState.isDirty) {
-        form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup, firstGroup))
-      }
+      form.reset(getApiKeyFormDefaultValues(defaultUseAutoGroup))
     }
-  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, firstGroup])
+  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
