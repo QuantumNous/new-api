@@ -81,19 +81,39 @@ type v3UsageStats struct {
 
 // buildV3Headers builds the WS/HTTP request headers used by every v3 transport.
 // connectID is always emitted so server-side troubleshooting is possible.
+//
+// Auth modes:
+//   - new_console (default): the channel key is the new-console API Key sent
+//     verbatim as X-Api-Key. Both formats are accepted for ergonomics:
+//     * single segment "<api_key>" — new-console issued key (recommended).
+//     * legacy "<app_id>|<access_token>" — second segment is used as X-Api-Key
+//       and a deprecation hint is logged via the response error if upstream
+//       rejects (since legacy access tokens are NOT valid X-Api-Key values).
+//   - legacy: the channel key MUST be "<app_id>|<access_token>", split into
+//     X-Api-App-Id + X-Api-Access-Key headers.
 func buildV3Headers(cfg dto.VolcTTSConfig, apiKey, connectID string) (http.Header, error) {
-	appID, token, err := parseVolcengineAuth(apiKey)
-	if err != nil {
-		return nil, err
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return nil, errors.New("empty volcengine api key")
 	}
 	h := http.Header{}
 	if cfg.EffectiveAuthMode() == dto.VolcTTSAuthModeLegacy {
+		appID, token, err := parseVolcengineAuth(apiKey)
+		if err != nil {
+			return nil, err
+		}
 		h.Set("X-Api-App-Id", appID)
 		h.Set("X-Api-Access-Key", token)
 	} else {
-		// New console flow: only the access token is sent. AppID is intentionally
-		// not surfaced upstream (kept locally for log correlation).
-		h.Set("X-Api-Key", token)
+		// new_console: single-segment key is the X-Api-Key as-is.
+		// If the operator pasted the legacy "appid|token" format we still pick
+		// the second segment, but note that an old access_token is generally
+		// NOT a valid new-console API Key.
+		key := apiKey
+		if idx := strings.Index(apiKey, "|"); idx >= 0 {
+			key = apiKey[idx+1:]
+		}
+		h.Set("X-Api-Key", key)
 	}
 	h.Set("X-Api-Resource-Id", cfg.EffectiveResourceID())
 	h.Set("X-Api-Connect-Id", connectID)

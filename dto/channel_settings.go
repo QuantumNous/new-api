@@ -59,12 +59,18 @@ const (
 	VolcTTSAuthModeNewConsole = "new_console" // X-Api-Key (default)
 	VolcTTSAuthModeLegacy     = "legacy"      // X-Api-App-Id + X-Api-Access-Key
 
-	VolcTTSDefaultResourceID = "seed-tts-2.0"
+	// VolcTTSDefaultResourceID matches the default OpenAI->Volcengine voice
+	// mapping (alloy/echo/fable/... -> *_mars_bigtts, all v1.0 voices). Users
+	// who pass an explicit v2.0 voice (*_uranus_bigtts / saturn_*) MUST also
+	// override this to seed-tts-2.0 / seed-icl-2.0 in the channel config or via
+	// metadata.volc_tts_resource_id, otherwise upstream returns code=55000000
+	// "resource ID is mismatched with speaker related resource".
+	VolcTTSDefaultResourceID = "seed-tts-1.0-concurr"
 )
 
 // VolcTTSConfig is the per-channel Volcengine TTS configuration. All fields are
 // optional; empty values fall back to safe defaults (v1 ws_binary, new console
-// auth, seed-tts-2.0 resource id).
+// auth, seed-tts-1.0-concurr resource id — matching the default voice map).
 type VolcTTSConfig struct {
 	Protocol     string `json:"protocol,omitempty"`      // see VolcTTSProtocol* constants
 	ResourceID   string `json:"resource_id,omitempty"`   // X-Api-Resource-Id (e.g. "seed-tts-2.0")

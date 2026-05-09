@@ -368,9 +368,11 @@ func TestBuildV3Headers_Modes(t *testing.T) {
 		if h.Get("X-Api-Key") != "" {
 			t.Fatalf("X-Api-Key must be absent in legacy mode")
 		}
-		// Default resource id when blank.
-		if h.Get("X-Api-Resource-Id") != "seed-tts-2.0" {
-			t.Fatalf("default resource id wrong: %q", h.Get("X-Api-Resource-Id"))
+		// Default resource id when blank — must align with the default
+		// OpenAI->Volcengine voice map (alloy/echo/... -> *_mars_bigtts, v1.0).
+		if h.Get("X-Api-Resource-Id") != dto.VolcTTSDefaultResourceID {
+			t.Fatalf("default resource id wrong: got %q want %q",
+				h.Get("X-Api-Resource-Id"), dto.VolcTTSDefaultResourceID)
 		}
 	})
 
@@ -385,9 +387,44 @@ func TestBuildV3Headers_Modes(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid key", func(t *testing.T) {
-		if _, err := buildV3Headers(volcCfg("", "", "", nil), "no-pipe-here", "cid-4"); err == nil {
-			t.Fatalf("expected error for malformed key")
+	t.Run("new_console single-segment key", func(t *testing.T) {
+		// new-console flow: operator pastes the API Key as a single string
+		// (no `|` separator). It MUST be sent verbatim as X-Api-Key.
+		h, err := buildV3Headers(volcCfg("", "seed-tts-2.0", "", nil), "console-issued-key-XYZ", "cid-1b")
+		if err != nil {
+			t.Fatalf("build: %v", err)
+		}
+		if h.Get("X-Api-Key") != "console-issued-key-XYZ" {
+			t.Fatalf("single-segment key not forwarded verbatim: %q", h.Get("X-Api-Key"))
+		}
+		if h.Get("X-Api-App-Id") != "" || h.Get("X-Api-Access-Key") != "" {
+			t.Fatalf("legacy headers must be absent for single-segment key")
+		}
+	})
+
+	t.Run("new_console with legacy-format key takes second segment", func(t *testing.T) {
+		h, err := buildV3Headers(volcCfg("", "", "", nil), "12345|legacy-token", "cid-1c")
+		if err != nil {
+			t.Fatalf("build: %v", err)
+		}
+		// Backwards-compat: when operator pasted "appid|token" but selected
+		// new_console, we still pick the second segment so older configs keep
+		// roughly working (the upstream may still 401 if the access_token is
+		// not a valid X-Api-Key, which is a separate documented caveat).
+		if h.Get("X-Api-Key") != "legacy-token" {
+			t.Fatalf("expected second segment as X-Api-Key, got %q", h.Get("X-Api-Key"))
+		}
+	})
+
+	t.Run("legacy mode rejects single-segment key", func(t *testing.T) {
+		if _, err := buildV3Headers(volcCfg("legacy", "", "legacy", nil), "no-pipe-here", "cid-4"); err == nil {
+			t.Fatalf("expected error: legacy mode requires app_id|access_token")
+		}
+	})
+
+	t.Run("empty key rejected", func(t *testing.T) {
+		if _, err := buildV3Headers(volcCfg("", "", "", nil), "  ", "cid-5"); err == nil {
+			t.Fatalf("expected error for empty key")
 		}
 	})
 }
