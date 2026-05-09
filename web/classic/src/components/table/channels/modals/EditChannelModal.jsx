@@ -3532,12 +3532,12 @@ const EditChannelModal = (props) => {
                           <Form.Input
                             field='volc_tts_resource_id'
                             label={t('TTS Resource ID')}
-                            placeholder='seed-tts-2.0'
+                            placeholder='seed-tts-1.0-concurr'
                             onChange={(value) =>
                               handleInputChange('volc_tts_resource_id', value)
                             }
                             extraText={t(
-                              'X-Api-Resource-Id 头部值。留空时默认 seed-tts-2.0。常见值：seed-tts-2.0、seed-tts-1.0、seed-tts-1.0-concurr、seed-icl-2.0、seed-icl-1.0、seed-icl-1.0-concurr。'
+                              'X-Api-Resource-Id 头部值。留空时默认 seed-tts-1.0-concurr（与默认 *_mars_bigtts v1.0 音色映射匹配）。仅当请求 voice 为 v2.0 音色（*_uranus_bigtts、saturn_*）时才需改为 seed-tts-2.0 / seed-icl-2.0。常见值：seed-tts-1.0-concurr、seed-tts-1.0、seed-tts-2.0、seed-icl-2.0、seed-icl-1.0、seed-icl-1.0-concurr。'
                             )}
                           />
                           <Form.Select
@@ -3552,7 +3552,7 @@ const EditChannelModal = (props) => {
                               { value: 'legacy', label: t('旧版控制台 (X-Api-App-Id + X-Api-Access-Key)') },
                             ]}
                             extraText={t(
-                              '新版控制台：取密钥第二段 AccessToken 作为 X-Api-Key 发送。旧版控制台：将 AppId 与 AccessToken 拆为 X-Api-App-Id 与 X-Api-Access-Key 发送。'
+                              '新版控制台：将 API Key 作为 X-Api-Key 发送。单段密钥原样发送；多段密钥（旧版 AppId|AccessToken 格式）取第二段以便兼容老配置。旧版控制台：将 AppId 与 AccessToken 拆为 X-Api-App-Id 与 X-Api-Access-Key 发送。'
                             )}
                           />
                           <Form.Switch

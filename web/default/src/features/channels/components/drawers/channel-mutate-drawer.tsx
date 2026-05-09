@@ -149,6 +149,11 @@ type ChannelMutateDrawerProps = {
   currentRow?: Channel | null
 }
 
+// Sentinel for "default / unselected" Select items. Base UI Select treats "" as
+// a filled value, so we use a non-empty string for the UI option and translate
+// it back to "" when persisting form state.
+const VOLC_TTS_DEFAULT_SENTINEL = '__default__'
+
 type ModelMappingGuardrail = {
   invalidJson: boolean
   entries: Array<{ source: string; target: string }>
@@ -1774,8 +1779,13 @@ export function ChannelMutateDrawer({
                         <FormItem>
                           <FormLabel>{t('TTS Protocol')}</FormLabel>
                           <Select
-                            value={field.value || ''}
-                            onValueChange={field.onChange}
+                            // Base UI Select treats "" as a filled value, breaking
+                            // placeholder semantics. Map blank schema values to a
+                            // non-empty sentinel for the UI and translate back.
+                            value={field.value ? field.value : VOLC_TTS_DEFAULT_SENTINEL}
+                            onValueChange={(v) =>
+                              field.onChange(v === VOLC_TTS_DEFAULT_SENTINEL ? '' : v)
+                            }
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -1785,7 +1795,7 @@ export function ChannelMutateDrawer({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value=''>
+                              <SelectItem value={VOLC_TTS_DEFAULT_SENTINEL}>
                                 {t('Auto / WS Binary (v1)')}
                               </SelectItem>
                               <SelectItem value='v3_ws_bidir'>
@@ -1819,14 +1829,14 @@ export function ChannelMutateDrawer({
                           <FormLabel>{t('TTS Resource ID')}</FormLabel>
                           <FormControl>
                             <Input
-                              placeholder='seed-tts-2.0'
+                              placeholder={t('seed-tts-1.0-concurr')}
                               {...field}
                               value={field.value || ''}
                             />
                           </FormControl>
                           <FormDescription>
                             {t(
-                              'X-Api-Resource-Id header value. Defaults to seed-tts-2.0 when empty. Common values: seed-tts-2.0, seed-tts-1.0, seed-tts-1.0-concurr, seed-icl-2.0, seed-icl-1.0, seed-icl-1.0-concurr.'
+                              'X-Api-Resource-Id header value. Defaults to seed-tts-1.0-concurr (matches the default *_mars_bigtts v1.0 voice map). Use seed-tts-2.0 / seed-icl-2.0 only when the request voice is a v2.0 speaker (*_uranus_bigtts, saturn_*). Common values: seed-tts-1.0-concurr, seed-tts-1.0, seed-tts-2.0, seed-icl-2.0, seed-icl-1.0, seed-icl-1.0-concurr.'
                             )}
                           </FormDescription>
                           <FormMessage />
@@ -1840,8 +1850,10 @@ export function ChannelMutateDrawer({
                         <FormItem>
                           <FormLabel>{t('TTS Auth Mode')}</FormLabel>
                           <Select
-                            value={field.value || ''}
-                            onValueChange={field.onChange}
+                            value={field.value ? field.value : VOLC_TTS_DEFAULT_SENTINEL}
+                            onValueChange={(v) =>
+                              field.onChange(v === VOLC_TTS_DEFAULT_SENTINEL ? '' : v)
+                            }
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -1851,7 +1863,7 @@ export function ChannelMutateDrawer({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value=''>
+                              <SelectItem value={VOLC_TTS_DEFAULT_SENTINEL}>
                                 {t('New console (X-Api-Key)')}
                               </SelectItem>
                               <SelectItem value='legacy'>
@@ -1861,7 +1873,7 @@ export function ChannelMutateDrawer({
                           </Select>
                           <FormDescription>
                             {t(
-                              'New console: AccessToken (second segment of the API key) is sent as X-Api-Key. Legacy: AppId + AccessToken are sent as X-Api-App-Id + X-Api-Access-Key.'
+                              'New console: the API Key is sent as X-Api-Key. Single-segment keys are sent verbatim; multi-segment keys (legacy AppId|AccessToken format) take the second segment for backwards compatibility. Legacy: AppId + AccessToken are sent as X-Api-App-Id + X-Api-Access-Key.'
                             )}
                           </FormDescription>
                           <FormMessage />
