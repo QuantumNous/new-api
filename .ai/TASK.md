@@ -1478,3 +1478,59 @@ status: completed
 ### 下一步最小任务建议
 
 - 本轮完成后进行本地后台页面人工验收：打开 `/system-settings/operations/quota`，确认能看到返利百分比；输入 `10` 保存后刷新仍显示 `10`；旧路径 `/system-settings/billing/invitation-rebate` 自动跳转到新路径。
+
+## 旧版前端同步记录
+
+任务名：旧版前端同步邀请返利配置与流水入口
+
+status: completed
+
+### 最新提交复核
+
+- 已检查最新提交 `da03f27edc661a373ac75cd68c97ea028f1c0f6a`：该提交只迁移新版前端 `web/default` 的邀请返利配置位置并更新 `.ai/TASK.md`，属于新版前端有效实现，不是 bug 或无用代码。
+- 本轮不回退 `da03f27e`，避免移除新版前端已完成的邀请返利配置和流水展示。
+
+### 本轮目标
+
+- 在旧版前端 `web/classic` 的“系统设置 → 运营设置 → 额度设置”中同步邀请消费返利配置。
+- 旧版前端使用百分比输入；读取 `InvitationRebateRatioBps / 100`，保存时将百分比乘以 100 写回 `InvitationRebateRatioBps`。
+- 在旧版额度设置附近新增管理员只读邀请返利流水入口。
+- 不修改后端消费挂接、返利 service、model / migration、充值、注册 / OAuth、异步任务、Midjourney 或依赖。
+
+### 当前实现摘要
+
+- `web/classic/src/pages/Setting/Operation/SettingsCreditLimit.jsx`：新增邀请消费返利配置块和“查看邀请返利流水”入口。
+- `web/classic/src/components/settings/OperationSetting.jsx`：补齐旧版前端 option 默认值 `InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota`。
+- `web/classic/src/pages/Setting/Operation/InvitationRebateRecordsModal.jsx`：新增管理员只读流水 Modal，调用已有 `GET /api/user/invitation_rebate`。
+- `web/classic/src/i18n/locales/{en,zh,zh-CN,zh-TW,fr,ja,ru,vi}.json`：手动补齐旧版前端新增文案。
+
+### 日志权限结论
+
+- 当前返利流水接口为管理员接口，后端路由位于 `AdminAuth` 保护范围内。
+- 第一版只有管理员返利流水；没有普通用户返利日志页，也没有普通用户可访问的返利流水 API。
+
+### 验证命令与结果
+
+- `git status --short`：确认本轮仅存在旧版前端、旧版 locale 与 `.ai/TASK.md` 变更；未出现依赖文件、`node_modules` 或 `dist` 待提交变更。
+- `git diff --stat` / `git diff`：已检查本轮改动范围。
+- `cd web/classic && bun run build`：使用临时 Bun `1.3.13` 执行，通过；仅有既有 Browserslist、lottie eval 与 chunk size warning。
+- `cd web/classic && bun run lint`：未通过；失败为旧版前端既有 Prettier 债务和 `dist` 检查项。本轮新增/修改文件在定向 Prettier 修复后已不在失败清单中。
+- `cd web/classic && bunx prettier <本轮 JS/JSX/locale 文件> --check`：通过，本轮文件均符合 Prettier。
+- locale JSON parse 与本轮 touched 组件 `t()` key 完整性检查：通过，en / zh / zh-CN / zh-TW / fr / ja / ru / vi 均包含新增 key。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 通过：未回退 `da03f27e`，新版前端邀请返利配置和流水继续保留。
+- 通过：旧版前端已在“系统设置 → 运营设置 → 额度设置”中新增邀请消费返利配置，百分比输入会兼容写回 `InvitationRebateRatioBps`。
+- 通过：旧版前端已新增管理员只读邀请返利流水入口，不提供补发、删除、修改或导出。
+- 通过：未修改后端消费挂接、返利 service、后端 option、model / migration、充值、注册 / OAuth、异步任务、Midjourney 或依赖。
+- 通过：未执行 `.agents/skills` 命令，未连接真实 New API 实例，未输出 token / secret / sk- key / bearer token。
+
+### commit hash
+
+- 本轮提交：提交后由最终响应记录，避免在同一 commit 中自引用造成 hash 变化。
+
+### 下一步最小任务建议
+
+- 同时在新版和旧版前端做人工验收：旧版打开 `/console/setting?tab=operation`，在“额度设置”中确认邀请返利配置和“查看邀请返利流水”入口；新版继续确认 `/system-settings/operations/quota` 与 Billing 下返利流水入口可用。

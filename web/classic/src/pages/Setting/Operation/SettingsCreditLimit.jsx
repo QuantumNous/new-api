@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
   compareObjects,
@@ -27,17 +27,43 @@ import {
   showSuccess,
   showWarning,
 } from '../../../helpers';
+import InvitationRebateRecordsModal from './InvitationRebateRecordsModal';
+
+const { Text } = Typography;
+
+const defaultInputs = {
+  QuotaForNewUser: '',
+  PreConsumedQuota: '',
+  QuotaForInviter: '',
+  QuotaForInvitee: '',
+  'quota_setting.enable_free_model_pre_consume': true,
+  InvitationRebateEnabled: false,
+  InvitationRebateRatioPercent: '',
+  InvitationRebateMinQuota: '',
+};
+
+function formatPercent(value) {
+  const numericValue = Number(value || 0);
+  if (!Number.isFinite(numericValue)) {
+    return '0';
+  }
+  const clampedValue = Math.min(100, Math.max(0, numericValue));
+  return String(Number(clampedValue.toFixed(2)));
+}
+
+function ratioBpsToPercent(value) {
+  return formatPercent(Number(value || 0) / 100);
+}
+
+function percentToRatioBps(value) {
+  return String(Math.round(Number(formatPercent(value)) * 100));
+}
 
 export default function SettingsCreditLimit(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    QuotaForNewUser: '',
-    PreConsumedQuota: '',
-    QuotaForInviter: '',
-    QuotaForInvitee: '',
-    'quota_setting.enable_free_model_pre_consume': true,
-  });
+  const [showRebateRecords, setShowRebateRecords] = useState(false);
+  const [inputs, setInputs] = useState(defaultInputs);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
 
@@ -48,11 +74,16 @@ export default function SettingsCreditLimit(props) {
       let value = '';
       if (typeof inputs[item.key] === 'boolean') {
         value = String(inputs[item.key]);
+      } else if (item.key === 'InvitationRebateRatioPercent') {
+        value = percentToRatioBps(inputs[item.key]);
       } else {
         value = inputs[item.key];
       }
       return API.put('/api/option/', {
-        key: item.key,
+        key:
+          item.key === 'InvitationRebateRatioPercent'
+            ? 'InvitationRebateRatioBps'
+            : item.key,
         value,
       });
     });
@@ -77,12 +108,19 @@ export default function SettingsCreditLimit(props) {
   }
 
   useEffect(() => {
-    const currentInputs = {};
+    const currentInputs = { ...defaultInputs };
     for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+      if (Object.keys(defaultInputs).includes(key)) {
         currentInputs[key] = props.options[key];
       }
     }
+    currentInputs.InvitationRebateEnabled =
+      props.options.InvitationRebateEnabled ?? false;
+    currentInputs.InvitationRebateRatioPercent = ratioBpsToPercent(
+      props.options.InvitationRebateRatioBps,
+    );
+    currentInputs.InvitationRebateMinQuota =
+      props.options.InvitationRebateMinQuota ?? '';
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
@@ -185,6 +223,85 @@ export default function SettingsCreditLimit(props) {
               </Col>
             </Row>
 
+            <div style={{ margin: '12px 0' }}>
+              <Text strong>{t('邀请消费返利')}</Text>
+              <div>
+                <Text type='tertiary'>
+                  {t('返利基于被邀请用户的实际消费额度，不基于充值。')}
+                </Text>
+              </div>
+            </div>
+
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  label={t('启用邀请消费返利')}
+                  field={'InvitationRebateEnabled'}
+                  extraText={t(
+                    '开启后，同步消费成功结算后会按比例给邀请人返利。',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      InvitationRebateEnabled: value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('返利百分比')}
+                  field={'InvitationRebateRatioPercent'}
+                  step={0.01}
+                  min={0}
+                  max={100}
+                  suffix={'%'}
+                  extraText={t(
+                    '输入 10 表示 10%。保存时会兼容写入后端 bps 配置。',
+                  )}
+                  placeholder={t('例如：10')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      InvitationRebateRatioPercent:
+                        value === null || value === undefined
+                          ? ''
+                          : String(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('最小触发消费额度')}
+                  field={'InvitationRebateMinQuota'}
+                  step={1}
+                  min={0}
+                  suffix={'Token'}
+                  extraText={t('仅当实际消费额度达到该值时才发放返利。')}
+                  placeholder={t('例如：1000')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      InvitationRebateMinQuota:
+                        value === null || value === undefined
+                          ? ''
+                          : String(value),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+
+            <Row>
+              <Button
+                theme='outline'
+                onClick={() => setShowRebateRecords(true)}
+              >
+                {t('查看邀请返利流水')}
+              </Button>
+            </Row>
+
             <Row>
               <Button size='default' onClick={onSubmit}>
                 {t('保存额度设置')}
@@ -193,6 +310,10 @@ export default function SettingsCreditLimit(props) {
           </Form.Section>
         </Form>
       </Spin>
+      <InvitationRebateRecordsModal
+        visible={showRebateRecords}
+        onCancel={() => setShowRebateRecords(false)}
+      />
     </>
   );
 }
