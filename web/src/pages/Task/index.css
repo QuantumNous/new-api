@@ -298,7 +298,7 @@
 .task-data-table .semi-table-tbody > tr > .semi-table-row-cell {
   padding: 18px !important;
   border-bottom: 1px solid rgba(238, 242, 247, 0.96) !important;
-  background: rgba(255, 255, 255, 0.78) !important;
+  background: rgba(255, 255, 255, 1) !important;
   transition: background-color 0.2s ease;
   vertical-align: middle;
 }
@@ -415,7 +415,7 @@ html.dark .task-data-table .semi-table-thead > tr > .semi-table-row-head {
 html.dark .task-data-table .semi-table-tbody > tr > td,
 html.dark .task-data-table .semi-table-tbody > tr > .semi-table-row-cell {
   border-bottom-color: rgba(43, 48, 59, 0.95) !important;
-  background: rgba(18, 21, 27, 0.94) !important;
+  background: rgba(18, 21, 27, 1) !important;
 }
 
 html.dark .task-data-table .semi-table-tbody > tr:hover > td,

@@ -262,7 +262,7 @@ html.dark .topup-history-table .semi-table-thead > tr > .semi-table-row-head {
 html.dark .topup-history-table .semi-table-tbody > tr > td,
 html.dark .topup-history-table .semi-table-tbody > tr > .semi-table-row-cell {
   border-bottom-color: rgba(43, 48, 59, 0.95) !important;
-  background: rgba(18, 21, 27, 0.94) !important;
+  background: rgba(18, 21, 27, 1) !important;
 }
 
 html.dark .topup-history-table .semi-table-tbody > tr:hover > td,
