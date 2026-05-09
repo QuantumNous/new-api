@@ -56,11 +56,12 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
 }
 
 export function getApiKeyFormDefaultValues(
-  defaultUseAutoGroup: boolean
+  defaultUseAutoGroup: boolean,
+  firstGroup?: string
 ): ApiKeyFormValues {
   return {
     ...API_KEY_FORM_DEFAULT_VALUES,
-    group: defaultUseAutoGroup ? 'auto' : DEFAULT_GROUP,
+    group: defaultUseAutoGroup ? 'auto' : (firstGroup || DEFAULT_GROUP),
     cross_group_retry: defaultUseAutoGroup,
   }
 }
