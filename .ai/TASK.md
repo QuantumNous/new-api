@@ -1968,3 +1968,48 @@ status: completed
 
 - 资金链路继续保持上线前人工验收：小比例、小门槛、测试账号验证完整消费到返利流水链路。
 - 后续如需继续增强，可补 MySQL/PostgreSQL 集成环境下的资金行锁与并发回归测试。
+## 邀请返利上线前本地验收记录
+任务名称：本地 PostgreSQL + Redis 环境验证累计邀请返利与后台流水
+status: blocked
+
+### 本轮目标
+
+- 使用 `docker-compose.dev.yml` 构建当前源码后端，在本地 PostgreSQL + Redis 环境验证迁移、健康检查、后台配置与返利流水。
+- 不连接真实 New API 实例，不使用生产库，不写入真实资金数据。
+- 不修改业务代码、前端代码、数据库结构、依赖或构建产物。
+
+### 已完成验证
+
+- 已安装并启用当前 Codex 环境 Bun 1.3.13；安装发生在用户工具目录，未修改仓库文件。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./service/...`：通过。
+- `cd web/default && bun run typecheck`：通过。
+- `cd web/default && bun run build`：通过。
+- `cd web/classic && bun run build`：通过；仅有既有 Browserslist、lottie eval 和 chunk size warning。
+- `cd web/default && bun run lint`：未通过，失败仍为既有非本轮文件的 React hooks lint 债务；本轮未修改前端文件。
+- `cd web/classic && bun run lint`：未通过，失败为既有 Prettier / dist 检查债务；本轮未修改前端文件。
+
+### 阻塞项
+
+- 当前环境没有 `docker` 命令，`docker --version` 和 `docker compose version` 均无法执行。
+- 当前环境没有可用替代容器运行时：未发现 `podman`、`nerdctl`。
+- 当前环境没有本地 PostgreSQL 命令：未发现 `psql`、`postgres`。
+- 因此无法执行：
+  - `docker compose -f docker-compose.dev.yml up -d --build new-api`
+  - `docker compose -f docker-compose.dev.yml ps`
+  - `docker compose -f docker-compose.dev.yml logs --tail=200 new-api`
+  - 本地 PostgreSQL 表和索引创建结果查询
+  - 管理员后台人工验收和真实本地消费链路验收
+
+### 当前结论
+
+- 代码层回归、前端 typecheck 和构建验证已通过。
+- 本地 PostgreSQL + Redis 生产相似验收未完成，原因是当前执行环境缺少 Docker/容器运行时和本地 PostgreSQL。
+- 本轮不得标记为完成态，也不创建 `文档：记录邀请返利上线前本地验收结果` commit。
+
+### 下一步建议
+
+- 在安装 Docker Desktop 或具备 Docker Engine 的机器上重新执行 `docker-compose.dev.yml` 本地验收。
+- 生产开启前继续保持 `InvitationRebateEnabled=false`。
+- 容器验收通过后，再用小比例、小门槛、测试账号验证完整“邀请关系 -> 累计消费 -> 达标返利 -> 流水详情”链路。
