@@ -40,6 +40,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
@@ -556,15 +557,17 @@ function SidebarMenuButton({
   }
 
   return (
-    <Tooltip>
-      {comp}
-      <TooltipContent
-        side='right'
-        align='center'
-        hidden={state !== 'collapsed' || isMobile}
-        {...tooltip}
-      />
-    </Tooltip>
+    <TooltipProvider>
+      <Tooltip>
+        {comp}
+        <TooltipContent
+          side='right'
+          align='center'
+          hidden={state !== 'collapsed' || isMobile}
+          {...tooltip}
+        />
+      </Tooltip>
+    </TooltipProvider>
   )
 }
 
