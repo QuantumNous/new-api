@@ -1429,7 +1429,7 @@ html.dark .with-pastel-balls::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(
+  /* background: radial-gradient(
       circle at top right,
       var(--dashboard-accent-soft, rgba(0, 82, 255, 0.2)) 0%,
       transparent 34%
@@ -1449,7 +1449,7 @@ html.dark .with-pastel-balls::before {
       rgba(255, 255, 255, 0.9) 0%,
       rgba(255, 255, 255, 0.45) 18%,
       transparent 46%
-    );
+    ); */
   pointer-events: none;
 }
 
@@ -1555,11 +1555,11 @@ html.dark .with-pastel-balls::before {
   width: 120px;
   height: 120px;
   border-radius: 999px;
-  background: radial-gradient(
+  /* background: radial-gradient(
     circle,
     color-mix(in srgb, var(--dashboard-accent, #0052ff) 12%, white) 0%,
     transparent 72%
-  );
+  ); */
   pointer-events: none;
   opacity: 0.9;
 }
