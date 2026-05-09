@@ -2054,7 +2054,7 @@
     "IP Filter Mode": "IP 过滤模式",
     "IP Restriction": "IP 限制",
     "IP Whitelist (supports CIDR)": "IP 白名单（支持 CIDR 表达式）",
-    "is an open-source AI API gateway for self-hosted deployments. Connect multiple upstream services, manage models, keys, quotas, logs, and routing policies in one place.": "ClearMaaS 是统一的大模型 API 网关，聚合多家 LLM 服务商。在一个平台内轻松管理模型、密钥、配额、日志和路由策略。",
+    "is an open-source AI API gateway for self-hosted deployments. Connect multiple upstream services, manage models, keys, quotas, logs, and routing policies in one place.": " 是统一的大模型 API 网关，聚合多家 LLM 服务商。在一个平台内轻松管理模型、密钥、配额、日志和路由策略。",
     "is less than the configured maximum cache size": "小于配置的最大缓存大小",
     "is the default price; ": "为默认价格；",
     "It seems like the page you're looking for": "您要查找的页面似乎",
