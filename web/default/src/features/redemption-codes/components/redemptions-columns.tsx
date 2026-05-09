@@ -23,10 +23,8 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       meta: { label: t('Select') },
       header: ({ table }) => (
         <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
+          checked={table.getIsAllPageRowsSelected()}
+          indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label={t('Select all')}
           className='translate-y-[2px]'
@@ -217,14 +215,16 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
 
         return (
           <Tooltip>
-            <TooltipTrigger asChild>
-              <StatusBadge
-                label={t('User {{id}}', { id: userId })}
-                variant='neutral'
-                copyable={false}
-                className='cursor-help'
-              />
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <StatusBadge
+                  label={t('User {{id}}', { id: userId })}
+                  variant='neutral'
+                  copyable={false}
+                  className='cursor-help'
+                />
+              }
+            ></TooltipTrigger>
             <TooltipContent>
               <div className='space-y-1 text-xs'>
                 <div>

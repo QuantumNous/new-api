@@ -7,13 +7,13 @@ import {
   useContext,
   useMemo,
 } from 'react'
-import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import {
   BrainIcon,
   ChevronDownIcon,
   DotIcon,
   type LucideIcon,
 } from 'lucide-react'
+import { useControllableState } from '@/lib/use-controllable-state'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -197,7 +197,7 @@ export const ChainOfThoughtContent = memo(
         <CollapsibleContent
           className={cn(
             'mt-2 space-y-3',
-            'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground data-[state=closed]:animate-out data-[state=open]:animate-in outline-none',
+            'data-closed:fade-out-0 data-closed:slide-out-to-top-2 data-open:slide-in-from-top-2 text-popover-foreground data-closed:animate-out data-open:animate-in outline-none',
             className
           )}
           {...props}

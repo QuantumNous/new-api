@@ -13,10 +13,10 @@ type GroupBadgeProps = Omit<
 
 function getGroupRatioClassName(ratio: number): string {
   if (ratio > 1) {
-    return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300'
+    return 'border-warning/25 bg-warning/10 text-warning'
   }
   if (ratio < 1) {
-    return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-300'
+    return 'border-info/25 bg-info/10 text-info'
   }
   return 'border-border bg-muted text-muted-foreground'
 }

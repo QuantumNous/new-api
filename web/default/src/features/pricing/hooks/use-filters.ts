@@ -59,20 +59,17 @@ export function useFilters(models: PricingModel[]) {
   const viewMode = normalizeViewMode(filterState.view)
   const showRechargePrice = filterState.rechargePrice === true
 
-  const updateFilters = useCallback(
-    (updates: Record<string, unknown>) => {
-      setFilterState((prev) => {
-        const next: Record<string, unknown> = { ...prev, ...updates }
-        for (const key of Object.keys(next)) {
-          if (next[key] === undefined || next[key] === null) {
-            delete next[key]
-          }
+  const updateFilters = useCallback((updates: Record<string, unknown>) => {
+    setFilterState((prev) => {
+      const next: Record<string, unknown> = { ...prev, ...updates }
+      for (const key of Object.keys(next)) {
+        if (next[key] === undefined || next[key] === null) {
+          delete next[key]
         }
-        return next as FilterState
-      })
-    },
-    []
-  )
+      }
+      return next as FilterState
+    })
+  }, [])
 
   const setSearchInput = useCallback(
     (v: string) => updateFilters({ search: v || undefined }),

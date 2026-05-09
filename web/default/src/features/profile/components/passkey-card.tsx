@@ -204,43 +204,43 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
           <div className='space-y-6'>
             <div className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between xl:flex-col 2xl:flex-row'>
               <div className='flex items-start gap-4'>
-              <div className='bg-muted rounded-md p-2'>
-                <KeyRound className='h-5 w-5' />
-              </div>
-              <div className='space-y-1'>
-                <div className='flex flex-wrap items-center gap-2'>
-                  <p className='font-medium'>{t('Passkey Authentication')}</p>
-                  <StatusBadge
-                    label={enabled ? t('Enabled') : t('Disabled')}
-                    variant={enabled ? 'success' : 'neutral'}
-                    showDot
-                    copyable={false}
-                  />
-                  {status?.backup_eligible !== undefined && (
+                <div className='bg-muted rounded-md p-2'>
+                  <KeyRound className='h-5 w-5' />
+                </div>
+                <div className='space-y-1'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <p className='font-medium'>{t('Passkey Authentication')}</p>
                     <StatusBadge
-                      label={
-                        status.backup_eligible
-                          ? status.backup_state
-                            ? t('Backed up')
-                            : t('Not backed up')
-                          : t('No backup')
-                      }
-                      variant={
-                        status.backup_eligible
-                          ? status.backup_state
-                            ? 'success'
-                            : 'warning'
-                          : 'neutral'
-                      }
+                      label={enabled ? t('Enabled') : t('Disabled')}
+                      variant={enabled ? 'success' : 'neutral'}
                       showDot
                       copyable={false}
                     />
-                  )}
+                    {status?.backup_eligible !== undefined && (
+                      <StatusBadge
+                        label={
+                          status.backup_eligible
+                            ? status.backup_state
+                              ? t('Backed up')
+                              : t('Not backed up')
+                            : t('No backup')
+                        }
+                        variant={
+                          status.backup_eligible
+                            ? status.backup_state
+                              ? 'success'
+                              : 'warning'
+                            : 'neutral'
+                        }
+                        showDot
+                        copyable={false}
+                      />
+                    )}
+                  </div>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Last used:')} {formattedLastUsed}
+                  </p>
                 </div>
-                <p className='text-muted-foreground text-sm'>
-                  {t('Last used:')} {formattedLastUsed}
-                </p>
-              </div>
               </div>
 
               {!enabled && (
@@ -260,19 +260,21 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
             {enabled && (
               <div className='flex flex-col gap-3 border-t pt-6 sm:flex-row xl:flex-col 2xl:flex-row'>
                 <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant='destructive'
-                      className='flex-1'
-                      disabled={removing}
-                    >
-                      {removing ? (
-                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                      ) : (
-                        <AlertTriangle className='mr-2 h-4 w-4' />
-                      )}
-                      {t('Remove Passkey')}
-                    </Button>
+                  <AlertDialogTrigger
+                    render={
+                      <Button
+                        variant='destructive'
+                        className='flex-1'
+                        disabled={removing}
+                      />
+                    }
+                  >
+                    {removing ? (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    ) : (
+                      <AlertTriangle className='mr-2 h-4 w-4' />
+                    )}
+                    {t('Remove Passkey')}
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>

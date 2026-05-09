@@ -83,7 +83,7 @@ function ModelBadgeContent(props: ModelBadgeProps) {
       showDot={!provider}
       autoColor={provider ? undefined : props.modelName}
       className={cn(
-        'rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono',
+        'border-border/60 bg-muted/30 rounded-md border px-1.5 py-0.5 font-mono',
         provider && 'text-foreground',
         props.className
       )}
@@ -113,11 +113,13 @@ export function ModelBadge(props: ModelBadgeProps) {
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <button type='button' className='inline-flex items-center gap-1'>
-          <ModelBadgeContent {...props} />
-          <Route className='text-muted-foreground size-3 shrink-0' />
-        </button>
+      <PopoverTrigger
+        render={
+          <button type='button' className='inline-flex items-center gap-1' />
+        }
+      >
+        <ModelBadgeContent {...props} />
+        <Route className='text-muted-foreground size-3 shrink-0' />
       </PopoverTrigger>
       <PopoverContent className='w-72'>
         <div className='space-y-2'>

@@ -75,9 +75,8 @@ function UsageLogsContent() {
           if (!('url' in item) || typeof item.url !== 'string') return null
           return item.url.split('/').pop() ?? null
         })
-        .filter(
-          (section): section is UsageLogsSectionId =>
-            Boolean(section && isUsageLogsSectionId(section))
+        .filter((section): section is UsageLogsSectionId =>
+          Boolean(section && isUsageLogsSectionId(section))
         ),
     [filteredTabGroups]
   )
@@ -100,7 +99,9 @@ function UsageLogsContent() {
   return (
     <>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t(pageMeta.titleKey)}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          {t(pageMeta.titleKey)}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Description>
           {t(pageMeta.descriptionKey)}
         </SectionPageLayout.Description>

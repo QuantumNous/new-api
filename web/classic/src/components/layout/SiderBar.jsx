@@ -251,7 +251,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             for (let key in chats[i]) {
               let link = chats[i][key];
               if (typeof link !== 'string') continue; // 确保链接是字符串
-              if (link.startsWith('fluent') || link.startsWith('ccswitch')) {
+              if (
+                link.startsWith('fluent') ||
+                link.startsWith('ccswitch') ||
+                link.startsWith('deepchat')
+              ) {
                 shouldSkip = true;
                 break;
               }

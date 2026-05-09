@@ -105,7 +105,7 @@ export function ViewDetailsDialog({
         </DialogHeader>
 
         <div className='max-h-[calc(100dvh-8.5rem)] space-y-3 overflow-y-auto py-2 pr-1 sm:max-h-[72vh] sm:space-y-4'>
-            <div className='flex flex-wrap items-center justify-between gap-2'>
+          <div className='flex flex-wrap items-center justify-between gap-2'>
             <div className='text-muted-foreground text-sm'>
               {t('Deployment ID')}:{' '}
               <span className='font-mono'>{deploymentId}</span>
@@ -252,7 +252,11 @@ export function ViewDetailsDialog({
         </div>
 
         <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)} className='w-full sm:w-auto'>
+          <Button
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+            className='w-full sm:w-auto'
+          >
             {t('Close')}
           </Button>
         </DialogFooter>

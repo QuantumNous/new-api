@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -119,10 +120,8 @@ export function ChannelSelectorDialog({
         id: 'select',
         header: ({ table }) => (
           <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && 'indeterminate')
-            }
+            checked={table.getIsAllPageRowsSelected()}
+            indeterminate={table.getIsSomePageRowsSelected()}
             onCheckedChange={(value) =>
               table.toggleAllPageRowsSelected(!!value)
             }
@@ -225,16 +224,27 @@ export function ChannelSelectorDialog({
 
           return (
             <div className='flex items-center gap-2'>
-              <Select value={endpointType} onValueChange={handleTypeChange}>
+              <Select
+                items={[
+                  ...ENDPOINT_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  })),
+                ]}
+                value={endpointType}
+                onValueChange={(v) => v !== null && handleTypeChange(v)}
+              >
                 <SelectTrigger className='h-8 w-32'>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  {ENDPOINT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {ENDPOINT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               {endpointType === 'custom' && (

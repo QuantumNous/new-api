@@ -32,9 +32,9 @@ export function CacheTooltip({
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Zap className={`size-3 flex-shrink-0 ${color}`} />
-        </TooltipTrigger>
+        <TooltipTrigger
+          render={<Zap className={`size-3 flex-shrink-0 ${color}`} />}
+        ></TooltipTrigger>
         <TooltipContent side='top'>
           <p className='text-xs'>
             {label}: {formatTokens(tokens)}
@@ -144,7 +144,8 @@ export function createDurationColumn<T>(config: {
         return <span className='text-muted-foreground/60 text-xs'>-</span>
       }
 
-      const variant = duration.durationSec > warningThresholdSec ? 'red' : 'green'
+      const variant =
+        duration.durationSec > warningThresholdSec ? 'red' : 'green'
 
       return (
         <span
@@ -269,7 +270,7 @@ export function createProgressColumn<T>(config: {
         return <span className='text-muted-foreground/60 text-xs'>-</span>
       }
       return (
-        <span className='inline-flex items-center rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-xs'>
+        <span className='border-border/60 bg-muted/30 inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-xs'>
           {progress}
         </span>
       )

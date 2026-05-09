@@ -64,21 +64,23 @@ export function DataTableBulkActions<TData>({
     <>
       <BulkActionsToolbar table={table} entityName='API key'>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='outline'
-              size='icon'
-              className='size-8'
-              onClick={handleBatchCopy}
-              disabled={isCopying}
-              aria-label={t('Copy selected keys')}
-            >
-              {isCopying ? (
-                <Loader2 className='size-4 animate-spin' />
-              ) : (
-                <Copy className='size-4' />
-              )}
-            </Button>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                className='size-8'
+                onClick={handleBatchCopy}
+                disabled={isCopying}
+                aria-label={t('Copy selected keys')}
+              />
+            }
+          >
+            {isCopying ? (
+              <Loader2 className='size-4 animate-spin' />
+            ) : (
+              <Copy className='size-4' />
+            )}
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Copy selected keys')}</p>
@@ -86,17 +88,19 @@ export function DataTableBulkActions<TData>({
         </Tooltip>
 
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='destructive'
-              size='icon'
-              onClick={() => setShowDeleteConfirm(true)}
-              className='size-8'
-              aria-label={t('Delete selected API keys')}
-            >
-              <Trash2 />
-              <span className='sr-only'>{t('Delete selected API keys')}</span>
-            </Button>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='destructive'
+                size='icon'
+                onClick={() => setShowDeleteConfirm(true)}
+                className='size-8'
+                aria-label={t('Delete selected API keys')}
+              />
+            }
+          >
+            <Trash2 />
+            <span className='sr-only'>{t('Delete selected API keys')}</span>
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Delete selected API keys')}</p>

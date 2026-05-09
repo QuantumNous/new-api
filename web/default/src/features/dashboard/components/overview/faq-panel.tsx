@@ -24,13 +24,15 @@ export function FAQPanel() {
           {t('FAQ')}
         </span>
       }
+      description={t('Answers for common access and billing questions')}
       loading={loading}
       empty={!list.length}
       emptyMessage={t('No FAQ entries available')}
-      height='h-64 sm:h-80'
+      height='h-80'
+      contentClassName='p-0'
     >
-      <ScrollArea className='h-64 sm:h-80'>
-        <Accordion type='single' collapsible className='w-full'>
+      <ScrollArea className='h-80'>
+        <Accordion className='w-full px-4 sm:px-5'>
           {list.map((item: FAQItem, idx: number) => {
             const key = item.id ?? `faq-${idx}`
             const value = `item-${key}`

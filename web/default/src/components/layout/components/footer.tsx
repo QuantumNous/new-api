@@ -67,7 +67,7 @@ function ProjectAttribution(props: { currentYear: number }) {
           href='https://github.com/QuantumNous/new-api'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-foreground/70 font-medium transition-colors hover:text-foreground'
+          className='text-foreground/70 hover:text-foreground font-medium transition-colors'
         >
           {t('New API')}
         </a>
@@ -152,7 +152,12 @@ export function Footer(props: FooterProps) {
 
   if (footerHtml) {
     return (
-      <footer className={cn('border-border/40 relative z-10 border-t', props.className)}>
+      <footer
+        className={cn(
+          'border-border/40 relative z-10 border-t',
+          props.className
+        )}
+      >
         <div className='mx-auto w-full max-w-6xl px-6 py-5'>
           <div className='bg-muted/20 border-border/50 flex flex-col items-center justify-between gap-4 rounded-2xl border px-4 py-4 backdrop-blur-sm sm:flex-row sm:px-5'>
             <div

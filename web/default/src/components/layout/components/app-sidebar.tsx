@@ -6,15 +6,9 @@ import { ROLE } from '@/lib/roles'
 import { useLayout } from '@/context/layout-provider'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import { useSidebarData } from '@/hooks/use-sidebar-data'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarRail,
-} from '@/components/ui/sidebar'
+import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
 import { getNavGroupsForPath } from '../lib/workspace-registry'
 import { NavGroup } from './nav-group'
-import { WorkspaceSwitcher } from './workspace-switcher'
 
 /**
  * Application sidebar component
@@ -51,10 +45,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
-      <SidebarHeader>
-        <WorkspaceSwitcher workspaces={sidebarData.workspaces} />
-      </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className='py-2'>
         {currentNavGroups.map((props) => {
           const key = props.id || props.title
           return <NavGroup key={key} {...props} />

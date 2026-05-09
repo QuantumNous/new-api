@@ -54,23 +54,25 @@ export function TitledCard({
             )}
             <div className='min-w-0'>
               <CardTitle
-                className={cn('text-lg tracking-tight sm:text-xl', titleClassName)}
+                className={cn(
+                  'text-lg tracking-tight sm:text-xl',
+                  titleClassName
+                )}
               >
                 {title}
               </CardTitle>
               {description != null && (
                 <CardDescription
-                  className={cn(
-                    'text-xs sm:text-sm',
-                    descriptionClassName
-                  )}
+                  className={cn('text-xs sm:text-sm', descriptionClassName)}
                 >
                   {description}
                 </CardDescription>
               )}
             </div>
           </div>
-          {action != null && <div className='w-full shrink-0 sm:w-auto'>{action}</div>}
+          {action != null && (
+            <div className='w-full shrink-0 sm:w-auto'>{action}</div>
+          )}
         </div>
       </CardHeader>
       <CardContent className={cn('p-3 sm:p-5', contentClassName)}>

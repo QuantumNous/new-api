@@ -84,18 +84,20 @@ export function DataTableBulkActions<TData>({
     <>
       <BulkActionsToolbar table={table} entityName='model'>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='outline'
-              size='icon'
-              onClick={handleEnableAll}
-              className='size-8'
-              aria-label={t('Enable selected models')}
-              title={t('Enable selected models')}
-            >
-              <Power />
-              <span className='sr-only'>{t('Enable selected models')}</span>
-            </Button>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={handleEnableAll}
+                className='size-8'
+                aria-label={t('Enable selected models')}
+                title={t('Enable selected models')}
+              />
+            }
+          >
+            <Power />
+            <span className='sr-only'>{t('Enable selected models')}</span>
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Enable selected models')}</p>
@@ -103,18 +105,20 @@ export function DataTableBulkActions<TData>({
         </Tooltip>
 
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='outline'
-              size='icon'
-              onClick={handleDisableAll}
-              className='size-8'
-              aria-label={t('Disable selected models')}
-              title={t('Disable selected models')}
-            >
-              <PowerOff />
-              <span className='sr-only'>{t('Disable selected models')}</span>
-            </Button>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={handleDisableAll}
+                className='size-8'
+                aria-label={t('Disable selected models')}
+                title={t('Disable selected models')}
+              />
+            }
+          >
+            <PowerOff />
+            <span className='sr-only'>{t('Disable selected models')}</span>
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Disable selected models')}</p>
@@ -122,18 +126,20 @@ export function DataTableBulkActions<TData>({
         </Tooltip>
 
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='outline'
-              size='icon'
-              onClick={handleCopyNames}
-              className='size-8'
-              aria-label={t('Copy model names')}
-              title={t('Copy model names')}
-            >
-              <Copy />
-              <span className='sr-only'>{t('Copy model names')}</span>
-            </Button>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={handleCopyNames}
+                className='size-8'
+                aria-label={t('Copy model names')}
+                title={t('Copy model names')}
+              />
+            }
+          >
+            <Copy />
+            <span className='sr-only'>{t('Copy model names')}</span>
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Copy model names')}</p>
@@ -141,18 +147,20 @@ export function DataTableBulkActions<TData>({
         </Tooltip>
 
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='destructive'
-              size='icon'
-              onClick={() => setShowDeleteConfirm(true)}
-              className='size-8'
-              aria-label={t('Delete selected models')}
-              title={t('Delete selected models')}
-            >
-              <Trash2 />
-              <span className='sr-only'>{t('Delete selected models')}</span>
-            </Button>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='destructive'
+                size='icon'
+                onClick={() => setShowDeleteConfirm(true)}
+                className='size-8'
+                aria-label={t('Delete selected models')}
+                title={t('Delete selected models')}
+              />
+            }
+          >
+            <Trash2 />
+            <span className='sr-only'>{t('Delete selected models')}</span>
           </TooltipTrigger>
           <TooltipContent>
             <p>{t('Delete selected models')}</p>

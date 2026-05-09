@@ -71,7 +71,7 @@ const ModelTriggerButton = React.forwardRef<
     size='sm'
     disabled={isDisabled}
     className={cn(
-      'flex h-8 items-center gap-2 rounded-full border px-3 font-medium',
+      'flex h-8 items-center gap-2 border px-3 font-medium',
       'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
       'w-8',
       'bg-background text-foreground',
@@ -107,7 +107,7 @@ const GroupTriggerButton = React.forwardRef<
     size='sm'
     disabled={isDisabled}
     className={cn(
-      'flex h-8 items-center gap-2 rounded-full border px-3 font-medium',
+      'flex h-8 items-center gap-2 border px-3 font-medium',
       'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
       'w-8',
       'bg-background text-foreground',
@@ -299,20 +299,21 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
           </Drawer>
         ) : (
           <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <ModelTriggerButton
-                currentLabel={currentModel?.label || t('Model')}
-                triggerClassName={className}
-                isDisabled={disabled}
-                aria-expanded={open}
-              />
-            </PopoverTrigger>
+            <PopoverTrigger
+              render={
+                <ModelTriggerButton
+                  currentLabel={currentModel?.label || t('Model')}
+                  triggerClassName={className}
+                  isDisabled={disabled}
+                  aria-expanded={open}
+                />
+              }
+            />
             <PopoverContent
               className='bg-popover z-40 w-[90vw] max-w-[20em] rounded-lg border p-0 !shadow-none sm:w-[20em]'
               align='start'
               side='bottom'
               sideOffset={4}
-              avoidCollisions={true}
               collisionPadding={8}
             >
               {renderModelCommandContent()}
@@ -492,20 +493,21 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
           </Drawer>
         ) : (
           <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <GroupTriggerButton
-                currentLabel={currentGroup?.label || t('Group')}
-                triggerClassName={className}
-                isDisabled={disabled}
-                aria-expanded={open}
-              />
-            </PopoverTrigger>
+            <PopoverTrigger
+              render={
+                <GroupTriggerButton
+                  currentLabel={currentGroup?.label || t('Group')}
+                  triggerClassName={className}
+                  isDisabled={disabled}
+                  aria-expanded={open}
+                />
+              }
+            />
             <PopoverContent
               className='bg-popover z-50 w-[90vw] max-w-[14em] rounded-lg border p-0 !shadow-none sm:w-[14em]'
               align='start'
               side='bottom'
               sideOffset={4}
-              avoidCollisions={true}
               collisionPadding={8}
             >
               {renderGroupCommandContent()}

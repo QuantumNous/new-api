@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -252,19 +253,10 @@ export function PrefillGroupFormDrawer({
                   <FormItem>
                     <FormLabel>Group Type</FormLabel>
                     <Select
-                      value={field.value}
-                      onValueChange={(value: PrefillGroupType) =>
-                        field.onChange(value)
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger className='[&_[data-slot=select-value]_[data-prefill-description]]:hidden'>
-                          <SelectValue placeholder={t('Select a group type')} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {PREFILL_GROUP_TYPES.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
+                      items={[
+                        ...PREFILL_GROUP_TYPES.map((type) => ({
+                          value: type.value,
+                          label: (
                             <div className='flex flex-col text-left'>
                               <span className='font-medium'>{type.label}</span>
                               <span
@@ -274,8 +266,38 @@ export function PrefillGroupFormDrawer({
                                 {type.description}
                               </span>
                             </div>
-                          </SelectItem>
-                        ))}
+                          ),
+                        })),
+                      ]}
+                      value={field.value}
+                      onValueChange={(value) =>
+                        value !== null &&
+                        field.onChange(value as PrefillGroupType)
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger className='[&_[data-slot=select-value]_[data-prefill-description]]:hidden'>
+                          <SelectValue placeholder={t('Select a group type')} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {PREFILL_GROUP_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              <div className='flex flex-col text-left'>
+                                <span className='font-medium'>
+                                  {type.label}
+                                </span>
+                                <span
+                                  data-prefill-description
+                                  className='text-muted-foreground text-xs'
+                                >
+                                  {type.description}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormDescription>
@@ -344,10 +366,12 @@ export function PrefillGroupFormDrawer({
         </Form>
 
         <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
-          <SheetClose asChild>
-            <Button type='button' variant='outline' disabled={isSaving}>
-              {t('Cancel')}
-            </Button>
+          <SheetClose
+            render={
+              <Button type='button' variant='outline' disabled={isSaving} />
+            }
+          >
+            {t('Cancel')}
           </SheetClose>
           <Button type='submit' form='prefill-group-form' disabled={isSaving}>
             {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}

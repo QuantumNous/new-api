@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -160,15 +161,24 @@ export function CreemProductDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('Currency')}</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      items={[
+                        { value: 'USD', label: 'USD ($)' },
+                        { value: 'EUR', label: 'EUR (€)' },
+                      ]}
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder={t('Select currency')} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value='USD'>USD ($)</SelectItem>
-                        <SelectItem value='EUR'>EUR (€)</SelectItem>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <SelectItem value='USD'>USD ($)</SelectItem>
+                          <SelectItem value='EUR'>EUR (€)</SelectItem>
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormMessage />

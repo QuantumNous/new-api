@@ -66,6 +66,15 @@ export function detectChatLinkType(url: string): ChatLinkType {
   return 'custom-protocol'
 }
 
+export function chatLinkRequiresApiKey(url: string): boolean {
+  return (
+    url.includes('{key}') ||
+    url.includes('{cherryConfig}') ||
+    url.includes('{aionuiConfig}') ||
+    url.includes('{deepchatConfig}')
+  )
+}
+
 export function parseChatConfig(raw: RawChatConfig): ChatPreset[] {
   let parsed: unknown = raw
 
@@ -144,6 +153,16 @@ export function resolveChatUrl({
     }
     const encoded = encodeURIComponent(toBase64(JSON.stringify(payload)))
     return replaceToken(url, '{aionuiConfig}', encoded)
+  }
+
+  if (url.includes('{deepchatConfig}')) {
+    const payload = {
+      id: 'new-api',
+      baseUrl: safeServerAddress,
+      apiKey: safeApiKey,
+    }
+    const encoded = encodeURIComponent(toBase64(JSON.stringify(payload)))
+    return replaceToken(url, '{deepchatConfig}', encoded)
   }
 
   if (safeServerAddress) {

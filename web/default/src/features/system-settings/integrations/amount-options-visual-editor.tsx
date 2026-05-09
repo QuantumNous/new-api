@@ -102,7 +102,7 @@ export function AmountOptionsVisualEditor({
                     e.stopPropagation()
                     handleRemove(amount)
                   }}
-                  className='hover:bg-muted-foreground/20 size-auto rounded-full p-0.5'
+                  className='hover:bg-muted-foreground/20 size-auto p-0.5'
                   aria-label={t('Remove ${{amount}}', { amount })}
                 >
                   <X className='h-3.5 w-3.5' />

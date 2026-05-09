@@ -1,11 +1,7 @@
 import { Shield, Key, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useDialogs } from '@/hooks/use-dialog'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import type { UserProfile } from '../types'
@@ -80,36 +76,36 @@ export function ProfileSecurityCard({
         description={t('Manage your security settings and account access')}
         icon={<Shield className='h-4 w-4' />}
       >
-          <div className='grid grid-cols-1 gap-2.5 sm:gap-3 md:grid-cols-3'>
-            {securityActions.map((item) => (
-              <button
-                key={item.title}
-                type='button'
-                onClick={item.action}
-                className={`hover:bg-muted/50 flex items-center gap-3 rounded-lg border p-3 text-left transition-colors md:flex-col md:gap-2 md:p-4 md:text-center ${
+        <div className='grid grid-cols-1 gap-2.5 sm:gap-3 md:grid-cols-3'>
+          {securityActions.map((item) => (
+            <button
+              key={item.title}
+              type='button'
+              onClick={item.action}
+              className={`hover:bg-muted/50 flex items-center gap-3 rounded-lg border p-3 text-left transition-colors md:flex-col md:gap-2 md:p-4 md:text-center ${
+                item.variant === 'destructive'
+                  ? 'border-destructive/30 hover:border-destructive/50 hover:bg-destructive/5'
+                  : ''
+              }`}
+            >
+              <div
+                className={`rounded-md p-2 ${
                   item.variant === 'destructive'
-                    ? 'border-destructive/30 hover:border-destructive/50 hover:bg-destructive/5'
-                    : ''
+                    ? 'bg-destructive/10 text-destructive'
+                    : 'bg-muted'
                 }`}
               >
-                <div
-                  className={`rounded-md p-2 ${
-                    item.variant === 'destructive'
-                      ? 'bg-destructive/10 text-destructive'
-                      : 'bg-muted'
-                  }`}
-                >
-                  <item.icon className='h-5 w-5' />
-                </div>
-                <div className='min-w-0 md:contents'>
-                  <p className='text-sm font-medium'>{item.title}</p>
-                  <p className='text-muted-foreground line-clamp-1 text-xs md:line-clamp-none'>
-                    {item.description}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
+                <item.icon className='h-5 w-5' />
+              </div>
+              <div className='min-w-0 md:contents'>
+                <p className='text-sm font-medium'>{item.title}</p>
+                <p className='text-muted-foreground line-clamp-1 text-xs md:line-clamp-none'>
+                  {item.description}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
       </TitledCard>
 
       {/* Dialogs */}

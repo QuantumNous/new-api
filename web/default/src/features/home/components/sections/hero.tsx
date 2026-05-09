@@ -59,26 +59,28 @@ export function Hero(props: HeroProps) {
           style={{ animationDelay: '160ms' }}
         >
           {props.isAuthenticated ? (
-            <Button className='group rounded-lg' asChild>
-              <Link to='/dashboard'>
-                {t('Go to Dashboard')}
-                <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
-              </Link>
+            <Button
+              className='group rounded-lg'
+              render={<Link to='/dashboard' />}
+            >
+              {t('Go to Dashboard')}
+              <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
             </Button>
           ) : (
             <>
-              <Button className='group rounded-lg' asChild>
-                <Link to='/sign-up'>
-                  {t('Get Started')}
-                  <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
-                </Link>
+              <Button
+                className='group rounded-lg'
+                render={<Link to='/sign-up' />}
+              >
+                {t('Get Started')}
+                <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
               </Button>
               <Button
                 variant='outline'
                 className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
-                asChild
+                render={<Link to='/pricing' />}
               >
-                <Link to='/pricing'>{t('View Pricing')}</Link>
+                {t('View Pricing')}
               </Button>
             </>
           )}

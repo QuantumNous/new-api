@@ -179,17 +179,24 @@ const groupSchema = z.object({
 
 type ModelFormValues = z.infer<typeof modelSchema>
 type GroupFormValues = z.infer<typeof groupSchema>
+type RatioTabId = 'models' | 'groups' | 'tool-prices' | 'upstream-sync'
 
 type RatioSettingsCardProps = {
   modelDefaults: ModelFormValues
   groupDefaults: GroupFormValues
   toolPricesDefault: string
+  titleKey?: string
+  descriptionKey?: string
+  visibleTabs?: RatioTabId[]
 }
 
 export function RatioSettingsCard({
   modelDefaults,
   groupDefaults,
   toolPricesDefault,
+  titleKey = 'Pricing Ratios',
+  descriptionKey = 'Configure model, caching, and group ratios used for billing',
+  visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -200,7 +207,7 @@ export function RatioSettingsCard({
     mutationFn: resetModelRatios,
     onSuccess: (data) => {
       if (data.success) {
-        toast.success(t('Model ratios reset successfully'))
+        toast.success(t('Model prices reset successfully'))
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
         setConfirmOpen(false)
       } else {
@@ -414,67 +421,89 @@ export function RatioSettingsCard({
     resetMutate()
   }, [resetMutate])
 
+  const tabLabels: Record<RatioTabId, string> = {
+    models: 'Model prices',
+    groups: 'Group ratios',
+    'tool-prices': 'Tool prices',
+    'upstream-sync': 'Upstream price sync',
+  }
+  const tabsGridClass =
+    {
+      1: 'grid-cols-1',
+      2: 'grid-cols-2',
+      3: 'grid-cols-3',
+      4: 'grid-cols-4',
+    }[visibleTabs.length] ?? 'grid-cols-4'
+  const defaultTab = visibleTabs[0] ?? 'models'
+
+  const renderTabContent = (tab: RatioTabId) => {
+    if (tab === 'models') {
+      return (
+        <ModelRatioForm
+          form={modelForm}
+          onSave={saveModelRatios}
+          onReset={handleResetRatios}
+          isSaving={updateOption.isPending}
+          isResetting={resetMutation.isPending}
+        />
+      )
+    }
+    if (tab === 'groups') {
+      return (
+        <GroupRatioForm
+          form={groupForm}
+          onSave={saveGroupRatios}
+          isSaving={updateOption.isPending}
+        />
+      )
+    }
+    if (tab === 'tool-prices') {
+      return <ToolPriceSettings defaultValue={toolPricesDefault} />
+    }
+    return (
+      <UpstreamRatioSync
+        modelRatios={{
+          ModelPrice: modelDefaults.ModelPrice,
+          ModelRatio: modelDefaults.ModelRatio,
+          CompletionRatio: modelDefaults.CompletionRatio,
+          CacheRatio: modelDefaults.CacheRatio,
+          CreateCacheRatio: modelDefaults.CreateCacheRatio,
+          ImageRatio: modelDefaults.ImageRatio,
+          AudioRatio: modelDefaults.AudioRatio,
+          AudioCompletionRatio: modelDefaults.AudioCompletionRatio,
+          'billing_setting.billing_mode': modelDefaults.BillingMode,
+          'billing_setting.billing_expr': modelDefaults.BillingExpr,
+        }}
+      />
+    )
+  }
+
   return (
-    <SettingsSection
-      title={t('Pricing Ratios')}
-      description={t(
-        'Configure model, caching, and group ratios used for billing'
+    <SettingsSection title={t(titleKey)} description={t(descriptionKey)}>
+      {visibleTabs.length === 1 ? (
+        renderTabContent(defaultTab)
+      ) : (
+        <Tabs defaultValue={defaultTab} className='space-y-6'>
+          <TabsList className={`grid w-full ${tabsGridClass}`}>
+            {visibleTabs.map((tab) => (
+              <TabsTrigger key={tab} value={tab}>
+                {t(tabLabels[tab])}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {visibleTabs.map((tab) => (
+            <TabsContent key={tab} value={tab}>
+              {renderTabContent(tab)}
+            </TabsContent>
+          ))}
+        </Tabs>
       )}
-    >
-      <Tabs defaultValue='models' className='space-y-6'>
-        <TabsList className='grid w-full grid-cols-4'>
-          <TabsTrigger value='models'>{t('Model ratios')}</TabsTrigger>
-          <TabsTrigger value='groups'>{t('Group ratios')}</TabsTrigger>
-          <TabsTrigger value='tool-prices'>{t('Tool prices')}</TabsTrigger>
-          <TabsTrigger value='upstream-sync'>
-            {t('Upstream price sync')}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value='models'>
-          <ModelRatioForm
-            form={modelForm}
-            onSave={saveModelRatios}
-            onReset={handleResetRatios}
-            isSaving={updateOption.isPending}
-            isResetting={resetMutation.isPending}
-          />
-        </TabsContent>
-
-        <TabsContent value='groups'>
-          <GroupRatioForm
-            form={groupForm}
-            onSave={saveGroupRatios}
-            isSaving={updateOption.isPending}
-          />
-        </TabsContent>
-
-        <TabsContent value='tool-prices'>
-          <ToolPriceSettings defaultValue={toolPricesDefault} />
-        </TabsContent>
-
-        <TabsContent value='upstream-sync'>
-          <UpstreamRatioSync
-            modelRatios={{
-              ModelPrice: modelDefaults.ModelPrice,
-              ModelRatio: modelDefaults.ModelRatio,
-              CompletionRatio: modelDefaults.CompletionRatio,
-              CacheRatio: modelDefaults.CacheRatio,
-              CreateCacheRatio: modelDefaults.CreateCacheRatio,
-              ImageRatio: modelDefaults.ImageRatio,
-              AudioRatio: modelDefaults.AudioRatio,
-              AudioCompletionRatio: modelDefaults.AudioCompletionRatio,
-              'billing_setting.billing_mode': modelDefaults.BillingMode,
-              'billing_setting.billing_expr': modelDefaults.BillingExpr,
-            }}
-          />
-        </TabsContent>
-      </Tabs>
 
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={t('Reset all model ratios?')}
+        title={t('Reset all model prices?')}
         desc={t(
           'This will clear custom pricing ratios and revert to upstream defaults.'
         )}

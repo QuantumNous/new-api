@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -182,17 +183,33 @@ export function UserSubscriptionsDialog(props: Props) {
 
           <div className='mt-4 space-y-4'>
             <div className='flex gap-2'>
-              <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+              <Select
+                items={[
+                  ...plans.map((p) => ({
+                    value: String(p.plan.id),
+                    label: (
+                      <>
+                        {p.plan.title}($
+                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                      </>
+                    ),
+                  })),
+                ]}
+                value={selectedPlanId}
+                onValueChange={(v) => v !== null && setSelectedPlanId(v)}
+              >
                 <SelectTrigger className='flex-1'>
                   <SelectValue placeholder={t('Select subscription plan')} />
                 </SelectTrigger>
-                <SelectContent>
-                  {plans.map((p) => (
-                    <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                      {p.plan.title} ($
-                      {Number(p.plan.price_amount || 0).toFixed(2)})
-                    </SelectItem>
-                  ))}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {plans.map((p) => (
+                      <SelectItem key={p.plan.id} value={String(p.plan.id)}>
+                        {p.plan.title} ($
+                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <Button

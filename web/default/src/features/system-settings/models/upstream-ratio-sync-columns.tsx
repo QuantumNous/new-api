@@ -100,14 +100,16 @@ export function useUpstreamRatioSyncColumns(
                     ) : (
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <StatusBadge
-                              label={String(current)}
-                              variant='info'
-                              size='sm'
-                              className='max-w-[200px] truncate'
-                            />
-                          </TooltipTrigger>
+                          <TooltipTrigger
+                            render={
+                              <StatusBadge
+                                label={String(current)}
+                                variant='info'
+                                size='sm'
+                                className='max-w-[200px] truncate'
+                              />
+                            }
+                          ></TooltipTrigger>
                           <TooltipContent>
                             <p className='max-w-xs text-xs break-all'>
                               {String(current)}
@@ -161,15 +163,12 @@ export function useUpstreamRatioSyncColumns(
             selectableCount > 0 && selectedCount === selectableCount
           const someSelected =
             selectedCount > 0 && selectedCount < selectableCount
-          let checkboxState: boolean | 'indeterminate' = false
-          if (allSelected) checkboxState = true
-          else if (someSelected) checkboxState = 'indeterminate'
-
           return (
             <div className='flex items-center gap-2'>
               {selectableCount > 0 && (
                 <Checkbox
-                  checked={checkboxState}
+                  checked={allSelected}
+                  indeterminate={someSelected}
                   disabled={isDisabled}
                   onCheckedChange={(checked) => {
                     if (checked) {
@@ -311,10 +310,12 @@ function renderUpstreamValue(args: RenderUpstreamValueArgs) {
       />
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span className='inline-block max-w-[240px] cursor-default truncate font-mono text-sm'>
-              {text}
-            </span>
+          <TooltipTrigger
+            render={
+              <span className='inline-block max-w-[240px] cursor-default truncate font-mono text-sm' />
+            }
+          >
+            {text}
           </TooltipTrigger>
           <TooltipContent>
             <p className='max-w-xs text-xs break-all'>{text}</p>

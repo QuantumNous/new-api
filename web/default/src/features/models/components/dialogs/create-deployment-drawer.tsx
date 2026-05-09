@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -432,6 +433,12 @@ export function CreateDeploymentDrawer({
                     <FormItem>
                       <FormLabel>{t('Hardware type')}</FormLabel>
                       <Select
+                        items={[
+                          ...hardwareOptions.map((opt) => ({
+                            value: opt.value,
+                            label: opt.label,
+                          })),
+                        ]}
                         value={field.value}
                         onValueChange={(v) => field.onChange(v)}
                         disabled={isLoadingHardware}
@@ -441,12 +448,14 @@ export function CreateDeploymentDrawer({
                             <SelectValue placeholder={t('Select')} />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          {hardwareOptions.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {hardwareOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -593,6 +602,10 @@ export function CreateDeploymentDrawer({
                   <FormItem>
                     <FormLabel>{t('Billing currency')}</FormLabel>
                     <Select
+                      items={[
+                        { value: 'usdc', label: 'USDC' },
+                        { value: 'iocoin', label: 'IOCOIN' },
+                      ]}
                       value={field.value || 'usdc'}
                       onValueChange={(v) => field.onChange(v)}
                     >
@@ -601,9 +614,11 @@ export function CreateDeploymentDrawer({
                           <SelectValue placeholder={t('Select')} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value='usdc'>USDC</SelectItem>
-                        <SelectItem value='iocoin'>IOCOIN</SelectItem>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          <SelectItem value='usdc'>USDC</SelectItem>
+                          <SelectItem value='iocoin'>IOCOIN</SelectItem>
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                   </FormItem>
@@ -730,8 +745,8 @@ export function CreateDeploymentDrawer({
         </Form>
 
         <SheetFooter className='gap-2'>
-          <SheetClose asChild>
-            <Button variant='outline'>{t('Cancel')}</Button>
+          <SheetClose render={<Button variant='outline' />}>
+            {t('Cancel')}
           </SheetClose>
           <Button
             form='deployment-form'

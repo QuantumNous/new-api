@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -54,7 +55,8 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
     setCurrentLanguage(savedLanguage)
   }, [savedLanguage])
 
-  const handleLanguageChange = async (language: string) => {
+  const handleLanguageChange = async (language: string | null) => {
+    if (!language) return
     const nextLanguage = normalizeLanguage(language)
     if (nextLanguage === currentLanguage) return
 
@@ -100,37 +102,45 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
       description={t('Set the language used across the interface')}
       icon={<Languages className='h-4 w-4' />}
     >
-        <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
-          <div className='space-y-1'>
-            <div className='text-sm font-medium'>{t('Interface Language')}</div>
-            <p className='text-muted-foreground line-clamp-2 text-xs sm:text-sm'>
-              {t(
-                'Language preferences sync across your signed-in devices and affect API error messages.'
-              )}
-            </p>
-          </div>
-          <div className='flex items-center gap-2 sm:min-w-48'>
-            <Select
-              value={currentLanguage}
-              onValueChange={handleLanguageChange}
-              disabled={saving}
-            >
-              <SelectTrigger className='w-full sm:w-48'>
-                <SelectValue placeholder={t('Select language')} />
-              </SelectTrigger>
-              <SelectContent>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
+        <div className='space-y-1'>
+          <div className='text-sm font-medium'>{t('Interface Language')}</div>
+          <p className='text-muted-foreground line-clamp-2 text-xs sm:text-sm'>
+            {t(
+              'Language preferences sync across your signed-in devices and affect API error messages.'
+            )}
+          </p>
+        </div>
+        <div className='flex items-center gap-2 sm:min-w-48'>
+          <Select
+            items={[
+              ...LANGUAGE_OPTIONS.map((language) => ({
+                value: language.value,
+                label: language.label,
+              })),
+            ]}
+            value={currentLanguage}
+            onValueChange={handleLanguageChange}
+            disabled={saving}
+          >
+            <SelectTrigger className='w-full sm:w-48'>
+              <SelectValue placeholder={t('Select language')} />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
                 {LANGUAGE_OPTIONS.map((language) => (
                   <SelectItem key={language.value} value={language.value}>
                     {language.label}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-            {saving && (
-              <Loader2 className='text-muted-foreground size-4 animate-spin' />
-            )}
-          </div>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          {saving && (
+            <Loader2 className='text-muted-foreground size-4 animate-spin' />
+          )}
         </div>
+      </div>
     </TitledCard>
   )
 }

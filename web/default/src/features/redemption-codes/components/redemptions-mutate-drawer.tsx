@@ -288,8 +288,8 @@ export function RedemptionsMutateDrawer({
           </form>
         </Form>
         <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
-          <SheetClose asChild>
-            <Button variant='outline'>{t('Close')}</Button>
+          <SheetClose render={<Button variant='outline' />}>
+            {t('Close')}
           </SheetClose>
           <Button form='redemption-form' type='submit' disabled={isSubmitting}>
             {isSubmitting ? t('Saving...') : t('Save changes')}

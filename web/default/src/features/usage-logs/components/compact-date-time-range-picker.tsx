@@ -41,8 +41,12 @@ export function CompactDateTimeRangePicker({
 
   const label = useMemo(() => {
     if (!start && !end) return t('Date Range')
-    const startText = start ? dayjs(start).format('YYYY-MM-DD HH:mm:ss') : '-'
-    const endText = end ? dayjs(end).format('YYYY-MM-DD HH:mm:ss') : '-'
+    // The popover's <input type="datetime-local"> only supports minute
+    // precision, so seconds are always 00 (manual pick) or 59 (preset
+    // end-of-day). Hide them in the trigger label to keep the button
+    // width compact while still showing the meaningful timestamp.
+    const startText = start ? dayjs(start).format('YYYY-MM-DD HH:mm') : '-'
+    const endText = end ? dayjs(end).format('YYYY-MM-DD HH:mm') : '-'
     return `${startText} ~ ${endText}`
   }, [end, start, t])
 
@@ -95,21 +99,26 @@ export function CompactDateTimeRangePicker({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type='button'
-          variant='outline'
-          className={cn(
-            'h-9 w-full justify-start gap-2 px-3 font-mono text-xs font-normal',
-            !start && !end && 'text-muted-foreground',
-            className
-          )}
-        >
-          <CalendarDays className='text-muted-foreground size-4 shrink-0' />
-          <span className='truncate'>{label}</span>
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            type='button'
+            variant='outline'
+            className={cn(
+              'w-full justify-start gap-2 px-2.5 font-mono text-xs font-normal',
+              !start && !end && 'text-muted-foreground',
+              className
+            )}
+          />
+        }
+      >
+        <CalendarDays className='text-muted-foreground size-4 shrink-0' />
+        <span className='truncate'>{label}</span>
       </PopoverTrigger>
-      <PopoverContent align='start' className='w-[min(520px,calc(100vw-2rem))] p-3'>
+      <PopoverContent
+        align='start'
+        className='w-[min(520px,calc(100vw-2rem))] p-3'
+      >
         <div className='space-y-3'>
           <div className='grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-end'>
             <div className='space-y-1.5'>

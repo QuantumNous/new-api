@@ -1,16 +1,17 @@
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  DoubleArrowLeftIcon,
-  DoubleArrowRightIcon,
-} from '@radix-ui/react-icons'
 import { type Table } from '@tanstack/react-table'
+import {
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
+  ChevronsLeft as DoubleArrowLeftIcon,
+  ChevronsRight as DoubleArrowRightIcon,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn, getPageNumbers } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -45,6 +46,12 @@ export function DataTablePagination<TData>({
         </div>
         <div className='flex items-center gap-2 @max-2xl/content:flex-row-reverse'>
           <Select
+            items={[
+              ...[10, 20, 30, 40, 50, 100].map((pageSize) => ({
+                value: `${pageSize}`,
+                label: pageSize,
+              })),
+            ]}
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
               table.setPageSize(Number(value))
@@ -53,12 +60,14 @@ export function DataTablePagination<TData>({
             <SelectTrigger className='h-8 w-[64px] sm:w-[70px]'>
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
-            <SelectContent side='top'>
-              {[10, 20, 30, 40, 50, 100].map((pageSize) => (
-                <SelectItem key={pageSize} value={`${pageSize}`}>
-                  {pageSize}
-                </SelectItem>
-              ))}
+            <SelectContent side='top' alignItemWithTrigger={false}>
+              <SelectGroup>
+                {[10, 20, 30, 40, 50, 100].map((pageSize) => (
+                  <SelectItem key={pageSize} value={`${pageSize}`}>
+                    {pageSize}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
           <p className='hidden text-sm font-medium sm:block'>

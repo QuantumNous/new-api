@@ -25,7 +25,7 @@ export function LegalConsent({
     return null
   }
 
-  const handleChange = (value: boolean | 'indeterminate') => {
+  const handleChange = (value: boolean) => {
     onCheckedChange(value === true)
   }
 

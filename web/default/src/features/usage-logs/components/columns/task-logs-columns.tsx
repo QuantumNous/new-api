@@ -3,24 +3,21 @@ import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Music } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
-import {
-  taskActionMapper,
-  taskStatusMapper,
-} from '../../lib/mappers'
+import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
 import type { TaskLog } from '../../types'
-import { getLogAvatarStyle } from '../../lib/avatar-color'
-import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   AudioPreviewDialog,
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
+import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   createDurationColumn,
   createChannelColumn,
@@ -60,7 +57,7 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
         className='group flex items-center gap-1 text-left text-xs'
         onClick={() => setOpen(true)}
       >
-        <Music className='size-3 text-muted-foreground' />
+        <Music className='text-muted-foreground size-3' />
         <span className='text-foreground leading-snug group-hover:underline'>
           {t('Click to preview audio')}
         </span>
@@ -106,56 +103,48 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
   ]
 
   if (isAdmin) {
-    columns.push(
-      createChannelColumn<TaskLog>({ headerLabel: t('Channel') }),
-      {
-        id: 'user',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('User')} />
-        ),
-        cell: function UserCell({ row }) {
-          const {
-            sensitiveVisible,
-            setSelectedUserId,
-            setUserInfoDialogOpen,
-          } = useUsageLogsContext()
-          const log = row.original
-          const displayName = log.username || String(log.user_id || '?')
+    columns.push(createChannelColumn<TaskLog>({ headerLabel: t('Channel') }), {
+      id: 'user',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('User')} />
+      ),
+      cell: function UserCell({ row }) {
+        const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
+          useUsageLogsContext()
+        const log = row.original
+        const displayName = log.username || String(log.user_id || '?')
 
-          return (
-            <button
-              type='button'
-              className='flex items-center gap-1.5 text-left'
-              onClick={(e) => {
-                e.stopPropagation()
-                setSelectedUserId(log.user_id)
-                setUserInfoDialogOpen(true)
-              }}
-            >
-              <Avatar className='size-6 ring-1 ring-border/60'>
-                <AvatarFallback
-                  className={cn(
-                    'text-[11px] font-semibold',
-                    !sensitiveVisible && 'bg-muted text-muted-foreground'
-                  )}
-                  style={
-                    sensitiveVisible ? getLogAvatarStyle(displayName) : undefined
-                  }
-                >
-                  {sensitiveVisible
-                    ? displayName.charAt(0).toUpperCase()
-                    : '•'}
-                </AvatarFallback>
-              </Avatar>
-              <span className='text-muted-foreground truncate text-sm hover:underline'>
-                {sensitiveVisible ? displayName : '••••'}
-              </span>
-            </button>
-          )
-        },
-        meta: { label: t('User'), mobileHidden: true },
-      }
-    )
+        return (
+          <button
+            type='button'
+            className='flex items-center gap-1.5 text-left'
+            onClick={(e) => {
+              e.stopPropagation()
+              setSelectedUserId(log.user_id)
+              setUserInfoDialogOpen(true)
+            }}
+          >
+            <Avatar className='ring-border/60 size-6 ring-1'>
+              <AvatarFallback
+                className={cn(
+                  'text-[11px] font-semibold',
+                  !sensitiveVisible && 'bg-muted text-muted-foreground'
+                )}
+                style={
+                  sensitiveVisible ? getUserAvatarStyle(displayName) : undefined
+                }
+              >
+                {sensitiveVisible ? getUserAvatarFallback(displayName) : '•'}
+              </AvatarFallback>
+            </Avatar>
+            <span className='text-muted-foreground truncate text-sm hover:underline'>
+              {sensitiveVisible ? displayName : '••••'}
+            </span>
+          </button>
+        )
+      },
+      meta: { label: t('User'), mobileHidden: true },
+    })
   }
 
   columns.push(
@@ -177,7 +166,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               autoColor={taskId}
               size='sm'
               showDot={false}
-              className='max-w-full truncate rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono'
+              className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
             />
             <span className='text-muted-foreground/60 truncate text-[11px]'>
               {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
@@ -257,7 +246,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               href={videoUrl}
               target='_blank'
               rel='noopener noreferrer'
-              className='text-xs text-foreground hover:underline'
+              className='text-foreground text-xs hover:underline'
             >
               {t('Click to preview video')}
             </a>

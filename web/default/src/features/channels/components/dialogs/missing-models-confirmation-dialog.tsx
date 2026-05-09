@@ -49,21 +49,21 @@ export function MissingModelsConfirmationDialog({
           <AlertDialogTitle>
             {t('Models not in list, may fail to invoke')}
           </AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className='space-y-3 text-sm'>
-              <div>
-                {t(
-                  'The following models in the model redirect have not been added to the "Models" list and may fail during invocation due to missing available models:'
-                )}
-              </div>
-              <div className='rounded-md bg-red-50 p-2 font-mono text-xs break-all text-red-600 dark:bg-red-950/50 dark:text-red-400'>
-                {missingModels.join(', ')}
-              </div>
-              <div>
-                {t(
-                  'You can manually add them in "Custom Model Names", click "Fill" and then submit, or use the operations below to handle automatically.'
-                )}
-              </div>
+          <AlertDialogDescription
+            render={<div className='space-y-3 text-sm' />}
+          >
+            <div>
+              {t(
+                'The following models in the model redirect have not been added to the "Models" list and may fail during invocation due to missing available models:'
+              )}
+            </div>
+            <div className='rounded-md bg-red-50 p-2 font-mono text-xs break-all text-red-600 dark:bg-red-950/50 dark:text-red-400'>
+              {missingModels.join(', ')}
+            </div>
+            <div>
+              {t(
+                'You can manually add them in "Custom Model Names", click "Fill" and then submit, or use the operations below to handle automatically.'
+              )}
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>

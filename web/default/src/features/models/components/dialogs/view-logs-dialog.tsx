@@ -12,6 +12,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -175,8 +176,29 @@ export function ViewLogsDialog({
               {t('Container')}
             </div>
             <Select
+              items={[
+                ...containers.flatMap((c) => {
+                  const id = c?.container_id
+                  if (typeof id !== 'string' || !id) return []
+                  const status =
+                    typeof c?.status === 'string' && c.status
+                      ? ` (${c.status})`
+                      : ''
+                  return [
+                    {
+                      value: id,
+                      label: (
+                        <>
+                          {id}
+                          {status}
+                        </>
+                      ),
+                    },
+                  ]
+                }),
+              ]}
               value={containerId}
-              onValueChange={(v) => setContainerId(v)}
+              onValueChange={(v) => v !== null && setContainerId(v)}
               disabled={isLoadingContainers || containers.length === 0}
             >
               <SelectTrigger>
@@ -190,27 +212,34 @@ export function ViewLogsDialog({
                   }
                 />
               </SelectTrigger>
-              <SelectContent>
-                {containers.map((c) => {
-                  const id = c?.container_id
-                  if (typeof id !== 'string' || !id) return null
-                  const status =
-                    typeof c?.status === 'string' && c.status
-                      ? ` (${c.status})`
-                      : ''
-                  return (
-                    <SelectItem key={id} value={id}>
-                      {id}
-                      {status}
-                    </SelectItem>
-                  )
-                })}
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {containers.map((c) => {
+                    const id = c?.container_id
+                    if (typeof id !== 'string' || !id) return null
+                    const status =
+                      typeof c?.status === 'string' && c.status
+                        ? ` (${c.status})`
+                        : ''
+                    return (
+                      <SelectItem key={id} value={id}>
+                        {id}
+                        {status}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>
           <div className='space-y-1'>
             <div className='text-muted-foreground text-xs'>{t('Stream')}</div>
             <Select
+              items={[
+                { value: 'stdout', label: 'stdout' },
+                { value: 'stderr', label: 'stderr' },
+                { value: 'all', label: 'all' },
+              ]}
               value={stream}
               onValueChange={(v) => {
                 if (v === 'stderr' || v === 'all' || v === 'stdout') {
@@ -223,10 +252,12 @@ export function ViewLogsDialog({
               <SelectTrigger>
                 <SelectValue placeholder={t('Select')} />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='stdout'>stdout</SelectItem>
-                <SelectItem value='stderr'>stderr</SelectItem>
-                <SelectItem value='all'>all</SelectItem>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  <SelectItem value='stdout'>stdout</SelectItem>
+                  <SelectItem value='stderr'>stderr</SelectItem>
+                  <SelectItem value='all'>all</SelectItem>
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>

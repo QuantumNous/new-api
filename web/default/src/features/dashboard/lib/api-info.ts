@@ -5,12 +5,12 @@ import type { PingStatus } from '@/features/dashboard/types'
  */
 export function getLatencyColorClass(latency: number): string {
   if (latency < 200) {
-    return 'text-green-600 dark:text-green-400'
+    return 'text-success'
   }
   if (latency < 500) {
-    return 'text-yellow-600 dark:text-yellow-400'
+    return 'text-warning'
   }
-  return 'text-red-600 dark:text-red-400'
+  return 'text-destructive'
 }
 
 /**

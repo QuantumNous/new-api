@@ -174,7 +174,9 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         cell: ({ row }) => {
           const group = row.original.plan.upgrade_group
           if (!group) {
-            return <span className='text-muted-foreground'>{t('No Upgrade')}</span>
+            return (
+              <span className='text-muted-foreground'>{t('No Upgrade')}</span>
+            )
           }
           return <GroupBadge group={group} />
         },

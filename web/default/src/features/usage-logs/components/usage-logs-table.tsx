@@ -17,28 +17,13 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  DataTablePagination,
-  DataTableViewOptions,
-  TableSkeleton,
-  TableEmpty,
-  MobileCardList,
-} from '@/components/data-table'
-import { PageFooterPortal } from '@/components/layout'
+import { TableCell, TableRow } from '@/components/ui/table'
+import { DataTablePage } from '@/components/data-table'
 import { DEFAULT_LOGS_DATA, LOG_TYPE_ENUM } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
-import { CommonLogsStats } from './common-logs-stats'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
@@ -157,105 +142,42 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
 
   const isCommon = logCategory === 'common'
 
-  const renderRows = () => {
-    const rows = table.getRowModel().rows
-    if (rows.length === 0) return null
-
-    return rows.map((row) => {
-      const logType = (row.original as Record<string, unknown>).type as
-        | number
-        | undefined
-      const tintClass =
-        isCommon && logType != null ? (logTypeRowTint[logType] ?? '') : ''
-
-      return (
-        <TableRow
-          key={row.id}
-          className={cn('transition-colors', tintClass)}
-        >
-          {row.getVisibleCells().map((cell) => (
-            <TableCell key={cell.id} className={isCommon ? 'py-2' : 'py-3.5'}>
-              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-            </TableCell>
-          ))}
-        </TableRow>
-      )
-    })
-  }
-
   return (
-    <>
-      <div className='space-y-3 sm:space-y-4'>
-        {logCategory === 'common' ? (
-          <div className='rounded-md border bg-card/50 p-2 shadow-xs sm:p-3'>
-            <CommonLogsFilterBar
-              stats={<CommonLogsStats />}
-              viewOptions={<DataTableViewOptions table={table} />}
-            />
-          </div>
+    <DataTablePage
+      table={table}
+      columns={columns as ColumnDef<Record<string, unknown>>[]}
+      isLoading={isLoadingData}
+      isFetching={isFetching}
+      emptyTitle={t('No Logs Found')}
+      emptyDescription={t(
+        'No usage logs available. Logs will appear here once API calls are made.'
+      )}
+      skeletonKeyPrefix='usage-log-skeleton'
+      tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
+      toolbar={
+        isCommon ? (
+          <CommonLogsFilterBar table={table} />
         ) : (
-          <div className='rounded-md border bg-card/50 p-2 shadow-xs sm:p-3'>
-            <TaskLogsFilterBar
-              logCategory={logCategory}
-              viewOptions={<DataTableViewOptions table={table} />}
-            />
-          </div>
-        )}
-        {isMobile ? (
-          <MobileCardList
-            table={table}
-            isLoading={isLoadingData}
-            emptyTitle={t('No Logs Found')}
-            emptyDescription={t(
-              'No usage logs available. Logs will appear here once API calls are made.'
-            )}
-          />
-        ) : (
-          <div
-            className={cn(
-              'overflow-hidden rounded-md border transition-opacity duration-150',
-              isFetching && !isLoadingData && 'pointer-events-none opacity-50'
-            )}
-          >
-            <Table>
-              <TableHeader className='bg-muted/30 sticky top-0 z-10'>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id} colSpan={header.colSpan}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {isLoadingData ? (
-                  <TableSkeleton table={table} keyPrefix='usage-log-skeleton' />
-                ) : table.getRowModel().rows.length === 0 ? (
-                  <TableEmpty
-                    colSpan={columns.length}
-                    title={t('No Logs Found')}
-                    description={t(
-                      'No usage logs available. Logs will appear here once API calls are made.'
-                    )}
-                  />
-                ) : (
-                  renderRows()
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
-      <PageFooterPortal>
-        <DataTablePagination table={table} />
-      </PageFooterPortal>
-    </>
+          <TaskLogsFilterBar table={table} logCategory={logCategory} />
+        )
+      }
+      renderRow={(row) => {
+        const logType = (row.original as Record<string, unknown>).type as
+          | number
+          | undefined
+        const tintClass =
+          isCommon && logType != null ? (logTypeRowTint[logType] ?? '') : ''
+
+        return (
+          <TableRow key={row.id} className={cn('transition-colors', tintClass)}>
+            {row.getVisibleCells().map((cell) => (
+              <TableCell key={cell.id} className={isCommon ? 'py-2' : 'py-3.5'}>
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+              </TableCell>
+            ))}
+          </TableRow>
+        )
+      }}
+    />
   )
 }

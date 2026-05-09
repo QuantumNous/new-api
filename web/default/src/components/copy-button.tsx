@@ -50,7 +50,7 @@ export function CopyButton({
       aria-label={isCopied ? copiedAriaLabel : resolvedAriaLabel}
     >
       {isCopied ? (
-        <Check className={cn('text-green-600', iconClassName)} />
+        <Check className={cn('text-success', iconClassName)} />
       ) : (
         <Copy className={cn(iconClassName)} />
       )}
@@ -61,7 +61,7 @@ export function CopyButton({
   if (tooltip || successTooltip) {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipTrigger render={button}></TooltipTrigger>
         <TooltipContent>
           <p>{isCopied ? resolvedSuccessTooltip : resolvedTooltip}</p>
         </TooltipContent>

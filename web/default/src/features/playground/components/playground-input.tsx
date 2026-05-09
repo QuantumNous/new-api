@@ -95,10 +95,7 @@ export function PlaygroundInput({
 
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
-      <PromptInput
-        groupClassName='rounded-[20px] [--radius:20px]'
-        onSubmit={handleSubmit}
-      >
+      <PromptInput groupClassName='rounded-xl' onSubmit={handleSubmit}>
         <PromptInputTextarea
           autoComplete='off'
           autoCorrect='off'
@@ -114,16 +111,18 @@ export function PlaygroundInput({
         <PromptInputFooter className='p-2.5'>
           <PromptInputTools>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <PromptInputButton
-                  className='!rounded-full border font-medium'
-                  disabled={disabled}
-                  variant='outline'
-                >
-                  <PaperclipIcon size={16} />
-                  <span className='hidden sm:inline'>{t('Attach')}</span>
-                  <span className='sr-only sm:hidden'>{t('Attach')}</span>
-                </PromptInputButton>
+              <DropdownMenuTrigger
+                render={
+                  <PromptInputButton
+                    className='border font-medium'
+                    disabled={disabled}
+                    variant='outline'
+                  />
+                }
+              >
+                <PaperclipIcon size={16} />
+                <span className='hidden sm:inline'>{t('Attach')}</span>
+                <span className='sr-only sm:hidden'>{t('Attach')}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start'>
                 <DropdownMenuItem
@@ -154,7 +153,7 @@ export function PlaygroundInput({
             </DropdownMenu>
 
             <PromptInputButton
-              className='rounded-full border font-medium'
+              className='border font-medium'
               disabled={disabled}
               onClick={() => toast.info(t('Search feature in development'))}
               variant='outline'
@@ -178,7 +177,7 @@ export function PlaygroundInput({
 
             {isGenerating && onStop ? (
               <PromptInputButton
-                className='text-foreground rounded-full font-medium'
+                className='text-foreground font-medium'
                 onClick={onStop}
                 variant='secondary'
               >
@@ -188,7 +187,7 @@ export function PlaygroundInput({
               </PromptInputButton>
             ) : (
               <PromptInputButton
-                className='text-foreground rounded-full font-medium'
+                className='text-foreground font-medium'
                 disabled={disabled || !text.trim()}
                 type='submit'
                 variant='secondary'

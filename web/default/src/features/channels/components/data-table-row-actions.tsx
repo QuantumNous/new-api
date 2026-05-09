@@ -124,46 +124,50 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   return (
     <div className='flex items-center justify-end gap-1'>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='icon-sm'
-            onClick={handleDirectTest}
-            disabled={isTesting}
-            aria-label={t('Test Connection')}
-          >
-            {isTesting ? (
-              <Loader2 className='size-4 animate-spin' />
-            ) : (
-              <Gauge className='size-4' />
-            )}
-          </Button>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={handleDirectTest}
+              disabled={isTesting}
+              aria-label={t('Test Connection')}
+            />
+          }
+        >
+          {isTesting ? (
+            <Loader2 className='size-4 animate-spin' />
+          ) : (
+            <Gauge className='size-4' />
+          )}
         </TooltipTrigger>
         <TooltipContent>{t('Test Connection')}</TooltipContent>
       </Tooltip>
 
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='icon-sm'
-            onClick={handleToggleStatus}
-            disabled={isTogglingStatus}
-            aria-label={isEnabled ? t('Disable') : t('Enable')}
-            className={
-              isEnabled
-                ? 'text-destructive hover:text-destructive'
-                : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
-            }
-          >
-            {isTogglingStatus ? (
-              <Loader2 className='size-4 animate-spin' />
-            ) : isEnabled ? (
-              <PowerOff className='size-4' />
-            ) : (
-              <Power className='size-4' />
-            )}
-          </Button>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={handleToggleStatus}
+              disabled={isTogglingStatus}
+              aria-label={isEnabled ? t('Disable') : t('Enable')}
+              className={
+                isEnabled
+                  ? 'text-destructive hover:text-destructive'
+                  : 'text-emerald-600 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-400'
+              }
+            />
+          }
+        >
+          {isTogglingStatus ? (
+            <Loader2 className='size-4 animate-spin' />
+          ) : isEnabled ? (
+            <PowerOff className='size-4' />
+          ) : (
+            <Power className='size-4' />
+          )}
         </TooltipTrigger>
         <TooltipContent>
           {isEnabled ? t('Disable') : t('Enable')}
@@ -171,14 +175,16 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       </Tooltip>
 
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant='ghost'
-            className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
-          >
-            <MoreHorizontal className='h-4 w-4' />
-            <span className='sr-only'>{t('Open menu')}</span>
-          </Button>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant='ghost'
+              className='data-popup-open:bg-muted flex h-8 w-8 p-0'
+            />
+          }
+        >
+          <MoreHorizontal className='h-4 w-4' />
+          <span className='sr-only'>{t('Open menu')}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-48'>
           {/* Edit */}

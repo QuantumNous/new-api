@@ -320,7 +320,7 @@ export function SetupWizard() {
                     <div className='flex items-start gap-3'>
                       <span
                         className={cn(
-                          'flex size-6 items-center justify-center rounded-full border text-xs font-semibold',
+                          'flex size-6 items-center justify-center rounded-md border text-xs font-semibold',
                           isActive
                             ? 'border-primary bg-primary text-primary-foreground'
                             : isCompleted

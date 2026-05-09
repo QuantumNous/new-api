@@ -66,7 +66,7 @@ export function LegalDocument({
         <div className='mx-auto max-w-2xl py-12'>
           <Card className='border-dashed'>
             <CardHeader className='flex flex-row items-center gap-4'>
-              <div className='bg-muted rounded-full p-2'>
+              <div className='bg-muted rounded-lg p-2'>
                 <FileWarning className='text-muted-foreground h-5 w-5' />
               </div>
               <div className='space-y-1'>
@@ -96,10 +96,16 @@ export function LegalDocument({
                   'The administrator configured an external link for this document.'
                 )}
               </p>
-              <Button asChild>
-                <a href={rawContent} target='_blank' rel='noopener noreferrer'>
-                  {t('View document')}
-                </a>
+              <Button
+                render={
+                  <a
+                    href={rawContent}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  />
+                }
+              >
+                {t('View document')}
               </Button>
             </CardContent>
           </Card>

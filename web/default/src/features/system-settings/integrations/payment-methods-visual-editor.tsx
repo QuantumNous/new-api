@@ -213,11 +213,13 @@ export function PaymentMethodsVisualEditor({
         </div>
         <div className='flex gap-2'>
           <Popover>
-            <PopoverTrigger asChild>
-              <Button variant='outline' className='flex-1 sm:flex-none'>
-                <Lightbulb className='h-4 w-4 sm:mr-2' />
-                <span className='sm:inline'>{t('Templates')}</span>
-              </Button>
+            <PopoverTrigger
+              render={
+                <Button variant='outline' className='flex-1 sm:flex-none' />
+              }
+            >
+              <Lightbulb className='h-4 w-4 sm:mr-2' />
+              <span className='sm:inline'>{t('Templates')}</span>
             </PopoverTrigger>
             <PopoverContent className='w-60'>
               <div className='space-y-2'>
