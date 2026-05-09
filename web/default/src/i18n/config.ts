@@ -18,9 +18,10 @@ export const resources = {
 } as const
 
 i18n
-  .use(LanguageDetector)
+  // .use(LanguageDetector)
   .use(initReactI18next)
   .init({
+    lng: 'en',
     resources,
     fallbackLng: 'en',
     supportedLngs: ['en', 'zh', 'fr', 'ru', 'ja', 'vi'],
