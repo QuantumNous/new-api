@@ -24,12 +24,11 @@ import { getLobeHubIcon } from '../../../../../helpers';
 const { Paragraph } = Typography;
 
 const CARD_STYLES = {
-  container:
-    'w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md',
-  icon: 'w-8 h-8 flex items-center justify-center',
+  container: 'model-detail-header-icon-shell',
+  icon: 'model-detail-header-icon',
 };
 
-const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
+const ModelHeader = ({ modelData, t }) => {
   // 获取模型图标（优先模型图标，其次供应商图标）
   const getModelIcon = () => {
     // 1) 优先使用模型自定义图标
@@ -74,20 +73,32 @@ const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
   };
 
   return (
-    <div className='flex items-center'>
+    <div className='model-detail-header'>
       {getModelIcon()}
-      <div className='ml-3 font-normal'>
+      <div className='model-detail-header-copy'>
         <Paragraph
-          className='!mb-0 !text-lg !font-medium'
+          className='model-detail-header-title'
           copyable={{
             content: modelData?.model_name || '',
             onCopy: () => Toast.success({ content: t('已复制模型名称') }),
           }}
         >
-          <span className='truncate max-w-60 font-bold'>
+          <span className='model-detail-header-name'>
             {modelData?.model_name || t('未知模型')}
           </span>
         </Paragraph>
+        <div className='model-detail-header-meta'>
+          {modelData?.vendor_name && (
+            <span className='model-detail-header-pill'>
+              {modelData.vendor_name}
+            </span>
+          )}
+          {modelData?.quota_type !== undefined && (
+            <span className='model-detail-header-pill model-detail-header-pill-muted'>
+              {modelData.quota_type === 0 ? t('按量计费') : t('按次计费')}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

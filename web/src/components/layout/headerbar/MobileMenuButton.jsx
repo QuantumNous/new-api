@@ -29,15 +29,19 @@ const MobileMenuButton = ({
   onToggle,
   t,
 }) => {
-  if (!isConsoleRoute || !isMobile) {
+  if (!isConsoleRoute) {
     return null;
   }
 
   return (
     <Button
       icon={
-        (isMobile ? drawerOpen : collapsed) ? (
-          <IconClose className='text-lg' />
+        isMobile ? (
+          drawerOpen ? (
+            <IconClose className='text-lg' />
+          ) : (
+            <IconMenu className='text-lg' />
+          )
         ) : (
           <IconMenu className='text-lg' />
         )
@@ -48,7 +52,7 @@ const MobileMenuButton = ({
       onClick={onToggle}
       theme='borderless'
       type='tertiary'
-      className='!p-2 !text-current focus:!bg-semi-color-fill-1 dark:focus:!bg-gray-700'
+      className='app-header-menu-button2 !p-2 !text-current'
     />
   );
 };

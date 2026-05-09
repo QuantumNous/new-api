@@ -24,20 +24,27 @@ import SkeletonWrapper from '../components/SkeletonWrapper';
 const Navigation = ({
   mainNavLinks,
   isMobile,
+  isConsoleRoute,
   isLoading,
   userState,
   pricingRequireAuth,
 }) => {
+  if (isConsoleRoute) {
+    return <div className='flex-1' />;
+  }
+
   const renderNavLinks = () => {
     const baseClasses =
-      'flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
-    const hoverClasses = 'hover:text-semi-color-primary';
-    const spacingClasses = isMobile ? 'p-1' : 'p-2';
+      'app-header-nav-link flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
+    const hoverClasses = '';
+    const spacingClasses = isMobile ? 'p-1' : 'px-2 py-3';
 
     const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
 
     return mainNavLinks.map((link) => {
-      const linkContent = <span>{link.text}</span>;
+      const linkContent = (
+        <span className='app-header-nav-link-text'>{link.text}</span>
+      );
 
       if (link.isExternal) {
         return (
@@ -70,7 +77,7 @@ const Navigation = ({
   };
 
   return (
-    <nav className='flex flex-1 items-center gap-1 lg:gap-2 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide'>
+    <nav className='app-header-nav flex flex-1 items-center gap-1 lg:gap-2 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide'>
       <SkeletonWrapper
         loading={isLoading}
         type='navigation'

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Layout } from '@douyinfe/semi-ui';
+import { Typography } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import TaskLogsTable from './TaskLogsTable';
 import TaskLogsActions from './TaskLogsActions';
@@ -30,16 +30,16 @@ import { useTaskLogsData } from '../../../hooks/task-logs/useTaskLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 
+const { Title } = Typography;
+
 const TaskLogsPage = () => {
   const taskLogsData = useTaskLogsData();
   const isMobile = useIsMobile();
 
   return (
     <>
-      {/* Modals */}
       <ColumnSelectorModal {...taskLogsData} />
       <ContentModal {...taskLogsData} isVideo={false} />
-      {/* 新增：视频预览弹窗 */}
       <ContentModal
         isModalOpen={taskLogsData.isVideoModalOpen}
         setIsModalOpen={taskLogsData.setIsVideoModalOpen}
@@ -52,9 +52,23 @@ const TaskLogsPage = () => {
         audioClips={taskLogsData.audioClips}
       />
 
-      <Layout>
+      <div className='task-console-shell'>
+        <div className='task-console-header'>
+          <div className='task-console-copy'>
+            <Title heading={2} className='task-console-title'>
+              {taskLogsData.t('任务日志')}
+            </Title>
+            <p className='task-console-subtitle'>
+              {taskLogsData.t(
+                '按时间、任务 ID 与渠道维度追踪任务提交、执行进度、回传结果与失败原因',
+              )}
+            </p>
+          </div>
+        </div>
+
         <CardPro
           type='type2'
+          className='task-table-card'
           statsArea={<TaskLogsActions {...taskLogsData} />}
           searchArea={<TaskLogsFilters {...taskLogsData} />}
           paginationArea={createCardProPagination({
@@ -70,7 +84,7 @@ const TaskLogsPage = () => {
         >
           <TaskLogsTable {...taskLogsData} />
         </CardPro>
-      </Layout>
+      </div>
     </>
   );
 };

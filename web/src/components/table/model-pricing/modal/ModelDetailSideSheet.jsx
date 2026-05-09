@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { SideSheet, Typography, Button } from '@douyinfe/semi-ui';
 import { IconClose } from '@douyinfe/semi-icons';
+import './ModelDetailSideSheet.css';
 
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import ModelHeader from './components/ModelHeader';
@@ -49,10 +50,9 @@ const ModelDetailSideSheet = ({
 
   return (
     <SideSheet
+      className='model-detail-sheet'
       placement='right'
-      title={
-        <ModelHeader modelData={modelData} vendorsMap={vendorsMap} t={t} />
-      }
+      title={<ModelHeader modelData={modelData} t={t} />}
       bodyStyle={{
         padding: '0',
         display: 'flex',
@@ -71,14 +71,14 @@ const ModelDetailSideSheet = ({
       }
       onCancel={onClose}
     >
-      <div className='p-2'>
+      <div className='model-detail-modal'>
         {!modelData && (
-          <div className='flex justify-center items-center py-10'>
+          <div className='model-detail-loading'>
             <Text type='secondary'>{t('加载中...')}</Text>
           </div>
         )}
         {modelData && (
-          <>
+          <div className='model-detail-content'>
             <ModelBasicInfo
               modelData={modelData}
               vendorsMap={vendorsMap}
@@ -101,7 +101,7 @@ const ModelDetailSideSheet = ({
               autoGroups={autoGroups}
               t={t}
             />
-          </>
+          </div>
         )}
       </div>
     </SideSheet>

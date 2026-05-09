@@ -320,17 +320,17 @@ const PricingVendorIntro = memo(
     const renderHeaderCard = useCallback(
       ({ title, count, description, rightContent, primaryDarkerChannel }) => (
         <Card
-          className='!rounded-2xl shadow-sm border-0'
+          className='pricing-hero-card !rounded-2xl shadow-sm border-0'
           cover={
             <div
-              className='relative h-full'
+              className='pricing-hero-cover relative h-full'
               style={createCoverStyle(primaryDarkerChannel)}
             >
-              <div className='relative z-10 h-full flex items-center justify-between p-4'>
-                <div className='flex-1 min-w-0 mr-4'>
-                  <div className='flex flex-row flex-wrap items-center gap-2 sm:gap-3 mb-2'>
+              <div className='pricing-hero-inner relative z-10 h-full flex items-center justify-between p-4'>
+                <div className='pricing-hero-copy flex-1 min-w-0 mr-4'>
+                  <div className='pricing-hero-title-row flex flex-row flex-wrap items-center gap-2 sm:gap-3 mb-2'>
                     <h2
-                      className='text-lg sm:text-xl font-bold truncate'
+                      className='pricing-hero-title text-lg sm:text-xl font-bold truncate'
                       style={COMPONENT_STYLES.titleText}
                     >
                       {title}
@@ -339,13 +339,13 @@ const PricingVendorIntro = memo(
                       style={COMPONENT_STYLES.tag}
                       shape='circle'
                       size='small'
-                      className='self-center'
+                      className='pricing-hero-count-tag self-center'
                     >
                       {t('共 {{count}} 个模型', { count })}
                     </Tag>
                   </div>
                   <Paragraph
-                    className='text-xs sm:text-sm leading-relaxed !mb-0 cursor-pointer'
+                    className='pricing-hero-description text-xs sm:text-sm leading-relaxed !mb-0 cursor-pointer'
                     style={COMPONENT_STYLES.descriptionText}
                     ellipsis={{ rows: 2 }}
                     onClick={() => handleOpenDescModal(description)}
@@ -354,12 +354,14 @@ const PricingVendorIntro = memo(
                   </Paragraph>
                 </div>
 
-                <div className='flex-shrink-0'>{rightContent}</div>
+                <div className='pricing-hero-avatar-wrap flex-shrink-0'>
+                  {rightContent}
+                </div>
               </div>
             </div>
           }
         >
-          {renderSearchActions()}
+          <div className='pricing-hero-actions'>{renderSearchActions()}</div>
         </Card>
       ),
       [renderSearchActions, createCoverStyle, handleOpenDescModal, t],

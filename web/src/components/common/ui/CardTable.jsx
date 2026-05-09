@@ -57,10 +57,23 @@ const CardTable = ({
     return record[rowKey] !== undefined ? record[rowKey] : index;
   };
 
+  const normalizedPagination =
+    tableProps.pagination && typeof tableProps.pagination === 'object'
+      ? tableProps.pagination
+      : null;
+  const shouldHideSinglePagePagination =
+    normalizedPagination?.hideOnSinglePage !== false &&
+    normalizedPagination?.total > 0 &&
+    normalizedPagination?.pageSize > 0 &&
+    normalizedPagination.total <= normalizedPagination.pageSize;
+  const effectivePagination = shouldHideSinglePagePagination
+    ? false
+    : tableProps.pagination;
+
   if (!isMobile) {
     const finalTableProps = hidePagination
       ? { ...tableProps, pagination: false }
-      : tableProps;
+      : { ...tableProps, pagination: effectivePagination };
 
     return (
       <Table
@@ -222,9 +235,9 @@ const CardTable = ({
           index={index}
         />
       ))}
-      {!hidePagination && tableProps.pagination && dataSource.length > 0 && (
+      {!hidePagination && effectivePagination && dataSource.length > 0 && (
         <div className='mt-2 flex justify-center'>
-          <Pagination {...tableProps.pagination} />
+          <Pagination {...effectivePagination} />
         </div>
       )}
     </div>

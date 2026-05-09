@@ -37,13 +37,13 @@ function renderQuotaType(type, t) {
   switch (type) {
     case 1:
       return (
-        <Tag color='teal' shape='circle'>
+        <Tag className='pricing-table-status-tag' color='teal' shape='circle'>
           {t('按次计费')}
         </Tag>
       );
     case 0:
       return (
-        <Tag color='violet' shape='circle'>
+        <Tag className='pricing-table-status-tag' color='violet' shape='circle'>
           {t('按量计费')}
         </Tag>
       );
@@ -57,6 +57,7 @@ const renderVendor = (vendorName, vendorIcon, t) => {
   if (!vendorName) return '-';
   return (
     <Tag
+      className='pricing-table-meta-pill pricing-table-vendor-tag'
       color='white'
       shape='circle'
       prefixIcon={getLobeHubIcon(vendorIcon || 'Layers', 14)}
@@ -75,6 +76,7 @@ const renderTags = (text) => {
     renderItem: (tag, idx) => (
       <Tag
         key={idx}
+        className='pricing-table-meta-pill'
         color={stringToColor(tag.trim())}
         shape='circle'
         size='small'
@@ -91,9 +93,14 @@ function renderSupportedEndpoints(endpoints) {
     return null;
   }
   return (
-    <Space wrap>
+    <Space wrap className='pricing-table-endpoint-list'>
       {endpoints.map((endpoint, idx) => (
-        <Tag key={endpoint} color={stringToColor(endpoint)} shape='circle'>
+        <Tag
+          key={endpoint}
+          className='pricing-table-meta-pill'
+          color={stringToColor(endpoint)}
+          shape='circle'
+        >
           {endpoint}
         </Tag>
       ))}
@@ -146,11 +153,15 @@ export const getPricingTableColumns = ({
     title: t('模型名称'),
     dataIndex: 'model_name',
     render: (text, record, index) => {
-      return renderModelTag(text, {
-        onClick: () => {
-          copyText(text);
-        },
-      });
+      return (
+        <div className='pricing-table-model-cell'>
+          {renderModelTag(text, {
+            onClick: () => {
+              copyText(text);
+            },
+          })}
+        </div>
+      );
     },
     onFilter: (value, record) =>
       record.model_name.toLowerCase().includes(value.toLowerCase()),
@@ -168,7 +179,11 @@ export const getPricingTableColumns = ({
   const descriptionColumn = {
     title: t('描述'),
     dataIndex: 'description',
-    render: (text) => renderDescription(text, 200),
+    render: (text) => (
+      <div className='pricing-table-description'>
+        {renderDescription(text, 200)}
+      </div>
+    ),
   };
 
   const tagsColumn = {
@@ -212,15 +227,15 @@ export const getPricingTableColumns = ({
       const priceData = getPriceData(record);
 
       return (
-        <div className='space-y-1'>
-          <div className='text-gray-700'>
+        <div className='pricing-table-ratio-stack space-y-1'>
+          <div className='pricing-table-ratio-line'>
             {t('模型倍率')}：{record.quota_type === 0 ? text : t('无')}
           </div>
-          <div className='text-gray-700'>
+          <div className='pricing-table-ratio-line'>
             {t('补全倍率')}：
             {record.quota_type === 0 ? completionRatio : t('无')}
           </div>
-          <div className='text-gray-700'>
+          <div className='pricing-table-ratio-line'>
             {t('分组倍率')}：{priceData?.usedGroupRatio ?? '-'}
           </div>
         </div>
@@ -237,11 +252,14 @@ export const getPricingTableColumns = ({
       const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
 
       return (
-        <div className='space-y-1'>
+        <div className='pricing-table-price-stack space-y-1'>
           {priceItems.map((item) => (
-            <div key={item.key} className='text-gray-700'>
-              {item.label} {item.value}
-              {item.suffix}
+            <div key={item.key} className='pricing-table-price-line'>
+              <span className='pricing-table-price-label'>{item.label}</span>
+              <span className='pricing-table-price-value'>
+                {item.value}
+                {item.suffix}
+              </span>
             </div>
           ))}
         </div>

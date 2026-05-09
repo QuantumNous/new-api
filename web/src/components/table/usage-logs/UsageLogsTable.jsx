@@ -100,8 +100,9 @@ const LogsTable = (logsData) => {
       dataSource={logs}
       rowKey='key'
       loading={loading}
+      rowClassName={() => 'log-data-row'}
       scroll={compactMode ? undefined : { x: 'max-content' }}
-      className='rounded-xl overflow-hidden'
+      className='log-data-table'
       size='small'
       empty={
         <Empty

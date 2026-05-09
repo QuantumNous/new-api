@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Form } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { IconRefresh, IconSearch, IconSetting } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
@@ -34,6 +35,19 @@ const LogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const { i18n } = useTranslation();
+
+  const handleReset = () => {
+    if (!formApi) {
+      return;
+    }
+    formApi.reset();
+    setLogType(0);
+    setTimeout(() => {
+      refresh();
+    }, 100);
+  };
+
   return (
     <Form
       initValues={formInitValues}
@@ -44,19 +58,19 @@ const LogsFilters = ({
       layout='vertical'
       trigger='change'
       stopValidateWithError={false}
+      className='log-filter-form'
     >
-      <div className='flex flex-col gap-2'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
-          {/* 时间选择器 */}
-          <div className='col-span-1 lg:col-span-2'>
+      <div className='log-filter-layout'>
+        <div className='log-filter-grid'>
+          <div className='log-filter-item log-filter-range'>
             <Form.DatePicker
               field='dateRange'
-              className='w-full'
+              className='log-filter-date'
               type='dateTimeRange'
               placeholder={[t('开始时间'), t('结束时间')]}
               showClear
               pure
-              size='small'
+              size='default'
               presets={DATE_RANGE_PRESETS.map((preset) => ({
                 text: t(preset.text),
                 start: preset.start(),
@@ -65,82 +79,95 @@ const LogsFilters = ({
             />
           </div>
 
-          {/* 其他搜索字段 */}
-          <Form.Input
-            field='token_name'
-            prefix={<IconSearch />}
-            placeholder={t('令牌名称')}
-            showClear
-            pure
-            size='small'
-          />
+          <div className='log-filter-item'>
+            <Form.Input
+              field='token_name'
+              prefix={<IconSearch />}
+              placeholder={t('令牌名称')}
+              showClear
+              pure
+              size='default'
+              className='log-filter-control'
+            />
+          </div>
 
-          <Form.Input
-            field='model_name'
-            prefix={<IconSearch />}
-            placeholder={t('模型名称')}
-            showClear
-            pure
-            size='small'
-          />
+          <div className='log-filter-item'>
+            <Form.Input
+              field='model_name'
+              prefix={<IconSearch />}
+              placeholder={t('模型名称')}
+              showClear
+              pure
+              size='default'
+              className='log-filter-control'
+            />
+          </div>
 
-          <Form.Input
-            field='group'
-            prefix={<IconSearch />}
-            placeholder={t('分组')}
-            showClear
-            pure
-            size='small'
-          />
+          <div className='log-filter-item'>
+            <Form.Input
+              field='group'
+              prefix={<IconSearch />}
+              placeholder={t('分组')}
+              showClear
+              pure
+              size='default'
+              className='log-filter-control'
+            />
+          </div>
 
-          <Form.Input
-            field='request_id'
-            prefix={<IconSearch />}
-            placeholder={t('Request ID')}
-            showClear
-            pure
-            size='small'
-          />
+          <div className='log-filter-item'>
+            <Form.Input
+              field='request_id'
+              prefix={<IconSearch />}
+              placeholder={t('Request ID')}
+              showClear
+              pure
+              size='default'
+              className='log-filter-control'
+            />
+          </div>
 
           {isAdminUser && (
             <>
-              <Form.Input
-                field='channel'
-                prefix={<IconSearch />}
-                placeholder={t('渠道 ID')}
-                showClear
-                pure
-                size='small'
-              />
-              <Form.Input
-                field='username'
-                prefix={<IconSearch />}
-                placeholder={t('用户名称')}
-                showClear
-                pure
-                size='small'
-              />
+              <div className='log-filter-item'>
+                <Form.Input
+                  field='channel'
+                  prefix={<IconSearch />}
+                  placeholder={t('渠道 ID')}
+                  showClear
+                  pure
+                  size='default'
+                  className='log-filter-control'
+                />
+              </div>
+              <div className='log-filter-item'>
+                <Form.Input
+                  field='username'
+                  prefix={<IconSearch />}
+                  placeholder={t('用户名称')}
+                  showClear
+                  pure
+                  size='default'
+                  className='log-filter-control'
+                />
+              </div>
             </>
           )}
-        </div>
 
-        {/* 操作按钮区域 */}
-        <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
-          {/* 日志类型选择器 */}
-          <div className='w-full sm:w-auto'>
+          <div className='log-filter-item'>
             <Form.Select
+              key={`usage-log-type-select-${i18n.resolvedLanguage || i18n.language}`}
               field='logType'
-              placeholder={t('日志类型')}
-              className='w-full sm:w-auto min-w-[120px]'
+              placeholder={t('选择日志类型')}
+              className='log-filter-select'
               showClear
               pure
               onChange={() => {
-                // 延迟执行搜索，让表单值先更新
                 setTimeout(() => {
                   refresh();
                 }, 0);
               }}
-              size='small'
+              size='default'
             >
               <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
               <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
@@ -152,34 +179,39 @@ const LogsFilters = ({
             </Form.Select>
           </div>
 
-          <div className='flex gap-2 w-full sm:w-auto justify-end'>
+          <div
+            className={
+              isAdminUser
+                ? 'log-filter-toolbar-item2'
+                : 'log-filter-toolbar-item'
+            }
+          >
             <Button
-              type='tertiary'
+              type='primary'
+              theme='solid'
               htmlType='submit'
               loading={loading}
-              size='small'
+              size='default'
+              icon={<IconSearch />}
+              className='log-filter-button log-filter-button-primary'
             >
               {t('查询')}
             </Button>
             <Button
               type='tertiary'
-              onClick={() => {
-                if (formApi) {
-                  formApi.reset();
-                  setLogType(0);
-                  setTimeout(() => {
-                    refresh();
-                  }, 100);
-                }
-              }}
-              size='small'
+              onClick={handleReset}
+              size='default'
+              icon={<IconRefresh />}
+              className='log-filter-button'
             >
               {t('重置')}
             </Button>
             <Button
               type='tertiary'
               onClick={() => setShowColumnSelector(true)}
-              size='small'
+              size='default'
+              icon={<IconSetting />}
+              className='log-filter-button'
             >
               {t('列设置')}
             </Button>

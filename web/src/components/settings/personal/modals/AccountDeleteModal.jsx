@@ -37,28 +37,42 @@ const AccountDeleteModal = ({
   return (
     <Modal
       title={
-        <div className='flex items-center'>
-          <IconDelete className='mr-2 text-red-500' />
-          {t('删除账户确认')}
+        <div className='personal-settings-modal-title-row'>
+          <IconDelete className='personal-settings-modal-title-icon personal-settings-modal-title-icon-danger' />
+          <div>
+            <div className='personal-settings-modal-title'>
+              {t('删除账户确认')}
+            </div>
+            <div className='personal-settings-modal-subtitle'>
+              {t('这是不可撤销操作，请再次确认身份')}
+            </div>
+          </div>
         </div>
       }
       visible={showAccountDeleteModal}
       onCancel={() => setShowAccountDeleteModal(false)}
       onOk={deleteAccount}
+      okText={t('删除账户')}
+      cancelText={t('取消')}
+      okButtonProps={{ className: 'personal-settings-danger-button' }}
+      cancelButtonProps={{ className: 'personal-settings-outline-button' }}
       size={'small'}
       centered={true}
-      className='modern-modal'
+      className='personal-settings-modal personal-settings-modal-danger'
     >
-      <div className='space-y-4 py-4'>
+      <div className='personal-settings-modal-body'>
         <Banner
           type='danger'
           description={t('您正在删除自己的帐户，将清空所有数据且不可恢复')}
           closeIcon={null}
-          className='!rounded-lg'
+          className='personal-settings-modal-banner'
         />
 
-        <div>
-          <Typography.Text strong className='block mb-2 text-red-600'>
+        <div className='personal-settings-modal-field'>
+          <Typography.Text
+            strong
+            className='personal-settings-modal-label personal-settings-modal-danger-text'
+          >
             {t('请输入您的用户名以确认删除')}
           </Typography.Text>
           <Input
@@ -71,13 +85,13 @@ const AccountDeleteModal = ({
               handleInputChange('self_account_deletion_confirmation', value)
             }
             size='large'
-            className='!rounded-lg'
+            className='personal-settings-modal-input'
             prefix={<IconUser />}
           />
         </div>
 
         {turnstileEnabled && (
-          <div className='flex justify-center'>
+          <div className='personal-settings-modal-captcha'>
             <Turnstile
               sitekey={turnstileSiteKey}
               onVerify={(token) => {

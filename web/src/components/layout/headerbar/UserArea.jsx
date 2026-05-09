@@ -119,7 +119,8 @@ const UserArea = ({
           <Button
             theme='borderless'
             type='tertiary'
-            className='flex items-center gap-1.5 !p-1 !rounded-full hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2'
+            className='app-header-user-button flex items-center gap-1.5 !p-2 !rounded-full'
+            size='large'
           >
             <Avatar
               size='extra-small'
@@ -129,13 +130,13 @@ const UserArea = ({
               {userState.user.username[0].toUpperCase()}
             </Avatar>
             <span className='hidden md:inline'>
-              <Typography.Text className='!text-xs !font-medium !text-semi-color-text-1 dark:!text-gray-300 mr-1'>
+              <Typography.Text className='app-header-user-name !text-xs !font-medium mr-1'>
                 {userState.user.username}
               </Typography.Text>
             </span>
             <ChevronDown
               size={14}
-              className='text-xs text-semi-color-text-2 dark:text-gray-400'
+              className='app-header-user-chevron text-xs'
             />
           </Button>
         </Dropdown>
@@ -144,50 +145,26 @@ const UserArea = ({
   } else {
     const showRegisterButton = !isSelfUseMode;
 
-    const commonSizingAndLayoutClass =
-      'flex items-center justify-center !py-[10px] !px-1.5';
-
-    const loginButtonSpecificStyling =
-      '!bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 transition-colors';
-    let loginButtonClasses = `${commonSizingAndLayoutClass} ${loginButtonSpecificStyling}`;
-
-    let registerButtonClasses = `${commonSizingAndLayoutClass}`;
-
-    const loginButtonTextSpanClass =
-      '!text-xs !text-semi-color-text-1 dark:!text-gray-300 !p-1.5';
-    const registerButtonTextSpanClass = '!text-xs !text-white !p-1.5';
-
-    if (showRegisterButton) {
-      if (isMobile) {
-        loginButtonClasses += ' !rounded-full';
-      } else {
-        loginButtonClasses += ' !rounded-l-full !rounded-r-none';
-      }
-      registerButtonClasses += ' !rounded-r-full !rounded-l-none';
-    } else {
-      loginButtonClasses += ' !rounded-full';
-    }
-
     return (
-      <div className='flex items-center'>
-        <Link to='/login' className='flex'>
+      <div className='app-header-auth-shell flex items-center'>
+        <Link to='/login' className='app-header-auth-link flex'>
           <Button
             theme='borderless'
             type='tertiary'
-            className={loginButtonClasses}
+            className='app-header-auth-button app-header-auth-login'
           >
-            <span className={loginButtonTextSpanClass}>{t('登录')}</span>
+            <span className='app-header-auth-text'>{t('登录')}</span>
           </Button>
         </Link>
         {showRegisterButton && (
           <div className='hidden md:block'>
-            <Link to='/register' className='flex -ml-px'>
+            <Link to='/register' className='app-header-auth-link flex'>
               <Button
                 theme='solid'
                 type='primary'
-                className={registerButtonClasses}
+                className='app-header-auth-button app-header-auth-register'
               >
-                <span className={registerButtonTextSpanClass}>{t('注册')}</span>
+                <span className='app-header-auth-text'>{t('注册')}</span>
               </Button>
             </Link>
           </div>

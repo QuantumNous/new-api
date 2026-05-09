@@ -38,29 +38,40 @@ const FaqPanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
+      className='dashboard-faq-panel !rounded-[2rem] lg:col-span-1'
       title={
-        <div className={FLEX_CENTER_GAP2}>
-          <HelpCircle size={16} />
-          {t('常见问答')}
+        <div className='dashboard-panel-header'>
+          <div className='dashboard-panel-eyebrow'>{t('帮助')}</div>
+          <div className={`dashboard-panel-title-row ${FLEX_CENTER_GAP2}`}>
+            <HelpCircle size={16} />
+            {t('常见问答')}
+          </div>
         </div>
       }
       bodyStyle={{ padding: 0 }}
     >
-      <ScrollableContainer maxHeight='24rem'>
+      <ScrollableContainer
+        maxHeight='24rem'
+        className='dashboard-panel-scroll-wrap'
+        contentClassName='dashboard-panel-scroll'
+        fadeIndicatorClassName='dashboard-panel-fade'
+      >
         {faqData.length > 0 ? (
           <Collapse
             accordion
             expandIcon={<IconPlus />}
             collapseIcon={<IconMinus />}
+            className='dashboard-faq-collapse'
           >
             {faqData.map((item, index) => (
               <Collapse.Panel
                 key={index}
                 header={item.question}
                 itemKey={index.toString()}
+                className='dashboard-faq-item'
               >
                 <div
+                  className='dashboard-faq-answer'
                   dangerouslySetInnerHTML={{
                     __html: marked.parse(item.answer || ''),
                   }}
@@ -69,7 +80,7 @@ const FaqPanel = ({
             ))}
           </Collapse>
         ) : (
-          <div className='flex justify-center items-center py-8'>
+          <div className='dashboard-panel-empty py-8'>
             <Empty
               image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
               darkModeImage={

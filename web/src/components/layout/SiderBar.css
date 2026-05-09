@@ -1,0 +1,70 @@
+.sidebar-docs-wrap {
+  padding: 0 12px 12px;
+}
+
+.sidebar-docs-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(219, 224, 234, 0.9);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f7f7fa 0%, #f0f1f5 100%);
+  color: #111827;
+  text-decoration: none;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.sidebar-docs-link:hover {
+  border-color: rgba(200, 206, 217, 0.96);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.sidebar-docs-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-docs-icon,
+.sidebar-docs-external {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #111827;
+}
+
+.sidebar-docs-text {
+  min-width: 0;
+  overflow: hidden;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+html.dark .sidebar-docs-link {
+  border-color: rgba(43, 48, 59, 0.95);
+  background: linear-gradient(180deg, #1a1d24 0%, #14171d 100%);
+  color: #f8fafc;
+}
+
+html.dark .sidebar-docs-link:hover {
+  border-color: rgba(61, 67, 81, 0.98);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .sidebar-docs-icon,
+html.dark .sidebar-docs-external,
+html.dark .sidebar-docs-text {
+  color: #f8fafc;
+}

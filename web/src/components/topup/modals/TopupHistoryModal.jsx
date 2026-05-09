@@ -35,17 +35,18 @@ import {
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
+import { getCurrencyConfig } from '../../../helpers/render';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
-import { getCurrencyConfig } from '../../../helpers/render';
+import './TopupHistoryModal.css';
 const { Text } = Typography;
 
 // 状态映射配置
 const STATUS_CONFIG = {
-  success: { type: 'success', key: '成功' },
-  pending: { type: 'warning', key: '待支付' },
-  failed: { type: 'danger', key: '失败' },
-  expired: { type: 'danger', key: '已过期' },
+  success: { type: 'success', key: '成功', className: 'is-success' },
+  pending: { type: 'warning', key: '待支付', className: 'is-pending' },
+  failed: { type: 'danger', key: '失败', className: 'is-failed' },
+  expired: { type: 'danger', key: '已过期', className: 'is-expired' },
 };
 
 // 支付方式映射
@@ -56,6 +57,11 @@ const PAYMENT_METHOD_MAP = {
   alipay: '支付宝',
   wxpay: '微信',
 };
+
+function maskMiddle(str, keepStart = 6, keepEnd = 4, mask = '***') {
+  if (str.length <= keepStart + keepEnd) return str;
+  return str.slice(0, keepStart) + mask + str.slice(-keepEnd);
+}
 
 const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [loading, setLoading] = useState(false);
@@ -78,7 +84,12 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       const res = await API.get(endpoint);
       const { success, message, data } = res.data;
       if (success) {
-        setTopups(data.items || []);
+        setTopups(
+          (data.items || []).map((e) => ({
+            ...e,
+            trade_no_show: maskMiddle(e.trade_no),
+          })),
+        );
         setTotal(data.total || 0);
       } else {
         Toast.error({ content: message || t('加载失败') });
@@ -138,9 +149,13 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
 
   // 渲染状态徽章
   const renderStatusBadge = (status) => {
-    const config = STATUS_CONFIG[status] || { type: 'primary', key: status };
+    const config = STATUS_CONFIG[status] || {
+      type: 'primary',
+      key: status,
+      className: 'is-default',
+    };
     return (
-      <span className='flex items-center gap-2'>
+      <span className={`topup-history-status ${config.className}`}>
         <Badge dot type={config.type} />
         <span>{t(config.key)}</span>
       </span>
@@ -150,7 +165,11 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   // 渲染支付方式
   const renderPaymentMethod = (pm) => {
     const displayName = PAYMENT_METHOD_MAP[pm];
-    return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
+    return (
+      <span className='topup-history-method-chip'>
+        {displayName ? t(displayName) : pm || '-'}
+      </span>
+    );
   };
 
   const isSubscriptionTopup = (record) => {
@@ -167,7 +186,16 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('订单号'),
         dataIndex: 'trade_no',
         key: 'trade_no',
-        render: (text) => <Text copyable>{text}</Text>,
+        render: (text, record) => (
+          <div className='topup-history-order-cell'>
+            <Text
+              className='topup-history-order-code'
+              copyable={{ content: text }}
+            >
+              {record.trade_no_show}
+            </Text>
+          </div>
+        ),
       },
       {
         title: t('支付方式'),
@@ -182,13 +210,19 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         render: (amount, record) => {
           if (isSubscriptionTopup(record)) {
             return (
-              <Tag color='purple' shape='circle' size='small'>
+              <Tag
+                color='white'
+                shape='circle'
+                type='light'
+                size='small'
+                className='topup-history-subscription-tag'
+              >
                 {t('订阅套餐')}
               </Tag>
             );
           }
           return (
-            <span className='flex items-center gap-1'>
+            <span className='topup-history-amount'>
               <Coins size={16} />
               <Text>{amount}</Text>
             </span>
@@ -200,7 +234,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         dataIndex: 'money',
         key: 'money',
         render: (money) => (
-          <Text type='danger'>
+          <Text className='topup-history-money'>
             {symbol}
             {money.toFixed(2)}
           </Text>
@@ -228,6 +262,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
                 size='small'
                 type='primary'
                 theme='outline'
+                className='topup-history-action-button'
                 onClick={() => confirmAdminComplete(record.trade_no)}
               >
                 {t('补单')}
@@ -243,11 +278,26 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       title: t('创建时间'),
       dataIndex: 'create_time',
       key: 'create_time',
-      render: (time) => timestamp2string(time),
+      render: (time) => (
+        <span className='topup-history-time'>{timestamp2string(time)}</span>
+      ),
     });
 
     return baseColumns;
   }, [t, userIsAdmin]);
+
+  const shouldShowPagination = total > pageSize;
+  const paginationConfig = shouldShowPagination
+    ? {
+        currentPage: page,
+        pageSize: pageSize,
+        total: total,
+        showSizeChanger: true,
+        pageSizeOpts: [10, 20, 50, 100],
+        onPageChange: handlePageChange,
+        onPageSizeChange: handlePageSizeChange,
+      }
+    : false;
 
   return (
     <Modal
@@ -256,14 +306,16 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       onCancel={onCancel}
       footer={null}
       size={isMobile ? 'full-width' : 'large'}
+      className='topup-history-modal'
     >
-      <div className='mb-3'>
+      <div className='topup-history-toolbar'>
         <Input
           prefix={<IconSearch />}
           placeholder={t('订单号')}
           value={keyword}
           onChange={handleKeywordChange}
           showClear
+          className='topup-history-search'
         />
       </div>
       <Table
@@ -271,16 +323,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         dataSource={topups}
         loading={loading}
         rowKey='id'
-        pagination={{
-          currentPage: page,
-          pageSize: pageSize,
-          total: total,
-          showSizeChanger: true,
-          pageSizeOpts: [10, 20, 50, 100],
-          onPageChange: handlePageChange,
-          onPageSizeChange: handlePageSizeChange,
-        }}
+        pagination={paginationConfig}
         size='small'
+        className='topup-history-table'
         empty={
           <Empty
             image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}

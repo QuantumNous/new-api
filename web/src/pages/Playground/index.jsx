@@ -21,6 +21,7 @@ import React, { useContext, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
+import './index.css';
 
 // Context
 import { UserContext } from '../../context/User';
@@ -460,16 +461,16 @@ const Playground = () => {
 
   return (
     <PlaygroundProvider value={playgroundContextValue}>
-      <div className='h-full'>
-        <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
+      <div className='playground-page h-full'>
+        <Layout className='playground-layout h-full bg-transparent flex flex-col md:flex-row'>
           {(showSettings || !isMobile) && (
             <Layout.Sider
               className={`
-              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
+              playground-settings-sider bg-transparent border-r-0 flex-shrink-0 overflow-auto 
               ${
                 isMobile
-                  ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
+                  ? 'playground-mobile-sheet fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
+                  : 'relative z-[1] w-80 h-[calc(100vh-64px-12px-16px)]'
               }
             `}
               width={isMobile ? '100%' : 320}
@@ -497,9 +498,11 @@ const Playground = () => {
             </Layout.Sider>
           )}
 
-          <Layout.Content className='relative flex-1 overflow-hidden'>
-            <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
-              <div className='flex-1 flex flex-col'>
+          <Layout.Content className='playground-content relative flex-1 overflow-hidden'>
+            <div
+              className={`playground-workspace overflow-hidden flex flex-col lg:flex-row ${isMobile ? 'h-[calc(100vh-64px)]' : 'h-[calc(100vh-64px-12px-16px)]'}`}
+            >
+              <div className='playground-chat-column flex-1 flex flex-col'>
                 <ChatArea
                   chatRef={chatRef}
                   message={message}
@@ -516,12 +519,13 @@ const Playground = () => {
                   onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
                   renderCustomChatContent={renderCustomChatContent}
                   renderChatBoxAction={renderChatBoxAction}
+                  isMobile={isMobile}
                 />
               </div>
 
               {/* 调试面板 - 桌面端 */}
               {showDebugPanel && !isMobile && (
-                <div className='w-96 flex-shrink-0 h-full'>
+                <div className='playground-debug-shell w-96 flex-shrink-0 h-full'>
                   <OptimizedDebugPanel
                     debugData={debugData}
                     activeDebugTab={activeDebugTab}
@@ -535,7 +539,7 @@ const Playground = () => {
 
             {/* 调试面板 - 移动端覆盖层 */}
             {showDebugPanel && isMobile && (
-              <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
+              <div className='playground-mobile-overlay fixed top-[64px] left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
                 <OptimizedDebugPanel
                   debugData={debugData}
                   activeDebugTab={activeDebugTab}

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Typography, Badge } from '@douyinfe/semi-ui';
+import { Card, Avatar, Typography } from '@douyinfe/semi-ui';
 import { IconLink } from '@douyinfe/semi-icons';
 
 const { Text } = Typography;
@@ -29,6 +29,14 @@ const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
 
     const mapping = endpointMap;
     const types = modelData.supported_endpoint_types || [];
+
+    if (types.length === 0) {
+      return (
+        <div className='model-detail-empty-state'>
+          {t('暂无支持的接口端点')}
+        </div>
+      );
+    }
 
     return types.map((type) => {
       const info = mapping[type] || {};
@@ -41,53 +49,39 @@ const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
       const method = info.method || 'POST';
       const aliases = Array.isArray(info.aliases) ? info.aliases : [];
       return (
-        <div
-          key={type}
-          className='flex justify-between border-b border-dashed last:border-0 py-2 last:pb-0'
-          style={{ borderColor: 'var(--semi-color-border)' }}
-        >
-          <div className='flex-1 pr-5'>
-            <div className='flex items-center'>
-              <Badge dot type='success' className='mr-2' />
-              {type}
-              {path && '：'}
-              {path && (
-                <span className='text-gray-500 md:ml-1 break-all'>
-                  {path}
-                </span>
-              )}
-            </div>
-            {aliases.map((alias, index) => (
-              <div
-                key={`${type}-alias-${index}`}
-                className='text-xs text-gray-500 ml-5 mt-1 break-all'
-              >
-                {alias.method || method} {alias.path}
-              </div>
-            ))}
+        <div key={type} className='model-detail-endpoint-row'>
+          <div className='model-detail-endpoint-main'>
+            <span className='model-detail-endpoint-dot' />
+            <span className='model-detail-endpoint-name'>{type}</span>
+            {path && <span className='model-detail-endpoint-divider'>:</span>}
+            {path && <span className='model-detail-endpoint-path'>{path}</span>}
           </div>
-          <div className='text-gray-500 text-xs md:ml-1'>
-            {path && method}
-          </div>
+          {path && (
+            <span className='model-detail-endpoint-method'>{method}</span>
+          )}
         </div>
       );
     });
   };
 
   return (
-    <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='purple' className='mr-2 shadow-md'>
+    <Card className='model-detail-section-card'>
+      <div className='model-detail-section-head'>
+        <Avatar
+          size='small'
+          color='purple'
+          className='model-detail-section-avatar model-detail-section-avatar-endpoint'
+        >
           <IconLink size={16} />
         </Avatar>
-        <div>
-          <Text className='text-lg font-medium'>{t('API端点')}</Text>
-          <div className='text-xs text-gray-600'>
+        <div className='model-detail-section-copy'>
+          <Text className='model-detail-section-title'>{t('API端点')}</Text>
+          <div className='model-detail-section-description'>
             {t('模型支持的接口端点信息')}
           </div>
         </div>
       </div>
-      {renderAPIEndpoints()}
+      <div className='model-detail-endpoint-list'>{renderAPIEndpoints()}</div>
     </Card>
   );
 };

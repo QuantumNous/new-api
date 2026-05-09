@@ -19,24 +19,57 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Typography } from '@douyinfe/semi-ui';
-import { Key } from 'lucide-react';
+import { KeyRound, Layers3, MousePointerClick } from 'lucide-react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const { Text } = Typography;
 
-const TokensDescription = ({ compactMode, setCompactMode, t }) => {
+const TokensDescription = ({
+  compactMode,
+  setCompactMode,
+  tokenCount,
+  selectedCount,
+  t,
+}) => {
   return (
-    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <div className='flex items-center text-blue-500'>
-        <Key size={16} className='mr-2' />
-        <Text>{t('令牌管理')}</Text>
+    <div className='token-table-overview'>
+      <div className='token-table-overview-copy'>
+        <div className='token-table-overview-eyebrow'>
+          <KeyRound size={15} strokeWidth={2.1} />
+          <span>{t('令牌列表')}</span>
+        </div>
+        <Text className='token-table-overview-title'>
+          {t('管理您的 API 访问令牌')}
+        </Text>
+        <p className='token-table-overview-subtitle'>
+          {t(
+            '集中查看状态、额度、过期时间和访问限制，并快速执行复制或禁用操作',
+          )}
+        </p>
       </div>
 
-      <CompactModeToggle
-        compactMode={compactMode}
-        setCompactMode={setCompactMode}
-        t={t}
-      />
+      <div className='token-table-overview-side'>
+        <div className='token-table-metric-chip'>
+          <span>
+            <Layers3 size={14} />
+            {t('令牌总数')}
+          </span>
+          <strong>{tokenCount || 0}</strong>
+        </div>
+        <div className='token-table-metric-chip token-table-metric-chip-muted'>
+          <span>
+            <MousePointerClick size={14} />
+            {t('当前选中')}
+          </span>
+          <strong>{selectedCount || 0}</strong>
+        </div>
+        <CompactModeToggle
+          compactMode={compactMode}
+          setCompactMode={setCompactMode}
+          t={t}
+          className='token-compact-toggle'
+        />
+      </div>
     </div>
   );
 };

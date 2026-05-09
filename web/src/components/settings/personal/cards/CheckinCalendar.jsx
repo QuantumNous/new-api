@@ -215,26 +215,40 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   return (
     <Card className='!rounded-2xl'>
       <Modal
-        title={t('安全验证')}
+        title={
+          <div className='personal-settings-modal-title-row'>
+            <div>
+              <div className='personal-settings-modal-title'>
+                Security Check
+              </div>
+              <div className='personal-settings-modal-subtitle'>
+                {t('请先完成安全验证')}
+              </div>
+            </div>
+          </div>
+        }
         visible={turnstileModalVisible}
         footer={null}
         centered
+        className='personal-settings-modal'
         onCancel={() => {
           setTurnstileModalVisible(false);
           setTurnstileWidgetKey((v) => v + 1);
         }}
       >
-        <div className='flex justify-center py-2'>
-          <Turnstile
-            key={turnstileWidgetKey}
-            sitekey={turnstileSiteKey}
-            onVerify={(token) => {
-              doCheckin(token);
-            }}
-            onExpire={() => {
-              setTurnstileWidgetKey((v) => v + 1);
-            }}
-          />
+        <div className='personal-settings-modal-body'>
+          <div className='personal-settings-modal-captcha'>
+            <Turnstile
+              key={turnstileWidgetKey}
+              sitekey={turnstileSiteKey}
+              onVerify={(token) => {
+                doCheckin(token);
+              }}
+              onExpire={() => {
+                setTurnstileWidgetKey((v) => v + 1);
+              }}
+            />
+          </div>
         </div>
       </Modal>
 

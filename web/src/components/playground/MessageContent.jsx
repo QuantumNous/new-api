@@ -67,9 +67,11 @@ const MessageContent = ({
 
     if (message.errorCode === 'model_price_error') {
       return (
-        <div className={`${className}`}>
+        <div
+          className={`playground-message-content playground-message-error ${className || ''}`}
+        >
           <div
-            className='rounded-lg p-3 space-y-2'
+            className='playground-error-card rounded-lg p-3 space-y-2'
             style={{
               background: 'var(--semi-color-bg-0)',
               border: '1px solid var(--semi-color-border)',
@@ -77,7 +79,10 @@ const MessageContent = ({
           >
             <div className='flex items-center gap-2'>
               <AlertTriangle size={16} className='text-orange-500 shrink-0' />
-              <Typography.Text strong className='!text-[var(--semi-color-text-0)]'>
+              <Typography.Text
+                strong
+                className='!text-[var(--semi-color-text-0)]'
+              >
                 {t('模型价格未配置')}
               </Typography.Text>
             </div>
@@ -93,7 +98,9 @@ const MessageContent = ({
                 theme='light'
                 type='warning'
                 icon={<Settings size={14} />}
-                onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                onClick={() =>
+                  window.open('/console/setting?tab=ratio', '_blank')
+                }
               >
                 {t('前往设置')}
               </Button>
@@ -104,8 +111,12 @@ const MessageContent = ({
     }
 
     return (
-      <div className={`${className}`}>
-        <Typography.Text className='text-white'>{errorText}</Typography.Text>
+      <div
+        className={`playground-message-content playground-message-error ${className || ''}`}
+      >
+        <Typography.Text className='playground-error-text'>
+          {errorText}
+        </Typography.Text>
       </div>
     );
   }
@@ -213,11 +224,11 @@ const MessageContent = ({
   ) {
     return (
       <div
-        className={`${className} flex items-center gap-2 sm:gap-4 bg-gradient-to-r from-purple-50 to-indigo-50`}
+        className={`playground-message-content playground-message-assistant ${className || ''} playground-message-loading-state flex items-center gap-2 sm:gap-4`}
       >
-        <div className='w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg'>
+        <div className='playground-message-loading-indicator w-5 h-5 rounded-full flex items-center justify-center shadow-lg'>
           <Loader2
-            className='animate-spin text-white'
+            className='playground-message-loading-icon animate-spin'
             size={styleState.isMobile ? 16 : 20}
           />
         </div>
@@ -226,19 +237,21 @@ const MessageContent = ({
   }
 
   return (
-    <div className={className}>
+    <div
+      className={`playground-message-content playground-message-${message.role} ${className || ''}`}
+    >
       {message.role === 'system' && (
-        <div className='mb-2 sm:mb-4'>
+        <div className='playground-system-message mb-2 sm:mb-4'>
           <div
-            className='flex items-center gap-2 p-2 sm:p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg'
+            className='playground-system-banner flex items-center gap-2 p-2 sm:p-3 rounded-lg'
             style={{ border: '1px solid var(--semi-color-border)' }}
           >
-            <div className='w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-sm'>
-              <Typography.Text className='text-white text-xs font-bold'>
+            <div className='playground-system-banner-icon w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center shadow-sm'>
+              <Typography.Text className='playground-system-banner-icon-text text-xs font-bold'>
                 S
               </Typography.Text>
             </div>
-            <Typography.Text className='text-amber-700 text-xs sm:text-sm font-medium'>
+            <Typography.Text className='playground-system-banner-text text-xs sm:text-sm font-medium'>
               {t('系统消息')}
             </Typography.Text>
           </div>
@@ -256,7 +269,7 @@ const MessageContent = ({
       )}
 
       {isEditing ? (
-        <div className='space-y-3'>
+        <div className='playground-message-editor space-y-3'>
           <TextArea
             value={editValue}
             onChange={(value) => onEditValueChange(value)}
@@ -267,16 +280,16 @@ const MessageContent = ({
               fontSize: styleState.isMobile ? '14px' : '15px',
               lineHeight: '1.6',
             }}
-            className='!border-blue-200 focus:!border-blue-400 !bg-blue-50/50'
+            className='playground-message-editor-input'
           />
-          <div className='flex items-center gap-2 w-full'>
+          <div className='playground-message-editor-actions flex items-center gap-2 w-full'>
             <Button
               size='small'
               type='danger'
               theme='light'
               icon={<X size={14} />}
               onClick={onEditCancel}
-              className='flex-1'
+              className='playground-message-editor-cancel flex-1'
             >
               {t('取消')}
             </Button>
@@ -287,7 +300,7 @@ const MessageContent = ({
               icon={<Check size={14} />}
               onClick={onEditSave}
               disabled={!editValue || editValue.trim() === ''}
-              className='flex-1'
+              className='playground-message-editor-save flex-1'
             >
               {t('保存')}
             </Button>
@@ -312,7 +325,7 @@ const MessageContent = ({
                         <img
                           src={imgItem.image_url.url}
                           alt={`用户上传的图片 ${index + 1}`}
-                          className='rounded-lg max-w-full h-auto shadow-sm border'
+                          className='playground-message-image rounded-lg max-w-full h-auto shadow-sm border'
                           style={{ maxHeight: '300px' }}
                           onError={(e) => {
                             e.target.style.display = 'none';
@@ -320,7 +333,7 @@ const MessageContent = ({
                           }}
                         />
                         <div
-                          className='text-red-500 text-sm p-2 bg-red-50 rounded-lg border border-red-200'
+                          className='playground-message-image-error text-sm p-2 rounded-lg border'
                           style={{ display: 'none' }}
                         >
                           图片加载失败: {imgItem.image_url.url}
@@ -335,12 +348,14 @@ const MessageContent = ({
                   typeof textContent.text === 'string' &&
                   textContent.text.trim() !== '' && (
                     <div
-                      className={`prose prose-xs sm:prose-sm prose-gray max-w-none overflow-x-auto text-xs sm:text-sm ${message.role === 'user' ? 'user-message' : ''}`}
+                      className={`playground-markdown prose prose-xs sm:prose-sm prose-gray max-w-none overflow-x-auto text-xs sm:text-sm ${message.role === 'user' ? 'playground-user-markdown user-message' : 'playground-assistant-markdown'}`}
                     >
                       <MarkdownRenderer
                         content={textContent.text}
                         className={
-                          message.role === 'user' ? 'user-message' : ''
+                          message.role === 'user'
+                            ? 'playground-user-markdown user-message'
+                            : 'playground-assistant-markdown'
                         }
                         animated={false}
                         previousContentLength={0}
@@ -376,7 +391,7 @@ const MessageContent = ({
                 }
 
                 return (
-                  <div className='prose prose-xs sm:prose-sm prose-gray max-w-none overflow-x-auto text-xs sm:text-sm'>
+                  <div className='playground-markdown playground-assistant-markdown prose prose-xs sm:prose-sm prose-gray max-w-none overflow-x-auto text-xs sm:text-sm'>
                     <MarkdownRenderer
                       content={finalDisplayableFinalContent}
                       className=''
@@ -389,11 +404,15 @@ const MessageContent = ({
             } else {
               return (
                 <div
-                  className={`prose prose-xs sm:prose-sm prose-gray max-w-none overflow-x-auto text-xs sm:text-sm ${message.role === 'user' ? 'user-message' : ''}`}
+                  className={`playground-markdown prose prose-xs sm:prose-sm prose-gray max-w-none overflow-x-auto text-xs sm:text-sm ${message.role === 'user' ? 'playground-user-markdown user-message' : 'playground-assistant-markdown'}`}
                 >
                   <MarkdownRenderer
                     content={message.content}
-                    className={message.role === 'user' ? 'user-message' : ''}
+                    className={
+                      message.role === 'user'
+                        ? 'playground-user-markdown user-message'
+                        : 'playground-assistant-markdown'
+                    }
                     animated={false}
                     previousContentLength={0}
                   />

@@ -143,10 +143,8 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
         <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-3'>
           <Text size='small' type='secondary'>
             <strong>{t('提示：')}</strong>
-            <br />
-            • {t('验证码每30秒更新一次')}
-            <br />
-            • {t('如果无法获取验证码，请使用备用码')}
+            <br />• {t('验证码每30秒更新一次')}
+            <br />• {t('如果无法获取验证码，请使用备用码')}
             <br />• {t('每个备用码只能使用一次')}
           </Text>
         </div>
@@ -235,10 +233,8 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
         >
           <Text size='small' type='secondary'>
             <strong>{t('提示：')}</strong>
-            <br />
-            • {t('验证码每30秒更新一次')}
-            <br />
-            • {t('如果无法获取验证码，请使用备用码')}
+            <br />• {t('验证码每30秒更新一次')}
+            <br />• {t('如果无法获取验证码，请使用备用码')}
             <br />• {t('每个备用码只能使用一次')}
           </Text>
         </div>

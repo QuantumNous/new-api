@@ -487,7 +487,8 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             currentPage: currentPage,
             pageSize: pageSize,
             total: announcementsList.length,
-            showSizeChanger: true,
+            showSizeChanger: announcementsList.length > pageSize,
+            hideOnSinglePage: announcementsList.length <= pageSize,
             showQuickJumper: true,
             pageSizeOptions: ['5', '10', '20', '50'],
             onChange: (page, size) => {

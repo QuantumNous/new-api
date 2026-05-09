@@ -163,7 +163,8 @@ const MODE_DESCRIPTIONS = {
   prune_objects: '按条件清理对象中的子项',
   pass_headers: '把指定请求头透传到上游请求',
   sync_fields: '在一个字段有值、另一个缺失时自动补齐',
-  set_header: '设置运行期请求头：可直接覆盖整条值，也可对逗号分隔的 token 做删除、替换、追加或白名单保留',
+  set_header:
+    '设置运行期请求头：可直接覆盖整条值，也可对逗号分隔的 token 做删除、替换、追加或白名单保留',
   delete_header: '删除运行期请求头',
   copy_header: '复制请求头',
   move_header: '移动请求头',
@@ -209,7 +210,8 @@ const getModeToLabel = (mode) => {
 const getModeToPlaceholder = (mode) => {
   if (mode === 'replace') return '（可留空）';
   if (mode === 'regex_replace') return 'openai/gpt-';
-  if (mode === 'copy_header' || mode === 'move_header') return 'X-Upstream-Auth';
+  if (mode === 'copy_header' || mode === 'move_header')
+    return 'X-Upstream-Auth';
   return 'original_model';
 };
 
@@ -343,7 +345,8 @@ const GEMINI_IMAGE_4K_TEMPLATE = {
 const AWS_BEDROCK_ANTHROPIC_COMPAT_TEMPLATE = {
   operations: [
     {
-      description: 'Normalize anthropic-beta header tokens for Bedrock compatibility.',
+      description:
+        'Normalize anthropic-beta header tokens for Bedrock compatibility.',
       mode: 'set_header',
       path: 'anthropic-beta',
       // https://github.com/BerriAI/litellm/blob/main/litellm/anthropic_beta_headers_config.json
@@ -376,11 +379,12 @@ const AWS_BEDROCK_ANTHROPIC_COMPAT_TEMPLATE = {
         'tool-search-tool-2025-10-19': 'tool-search-tool-2025-10-19',
         'web-fetch-2025-09-10': null,
         'web-search-2025-03-05': null,
-        'oauth-2025-04-20': null
+        'oauth-2025-04-20': null,
       },
     },
     {
-      description: 'Remove all tools[*].custom.input_examples before upstream relay.',
+      description:
+        'Remove all tools[*].custom.input_examples before upstream relay.',
       mode: 'delete',
       path: 'tools.*.custom.input_examples',
     },
@@ -454,7 +458,11 @@ const BUILTIN_FIELD_SECTIONS = [
       },
       { key: 'temperature', label: '采样温度', tip: '控制输出随机性' },
       { key: 'max_tokens', label: '最大输出 Token', tip: '控制输出长度上限' },
-      { key: 'messages.-1.content', label: '最后一条消息内容', tip: '常用于重写用户输入' },
+      {
+        key: 'messages.-1.content',
+        label: '最后一条消息内容',
+        tip: '常用于重写用户输入',
+      },
     ],
   },
   {
@@ -516,9 +524,7 @@ const parseLooseValue = (valueText) => {
 
 const parsePassHeaderNames = (rawValue) => {
   if (Array.isArray(rawValue)) {
-    return rawValue
-      .map((item) => String(item ?? '').trim())
-      .filter(Boolean);
+    return rawValue.map((item) => String(item ?? '').trim()).filter(Boolean);
   }
   if (rawValue && typeof rawValue === 'object') {
     if (Array.isArray(rawValue.headers)) {
@@ -646,7 +652,11 @@ const parsePruneObjectsDraft = (valueText) => {
     }
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const rules = [];
-      if (parsed.where && typeof parsed.where === 'object' && !Array.isArray(parsed.where)) {
+      if (
+        parsed.where &&
+        typeof parsed.where === 'object' &&
+        !Array.isArray(parsed.where)
+      ) {
         Object.entries(parsed.where).forEach(([path, value]) => {
           rules.push(
             normalizePruneRule({
@@ -793,7 +803,8 @@ const createDefaultCondition = () => normalizeCondition({});
 
 const normalizeOperation = (operation = {}) => ({
   id: nextLocalId(),
-  description: typeof operation.description === 'string' ? operation.description : '',
+  description:
+    typeof operation.description === 'string' ? operation.description : '',
   path: typeof operation.path === 'string' ? operation.path : '',
   mode: OPERATION_MODE_VALUES.has(operation.mode) ? operation.mode : 'set',
   value_text: toValueText(operation.value),
@@ -818,7 +829,9 @@ const reorderOperations = (
     return sourceOperations;
   }
 
-  const sourceIndex = sourceOperations.findIndex((item) => item.id === sourceId);
+  const sourceIndex = sourceOperations.findIndex(
+    (item) => item.id === sourceId,
+  );
 
   if (sourceIndex < 0) {
     return sourceOperations;
@@ -1025,8 +1038,7 @@ const validateOperations = (operations, t) => {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           const hasType =
-            parsed.type !== undefined &&
-            String(parsed.type).trim() !== '';
+            parsed.type !== undefined && String(parsed.type).trim() !== '';
           const hasWhere =
             parsed.where &&
             typeof parsed.where === 'object' &&
@@ -1039,7 +1051,12 @@ const validateOperations = (operations, t) => {
             typeof parsed.conditions === 'object' &&
             !Array.isArray(parsed.conditions) &&
             Object.keys(parsed.conditions).length > 0;
-          if (!hasType && !hasWhere && !hasConditionsArray && !hasConditionsObject) {
+          if (
+            !hasType &&
+            !hasWhere &&
+            !hasConditionsArray &&
+            !hasConditionsObject
+          ) {
             return t('第 {{line}} 条 prune_objects 需要至少一个匹配条件', {
               line,
             });
@@ -1081,8 +1098,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const [dragOverOperationId, setDragOverOperationId] = useState('');
   const [dragOverPosition, setDragOverPosition] = useState('before');
   const [templateGroupKey, setTemplateGroupKey] = useState('basic');
-  const [templatePresetKey, setTemplatePresetKey] = useState('operations_default');
-  const [headerValueExampleVisible, setHeaderValueExampleVisible] = useState(false);
+  const [templatePresetKey, setTemplatePresetKey] =
+    useState('operations_default');
+  const [headerValueExampleVisible, setHeaderValueExampleVisible] =
+    useState(false);
   const [fieldGuideVisible, setFieldGuideVisible] = useState(false);
   const [fieldGuideTarget, setFieldGuideTarget] = useState('path');
   const [fieldGuideKeyword, setFieldGuideKeyword] = useState('');
@@ -1182,14 +1201,20 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   );
 
   const returnErrorDraft = useMemo(() => {
-    if (!selectedOperation || (selectedOperation.mode || '') !== 'return_error') {
+    if (
+      !selectedOperation ||
+      (selectedOperation.mode || '') !== 'return_error'
+    ) {
       return null;
     }
     return parseReturnErrorDraft(selectedOperation.value_text);
   }, [selectedOperation]);
 
   const pruneObjectsDraft = useMemo(() => {
-    if (!selectedOperation || (selectedOperation.mode || '') !== 'prune_objects') {
+    if (
+      !selectedOperation ||
+      (selectedOperation.mode || '') !== 'prune_objects'
+    ) {
       return null;
     }
     return parsePruneObjectsDraft(selectedOperation.value_text);
@@ -1209,7 +1234,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const buildOperationsJson = useCallback(
     (sourceOperations, options = {}) => {
       const { validate = true } = options;
-      const filteredOps = sourceOperations.filter((item) => !isOperationBlank(item));
+      const filteredOps = sourceOperations.filter(
+        (item) => !isOperationBlank(item),
+      );
       if (filteredOps.length === 0) return '';
 
       if (validate) {
@@ -1384,7 +1411,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     setOperations(finalOperations);
     setSelectedOperationId(finalOperations[0]?.id || '');
     setExpandedConditionMap({});
-    setJsonText(JSON.stringify({ operations: operationsPayload || [] }, null, 2));
+    setJsonText(
+      JSON.stringify({ operations: operationsPayload || [] }, null, 2),
+    );
     setJsonError('');
     setEditMode('visual');
   };
@@ -1487,19 +1516,31 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     }
     const mode = selectedOperation.mode || 'set';
     const meta = MODE_META[mode] || MODE_META.set;
-    if (target === 'path' && (meta.path || meta.pathOptional || meta.pathAlias)) {
+    if (
+      target === 'path' &&
+      (meta.path || meta.pathOptional || meta.pathAlias)
+    ) {
       updateOperation(selectedOperation.id, { path: fieldKey });
       return;
     }
-    if (target === 'from' && (meta.from || meta.pathAlias || mode === 'sync_fields')) {
+    if (
+      target === 'from' &&
+      (meta.from || meta.pathAlias || mode === 'sync_fields')
+    ) {
       updateOperation(selectedOperation.id, {
-        from: mode === 'sync_fields' ? buildSyncTargetSpec('json', fieldKey) : fieldKey,
+        from:
+          mode === 'sync_fields'
+            ? buildSyncTargetSpec('json', fieldKey)
+            : fieldKey,
       });
       return;
     }
     if (target === 'to' && (meta.to || mode === 'sync_fields')) {
       updateOperation(selectedOperation.id, {
-        to: mode === 'sync_fields' ? buildSyncTargetSpec('json', fieldKey) : fieldKey,
+        to:
+          mode === 'sync_fields'
+            ? buildSyncTargetSpec('json', fieldKey)
+            : fieldKey,
       });
       return;
     }
@@ -1892,790 +1933,838 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   return (
     <>
       <Modal
-      title={t('参数覆盖')}
-      visible={visible}
-      width={1120}
-      bodyStyle={{ maxHeight: '76vh', overflowY: 'auto', paddingTop: 10 }}
-      onCancel={onCancel}
-      onOk={handleSave}
-      okText={t('保存')}
-      cancelText={t('取消')}
-    >
-      <Space vertical align='start' spacing={14} style={{ width: '100%' }}>
-        <Card
-          className='!rounded-xl !border-0 w-full'
-          bodyStyle={{
-            padding: 12,
-            background: 'var(--semi-color-fill-0)',
-          }}
-        >
-          <div className='flex items-start justify-between gap-3'>
-            <Space wrap spacing={8}>
-              <Tag color='grey'>{t('编辑方式')}</Tag>
-              <Button
-                type={editMode === 'visual' ? 'primary' : 'tertiary'}
-                onClick={switchToVisualMode}
-              >
-                {t('可视化')}
-              </Button>
-              <Button
-                type={editMode === 'json' ? 'primary' : 'tertiary'}
-                onClick={switchToJsonMode}
-              >
-                {t('JSON 文本')}
-              </Button>
-              <Tag color='grey'>{t('模板')}</Tag>
-              <Select
-                value={templateGroupKey}
-                optionList={TEMPLATE_GROUP_OPTIONS}
-                onChange={(nextValue) =>
-                  setTemplateGroupKey(nextValue || 'basic')
-                }
-                style={{ width: 120 }}
-              />
-              <Select
-                value={templatePresetKey}
-                optionList={templatePresetOptions}
-                onChange={(nextValue) =>
-                  setTemplatePresetKey(nextValue || 'operations_default')
-                }
-                style={{ width: 260 }}
-              />
-              <Button onClick={fillTemplateFromLibrary}>{t('填充模板')}</Button>
-              <Button type='tertiary' onClick={appendTemplateFromLibrary}>
-                {t('追加模板')}
-              </Button>
-              <Button type='tertiary' onClick={resetEditorState}>
-                {t('重置')}
-              </Button>
-            </Space>
-          </div>
-        </Card>
-
-        {editMode === 'visual' ? (
-          <div style={{ width: '100%' }}>
-            {visualMode === 'legacy' ? (
-              <Card
-                className='!rounded-2xl !border-0'
-                bodyStyle={{
-                  padding: 14,
-                  background: 'var(--semi-color-fill-0)',
-                }}
-              >
-                <Text className='mb-2 block'>{t('旧格式（JSON 对象）')}</Text>
-                <TextArea
-                  value={legacyValue}
-                  autosize={{ minRows: 10, maxRows: 20 }}
-                  placeholder={JSON.stringify(LEGACY_TEMPLATE, null, 2)}
-                  onChange={(nextValue) => setLegacyValue(nextValue)}
-                  showClear
+        title={t('参数覆盖')}
+        visible={visible}
+        width={1120}
+        bodyStyle={{ maxHeight: '76vh', overflowY: 'auto', paddingTop: 10 }}
+        onCancel={onCancel}
+        onOk={handleSave}
+        okText={t('保存')}
+        cancelText={t('取消')}
+      >
+        <Space vertical align='start' spacing={14} style={{ width: '100%' }}>
+          <Card
+            className='!rounded-xl !border-0 w-full'
+            bodyStyle={{
+              padding: 12,
+              background: 'var(--semi-color-fill-0)',
+            }}
+          >
+            <div className='flex items-start justify-between gap-3'>
+              <Space wrap spacing={8}>
+                <Tag color='grey'>{t('编辑方式')}</Tag>
+                <Button
+                  type={editMode === 'visual' ? 'primary' : 'tertiary'}
+                  onClick={switchToVisualMode}
+                >
+                  {t('可视化')}
+                </Button>
+                <Button
+                  type={editMode === 'json' ? 'primary' : 'tertiary'}
+                  onClick={switchToJsonMode}
+                >
+                  {t('JSON 文本')}
+                </Button>
+                <Tag color='grey'>{t('模板')}</Tag>
+                <Select
+                  value={templateGroupKey}
+                  optionList={TEMPLATE_GROUP_OPTIONS}
+                  onChange={(nextValue) =>
+                    setTemplateGroupKey(nextValue || 'basic')
+                  }
+                  style={{ width: 120 }}
                 />
-                <Text type='tertiary' size='small' className='mt-2 block'>
-                  {t('这里直接编辑 JSON 对象。适合简单覆盖参数的场景。')}
-                </Text>
-              </Card>
-            ) : (
-              <div>
-                <div className='flex items-center justify-between mb-3'>
-                  <Space>
-                    <Text>{t('新格式（规则 + 条件）')}</Text>
-                    <Tag color='cyan'>{`${t('规则')}: ${operationCount}`}</Tag>
-                  </Space>
-                  <Button icon={<IconPlus />} onClick={addOperation}>
-                    {t('新增规则')}
-                  </Button>
-                </div>
+                <Select
+                  value={templatePresetKey}
+                  optionList={templatePresetOptions}
+                  onChange={(nextValue) =>
+                    setTemplatePresetKey(nextValue || 'operations_default')
+                  }
+                  style={{ width: 260 }}
+                />
+                <Button onClick={fillTemplateFromLibrary}>
+                  {t('填充模板')}
+                </Button>
+                <Button type='tertiary' onClick={appendTemplateFromLibrary}>
+                  {t('追加模板')}
+                </Button>
+                <Button type='tertiary' onClick={resetEditorState}>
+                  {t('重置')}
+                </Button>
+              </Space>
+            </div>
+          </Card>
 
-                <Row gutter={12}>
-                  <Col xs={24} md={8}>
-                    <Card
-                      className='!rounded-2xl !border-0 h-full'
-                      bodyStyle={{
-                        padding: 12,
-                        background: 'var(--semi-color-fill-0)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                        minHeight: 520,
-                      }}
-                    >
-                      <div className='flex items-center justify-between'>
-                        <Text strong>{t('规则导航')}</Text>
-                        <Tag color='grey'>{`${operationCount}/${operations.length}`}</Tag>
-                      </div>
+          {editMode === 'visual' ? (
+            <div style={{ width: '100%' }}>
+              {visualMode === 'legacy' ? (
+                <Card
+                  className='!rounded-2xl !border-0'
+                  bodyStyle={{
+                    padding: 14,
+                    background: 'var(--semi-color-fill-0)',
+                  }}
+                >
+                  <Text className='mb-2 block'>{t('旧格式（JSON 对象）')}</Text>
+                  <TextArea
+                    value={legacyValue}
+                    autosize={{ minRows: 10, maxRows: 20 }}
+                    placeholder={JSON.stringify(LEGACY_TEMPLATE, null, 2)}
+                    onChange={(nextValue) => setLegacyValue(nextValue)}
+                    showClear
+                  />
+                  <Text type='tertiary' size='small' className='mt-2 block'>
+                    {t('这里直接编辑 JSON 对象。适合简单覆盖参数的场景。')}
+                  </Text>
+                </Card>
+              ) : (
+                <div>
+                  <div className='flex items-center justify-between mb-3'>
+                    <Space>
+                      <Text>{t('新格式（规则 + 条件）')}</Text>
+                      <Tag color='cyan'>{`${t('规则')}: ${operationCount}`}</Tag>
+                    </Space>
+                    <Button icon={<IconPlus />} onClick={addOperation}>
+                      {t('新增规则')}
+                    </Button>
+                  </div>
 
-                      {topOperationModes.length > 0 ? (
-                        <Space wrap spacing={6}>
-                          {topOperationModes.map(([mode, count]) => (
-                            <Tag
-                              key={`mode_stat_${mode}`}
-                              size='small'
-                              color={getOperationModeTagColor(mode)}
-                            >
-                              {`${OPERATION_MODE_LABEL_MAP[mode] || mode} · ${count}`}
-                            </Tag>
-                          ))}
-                        </Space>
-                      ) : null}
-
-                      <Input
-                        value={operationSearch}
-                        placeholder={t('搜索规则（描述 / 类型 / 路径 / 来源 / 目标）')}
-                        onChange={(nextValue) =>
-                          setOperationSearch(nextValue || '')
-                        }
-                        showClear
-                      />
-
-                      <div
-                        className='overflow-auto'
-                        style={{ flex: 1, minHeight: 320, paddingRight: 2 }}
+                  <Row gutter={12}>
+                    <Col xs={24} md={8}>
+                      <Card
+                        className='!rounded-2xl !border-0 h-full'
+                        bodyStyle={{
+                          padding: 12,
+                          background: 'var(--semi-color-fill-0)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10,
+                          minHeight: 520,
+                        }}
                       >
-                        {filteredOperations.length === 0 ? (
-                          <Text type='tertiary' size='small'>
-                            {t('没有匹配的规则')}
-                          </Text>
-                        ) : (
-                          <div
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 8,
-                              width: '100%',
-                            }}
-                          >
-                            {filteredOperations.map((operation) => {
-                              const index = operations.findIndex(
-                                (item) => item.id === operation.id,
-                              );
-                              const isActive =
-                                operation.id === selectedOperationId;
-                              const isDragging =
-                                operation.id === draggedOperationId;
-                              const isDropTarget =
-                                operation.id === dragOverOperationId &&
-                                draggedOperationId &&
-                                draggedOperationId !== operation.id;
-                              return (
-                                <div
-                                  key={operation.id}
-                                  role='button'
-                                  tabIndex={0}
-                                  draggable={operations.length > 1}
-                                  onClick={() =>
-                                    setSelectedOperationId(operation.id)
-                                  }
-                                  onDragStart={(event) =>
-                                    handleOperationDragStart(event, operation.id)
-                                  }
-                                  onDragOver={(event) =>
-                                    handleOperationDragOver(event, operation.id)
-                                  }
-                                  onDrop={(event) =>
-                                    handleOperationDrop(event, operation.id)
-                                  }
-                                  onDragEnd={resetOperationDragState}
-                                  onKeyDown={(event) => {
-                                    if (
-                                      event.key === 'Enter' ||
-                                      event.key === ' '
-                                    ) {
-                                      event.preventDefault();
-                                      setSelectedOperationId(operation.id);
+                        <div className='flex items-center justify-between'>
+                          <Text strong>{t('规则导航')}</Text>
+                          <Tag color='grey'>{`${operationCount}/${operations.length}`}</Tag>
+                        </div>
+
+                        {topOperationModes.length > 0 ? (
+                          <Space wrap spacing={6}>
+                            {topOperationModes.map(([mode, count]) => (
+                              <Tag
+                                key={`mode_stat_${mode}`}
+                                size='small'
+                                color={getOperationModeTagColor(mode)}
+                              >
+                                {`${OPERATION_MODE_LABEL_MAP[mode] || mode} · ${count}`}
+                              </Tag>
+                            ))}
+                          </Space>
+                        ) : null}
+
+                        <Input
+                          value={operationSearch}
+                          placeholder={t(
+                            '搜索规则（描述 / 类型 / 路径 / 来源 / 目标）',
+                          )}
+                          onChange={(nextValue) =>
+                            setOperationSearch(nextValue || '')
+                          }
+                          showClear
+                        />
+
+                        <div
+                          className='overflow-auto'
+                          style={{ flex: 1, minHeight: 320, paddingRight: 2 }}
+                        >
+                          {filteredOperations.length === 0 ? (
+                            <Text type='tertiary' size='small'>
+                              {t('没有匹配的规则')}
+                            </Text>
+                          ) : (
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 8,
+                                width: '100%',
+                              }}
+                            >
+                              {filteredOperations.map((operation) => {
+                                const index = operations.findIndex(
+                                  (item) => item.id === operation.id,
+                                );
+                                const isActive =
+                                  operation.id === selectedOperationId;
+                                const isDragging =
+                                  operation.id === draggedOperationId;
+                                const isDropTarget =
+                                  operation.id === dragOverOperationId &&
+                                  draggedOperationId &&
+                                  draggedOperationId !== operation.id;
+                                return (
+                                  <div
+                                    key={operation.id}
+                                    role='button'
+                                    tabIndex={0}
+                                    draggable={operations.length > 1}
+                                    onClick={() =>
+                                      setSelectedOperationId(operation.id)
                                     }
-                                  }}
-                                  className='w-full rounded-xl px-3 py-3 cursor-pointer transition-colors'
-                                  style={{
-                                    background: isActive
-                                      ? 'var(--semi-color-primary-light-default)'
-                                      : 'var(--semi-color-bg-2)',
-                                    border: isActive
-                                      ? '1px solid var(--semi-color-primary)'
-                                      : '1px solid var(--semi-color-border)',
-                                    opacity: isDragging ? 0.6 : 1,
-                                    boxShadow: isDropTarget
-                                      ? dragOverPosition === 'after'
-                                        ? 'inset 0 -3px 0 var(--semi-color-primary)'
-                                        : 'inset 0 3px 0 var(--semi-color-primary)'
-                                      : 'none',
-                                  }}
-                                >
-                                  <div className='flex items-start justify-between gap-2'>
-                                    <div className='flex items-start gap-2 min-w-0'>
-                                      <div
-                                        className='flex-shrink-0'
-                                        style={{
-                                          color: 'var(--semi-color-text-2)',
-                                          cursor: operations.length > 1 ? 'grab' : 'default',
-                                          marginTop: 1,
-                                        }}
-                                      >
-                                        <IconMenu />
-                                      </div>
-                                      <div className='min-w-0'>
-                                        <Text strong>{`#${index + 1}`}</Text>
-                                        <Text
-                                          type='tertiary'
-                                          size='small'
-                                          className='block mt-1'
+                                    onDragStart={(event) =>
+                                      handleOperationDragStart(
+                                        event,
+                                        operation.id,
+                                      )
+                                    }
+                                    onDragOver={(event) =>
+                                      handleOperationDragOver(
+                                        event,
+                                        operation.id,
+                                      )
+                                    }
+                                    onDrop={(event) =>
+                                      handleOperationDrop(event, operation.id)
+                                    }
+                                    onDragEnd={resetOperationDragState}
+                                    onKeyDown={(event) => {
+                                      if (
+                                        event.key === 'Enter' ||
+                                        event.key === ' '
+                                      ) {
+                                        event.preventDefault();
+                                        setSelectedOperationId(operation.id);
+                                      }
+                                    }}
+                                    className='w-full rounded-xl px-3 py-3 cursor-pointer transition-colors'
+                                    style={{
+                                      background: isActive
+                                        ? 'var(--semi-color-primary-light-default)'
+                                        : 'var(--semi-color-bg-2)',
+                                      border: isActive
+                                        ? '1px solid var(--semi-color-primary)'
+                                        : '1px solid var(--semi-color-border)',
+                                      opacity: isDragging ? 0.6 : 1,
+                                      boxShadow: isDropTarget
+                                        ? dragOverPosition === 'after'
+                                          ? 'inset 0 -3px 0 var(--semi-color-primary)'
+                                          : 'inset 0 3px 0 var(--semi-color-primary)'
+                                        : 'none',
+                                    }}
+                                  >
+                                    <div className='flex items-start justify-between gap-2'>
+                                      <div className='flex items-start gap-2 min-w-0'>
+                                        <div
+                                          className='flex-shrink-0'
+                                          style={{
+                                            color: 'var(--semi-color-text-2)',
+                                            cursor:
+                                              operations.length > 1
+                                                ? 'grab'
+                                                : 'default',
+                                            marginTop: 1,
+                                          }}
                                         >
-                                          {getOperationSummary(operation, index)}
-                                        </Text>
-                                        {String(operation.description || '').trim() ? (
+                                          <IconMenu />
+                                        </div>
+                                        <div className='min-w-0'>
+                                          <Text strong>{`#${index + 1}`}</Text>
                                           <Text
                                             type='tertiary'
                                             size='small'
                                             className='block mt-1'
-                                            style={{
-                                              lineHeight: 1.5,
-                                              wordBreak: 'break-word',
-                                              overflow: 'hidden',
-                                              display: '-webkit-box',
-                                              WebkitLineClamp: 2,
-                                              WebkitBoxOrient: 'vertical',
-                                            }}
                                           >
-                                            {operation.description}
+                                            {getOperationSummary(
+                                              operation,
+                                              index,
+                                            )}
                                           </Text>
-                                        ) : null}
+                                          {String(
+                                            operation.description || '',
+                                          ).trim() ? (
+                                            <Text
+                                              type='tertiary'
+                                              size='small'
+                                              className='block mt-1'
+                                              style={{
+                                                lineHeight: 1.5,
+                                                wordBreak: 'break-word',
+                                                overflow: 'hidden',
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 2,
+                                                WebkitBoxOrient: 'vertical',
+                                              }}
+                                            >
+                                              {operation.description}
+                                            </Text>
+                                          ) : null}
+                                        </div>
                                       </div>
+                                      <Tag size='small' color='grey'>
+                                        {(operation.conditions || []).length}
+                                      </Tag>
                                     </div>
-                                    <Tag size='small' color='grey'>
-                                      {(operation.conditions || []).length}
-                                    </Tag>
-                                  </div>
-                                  <Space spacing={6} style={{ marginTop: 8 }}>
-                                    <Tag
-                                      size='small'
-                                      color={getOperationModeTagColor(
-                                        operation.mode || 'set',
-                                      )}
-                                    >
-                                      {OPERATION_MODE_LABEL_MAP[
-                                        operation.mode || 'set'
-                                      ] ||
-                                        operation.mode ||
-                                        'set'}
-                                    </Tag>
-                                    <Text type='tertiary' size='small'>
-                                      {t('条件数')}
-                                    </Text>
-                                  </Space>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-                  </Col>
-                  <Col xs={24} md={16}>
-                    {selectedOperation ? (
-                      (() => {
-                        const mode = selectedOperation.mode || 'set';
-                        const meta = MODE_META[mode] || MODE_META.set;
-                        const conditions = selectedOperation.conditions || [];
-                        const syncFromTarget =
-                          mode === 'sync_fields'
-                            ? parseSyncTargetSpec(selectedOperation.from)
-                            : null;
-                        const syncToTarget =
-                          mode === 'sync_fields'
-                            ? parseSyncTargetSpec(selectedOperation.to)
-                            : null;
-                        return (
-                          <Card
-                            className='!rounded-2xl !border-0'
-                            bodyStyle={{
-                              padding: 14,
-                              background: 'var(--semi-color-fill-0)',
-                            }}
-                          >
-                            <div className='flex items-center justify-between mb-3'>
-                              <Space>
-                                <Tag color='blue'>{`#${selectedOperationIndex + 1}`}</Tag>
-                                <Text strong>
-                                  {getOperationSummary(
-                                    selectedOperation,
-                                    selectedOperationIndex,
-                                  )}
-                                </Text>
-                              </Space>
-                              <Space>
-                                <Button
-                                  size='small'
-                                  type='tertiary'
-                                  onClick={() =>
-                                    duplicateOperation(selectedOperation.id)
-                                  }
-                                >
-                                  {t('复制')}
-                                </Button>
-                                <Button
-                                  size='small'
-                                  type='danger'
-                                  theme='borderless'
-                                  icon={<IconDelete />}
-                                  aria-label={t('删除规则')}
-                                  onClick={() =>
-                                    removeOperation(selectedOperation.id)
-                                  }
-                                />
-                              </Space>
-                            </div>
-
-                            <Row gutter={12}>
-                              <Col xs={24} md={8}>
-                                <Text type='tertiary' size='small'>
-                                  {t('操作类型')}
-                                </Text>
-                                <Select
-                                  value={mode}
-                                  optionList={OPERATION_MODE_OPTIONS}
-                                  onChange={(nextMode) =>
-                                    updateOperation(selectedOperation.id, {
-                                      mode: nextMode,
-                                    })
-                                  }
-                                  style={{ width: '100%' }}
-                                />
-                              </Col>
-                              {meta.path || meta.pathOptional ? (
-                                <Col xs={24} md={16}>
-                                  <Text type='tertiary' size='small'>
-                                    {meta.pathOptional
-                                      ? t('目标路径（可选）')
-                                      : t(getModePathLabel(mode))}
-                                  </Text>
-                                  <Input
-                                    value={selectedOperation.path}
-                                    placeholder={getModePathPlaceholder(mode)}
-                                    onChange={(nextValue) =>
-                                      updateOperation(selectedOperation.id, {
-                                        path: nextValue,
-                                      })
-                                    }
-                                  />
-                                </Col>
-                              ) : null}
-                            </Row>
-
-                            <Text
-                              type='tertiary'
-                              size='small'
-                              className='mt-1 block'
-                            >
-                              {MODE_DESCRIPTIONS[mode] || ''}
-                            </Text>
-                            <div className='mt-2'>
-                              <Text type='tertiary' size='small'>
-                                {t('规则描述（可选）')}
-                              </Text>
-                              <Input
-                                value={selectedOperation.description || ''}
-                                placeholder={t('例如：清理工具参数，避免上游校验错误')}
-                                onChange={(nextValue) =>
-                                  updateOperation(selectedOperation.id, {
-                                    description: nextValue || '',
-                                  })
-                                }
-                                maxLength={180}
-                                showClear
-                              />
-                              <Text type='tertiary' size='small' className='mt-1 block'>
-                                {`${String(selectedOperation.description || '').length}/180`}
-                              </Text>
-                            </div>
-
-                            {meta.value ? (
-                              mode === 'return_error' && returnErrorDraft ? (
-                                <div
-                                  className='mt-2 rounded-xl p-3'
-                                  style={{
-                                    background: 'var(--semi-color-bg-1)',
-                                    border: '1px solid var(--semi-color-border)',
-                                  }}
-                                >
-                                  <div className='flex items-center justify-between mb-2'>
-                                    <Text strong>{t('自定义错误响应')}</Text>
-                                    <Space spacing={6} align='center'>
+                                    <Space spacing={6} style={{ marginTop: 8 }}>
+                                      <Tag
+                                        size='small'
+                                        color={getOperationModeTagColor(
+                                          operation.mode || 'set',
+                                        )}
+                                      >
+                                        {OPERATION_MODE_LABEL_MAP[
+                                          operation.mode || 'set'
+                                        ] ||
+                                          operation.mode ||
+                                          'set'}
+                                      </Tag>
                                       <Text type='tertiary' size='small'>
-                                        {t('模式')}
+                                        {t('条件数')}
                                       </Text>
-                                      <Button
-                                        size='small'
-                                        type={
-                                          returnErrorDraft.simpleMode
-                                            ? 'primary'
-                                            : 'tertiary'
-                                        }
-                                        onClick={() =>
-                                          updateReturnErrorDraft(
-                                            selectedOperation.id,
-                                            { simpleMode: true },
-                                          )
-                                        }
-                                      >
-                                        {t('简洁')}
-                                      </Button>
-                                      <Button
-                                        size='small'
-                                        type={
-                                          returnErrorDraft.simpleMode
-                                            ? 'tertiary'
-                                            : 'primary'
-                                        }
-                                        onClick={() =>
-                                          updateReturnErrorDraft(
-                                            selectedOperation.id,
-                                            { simpleMode: false },
-                                          )
-                                        }
-                                      >
-                                        {t('高级')}
-                                      </Button>
                                     </Space>
                                   </div>
-
-                                  <Text type='tertiary' size='small'>
-                                    {t('错误消息（必填）')}
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    </Col>
+                    <Col xs={24} md={16}>
+                      {selectedOperation ? (
+                        (() => {
+                          const mode = selectedOperation.mode || 'set';
+                          const meta = MODE_META[mode] || MODE_META.set;
+                          const conditions = selectedOperation.conditions || [];
+                          const syncFromTarget =
+                            mode === 'sync_fields'
+                              ? parseSyncTargetSpec(selectedOperation.from)
+                              : null;
+                          const syncToTarget =
+                            mode === 'sync_fields'
+                              ? parseSyncTargetSpec(selectedOperation.to)
+                              : null;
+                          return (
+                            <Card
+                              className='!rounded-2xl !border-0'
+                              bodyStyle={{
+                                padding: 14,
+                                background: 'var(--semi-color-fill-0)',
+                              }}
+                            >
+                              <div className='flex items-center justify-between mb-3'>
+                                <Space>
+                                  <Tag color='blue'>{`#${selectedOperationIndex + 1}`}</Tag>
+                                  <Text strong>
+                                    {getOperationSummary(
+                                      selectedOperation,
+                                      selectedOperationIndex,
+                                    )}
                                   </Text>
-                                  <TextArea
-                                    value={returnErrorDraft.message}
-                                    autosize={{ minRows: 2, maxRows: 4 }}
-                                    placeholder={t('例如：该请求不满足准入策略')}
-                                    onChange={(nextValue) =>
-                                      updateReturnErrorDraft(
-                                        selectedOperation.id,
-                                        { message: nextValue },
-                                      )
+                                </Space>
+                                <Space>
+                                  <Button
+                                    size='small'
+                                    type='tertiary'
+                                    onClick={() =>
+                                      duplicateOperation(selectedOperation.id)
+                                    }
+                                  >
+                                    {t('复制')}
+                                  </Button>
+                                  <Button
+                                    size='small'
+                                    type='danger'
+                                    theme='borderless'
+                                    icon={<IconDelete />}
+                                    aria-label={t('删除规则')}
+                                    onClick={() =>
+                                      removeOperation(selectedOperation.id)
                                     }
                                   />
+                                </Space>
+                              </div>
 
-                                  {returnErrorDraft.simpleMode ? (
-                                    <Text
-                                      type='tertiary'
-                                      size='small'
-                                      className='mt-2 block'
-                                    >
-                                      {t(
-                                        '简洁模式仅返回 message；状态码和错误类型将使用系统默认值。',
-                                      )}
+                              <Row gutter={12}>
+                                <Col xs={24} md={8}>
+                                  <Text type='tertiary' size='small'>
+                                    {t('操作类型')}
+                                  </Text>
+                                  <Select
+                                    value={mode}
+                                    optionList={OPERATION_MODE_OPTIONS}
+                                    onChange={(nextMode) =>
+                                      updateOperation(selectedOperation.id, {
+                                        mode: nextMode,
+                                      })
+                                    }
+                                    style={{ width: '100%' }}
+                                  />
+                                </Col>
+                                {meta.path || meta.pathOptional ? (
+                                  <Col xs={24} md={16}>
+                                    <Text type='tertiary' size='small'>
+                                      {meta.pathOptional
+                                        ? t('目标路径（可选）')
+                                        : t(getModePathLabel(mode))}
                                     </Text>
-                                  ) : (
-                                    <>
-                                      <Row gutter={12} style={{ marginTop: 10 }}>
-                                        <Col xs={24} md={8}>
-                                          <Text type='tertiary' size='small'>
-                                            {t('状态码')}
-                                          </Text>
-                                          <Input
-                                            value={String(
-                                              returnErrorDraft.statusCode ?? '',
-                                            )}
-                                            placeholder='400'
-                                            onChange={(nextValue) =>
-                                              updateReturnErrorDraft(
-                                                selectedOperation.id,
-                                                {
-                                                  statusCode:
-                                                    parseInt(nextValue, 10) ||
-                                                    400,
-                                                },
-                                              )
-                                            }
-                                          />
-                                        </Col>
-                                        <Col xs={24} md={8}>
-                                          <Text type='tertiary' size='small'>
-                                            {t('错误代码（可选）')}
-                                          </Text>
-                                          <Input
-                                            value={returnErrorDraft.code}
-                                            placeholder='forced_bad_request'
-                                            onChange={(nextValue) =>
-                                              updateReturnErrorDraft(
-                                                selectedOperation.id,
-                                                { code: nextValue },
-                                              )
-                                            }
-                                          />
-                                        </Col>
-                                        <Col xs={24} md={8}>
-                                          <Text type='tertiary' size='small'>
-                                            {t('错误类型（可选）')}
-                                          </Text>
-                                          <Input
-                                            value={returnErrorDraft.type}
-                                            placeholder='invalid_request_error'
-                                            onChange={(nextValue) =>
-                                              updateReturnErrorDraft(
-                                                selectedOperation.id,
-                                                { type: nextValue },
-                                              )
-                                            }
-                                          />
-                                        </Col>
-                                      </Row>
-                                      <div className='mt-2 flex items-center gap-2'>
+                                    <Input
+                                      value={selectedOperation.path}
+                                      placeholder={getModePathPlaceholder(mode)}
+                                      onChange={(nextValue) =>
+                                        updateOperation(selectedOperation.id, {
+                                          path: nextValue,
+                                        })
+                                      }
+                                    />
+                                  </Col>
+                                ) : null}
+                              </Row>
+
+                              <Text
+                                type='tertiary'
+                                size='small'
+                                className='mt-1 block'
+                              >
+                                {MODE_DESCRIPTIONS[mode] || ''}
+                              </Text>
+                              <div className='mt-2'>
+                                <Text type='tertiary' size='small'>
+                                  {t('规则描述（可选）')}
+                                </Text>
+                                <Input
+                                  value={selectedOperation.description || ''}
+                                  placeholder={t(
+                                    '例如：清理工具参数，避免上游校验错误',
+                                  )}
+                                  onChange={(nextValue) =>
+                                    updateOperation(selectedOperation.id, {
+                                      description: nextValue || '',
+                                    })
+                                  }
+                                  maxLength={180}
+                                  showClear
+                                />
+                                <Text
+                                  type='tertiary'
+                                  size='small'
+                                  className='mt-1 block'
+                                >
+                                  {`${String(selectedOperation.description || '').length}/180`}
+                                </Text>
+                              </div>
+
+                              {meta.value ? (
+                                mode === 'return_error' && returnErrorDraft ? (
+                                  <div
+                                    className='mt-2 rounded-xl p-3'
+                                    style={{
+                                      background: 'var(--semi-color-bg-1)',
+                                      border:
+                                        '1px solid var(--semi-color-border)',
+                                    }}
+                                  >
+                                    <div className='flex items-center justify-between mb-2'>
+                                      <Text strong>{t('自定义错误响应')}</Text>
+                                      <Space spacing={6} align='center'>
                                         <Text type='tertiary' size='small'>
-                                          {t('重试建议')}
+                                          {t('模式')}
                                         </Text>
                                         <Button
                                           size='small'
                                           type={
-                                            returnErrorDraft.skipRetry
+                                            returnErrorDraft.simpleMode
                                               ? 'primary'
                                               : 'tertiary'
                                           }
                                           onClick={() =>
                                             updateReturnErrorDraft(
                                               selectedOperation.id,
-                                              { skipRetry: true },
+                                              { simpleMode: true },
                                             )
                                           }
                                         >
-                                          {t('停止重试')}
+                                          {t('简洁')}
                                         </Button>
                                         <Button
                                           size='small'
                                           type={
-                                            returnErrorDraft.skipRetry
+                                            returnErrorDraft.simpleMode
                                               ? 'tertiary'
                                               : 'primary'
                                           }
                                           onClick={() =>
                                             updateReturnErrorDraft(
                                               selectedOperation.id,
-                                              { skipRetry: false },
+                                              { simpleMode: false },
                                             )
                                           }
                                         >
-                                          {t('允许重试')}
+                                          {t('高级')}
                                         </Button>
-                                      </div>
-                                      <Space wrap style={{ marginTop: 8 }}>
-                                        <Tag
-                                          size='small'
-                                          color='grey'
-                                          className='cursor-pointer'
-                                          onClick={() =>
-                                            updateReturnErrorDraft(
-                                              selectedOperation.id,
-                                              {
-                                                statusCode: 400,
-                                                code: 'invalid_request',
-                                                type: 'invalid_request_error',
-                                              },
-                                            )
-                                          }
-                                        >
-                                          {t('参数错误')}
-                                        </Tag>
-                                        <Tag
-                                          size='small'
-                                          color='grey'
-                                          className='cursor-pointer'
-                                          onClick={() =>
-                                            updateReturnErrorDraft(
-                                              selectedOperation.id,
-                                              {
-                                                statusCode: 401,
-                                                code: 'unauthorized',
-                                                type: 'authentication_error',
-                                              },
-                                            )
-                                          }
-                                        >
-                                          {t('未授权')}
-                                        </Tag>
-                                        <Tag
-                                          size='small'
-                                          color='grey'
-                                          className='cursor-pointer'
-                                          onClick={() =>
-                                            updateReturnErrorDraft(
-                                              selectedOperation.id,
-                                              {
-                                                statusCode: 429,
-                                                code: 'rate_limited',
-                                                type: 'rate_limit_error',
-                                              },
-                                            )
-                                          }
-                                        >
-                                          {t('限流')}
-                                        </Tag>
                                       </Space>
-                                    </>
-                                  )}
-                                </div>
-                              ) : mode === 'prune_objects' && pruneObjectsDraft ? (
-                                <div
-                                  className='mt-2 rounded-xl p-3'
-                                  style={{
-                                    background: 'var(--semi-color-bg-1)',
-                                    border: '1px solid var(--semi-color-border)',
-                                  }}
-                                >
-                                  <div className='flex items-center justify-between mb-2'>
-                                    <Text strong>{t('对象清理规则')}</Text>
-                                    <Space spacing={6} align='center'>
-                                      <Text type='tertiary' size='small'>
-                                        {t('模式')}
-                                      </Text>
-                                      <Button
-                                        size='small'
-                                        type={
-                                          pruneObjectsDraft.simpleMode
-                                            ? 'primary'
-                                            : 'tertiary'
-                                        }
-                                        onClick={() =>
-                                          updatePruneObjectsDraft(
-                                            selectedOperation.id,
-                                            { simpleMode: true },
-                                          )
-                                        }
-                                      >
-                                        {t('简洁')}
-                                      </Button>
-                                      <Button
-                                        size='small'
-                                        type={
-                                          pruneObjectsDraft.simpleMode
-                                            ? 'tertiary'
-                                            : 'primary'
-                                        }
-                                        onClick={() =>
-                                          updatePruneObjectsDraft(
-                                            selectedOperation.id,
-                                            { simpleMode: false },
-                                          )
-                                        }
-                                      >
-                                        {t('高级')}
-                                      </Button>
-                                    </Space>
-                                  </div>
+                                    </div>
 
-                                  <Text type='tertiary' size='small'>
-                                    {t('类型（常用）')}
-                                  </Text>
-                                  <Input
-                                    value={pruneObjectsDraft.typeText}
-                                    placeholder='redacted_thinking'
-                                    onChange={(nextValue) =>
-                                      updatePruneObjectsDraft(
-                                        selectedOperation.id,
-                                        { typeText: nextValue },
-                                      )
-                                    }
-                                  />
-
-                                  {pruneObjectsDraft.simpleMode ? (
-                                    <Text
-                                      type='tertiary'
-                                      size='small'
-                                      className='mt-2 block'
-                                    >
-                                      {t(
-                                        '简洁模式：按 type 全量清理对象，例如 redacted_thinking。',
-                                      )}
+                                    <Text type='tertiary' size='small'>
+                                      {t('错误消息（必填）')}
                                     </Text>
-                                  ) : (
-                                    <>
-                                      <Row gutter={12} style={{ marginTop: 10 }}>
-                                        <Col xs={24} md={12}>
-                                          <Text type='tertiary' size='small'>
-                                            {t('逻辑')}
-                                          </Text>
-                                          <Select
-                                            value={pruneObjectsDraft.logic}
-                                            optionList={[
-                                              { label: t('全部满足（AND）'), value: 'AND' },
-                                              { label: t('任一满足（OR）'), value: 'OR' },
-                                            ]}
-                                            style={{ width: '100%' }}
-                                            onChange={(nextValue) =>
-                                              updatePruneObjectsDraft(
-                                                selectedOperation.id,
-                                                { logic: nextValue || 'AND' },
-                                              )
-                                            }
-                                          />
-                                        </Col>
-                                        <Col xs={24} md={12}>
-                                          <Text type='tertiary' size='small'>
-                                            {t('递归策略')}
-                                          </Text>
-                                          <Space spacing={6} style={{ marginTop: 2 }}>
-                                            <Button
-                                              size='small'
-                                              type={
-                                                pruneObjectsDraft.recursive
-                                                  ? 'primary'
-                                                  : 'tertiary'
-                                              }
-                                              onClick={() =>
-                                                updatePruneObjectsDraft(
-                                                  selectedOperation.id,
-                                                  { recursive: true },
-                                                )
-                                              }
-                                            >
-                                              {t('递归')}
-                                            </Button>
-                                            <Button
-                                              size='small'
-                                              type={
-                                                pruneObjectsDraft.recursive
-                                                  ? 'tertiary'
-                                                  : 'primary'
-                                              }
-                                              onClick={() =>
-                                                updatePruneObjectsDraft(
-                                                  selectedOperation.id,
-                                                  { recursive: false },
-                                                )
-                                              }
-                                            >
-                                              {t('仅当前层')}
-                                            </Button>
-                                          </Space>
-                                        </Col>
-                                      </Row>
+                                    <TextArea
+                                      value={returnErrorDraft.message}
+                                      autosize={{ minRows: 2, maxRows: 4 }}
+                                      placeholder={t(
+                                        '例如：该请求不满足准入策略',
+                                      )}
+                                      onChange={(nextValue) =>
+                                        updateReturnErrorDraft(
+                                          selectedOperation.id,
+                                          { message: nextValue },
+                                        )
+                                      }
+                                    />
 
-                                      <div
-                                        className='mt-2 rounded-lg p-2'
-                                        style={{
-                                          background: 'var(--semi-color-fill-0)',
-                                        }}
+                                    {returnErrorDraft.simpleMode ? (
+                                      <Text
+                                        type='tertiary'
+                                        size='small'
+                                        className='mt-2 block'
                                       >
-                                        <div className='flex items-center justify-between mb-2'>
-                                          <Text strong>
-                                            {t('附加条件')}
+                                        {t(
+                                          '简洁模式仅返回 message；状态码和错误类型将使用系统默认值。',
+                                        )}
+                                      </Text>
+                                    ) : (
+                                      <>
+                                        <Row
+                                          gutter={12}
+                                          style={{ marginTop: 10 }}
+                                        >
+                                          <Col xs={24} md={8}>
+                                            <Text type='tertiary' size='small'>
+                                              {t('状态码')}
+                                            </Text>
+                                            <Input
+                                              value={String(
+                                                returnErrorDraft.statusCode ??
+                                                  '',
+                                              )}
+                                              placeholder='400'
+                                              onChange={(nextValue) =>
+                                                updateReturnErrorDraft(
+                                                  selectedOperation.id,
+                                                  {
+                                                    statusCode:
+                                                      parseInt(nextValue, 10) ||
+                                                      400,
+                                                  },
+                                                )
+                                              }
+                                            />
+                                          </Col>
+                                          <Col xs={24} md={8}>
+                                            <Text type='tertiary' size='small'>
+                                              {t('错误代码（可选）')}
+                                            </Text>
+                                            <Input
+                                              value={returnErrorDraft.code}
+                                              placeholder='forced_bad_request'
+                                              onChange={(nextValue) =>
+                                                updateReturnErrorDraft(
+                                                  selectedOperation.id,
+                                                  { code: nextValue },
+                                                )
+                                              }
+                                            />
+                                          </Col>
+                                          <Col xs={24} md={8}>
+                                            <Text type='tertiary' size='small'>
+                                              {t('错误类型（可选）')}
+                                            </Text>
+                                            <Input
+                                              value={returnErrorDraft.type}
+                                              placeholder='invalid_request_error'
+                                              onChange={(nextValue) =>
+                                                updateReturnErrorDraft(
+                                                  selectedOperation.id,
+                                                  { type: nextValue },
+                                                )
+                                              }
+                                            />
+                                          </Col>
+                                        </Row>
+                                        <div className='mt-2 flex items-center gap-2'>
+                                          <Text type='tertiary' size='small'>
+                                            {t('重试建议')}
                                           </Text>
                                           <Button
                                             size='small'
-                                            icon={<IconPlus />}
+                                            type={
+                                              returnErrorDraft.skipRetry
+                                                ? 'primary'
+                                                : 'tertiary'
+                                            }
                                             onClick={() =>
-                                              addPruneRule(selectedOperation.id)
+                                              updateReturnErrorDraft(
+                                                selectedOperation.id,
+                                                { skipRetry: true },
+                                              )
                                             }
                                           >
-                                            {t('新增条件')}
+                                            {t('停止重试')}
+                                          </Button>
+                                          <Button
+                                            size='small'
+                                            type={
+                                              returnErrorDraft.skipRetry
+                                                ? 'tertiary'
+                                                : 'primary'
+                                            }
+                                            onClick={() =>
+                                              updateReturnErrorDraft(
+                                                selectedOperation.id,
+                                                { skipRetry: false },
+                                              )
+                                            }
+                                          >
+                                            {t('允许重试')}
                                           </Button>
                                         </div>
-                                        {(pruneObjectsDraft.rules || []).length === 0 ? (
-                                          <Text type='tertiary' size='small'>
-                                            {t(
-                                              '未添加附加条件时，仅使用上方 type 进行清理。',
-                                            )}
-                                          </Text>
-                                        ) : (
-                                          <div className='flex flex-col gap-2'>
-                                            {(pruneObjectsDraft.rules || []).map(
-                                              (rule, ruleIndex) => (
+                                        <Space wrap style={{ marginTop: 8 }}>
+                                          <Tag
+                                            size='small'
+                                            color='grey'
+                                            className='cursor-pointer'
+                                            onClick={() =>
+                                              updateReturnErrorDraft(
+                                                selectedOperation.id,
+                                                {
+                                                  statusCode: 400,
+                                                  code: 'invalid_request',
+                                                  type: 'invalid_request_error',
+                                                },
+                                              )
+                                            }
+                                          >
+                                            {t('参数错误')}
+                                          </Tag>
+                                          <Tag
+                                            size='small'
+                                            color='grey'
+                                            className='cursor-pointer'
+                                            onClick={() =>
+                                              updateReturnErrorDraft(
+                                                selectedOperation.id,
+                                                {
+                                                  statusCode: 401,
+                                                  code: 'unauthorized',
+                                                  type: 'authentication_error',
+                                                },
+                                              )
+                                            }
+                                          >
+                                            {t('未授权')}
+                                          </Tag>
+                                          <Tag
+                                            size='small'
+                                            color='grey'
+                                            className='cursor-pointer'
+                                            onClick={() =>
+                                              updateReturnErrorDraft(
+                                                selectedOperation.id,
+                                                {
+                                                  statusCode: 429,
+                                                  code: 'rate_limited',
+                                                  type: 'rate_limit_error',
+                                                },
+                                              )
+                                            }
+                                          >
+                                            {t('限流')}
+                                          </Tag>
+                                        </Space>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : mode === 'prune_objects' &&
+                                  pruneObjectsDraft ? (
+                                  <div
+                                    className='mt-2 rounded-xl p-3'
+                                    style={{
+                                      background: 'var(--semi-color-bg-1)',
+                                      border:
+                                        '1px solid var(--semi-color-border)',
+                                    }}
+                                  >
+                                    <div className='flex items-center justify-between mb-2'>
+                                      <Text strong>{t('对象清理规则')}</Text>
+                                      <Space spacing={6} align='center'>
+                                        <Text type='tertiary' size='small'>
+                                          {t('模式')}
+                                        </Text>
+                                        <Button
+                                          size='small'
+                                          type={
+                                            pruneObjectsDraft.simpleMode
+                                              ? 'primary'
+                                              : 'tertiary'
+                                          }
+                                          onClick={() =>
+                                            updatePruneObjectsDraft(
+                                              selectedOperation.id,
+                                              { simpleMode: true },
+                                            )
+                                          }
+                                        >
+                                          {t('简洁')}
+                                        </Button>
+                                        <Button
+                                          size='small'
+                                          type={
+                                            pruneObjectsDraft.simpleMode
+                                              ? 'tertiary'
+                                              : 'primary'
+                                          }
+                                          onClick={() =>
+                                            updatePruneObjectsDraft(
+                                              selectedOperation.id,
+                                              { simpleMode: false },
+                                            )
+                                          }
+                                        >
+                                          {t('高级')}
+                                        </Button>
+                                      </Space>
+                                    </div>
+
+                                    <Text type='tertiary' size='small'>
+                                      {t('类型（常用）')}
+                                    </Text>
+                                    <Input
+                                      value={pruneObjectsDraft.typeText}
+                                      placeholder='redacted_thinking'
+                                      onChange={(nextValue) =>
+                                        updatePruneObjectsDraft(
+                                          selectedOperation.id,
+                                          { typeText: nextValue },
+                                        )
+                                      }
+                                    />
+
+                                    {pruneObjectsDraft.simpleMode ? (
+                                      <Text
+                                        type='tertiary'
+                                        size='small'
+                                        className='mt-2 block'
+                                      >
+                                        {t(
+                                          '简洁模式：按 type 全量清理对象，例如 redacted_thinking。',
+                                        )}
+                                      </Text>
+                                    ) : (
+                                      <>
+                                        <Row
+                                          gutter={12}
+                                          style={{ marginTop: 10 }}
+                                        >
+                                          <Col xs={24} md={12}>
+                                            <Text type='tertiary' size='small'>
+                                              {t('逻辑')}
+                                            </Text>
+                                            <Select
+                                              value={pruneObjectsDraft.logic}
+                                              optionList={[
+                                                {
+                                                  label: t('全部满足（AND）'),
+                                                  value: 'AND',
+                                                },
+                                                {
+                                                  label: t('任一满足（OR）'),
+                                                  value: 'OR',
+                                                },
+                                              ]}
+                                              style={{ width: '100%' }}
+                                              onChange={(nextValue) =>
+                                                updatePruneObjectsDraft(
+                                                  selectedOperation.id,
+                                                  { logic: nextValue || 'AND' },
+                                                )
+                                              }
+                                            />
+                                          </Col>
+                                          <Col xs={24} md={12}>
+                                            <Text type='tertiary' size='small'>
+                                              {t('递归策略')}
+                                            </Text>
+                                            <Space
+                                              spacing={6}
+                                              style={{ marginTop: 2 }}
+                                            >
+                                              <Button
+                                                size='small'
+                                                type={
+                                                  pruneObjectsDraft.recursive
+                                                    ? 'primary'
+                                                    : 'tertiary'
+                                                }
+                                                onClick={() =>
+                                                  updatePruneObjectsDraft(
+                                                    selectedOperation.id,
+                                                    { recursive: true },
+                                                  )
+                                                }
+                                              >
+                                                {t('递归')}
+                                              </Button>
+                                              <Button
+                                                size='small'
+                                                type={
+                                                  pruneObjectsDraft.recursive
+                                                    ? 'tertiary'
+                                                    : 'primary'
+                                                }
+                                                onClick={() =>
+                                                  updatePruneObjectsDraft(
+                                                    selectedOperation.id,
+                                                    { recursive: false },
+                                                  )
+                                                }
+                                              >
+                                                {t('仅当前层')}
+                                              </Button>
+                                            </Space>
+                                          </Col>
+                                        </Row>
+
+                                        <div
+                                          className='mt-2 rounded-lg p-2'
+                                          style={{
+                                            background:
+                                              'var(--semi-color-fill-0)',
+                                          }}
+                                        >
+                                          <div className='flex items-center justify-between mb-2'>
+                                            <Text strong>{t('附加条件')}</Text>
+                                            <Button
+                                              size='small'
+                                              icon={<IconPlus />}
+                                              onClick={() =>
+                                                addPruneRule(
+                                                  selectedOperation.id,
+                                                )
+                                              }
+                                            >
+                                              {t('新增条件')}
+                                            </Button>
+                                          </div>
+                                          {(pruneObjectsDraft.rules || [])
+                                            .length === 0 ? (
+                                            <Text type='tertiary' size='small'>
+                                              {t(
+                                                '未添加附加条件时，仅使用上方 type 进行清理。',
+                                              )}
+                                            </Text>
+                                          ) : (
+                                            <div className='flex flex-col gap-2'>
+                                              {(
+                                                pruneObjectsDraft.rules || []
+                                              ).map((rule, ruleIndex) => (
                                                 <div
                                                   key={rule.id}
                                                   className='rounded-lg p-2'
@@ -2737,7 +2826,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                         optionList={
                                                           CONDITION_MODE_OPTIONS
                                                         }
-                                                        style={{ width: '100%' }}
+                                                        style={{
+                                                          width: '100%',
+                                                        }}
                                                         onChange={(nextValue) =>
                                                           updatePruneRule(
                                                             selectedOperation.id,
@@ -2817,513 +2908,546 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                     </Button>
                                                   </Space>
                                                 </div>
-                                              ),
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className='mt-2'>
-                                  <div className='flex items-center justify-between gap-2'>
-                                    <Text type='tertiary' size='small'>
-                                      {t(getModeValueLabel(mode))}
-                                    </Text>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className='mt-2'>
+                                    <div className='flex items-center justify-between gap-2'>
+                                      <Text type='tertiary' size='small'>
+                                        {t(getModeValueLabel(mode))}
+                                      </Text>
+                                      {mode === 'set_header' ? (
+                                        <Space spacing={6}>
+                                          <Button
+                                            size='small'
+                                            type='tertiary'
+                                            onClick={() =>
+                                              setHeaderValueExampleVisible(true)
+                                            }
+                                          >
+                                            {t('查看 JSON 示例')}
+                                          </Button>
+                                          <Button
+                                            size='small'
+                                            type='tertiary'
+                                            onClick={
+                                              formatSelectedOperationValueAsJson
+                                            }
+                                          >
+                                            {t('格式化 JSON')}
+                                          </Button>
+                                        </Space>
+                                      ) : null}
+                                    </div>
                                     {mode === 'set_header' ? (
-                                      <Space spacing={6}>
-                                        <Button
-                                          size='small'
-                                          type='tertiary'
-                                          onClick={() =>
-                                            setHeaderValueExampleVisible(true)
+                                      <Text
+                                        type='tertiary'
+                                        size='small'
+                                        className='mt-1 mb-2 block'
+                                      >
+                                        {t(
+                                          '纯字符串会直接覆盖整条请求头，或者点击“查看 JSON 示例”按 token 规则处理。',
+                                        )}
+                                      </Text>
+                                    ) : null}
+                                    <TextArea
+                                      value={selectedOperation.value_text}
+                                      autosize={{ minRows: 1, maxRows: 4 }}
+                                      placeholder={getModeValuePlaceholder(
+                                        mode,
+                                      )}
+                                      onChange={(nextValue) =>
+                                        updateOperation(selectedOperation.id, {
+                                          value_text: nextValue,
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                )
+                              ) : null}
+
+                              {meta.keepOrigin ? (
+                                <div className='mt-2 flex items-center gap-2'>
+                                  <Switch
+                                    checked={Boolean(
+                                      selectedOperation.keep_origin,
+                                    )}
+                                    checkedText={t('开')}
+                                    uncheckedText={t('关')}
+                                    onChange={(nextValue) =>
+                                      updateOperation(selectedOperation.id, {
+                                        keep_origin: nextValue,
+                                      })
+                                    }
+                                  />
+                                  <Text
+                                    type='tertiary'
+                                    size='small'
+                                    className='leading-6'
+                                  >
+                                    {t('保留原值（目标已有值时不覆盖）')}
+                                  </Text>
+                                </div>
+                              ) : null}
+
+                              {mode === 'sync_fields' ? (
+                                <div className='mt-2'>
+                                  <Text type='tertiary' size='small'>
+                                    {t('同步端点')}
+                                  </Text>
+                                  <Row gutter={12} style={{ marginTop: 6 }}>
+                                    <Col xs={24} md={12}>
+                                      <Text type='tertiary' size='small'>
+                                        {t('来源端点')}
+                                      </Text>
+                                      <div className='flex gap-2'>
+                                        <Select
+                                          value={syncFromTarget?.type || 'json'}
+                                          optionList={SYNC_TARGET_TYPE_OPTIONS}
+                                          style={{ width: 120 }}
+                                          onChange={(nextType) =>
+                                            updateOperation(
+                                              selectedOperation.id,
+                                              {
+                                                from: buildSyncTargetSpec(
+                                                  nextType,
+                                                  syncFromTarget?.key || '',
+                                                ),
+                                              },
+                                            )
+                                          }
+                                        />
+                                        <Input
+                                          value={syncFromTarget?.key || ''}
+                                          placeholder='session_id'
+                                          onChange={(nextKey) =>
+                                            updateOperation(
+                                              selectedOperation.id,
+                                              {
+                                                from: buildSyncTargetSpec(
+                                                  syncFromTarget?.type ||
+                                                    'json',
+                                                  nextKey,
+                                                ),
+                                              },
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                    </Col>
+                                    <Col xs={24} md={12}>
+                                      <Text type='tertiary' size='small'>
+                                        {t('目标端点')}
+                                      </Text>
+                                      <div className='flex gap-2'>
+                                        <Select
+                                          value={syncToTarget?.type || 'json'}
+                                          optionList={SYNC_TARGET_TYPE_OPTIONS}
+                                          style={{ width: 120 }}
+                                          onChange={(nextType) =>
+                                            updateOperation(
+                                              selectedOperation.id,
+                                              {
+                                                to: buildSyncTargetSpec(
+                                                  nextType,
+                                                  syncToTarget?.key || '',
+                                                ),
+                                              },
+                                            )
+                                          }
+                                        />
+                                        <Input
+                                          value={syncToTarget?.key || ''}
+                                          placeholder='prompt_cache_key'
+                                          onChange={(nextKey) =>
+                                            updateOperation(
+                                              selectedOperation.id,
+                                              {
+                                                to: buildSyncTargetSpec(
+                                                  syncToTarget?.type || 'json',
+                                                  nextKey,
+                                                ),
+                                              },
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                    </Col>
+                                  </Row>
+                                  <Space wrap style={{ marginTop: 8 }}>
+                                    <Tag
+                                      size='small'
+                                      color='cyan'
+                                      className='cursor-pointer'
+                                      onClick={() =>
+                                        updateOperation(selectedOperation.id, {
+                                          from: 'header:session_id',
+                                          to: 'json:prompt_cache_key',
+                                        })
+                                      }
+                                    >
+                                      {
+                                        'header:session_id -> json:prompt_cache_key'
+                                      }
+                                    </Tag>
+                                    <Tag
+                                      size='small'
+                                      color='cyan'
+                                      className='cursor-pointer'
+                                      onClick={() =>
+                                        updateOperation(selectedOperation.id, {
+                                          from: 'json:prompt_cache_key',
+                                          to: 'header:session_id',
+                                        })
+                                      }
+                                    >
+                                      {
+                                        'json:prompt_cache_key -> header:session_id'
+                                      }
+                                    </Tag>
+                                  </Space>
+                                </div>
+                              ) : meta.from || meta.to === false || meta.to ? (
+                                <Row gutter={12} style={{ marginTop: 8 }}>
+                                  {meta.from || meta.to === false ? (
+                                    <Col xs={24} md={12}>
+                                      <Text type='tertiary' size='small'>
+                                        {t(getModeFromLabel(mode))}
+                                      </Text>
+                                      <Input
+                                        value={selectedOperation.from}
+                                        placeholder={getModeFromPlaceholder(
+                                          mode,
+                                        )}
+                                        onChange={(nextValue) =>
+                                          updateOperation(
+                                            selectedOperation.id,
+                                            {
+                                              from: nextValue,
+                                            },
+                                          )
+                                        }
+                                      />
+                                    </Col>
+                                  ) : null}
+                                  {meta.to || meta.to === false ? (
+                                    <Col xs={24} md={12}>
+                                      <Text type='tertiary' size='small'>
+                                        {t(getModeToLabel(mode))}
+                                      </Text>
+                                      <Input
+                                        value={selectedOperation.to}
+                                        placeholder={getModeToPlaceholder(mode)}
+                                        onChange={(nextValue) =>
+                                          updateOperation(
+                                            selectedOperation.id,
+                                            {
+                                              to: nextValue,
+                                            },
+                                          )
+                                        }
+                                      />
+                                    </Col>
+                                  ) : null}
+                                </Row>
+                              ) : null}
+
+                              <div
+                                className='mt-3 rounded-xl p-3'
+                                style={{
+                                  background: 'rgba(127, 127, 127, 0.08)',
+                                }}
+                              >
+                                <div className='flex items-center justify-between mb-2'>
+                                  <Space align='center'>
+                                    <Text>{t('条件规则')}</Text>
+                                    <Select
+                                      value={selectedOperation.logic || 'OR'}
+                                      optionList={[
+                                        {
+                                          label: t('满足任一条件（OR）'),
+                                          value: 'OR',
+                                        },
+                                        {
+                                          label: t('必须全部满足（AND）'),
+                                          value: 'AND',
+                                        },
+                                      ]}
+                                      size='small'
+                                      style={{ width: 180 }}
+                                      onChange={(nextValue) =>
+                                        updateOperation(selectedOperation.id, {
+                                          logic: nextValue,
+                                        })
+                                      }
+                                    />
+                                  </Space>
+                                  <Space spacing={6}>
+                                    <Button
+                                      size='small'
+                                      type='tertiary'
+                                      onClick={expandAllSelectedConditions}
+                                    >
+                                      {t('全部展开')}
+                                    </Button>
+                                    <Button
+                                      size='small'
+                                      type='tertiary'
+                                      onClick={collapseAllSelectedConditions}
+                                    >
+                                      {t('全部收起')}
+                                    </Button>
+                                    <Button
+                                      icon={<IconPlus />}
+                                      size='small'
+                                      onClick={() =>
+                                        addCondition(selectedOperation.id)
+                                      }
+                                    >
+                                      {t('新增条件')}
+                                    </Button>
+                                  </Space>
+                                </div>
+
+                                {conditions.length === 0 ? (
+                                  <Text type='tertiary' size='small'>
+                                    {t('没有条件时，默认总是执行该操作。')}
+                                  </Text>
+                                ) : (
+                                  <Collapse
+                                    keepDOM
+                                    activeKey={selectedConditionKeys}
+                                    onChange={(activeKeys) =>
+                                      handleConditionCollapseChange(
+                                        selectedOperation.id,
+                                        activeKeys,
+                                      )
+                                    }
+                                  >
+                                    {conditions.map(
+                                      (condition, conditionIndex) => (
+                                        <Collapse.Panel
+                                          key={condition.id}
+                                          itemKey={condition.id}
+                                          header={
+                                            <Space spacing={8}>
+                                              <Tag size='small'>
+                                                {`C${conditionIndex + 1}`}
+                                              </Tag>
+                                              <Text
+                                                type='tertiary'
+                                                size='small'
+                                              >
+                                                {condition.path ||
+                                                  t('未设置路径')}
+                                              </Text>
+                                            </Space>
                                           }
                                         >
-                                          {t('查看 JSON 示例')}
-                                        </Button>
-                                        <Button
-                                          size='small'
-                                          type='tertiary'
-                                          onClick={formatSelectedOperationValueAsJson}
-                                        >
-                                          {t('格式化 JSON')}
-                                        </Button>
-                                      </Space>
-                                    ) : null}
-                                  </div>
-                                  {mode === 'set_header' ? (
-                                    <Text
-                                      type='tertiary'
-                                      size='small'
-                                      className='mt-1 mb-2 block'
-                                    >
-                                      {t('纯字符串会直接覆盖整条请求头，或者点击“查看 JSON 示例”按 token 规则处理。')}
-                                    </Text>
-                                  ) : null}
-                                  <TextArea
-                                    value={selectedOperation.value_text}
-                                    autosize={{ minRows: 1, maxRows: 4 }}
-                                    placeholder={getModeValuePlaceholder(mode)}
-                                    onChange={(nextValue) =>
-                                      updateOperation(selectedOperation.id, {
-                                        value_text: nextValue,
-                                      })
-                                    }
-                                  />
-                                </div>
-                              )
-                            ) : null}
-
-                            {meta.keepOrigin ? (
-                              <div className='mt-2 flex items-center gap-2'>
-                                <Switch
-                                  checked={Boolean(
-                                    selectedOperation.keep_origin,
-                                  )}
-                                  checkedText={t('开')}
-                                  uncheckedText={t('关')}
-                                  onChange={(nextValue) =>
-                                    updateOperation(selectedOperation.id, {
-                                      keep_origin: nextValue,
-                                    })
-                                  }
-                                />
-                                <Text
-                                  type='tertiary'
-                                  size='small'
-                                  className='leading-6'
-                                >
-                                  {t('保留原值（目标已有值时不覆盖）')}
-                                </Text>
-                              </div>
-                            ) : null}
-
-                            {mode === 'sync_fields' ? (
-                              <div className='mt-2'>
-                                <Text type='tertiary' size='small'>
-                                  {t('同步端点')}
-                                </Text>
-                                <Row gutter={12} style={{ marginTop: 6 }}>
-                                  <Col xs={24} md={12}>
-                                    <Text type='tertiary' size='small'>
-                                      {t('来源端点')}
-                                    </Text>
-                                    <div className='flex gap-2'>
-                                      <Select
-                                        value={syncFromTarget?.type || 'json'}
-                                        optionList={SYNC_TARGET_TYPE_OPTIONS}
-                                        style={{ width: 120 }}
-                                        onChange={(nextType) =>
-                                          updateOperation(
-                                            selectedOperation.id,
-                                            {
-                                              from: buildSyncTargetSpec(
-                                                nextType,
-                                                syncFromTarget?.key || '',
-                                              ),
-                                            },
-                                          )
-                                        }
-                                      />
-                                      <Input
-                                        value={syncFromTarget?.key || ''}
-                                        placeholder='session_id'
-                                        onChange={(nextKey) =>
-                                          updateOperation(
-                                            selectedOperation.id,
-                                            {
-                                              from: buildSyncTargetSpec(
-                                                syncFromTarget?.type || 'json',
-                                                nextKey,
-                                              ),
-                                            },
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                  </Col>
-                                  <Col xs={24} md={12}>
-                                    <Text type='tertiary' size='small'>
-                                      {t('目标端点')}
-                                    </Text>
-                                    <div className='flex gap-2'>
-                                      <Select
-                                        value={syncToTarget?.type || 'json'}
-                                        optionList={SYNC_TARGET_TYPE_OPTIONS}
-                                        style={{ width: 120 }}
-                                        onChange={(nextType) =>
-                                          updateOperation(
-                                            selectedOperation.id,
-                                            {
-                                              to: buildSyncTargetSpec(
-                                                nextType,
-                                                syncToTarget?.key || '',
-                                              ),
-                                            },
-                                          )
-                                        }
-                                      />
-                                      <Input
-                                        value={syncToTarget?.key || ''}
-                                        placeholder='prompt_cache_key'
-                                        onChange={(nextKey) =>
-                                          updateOperation(
-                                            selectedOperation.id,
-                                            {
-                                              to: buildSyncTargetSpec(
-                                                syncToTarget?.type || 'json',
-                                                nextKey,
-                                              ),
-                                            },
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                  </Col>
-                                </Row>
-                                <Space wrap style={{ marginTop: 8 }}>
-                                  <Tag
-                                    size='small'
-                                    color='cyan'
-                                    className='cursor-pointer'
-                                    onClick={() =>
-                                      updateOperation(selectedOperation.id, {
-                                        from: 'header:session_id',
-                                        to: 'json:prompt_cache_key',
-                                      })
-                                    }
-                                  >
-                                    {
-                                      'header:session_id -> json:prompt_cache_key'
-                                    }
-                                  </Tag>
-                                  <Tag
-                                    size='small'
-                                    color='cyan'
-                                    className='cursor-pointer'
-                                    onClick={() =>
-                                      updateOperation(selectedOperation.id, {
-                                        from: 'json:prompt_cache_key',
-                                        to: 'header:session_id',
-                                      })
-                                    }
-                                  >
-                                    {
-                                      'json:prompt_cache_key -> header:session_id'
-                                    }
-                                  </Tag>
-                                </Space>
-                              </div>
-                            ) : meta.from || meta.to === false || meta.to ? (
-                              <Row gutter={12} style={{ marginTop: 8 }}>
-                                {meta.from || meta.to === false ? (
-                                  <Col xs={24} md={12}>
-                                    <Text type='tertiary' size='small'>
-                                      {t(getModeFromLabel(mode))}
-                                    </Text>
-                                    <Input
-                                      value={selectedOperation.from}
-                                      placeholder={getModeFromPlaceholder(mode)}
-                                      onChange={(nextValue) =>
-                                        updateOperation(selectedOperation.id, {
-                                          from: nextValue,
-                                        })
-                                      }
-                                    />
-                                  </Col>
-                                ) : null}
-                                {meta.to || meta.to === false ? (
-                                  <Col xs={24} md={12}>
-                                    <Text type='tertiary' size='small'>
-                                      {t(getModeToLabel(mode))}
-                                    </Text>
-                                    <Input
-                                      value={selectedOperation.to}
-                                      placeholder={getModeToPlaceholder(mode)}
-                                      onChange={(nextValue) =>
-                                        updateOperation(selectedOperation.id, {
-                                          to: nextValue,
-                                        })
-                                      }
-                                    />
-                                  </Col>
-                                ) : null}
-                              </Row>
-                            ) : null}
-
-                            <div
-                              className='mt-3 rounded-xl p-3'
-                              style={{
-                                background: 'rgba(127, 127, 127, 0.08)',
-                              }}
-                            >
-                              <div className='flex items-center justify-between mb-2'>
-                                <Space align='center'>
-                                  <Text>{t('条件规则')}</Text>
-                                  <Select
-                                    value={selectedOperation.logic || 'OR'}
-                                    optionList={[
-                                      { label: t('满足任一条件（OR）'), value: 'OR' },
-                                      { label: t('必须全部满足（AND）'), value: 'AND' },
-                                    ]}
-                                    size='small'
-                                    style={{ width: 180 }}
-                                    onChange={(nextValue) =>
-                                      updateOperation(selectedOperation.id, {
-                                        logic: nextValue,
-                                      })
-                                    }
-                                  />
-                                </Space>
-                                <Space spacing={6}>
-                                  <Button
-                                    size='small'
-                                    type='tertiary'
-                                    onClick={expandAllSelectedConditions}
-                                  >
-                                    {t('全部展开')}
-                                  </Button>
-                                  <Button
-                                    size='small'
-                                    type='tertiary'
-                                    onClick={collapseAllSelectedConditions}
-                                  >
-                                    {t('全部收起')}
-                                  </Button>
-                                  <Button
-                                    icon={<IconPlus />}
-                                    size='small'
-                                    onClick={() =>
-                                      addCondition(selectedOperation.id)
-                                    }
-                                  >
-                                    {t('新增条件')}
-                                  </Button>
-                                </Space>
-                              </div>
-
-                              {conditions.length === 0 ? (
-                                <Text type='tertiary' size='small'>
-                                  {t('没有条件时，默认总是执行该操作。')}
-                                </Text>
-                              ) : (
-                                <Collapse
-                                  keepDOM
-                                  activeKey={selectedConditionKeys}
-                                  onChange={(activeKeys) =>
-                                    handleConditionCollapseChange(
-                                      selectedOperation.id,
-                                      activeKeys,
-                                    )
-                                  }
-                                >
-                                  {conditions.map(
-                                    (condition, conditionIndex) => (
-                                      <Collapse.Panel
-                                        key={condition.id}
-                                        itemKey={condition.id}
-                                        header={
-                                          <Space spacing={8}>
-                                            <Tag size='small'>
-                                              {`C${conditionIndex + 1}`}
-                                            </Tag>
-                                            <Text type='tertiary' size='small'>
-                                              {condition.path ||
-                                                t('未设置路径')}
-                                            </Text>
-                                          </Space>
-                                        }
-                                      >
-                                        <div>
-                                          <div className='flex items-center justify-between mb-2'>
-                                            <Text type='tertiary' size='small'>
-                                              {t('条件项设置')}
-                                            </Text>
-                                            <Button
-                                              theme='borderless'
-                                              type='danger'
-                                              icon={<IconDelete />}
-                                              size='small'
-                                              onClick={() =>
-                                                removeCondition(
-                                                  selectedOperation.id,
-                                                  condition.id,
-                                                )
-                                              }
-                                            >
-                                              {t('删除条件')}
-                                            </Button>
-                                          </div>
-                                          <Row gutter={12}>
-                                            <Col xs={24} md={10}>
+                                          <div>
+                                            <div className='flex items-center justify-between mb-2'>
                                               <Text
                                                 type='tertiary'
                                                 size='small'
                                               >
-                                                {t('字段路径')}
+                                                {t('条件项设置')}
                                               </Text>
-                                              <Input
-                                                value={condition.path}
-                                                placeholder='model'
-                                                onChange={(nextValue) =>
-                                                  updateCondition(
-                                                    selectedOperation.id,
-                                                    condition.id,
-                                                    { path: nextValue },
-                                                  )
-                                                }
-                                              />
-                                            </Col>
-                                            <Col xs={24} md={8}>
-                                              <Text
-                                                type='tertiary'
+                                              <Button
+                                                theme='borderless'
+                                                type='danger'
+                                                icon={<IconDelete />}
                                                 size='small'
+                                                onClick={() =>
+                                                  removeCondition(
+                                                    selectedOperation.id,
+                                                    condition.id,
+                                                  )
+                                                }
                                               >
-                                                {t('匹配方式')}
-                                              </Text>
-                                              <Select
-                                                value={condition.mode}
-                                                optionList={
-                                                  CONDITION_MODE_OPTIONS
-                                                }
-                                                onChange={(nextValue) =>
-                                                  updateCondition(
-                                                    selectedOperation.id,
-                                                    condition.id,
-                                                    { mode: nextValue },
-                                                  )
-                                                }
-                                                style={{ width: '100%' }}
-                                              />
-                                            </Col>
-                                            <Col xs={24} md={6}>
-                                              <Text
-                                                type='tertiary'
-                                                size='small'
-                                              >
-                                                {t('匹配值')}
-                                              </Text>
-                                              <Input
-                                                value={condition.value_text}
-                                                placeholder='gpt'
-                                                onChange={(nextValue) =>
-                                                  updateCondition(
-                                                    selectedOperation.id,
-                                                    condition.id,
-                                                    { value_text: nextValue },
-                                                  )
-                                                }
-                                              />
-                                            </Col>
-                                          </Row>
-                                          <div className='mt-2 flex flex-wrap gap-3'>
-                                            <div className='flex items-center gap-2'>
-                                              <Text type='tertiary' size='small'>
-                                                {t('条件取反')}
-                                              </Text>
-                                              <Switch
-                                                checked={Boolean(
-                                                  condition.invert,
-                                                )}
-                                                checkedText={t('开')}
-                                                uncheckedText={t('关')}
-                                                onChange={(nextValue) =>
-                                                  updateCondition(
-                                                    selectedOperation.id,
-                                                    condition.id,
-                                                    { invert: nextValue },
-                                                  )
-                                                }
-                                              />
+                                                {t('删除条件')}
+                                              </Button>
                                             </div>
-                                            <div className='flex items-center gap-2'>
-                                              <Text type='tertiary' size='small'>
-                                                {t('字段缺失视为命中')}
-                                              </Text>
-                                              <Switch
-                                                checked={Boolean(
-                                                  condition.pass_missing_key,
-                                                )}
-                                                checkedText={t('开')}
-                                                uncheckedText={t('关')}
-                                                onChange={(nextValue) =>
-                                                  updateCondition(
-                                                    selectedOperation.id,
-                                                    condition.id,
-                                                    {
-                                                      pass_missing_key: nextValue,
-                                                    },
-                                                  )
-                                                }
-                                              />
+                                            <Row gutter={12}>
+                                              <Col xs={24} md={10}>
+                                                <Text
+                                                  type='tertiary'
+                                                  size='small'
+                                                >
+                                                  {t('字段路径')}
+                                                </Text>
+                                                <Input
+                                                  value={condition.path}
+                                                  placeholder='model'
+                                                  onChange={(nextValue) =>
+                                                    updateCondition(
+                                                      selectedOperation.id,
+                                                      condition.id,
+                                                      { path: nextValue },
+                                                    )
+                                                  }
+                                                />
+                                              </Col>
+                                              <Col xs={24} md={8}>
+                                                <Text
+                                                  type='tertiary'
+                                                  size='small'
+                                                >
+                                                  {t('匹配方式')}
+                                                </Text>
+                                                <Select
+                                                  value={condition.mode}
+                                                  optionList={
+                                                    CONDITION_MODE_OPTIONS
+                                                  }
+                                                  onChange={(nextValue) =>
+                                                    updateCondition(
+                                                      selectedOperation.id,
+                                                      condition.id,
+                                                      { mode: nextValue },
+                                                    )
+                                                  }
+                                                  style={{ width: '100%' }}
+                                                />
+                                              </Col>
+                                              <Col xs={24} md={6}>
+                                                <Text
+                                                  type='tertiary'
+                                                  size='small'
+                                                >
+                                                  {t('匹配值')}
+                                                </Text>
+                                                <Input
+                                                  value={condition.value_text}
+                                                  placeholder='gpt'
+                                                  onChange={(nextValue) =>
+                                                    updateCondition(
+                                                      selectedOperation.id,
+                                                      condition.id,
+                                                      { value_text: nextValue },
+                                                    )
+                                                  }
+                                                />
+                                              </Col>
+                                            </Row>
+                                            <div className='mt-2 flex flex-wrap gap-3'>
+                                              <div className='flex items-center gap-2'>
+                                                <Text
+                                                  type='tertiary'
+                                                  size='small'
+                                                >
+                                                  {t('条件取反')}
+                                                </Text>
+                                                <Switch
+                                                  checked={Boolean(
+                                                    condition.invert,
+                                                  )}
+                                                  checkedText={t('开')}
+                                                  uncheckedText={t('关')}
+                                                  onChange={(nextValue) =>
+                                                    updateCondition(
+                                                      selectedOperation.id,
+                                                      condition.id,
+                                                      { invert: nextValue },
+                                                    )
+                                                  }
+                                                />
+                                              </div>
+                                              <div className='flex items-center gap-2'>
+                                                <Text
+                                                  type='tertiary'
+                                                  size='small'
+                                                >
+                                                  {t('字段缺失视为命中')}
+                                                </Text>
+                                                <Switch
+                                                  checked={Boolean(
+                                                    condition.pass_missing_key,
+                                                  )}
+                                                  checkedText={t('开')}
+                                                  uncheckedText={t('关')}
+                                                  onChange={(nextValue) =>
+                                                    updateCondition(
+                                                      selectedOperation.id,
+                                                      condition.id,
+                                                      {
+                                                        pass_missing_key:
+                                                          nextValue,
+                                                      },
+                                                    )
+                                                  }
+                                                />
+                                              </div>
                                             </div>
                                           </div>
-                                        </div>
-                                      </Collapse.Panel>
-                                    ),
-                                  )}
-                                </Collapse>
-                              )}
-                            </div>
-                          </Card>
-                        );
-                      })()
-                    ) : (
-                      <Card
-                        className='!rounded-2xl !border-0'
-                        bodyStyle={{
-                          padding: 14,
-                          background: 'var(--semi-color-fill-0)',
-                        }}
-                      >
-                        <Text type='tertiary'>
-                          {t('请选择一条规则进行编辑。')}
-                        </Text>
-                      </Card>
-                    )}
+                                        </Collapse.Panel>
+                                      ),
+                                    )}
+                                  </Collapse>
+                                )}
+                              </div>
+                            </Card>
+                          );
+                        })()
+                      ) : (
+                        <Card
+                          className='!rounded-2xl !border-0'
+                          bodyStyle={{
+                            padding: 14,
+                            background: 'var(--semi-color-fill-0)',
+                          }}
+                        >
+                          <Text type='tertiary'>
+                            {t('请选择一条规则进行编辑。')}
+                          </Text>
+                        </Card>
+                      )}
 
-                    {visualValidationError ? (
-                      <Card
-                        className='!rounded-2xl !border-0 mt-3'
-                        bodyStyle={{
-                          padding: 12,
-                          background: 'var(--semi-color-fill-0)',
-                        }}
-                      >
-                        <Space>
-                          <Tag color='red'>{t('暂存错误')}</Tag>
-                          <Text type='danger'>{visualValidationError}</Text>
-                        </Space>
-                      </Card>
-                    ) : null}
-                  </Col>
-                </Row>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ width: '100%' }}>
-            <Space style={{ marginBottom: 8 }} wrap>
-              <Button onClick={formatJson}>{t('格式化')}</Button>
-              <Tag color='grey'>{t('高级文本编辑')}</Tag>
-            </Space>
-            <TextArea
-              value={jsonText}
-              autosize={{ minRows: 18, maxRows: 28 }}
-              onChange={(nextValue) => handleJsonChange(nextValue ?? '')}
-              placeholder={JSON.stringify(OPERATION_TEMPLATE, null, 2)}
-              showClear
-            />
-            <Text type='tertiary' size='small' className='mt-2 block'>
-              {t('直接编辑 JSON 文本，保存时会校验格式。')}
-            </Text>
-            {jsonError ? (
-              <Text className='text-red-500 text-xs mt-2'>{jsonError}</Text>
-            ) : null}
-          </div>
-        )}
-      </Space>
+                      {visualValidationError ? (
+                        <Card
+                          className='!rounded-2xl !border-0 mt-3'
+                          bodyStyle={{
+                            padding: 12,
+                            background: 'var(--semi-color-fill-0)',
+                          }}
+                        >
+                          <Space>
+                            <Tag color='red'>{t('暂存错误')}</Tag>
+                            <Text type='danger'>{visualValidationError}</Text>
+                          </Space>
+                        </Card>
+                      ) : null}
+                    </Col>
+                  </Row>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ width: '100%' }}>
+              <Space style={{ marginBottom: 8 }} wrap>
+                <Button onClick={formatJson}>{t('格式化')}</Button>
+                <Tag color='grey'>{t('高级文本编辑')}</Tag>
+              </Space>
+              <TextArea
+                value={jsonText}
+                autosize={{ minRows: 18, maxRows: 28 }}
+                onChange={(nextValue) => handleJsonChange(nextValue ?? '')}
+                placeholder={JSON.stringify(OPERATION_TEMPLATE, null, 2)}
+                showClear
+              />
+              <Text type='tertiary' size='small' className='mt-2 block'>
+                {t('直接编辑 JSON 文本，保存时会校验格式。')}
+              </Text>
+              {jsonError ? (
+                <Text className='text-red-500 text-xs mt-2'>{jsonError}</Text>
+              ) : null}
+            </div>
+          )}
+        </Space>
       </Modal>
 
       <Modal

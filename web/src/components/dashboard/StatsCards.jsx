@@ -32,82 +32,134 @@ const StatsCards = ({
 }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const cardThemes = [
+    {
+      accent: '#2fdcff',
+      accentStrong: '#0068ff',
+      accentSoft: 'rgba(47, 220, 255, 0.28)',
+      surface:
+        'linear-gradient(150deg, rgba(255, 255, 255, 0.98) 0%, rgba(236, 248, 255, 0.98) 56%, rgba(255, 255, 255, 0.98) 100%)',
+    },
+    {
+      accent: '#2ef7a3',
+      accentStrong: '#00b86b',
+      accentSoft: 'rgba(46, 247, 163, 0.26)',
+      surface:
+        'linear-gradient(150deg, rgba(255, 255, 255, 0.98) 0%, rgba(238, 255, 247, 0.98) 52%, rgba(255, 255, 255, 0.98) 100%)',
+    },
+    {
+      accent: '#ffd24a',
+      accentStrong: '#ff7a18',
+      accentSoft: 'rgba(255, 210, 74, 0.26)',
+      surface:
+        'linear-gradient(150deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 247, 229, 0.98) 52%, rgba(255, 255, 255, 0.98) 100%)',
+    },
+    {
+      accent: '#ff6aa9',
+      accentStrong: '#ff3d71',
+      accentSoft: 'rgba(255, 106, 169, 0.26)',
+      surface:
+        'linear-gradient(150deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 239, 246, 0.98) 52%, rgba(255, 255, 255, 0.98) 100%)',
+    },
+  ];
+
   return (
-    <div className='mb-4'>
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
-        {groupedStatsData.map((group, idx) => (
-          <Card
-            key={idx}
-            {...CARD_PROPS}
-            className={`${group.color} border-0 !rounded-2xl w-full`}
-            title={group.title}
-          >
-            <div className='space-y-4'>
-              {group.items.map((item, itemIdx) => (
-                <div
-                  key={itemIdx}
-                  className='flex items-center justify-between cursor-pointer'
-                  onClick={item.onClick}
-                >
-                  <div className='flex items-center'>
-                    <Avatar
-                      className='mr-3'
-                      size='small'
-                      color={item.avatarColor}
-                    >
-                      {item.icon}
-                    </Avatar>
-                    <div>
-                      <div className='text-xs text-gray-500'>{item.title}</div>
-                      <div className='text-lg font-semibold'>
-                        <Skeleton
-                          loading={loading}
-                          active
-                          placeholder={
-                            <Skeleton.Paragraph
-                              active
-                              rows={1}
-                              style={{
-                                width: '65px',
-                                height: '24px',
-                                marginTop: '4px',
-                              }}
-                            />
-                          }
-                        >
-                          {item.value}
-                        </Skeleton>
+    <div className='dashboard-stats-row mb-4'>
+      <div className='dashboard-stats-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+        {groupedStatsData.map((group, idx) => {
+          const theme = cardThemes[idx % cardThemes.length];
+
+          return (
+            <Card
+              key={idx}
+              {...CARD_PROPS}
+              className='dashboard-metric-card w-full'
+              style={{
+                '--dashboard-accent': theme.accent,
+                '--dashboard-accent-strong': theme.accentStrong,
+                '--dashboard-accent-soft': theme.accentSoft,
+                '--dashboard-card-surface': theme.surface,
+              }}
+              title={
+                <div className='dashboard-card-heading'>
+                  <div className='dashboard-card-title'>{group.title}</div>
+                  <span className='dashboard-card-index'>
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                </div>
+              }
+            >
+              <div className='dashboard-metric-list'>
+                {group.items.map((item, itemIdx) => (
+                  <div
+                    key={itemIdx}
+                    className={`dashboard-metric-item ${item.onClick ? 'dashboard-metric-item-clickable' : ''}`}
+                    onClick={item.onClick}
+                  >
+                    <div className='dashboard-metric-main'>
+                      <Avatar
+                        className='dashboard-metric-avatar'
+                        size='small'
+                        color={item.avatarColor}
+                      >
+                        {item.icon}
+                      </Avatar>
+                      <div className='dashboard-metric-copy'>
+                        <div className='dashboard-metric-label'>
+                          {item.title}
+                        </div>
+                        <div className='dashboard-metric-value'>
+                          <Skeleton
+                            loading={loading}
+                            active
+                            placeholder={
+                              <Skeleton.Paragraph
+                                active
+                                rows={1}
+                                style={{
+                                  width: '65px',
+                                  height: '24px',
+                                  marginTop: '4px',
+                                }}
+                              />
+                            }
+                          >
+                            {item.value}
+                          </Skeleton>
+                        </div>
                       </div>
                     </div>
+                    {item.title === t('当前余额') ? (
+                      <Tag
+                        color='white'
+                        shape='circle'
+                        size='large'
+                        className='dashboard-metric-action-tag'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate('/console/topup');
+                        }}
+                      >
+                        {t('充值')}
+                      </Tag>
+                    ) : (
+                      !loading &&
+                      item.trendData &&
+                      item.trendData.length > 0 && (
+                        <div className='dashboard-metric-trend'>
+                          <VChart
+                            spec={getTrendSpec(item.trendData, item.trendColor)}
+                            option={CHART_CONFIG}
+                          />
+                        </div>
+                      )
+                    )}
                   </div>
-                  {item.title === t('当前余额') ? (
-                    <Tag
-                      color='white'
-                      shape='circle'
-                      size='large'
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate('/console/topup');
-                      }}
-                    >
-                      {t('充值')}
-                    </Tag>
-                  ) : (
-                    (loading ||
-                      (item.trendData && item.trendData.length > 0)) && (
-                      <div className='w-24 h-10'>
-                        <VChart
-                          spec={getTrendSpec(item.trendData, item.trendColor)}
-                          option={CHART_CONFIG}
-                        />
-                      </div>
-                    )
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
-        ))}
+                ))}
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

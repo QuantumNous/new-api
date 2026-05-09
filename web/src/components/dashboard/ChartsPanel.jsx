@@ -18,8 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
-import { PieChart } from 'lucide-react';
+import { Button, Card } from '@douyinfe/semi-ui';
+import {
+  Activity,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  LineChart,
+  PieChart,
+  Trophy,
+  Users,
+} from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 
 const ChartsPanel = ({
@@ -38,54 +47,184 @@ const ChartsPanel = ({
   hasApiInfoPanel,
   t,
 }) => {
+  const [viewportWidth, setViewportWidth] = React.useState(() =>
+    typeof window === 'undefined' ? 1920 : window.innerWidth,
+  );
+
+  React.useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const chartTabs = [
+    {
+      key: '1',
+      label: t('消耗分布'),
+      compactLabel: t('消耗分布'),
+      icon: PieChart,
+      tone: 'cyan',
+    },
+    {
+      key: '2',
+      label: t('调用趋势'),
+      compactLabel: t('调用趋势'),
+      icon: LineChart,
+      tone: 'blue',
+    },
+    {
+      key: '3',
+      label: t('调用次数分布'),
+      compactLabel: t('调用次数分布'),
+      icon: Activity,
+      tone: 'green',
+    },
+    {
+      key: '4',
+      label: t('调用次数排行'),
+      compactLabel: t('调用次数排行'),
+      icon: BarChart3,
+      tone: 'orange',
+    },
+  ];
+
+  if (isAdminUser) {
+    chartTabs.push(
+      {
+        key: '5',
+        label: t('用户消耗排行'),
+        compactLabel: t('用户消耗排行'),
+        icon: Trophy,
+        tone: 'pink',
+      },
+      {
+        key: '6',
+        label: t('用户消耗趋势'),
+        compactLabel: t('用户消耗趋势'),
+        icon: Users,
+        tone: 'violet',
+      },
+    );
+  }
+
+  const isCarouselMode = viewportWidth <= 1700 && viewportWidth > 1360;
+  const activeChartIndex = chartTabs.findIndex(
+    (tab) => tab.key === activeChartTab,
+  );
+  const currentTab = chartTabs[activeChartIndex] || chartTabs[0];
+  const prevTab =
+    chartTabs[(activeChartIndex - 1 + chartTabs.length) % chartTabs.length] ||
+    chartTabs[0];
+  const nextTab =
+    chartTabs[(activeChartIndex + 1) % chartTabs.length] || chartTabs[0];
+  const displayTabs = isCarouselMode ? [currentTab] : chartTabs;
+
   return (
     <Card
       {...CARD_PROPS}
-      className={`!rounded-2xl ${hasApiInfoPanel ? 'lg:col-span-3' : ''}`}
+      className={`dashboard-chart-panel !rounded-[2rem] ${hasApiInfoPanel ? 'lg:col-span-3' : ''}`}
       title={
-        <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between w-full gap-3'>
-          <div className={FLEX_CENTER_GAP2}>
-            <PieChart size={16} />
-            {t('模型数据分析')}
+        <div className='dashboard-chart-header'>
+          <div className='dashboard-chart-copy'>
+            <div className='dashboard-panel-eyebrow'>{t('分析')}</div>
+            <div className='dashboard-chart-title-group'>
+              <div className={FLEX_CENTER_GAP2}>
+                <PieChart size={16} />
+                {t('模型数据分析')}
+              </div>
+              <p className='dashboard-chart-subtitle'>
+                {t('按模型查看消耗分布、调用趋势与排行。')}
+              </p>
+            </div>
           </div>
-          <Tabs
-            type='slash'
-            activeKey={activeChartTab}
-            onChange={setActiveChartTab}
+          <div
+            className={`dashboard-chart-tabs-wrap ${isCarouselMode ? 'is-carousel' : ''}`}
           >
-            <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
-            <TabPane tab={<span>{t('调用趋势')}</span>} itemKey='2' />
-            <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
-            <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户消耗排行')}</span>} itemKey='5' />
+            {isCarouselMode && (
+              <button
+                type='button'
+                className='dashboard-chart-nav-button'
+                onClick={() => setActiveChartTab(prevTab.key)}
+                aria-label={t('上一个')}
+              >
+                <ChevronLeft size={18} strokeWidth={2.4} />
+              </button>
             )}
-            {isAdminUser && (
-              <TabPane tab={<span>{t('用户消耗趋势')}</span>} itemKey='6' />
+            <div className='dashboard-chart-filter-window'>
+              <div className='dashboard-chart-filter-grid'>
+                {displayTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeChartTab === tab.key;
+                  const buttonLabel = isCarouselMode
+                    ? tab.compactLabel
+                    : tab.label;
+
+                  return (
+                    <Button
+                      key={tab.key}
+                      theme='borderless'
+                      className={`dashboard-chart-filter dashboard-chart-filter-${tab.tone} ${isActive ? 'is-active' : ''}`}
+                      onClick={() => setActiveChartTab(tab.key)}
+                    >
+                      <span className='dashboard-chart-tab-icon'>
+                        <Icon size={15} strokeWidth={2.2} />
+                      </span>
+                      <span className='dashboard-chart-tab-label'>
+                        {buttonLabel}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+            {isCarouselMode && (
+              <button
+                type='button'
+                className='dashboard-chart-nav-button'
+                onClick={() => setActiveChartTab(nextTab.key)}
+                aria-label={t('下一个')}
+              >
+                <ChevronRight size={18} strokeWidth={2.4} />
+              </button>
             )}
-          </Tabs>
+          </div>
         </div>
       }
       bodyStyle={{ padding: 0 }}
     >
-      <div className='h-96 p-2'>
+      <div className='dashboard-chart-stage'>
         {activeChartTab === '1' && (
-          <VChart spec={spec_line} option={CHART_CONFIG} />
+          <div className='dashboard-chart-canvas'>
+            <VChart spec={spec_line} option={CHART_CONFIG} />
+          </div>
         )}
         {activeChartTab === '2' && (
-          <VChart spec={spec_model_line} option={CHART_CONFIG} />
+          <div className='dashboard-chart-canvas'>
+            <VChart spec={spec_model_line} option={CHART_CONFIG} />
+          </div>
         )}
         {activeChartTab === '3' && (
-          <VChart spec={spec_pie} option={CHART_CONFIG} />
+          <div className='dashboard-chart-canvas'>
+            <VChart spec={spec_pie} option={CHART_CONFIG} />
+          </div>
         )}
         {activeChartTab === '4' && (
-          <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
+          <div className='dashboard-chart-canvas'>
+            <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
+          </div>
         )}
         {activeChartTab === '5' && isAdminUser && (
-          <VChart spec={spec_user_rank} option={CHART_CONFIG} />
+          <div className='dashboard-chart-canvas'>
+            <VChart spec={spec_user_rank} option={CHART_CONFIG} />
+          </div>
         )}
         {activeChartTab === '6' && isAdminUser && (
-          <VChart spec={spec_user_trend} option={CHART_CONFIG} />
+          <div className='dashboard-chart-canvas'>
+            <VChart spec={spec_user_trend} option={CHART_CONFIG} />
+          </div>
         )}
       </div>
     </Card>

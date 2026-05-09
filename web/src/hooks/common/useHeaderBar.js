@@ -26,18 +26,24 @@ import { useSetTheme, useTheme, useActualTheme } from '../../context/Theme';
 import { getLogo, getSystemName, API, showSuccess } from '../../helpers';
 import { normalizeLanguage } from '../../i18n/language';
 import { useIsMobile } from './useIsMobile';
-import { useSidebarCollapsed } from './useSidebarCollapsed';
 import { useMinimumLoadingTime } from './useMinimumLoadingTime';
 
-export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
+export const useHeaderBar = ({
+  onMobileMenuToggle,
+  drawerOpen,
+  collapsed,
+  onDesktopCollapseToggle,
+}) => {
   const { t, i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
   const isMobile = useIsMobile();
-  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
+  const [isSiteHeaderScrolled, setIsSiteHeaderScrolled] = useState(false);
   const navigate = useNavigate();
-  const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
+  const [currentLang, setCurrentLang] = useState(
+    normalizeLanguage(i18n.language),
+  );
   const location = useLocation();
 
   const loading = statusState?.status === undefined;
@@ -102,6 +108,32 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     img.src = logo;
     img.onload = () => setLogoLoaded(true);
   }, [logo]);
+
+  useEffect(() => {
+    if (isConsoleRoute) {
+      setIsSiteHeaderScrolled(false);
+      return;
+    }
+
+    const scrollContainer = document.getElementById('app-scroll-shell');
+    const syncScrollState = () => {
+      const containerY = scrollContainer?.scrollTop || 0;
+      const viewportY = window.scrollY || window.pageYOffset || 0;
+      setIsSiteHeaderScrolled(Math.max(containerY, viewportY) > 16);
+    };
+
+    syncScrollState();
+
+    scrollContainer?.addEventListener('scroll', syncScrollState, {
+      passive: true,
+    });
+    window.addEventListener('scroll', syncScrollState, { passive: true });
+
+    return () => {
+      scrollContainer?.removeEventListener('scroll', syncScrollState);
+      window.removeEventListener('scroll', syncScrollState);
+    };
+  }, [isConsoleRoute]);
 
   // Send theme to iframe
   useEffect(() => {
@@ -213,9 +245,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     if (isMobile) {
       onMobileMenuToggle();
     } else {
-      toggleCollapsed();
+      onDesktopCollapseToggle();
     }
-  }, [isMobile, onMobileMenuToggle, toggleCollapsed]);
+  }, [isMobile, onDesktopCollapseToggle, onMobileMenuToggle]);
 
   return {
     // State
@@ -234,6 +266,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     docsLink,
     isDemoSiteMode,
     isConsoleRoute,
+    isSiteHeaderScrolled,
     theme,
     drawerOpen,
     headerNavModules,

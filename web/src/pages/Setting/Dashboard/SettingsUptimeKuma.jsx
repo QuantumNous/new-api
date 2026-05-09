@@ -421,7 +421,8 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
             currentPage: currentPage,
             pageSize: pageSize,
             total: uptimeGroupsList.length,
-            showSizeChanger: true,
+            showSizeChanger: uptimeGroupsList.length > pageSize,
+            hideOnSinglePage: uptimeGroupsList.length <= pageSize,
             showQuickJumper: true,
             pageSizeOptions: ['5', '10', '20', '50'],
             onChange: (page, size) => {

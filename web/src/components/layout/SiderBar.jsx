@@ -17,18 +17,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { BookOpen, ExternalLink } from 'lucide-react';
+import './SiderBar.css';
 import { getLucideIcon } from '../../helpers/render';
-import { ChevronLeft } from 'lucide-react';
-import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { isAdmin, isRoot, showError } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
-import { Nav, Divider, Button } from '@douyinfe/semi-ui';
+import { Nav, Divider, Avatar, Typography } from '@douyinfe/semi-ui';
+import { UserContext } from '../../context/User';
+import { getLogo, getSystemName, stringToColor } from '../../helpers';
 
 const routerMap = {
   home: '/',
@@ -36,6 +38,7 @@ const routerMap = {
   token: '/console/token',
   redemption: '/console/redemption',
   topup: '/console/topup',
+  referral: '/console/referral',
   user: '/console/user',
   subscription: '/console/subscription',
   log: '/console/log',
@@ -51,9 +54,13 @@ const routerMap = {
   personal: '/console/personal',
 };
 
-const SiderBar = ({ onNavigate = () => {} }) => {
+const SiderBar = ({
+  collapsed,
+  onCollapseToggle = () => {},
+  onNavigate = () => {},
+}) => {
   const { t } = useTranslation();
-  const [collapsed, toggleCollapsed] = useSidebarCollapsed();
+  const [userState] = useContext(UserContext);
   const {
     isModuleVisible,
     hasSectionVisibleModules,
@@ -67,6 +74,15 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const [openedKeys, setOpenedKeys] = useState([]);
   const location = useLocation();
   const [routerMapState, setRouterMapState] = useState(routerMap);
+  const [docsLink, setDocsLink] = useState(
+    () => localStorage.getItem('docs_link') || '',
+  );
+  const logo = getLogo();
+  const systemName = getSystemName();
+
+  useEffect(() => {
+    setDocsLink(localStorage.getItem('docs_link') || '');
+  }, [showSkeleton]);
 
   const workspaceItems = useMemo(() => {
     const items = [
@@ -129,6 +145,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         itemKey: 'topup',
         to: '/topup',
       },
+      // {
+      //   text: t('邀请'),
+      //   itemKey: 'referral',
+      //   to: '/referral',
+      // },
       {
         text: t('个人设置'),
         itemKey: 'personal',
@@ -294,15 +315,6 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     }
   }, [location.pathname, routerMapState]);
 
-  // 监控折叠状态变化以更新 body class
-  useEffect(() => {
-    if (collapsed) {
-      document.body.classList.add('sidebar-collapsed');
-    } else {
-      document.body.classList.remove('sidebar-collapsed');
-    }
-  }, [collapsed]);
-
   // 选中高亮颜色（统一）
   const SELECTED_COLOR = 'var(--semi-color-primary)';
 
@@ -393,6 +405,21 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         width: 'var(--sidebar-current-width)',
       }}
     >
+      <Link to='/' className='sidebar-brand' onClick={onNavigate}>
+        <div className='sidebar-brand-mark'>
+          {logo ? (
+            <img src={logo} alt='logo' className='sidebar-brand-logo' />
+          ) : null}
+        </div>
+        {!collapsed && (
+          <div className='sidebar-brand-copy'>
+            <Typography.Text className='sidebar-brand-title'>
+              {systemName}
+            </Typography.Text>
+          </div>
+        )}
+      </Link>
+
       <SkeletonWrapper
         loading={showSkeleton}
         type='sidebar'
@@ -404,7 +431,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           className='sidebar-nav'
           defaultIsCollapsed={collapsed}
           isCollapsed={collapsed}
-          onCollapseChange={toggleCollapsed}
+          onCollapseChange={() => onCollapseToggle()}
           selectedKeys={selectedKeys}
           itemStyle='sidebar-nav-item'
           hoverStyle='sidebar-nav-item:hover'
@@ -490,41 +517,46 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         </Nav>
       </SkeletonWrapper>
 
-      {/* 底部折叠按钮 */}
-      <div className='sidebar-collapse-button'>
-        <SkeletonWrapper
-          loading={showSkeleton}
-          type='button'
-          width={collapsed ? 36 : 156}
-          height={24}
-          className='w-full'
-        >
-          <Button
-            theme='outline'
-            type='tertiary'
-            size='small'
-            icon={
-              <ChevronLeft
-                size={16}
-                strokeWidth={2.5}
-                color='var(--semi-color-text-2)'
-                style={{
-                  transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)',
-                }}
-              />
-            }
-            onClick={toggleCollapsed}
-            icononly={collapsed}
-            style={
-              collapsed
-                ? { width: 36, height: 24, padding: 0 }
-                : { padding: '4px 12px', width: '100%' }
-            }
+      {!collapsed && !showSkeleton && docsLink && (
+        <div className='sidebar-docs-wrap'>
+          <a
+            href={docsLink}
+            target='_blank'
+            rel='noopener noreferrer'
+            className='sidebar-docs-link'
           >
-            {!collapsed ? t('收起侧边栏') : null}
-          </Button>
-        </SkeletonWrapper>
-      </div>
+            <div className='sidebar-docs-main'>
+              <div className='sidebar-docs-icon'>
+                <BookOpen size={17} strokeWidth={2.1} />
+              </div>
+              <span className='sidebar-docs-text'>{t('API 文档')}</span>
+            </div>
+            <div className='sidebar-docs-external'>
+              <ExternalLink size={15} strokeWidth={2.1} />
+            </div>
+          </a>
+        </div>
+      )}
+
+      {userState?.user && !collapsed && !showSkeleton && (
+        <div className='sidebar-user-card'>
+          <div className='sidebar-user-main'>
+            <Avatar
+              size='small'
+              color={stringToColor(userState.user.username)}
+              className='sidebar-user-avatar'
+            >
+              {userState.user.username?.[0]?.toUpperCase()}
+            </Avatar>
+            <div className='sidebar-user-copy'>
+              <div className='sidebar-user-name'>{userState.user.username}</div>
+              <div className='sidebar-user-meta'>
+                {userState.user.email || t('已登录用户')}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -48,6 +48,7 @@ const PaymentConfirmModal = ({
   const discountAmount = hasDiscount ? originalAmount - amountNumber : 0;
   return (
     <Modal
+      className='payment-confirm-modal'
       title={
         <div className='flex items-center'>
           <CreditCard className='mr-2' size={18} />
@@ -62,30 +63,33 @@ const PaymentConfirmModal = ({
       centered
       confirmLoading={confirmLoading}
     >
-      <div className='space-y-4'>
-        <Card className='!rounded-xl !border-0 bg-slate-50 dark:bg-slate-800'>
+      <div className='payment-confirm-layout space-y-4'>
+        <Card className='payment-confirm-card !rounded-xl !border-0'>
           <div className='space-y-3'>
-            <div className='flex justify-between items-center'>
-              <Text strong className='text-slate-700 dark:text-slate-200'>
+            <div className='payment-confirm-row flex justify-between items-center'>
+              <Text strong className='payment-confirm-label'>
                 {t('充值数量')}：
               </Text>
-              <Text className='text-slate-900 dark:text-slate-100'>
+              <Text className='payment-confirm-value'>
                 {renderQuotaWithAmount(topUpCount)}
               </Text>
             </div>
-            <div className='flex justify-between items-center'>
-              <Text strong className='text-slate-700 dark:text-slate-200'>
+            <div className='payment-confirm-row flex justify-between items-center'>
+              <Text strong className='payment-confirm-label'>
                 {t('实付金额')}：
               </Text>
               {amountLoading ? (
                 <Skeleton.Title style={{ width: '60px', height: '16px' }} />
               ) : (
-                <div className='flex items-baseline space-x-2'>
-                  <Text strong className='font-bold' style={{ color: 'red' }}>
+                <div className='payment-confirm-price-group flex items-baseline space-x-2'>
+                  <Text strong className='payment-confirm-price'>
                     {renderAmount()}
                   </Text>
                   {hasDiscount && (
-                    <Text size='small' className='text-rose-500'>
+                    <Text
+                      size='small'
+                      className='payment-confirm-discount-rate'
+                    >
                       {Math.round(discountRate * 100)}%
                     </Text>
                   )}
@@ -94,29 +98,25 @@ const PaymentConfirmModal = ({
             </div>
             {hasDiscount && !amountLoading && (
               <>
-                <div className='flex justify-between items-center'>
-                  <Text className='text-slate-500 dark:text-slate-400'>
-                    {t('原价')}：
-                  </Text>
-                  <Text delete className='text-slate-500 dark:text-slate-400'>
-                    {`${symbol}${originalAmount.toFixed(2)}`}
+                <div className='payment-confirm-row flex justify-between items-center'>
+                  <Text className='payment-confirm-hint'>{t('原价')}：</Text>
+                  <Text delete className='payment-confirm-hint'>
+                    {`${originalAmount.toFixed(2)} ${t('元')}`}
                   </Text>
                 </div>
-                <div className='flex justify-between items-center'>
-                  <Text className='text-slate-500 dark:text-slate-400'>
-                    {t('优惠')}：
-                  </Text>
-                  <Text className='text-emerald-600 dark:text-emerald-400'>
-                    {`- ${symbol}${discountAmount.toFixed(2)}`}
+                <div className='payment-confirm-row flex justify-between items-center'>
+                  <Text className='payment-confirm-hint'>{t('优惠')}：</Text>
+                  <Text className='payment-confirm-savings'>
+                    {`- ${discountAmount.toFixed(2)} ${t('元')}`}
                   </Text>
                 </div>
               </>
             )}
-            <div className='flex justify-between items-center'>
-              <Text strong className='text-slate-700 dark:text-slate-200'>
+            <div className='payment-confirm-row flex justify-between items-center'>
+              <Text strong className='payment-confirm-label'>
                 {t('支付方式')}：
               </Text>
-              <div className='flex items-center'>
+              <div className='payment-confirm-method flex items-center'>
                 {(() => {
                   const payMethod = payMethods.find(
                     (method) => method.type === payWay,
@@ -140,7 +140,7 @@ const PaymentConfirmModal = ({
                           <SiStripe
                             className='mr-2'
                             size={16}
-                            color='#635BFF'
+                            color='var(--app-accent)'
                           />
                         ) : payMethod.icon ? (
                           <img
@@ -162,7 +162,7 @@ const PaymentConfirmModal = ({
                             }
                           />
                         )}
-                        <Text className='text-slate-900 dark:text-slate-100'>
+                        <Text className='payment-confirm-value'>
                           {payMethod.name}
                         </Text>
                       </>
@@ -177,7 +177,7 @@ const PaymentConfirmModal = ({
                             size={16}
                             color='#1677FF'
                           />
-                          <Text className='text-slate-900 dark:text-slate-100'>
+                          <Text className='payment-confirm-value'>
                             {t('支付宝')}
                           </Text>
                         </>
@@ -188,11 +188,9 @@ const PaymentConfirmModal = ({
                           <SiStripe
                             className='mr-2'
                             size={16}
-                            color='#635BFF'
+                            color='var(--app-accent)'
                           />
-                          <Text className='text-slate-900 dark:text-slate-100'>
-                            Stripe
-                          </Text>
+                          <Text className='payment-confirm-value'>Stripe</Text>
                         </>
                       );
                     } else {
@@ -203,7 +201,7 @@ const PaymentConfirmModal = ({
                             size={16}
                             color='#07C160'
                           />
-                          <Text className='text-slate-900 dark:text-slate-100'>
+                          <Text className='payment-confirm-value'>
                             {t('微信')}
                           </Text>
                         </>

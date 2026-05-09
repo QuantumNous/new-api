@@ -22,10 +22,10 @@ import { Button } from '@douyinfe/semi-ui';
 
 const SubscriptionsActions = ({ openCreate, t }) => {
   return (
-    <div className='flex gap-2 w-full md:w-auto'>
+    <div className='subscription-admin-actions flex gap-2 w-full md:w-auto'>
       <Button
         type='primary'
-        className='w-full md:w-auto'
+        className='subscription-admin-create-button w-full md:w-auto'
         onClick={openCreate}
         size='small'
       >

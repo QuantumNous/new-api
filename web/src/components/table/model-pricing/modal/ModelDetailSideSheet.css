@@ -1,0 +1,513 @@
+.model-detail-sheet .semi-sidesheet-content {
+  background: radial-gradient(
+      circle at top left,
+      rgba(59, 130, 246, 0.08),
+      transparent 24%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.99),
+      rgba(248, 250, 252, 0.98)
+    );
+}
+
+.model-detail-sheet .semi-sidesheet-header {
+  padding: 22px 24px 18px !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96) !important;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+}
+
+.model-detail-sheet .semi-sidesheet-body {
+  background: transparent;
+}
+
+.model-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.model-detail-header-icon-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #f3f7fc);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.model-detail-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.model-detail-header-copy {
+  min-width: 0;
+}
+
+.model-detail-header-title.semi-typography {
+  margin: 0 !important;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.model-detail-header-name {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-detail-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.model-detail-header-pill.semi-tag {
+  border-radius: 999px !important;
+  background: rgba(239, 246, 255, 0.92) !important;
+  color: #1d4ed8 !important;
+  font-weight: 700;
+}
+
+.model-detail-header-pill-muted.semi-tag {
+  background: rgba(250, 245, 255, 0.95) !important;
+  color: var(--app-accent) !important;
+}
+
+.model-detail-modal {
+  padding: 12px;
+}
+
+.model-detail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  padding: 20px 0;
+}
+
+.model-detail-content {
+  display: grid;
+  gap: 14px;
+}
+
+.model-detail-section-card.semi-card {
+  border: 1px solid rgba(224, 229, 237, 0.95) !important;
+  border-radius: 26px !important;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(248, 250, 252, 0.96)
+  ) !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.05) !important;
+}
+
+.model-detail-section-card .semi-card-body {
+  padding: 20px 20px 18px !important;
+}
+
+.model-detail-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.model-detail-section-avatar.semi-avatar {
+  width: 38px !important;
+  min-width: 38px;
+  height: 38px !important;
+  border-radius: 14px !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+
+.model-detail-section-avatar-basic.semi-avatar {
+  background: linear-gradient(135deg, #3b82f6, #6366f1) !important;
+}
+
+.model-detail-section-avatar-endpoint.semi-avatar {
+  background: linear-gradient(135deg, #2563eb, #06b6d4) !important;
+}
+
+.model-detail-section-avatar-pricing.semi-avatar {
+  background: linear-gradient(135deg, #f59e0b, #f97316) !important;
+}
+
+.model-detail-section-copy {
+  min-width: 0;
+}
+
+.model-detail-section-title.semi-typography {
+  display: block;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.model-detail-section-description {
+  margin-top: 4px;
+  color: #8a94a6;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.model-detail-description {
+  margin: 0 0 14px;
+  color: #475467;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.model-detail-empty-state {
+  padding: 18px 0 4px;
+  color: #8a94a6;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.model-detail-meta-pill.semi-tag {
+  border: 1px solid rgba(226, 232, 240, 0.96) !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  color: #475467 !important;
+  border-radius: 999px !important;
+  font-weight: 700;
+}
+
+.model-detail-tag-list {
+  gap: 8px !important;
+}
+
+.model-detail-endpoint-list {
+  display: grid;
+  gap: 10px;
+}
+
+.model-detail-endpoint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px dashed rgba(226, 232, 240, 0.96);
+}
+
+.model-detail-endpoint-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.model-detail-endpoint-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.model-detail-endpoint-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+}
+
+.model-detail-endpoint-name {
+  color: #111827;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.model-detail-endpoint-divider {
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.model-detail-endpoint-path {
+  color: #667085;
+  word-break: break-all;
+}
+
+.model-detail-endpoint-method {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.model-detail-auto-chain {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.model-detail-auto-chain-label,
+.model-detail-auto-chain-arrow {
+  color: #8a94a6;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.model-detail-pricing-card .semi-card-body {
+  padding-bottom: 16px !important;
+}
+
+.model-detail-pricing-table-wrap {
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.model-detail-pricing-card .semi-table-container {
+  background: transparent !important;
+}
+
+.model-detail-pricing-card table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.model-detail-pricing-card .semi-table-thead > tr > th,
+.model-detail-pricing-card .semi-table-thead > tr > .semi-table-row-head {
+  padding: 14px 16px !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96) !important;
+  background: rgba(248, 250, 252, 0.96) !important;
+  color: #8a94a6 !important;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.model-detail-pricing-card .semi-table-tbody > tr > td,
+.model-detail-pricing-card .semi-table-tbody > tr > .semi-table-row-cell {
+  padding: 14px 16px !important;
+  border-bottom: 1px solid rgba(238, 242, 247, 0.96) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  vertical-align: top;
+}
+
+.model-detail-pricing-card .semi-table-tbody > tr:last-child > td,
+.model-detail-pricing-card
+  .semi-table-tbody
+  > tr:last-child
+  > .semi-table-row-cell {
+  border-bottom: none !important;
+}
+
+.model-detail-pricing-card .semi-table-tbody > tr:hover > td,
+.model-detail-pricing-card .semi-table-tbody > tr:hover > .semi-table-row-cell {
+  background: #ffffff !important;
+}
+
+.model-detail-pricing-card .semi-tag {
+  border-radius: 999px !important;
+  font-weight: 700;
+}
+
+.model-detail-pricing-card .semi-table-empty {
+  padding: 24px 0;
+}
+
+.model-detail-price-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.model-detail-price-item {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.96);
+}
+
+.model-detail-price-item-label {
+  color: #8a94a6;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.model-detail-price-item-value {
+  color: #d97706;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.model-detail-price-item-suffix {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+html.dark .model-detail-sheet .semi-sidesheet-content {
+  background: radial-gradient(
+      circle at top left,
+      rgba(192, 38, 211, 0.12),
+      transparent 30%
+    ),
+    linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98));
+}
+
+html.dark .model-detail-sheet .semi-sidesheet-header {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(16, 19, 24, 0.82);
+}
+
+html.dark .model-detail-header-icon-shell,
+html.dark .model-detail-section-card.semi-card,
+html.dark .model-detail-pricing-table-wrap,
+html.dark .model-detail-meta-pill.semi-tag {
+  border-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+  box-shadow: none !important;
+}
+
+html.dark .model-detail-header-title.semi-typography,
+html.dark .model-detail-section-title.semi-typography,
+html.dark .model-detail-header-name {
+  color: #f8fafc !important;
+}
+
+html.dark .model-detail-header-pill.semi-tag {
+  background: rgba(59, 130, 246, 0.18) !important;
+  color: #93c5fd !important;
+}
+
+html.dark .model-detail-header-pill-muted.semi-tag {
+  background: rgba(168, 85, 247, 0.18) !important;
+  color: #d8b4fe !important;
+}
+
+html.dark .model-detail-section-description,
+html.dark .model-detail-description,
+html.dark .model-detail-empty-state,
+html.dark .model-detail-endpoint-main,
+html.dark .model-detail-auto-chain-label,
+html.dark .model-detail-auto-chain-arrow {
+  color: #98a2b3 !important;
+}
+
+html.dark .model-detail-endpoint-name,
+html.dark .model-detail-endpoint-path {
+  color: #f8fafc !important;
+}
+
+html.dark .model-detail-endpoint-divider {
+  color: #475569 !important;
+}
+
+html.dark .model-detail-endpoint-method {
+  color: #93c5fd !important;
+  background: rgba(59, 130, 246, 0.16);
+}
+
+html.dark .model-detail-pricing-card .semi-table-container {
+  background: rgba(16, 19, 24, 0.92);
+}
+
+html.dark .model-detail-pricing-card .semi-table-thead > tr > th,
+html.dark
+  .model-detail-pricing-card
+  .semi-table-thead
+  > tr
+  > .semi-table-row-head {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(24, 28, 35, 0.96) !important;
+  color: #98a2b3 !important;
+}
+
+html.dark .model-detail-pricing-card .semi-table-tbody > tr > td,
+html.dark
+  .model-detail-pricing-card
+  .semi-table-tbody
+  > tr
+  > .semi-table-row-cell {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(17, 19, 24, 0.96) !important;
+}
+
+html.dark .model-detail-pricing-card .semi-table-tbody > tr:hover > td,
+html.dark
+  .model-detail-pricing-card
+  .semi-table-tbody
+  > tr:hover
+  > .semi-table-row-cell {
+  background: rgba(22, 26, 33, 0.98) !important;
+}
+
+html.dark .model-detail-meta-pill.semi-tag {
+  background: rgba(24, 28, 35, 0.96) !important;
+  color: #cbd5e1 !important;
+}
+
+html.dark .model-detail-price-item {
+  border-color: rgba(43, 48, 59, 0.95);
+  background: rgba(17, 19, 24, 0.96);
+}
+
+html.dark .model-detail-price-item-label {
+  color: #94a3b8;
+}
+
+html.dark .model-detail-price-item-value {
+  color: #f59e0b;
+}
+
+html.dark .model-detail-price-item-suffix {
+  color: #94a3b8;
+}
+
+@media (max-width: 767px) {
+  .model-detail-sheet .semi-sidesheet-header {
+    padding: 18px 16px 14px !important;
+  }
+
+  .model-detail-modal {
+    padding: 10px;
+  }
+
+  .model-detail-section-card .semi-card-body {
+    padding: 18px 16px 16px !important;
+  }
+
+  .model-detail-endpoint-row {
+    align-items: flex-start;
+  }
+
+  .model-detail-endpoint-main {
+    align-items: flex-start;
+  }
+
+  .model-detail-endpoint-method {
+    margin-top: 2px;
+  }
+}

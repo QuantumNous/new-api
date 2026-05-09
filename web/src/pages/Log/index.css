@@ -1,0 +1,601 @@
+/* ==================== Log page ==================== */
+.log-page-shell {
+  /* max-width: 1180px; */
+  /* margin: 0 auto; */
+  padding: 8px 4px 28px;
+}
+
+.log-console-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.log-console-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.log-console-title.semi-typography {
+  margin-bottom: 8px !important;
+  color: #111827;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.log-console-subtitle {
+  margin: 0;
+  color: #667085;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.log-table-card.table-scroll-card {
+  height: auto;
+  max-height: none;
+  overflow: hidden;
+  border: 1px solid rgba(224, 229, 237, 0.95);
+  border-radius: 30px !important;
+  background: radial-gradient(
+      circle at top left,
+      rgba(14, 165, 233, 0.08),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(248, 250, 252, 0.98)
+    );
+  box-shadow: 0 26px 56px rgba(15, 23, 42, 0.08);
+}
+
+.log-table-card .semi-card-header {
+  padding: 28px 28px 16px !important;
+  border-bottom: none !important;
+}
+
+.log-table-card .semi-card-body {
+  padding: 0 24px 20px !important;
+  overflow: visible !important;
+}
+
+.log-table-card .semi-card-footer {
+  padding: 18px 24px 24px !important;
+  background: linear-gradient(
+    180deg,
+    rgba(250, 250, 252, 0),
+    rgba(248, 250, 252, 0.9)
+  );
+}
+
+.log-table-overview {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.log-table-overview-copy {
+  max-width: 640px;
+}
+
+.log-table-overview-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.log-table-overview-title.semi-typography {
+  display: block;
+  margin: 16px 0 8px !important;
+  color: #111827;
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.log-table-overview-subtitle {
+  margin: 0;
+  color: #8a94a6;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.log-table-overview-side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.log-table-overview-skeleton {
+  display: flex;
+  gap: 12px;
+}
+
+.log-table-metric-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.log-table-metric-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 152px;
+  padding: 12px 14px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.log-table-metric-chip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #8a94a6;
+  font-size: 13px;
+}
+
+.log-table-metric-chip strong {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.log-table-metric-chip-muted {
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.log-compact-toggle.semi-button {
+  height: 46px;
+  padding: 0 16px;
+  border-radius: 16px !important;
+  border-color: rgba(226, 232, 240, 0.96) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #111827 !important;
+  font-weight: 700;
+}
+
+.log-filter-form {
+  width: 100%;
+}
+
+.log-filter-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.log-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.log-filter-item {
+  min-width: 0;
+  grid-column: span 1;
+}
+
+.log-filter-range {
+  grid-column: span 2;
+}
+
+.log-filter-toolbar-item {
+  grid-column: span 5;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.log-filter-toolbar-item2 {
+  grid-column: span 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.log-filter-control {
+  width: 100%;
+}
+.log-filter-date {
+  width: 100%;
+}
+.log-filter-date .semi-datepicker-range-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+.log-filter-date .semi-datepicker-range-input-wrapper-active,
+.log-filter-date .semi-datepicker-range-input-wrapper:hover {
+  background-color: transparent !important ;
+  border-color: transparent !important;
+}
+
+.log-filter-date .semi-input-wrapper:hover {
+  background-color: transparent !important ;
+}
+
+.log-filter-control .semi-input-wrapper,
+.log-filter-control.semi-input-wrapper {
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.log-filter-date .semi-datepicker-range-input-prefix,
+.log-filter-date .semi-datepicker-range-input-suffix,
+.log-filter-date .semi-datepicker-range-input-clearbtn,
+.log-filter-date .semi-datepicker-range-input-separator,
+.log-filter-control .semi-input-prefix,
+.log-filter-control .semi-input-suffix,
+.log-filter-select .semi-select-selection-icon {
+  color: #94a3b8 !important;
+}
+
+.log-filter-date .semi-input,
+.log-filter-control .semi-input,
+.log-filter-select .semi-select-selection-text {
+  color: #0f172a !important;
+  font-weight: 500;
+}
+
+.log-filter-date .semi-datepicker-range-input-separator-active {
+  color: #0f172a !important;
+}
+
+.log-filter-date .semi-input::placeholder,
+.log-filter-control .semi-input::placeholder,
+.log-filter-select .semi-select-selection-placeholder {
+  color: #98a2b3 !important;
+}
+
+.log-filter-date .semi-datepicker-range-input:hover,
+.log-filter-control .semi-input-wrapper:hover,
+.log-filter-select .semi-select-selection:hover {
+  border-color: rgba(208, 213, 221, 1) !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+}
+
+.log-filter-date .semi-datepicker-range-input:focus-within,
+.log-filter-control .semi-input-wrapper-focus,
+.log-filter-select.semi-select-focus .semi-select-selection,
+.log-filter-select .semi-select-selection:focus-within {
+  border-color: rgba(168, 85, 247, 0.48) !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+}
+
+.log-filter-select {
+  width: min(100%, 220px);
+  flex: 0 0 220px;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  border-radius: 16px !important;
+  background: rgba(248, 250, 252, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.log-filter-select .semi-select-selection {
+  width: min(100%, 220px);
+}
+
+.log-filter-select-label {
+  flex-shrink: 0;
+  color: #8a94a6;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.log-filter-button.semi-button {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 16px !important;
+  font-weight: 700;
+}
+
+.log-filter-button-primary.semi-button {
+  border-color: transparent !important;
+  background: var(--app-accent-gradient) !important;
+  color: #ffffff !important;
+}
+
+/* .log-filter-button-primary.semi-button:hover,
+.log-filter-button-primary.semi-button:focus {
+  background: linear-gradient(135deg, #c026d3, #9333ea) !important;
+} */
+
+.log-data-table {
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.log-data-table .semi-table-container {
+  background: transparent !important;
+}
+
+.log-data-table table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.log-data-table .semi-table-thead > tr > th,
+.log-data-table .semi-table-thead > tr > .semi-table-row-head {
+  padding: 16px 18px !important;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96) !important;
+  background: rgba(248, 250, 252, 0.96) !important;
+  color: #8a94a6 !important;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.log-data-table .semi-table-tbody > tr > td,
+.log-data-table .semi-table-tbody > tr > .semi-table-row-cell {
+  padding: 18px !important;
+  border-bottom: 1px solid rgba(238, 242, 247, 0.96) !important;
+  background: rgba(255, 255, 255, 1) !important;
+  transition: background-color 0.2s ease;
+  vertical-align: middle;
+}
+
+.log-data-table .semi-table-tbody > tr:last-child > td,
+.log-data-table .semi-table-tbody > tr:last-child > .semi-table-row-cell {
+  border-bottom: none !important;
+}
+
+.log-data-table .semi-table-tbody > tr:hover > td,
+.log-data-table .semi-table-tbody > tr:hover > .semi-table-row-cell {
+  background: #ffffff !important;
+}
+
+.log-data-table .semi-tag {
+  border-radius: 999px !important;
+  font-weight: 700;
+}
+
+.log-data-table .semi-avatar {
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+html.dark .log-console-title.semi-typography,
+html.dark .log-table-overview-title.semi-typography,
+html.dark .log-table-metric-chip strong,
+html.dark .log-compact-toggle.semi-button {
+  color: #f8fafc !important;
+}
+
+html.dark .log-console-subtitle,
+html.dark .log-table-overview-subtitle,
+html.dark .log-table-metric-chip span,
+html.dark .log-data-table .semi-table-thead > tr > th,
+html.dark .log-data-table .semi-table-thead > tr > .semi-table-row-head,
+html.dark .log-filter-select-label,
+html.dark .log-filter-date .semi-input::placeholder,
+html.dark .log-filter-control .semi-input::placeholder,
+html.dark .log-filter-select .semi-select-selection-placeholder {
+  color: #98a2b3 !important;
+}
+
+html.dark .log-filter-date .semi-input,
+html.dark .log-filter-control .semi-input,
+html.dark .log-filter-select .semi-select-selection-text {
+  color: #f8fafc !important;
+}
+
+html.dark .log-table-card.table-scroll-card {
+  border-color: rgba(53, 61, 76, 0.96) !important;
+  background: radial-gradient(
+      circle at top left,
+      rgba(59, 130, 246, 0.16),
+      transparent 32%
+    ),
+    linear-gradient(180deg, rgba(21, 24, 30, 0.98), rgba(16, 18, 24, 0.98)) !important;
+  box-shadow: none !important;
+}
+
+html.dark .log-table-card .semi-card-footer {
+  background: linear-gradient(
+    180deg,
+    rgba(17, 19, 24, 0),
+    rgba(16, 19, 24, 0.9)
+  );
+}
+
+html.dark .log-table-overview-eyebrow,
+html.dark .log-table-metric-chip,
+html.dark .log-compact-toggle.semi-button,
+html.dark .log-filter-date .semi-datepicker-range-input,
+html.dark .log-filter-control .semi-input-wrapper,
+html.dark .log-filter-control.semi-input-wrapper,
+html.dark .log-filter-select,
+html.dark .log-filter-select .semi-select-selection,
+html.dark .log-data-table {
+  border-color: rgba(58, 66, 82, 0.95) !important;
+  background: rgba(16, 19, 24, 0.92) !important;
+  box-shadow: unset !important;
+}
+
+html.dark .log-table-overview-eyebrow {
+  color: var(--app-accent-strong);
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input,
+html.dark .log-filter-control .semi-input-wrapper,
+html.dark .log-filter-select .semi-select-selection {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input-separator-active {
+  color: #f8fafc !important;
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input-prefix,
+html.dark .log-filter-date .semi-datepicker-range-input-suffix,
+html.dark .log-filter-date .semi-datepicker-range-input-clearbtn,
+html.dark .log-filter-date .semi-datepicker-range-input-separator,
+html.dark .log-filter-control .semi-input-prefix,
+html.dark .log-filter-control .semi-input-suffix,
+html.dark .log-filter-select .semi-select-selection-icon {
+  color: #667085 !important;
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input:hover,
+html.dark .log-filter-control .semi-input-wrapper:hover,
+html.dark .log-filter-select .semi-select-selection:hover {
+  border-color: rgba(76, 88, 110, 0.96) !important;
+  background: rgba(21, 24, 31, 0.98) !important;
+}
+
+html.dark .log-filter-date .semi-datepicker-range-input:focus-within,
+html.dark .log-filter-control .semi-input-wrapper-focus,
+html.dark .log-filter-select.semi-select-focus .semi-select-selection,
+html.dark .log-filter-select .semi-select-selection:focus-within {
+  border-color: rgba(168, 85, 247, 0.55) !important;
+  background: rgba(21, 24, 31, 0.98) !important;
+  box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.14) !important;
+}
+
+html.dark .log-data-table .semi-table-thead > tr > th,
+html.dark .log-data-table .semi-table-thead > tr > .semi-table-row-head {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(24, 28, 35, 0.98) !important;
+}
+
+html.dark .log-data-table .semi-table-tbody > tr > td,
+html.dark .log-data-table .semi-table-tbody > tr > .semi-table-row-cell {
+  border-bottom-color: rgba(43, 48, 59, 0.95) !important;
+  background: rgba(18, 21, 27, 1) !important;
+}
+
+html.dark .log-data-table .semi-table-tbody > tr:hover > td,
+html.dark .log-data-table .semi-table-tbody > tr:hover > .semi-table-row-cell {
+  background: rgba(22, 26, 33, 0.98) !important;
+}
+
+@media (max-width: 1024px) {
+  .log-table-overview,
+  .log-table-overview-side {
+    justify-content: flex-start;
+  }
+
+  .log-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .log-filter-item {
+    grid-column: span 1;
+  }
+
+  .log-filter-range {
+    grid-column: span 2;
+  }
+
+  .log-filter-toolbar-item {
+    grid-column: span 1;
+  }
+  .log-filter-toolbar-item2 {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 767px) {
+  .log-page-shell {
+    padding: 76px 0 24px;
+  }
+
+  .log-console-title.semi-typography {
+    font-size: 28px;
+  }
+
+  .log-table-card .semi-card-header {
+    padding: 20px 20px 12px !important;
+  }
+
+  .log-table-card .semi-card-body {
+    padding: 0 16px 16px !important;
+  }
+
+  .log-table-card .semi-card-footer {
+    padding: 16px !important;
+  }
+
+  .log-table-overview-side,
+  .log-table-metric-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .log-compact-toggle.semi-button,
+  .log-filter-button.semi-button {
+    width: 100%;
+  }
+
+  .log-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .log-filter-item,
+  .log-filter-range {
+    grid-column: span 1;
+  }
+
+  .log-filter-toolbar-item {
+    grid-column: span 1;
+  }
+  .log-filter-toolbar-item2 {
+    grid-column: span 1;
+  }
+
+  .log-filter-select {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .log-filter-select .semi-select-selection {
+    width: 100%;
+  }
+}

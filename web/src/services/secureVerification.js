@@ -120,9 +120,7 @@ export class SecureVerificationService {
       // 开始Passkey验证
       const beginResponse = await API.post('/api/user/passkey/verify/begin');
       if (!beginResponse.data?.success) {
-        throw new Error(
-          beginResponse.data?.message || i18n.t('开始验证失败'),
-        );
+        throw new Error(beginResponse.data?.message || i18n.t('开始验证失败'));
       }
 
       // 准备WebAuthn选项

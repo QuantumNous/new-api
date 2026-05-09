@@ -65,16 +65,18 @@ const SearchActions = memo(
     }, [tokenUnit, setTokenUnit]);
 
     return (
-      <div className='flex items-center gap-2 w-full'>
-        <div className='flex-1'>
+      <div className='pricing-actions-bar flex items-center gap-2 w-full'>
+        <div className='pricing-actions-search flex-1'>
           <Input
             prefix={<IconSearch />}
             placeholder={t('模糊搜索模型名称')}
+            size='large'
             value={searchValue}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onChange={handleChange}
             showClear
+            className='pricing-search-control'
           />
         </div>
 
@@ -84,22 +86,29 @@ const SearchActions = memo(
           icon={<IconCopy />}
           onClick={handleCopyClick}
           disabled={selectedRowKeys.length === 0}
-          className='!bg-blue-500 hover:!bg-blue-600 !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
+          className='pricing-toolbar-button pricing-toolbar-button-primary'
         >
           {t('复制')}
         </Button>
 
         {!isMobile && (
           <>
-            <Divider layout='vertical' margin='8px' />
+            <Divider
+              layout='vertical'
+              margin='8px'
+              className='pricing-actions-divider'
+            />
 
             {/* 充值价格显示开关 */}
             {supportsCurrencyDisplay && (
-              <div className='flex items-center gap-2'>
-                <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
+              <div className='pricing-toggle-chip flex items-center gap-2'>
+                <span className='pricing-toggle-label text-sm text-gray-600'>
+                  {t('充值价格显示')}
+                </span>
                 <Switch
                   checked={showWithRecharge}
                   onChange={setShowWithRecharge}
+                  className='pricing-toolbar-switch'
                 />
               </div>
             )}
@@ -114,13 +123,20 @@ const SearchActions = memo(
                   { value: 'CNY', label: 'CNY' },
                   { value: 'CUSTOM', label: t('自定义货币') },
                 ]}
+                className='pricing-currency-select'
               />
             )}
 
             {/* 显示倍率开关 */}
-            <div className='flex items-center gap-2'>
-              <span className='text-sm text-gray-600'>{t('倍率')}</span>
-              <Switch checked={showRatio} onChange={setShowRatio} />
+            <div className='pricing-toggle-chip flex items-center gap-2'>
+              <span className='pricing-toggle-label text-sm text-gray-600'>
+                {t('倍率')}
+              </span>
+              <Switch
+                checked={showRatio}
+                onChange={setShowRatio}
+                className='pricing-toolbar-switch'
+              />
             </div>
 
             {/* 视图模式切换按钮 */}
@@ -128,6 +144,7 @@ const SearchActions = memo(
               theme={viewMode === 'table' ? 'solid' : 'outline'}
               type={viewMode === 'table' ? 'primary' : 'tertiary'}
               onClick={handleViewModeToggle}
+              className={`pricing-toolbar-button ${viewMode === 'table' ? 'pricing-toolbar-button-primary' : ''}`}
             >
               {t('表格视图')}
             </Button>
@@ -137,6 +154,7 @@ const SearchActions = memo(
               theme={tokenUnit === 'K' ? 'solid' : 'outline'}
               type={tokenUnit === 'K' ? 'primary' : 'tertiary'}
               onClick={handleTokenUnitToggle}
+              className={`pricing-toolbar-button ${tokenUnit === 'K' ? 'pricing-toolbar-button-primary' : ''}`}
             >
               {tokenUnit}
             </Button>
@@ -149,6 +167,7 @@ const SearchActions = memo(
             type='tertiary'
             icon={<IconFilter />}
             onClick={handleFilterClick}
+            className='pricing-toolbar-button pricing-filter-trigger'
           >
             {t('筛选')}
           </Button>

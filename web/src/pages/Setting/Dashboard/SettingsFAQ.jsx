@@ -400,7 +400,8 @@ const SettingsFAQ = ({ options, refresh }) => {
             currentPage: currentPage,
             pageSize: pageSize,
             total: faqList.length,
-            showSizeChanger: true,
+            showSizeChanger: faqList.length > pageSize,
+            hideOnSinglePage: faqList.length <= pageSize,
             showQuickJumper: true,
             pageSizeOptions: ['5', '10', '20', '50'],
             onChange: (page, size) => {

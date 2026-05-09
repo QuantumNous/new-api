@@ -36,21 +36,30 @@ const ChangePasswordModal = ({
   return (
     <Modal
       title={
-        <div className='flex items-center'>
-          <IconLock className='mr-2 text-orange-500' />
-          {t('修改密码')}
+        <div className='personal-settings-modal-title-row'>
+          <IconLock className='personal-settings-modal-title-icon' />
+          <div>
+            <div className='personal-settings-modal-title'>{t('修改密码')}</div>
+            <div className='personal-settings-modal-subtitle'>
+              {t('更新登录密码以提升账户安全性')}
+            </div>
+          </div>
         </div>
       }
       visible={showChangePasswordModal}
       onCancel={() => setShowChangePasswordModal(false)}
       onOk={changePassword}
+      okText={t('保存密码')}
+      cancelText={t('取消')}
+      okButtonProps={{ className: 'personal-settings-primary-button' }}
+      cancelButtonProps={{ className: 'personal-settings-outline-button' }}
       size={'small'}
       centered={true}
-      className='modern-modal'
+      className='personal-settings-modal'
     >
-      <div className='space-y-4 py-4'>
-        <div>
-          <Typography.Text strong className='block mb-2'>
+      <div className='personal-settings-modal-body'>
+        <div className='personal-settings-modal-field'>
+          <Typography.Text strong className='personal-settings-modal-label'>
             {t('原密码')}
           </Typography.Text>
           <Input
@@ -60,13 +69,13 @@ const ChangePasswordModal = ({
             value={inputs.original_password}
             onChange={(value) => handleInputChange('original_password', value)}
             size='large'
-            className='!rounded-lg'
+            className='personal-settings-modal-input'
             prefix={<IconLock />}
           />
         </div>
 
-        <div>
-          <Typography.Text strong className='block mb-2'>
+        <div className='personal-settings-modal-field'>
+          <Typography.Text strong className='personal-settings-modal-label'>
             {t('新密码')}
           </Typography.Text>
           <Input
@@ -76,13 +85,13 @@ const ChangePasswordModal = ({
             value={inputs.set_new_password}
             onChange={(value) => handleInputChange('set_new_password', value)}
             size='large'
-            className='!rounded-lg'
+            className='personal-settings-modal-input'
             prefix={<IconLock />}
           />
         </div>
 
-        <div>
-          <Typography.Text strong className='block mb-2'>
+        <div className='personal-settings-modal-field'>
+          <Typography.Text strong className='personal-settings-modal-label'>
             {t('确认新密码')}
           </Typography.Text>
           <Input
@@ -94,13 +103,13 @@ const ChangePasswordModal = ({
               handleInputChange('set_new_password_confirmation', value)
             }
             size='large'
-            className='!rounded-lg'
+            className='personal-settings-modal-input'
             prefix={<IconLock />}
           />
         </div>
 
         {turnstileEnabled && (
-          <div className='flex justify-center'>
+          <div className='personal-settings-modal-captcha'>
             <Turnstile
               sitekey={turnstileSiteKey}
               onVerify={(token) => {
