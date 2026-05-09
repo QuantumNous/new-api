@@ -193,6 +193,12 @@ func intPtr(v int) *int {
 // Main entry point
 // ----------------------------------------------------------------------------
 
+// v3FrameIdleTimeout caps how long a single ReceiveMessage may block when
+// upstream stops sending frames. Volcengine TTS responses are typically a
+// continuous audio stream; 30s of silence reliably indicates a stalled
+// upstream and we'd rather surface a 502 than pin a goroutine indefinitely.
+const v3FrameIdleTimeout = 30 * time.Second
+
 // handleTTSV3WSResponse drives a single OpenAI /v1/audio/speech (+stream)
 // request through Volcengine v3 bidirectional or unidirectional WebSocket.
 // Audio bytes are written directly to c.Writer (chunked transfer); usage is
@@ -225,6 +231,21 @@ func handleTTSV3WSResponse(c *gin.Context, requestURL string, vReq VolcengineTTS
 		)
 	}
 	defer conn.Close()
+
+	// Tear down the upstream WS as soon as the client disconnects (or relay
+	// context is otherwise cancelled). Without this, ReceiveMessage would block
+	// on the underlying TCP socket until OS keepalive trips, holding the gin
+	// worker for many minutes.
+	clientCtx := c.Request.Context()
+	stopWatcher := make(chan struct{})
+	go func() {
+		select {
+		case <-clientCtx.Done():
+			_ = conn.Close()
+		case <-stopWatcher:
+		}
+	}()
+	defer close(stopWatcher)
 
 	// Capture upstream logid (best-effort; ignore if absent).
 	if resp != nil {
@@ -287,8 +308,19 @@ func handleTTSV3WSResponse(c *gin.Context, requestURL string, vReq VolcengineTTS
 
 drainLoop:
 	for {
+		// Per-frame sliding deadline. Refreshed on each successful read so a
+		// healthy stream keeps flowing while a stalled upstream times out.
+		_ = conn.SetReadDeadline(time.Now().Add(v3FrameIdleTimeout))
 		msg, recvErr := ReceiveMessage(conn)
 		if recvErr != nil {
+			// Client gone away → conn was closed by the watcher goroutine.
+			if clientCtx.Err() != nil {
+				return nil, types.NewErrorWithStatusCode(
+					fmt.Errorf("volcengine v3 stream cancelled by client: %w", clientCtx.Err()),
+					types.ErrorCodeBadResponse,
+					http.StatusGatewayTimeout,
+				)
+			}
 			if websocket.IsCloseError(recvErr, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 				break drainLoop
 			}
@@ -388,9 +420,11 @@ func v3WrapError(err error, hint string) *types.NewAPIError {
 
 // v3ExpectEvent blocks until either the success event or the failure event
 // arrives. Any other event (e.g. SentenceStart) is swallowed; an MsgTypeError
-// frame surfaces immediately.
+// frame surfaces immediately. A per-call read deadline ensures we don't hang
+// forever if upstream goes silent during the handshake.
 func v3ExpectEvent(conn *websocket.Conn, success, failure EventType) *types.NewAPIError {
 	for {
+		_ = conn.SetReadDeadline(time.Now().Add(v3FrameIdleTimeout))
 		msg, err := ReceiveMessage(conn)
 		if err != nil {
 			return v3WrapError(err, fmt.Sprintf("waiting for %s", success))
