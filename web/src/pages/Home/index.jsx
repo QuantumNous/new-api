@@ -541,6 +541,7 @@ response = client.chat.completions.create(
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.5 }}
               className='home-stats-grid grid grid-cols-2 gap-6 sm:grid-cols-4'
+              style={{ display: 'none' }}
             >
               {stats.map((stat, index) => (
                 <motion.div
@@ -674,7 +675,10 @@ response = client.chat.completions.create(
             </div>
           </motion.div>
 
-          <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-4'>
+          <div
+            className='grid gap-6 sm:grid-cols-2 lg:grid-cols-4'
+            style={{ display: 'none' }}
+          >
             {providers.map((provider, index) => (
               <motion.div
                 key={index}
@@ -855,7 +859,10 @@ response = client.chat.completions.create(
         </div>
       </section>
 
-      <section className='home-section home-section-pricing relative overflow-hidden px-4 pb-20 pt-16 sm:px-6 lg:px-8'>
+      <section
+        className='home-section home-section-pricing relative overflow-hidden px-4 pb-20 pt-16 sm:px-6 lg:px-8'
+        style={{ display: 'none' }}
+      >
         <div className='home-shell mx-auto max-w-6xl'>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -946,7 +953,10 @@ response = client.chat.completions.create(
         </div>
       </section>
 
-      <section className='home-section home-section-soft relative overflow-hidden px-4 py-20 sm:px-6 lg:px-8'>
+      <section
+        className='home-section home-section-soft relative overflow-hidden px-4 py-20 sm:px-6 lg:px-8'
+        style={{ display: 'none' }}
+      >
         <div className='home-shell mx-auto max-w-4xl'>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1039,7 +1049,10 @@ response = client.chat.completions.create(
       </section>
 
       {/* FAQ Section */}
-      <section className='home-section home-section-soft relative overflow-hidden px-4 py-24 sm:px-6 lg:px-8'>
+      <section
+        className='home-section home-section-soft relative overflow-hidden px-4 py-24 sm:px-6 lg:px-8'
+        style={{ display: 'none' }}
+      >
         <div className='home-shell mx-auto max-w-4xl'>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
