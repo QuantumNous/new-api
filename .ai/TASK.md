@@ -1534,3 +1534,64 @@ status: completed
 ### 下一步最小任务建议
 
 - 同时在新版和旧版前端做人工验收：旧版打开 `/console/setting?tab=operation`，在“额度设置”中确认邀请返利配置和“查看邀请返利流水”入口；新版继续确认 `/system-settings/operations/quota` 与 Billing 下返利流水入口可用。
+
+## 邀请返利生产问题修复记录
+
+任务名：修复邀请返利结算边界与配置持久化一致性
+
+status: completed
+
+### 问题背景
+
+- 资金相关审计发现边界风险：`BillingSession.Settle` 中资金来源结算成功后，如果后续 token 额度调整失败，函数仍返回 error。
+- 邀请返利同步挂接只在 `SettleBilling` 返回 nil 后触发，因此可能出现“实际消费已成立，但返利被 token 后置统计失败阻断”的漏返利。
+- 配置持久化一致性风险：`InvitationRebateRatioBps` 和 `InvitationRebateMinQuota` 原先会先把原始值写入 `options` 表，再在内存中做 clamp，可能留下脏配置值。
+
+### 本轮实际修改文件
+
+- `service/billing_session.go`
+- `service/billing_session_test.go`
+- `model/option.go`
+- `model/option_test.go`
+- `.ai/TASK.md`
+
+### 修复摘要
+
+- `funding.Settle(delta)` 失败时仍返回 error，不触发邀请返利。
+- `funding.Settle(delta)` 成功后，如果 token 额度调整失败，只记录系统日志，`BillingSession.Settle` 返回 nil。
+- 资金侧已结算成功时，后续邀请返利等成功后置逻辑不再被 token 统计失败阻断。
+- `InvitationRebateRatioBps` 写入 DB 前规范化到 `0..10000`。
+- `InvitationRebateMinQuota` 写入 DB 前负数归零。
+- 后端返利 service、消费挂接点、前端页面、model 结构、migration 均未修改。
+
+### 数据修复原则
+
+- 本轮不连接真实 New API 实例，不直接修改生产数据。
+- 生产补发必须先在备份库或本地库 dry-run，确认问题窗口内“实际已扣费但缺少 `invitation_rebate_records`”的消费。
+- 补发必须复用 `TryGrantInvitationRebate` 的幂等语义，使用原始 `request_id` 作为 `SourceKey` / `SourceRequestID`，不得直接 SQL 增加 `aff_quota`。
+- 已存在同一 `source_type + source_key` 的记录必须跳过，避免重复返利。
+
+### 验证命令与结果
+
+- `gofmt -w service/billing_session.go service/billing_session_test.go model/option.go model/option_test.go`：通过。
+- `go test ./service -run "TestBillingSessionSettle|TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume" -count=1`：通过。
+- `go test ./model -run TestUpdateInvitationRebateOptionsPersistNormalizedValues -count=1`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `git diff --check`：通过。
+- `go test ./service/...`：未通过，失败仍在既有 `service/channel_affinity_usage_cache_test.go`，与本轮邀请返利结算修复无直接调用关系；本轮定向 service 测试已通过。
+
+### 自审查结果
+
+- 未修改前端。
+- 未修改返利 service。
+- 未修改消费挂接点。
+- 未修改充值、注册 / OAuth、异步任务、Midjourney。
+- 未修改 model 结构、migration、依赖文件。
+- 未提交 `node_modules` 或构建产物。
+- 未输出或写入 token / secret / sk- key / bearer token。
+
+### 下一步建议
+
+- 在生产备份库按问题窗口生成漏返利 dry-run 清单，再决定是否执行一次性补发。
+- 补发后抽查 `invitation_rebate_records`、邀请人 `aff_quota` / `aff_history` 与消费记录的一致性。

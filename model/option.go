@@ -210,6 +210,7 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	value = normalizeOptionValueForStorage(key, value)
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -223,6 +224,28 @@ func UpdateOption(key string, value string) error {
 	DB.Save(&option)
 	// Update OptionMap
 	return updateOptionMap(key, value)
+}
+
+func normalizeOptionValueForStorage(key string, value string) string {
+	switch key {
+	case "InvitationRebateRatioBps":
+		ratioBps, _ := strconv.Atoi(value)
+		if ratioBps < 0 {
+			ratioBps = 0
+		}
+		if ratioBps > 10000 {
+			ratioBps = 10000
+		}
+		return strconv.Itoa(ratioBps)
+	case "InvitationRebateMinQuota":
+		minQuota, _ := strconv.Atoi(value)
+		if minQuota < 0 {
+			minQuota = 0
+		}
+		return strconv.Itoa(minQuota)
+	default:
+		return value
+	}
 }
 
 func updateOptionMap(key string, value string) (err error) {
