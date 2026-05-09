@@ -1920,3 +1920,51 @@ status: completed
 - 生产继续保持 `InvitationRebateEnabled=false`，先部署加固版本并在备份库/本地验证行锁、充值回调重试和累计返利并发场景。
 - 单独排期修复既有 `service/channel_affinity_usage_cache_test.go` 测试债务，恢复 `go test ./service/...` 全绿。
 - 如需恢复生产邀请返利，先用小比例、小门槛、测试账号跑完整消费到返利流水链路。
+## service 通道亲和缓存统计测试隔离修复记录
+任务名称：修复 `channel_affinity_usage_cache_test.go` 既有测试隔离失败
+status: completed
+
+### 本轮目标
+
+- 修复 `go test ./service/...` 中既有 `TestObserveChannelAffinityUsageCacheByRelayFormat` 统计串扰失败。
+- 只修改测试隔离逻辑，不修改通道亲和业务实现。
+- 不修改邀请返利、充值、消费挂接、model/migration、前端或依赖。
+
+### 问题归因
+
+- 失败复现时，`MixedMode` 或 `UnsupportedModeKeepsEmpty` 的 `Total` 会累加前置用例统计。
+- 测试原先使用 `time.Now().UnixNano()` 生成 `ruleName` 与 `keyFP`。
+- 在当前环境快速执行时，该时间戳后缀可能不足以隔离包级统计缓存，导致多个用例命中同一统计 key。
+
+### 修改文件
+
+- `service/channel_affinity_usage_cache_test.go`
+- `.ai/TASK.md`
+
+### 修复摘要
+
+- 新增测试专用原子计数器和唯一后缀 helper。
+- 使用测试名 + 原子递增值生成 `ruleName` 与 `keyFP`。
+- 移除对 `time.Now().UnixNano()` 的依赖。
+- 未修改 `service/channel_affinity.go` 或任何业务代码。
+
+### 验证命令与结果
+
+- `gofmt -w service/channel_affinity_usage_cache_test.go`：通过。
+- `go test ./service -run TestObserveChannelAffinityUsageCacheByRelayFormat -count=1 -v`：通过。
+- `go test ./service/...`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 已确认只修改测试隔离与任务记录。
+- 已确认未修改邀请返利 service、消费挂接、充值、注册 / OAuth、异步任务、Midjourney。
+- 已确认未修改 model/migration、前端、依赖文件。
+- 已确认未提交 node_modules、构建产物或任何密钥。
+
+### 下一步建议
+
+- 资金链路继续保持上线前人工验收：小比例、小门槛、测试账号验证完整消费到返利流水链路。
+- 后续如需继续增强，可补 MySQL/PostgreSQL 集成环境下的资金行锁与并发回归测试。
