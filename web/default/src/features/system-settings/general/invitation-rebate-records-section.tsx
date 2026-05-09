@@ -33,6 +33,14 @@ function formatRebateStatus(status: string, t: (key: string) => string) {
   return status
 }
 
+function formatRebatePercentage(ratioBps: number) {
+  const percent = ratioBps / 100
+  const formatted = Number.isInteger(percent)
+    ? percent.toFixed(0)
+    : percent.toFixed(2).replace(/\.?0+$/, '')
+  return `${formatted}%`
+}
+
 function positiveNumberOrUndefined(value: string) {
   const trimmed = value.trim()
   if (trimmed === '') return undefined
@@ -167,7 +175,7 @@ export function InvitationRebateRecordsSection() {
                   <TableHead>{t('Request ID')}</TableHead>
                   <TableHead>{t('Source Quota')}</TableHead>
                   <TableHead>{t('Rebate Quota')}</TableHead>
-                  <TableHead>{t('Rebate Ratio (bps)')}</TableHead>
+                  <TableHead>{t('Rebate Percentage')}</TableHead>
                   <TableHead>{t('Status')}</TableHead>
                   <TableHead>{t('Created At')}</TableHead>
                 </TableRow>
@@ -219,7 +227,7 @@ export function InvitationRebateRecordsSection() {
                         {formatQuota(record.rebate_quota)}
                       </TableCell>
                       <TableCell className='font-mono text-xs'>
-                        {record.rebate_ratio_bps}
+                        {formatRebatePercentage(record.rebate_ratio_bps)}
                       </TableCell>
                       <TableCell>
                         <Badge variant='secondary'>

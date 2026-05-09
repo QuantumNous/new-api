@@ -6,6 +6,7 @@ import { getOptionValue, useSystemOptions } from '../hooks/use-system-options'
 import type { OperationsSettings } from '../types'
 import {
   OPERATIONS_DEFAULT_SECTION,
+  type OperationsSectionId,
   getOperationsSectionContent,
 } from './section-registry.tsx'
 
@@ -14,6 +15,16 @@ const defaultOperationsSettings: OperationsSettings = {
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
+  QuotaForNewUser: 0,
+  PreConsumedQuota: 0,
+  QuotaForInviter: 0,
+  QuotaForInvitee: 0,
+  InvitationRebateEnabled: false,
+  InvitationRebateRatioBps: 0,
+  InvitationRebateMinQuota: 0,
+  TopUpLink: '',
+  'general_setting.docs_link': '',
+  'quota_setting.enable_free_model_pre_consume': true,
   ChannelDisableThreshold: '',
   QuotaRemindThreshold: '',
   AutomaticDisableChannelEnabled: false,
@@ -70,14 +81,8 @@ export function OperationsSettings() {
     )
   }
 
-  const activeSection = (params?.section ?? OPERATIONS_DEFAULT_SECTION) as
-    | 'behavior'
-    | 'monitoring'
-    | 'email'
-    | 'worker'
-    | 'logs'
-    | 'performance'
-    | 'update-checker'
+  const activeSection = (params?.section ??
+    OPERATIONS_DEFAULT_SECTION) as OperationsSectionId
   const sectionContent = getOperationsSectionContent(
     activeSection,
     settings,

@@ -1385,3 +1385,96 @@ status: completed
 - 为后台流水表格增加更细的日期范围筛选。
 - 在测试环境增加真实同步请求的端到端验收脚本。
 - 若未来有主库 usage ledger，可将 `source_key` 从 request id 演进到主库结算流水 id。
+
+## 阶段 3B 体验调整记录
+
+任务名：迁移邀请返利配置到“运营设置 → 额度设置”并改为百分比输入
+
+status: completed
+
+### 本轮目标
+
+- 只移动邀请返利配置项：`InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota`。
+- 后台输入不再展示 bps，改为直接输入百分比；输入 `10` 表示 `10%`。
+- 后端仍沿用 `InvitationRebateRatioBps` 配置 key，前端负责读写换算，保持旧数据和返利 service 兼容。
+- 不移动邀请返利流水入口，不修改消费挂接、返利 service、数据库结构、后端 option API 或依赖。
+
+### 实现摘要
+
+- 将额度设置 section 从 Billing 分组迁移到 Operations 分组，目标路径为 `/system-settings/operations/quota`。
+- 在额度设置中加入“邀请返利”配置块，包含启用开关、返利百分比、最小触发消费额度。
+- 读取时将 `InvitationRebateRatioBps / 100` 显示为百分比。
+- 保存时将百分比 `* 100` 并四舍五入写回 `InvitationRebateRatioBps`。
+- 百分比输入限制为 `0..100`，最多两位小数；例如 `10` 保存为 `1000 bps`，`12.5` 保存为 `1250 bps`。
+- 移除独立 `Invitation Rebate` 配置 section，保留 Billing 下的 `Invitation Rebate Records` 只读流水入口。
+- 旧路径 `/system-settings/billing/invitation-rebate` 和 `/system-settings/billing/quota` 重定向到 `/system-settings/operations/quota`。
+- 流水表格中的返利比例列改为显示百分比，避免后台继续暴露 bps 概念。
+- 补齐 en / zh / fr / ja / ru / vi locale 新增文案，并将中文侧栏 `Operations` 调整为“运营设置”。
+
+### 本轮实际修改文件
+
+- `web/default/src/features/system-settings/billing/index.tsx`
+- `web/default/src/features/system-settings/billing/section-registry.tsx`
+- `web/default/src/features/system-settings/general/quota-settings-section.tsx`
+- `web/default/src/features/system-settings/general/invitation-rebate-records-section.tsx`
+- `web/default/src/features/system-settings/general/invitation-rebate-settings-section.tsx`（删除）
+- `web/default/src/features/system-settings/operations/index.tsx`
+- `web/default/src/features/system-settings/operations/section-registry.tsx`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/routes/_authenticated/system-settings/billing/$section.tsx`
+- `web/default/src/i18n/locales/en.json`
+- `web/default/src/i18n/locales/zh.json`
+- `web/default/src/i18n/locales/fr.json`
+- `web/default/src/i18n/locales/ja.json`
+- `web/default/src/i18n/locales/ru.json`
+- `web/default/src/i18n/locales/vi.json`
+- `.ai/TASK.md`
+
+### 本轮未修改范围
+
+- 未修改消费挂接逻辑。
+- 未修改返利 service。
+- 未修改后端 option 逻辑。
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改异步任务 / Midjourney。
+- 未修改 model / migration。
+- 未修改依赖文件。
+- 未执行 `.agents/skills` 命令。
+
+### 验证命令与结果
+
+- `bun --version`：当前 shell 未直接识别全局 `bun`，使用上一轮已安装的临时 Bun 路径 `%TEMP%/codex-bun-tool/node_modules/.bin`，版本 `1.3.13`。
+- `Test-Path web/default/node_modules`：通过，结果为 `True`。
+- `cd web/default && bun run typecheck`：通过。
+- `cd web/default && bun run build`：通过。
+- `cd web/default && bun run lint`：未通过，失败文件均为既有非本轮文件，和本轮修改文件无交集，按既有 lint 债务豁免：
+  - `web/default/src/features/keys/components/api-keys-dialogs.tsx`
+  - `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+  - `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+  - `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`
+  - `web/default/src/features/usage-logs/components/common-logs-filter-bar.tsx`
+  - `web/default/src/features/usage-logs/components/task-logs-filter-bar.tsx`
+  - `web/default/src/lib/theme-radius.ts`
+  - warnings：`web/default/src/features/channels/components/channels-table.tsx`、`web/default/src/features/dashboard/components/users/user-charts.tsx`
+- `node -` locale JSON parse、六语言 key 一致性与新增 key 完整性检查：通过。
+- `git diff --check`：通过。
+- `git status --short`：确认仅存在本轮允许范围内前端、locale 与 `.ai/TASK.md` 变更。
+- `git diff --stat` / `git diff`：已执行，用于确认迁移 diff 和未改后端逻辑。
+
+### 自审查结果
+
+- 通过：本轮 diff 只包含阶段 3B 体验调整相关前端文件、locale 和 `.ai/TASK.md`。
+- 通过：没有修改后端、消费挂接、返利 service、充值、注册 / OAuth、异步任务、Midjourney、model / migration 或依赖文件。
+- 通过：没有提交 `node_modules`，也没有 lockfile / package 依赖定义变更。
+- 通过：百分比输入仅在前端转换为 `InvitationRebateRatioBps`，兼容旧配置值，不改变后端返利计算逻辑。
+- 通过：旧路径重定向到 `/system-settings/operations/quota`，不移动 Billing 下只读流水入口。
+- 通过：没有 token / secret / sk- key / bearer token。
+
+### commit hash
+
+- 本轮提交：提交后由最终响应记录，避免在同一 commit 中自引用造成 hash 变化。
+
+### 下一步最小任务建议
+
+- 本轮完成后进行本地后台页面人工验收：打开 `/system-settings/operations/quota`，确认能看到返利百分比；输入 `10` 保存后刷新仍显示 `10`；旧路径 `/system-settings/billing/invitation-rebate` 自动跳转到新路径。

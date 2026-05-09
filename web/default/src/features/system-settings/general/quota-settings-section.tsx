@@ -21,21 +21,34 @@ import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
-const quotaSchema = z.object({
-  QuotaForNewUser: z.coerce.number().min(0),
-  PreConsumedQuota: z.coerce.number().min(0),
-  QuotaForInviter: z.coerce.number().min(0),
-  QuotaForInvitee: z.coerce.number().min(0),
-  TopUpLink: z.string(),
-  general_setting: z.object({
-    docs_link: z.string(),
-  }),
-  quota_setting: z.object({
-    enable_free_model_pre_consume: z.boolean(),
-  }),
-})
+const hasAtMostTwoDecimals = (value: number) =>
+  Math.abs(value * 100 - Math.round(value * 100)) < 1e-8
 
-type QuotaFormValues = z.infer<typeof quotaSchema>
+const createQuotaSchema = (t: (key: string) => string) =>
+  z.object({
+    QuotaForNewUser: z.coerce.number().min(0),
+    PreConsumedQuota: z.coerce.number().min(0),
+    QuotaForInviter: z.coerce.number().min(0),
+    QuotaForInvitee: z.coerce.number().min(0),
+    InvitationRebateEnabled: z.boolean(),
+    InvitationRebateRatioPercent: z.coerce
+      .number()
+      .min(0)
+      .max(100)
+      .refine(hasAtMostTwoDecimals, {
+        message: t('Use at most two decimal places'),
+      }),
+    InvitationRebateMinQuota: z.coerce.number().int().min(0),
+    TopUpLink: z.string(),
+    general_setting: z.object({
+      docs_link: z.string(),
+    }),
+    quota_setting: z.object({
+      enable_free_model_pre_consume: z.boolean(),
+    }),
+  })
+
+type QuotaFormValues = z.infer<ReturnType<typeof createQuotaSchema>>
 
 type QuotaSettingsSectionProps = {
   defaultValues: QuotaFormValues
@@ -46,6 +59,7 @@ export function QuotaSettingsSection({
 }: QuotaSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const quotaSchema = createQuotaSchema(t)
   const handleNumberChange =
     (onChange: (value: number | string) => void) =>
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -64,6 +78,14 @@ export function QuotaSettingsSection({
       defaultValues,
       onSubmit: async (_data, changedFields) => {
         for (const [key, value] of Object.entries(changedFields)) {
+          if (key === 'InvitationRebateRatioPercent') {
+            await updateOption.mutateAsync({
+              key: 'InvitationRebateRatioBps',
+              value: Math.round(Number(value) * 100),
+            })
+            continue
+          }
+
           await updateOption.mutateAsync({
             key,
             value: value as string | number | boolean,
@@ -177,6 +199,100 @@ export function QuotaSettingsSection({
               </FormItem>
             )}
           />
+
+          <div className='space-y-4 rounded-lg border p-4'>
+            <div className='space-y-1'>
+              <h4 className='text-sm font-medium'>{t('Invitation Rebate')}</h4>
+              <p className='text-muted-foreground text-sm'>
+                {t("Configure rebates from invited users' actual consumption")}
+              </p>
+            </div>
+
+            <FormField
+              control={form.control}
+              name='InvitationRebateEnabled'
+              render={({ field }) => (
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('Enable Invitation Rebate')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        "Grant inviter rewards after invited users consume quota. Rebates are based on actual consumption, not top-ups."
+                      )}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={updateOption.isPending || isSubmitting}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <div className='grid gap-6 sm:grid-cols-2'>
+              <FormField
+                control={form.control}
+                name='InvitationRebateRatioPercent'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Rebate Percentage')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        value={field.value ?? ''}
+                        onChange={handleNumberChange(field.onChange)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Enter 10 for 10%. Rebates are based on actual consumed quota, not top-ups.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='InvitationRebateMinQuota'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Minimum Consumption Quota')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        step={1}
+                        value={field.value ?? ''}
+                        onChange={handleNumberChange(field.onChange)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Only grant rebates when actual consumed quota reaches this value.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
 
           <FormField
             control={form.control}
