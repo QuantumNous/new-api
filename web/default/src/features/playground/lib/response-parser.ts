@@ -1,3 +1,4 @@
+import { t } from 'i18next'
 import type { PlaygroundEndpoint, PlaygroundImage } from '../types'
 
 interface NormalizedPlaygroundResponse {
@@ -167,7 +168,7 @@ export function normalizePlaygroundError(error: unknown): {
 
   if (status === 504) {
     return {
-      message: 'Gateway timeout. The image generation request took too long. Please try again later.',
+      message: t('errors.gatewayTimeout'),
       code: undefined,
     }
   }
@@ -175,8 +176,13 @@ export function normalizePlaygroundError(error: unknown): {
   if (typeof responseData === 'string') {
     return {
       message: status
-        ? `HTTP error ${status}${err?.response?.statusText ? `: ${err.response.statusText}` : ''}`
-        : err?.message || 'Request error occurred',
+        ? t('errors.httpError', {
+            status,
+            statusText: err?.response?.statusText
+              ? `: ${err.response.statusText}`
+              : '',
+          })
+        : t('errors.requestError'),
       code: undefined,
     }
   }
@@ -186,7 +192,7 @@ export function normalizePlaygroundError(error: unknown): {
       responseData?.error?.message ||
       responseData?.message ||
       err?.message ||
-      'Request error occurred',
+      t('errors.requestError'),
     code: responseData?.error?.code || undefined,
   }
 }

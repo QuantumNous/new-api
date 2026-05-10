@@ -140,7 +140,7 @@ func GetAndValidateResponsesCompactionRequest(c *gin.Context) (*dto.OpenAIRespon
 	return request, nil
 }
 
-var imageSizePattern = regexp.MustCompile(`^([1-9]\d*)x([1-9]\d*)$`)
+var imageSizePattern = regexp.MustCompile(`^([1-9]\d*)[xX]([1-9]\d*)$`)
 
 var validImageQualities = map[string]struct{}{
 	"low":      {},
@@ -168,10 +168,16 @@ func validateOpenAIImageRequest(imageRequest *dto.ImageRequest) error {
 			return errors.New("size must use axb format with positive integer dimensions")
 		}
 
-		width, _ := strconv.Atoi(matches[1])
-		height, _ := strconv.Atoi(matches[2])
+		width, err := strconv.Atoi(matches[1])
+		if err != nil || width <= 0 {
+			return errors.New("size must use axb format with positive integer dimensions")
+		}
+		height, err := strconv.Atoi(matches[2])
+		if err != nil || height <= 0 {
+			return errors.New("size must use axb format with positive integer dimensions")
+		}
 		if width > 3840 || height > 3840 {
-			return errors.New("size width and height must be less than or equal to 3840")
+			return errors.New("size width and height must be between 1 and 3840")
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -49,6 +50,11 @@ func Playground(c *gin.Context, relayFormat types.RelayFormat) {
 
 	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	if playgroundRequest.Group != "" {
+		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		if playgroundRequest.Group != userGroup && !service.GroupInUserUsableGroups(userGroup, playgroundRequest.Group) {
+			newAPIError = types.NewError(errors.New("group access denied"), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
+			return
+		}
 		usingGroup = playgroundRequest.Group
 	}
 

@@ -102,7 +102,7 @@ export interface ClaudeMessagesRequest {
   stream?: boolean
   temperature?: number
   top_p?: number
-  max_tokens: number
+  max_tokens?: number
 }
 
 export interface ImageGenerationRequest {

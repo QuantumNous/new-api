@@ -2600,8 +2600,6 @@
     "端口号必须在1-65535之间": "Port number must be between 1-65535",
     "端口配置详细说明": "Restrict external requests to specific ports. Use single ports (80, 443) or ranges (8000-8999). Empty list allows all ports. Default includes common web ports.",
     "端点（自动识别）": "Endpoint (auto-detected)",
-    "你知道你正在做什么吗？确定要继续吗？": "Do you know what you are doing? Are you sure you want to continue?",
-    "图片不会被持久化保存。如有需要，请立即下载生成的图片，服务器不会保存图片记忆。": "Images are not persisted. Download generated images immediately if needed; the server does not store image history.",
     "生成的图片 {{index}}": "Generated image {{index}}",
     "图片数据缺失": "Image data missing",
     "端点 URL 必须以 http:// 或 https:// 开头：": "Endpoint URL must start with http:// or https://: ",

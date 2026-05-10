@@ -2588,8 +2588,6 @@
     "端口号必须在1-65535之间": "Port number must be between 1-65535",
     "端口配置详细说明": "Limitez les requêtes externes à des ports spécifiques. Utilisez des ports uniques (80, 443) ou des plages (8000-8999). Une liste vide autorise tous les ports. La valeur par défaut inclut les ports Web courants.",
     "端点（自动识别）": "Point de terminaison (détection automatique)",
-    "你知道你正在做什么吗？确定要继续吗？": "Savez-vous ce que vous faites ? Voulez-vous vraiment continuer ?",
-    "图片不会被持久化保存。如有需要，请立即下载生成的图片，服务器不会保存图片记忆。": "Les images ne sont pas conservées. Téléchargez-les immédiatement si nécessaire ; le serveur ne stocke pas l’historique des images.",
     "生成的图片 {{index}}": "Image générée {{index}}",
     "图片数据缺失": "Données d’image manquantes",
     "端点 URL 必须是完整地址（以 http:// 或 https:// 开头）": "L'URL du point de terminaison doit être une adresse complète (commençant par http:// ou https://)",

@@ -4,7 +4,7 @@ export const IMAGE_QUALITY_OPTIONS = ['low', 'medium', 'high', 'auto'];
 
 export const validateImageSize = (size = '') => {
   const trimmedSize = String(size).trim();
-  const match = /^([1-9]\d*)x([1-9]\d*)$/.exec(trimmedSize);
+  const match = /^([1-9]\d*)[xX]([1-9]\d*)$/.exec(trimmedSize);
 
   if (!match) return 'Size must use axb format with positive integer dimensions';
 

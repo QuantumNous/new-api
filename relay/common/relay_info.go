@@ -413,7 +413,6 @@ func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
 func GenRelayInfoImage(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatOpenAIImage
-	info.RelayMode = relayconstant.RelayModeImagesGenerations
 	return info
 }
 

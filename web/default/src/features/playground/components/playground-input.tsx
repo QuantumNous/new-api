@@ -103,6 +103,11 @@ const endpointOptions: PlaygroundEndpoint[] = [
   'image-generations',
 ]
 
+const endpointSelectLabelId = 'playground-endpoint-select-label'
+const imageQualitySelectLabelId = 'playground-image-quality-select-label'
+const imageSizeInputId = 'playground-image-size-input'
+const imageSizeErrorId = 'playground-image-size-error'
+
 export function PlaygroundInput({
   onSubmit,
   onStop,
@@ -179,7 +184,9 @@ export function PlaygroundInput({
           />
 
           <div className='flex flex-col gap-1'>
-            <span className='text-muted-foreground text-xs'>{t('Endpoint (auto inferred)')}</span>
+            <span className='text-muted-foreground text-xs' id={endpointSelectLabelId}>
+              {t('playground.endpoint.autoInferredLabel')}
+            </span>
             <Select
               value={endpointValue}
               onValueChange={(value) =>
@@ -187,7 +194,11 @@ export function PlaygroundInput({
               }
               disabled={disabled}
             >
-              <SelectTrigger className='w-full justify-between' size='sm'>
+              <SelectTrigger
+                aria-labelledby={endpointSelectLabelId}
+                className='w-full justify-between'
+                size='sm'
+              >
                 <SelectValue>{getEndpointLabel(endpointValue)}</SelectValue>
               </SelectTrigger>
               <SelectContent align='end' className='w-72 max-w-[calc(100vw-2rem)]'>
@@ -196,7 +207,7 @@ export function PlaygroundInput({
                     <div className='flex flex-col gap-0.5'>
                       <span>{getEndpointLabel(endpoint)}</span>
                       <span className='text-muted-foreground text-xs'>
-                        {endpoint === inferredEndpoint ? `${t('Auto inferred')} · ` : ''}
+                        {endpoint === inferredEndpoint ? `${t('playground.endpoint.autoInferred')} · ` : ''}
                         {getEndpointDescription(endpoint)}
                       </span>
                     </div>
@@ -209,13 +220,22 @@ export function PlaygroundInput({
           {showImageOptions && (
             <>
               <div className='flex flex-col gap-1'>
-                <span className='text-muted-foreground text-xs'>{t('Image quality')}</span>
+                <span
+                  className='text-muted-foreground text-xs'
+                  id={imageQualitySelectLabelId}
+                >
+                  {t('playground.image.quality')}
+                </span>
                 <Select
                   value={imageQuality}
                   onValueChange={onImageQualityChange}
                   disabled={disabled}
                 >
-                  <SelectTrigger className='w-full justify-between' size='sm'>
+                  <SelectTrigger
+                    aria-labelledby={imageQualitySelectLabelId}
+                    className='w-full justify-between'
+                    size='sm'
+                  >
                     <SelectValue>{t(imageQuality)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent align='end'>
@@ -229,17 +249,24 @@ export function PlaygroundInput({
               </div>
 
               <div className='flex flex-col gap-1'>
-                <span className='text-muted-foreground text-xs'>{t('Image size')}</span>
+                <label
+                  className='text-muted-foreground text-xs'
+                  htmlFor={imageSizeInputId}
+                >
+                  {t('playground.image.size')}
+                </label>
                 <Input
+                  aria-describedby={imageSizeError ? imageSizeErrorId : undefined}
                   aria-invalid={!!imageSizeError}
                   disabled={disabled}
+                  id={imageSizeInputId}
                   onChange={(event) => onImageSizeChange(event.target.value)}
                   placeholder='1024x1024'
                   value={imageSize}
                 />
                 {imageSizeError && (
-                  <span className='text-destructive text-xs'>
-                    {t(imageSizeError)}
+                  <span className='text-destructive text-xs' id={imageSizeErrorId}>
+                    {imageSizeError}
                   </span>
                 )}
               </div>

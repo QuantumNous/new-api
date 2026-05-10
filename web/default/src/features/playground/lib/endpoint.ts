@@ -1,3 +1,4 @@
+import { t } from 'i18next'
 import type { PlaygroundEndpoint } from '../types'
 
 const IMAGE_MODEL_PATTERNS = [
@@ -38,25 +39,33 @@ export function inferPlaygroundEndpoint(model: string): PlaygroundEndpoint {
 export function getEndpointLabel(endpoint: PlaygroundEndpoint): string {
   switch (endpoint) {
     case 'responses':
-      return 'Responses (/v1/responses)'
+      return t('playground.endpoint.label.responses')
     case 'claude-messages':
-      return 'Claude Messages (/v1/messages)'
+      return t('playground.endpoint.label.claude-messages')
     case 'image-generations':
-      return 'Images (/v1/images/generations)'
-    default:
-      return 'Chat Completions (/v1/chat/completions)'
+      return t('playground.endpoint.label.image-generations')
+    case 'chat-completions':
+      return t('playground.endpoint.label.chat-completions')
+    default: {
+      const exhaustiveCheck: never = endpoint
+      return exhaustiveCheck
+    }
   }
 }
 
 export function getEndpointDescription(endpoint: PlaygroundEndpoint): string {
   switch (endpoint) {
     case 'responses':
-      return 'GPT text models, including Responses image_generation_call results.'
+      return t('playground.endpoint.description.responses')
     case 'claude-messages':
-      return 'Claude Haiku, Sonnet, and Opus models.'
+      return t('playground.endpoint.description.claude-messages')
     case 'image-generations':
-      return 'Dedicated image models such as gpt-image and dall-e.'
-    default:
-      return 'Legacy OpenAI-compatible chat completion models.'
+      return t('playground.endpoint.description.image-generations')
+    case 'chat-completions':
+      return t('playground.endpoint.description.chat-completions')
+    default: {
+      const exhaustiveCheck: never = endpoint
+      return exhaustiveCheck
+    }
   }
 }

@@ -141,7 +141,6 @@ export function buildClaudeMessagesPayload(
     group: config.group,
     messages: processedMessages.filter((m) => m.role !== 'system'),
     stream: config.stream,
-    max_tokens: config.max_tokens,
   }
 
   if (systemMessages.length > 0) {
@@ -157,7 +156,6 @@ export function buildClaudeMessagesPayload(
     parameterEnabled,
     'max_tokens'
   )
-  payload.max_tokens = config.max_tokens
 
   return payload
 }
