@@ -112,7 +112,12 @@ func AggregateResponseStream(body io.Reader) (*UpstreamResponse, error) {
 			var ev struct {
 				Response *UpstreamResponse `json:"response"`
 			}
-			if err := common.UnmarshalJsonStr(data, &ev); err == nil && ev.Response != nil {
+			if err := common.UnmarshalJsonStr(data, &ev); err != nil {
+				common.SysError(fmt.Sprintf("image_stream completed unmarshal err: %s data_len=%d data_head=%s",
+					err.Error(), len(data), data[:min(len(data), 200)]))
+			} else if ev.Response == nil {
+				common.SysError("image_stream completed: ev.Response is nil after unmarshal")
+			} else {
 				snapshot = ev.Response
 				seenCompleted = true
 				usageInfo := "<nil>"
