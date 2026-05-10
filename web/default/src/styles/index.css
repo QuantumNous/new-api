@@ -1,9 +1,28 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/public-sans';
 
 @import './theme.css';
+@import './theme-presets.css';
 
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {
@@ -28,7 +47,7 @@
     @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full font-sans;
   }
 
-  /* Override Radix scroll locking for sticky headers */
+  /* Keep sticky headers stable while primitives lock body scrolling. */
   body[data-scroll-locked] {
     overflow: unset !important;
   }
@@ -158,10 +177,10 @@
   overflow: hidden;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .CollapsibleContent[data-state='open'] {
+  .CollapsibleContent[data-open] {
     animation: slideDown 300ms ease-out;
   }
-  .CollapsibleContent[data-state='closed'] {
+  .CollapsibleContent:not([data-open]) {
     animation: slideUp 300ms ease-out;
   }
 }
@@ -171,13 +190,13 @@
     height: 0;
   }
   to {
-    height: var(--radix-collapsible-content-height);
+    height: var(--collapsible-panel-height);
   }
 }
 
 @keyframes slideUp {
   from {
-    height: var(--radix-collapsible-content-height);
+    height: var(--collapsible-panel-height);
   }
   to {
     height: 0;

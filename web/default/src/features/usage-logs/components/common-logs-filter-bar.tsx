@@ -1,23 +1,49 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react'
-import { useNavigate, getRouteApi } from '@tanstack/react-router'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { useState, useEffect, useCallback } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
-import { ChevronDown, Eye, EyeOff, Loader2, RotateCcw, Search } from 'lucide-react'
+import { useNavigate, getRouteApi } from '@tanstack/react-router'
+import { type Table } from '@tanstack/react-table'
+import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { DataTableToolbar } from '@/components/data-table'
 import { LOG_TYPES } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
+import { CommonLogsStats } from './common-logs-stats'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import { useUsageLogsContext } from './usage-logs-provider'
 
@@ -30,15 +56,13 @@ function isLogTypeValue(value: string): value is LogTypeValue {
   return (logTypeValues as readonly string[]).includes(value)
 }
 
-interface CommonLogsFilterBarProps {
-  stats?: ReactNode
-  viewOptions?: ReactNode
+interface CommonLogsFilterBarProps<TData> {
+  table: Table<TData>
 }
 
-export function CommonLogsFilterBar({
-  stats,
-  viewOptions,
-}: CommonLogsFilterBarProps) {
+export function CommonLogsFilterBar<TData>(
+  props: CommonLogsFilterBarProps<TData>
+) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -47,7 +71,6 @@ export function CommonLogsFilterBar({
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
-  const [expanded, setExpanded] = useState(false)
   const [filters, setFilters] = useState<CommonLogFilters>(() => {
     const { start, end } = getDefaultTimeRange()
     return { startTime: start, endTime: end }
@@ -140,10 +163,41 @@ export function CommonLogsFilterBar({
     !!filters.channel ||
     !!filters.requestId
 
+  const hasAdditionalFilters =
+    !!filters.model || !!filters.group || !!logType || hasExpandedFilters
+
+  const inputClass = 'w-full sm:w-[140px] lg:w-[160px]'
+  const sensitiveType = sensitiveVisible ? 'text' : 'password'
+
+  const statsBar = (
+    <div className='flex flex-wrap items-center gap-2'>
+      <CommonLogsStats />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={() => setSensitiveVisible(!sensitiveVisible)}
+              aria-label={sensitiveVisible ? t('Hide') : t('Show')}
+              className='text-muted-foreground hover:text-foreground size-7'
+            />
+          }
+        >
+          {sensitiveVisible ? <Eye /> : <EyeOff />}
+        </TooltipTrigger>
+        <TooltipContent>
+          {sensitiveVisible ? t('Hide') : t('Show')}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  )
+
   return (
-    <div className='space-y-2 sm:space-y-3'>
-      {/* Primary filter row */}
-      <div className='grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2 lg:grid-cols-[minmax(280px,2fr)_minmax(140px,1fr)_minmax(120px,1fr)_minmax(120px,0.8fr)_auto]'>
+    <DataTableToolbar
+      table={props.table}
+      leftActions={statsBar}
+      customSearch={
         <CompactDateTimeRangePicker
           start={filters.startTime}
           end={filters.endTime}
@@ -151,148 +205,98 @@ export function CommonLogsFilterBar({
             handleChange('startTime', start)
             handleChange('endTime', end)
           }}
-          className='col-span-2 lg:col-span-1'
+          className='w-full sm:w-[340px]'
         />
-        <Input
-          placeholder={t('Model Name')}
-          value={filters.model || ''}
-          onChange={(e) => handleChange('model', e.target.value)}
-          onKeyDown={handleKeyDown}
-          className='h-9'
-        />
-        <Input
-          placeholder={t('Group')}
-          type={sensitiveVisible ? 'text' : 'password'}
-          value={filters.group || ''}
-          onChange={(e) => handleChange('group', e.target.value)}
-          onKeyDown={handleKeyDown}
-          className='h-9'
-        />
-        <Select
-          value={logType}
-          onValueChange={(value) => {
-            setLogType(isLogTypeValue(value) ? value : '')
-          }}
-        >
-          <SelectTrigger className='h-9'>
-            <SelectValue placeholder={t('All Types')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value='all'>{t('All Types')}</SelectItem>
-            {LOG_TYPES.map((type) => (
-              <SelectItem key={type.value} value={String(type.value)}>
-                {t(type.label)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <button
-          type='button'
-          className={cn(
-            'text-muted-foreground hover:text-foreground flex h-9 items-center gap-1 rounded-md px-2 text-xs transition-colors',
-            hasExpandedFilters && !expanded && 'text-primary'
-          )}
-          onClick={() => setExpanded((p) => !p)}
-        >
-          <ChevronDown
-            className={cn(
-              'size-3.5 transition-transform duration-200',
-              expanded && 'rotate-180'
-            )}
+      }
+      additionalSearch={
+        <>
+          <Input
+            placeholder={t('Model Name')}
+            value={filters.model || ''}
+            onChange={(e) => handleChange('model', e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={inputClass}
           />
-          {expanded ? t('Collapse') : t('Expand')}
-        </button>
-      </div>
-
-      {/* Expandable filter row */}
-      <div
-        className={cn(
-          'grid gap-2 overflow-hidden transition-all duration-200',
-          expanded
-            ? 'grid-rows-[1fr] opacity-100'
-            : 'grid-rows-[0fr] opacity-0'
-        )}
-      >
-        <div className='min-h-0 overflow-hidden'>
-          <div className='grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2'>
-            <Input
-              placeholder={t('Token Name')}
-              type={sensitiveVisible ? 'text' : 'password'}
-              value={filters.token || ''}
-              onChange={(e) => handleChange('token', e.target.value)}
-              onKeyDown={handleKeyDown}
-              className='h-9'
-            />
-            {isAdmin && (
-              <Input
-                placeholder={t('Username')}
-                type={sensitiveVisible ? 'text' : 'password'}
-                value={filters.username || ''}
-                onChange={(e) => handleChange('username', e.target.value)}
-                onKeyDown={handleKeyDown}
-                className='h-9'
-              />
-            )}
-            {isAdmin && (
-              <Input
-                placeholder={t('Channel ID')}
-                value={filters.channel || ''}
-                onChange={(e) => handleChange('channel', e.target.value)}
-                onKeyDown={handleKeyDown}
-                className='h-9'
-              />
-            )}
-            <Input
-              placeholder={t('Request ID')}
-              value={filters.requestId || ''}
-              onChange={(e) => handleChange('requestId', e.target.value)}
-              onKeyDown={handleKeyDown}
-              className='h-9'
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Actions row */}
-      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-        <div className='flex min-w-0 flex-wrap items-center gap-2 sm:gap-3'>
-          {stats && <div className='min-w-0'>{stats}</div>}
-        </div>
-
-        <div className='flex shrink-0 items-center gap-2 self-end sm:self-auto'>
-          <button
-            type='button'
-            className='text-muted-foreground hover:text-foreground inline-flex size-8 items-center justify-center rounded-md border transition-colors'
-            title={sensitiveVisible ? t('Hide') : t('Show')}
-            aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-            onClick={() => setSensitiveVisible(!sensitiveVisible)}
+          <Input
+            placeholder={t('Group')}
+            type={sensitiveType}
+            value={filters.group || ''}
+            onChange={(e) => handleChange('group', e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={inputClass}
+          />
+          <Select
+            items={[
+              { value: 'all', label: t('All Types') },
+              ...LOG_TYPES.map((type) => ({
+                value: String(type.value),
+                label: t(type.label),
+              })),
+            ]}
+            value={logType}
+            onValueChange={(value) => {
+              setLogType(value !== null && isLogTypeValue(value) ? value : '')
+            }}
           >
-            {sensitiveVisible ? (
-              <Eye className='size-3.5' />
-            ) : (
-              <EyeOff className='size-3.5' />
-            )}
-          </button>
-          <Button
-            variant='outline'
-            size='sm'
-            className='h-8'
-            onClick={handleReset}
-          >
-            <RotateCcw className='size-3.5' />
-            {t('Reset')}
-          </Button>
-          <Button size='sm' className='h-8' onClick={handleApply} disabled={fetchingLogs > 0}>
-            {fetchingLogs > 0 ? (
-              <Loader2 className='size-3.5 animate-spin' />
-            ) : (
-              <Search className='size-3.5' />
-            )}
-            {t('Search')}
-          </Button>
-          {viewOptions}
-        </div>
-      </div>
-    </div>
+            <SelectTrigger className={inputClass}>
+              <SelectValue placeholder={t('All Types')} />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                <SelectItem value='all'>{t('All Types')}</SelectItem>
+                {LOG_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={String(type.value)}>
+                    {t(type.label)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </>
+      }
+      expandable={
+        <>
+          <Input
+            placeholder={t('Token Name')}
+            type={sensitiveType}
+            value={filters.token || ''}
+            onChange={(e) => handleChange('token', e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={inputClass}
+          />
+          {isAdmin && (
+            <Input
+              placeholder={t('Username')}
+              type={sensitiveType}
+              value={filters.username || ''}
+              onChange={(e) => handleChange('username', e.target.value)}
+              onKeyDown={handleKeyDown}
+              className={inputClass}
+            />
+          )}
+          {isAdmin && (
+            <Input
+              placeholder={t('Channel ID')}
+              value={filters.channel || ''}
+              onChange={(e) => handleChange('channel', e.target.value)}
+              onKeyDown={handleKeyDown}
+              className={inputClass}
+            />
+          )}
+          <Input
+            placeholder={t('Request ID')}
+            value={filters.requestId || ''}
+            onChange={(e) => handleChange('requestId', e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={inputClass}
+          />
+        </>
+      }
+      hasExpandedActiveFilters={hasExpandedFilters}
+      hasAdditionalFilters={hasAdditionalFilters}
+      onSearch={handleApply}
+      searchLoading={fetchingLogs > 0}
+      onReset={handleReset}
+    />
   )
 }

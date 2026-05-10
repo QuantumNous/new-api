@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
@@ -27,6 +45,8 @@ const headerNavSchema = z.object({
   console: z.boolean(),
   pricingEnabled: z.boolean(),
   pricingRequireAuth: z.boolean(),
+  rankingsEnabled: z.boolean(),
+  rankingsRequireAuth: z.boolean(),
   docs: z.boolean(),
   about: z.boolean(),
 })
@@ -53,6 +73,14 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.pricing?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.pricing.requireAuth
       : Boolean(config.pricing.requireAuth),
+  rankingsEnabled:
+    config.rankings?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.rankings.enabled
+      : Boolean(config.rankings.enabled),
+  rankingsRequireAuth:
+    config.rankings?.requireAuth === undefined
+      ? HEADER_NAV_DEFAULT.rankings.requireAuth
+      : Boolean(config.rankings.requireAuth),
   docs:
     config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   about:
@@ -90,6 +118,11 @@ export function HeaderNavigationSection({
         enabled: values.pricingEnabled,
         requireAuth: values.pricingRequireAuth,
       },
+      rankings: {
+        ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
+        enabled: values.rankingsEnabled,
+        requireAuth: values.rankingsRequireAuth,
+      },
     }
 
     const serialized = serializeHeaderNavModules(payload)
@@ -107,7 +140,7 @@ export function HeaderNavigationSection({
     form.reset(toFormValues(HEADER_NAV_DEFAULT))
   }
 
-  const modules: Array<{
+  const simpleModules: Array<{
     key: keyof HeaderNavFormValues
     title: string
     description: string
@@ -134,6 +167,39 @@ export function HeaderNavigationSection({
     },
   ]
 
+  const accessModules: Array<{
+    enabledKey: keyof HeaderNavFormValues
+    requireAuthKey: keyof HeaderNavFormValues
+    requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
+    title: string
+    description: string
+    requireAuthTitle: string
+    requireAuthDescription: string
+  }> = [
+    {
+      enabledKey: 'pricingEnabled',
+      requireAuthKey: 'pricingRequireAuth',
+      requireAuthDependsOn: 'pricingEnabled',
+      title: t('Model Square'),
+      description: t('Public model catalog and pricing page.'),
+      requireAuthTitle: t('Require login to view models'),
+      requireAuthDescription: t(
+        'Visitors must authenticate before accessing the pricing directory.'
+      ),
+    },
+    {
+      enabledKey: 'rankingsEnabled',
+      requireAuthKey: 'rankingsRequireAuth',
+      requireAuthDependsOn: 'rankingsEnabled',
+      title: t('Rankings'),
+      description: t('Public rankings page based on live usage data.'),
+      requireAuthTitle: t('Require login to view rankings'),
+      requireAuthDescription: t(
+        'Visitors must authenticate before accessing the rankings page.'
+      ),
+    },
+  ]
+
   return (
     <SettingsSection
       title={t('Header navigation')}
@@ -142,7 +208,7 @@ export function HeaderNavigationSection({
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <div className='grid gap-4 md:grid-cols-2'>
-            {modules.map((module) => (
+            {simpleModules.map((module) => (
               <FormField
                 key={module.key}
                 control={form.control}
@@ -168,59 +234,57 @@ export function HeaderNavigationSection({
             ))}
           </div>
 
-          <div className='rounded-lg border p-4'>
-            <FormField
-              control={form.control}
-              name='pricingEnabled'
-              render={({ field }) => (
-                <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
-                  <div className='space-y-0.5 pe-4'>
-                    <FormLabel className='text-base'>
-                      {t('Models directory')}
-                    </FormLabel>
-                    <FormDescription>
-                      {t(
-                        'Exposes the pricing/models catalog in the top navigation.'
-                      )}
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <div className='grid gap-4 lg:grid-cols-2'>
+            {accessModules.map((module) => (
+              <div key={module.enabledKey} className='rounded-lg border p-4'>
+                <FormField
+                  control={form.control}
+                  name={module.enabledKey}
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5 pe-4'>
+                        <FormLabel className='text-base'>
+                          {module.title}
+                        </FormLabel>
+                        <FormDescription>{module.description}</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name='pricingRequireAuth'
-              render={({ field }) => (
-                <FormItem className='mt-4 flex flex-row items-start justify-between rounded-lg border border-dashed p-4'>
-                  <div className='space-y-0.5 pe-4'>
-                    <FormLabel className='text-base'>
-                      {t('Require login to view models')}
-                    </FormLabel>
-                    <FormDescription>
-                      {t(
-                        'Visitors must authenticate before accessing the pricing directory.'
-                      )}
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      disabled={!form.watch('pricingEnabled')}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name={module.requireAuthKey}
+                  render={({ field }) => (
+                    <FormItem className='mt-4 flex flex-row items-start justify-between rounded-lg border border-dashed p-4'>
+                      <div className='space-y-0.5 pe-4'>
+                        <FormLabel className='text-base'>
+                          {module.requireAuthTitle}
+                        </FormLabel>
+                        <FormDescription>
+                          {module.requireAuthDescription}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled={!form.watch(module.requireAuthDependsOn)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            ))}
           </div>
 
           <div className='flex flex-wrap gap-3'>

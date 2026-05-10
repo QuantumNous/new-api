@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -6,24 +24,16 @@ import { ROLE } from '@/lib/roles'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
-import {
-  CardStaggerContainer,
-  CardStaggerItem,
-  FadeIn,
-} from '@/components/page-transition'
+import { FadeIn } from '@/components/page-transition'
+import { ModelsChartPreferences } from './components/models/models-chart-preferences'
+import { ModelsFilter } from './components/models/models-filter-dialog'
+import { OverviewDashboard } from './components/overview/overview-dashboard'
+import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
   getSavedChartPreferences,
   saveChartPreferences,
 } from './lib'
-import { ModelsChartPreferences } from './components/models/models-chart-preferences'
-import { ModelsFilter } from './components/models/models-filter-dialog'
-import { AnnouncementsPanel } from './components/overview/announcements-panel'
-import { ApiInfoPanel } from './components/overview/api-info-panel'
-import { FAQPanel } from './components/overview/faq-panel'
-import { SummaryCards } from './components/overview/summary-cards'
-import { UptimePanel } from './components/overview/uptime-panel'
-import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   type DashboardSectionId,
   DASHBOARD_DEFAULT_SECTION,
@@ -52,6 +62,12 @@ const LazyModelCharts = lazy(() =>
 const LazyConsumptionDistributionChart = lazy(() =>
   import('./components/models/consumption-distribution-chart').then((m) => ({
     default: m.ConsumptionDistributionChart,
+  }))
+)
+
+const LazyPerformanceOverview = lazy(() =>
+  import('./components/models/performance-overview').then((m) => ({
+    default: m.PerformanceOverview,
   }))
 )
 
@@ -86,6 +102,31 @@ function ModelChartsFallback() {
       </div>
       <div className='h-96 p-2'>
         <Skeleton className='h-full w-full' />
+      </div>
+    </div>
+  )
+}
+
+function PerformanceOverviewFallback() {
+  return (
+    <div className='space-y-3 sm:space-y-4'>
+      <div className='overflow-hidden rounded-lg border'>
+        <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-4'>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className='px-3 py-2.5 sm:px-5 sm:py-4'>
+              <Skeleton className='h-4 w-24' />
+              <Skeleton className='mt-2 h-7 w-20' />
+              <Skeleton className='mt-1.5 h-3.5 w-28' />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className='overflow-hidden rounded-lg border'>
+        <div className='flex items-center justify-between border-b px-4 py-3 sm:px-5'>
+          <Skeleton className='h-5 w-40' />
+          <Skeleton className='h-4 w-48' />
+        </div>
+        <Skeleton className='h-44 w-full' />
       </div>
     </div>
   )
@@ -168,7 +209,8 @@ export function Dashboard() {
     },
     [navigate]
   )
-  const showSectionTabs = activeSection !== 'overview' && visibleSections.length > 1
+  const showSectionTabs =
+    activeSection !== 'overview' && visibleSections.length > 1
   const modelActions =
     activeSection === 'models' ? (
       <>
@@ -214,25 +256,7 @@ export function Dashboard() {
               )}
             </div>
           )}
-          {activeSection === 'overview' && (
-            <>
-              <SummaryCards />
-              <CardStaggerContainer className='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2'>
-                <CardStaggerItem>
-                  <ApiInfoPanel />
-                </CardStaggerItem>
-                <CardStaggerItem>
-                  <AnnouncementsPanel />
-                </CardStaggerItem>
-                <CardStaggerItem>
-                  <FAQPanel />
-                </CardStaggerItem>
-                <CardStaggerItem>
-                  <UptimePanel />
-                </CardStaggerItem>
-              </CardStaggerContainer>
-            </>
-          )}
+          {activeSection === 'overview' && <OverviewDashboard />}
           {activeSection === 'models' && (
             <>
               <FadeIn>
@@ -244,6 +268,11 @@ export function Dashboard() {
                 </Suspense>
               </FadeIn>
               <FadeIn delay={0.1}>
+                <Suspense fallback={<PerformanceOverviewFallback />}>
+                  <LazyPerformanceOverview />
+                </Suspense>
+              </FadeIn>
+              <FadeIn delay={0.15}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyConsumptionDistributionChart
                     data={modelData}
@@ -257,7 +286,7 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
-              <FadeIn delay={0.15}>
+              <FadeIn delay={0.2}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyModelCharts
                     data={modelData}

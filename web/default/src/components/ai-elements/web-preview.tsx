@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 'use client'
 
 import {
@@ -113,17 +131,19 @@ export const WebPreviewNavigationButton = ({
 }: WebPreviewNavigationButtonProps) => (
   <TooltipProvider>
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          className='hover:text-foreground h-8 w-8 p-0'
-          disabled={disabled}
-          onClick={onClick}
-          size='sm'
-          variant='ghost'
-          {...props}
-        >
-          {children}
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            className='hover:text-foreground h-8 w-8 p-0'
+            disabled={disabled}
+            onClick={onClick}
+            size='sm'
+            variant='ghost'
+            {...props}
+          />
+        }
+      >
+        {children}
       </TooltipTrigger>
       <TooltipContent>
         <p>{tooltip}</p>
@@ -225,24 +245,26 @@ export const WebPreviewConsole = ({
       open={consoleOpen}
       {...props}
     >
-      <CollapsibleTrigger asChild>
-        <Button
-          className='hover:bg-muted/50 flex w-full items-center justify-between p-4 text-left font-medium'
-          variant='ghost'
-        >
-          {t('Console')}
-          <ChevronDownIcon
-            className={cn(
-              'h-4 w-4 transition-transform duration-200',
-              consoleOpen && 'rotate-180'
-            )}
+      <CollapsibleTrigger
+        render={
+          <Button
+            className='hover:bg-muted/50 flex w-full items-center justify-between p-4 text-left font-medium'
+            variant='ghost'
           />
-        </Button>
+        }
+      >
+        {t('Console')}
+        <ChevronDownIcon
+          className={cn(
+            'h-4 w-4 transition-transform duration-200',
+            consoleOpen && 'rotate-180'
+          )}
+        />
       </CollapsibleTrigger>
       <CollapsibleContent
         className={cn(
           'px-4 pb-4',
-          'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in outline-none'
+          'data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-closed:animate-out data-open:animate-in outline-none'
         )}
       >
         <div className='max-h-48 space-y-1 overflow-y-auto'>
@@ -254,7 +276,7 @@ export const WebPreviewConsole = ({
                 className={cn(
                   'text-xs',
                   log.level === 'error' && 'text-destructive',
-                  log.level === 'warn' && 'text-yellow-600',
+                  log.level === 'warn' && 'text-warning',
                   log.level === 'log' && 'text-foreground'
                 )}
                 key={`${log.timestamp.getTime()}-${index}`}

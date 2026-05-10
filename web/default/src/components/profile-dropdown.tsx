@@ -1,131 +1,136 @@
-import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { useMemo } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { User, Wallet, LogOut, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { ROLE } from '@/lib/roles'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-  SheetClose,
-} from '@/components/ui/sheet'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { SignOutDialog } from '@/components/sign-out-dialog'
+
+const avatarFallbackClassName = 'font-semibold text-white'
 
 export function ProfileDropdown() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [open, setOpen] = useDialogState()
-  const [sheetOpen, setSheetOpen] = useState(false)
   const user = useAuthStore((state) => state.auth.user)
-  const { displayName, initials, roleLabel } = useUserDisplay(user)
+  const { displayName, roleLabel } = useUserDisplay(user)
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
+  const avatarName = user?.username || displayName
+  const avatarFallback = getUserAvatarFallback(avatarName)
+  const avatarFallbackStyle = useMemo(
+    () => getUserAvatarStyle(avatarName),
+    [avatarName]
+  )
 
   return (
     <>
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetTrigger asChild>
-          <Button variant='ghost' className='relative h-9 w-9 rounded-full p-0'>
-            <Avatar className='h-9 w-9'>
-              <AvatarImage src='/avatars/01.png' alt={`@${displayName}`} />
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
-          </Button>
-        </SheetTrigger>
-        <SheetContent
-          side='right'
-          className='flex w-full flex-col p-0 sm:max-w-sm'
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          render={<Button variant='ghost' className='relative size-6 p-0' />}
         >
-          <SheetHeader className='border-b p-4'>
-            <SheetTitle className='text-left'>{t('User Menu')}</SheetTitle>
-          </SheetHeader>
-
-          <div className='flex flex-1 flex-col overflow-y-auto'>
-            {/* User info section */}
-            <div className='border-b p-2.5 pb-6.5'>
-              <div className='flex items-center gap-2.5'>
-                <Avatar className='size-9'>
-                  <AvatarImage src='/avatars/01.png' alt={`@${displayName}`} />
-                  <AvatarFallback className='text-xs'>
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className='flex flex-1 flex-col gap-0.5 overflow-hidden'>
-                  <p className='text-foreground truncate text-sm font-medium'>
-                    {displayName}
-                  </p>
-                  <div className='flex items-center gap-1.5'>
-                    <span className='text-muted-foreground text-xs'>
-                      {roleLabel}
+          <Avatar className='size-6'>
+            <AvatarFallback
+              className={`${avatarFallbackClassName} text-[11px]`}
+              style={avatarFallbackStyle}
+            >
+              {avatarFallback}
+            </AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end' sideOffset={8} className='w-56'>
+          <div className='flex items-center gap-2 px-1.5 py-1.5'>
+            <Avatar className='size-8'>
+              <AvatarFallback
+                className={`${avatarFallbackClassName} text-xs`}
+                style={avatarFallbackStyle}
+              >
+                {avatarFallback}
+              </AvatarFallback>
+            </Avatar>
+            <div className='flex flex-1 flex-col gap-0.5 overflow-hidden'>
+              <p className='text-foreground truncate text-sm font-medium'>
+                {displayName}
+              </p>
+              <div className='flex items-center gap-1.5'>
+                <span className='text-muted-foreground text-xs'>
+                  {roleLabel}
+                </span>
+                {user?.group && (
+                  <>
+                    <span className='text-muted-foreground text-xs'>·</span>
+                    <span className='text-muted-foreground truncate text-xs'>
+                      {String(user.group)}
                     </span>
-                    {user?.group && (
-                      <>
-                        <span className='text-muted-foreground text-xs'>·</span>
-                        <span className='text-muted-foreground text-xs'>
-                          {String(user.group)}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
             </div>
-
-            {/* Navigation links */}
-            <SheetClose asChild>
-              <Link
-                to='/profile'
-                className='text-primary/60 hover:text-primary/80 flex items-center gap-2.5 border-b p-2.5 transition-colors'
-              >
-                <User className='size-4' />
-                {t('Profile')}
-              </Link>
-            </SheetClose>
-
-            <SheetClose asChild>
-              <Link
-                to='/wallet'
-                className='text-primary/60 hover:text-primary/80 flex items-center gap-2.5 border-b p-2.5 transition-colors'
-              >
-                <Wallet className='size-4' />
-                {t('Wallet')}
-              </Link>
-            </SheetClose>
-
-            {/* System Settings - only for super admin */}
-            {isSuperAdmin && (
-              <SheetClose asChild>
-                <Link
-                  to='/system-settings/general'
-                  search={{ section: 'system-info' }}
-                  className='text-primary/60 hover:text-primary/80 flex items-center gap-2.5 border-b p-2.5 transition-colors'
-                >
-                  <Settings className='size-4' />
-                  {t('System Settings')}
-                </Link>
-              </SheetClose>
-            )}
-
-            {/* Sign out */}
-            <Button
-              variant='ghost'
-              onClick={() => {
-                setSheetOpen(false)
-                setOpen(true)
-              }}
-              className='text-destructive hover:text-destructive/80 h-auto w-full justify-start gap-2.5 p-2.5 hover:bg-transparent'
-            >
-              <LogOut className='size-4' />
-              {t('Sign out')}
-            </Button>
           </div>
-        </SheetContent>
-      </Sheet>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem onClick={() => navigate({ to: '/profile' })}>
+            <User className='size-4' />
+            {t('Profile')}
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
+            <Wallet className='size-4' />
+            {t('Wallet')}
+          </DropdownMenuItem>
+
+          {isSuperAdmin && (
+            <DropdownMenuItem
+              onClick={() =>
+                navigate({
+                  to: '/system-settings/site/$section',
+                  params: { section: 'system-info' },
+                })
+              }
+            >
+              <Settings className='size-4' />
+              {t('System Settings')}
+            </DropdownMenuItem>
+          )}
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)}>
+            <LogOut className='size-4' />
+            {t('Sign out')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <SignOutDialog open={!!open} onOpenChange={setOpen} />
     </>

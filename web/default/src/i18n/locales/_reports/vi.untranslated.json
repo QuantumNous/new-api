@@ -1,5 +1,5 @@
 {
-  "Go to Settings": "Go to Settings",
-  "Failed to adjust quota": "Failed to adjust quota",
-  "Select an operation mode and enter the amount": "Select an operation mode and enter the amount"
+  "Base input and output token prices for this tier.": "Base input and output token prices for this tier.",
+  "Each tier supports up to 2 conditions. The last tier without conditions is the fallback.": "Each tier supports up to 2 conditions. The last tier without conditions is the fallback.",
+  "Set separate prices for cache reads and writes.": "Set separate prices for cache reads and writes."
 }

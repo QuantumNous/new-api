@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 /* eslint-disable react-refresh/only-export-components */
 'use client'
 
@@ -277,49 +295,51 @@ export function PromptInputAttachment({
 
   return (
     <PromptInputHoverCard>
-      <HoverCardTrigger asChild>
-        <div
-          className={cn(
-            'group border-border hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 relative flex h-8 cursor-default items-center gap-1.5 rounded-md border px-1.5 text-sm font-medium transition-all select-none',
-            className
-          )}
-          key={data.id}
-          {...props}
-        >
-          <div className='relative size-5 shrink-0'>
-            <div className='bg-background absolute inset-0 flex size-5 items-center justify-center overflow-hidden rounded transition-opacity group-hover:opacity-0'>
-              {isImage ? (
-                <img
-                  alt={filename || 'attachment'}
-                  className='size-5 object-cover'
-                  height={20}
-                  src={data.url}
-                  width={20}
-                />
-              ) : (
-                <div className='text-muted-foreground flex size-5 items-center justify-center'>
-                  <PaperclipIcon className='size-3' />
-                </div>
-              )}
-            </div>
-            <Button
-              aria-label={t('Remove attachment')}
-              className='absolute inset-0 size-5 cursor-pointer rounded p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:size-2.5'
-              onClick={(e) => {
-                e.stopPropagation()
-                attachments.remove(data.id)
-              }}
-              type='button'
-              variant='ghost'
-            >
-              <XIcon />
-              <span className='sr-only'>{t('Remove')}</span>
-            </Button>
+      <PromptInputHoverCardTrigger
+        render={
+          <div
+            className={cn(
+              'group border-border hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 relative flex h-8 cursor-default items-center gap-1.5 rounded-md border px-1.5 text-sm font-medium transition-all select-none',
+              className
+            )}
+            key={data.id}
+            {...props}
+          />
+        }
+      >
+        <div className='relative size-5 shrink-0'>
+          <div className='bg-background absolute inset-0 flex size-5 items-center justify-center overflow-hidden rounded transition-opacity group-hover:opacity-0'>
+            {isImage ? (
+              <img
+                alt={filename || 'attachment'}
+                className='size-5 object-cover'
+                height={20}
+                src={data.url}
+                width={20}
+              />
+            ) : (
+              <div className='text-muted-foreground flex size-5 items-center justify-center'>
+                <PaperclipIcon className='size-3' />
+              </div>
+            )}
           </div>
-
-          <span className='flex-1 truncate'>{attachmentLabel}</span>
+          <Button
+            aria-label={t('Remove attachment')}
+            className='absolute inset-0 size-5 cursor-pointer rounded p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:size-2.5'
+            onClick={(e) => {
+              e.stopPropagation()
+              attachments.remove(data.id)
+            }}
+            type='button'
+            variant='ghost'
+          >
+            <XIcon />
+            <span className='sr-only'>{t('Remove')}</span>
+          </Button>
         </div>
-      </HoverCardTrigger>
+
+        <span className='flex-1 truncate'>{attachmentLabel}</span>
+      </PromptInputHoverCardTrigger>
       <PromptInputHoverCardContent className='w-auto p-2'>
         <div className='w-auto space-y-3'>
           {isImage && (
@@ -427,7 +447,7 @@ export type PromptInputProps = Omit<
   ) => void | Promise<void>
   /**
    * Optional className applied to the inner InputGroup wrapper
-   * (useful for customizing rounded corners, e.g., rounded-[20px]).
+   * (useful for layout or semantic radius utilities such as rounded-xl).
    */
   groupClassName?: string
 }
@@ -956,10 +976,10 @@ export const PromptInputActionMenuTrigger = ({
   children,
   ...props
 }: PromptInputActionMenuTriggerProps) => (
-  <DropdownMenuTrigger asChild>
-    <PromptInputButton className={className} {...props}>
-      {children ?? <PlusIcon className='size-4' />}
-    </PromptInputButton>
+  <DropdownMenuTrigger
+    render={<PromptInputButton className={className} {...props} />}
+  >
+    {children ?? <PlusIcon className='size-4' />}
   </DropdownMenuTrigger>
 )
 
@@ -1242,21 +1262,21 @@ export const PromptInputModelSelectValue = ({
 
 export type PromptInputHoverCardProps = ComponentProps<typeof HoverCard>
 
-export const PromptInputHoverCard = ({
-  openDelay = 0,
-  closeDelay = 0,
-  ...props
-}: PromptInputHoverCardProps) => (
-  <HoverCard closeDelay={closeDelay} openDelay={openDelay} {...props} />
+export const PromptInputHoverCard = (props: PromptInputHoverCardProps) => (
+  <HoverCard {...props} />
 )
 
 export type PromptInputHoverCardTriggerProps = ComponentProps<
   typeof HoverCardTrigger
 >
 
-export const PromptInputHoverCardTrigger = (
-  props: PromptInputHoverCardTriggerProps
-) => <HoverCardTrigger {...props} />
+export const PromptInputHoverCardTrigger = ({
+  delay = 0,
+  closeDelay = 0,
+  ...props
+}: PromptInputHoverCardTriggerProps) => (
+  <HoverCardTrigger delay={delay} closeDelay={closeDelay} {...props} />
+)
 
 export type PromptInputHoverCardContentProps = ComponentProps<
   typeof HoverCardContent

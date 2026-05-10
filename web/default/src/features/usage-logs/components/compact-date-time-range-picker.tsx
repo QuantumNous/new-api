@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useMemo, useState } from 'react'
 import { CalendarDays } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -41,8 +59,12 @@ export function CompactDateTimeRangePicker({
 
   const label = useMemo(() => {
     if (!start && !end) return t('Date Range')
-    const startText = start ? dayjs(start).format('YYYY-MM-DD HH:mm:ss') : '-'
-    const endText = end ? dayjs(end).format('YYYY-MM-DD HH:mm:ss') : '-'
+    // The popover's <input type="datetime-local"> only supports minute
+    // precision, so seconds are always 00 (manual pick) or 59 (preset
+    // end-of-day). Hide them in the trigger label to keep the button
+    // width compact while still showing the meaningful timestamp.
+    const startText = start ? dayjs(start).format('YYYY-MM-DD HH:mm') : '-'
+    const endText = end ? dayjs(end).format('YYYY-MM-DD HH:mm') : '-'
     return `${startText} ~ ${endText}`
   }, [end, start, t])
 
@@ -95,21 +117,26 @@ export function CompactDateTimeRangePicker({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type='button'
-          variant='outline'
-          className={cn(
-            'h-9 w-full justify-start gap-2 px-3 font-mono text-xs font-normal',
-            !start && !end && 'text-muted-foreground',
-            className
-          )}
-        >
-          <CalendarDays className='text-muted-foreground size-4 shrink-0' />
-          <span className='truncate'>{label}</span>
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            type='button'
+            variant='outline'
+            className={cn(
+              'w-full justify-start gap-2 px-2.5 font-mono text-xs font-normal',
+              !start && !end && 'text-muted-foreground',
+              className
+            )}
+          />
+        }
+      >
+        <CalendarDays className='text-muted-foreground size-4 shrink-0' />
+        <span className='truncate'>{label}</span>
       </PopoverTrigger>
-      <PopoverContent align='start' className='w-[min(520px,calc(100vw-2rem))] p-3'>
+      <PopoverContent
+        align='start'
+        className='w-[min(520px,calc(100vw-2rem))] p-3'
+      >
         <div className='space-y-3'>
           <div className='grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-end'>
             <div className='space-y-1.5'>

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import {
   memo,
   useCallback,
@@ -10,7 +28,7 @@ import {
   type InputHTMLAttributes,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
-import { Copy, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Copy, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -27,10 +45,12 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
   BILLING_EXTRA_VARS,
@@ -38,6 +58,10 @@ import {
   MATCH_CONTAINS,
   MATCH_EQ,
   MATCH_EXISTS,
+  MATCH_GT,
+  MATCH_GTE,
+  MATCH_LT,
+  MATCH_LTE,
   MATCH_RANGE,
   SOURCE_HEADER,
   SOURCE_PARAM,
@@ -48,7 +72,6 @@ import {
   createEmptyCondition,
   createEmptyRuleGroup,
   createEmptyTimeCondition,
-  createEmptyTimeRuleGroup,
   getRequestRuleMatchOptions,
   splitBillingExprAndRequestRules,
   tryParseRequestRuleExpr,
@@ -77,11 +100,20 @@ import {
 } from '@/features/pricing/lib/tier-expr'
 
 const PRICE_SUFFIX = '$/1M tokens'
+const CACHE_PRICE_VARS = BILLING_EXTRA_VARS.filter(
+  (variable) => variable.group === 'cache'
+)
+const MEDIA_PRICE_VARS = BILLING_EXTRA_VARS.filter(
+  (variable) => variable.group === 'media'
+)
 
-const VAR_OPTIONS: { value: TierConditionInput['var']; label: string }[] = [
-  { value: 'len', label: 'len (input length)' },
-  { value: 'p', label: 'p (input)' },
-  { value: 'c', label: 'c (output)' },
+const CONDITION_INPUT_OPTIONS: {
+  value: TierConditionInput['var']
+  labelKey: string
+}[] = [
+  { value: 'len', labelKey: 'Full input length' },
+  { value: 'p', labelKey: 'Billable input tokens' },
+  { value: 'c', labelKey: 'Billable output tokens' },
 ]
 const OPS: TierConditionInput['op'][] = ['<', '<=', '>', '>=']
 
@@ -394,26 +426,44 @@ type ConditionRowProps = {
 }
 
 function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
+  const { t } = useTranslation()
+  const currentInputOption = CONDITION_INPUT_OPTIONS.find(
+    (option) => option.value === condition.var
+  )
+
   return (
     <div className='flex items-center gap-2'>
       <Select
+        items={[
+          ...CONDITION_INPUT_OPTIONS.map((option) => ({
+            value: option.value,
+            label: t(option.labelKey),
+          })),
+        ]}
         value={condition.var}
         onValueChange={(value) =>
           onChange({ ...condition, var: value as TierConditionInput['var'] })
         }
       >
         <SelectTrigger className='w-32' size='sm'>
-          <SelectValue />
+          <SelectValue>
+            {currentInputOption
+              ? t(currentInputOption.labelKey)
+              : condition.var}
+          </SelectValue>
         </SelectTrigger>
-        <SelectContent>
-          {VAR_OPTIONS.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {CONDITION_INPUT_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {t(option.labelKey)}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
       <Select
+        items={[...OPS.map((op) => ({ value: op, label: op }))]}
         value={condition.op}
         onValueChange={(value) =>
           onChange({ ...condition, op: value as TierConditionInput['op'] })
@@ -422,12 +472,14 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
         <SelectTrigger className='w-20' size='sm'>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
-          {OPS.map((op) => (
-            <SelectItem key={op} value={op}>
-              {op}
-            </SelectItem>
-          ))}
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {OPS.map((op) => (
+              <SelectItem key={op} value={op}>
+                {op}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
       <DraftNumberInput
@@ -462,31 +514,19 @@ type PriceFieldProps = {
   hint?: string
   value: number
   onChange: (next: number) => void
-  showSuffix?: boolean
 }
 
-function PriceField({
-  label,
-  hint,
-  value,
-  onChange,
-  showSuffix = true,
-}: PriceFieldProps) {
+function PriceField({ label, hint, value, onChange }: PriceFieldProps) {
   return (
-    <div className='space-y-1'>
-      <Label className='text-xs'>{label}</Label>
-      <div className='flex items-center gap-2'>
-        <DraftNumberInput
-          min={0}
-          step={0.01}
-          value={Number.isFinite(value) ? value : 0}
-          onValueChange={onChange}
-          className='w-32'
-        />
-        {showSuffix && (
-          <span className='text-muted-foreground text-xs'>{PRICE_SUFFIX}</span>
-        )}
-      </div>
+    <div className='w-36 space-y-0.5'>
+      <Label className='text-muted-foreground text-xs'>{label}</Label>
+      <DraftNumberInput
+        min={0}
+        step={0.01}
+        value={Number.isFinite(value) ? value : 0}
+        onValueChange={onChange}
+        className='h-8 w-full'
+      />
       {hint && <p className='text-muted-foreground text-xs'>{hint}</p>}
     </div>
   )
@@ -547,21 +587,49 @@ function VisualTierCard({
 
   const inputUnitPrice = unitCostToPrice(tier.input_unit_cost)
   const outputUnitPrice = unitCostToPrice(tier.output_unit_cost)
+  const hasMediaPricing = MEDIA_PRICE_VARS.some((variable) => {
+    const fieldKey = variable.tierField as keyof VisualTier
+    return unitCostToPrice((tier[fieldKey] as number | undefined) ?? 0) > 0
+  })
+  const [mediaOpen, setMediaOpen] = useState(hasMediaPricing)
+
+  useEffect(() => {
+    if (hasMediaPricing) setMediaOpen(true)
+  }, [hasMediaPricing])
+
+  const renderPriceVariable = (
+    variable: (typeof BILLING_EXTRA_VARS)[number]
+  ) => {
+    const fieldKey = variable.tierField as keyof VisualTier
+    const value = unitCostToPrice((tier[fieldKey] as number | undefined) ?? 0)
+
+    return (
+      <PriceField
+        key={variable.key}
+        label={t(variable.label)}
+        value={value}
+        onChange={(next) => handlePriceChange(fieldKey, priceToUnitCost(next))}
+      />
+    )
+  }
 
   return (
-    <div className='bg-muted/30 space-y-3 rounded-md border p-3'>
-      <div className='flex items-center justify-between gap-2'>
+    <div className='space-y-3 rounded-lg border p-3'>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
         <div className='flex items-center gap-2'>
           <Badge variant='outline'>
             {t('Tier')} {index + 1} / {total}
           </Badge>
+          {tier.conditions.length === 0 && (
+            <Badge variant='secondary'>{t('Fallback tier')}</Badge>
+          )}
           <Input
             value={tier.label}
             onChange={(event) =>
               onChange({ ...tier, label: event.target.value })
             }
             placeholder={t('Tier name')}
-            className='h-8 w-40'
+            className='h-7 w-36'
           />
         </div>
         <Button
@@ -575,9 +643,10 @@ function VisualTierCard({
         </Button>
       </div>
 
-      <div className='space-y-2'>
-        <div className='flex items-center justify-between'>
-          <Label className='text-xs'>{t('Conditions (AND)')}</Label>
+      {/* Conditions */}
+      <div className='space-y-1.5'>
+        <div className='flex h-7 items-center justify-between'>
+          <Label className='text-xs font-medium'>{t('Tier conditions')}</Label>
           <Button
             variant='ghost'
             size='sm'
@@ -605,67 +674,90 @@ function VisualTierCard({
         )}
       </div>
 
-      <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-        <PriceField
-          label={t('Input price')}
-          hint={`${inputUnitPrice} × p`}
-          value={inputUnitPrice}
-          onChange={(value) =>
-            handlePriceChange('input_unit_cost', priceToUnitCost(value))
-          }
-        />
-        <PriceField
-          label={t('Output price')}
-          hint={`${outputUnitPrice} × c`}
-          value={outputUnitPrice}
-          onChange={(value) =>
-            handlePriceChange('output_unit_cost', priceToUnitCost(value))
-          }
-        />
+      <div className='space-y-2'>
+        <div className='flex items-center justify-between gap-3'>
+          <Label className='text-sm font-semibold'>{t('Token prices')}</Label>
+          <span className='bg-muted text-muted-foreground rounded-md px-2 py-1 text-xs'>
+            {PRICE_SUFFIX}
+          </span>
+        </div>
+
+        <div className='space-y-3'>
+          <div className='flex flex-wrap gap-x-4 gap-y-2'>
+            <PriceField
+              label={t('Input price')}
+              value={inputUnitPrice}
+              onChange={(value) =>
+                handlePriceChange('input_unit_cost', priceToUnitCost(value))
+              }
+            />
+            <PriceField
+              label={t('Output price')}
+              value={outputUnitPrice}
+              onChange={(value) =>
+                handlePriceChange('output_unit_cost', priceToUnitCost(value))
+              }
+            />
+          </div>
+
+          <div className='space-y-2'>
+            <div className='flex h-7 items-center'>
+              <Tabs
+                value={cacheMode}
+                onValueChange={(value) =>
+                  value !== null && handleCacheModeChange(value as CacheMode)
+                }
+              >
+                <TabsList className='h-8'>
+                  <TabsTrigger
+                    value={CACHE_MODE_GENERIC}
+                    className='px-2 text-xs'
+                  >
+                    {t('Generic cache')}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value={CACHE_MODE_TIMED}
+                    className='px-2 text-xs'
+                  >
+                    {t('Time-sliced cache (Claude)')}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            <div className='flex flex-wrap gap-x-4 gap-y-2'>
+              {CACHE_PRICE_VARS.map((variable) => {
+                if (variable.key === 'cc1h' && cacheMode !== CACHE_MODE_TIMED) {
+                  return null
+                }
+                return renderPriceVariable(variable)
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className='space-y-2'>
-        <div className='flex items-center justify-between'>
-          <Label className='text-xs'>{t('Cache mode')}</Label>
-          <Select
-            value={cacheMode}
-            onValueChange={(value) => handleCacheModeChange(value as CacheMode)}
-          >
-            <SelectTrigger className='w-44' size='sm'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={CACHE_MODE_GENERIC}>
-                {t('Generic cache')}
-              </SelectItem>
-              <SelectItem value={CACHE_MODE_TIMED}>
-                {t('Timed cache (1h)')}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-          {BILLING_EXTRA_VARS.map((variable) => {
-            if (variable.key === 'cc1h' && cacheMode !== CACHE_MODE_TIMED) {
-              return null
-            }
-            const fieldKey = variable.tierField as keyof VisualTier
-            const value = unitCostToPrice(
-              (tier[fieldKey] as number | undefined) ?? 0
-            )
-            return (
-              <PriceField
-                key={variable.key}
-                label={variable.label}
-                hint={`${value} × ${variable.key}`}
-                value={value}
-                onChange={(next) =>
-                  handlePriceChange(fieldKey, priceToUnitCost(next))
-                }
-              />
-            )
-          })}
-        </div>
+      {/* Media prices */}
+      <div className='space-y-1.5'>
+        <Button
+          type='button'
+          variant='ghost'
+          size='sm'
+          className='h-7 px-2 text-xs'
+          onClick={() => setMediaOpen((prev) => !prev)}
+        >
+          <ChevronDown
+            className={cn(
+              'mr-1 h-3 w-3 transition-transform',
+              mediaOpen && 'rotate-180'
+            )}
+          />
+          {t('Media pricing')}
+        </Button>
+        {mediaOpen && (
+          <div className='flex flex-wrap gap-x-4 gap-y-2'>
+            {MEDIA_PRICE_VARS.map(renderPriceVariable)}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -747,14 +839,12 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
   }
 
   return (
-    <div className='space-y-3'>
-      <Alert>
-        <AlertDescription className='text-xs'>
-          {t(
-            'Each tier supports 0~2 conditions (over len, p, c); the last tier is the catch-all without conditions. Use len (full input length, including cache hits) for tier conditions to avoid mis-routing when cache hits reduce p.'
-          )}
-        </AlertDescription>
-      </Alert>
+    <div className='space-y-2'>
+      <p className='text-muted-foreground text-xs'>
+        {t(
+          'Each tier supports up to 2 conditions. The last tier without conditions is the fallback.'
+        )}
+      </p>
       {config.tiers.map((tier, index) => (
         <VisualTierCard
           key={index}
@@ -766,7 +856,12 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
           onAddCondition={() => handleAddCondition(index)}
         />
       ))}
-      <Button variant='outline' size='sm' onClick={handleAddTier}>
+      <Button
+        variant='outline'
+        size='sm'
+        className='h-9 w-36 justify-center'
+        onClick={handleAddTier}
+      >
         <Plus className='mr-2 h-4 w-4' />
         {t('Add tier')}
       </Button>
@@ -832,6 +927,50 @@ function RuleConditionRow({
 }: RuleConditionRowProps) {
   const { t } = useTranslation()
   const matchOptions = getRequestRuleMatchOptions(condition.source)
+  const getMatchLabel = (mode: string) => {
+    switch (mode) {
+      case MATCH_EQ:
+        return t('Equals')
+      case MATCH_CONTAINS:
+        return t('Contains')
+      case MATCH_EXISTS:
+        return t('Exists')
+      case MATCH_GT:
+        return t('Greater than')
+      case MATCH_GTE:
+        return t('Greater than or equal')
+      case MATCH_LT:
+        return t('Less than')
+      case MATCH_LTE:
+        return t('Less than or equal')
+      case MATCH_RANGE:
+        return t('Overnight range')
+      default:
+        return mode
+    }
+  }
+  const getTimeFuncLabel = (timeFunc: TimeFunc) => {
+    switch (timeFunc) {
+      case 'hour':
+        return t('Hour of day')
+      case 'minute':
+        return t('Minute')
+      case 'weekday':
+        return t('Weekday')
+      case 'month':
+        return t('Month number')
+      case 'day':
+        return t('Day of month')
+      default:
+        return timeFunc
+    }
+  }
+  const sourceLabel =
+    condition.source === SOURCE_PARAM
+      ? t('Body param')
+      : condition.source === SOURCE_HEADER
+        ? t('Header')
+        : t('Time')
 
   const handleSourceChange = (source: string) => {
     if (source === SOURCE_TIME) {
@@ -851,47 +990,79 @@ function RuleConditionRow({
   const renderTimeCondition = (timeCond: TimeCondition) => (
     <>
       <Select
+        items={[
+          ...TIME_FUNCS.map((fn) => ({
+            value: fn,
+            label: getTimeFuncLabel(fn),
+          })),
+        ]}
         value={timeCond.timeFunc}
         onValueChange={(value) =>
           onChange({ ...timeCond, timeFunc: value as TimeFunc })
         }
       >
         <SelectTrigger className='w-32' size='sm'>
-          <SelectValue />
+          <SelectValue>{getTimeFuncLabel(timeCond.timeFunc)}</SelectValue>
         </SelectTrigger>
-        <SelectContent>
-          {TIME_FUNCS.map((fn) => (
-            <SelectItem key={fn} value={fn}>
-              {fn}
-            </SelectItem>
-          ))}
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {TIME_FUNCS.map((fn) => (
+              <SelectItem key={fn} value={fn}>
+                {getTimeFuncLabel(fn)}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
       <Select
+        items={[
+          ...COMMON_TIMEZONES.map((tz) => ({
+            value: tz.value,
+            label: tz.label,
+          })),
+        ]}
         value={timeCond.timezone}
-        onValueChange={(value) => onChange({ ...timeCond, timezone: value })}
+        onValueChange={(value) =>
+          value !== null && onChange({ ...timeCond, timezone: value })
+        }
       >
         <SelectTrigger className='w-56' size='sm'>
-          <SelectValue />
+          <SelectValue>
+            {COMMON_TIMEZONES.find((tz) => tz.value === timeCond.timezone)
+              ?.label ?? timeCond.timezone}
+          </SelectValue>
         </SelectTrigger>
-        <SelectContent>
-          {COMMON_TIMEZONES.map((tz) => (
-            <SelectItem key={tz.value} value={tz.value}>
-              {tz.label}
-            </SelectItem>
-          ))}
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {COMMON_TIMEZONES.map((tz) => (
+              <SelectItem key={tz.value} value={tz.value}>
+                {tz.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
-      <Select value={timeCond.mode} onValueChange={handleModeChange}>
+      <Select
+        items={[
+          ...matchOptions.map((option) => ({
+            value: option.value,
+            label: getMatchLabel(option.value),
+          })),
+        ]}
+        value={timeCond.mode}
+        onValueChange={(v) => v !== null && handleModeChange(v)}
+      >
         <SelectTrigger className='w-32' size='sm'>
-          <SelectValue />
+          <SelectValue>{getMatchLabel(timeCond.mode)}</SelectValue>
         </SelectTrigger>
-        <SelectContent>
-          {matchOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {t(option.labelKey)}
-            </SelectItem>
-          ))}
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {matchOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {getMatchLabel(option.value)}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
       {timeCond.mode === MATCH_RANGE ? (
@@ -901,7 +1072,7 @@ function RuleConditionRow({
             onValueChange={(value) =>
               onChange({ ...timeCond, rangeStart: String(value) })
             }
-            placeholder='start'
+            placeholder={t('Start')}
             className='w-20'
           />
           <span className='text-muted-foreground text-xs'>~</span>
@@ -910,7 +1081,7 @@ function RuleConditionRow({
             onValueChange={(value) =>
               onChange({ ...timeCond, rangeEnd: String(value) })
             }
-            placeholder='end'
+            placeholder={t('End')}
             className='w-20'
           />
         </>
@@ -920,7 +1091,7 @@ function RuleConditionRow({
           onValueChange={(value) =>
             onChange({ ...timeCond, value: String(value) })
           }
-          placeholder='value'
+          placeholder={t('Value')}
           className='w-24'
         />
       )}
@@ -937,16 +1108,27 @@ function RuleConditionRow({
         }
         className='w-44'
       />
-      <Select value={phCond.mode} onValueChange={handleModeChange}>
+      <Select
+        items={[
+          ...matchOptions.map((option) => ({
+            value: option.value,
+            label: getMatchLabel(option.value),
+          })),
+        ]}
+        value={phCond.mode}
+        onValueChange={(v) => v !== null && handleModeChange(v)}
+      >
         <SelectTrigger className='w-32' size='sm'>
-          <SelectValue />
+          <SelectValue>{getMatchLabel(phCond.mode)}</SelectValue>
         </SelectTrigger>
-        <SelectContent>
-          {matchOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {t(option.labelKey)}
-            </SelectItem>
-          ))}
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            {matchOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {getMatchLabel(option.value)}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
       {phCond.mode !== MATCH_EXISTS && (
@@ -964,14 +1146,24 @@ function RuleConditionRow({
 
   return (
     <div className='flex flex-wrap items-center gap-2'>
-      <Select value={condition.source} onValueChange={handleSourceChange}>
+      <Select
+        items={[
+          { value: SOURCE_PARAM, label: t('Body param') },
+          { value: SOURCE_HEADER, label: t('Header') },
+          { value: SOURCE_TIME, label: t('Time') },
+        ]}
+        value={condition.source}
+        onValueChange={(v) => v !== null && handleSourceChange(v)}
+      >
         <SelectTrigger className='w-28' size='sm'>
-          <SelectValue />
+          <SelectValue>{sourceLabel}</SelectValue>
         </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={SOURCE_PARAM}>{t('Body param')}</SelectItem>
-          <SelectItem value={SOURCE_HEADER}>{t('Header')}</SelectItem>
-          <SelectItem value={SOURCE_TIME}>{t('Time')}</SelectItem>
+        <SelectContent alignItemWithTrigger={false}>
+          <SelectGroup>
+            <SelectItem value={SOURCE_PARAM}>{t('Body param')}</SelectItem>
+            <SelectItem value={SOURCE_HEADER}>{t('Header')}</SelectItem>
+            <SelectItem value={SOURCE_TIME}>{t('Time')}</SelectItem>
+          </SelectGroup>
         </SelectContent>
       </Select>
       {condition.source === SOURCE_TIME
@@ -1203,7 +1395,7 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
       </div>
       <div className='grid grid-cols-2 gap-3'>
         <div className='space-y-1'>
-          <Label className='text-xs'>{t('Input tokens')} (p)</Label>
+          <Label className='text-xs'>{t('Input tokens')}</Label>
           <DraftNumberInput
             min={0}
             value={promptTokens}
@@ -1211,7 +1403,7 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
           />
         </div>
         <div className='space-y-1'>
-          <Label className='text-xs'>{t('Output tokens')} (c)</Label>
+          <Label className='text-xs'>{t('Output tokens')}</Label>
           <DraftNumberInput
             min={0}
             value={completionTokens}
@@ -1232,9 +1424,7 @@ function CostEstimator({ effectiveExpr }: EstimatorProps) {
             ) as keyof ExtraTokenValues
             return (
               <div key={variable.key} className='space-y-1'>
-                <Label className='text-xs'>
-                  {variable.shortLabel} ({variable.key})
-                </Label>
+                <Label className='text-xs'>{t(variable.shortLabel)}</Label>
                 <DraftNumberInput
                   min={0}
                   value={extras[stateKey]}
@@ -1388,11 +1578,13 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger asChild>
-        <Button variant='ghost' size='sm' className='h-7 px-2 text-xs'>
-          <Copy className='mr-1.5 h-3 w-3' />
-          {t('LLM prompt helper')}
-        </Button>
+      <CollapsibleTrigger
+        render={
+          <Button variant='ghost' size='sm' className='h-7 px-2 text-xs' />
+        }
+      >
+        <Copy className='mr-1.5 h-3 w-3' />
+        {t('LLM prompt helper')}
       </CollapsibleTrigger>
       <CollapsibleContent className='mt-2'>
         <div className='bg-muted/30 rounded-md border p-3'>
@@ -1582,15 +1774,21 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
       <div className='flex items-center justify-between gap-2'>
         <Label className='text-xs'>{t('Editor mode')}</Label>
         <Select
+          items={[
+            { value: 'visual', label: t('Visual editor') },
+            { value: 'raw', label: t('Expression editor') },
+          ]}
           value={editorMode}
           onValueChange={(value) => handleModeChange(value as EditorMode)}
         >
           <SelectTrigger className='w-44' size='sm'>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value='visual'>{t('Visual editor')}</SelectItem>
-            <SelectItem value='raw'>{t('Expression editor')}</SelectItem>
+          <SelectContent alignItemWithTrigger={false}>
+            <SelectGroup>
+              <SelectItem value='visual'>{t('Visual editor')}</SelectItem>
+              <SelectItem value='raw'>{t('Expression editor')}</SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
       </div>
@@ -1599,7 +1797,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
         <div className='flex-1'>
           <PresetSection applyPreset={applyPreset} />
         </div>
-        <LlmPromptHelper modelName={modelName} />
+        {editorMode === 'raw' && <LlmPromptHelper modelName={modelName} />}
       </div>
 
       <div className='bg-muted/30 space-y-3 rounded-md border p-3'>
@@ -1652,34 +1850,20 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
                     }
                   />
                 ))}
-                <div className='flex flex-wrap gap-2'>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() =>
-                      handleRuleGroupsChange([
-                        ...requestRuleGroups,
-                        createEmptyRuleGroup(),
-                      ])
-                    }
-                  >
-                    <Plus className='mr-2 h-4 w-4' />
-                    {t('Add rule group')}
-                  </Button>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={() =>
-                      handleRuleGroupsChange([
-                        ...requestRuleGroups,
-                        createEmptyTimeRuleGroup(),
-                      ])
-                    }
-                  >
-                    <Plus className='mr-2 h-4 w-4' />
-                    {t('Add time rule group')}
-                  </Button>
-                </div>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-9 w-36 justify-center'
+                  onClick={() =>
+                    handleRuleGroupsChange([
+                      ...requestRuleGroups,
+                      createEmptyRuleGroup(),
+                    ])
+                  }
+                >
+                  <Plus className='mr-2 h-4 w-4' />
+                  {t('Add rule group')}
+                </Button>
               </>
             )}
           </div>

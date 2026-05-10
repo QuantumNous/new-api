@@ -163,9 +163,10 @@ func GetTopUpInfo(c *gin.Context) {
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"alipay_min_topup":        setting.AlipayMinTopUp,
 		"wxpay_min_topup":         setting.WxpayMinTopUp,
-		"amount_options":       operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":             operation_setting.GetPaymentSetting().AmountDiscount,
-		"topup_group_ratio":    topupGroupRatio,
+		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
+		"topup_group_ratio":       topupGroupRatio,
+		"topup_link":              common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
 }

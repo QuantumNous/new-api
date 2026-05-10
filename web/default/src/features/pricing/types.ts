@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 // ----------------------------------------------------------------------------
 // Pricing Types
 // ----------------------------------------------------------------------------
@@ -37,7 +55,39 @@ export type PricingModel = {
   billing_expr?: string
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
+  /**
+   * Optional model metadata fields. These are not yet returned by the backend
+   * and are populated client-side from {@link inferModelMetadata}.
+   * When the backend ships these fields, the inference layer becomes a
+   * fallback rather than the source of truth.
+   */
+  context_length?: number
+  max_output_tokens?: number
+  knowledge_cutoff?: string
+  release_date?: string
+  parameter_count?: string
+  input_modalities?: Modality[]
+  output_modalities?: Modality[]
+  capabilities?: ModelCapability[]
 }
+
+/** Input/output modalities supported by a model. */
+export type Modality = 'text' | 'image' | 'audio' | 'video' | 'file'
+
+/** Functional capabilities a model exposes. */
+export type ModelCapability =
+  | 'function_calling'
+  | 'streaming'
+  | 'vision'
+  | 'json_mode'
+  | 'structured_output'
+  | 'reasoning'
+  | 'tools'
+  | 'system_prompt'
+  | 'web_search'
+  | 'code_interpreter'
+  | 'caching'
+  | 'embeddings'
 
 export type PricingData = {
   success: boolean

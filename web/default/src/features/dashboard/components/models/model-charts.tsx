@@ -1,9 +1,29 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart as PieChartIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useThemeRadiusPx } from '@/lib/theme-radius'
 import type { TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
+import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import {
   DEFAULT_TIME_GRANULARITY,
@@ -37,6 +57,11 @@ interface ModelChartsProps {
 export function ModelCharts(props: ModelChartsProps) {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
+  const { customization } = useThemeCustomization()
+  const chartRadius = useThemeRadiusPx(
+    '--radius-md',
+    `${customization.preset}:${customization.radius}`
+  )
   const [activeTab, setActiveTab] = useState<ModelAnalyticsChartTab>(
     props.defaultChartTab ?? 'trend'
   )
@@ -70,8 +95,22 @@ export function ModelCharts(props: ModelChartsProps) {
   }, [resolvedTheme])
 
   const chartData = useMemo(
-    () => processChartData(props.loading ? [] : props.data, timeGranularity, t),
-    [props.data, props.loading, timeGranularity, t]
+    () =>
+      processChartData(
+        props.loading ? [] : props.data,
+        timeGranularity,
+        t,
+        customization.preset,
+        chartRadius
+      ),
+    [
+      props.data,
+      props.loading,
+      timeGranularity,
+      t,
+      customization.preset,
+      chartRadius,
+    ]
   )
 
   const spec = chartData[CHART_SPEC_KEYS[activeTab]]
@@ -89,13 +128,13 @@ export function ModelCharts(props: ModelChartsProps) {
           </span>
         </div>
 
-        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-md border p-0.5 sm:h-8 sm:w-auto'>
+        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
           {MODEL_ANALYTICS_CHART_OPTIONS.map((tab) => (
             <button
               key={tab.value}
               type='button'
               onClick={() => setActiveTab(tab.value)}
-              className={`shrink-0 rounded-[5px] px-3 text-xs font-medium transition-colors ${
+              className={`shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
                 activeTab === tab.value
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
@@ -110,7 +149,7 @@ export function ModelCharts(props: ModelChartsProps) {
       <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
         {themeReady && spec && (
           <VChart
-            key={`${activeTab}-${resolvedTheme}`}
+            key={`${activeTab}-${resolvedTheme}-${customization.preset}`}
             spec={{
               ...spec,
               theme: resolvedTheme === 'dark' ? 'dark' : 'light',

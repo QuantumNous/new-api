@@ -1,11 +1,23 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useState } from 'react'
-import {
-  ArrowUpDown,
-  Check,
-  Filter,
-  Grid2X2,
-  Table2,
-} from 'lucide-react'
+import { ArrowUpDown, Check, Filter, Grid2X2, Table2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -85,7 +97,7 @@ function SegmentedControl(props: {
     <div
       role='group'
       aria-label={props.ariaLabel}
-      className='bg-muted/60 inline-flex h-8 items-center rounded-md border p-0.5'
+      className='bg-muted/60 inline-flex h-8 items-center rounded-lg border p-0.5'
     >
       {props.options.map((option) => {
         const Icon = option.icon
@@ -97,10 +109,10 @@ function SegmentedControl(props: {
             onClick={() => props.onChange(option.value)}
             aria-pressed={isActive}
             className={cn(
-              'inline-flex h-full items-center justify-center rounded-[5px] text-xs font-medium transition-all',
+              'inline-flex h-full items-center justify-center rounded-md text-xs font-medium transition-all',
               Icon && !option.label ? 'w-7' : 'gap-1.5 px-3',
               isActive
-                ? 'bg-foreground text-background shadow-sm'
+                ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -115,7 +127,7 @@ function SegmentedControl(props: {
 
         return (
           <Tooltip key={option.value}>
-            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipTrigger render={button}></TooltipTrigger>
             <TooltipContent side='bottom' className='text-xs'>
               {option.tooltip}
             </TooltipContent>
@@ -160,7 +172,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             <Filter className='size-4' />
             {t('Filter')}
             {props.activeFilterCount > 0 && (
-              <Badge className='ml-0.5 size-5 justify-center rounded-full p-0 text-[10px]'>
+              <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
                 {props.activeFilterCount}
               </Badge>
             )}
@@ -170,9 +182,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             <span className='text-foreground font-semibold tabular-nums'>
               {props.filteredCount.toLocaleString()}
             </span>
-            <span>
-              {props.filteredCount === 1 ? t('model') : t('models')}
-            </span>
+            <span>{props.filteredCount === 1 ? t('model') : t('models')}</span>
             {props.hasActiveFilters && props.totalCount && (
               <span className='text-muted-foreground/60 text-xs'>
                 / {props.totalCount.toLocaleString()}
@@ -204,18 +214,18 @@ export function PricingToolbar(props: PricingToolbarProps) {
           </div>
 
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                className='h-8 gap-1.5 px-3 text-xs'
-              >
-                <ArrowUpDown className='size-3.5' />
-                <span>
-                  {sortLabels[props.sortBy as SortOption] || t('Sort')}
-                </span>
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='h-8 gap-1.5 px-3 text-xs'
+                />
+              }
+            >
+              <ArrowUpDown className='size-3.5' />
+              <span>{sortLabels[props.sortBy as SortOption] || t('Sort')}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end' className='w-44'>
               {Object.entries(sortLabels).map(([value, label]) => (
