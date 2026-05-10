@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { API_KEY_STATUS } from '@/features/keys/constants'
 
 export type ChatLinkType = 'web' | 'custom-protocol' | 'fluent'
@@ -64,6 +82,15 @@ export function detectChatLinkType(url: string): ChatLinkType {
     return 'fluent'
   }
   return 'custom-protocol'
+}
+
+export function chatLinkRequiresApiKey(url: string): boolean {
+  return (
+    url.includes('{key}') ||
+    url.includes('{cherryConfig}') ||
+    url.includes('{aionuiConfig}') ||
+    url.includes('{deepchatConfig}')
+  )
 }
 
 export function parseChatConfig(raw: RawChatConfig): ChatPreset[] {
@@ -144,6 +171,16 @@ export function resolveChatUrl({
     }
     const encoded = encodeURIComponent(toBase64(JSON.stringify(payload)))
     return replaceToken(url, '{aionuiConfig}', encoded)
+  }
+
+  if (url.includes('{deepchatConfig}')) {
+    const payload = {
+      id: 'new-api',
+      baseUrl: safeServerAddress,
+      apiKey: safeApiKey,
+    }
+    const encoded = encodeURIComponent(toBase64(JSON.stringify(payload)))
+    return replaceToken(url, '{deepchatConfig}', encoded)
   }
 
   if (safeServerAddress) {

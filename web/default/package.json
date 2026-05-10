@@ -12,6 +12,8 @@
     "preview": "rsbuild preview",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
+    "copyright:check": "node scripts/add-copyright.mjs --check",
+    "copyright": "node scripts/add-copyright.mjs",
     "i18n:sync": "node scripts/sync-i18n.mjs",
     "knip": "knip"
   },

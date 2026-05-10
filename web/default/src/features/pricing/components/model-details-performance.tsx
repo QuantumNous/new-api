@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, HeartPulse, Timer } from 'lucide-react'
@@ -12,13 +30,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { GroupBadge } from '@/components/group-badge'
-import { getPerfMetrics, type PerformanceGroup } from '../api'
+import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
-  type UptimeDayPoint,
-} from '../lib/mock-stats'
+} from '@/features/performance-metrics/lib/format'
+import type { PerformanceGroup } from '@/features/performance-metrics/types'
+import { type UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { UptimeSparkline } from './model-details-uptime-sparkline'
@@ -142,7 +161,10 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     queryFn: () => getPerfMetrics(props.model.model_name, 24),
     staleTime: 60 * 1000,
   })
-  const groups = metricsQuery.data?.data.groups ?? []
+  const groups = useMemo(
+    () => metricsQuery.data?.data.groups ?? [],
+    [metricsQuery.data]
+  )
   const performances = useMemo<PerformanceRow[]>(
     () =>
       groups.map((group) => ({
