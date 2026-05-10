@@ -59,12 +59,16 @@ type UpstreamToolUsage struct {
 // UpstreamResponse is the slice of /v1/responses we use. The SDK doesn't
 // model the image-generation tool fully; we keep this shape narrow to avoid
 // fighting upstream schema drift.
+//
+// `background` is intentionally omitted — upstream sometimes sends it as
+// bool (`false`), sometimes as string (`"opaque"`), and our envelope doesn't
+// need it. Adding a strict type for it would fail the entire unmarshal of
+// response.completed and silently zero out usage/tool_usage billing.
 type UpstreamResponse struct {
-	Model      string             `json:"model,omitempty"`
-	Background string             `json:"background,omitempty"`
-	Output     []UpstreamItem     `json:"output,omitempty"`
-	Usage      *dto.Usage         `json:"usage,omitempty"`
-	ToolUsage  *UpstreamToolUsage `json:"tool_usage,omitempty"`
+	Model     string             `json:"model,omitempty"`
+	Output    []UpstreamItem     `json:"output,omitempty"`
+	Usage     *dto.Usage         `json:"usage,omitempty"`
+	ToolUsage *UpstreamToolUsage `json:"tool_usage,omitempty"`
 }
 
 // AggregateResponseStream reads an SSE event stream and returns the final

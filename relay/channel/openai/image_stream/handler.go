@@ -318,9 +318,6 @@ func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.Im
 	}
 	out.OutputFormat = firstFormat
 	out.Size = firstSize
-	if agg.Background != "" {
-		out.Background = agg.Background
-	}
 	if req.Quality != "" {
 		out.Quality = req.Quality
 	}
