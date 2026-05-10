@@ -188,22 +188,22 @@ const FooterBar = () => {
           </div>
         )}
 
-        <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-6'>
+        <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-4 text-xs'>
           <div className='flex flex-wrap items-center gap-2'>
-            <Typography.Text className='text-sm !text-semi-color-text-1'>
+            <Typography.Text className='!text-xs !text-semi-color-text-2'>
               © {currentYear} {systemName}. {t('版权所有')}
             </Typography.Text>
           </div>
 
-          <div className='text-sm'>
-            <span className='!text-semi-color-text-1'>
+          <div className='text-xs'>
+            <span className='!text-semi-color-text-2'>
               {t('设计与开发由')}{' '}
             </span>
             <a
               href='https://github.com/QuantumNous/new-api'
               target='_blank'
               rel='noopener noreferrer'
-              className='!text-semi-color-primary font-medium'
+              className='!text-semi-color-text-1 font-medium'
             >
               New API
             </a>
@@ -221,21 +221,21 @@ const FooterBar = () => {
   return (
     <div className='w-full'>
       {footer ? (
-        <footer className='relative h-auto py-4 px-6 md:px-24 w-full flex items-center justify-center overflow-hidden'>
-          <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-4'>
+        <footer className='relative h-auto py-3 px-6 md:px-24 w-full flex items-center justify-center overflow-hidden'>
+          <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-3 text-xs'>
             <div
-              className='custom-footer na-cb6feafeb3990c78 text-sm !text-semi-color-text-1'
+              className='custom-footer na-cb6feafeb3990c78 text-xs leading-5 !text-semi-color-text-2'
               dangerouslySetInnerHTML={{ __html: footer }}
             ></div>
-            <div className='text-sm flex-shrink-0'>
-              <span className='!text-semi-color-text-1'>
+            <div className='text-xs flex-shrink-0'>
+              <span className='!text-semi-color-text-2'>
                 {t('设计与开发由')}{' '}
               </span>
               <a
                 href='https://github.com/QuantumNous/new-api'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='!text-semi-color-primary font-medium'
+                className='!text-semi-color-text-1 font-medium'
               >
                 New API
               </a>
