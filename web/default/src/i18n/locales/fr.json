@@ -4417,7 +4417,7 @@
     "playground.endpoint.description.image-generations": "Modèles d’image dédiés tels que gpt-image et dall-e.",
     "playground.endpoint.description.chat-completions": "Modèles de chat completion OpenAI compatibles hérités.",
     "errors.gatewayTimeout": "Délai d'attente dépassé. La requête de génération d'image a pris trop de temps. Veuillez réessayer plus tard.",
-    "errors.httpError": "Erreur HTTP {{status}}{{statusText}}",
+    "errors.httpError": "Erreur HTTP {{status}} {{statusText}}",
     "errors.requestError": "Une erreur de requête s'est produite",
     "playground.image.size.formatError": "La taille doit utiliser le format axb avec des dimensions entières positives",
     "playground.image.size.limitError": "La largeur et la hauteur doivent être inférieures ou égales à 3840",

@@ -215,7 +215,7 @@ const SettingsPanel = ({
           <div className='flex items-center gap-2 mb-2'>
             <Settings size={16} className='text-gray-500' />
             <Typography.Text strong className='text-sm'>
-              {t('端点（自动识别）')}
+              {t('Endpoint (auto-detected)')}
             </Typography.Text>
             {customRequestMode && (
               <Typography.Text className='text-xs text-orange-600'>

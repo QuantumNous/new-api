@@ -4417,7 +4417,7 @@
     "playground.endpoint.description.image-generations": "Специализированные модели изображений, такие как gpt-image и dall-e.",
     "playground.endpoint.description.chat-completions": "Устаревшие модели chat completion, совместимые с OpenAI.",
     "errors.gatewayTimeout": "Превышено время ожидания шлюза. Запрос на генерацию изображения занял слишком много времени. Повторите попытку позже.",
-    "errors.httpError": "HTTP-ошибка {{status}}{{statusText}}",
+    "errors.httpError": "HTTP-ошибка {{status}} {{statusText}}",
     "errors.requestError": "Произошла ошибка запроса",
     "playground.image.size.formatError": "Размер должен быть в формате axb с положительными целыми значениями",
     "playground.image.size.limitError": "Ширина и высота должны быть не больше 3840",
