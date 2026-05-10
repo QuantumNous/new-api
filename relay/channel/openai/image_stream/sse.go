@@ -1,0 +1,137 @@
+package image_stream
+
+// SSE aggregator for upstream /v1/responses stream:true responses.
+//
+// We bypass any partial_image events (each carries multi-MB base64 noise we
+// don't need) and capture only the events that contain final state:
+//   - response.output_item.done : the actual image_generation_call result
+//   - response.completed        : usage + final response shell
+// in_progress / created snapshots are kept as a fallback for usage data when
+// completed never arrives.
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+)
+
+const (
+	maxSSELineSize  = 32 << 20 // 32 MiB — image_generation_call.result is ~2-15 MiB at 4K
+	initSSEBufBytes = 1 << 20  // 1 MiB initial buffer
+)
+
+// UpstreamItem mirrors the relevant fields of an output_item in a
+// /v1/responses payload. Only image_generation_call items are interesting
+// for our envelope.
+type UpstreamItem struct {
+	Type          string `json:"type"`
+	Result        string `json:"result,omitempty"`
+	OutputFormat  string `json:"output_format,omitempty"`
+	Size          string `json:"size,omitempty"`
+	RevisedPrompt string `json:"revised_prompt,omitempty"`
+	Status        string `json:"status,omitempty"`
+}
+
+// UpstreamResponse is the slice of /v1/responses we use. The SDK doesn't
+// model the image-generation tool fully; we keep this shape narrow to avoid
+// fighting upstream schema drift.
+type UpstreamResponse struct {
+	Model      string         `json:"model,omitempty"`
+	Background string         `json:"background,omitempty"`
+	Output     []UpstreamItem `json:"output,omitempty"`
+	Usage      *dto.Usage     `json:"usage,omitempty"`
+}
+
+// AggregateResponseStream reads an SSE event stream and returns the final
+// upstream response object. Returns an error if the stream contains an
+// "error" or "response.failed" event, or if no terminal event is observed.
+func AggregateResponseStream(body io.Reader) (*UpstreamResponse, error) {
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, initSSEBufBytes), maxSSELineSize)
+
+	var snapshot *UpstreamResponse
+	var collected []UpstreamItem
+	var seenCompleted bool
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimSpace(line[6:])
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+		// Cheap pre-filter: partial_image events carry a multi-MB base64
+		// payload and we never need them for the final envelope.
+		if strings.Contains(data, `"partial_image_b64"`) {
+			continue
+		}
+
+		var probe struct {
+			Type string `json:"type"`
+		}
+		if err := common.UnmarshalJsonStr(data, &probe); err != nil {
+			continue
+		}
+
+		switch probe.Type {
+		case "response.output_item.done":
+			var ev struct {
+				Item *UpstreamItem `json:"item"`
+			}
+			if err := common.UnmarshalJsonStr(data, &ev); err == nil && ev.Item != nil {
+				collected = append(collected, *ev.Item)
+			}
+		case "response.completed":
+			var ev struct {
+				Response *UpstreamResponse `json:"response"`
+			}
+			if err := common.UnmarshalJsonStr(data, &ev); err == nil && ev.Response != nil {
+				snapshot = ev.Response
+				seenCompleted = true
+			}
+		case "response.in_progress", "response.created":
+			if snapshot == nil {
+				var ev struct {
+					Response *UpstreamResponse `json:"response"`
+				}
+				if err := common.UnmarshalJsonStr(data, &ev); err == nil {
+					snapshot = ev.Response
+				}
+			}
+		case "error", "response.failed":
+			var ev struct {
+				Error struct {
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			_ = common.UnmarshalJsonStr(data, &ev)
+			if ev.Error.Message == "" {
+				return nil, fmt.Errorf("upstream error event")
+			}
+			return nil, fmt.Errorf("upstream error: %s", ev.Error.Message)
+		}
+
+		if seenCompleted {
+			break
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("SSE scan: %w", err)
+	}
+
+	if snapshot == nil {
+		snapshot = &UpstreamResponse{}
+	}
+	// If completed.response.output came back empty (some upstreams do this),
+	// splice in the items we collected from output_item.done events.
+	if len(snapshot.Output) == 0 {
+		snapshot.Output = collected
+	}
+	return snapshot, nil
+}

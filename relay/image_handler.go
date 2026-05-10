@@ -11,7 +11,9 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/openai/image_stream"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -36,6 +38,21 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+
+	// Model gating — gpt-image-* family (currently gpt-image-2) goes through
+	// the in-process Go SSE aggregator instead of the standard worker-relayed
+	// path. This exists because gpt-image-2 at large sizes routinely takes
+	// 60-150s upstream, which the worker→client chain can't survive without
+	// a stream-aggregating layer that holds the connection open with early
+	// flushes.
+	//
+	// Phase 2 ships /v1/images/generations only; Phase 3 will add edits.
+	// Until then, gpt-image-* edit requests continue through the existing
+	// worker-relayed path.
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations &&
+		image_stream.IsGptImageModel(request.Model) {
+		return image_stream.HandleImageStream(c, info, request)
 	}
 
 	adaptor := GetAdaptor(info.ApiType)
