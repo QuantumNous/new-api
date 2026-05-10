@@ -115,6 +115,17 @@ func AggregateResponseStream(body io.Reader) (*UpstreamResponse, error) {
 			if err := common.UnmarshalJsonStr(data, &ev); err == nil && ev.Response != nil {
 				snapshot = ev.Response
 				seenCompleted = true
+				usageInfo := "<nil>"
+				if ev.Response.Usage != nil {
+					usageInfo = fmt.Sprintf("input=%d output=%d", ev.Response.Usage.InputTokens, ev.Response.Usage.OutputTokens)
+				}
+				toolUsageInfo := "<nil>"
+				if ev.Response.ToolUsage != nil && ev.Response.ToolUsage.ImageGen != nil {
+					ig := ev.Response.ToolUsage.ImageGen
+					toolUsageInfo = fmt.Sprintf("img_gen{input=%d output=%d image_tokens=%d}",
+						ig.InputTokens, ig.OutputTokens, ig.OutputTokensDetails.ImageTokens)
+				}
+				common.SysLog(fmt.Sprintf("image_stream completed: usage=%s tool=%s", usageInfo, toolUsageInfo))
 			}
 		case "response.in_progress", "response.created":
 			if snapshot == nil {
