@@ -1,13 +1,29 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl } from '@/features/chat/lib/chat-links'
-import { getApiKeys } from '@/features/keys/api'
-import { API_KEY_STATUS } from '@/features/keys/constants'
 
 export const Route = createFileRoute('/_authenticated/chat2link')({
   component: Chat2LinkPage,
@@ -23,19 +39,9 @@ function Chat2LinkPage() {
     [chatPresets]
   )
 
-  const { data: activeKey } = useQuery({
-    queryKey: ['chat2link-active-key'],
-    queryFn: async () => {
-      const result = await getApiKeys({ p: 1, size: 50 })
-      if (!result.success) throw new Error(result.message)
-      const items = result.data?.items ?? []
-      const active = items.find(
-        (item) => item.status === API_KEY_STATUS.ENABLED
-      )
-      return active?.key ?? null
-    },
-    staleTime: 5 * 60 * 1000,
-  })
+  const { data: activeKey, error: keyError } = useActiveChatKey(
+    Boolean(firstWebPreset)
+  )
 
   useEffect(() => {
     if (!firstWebPreset) {
@@ -45,10 +51,14 @@ function Chat2LinkPage() {
       return
     }
 
-    if (activeKey === undefined) return
+    if (activeKey === undefined && !keyError) return
 
-    if (!activeKey) {
-      toast.error(t('No enabled tokens available'))
+    if (keyError || !activeKey) {
+      const message =
+        keyError instanceof Error
+          ? keyError.message
+          : t('No enabled tokens available')
+      toast.error(message)
       navigate({ to: '/keys' })
       return
     }
@@ -65,6 +75,7 @@ function Chat2LinkPage() {
   }, [
     firstWebPreset,
     activeKey,
+    keyError,
     serverAddress,
     chatPresets.length,
     navigate,
