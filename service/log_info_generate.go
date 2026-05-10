@@ -261,6 +261,9 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	// count_billing flags per-piece billing for the reconciliation aggregator
+	// (consumed by service/reconcile_aggregator.go splitLogRows category B).
+	other["count_billing"] = true
 	appendRequestPath(nil, relayInfo, other)
 	return other
 }

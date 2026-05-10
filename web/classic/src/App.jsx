@@ -45,6 +45,7 @@ import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
+import Reconcile from './pages/Reconcile';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import KYCPage from './pages/KYC';
@@ -129,6 +130,14 @@ function App() {
           element={
             <AdminRoute>
               <Subscription />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/reconcile'
+          element={
+            <AdminRoute>
+              <Reconcile />
             </AdminRoute>
           }
         />

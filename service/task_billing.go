@@ -136,6 +136,9 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = props.UpstreamModelName
 	}
+	// count_billing flags per-piece task billing for the reconciliation
+	// aggregator (consumed by service/reconcile_aggregator.go splitLogRows).
+	other["count_billing"] = true
 	return other
 }
 
