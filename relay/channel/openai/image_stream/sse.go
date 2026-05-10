@@ -161,8 +161,11 @@ func AggregateResponseStream(body io.Reader) (*UpstreamResponse, error) {
 			break
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("SSE scan: %w", err)
+	scanErr := scanner.Err()
+	common.SysLog(fmt.Sprintf("image_stream sse done: seenCompleted=%v collected=%d snapshot_nil=%v scan_err=%v",
+		seenCompleted, len(collected), snapshot == nil, scanErr))
+	if scanErr != nil {
+		return nil, fmt.Errorf("SSE scan: %w", scanErr)
 	}
 
 	if snapshot == nil {
