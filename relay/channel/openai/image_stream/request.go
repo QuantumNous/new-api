@@ -43,6 +43,59 @@ func rawString(raw json.RawMessage) string {
 	return s
 }
 
+// buildEditsRequest converts /v1/images/edits multipart input into a
+// /v1/responses payload. The user message is an array of content parts:
+//   { "type": "input_text",  "text": <prompt> }
+// followed by one or more
+//   { "type": "input_image", "image_url": <data:URI> }
+// parts — one per normalized image source (file, URL, or pre-formed data:URI).
+func buildEditsRequest(prompt string, images []NormalizedImage, model, modelOverride, size, quality, outputFormat, background, moderation string, outputCompression any) responsesRequest {
+	tool := imageGenerationTool{Type: "image_generation"}
+	if size != "" {
+		tool.Size = size
+	}
+	if quality != "" {
+		tool.Quality = quality
+	}
+	if outputFormat != "" {
+		tool.OutputFormat = outputFormat
+	}
+	if outputCompression != nil {
+		tool.OutputCompression = outputCompression
+	}
+	if background != "" {
+		tool.Background = background
+	}
+	if moderation != "" {
+		tool.Moderation = moderation
+	} else {
+		tool.Moderation = "low"
+	}
+
+	content := []map[string]any{
+		{"type": "input_text", "text": prompt},
+	}
+	for _, img := range images {
+		content = append(content, map[string]any{
+			"type":      "input_image",
+			"image_url": img.DataURI,
+		})
+	}
+
+	if modelOverride != "" {
+		model = modelOverride
+	}
+
+	return responsesRequest{
+		Model: model,
+		Input: []map[string]any{
+			{"role": "user", "content": content},
+		},
+		Tools:  []imageGenerationTool{tool},
+		Stream: true,
+	}
+}
+
 // buildGenerationsRequest converts the classic /v1/images/generations
 // request shape into a /v1/responses payload with stream:true. The simple
 // case: input is the prompt string.

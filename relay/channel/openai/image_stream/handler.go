@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,7 +28,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -44,16 +44,12 @@ func IsGptImageModel(model string) bool {
 	return strings.HasPrefix(strings.ToLower(model), "gpt-image-")
 }
 
-// HandleImageStream is the Phase-2 entry point. It currently supports
-// /v1/images/generations only; /v1/images/edits will land in Phase 3.
+// HandleImageStream is the entry point for both /v1/images/generations and
+// /v1/images/edits when the request model matches the gpt-image-* family.
+// The two relay modes share everything except request building, so the
+// outer flow (early flush → upstream POST → SSE aggregate → envelope →
+// billing) is centralized below.
 func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ImageRequest) *types.NewAPIError {
-	if info.RelayMode != relayconstant.RelayModeImagesGenerations {
-		return types.NewError(
-			fmt.Errorf("image_stream: relay mode %d not yet supported (only generations)", info.RelayMode),
-			types.ErrorCodeInvalidApiType,
-			types.ErrOptionWithSkipRetry(),
-		)
-	}
 	if info.ChannelBaseUrl == "" {
 		return types.NewError(
 			errors.New("image_stream: channel base_url is empty"),
@@ -61,16 +57,86 @@ func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Ima
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
-	if req.Prompt == "" {
-		return types.NewErrorWithStatusCode(
-			errors.New("prompt is required"),
-			types.ErrorCodeInvalidRequest,
-			http.StatusBadRequest,
+
+	var upstreamReq responsesRequest
+	switch info.RelayMode {
+	case relayconstant.RelayModeImagesGenerations:
+		if req.Prompt == "" {
+			return types.NewErrorWithStatusCode(
+				errors.New("prompt is required"),
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		upstreamReq = buildGenerationsRequest(req, info.UpstreamModelName)
+
+	case relayconstant.RelayModeImagesEdits:
+		if !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+			return types.NewErrorWithStatusCode(
+				errors.New("image_stream: edits requires multipart/form-data"),
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		mf := c.Request.MultipartForm
+		if mf == nil {
+			if _, err := c.MultipartForm(); err != nil {
+				return types.NewErrorWithStatusCode(
+					fmt.Errorf("parse multipart form: %w", err),
+					types.ErrorCodeInvalidRequest,
+					http.StatusBadRequest,
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+			mf = c.Request.MultipartForm
+		}
+		images, err := CollectAndNormalizeImages(c.Request.Context(), mf)
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		// Pull all the optional tool params out of the multipart form. They
+		// live alongside `image` and aren't reflected in dto.ImageRequest's
+		// fields for /v1/images/edits.
+		formGet := func(key string) string {
+			if vs := mf.Value[key]; len(vs) > 0 {
+				return strings.TrimSpace(vs[0])
+			}
+			return ""
+		}
+		prompt := strings.TrimSpace(req.Prompt)
+		if prompt == "" {
+			prompt = formGet("prompt")
+		}
+		if prompt == "" {
+			return types.NewErrorWithStatusCode(
+				errors.New("prompt is required"),
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		var outputCompression any
+		if oc := formGet("output_compression"); oc != "" {
+			outputCompression = json.RawMessage(oc)
+		}
+		upstreamReq = buildEditsRequest(
+			prompt, images,
+			req.Model, info.UpstreamModelName,
+			formGet("size"), formGet("quality"),
+			formGet("output_format"), formGet("background"), formGet("moderation"),
+			outputCompression,
+		)
+
+	default:
+		return types.NewError(
+			fmt.Errorf("image_stream: unsupported relay mode %d", info.RelayMode),
+			types.ErrorCodeInvalidApiType,
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
 
-	upstreamReq := buildGenerationsRequest(req, info.UpstreamModelName)
 	body, err := common.Marshal(upstreamReq)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -78,7 +144,7 @@ func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Ima
 
 	url := strings.TrimRight(info.ChannelBaseUrl, "/") + "/v1/responses"
 	if common.DebugEnabled {
-		logger.LogDebug(c, fmt.Sprintf("image_stream: POST %s body=%dB", url, len(body)))
+		logger.LogDebug(c, fmt.Sprintf("image_stream: POST %s body=%dB mode=%d", url, len(body), info.RelayMode))
 	}
 
 	// Early flush: write headers + a single space byte to satisfy the CF
@@ -92,6 +158,7 @@ func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Ima
 	httpClient := &http.Client{Timeout: 5 * time.Minute}
 	httpReq, err := http.NewRequestWithContext(c.Request.Context(), "POST", url, bytes.NewReader(body))
 	if err != nil {
+		writeError(c, http.StatusInternalServerError, err.Error())
 		return types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+info.ApiKey)
@@ -100,6 +167,7 @@ func HandleImageStream(c *gin.Context, info *relaycommon.RelayInfo, req *dto.Ima
 
 	upstreamResp, err := httpClient.Do(httpReq)
 	if err != nil {
+		writeError(c, http.StatusBadGateway, err.Error())
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusBadGateway)
 	}
 	defer upstreamResp.Body.Close()
@@ -261,5 +329,3 @@ func applyBilling(c *gin.Context, info *relaycommon.RelayInfo, agg *UpstreamResp
 	service.PostTextConsumeQuota(c, info, usage, logContent)
 }
 
-// silence unused-import warnings until Phase 3 lands the edits path
-var _ = constant.ContextKeyChannelBaseUrl

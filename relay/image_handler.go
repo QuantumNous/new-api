@@ -46,12 +46,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	// 60-150s upstream, which the worker→client chain can't survive without
 	// a stream-aggregating layer that holds the connection open with early
 	// flushes.
-	//
-	// Phase 2 ships /v1/images/generations only; Phase 3 will add edits.
-	// Until then, gpt-image-* edit requests continue through the existing
-	// worker-relayed path.
-	if info.RelayMode == relayconstant.RelayModeImagesGenerations &&
-		image_stream.IsGptImageModel(request.Model) {
+	if image_stream.IsGptImageModel(request.Model) &&
+		(info.RelayMode == relayconstant.RelayModeImagesGenerations ||
+			info.RelayMode == relayconstant.RelayModeImagesEdits) {
 		return image_stream.HandleImageStream(c, info, request)
 	}
 
