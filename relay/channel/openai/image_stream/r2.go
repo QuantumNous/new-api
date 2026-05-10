@@ -133,8 +133,15 @@ func (c R2Config) PutObject(ctx context.Context, key string, contentType string,
 // burning storage on duplicates.
 func (c R2Config) PutImageDeduped(ctx context.Context, raw []byte, claimedFormat string) (string, string, error) {
 	ext := InferImageExt(claimedFormat, raw)
-	hash := sha256.Sum256(raw)
-	key := "images/" + hex.EncodeToString(hash[:]) + "." + ext
+	key := "images/" + sha256HexBytes(raw) + "." + ext
 	url, err := c.PutObject(ctx, key, MimeForExt(ext), raw)
 	return url, ext, err
+}
+
+// sha256HexBytes returns the hex-encoded sha256 digest of `raw`. Exported
+// (lowercase but reused across files in the same package) so the envelope
+// builder can compute keys without re-importing crypto/sha256.
+func sha256HexBytes(raw []byte) string {
+	h := sha256.Sum256(raw)
+	return hex.EncodeToString(h[:])
 }

@@ -239,32 +239,67 @@ func writeError(c *gin.Context, status int, msg string) {
 	c.Writer.Flush()
 }
 
+// imageEnvelope is the JSON shape we write back to the client. It extends
+// dto.ImageResponse with the optional fields the worker used to surface
+// (output_format, size, quality, background, model, usage). Clients depend
+// on output_format to know whether webp was honoured or silently demoted.
+type imageEnvelope struct {
+	Created       int64           `json:"created"`
+	Data          []dto.ImageData `json:"data"`
+	Background    string          `json:"background,omitempty"`
+	OutputFormat  string          `json:"output_format,omitempty"`
+	Quality       string          `json:"quality,omitempty"`
+	Size          string          `json:"size,omitempty"`
+	Model         string          `json:"model,omitempty"`
+	Usage         *dto.Usage      `json:"usage,omitempty"`
+}
+
 // buildImagesResponse turns the aggregated /v1/responses payload into the
 // classic OpenAI Images-API envelope. For each image_generation_call item,
 // either uploads the bytes to R2 (returning a public URL) or surfaces the
 // base64 inline as `b64_json` if the caller asked for that or R2 isn't
 // configured.
-func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.ImageRequest) (*dto.ImageResponse, error) {
+func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.ImageRequest) (*imageEnvelope, error) {
 	r2 := LoadR2Config()
 	wantB64 := req.ResponseFormat == "b64_json" || !r2.Enabled()
 
-	out := &dto.ImageResponse{
+	out := &imageEnvelope{
 		Created: time.Now().Unix(),
+		Model:   agg.Model,
+		Usage:   agg.Usage,
 	}
 
+	var firstFormat, firstSize string
 	for _, item := range agg.Output {
 		if item.Type != "image_generation_call" || len(item.Result) < 100 {
 			continue
 		}
+		// Use the magic-byte sniffed extension as authoritative format —
+		// upstream sometimes claims webp but returns PNG, so trusting
+		// item.OutputFormat would mislabel.
+		raw, err := base64.StdEncoding.DecodeString(item.Result)
+		if err != nil {
+			return nil, fmt.Errorf("decode image base64: %w", err)
+		}
+		ext := InferImageExt(item.OutputFormat, raw)
+		actualFormat := ext
+		if ext == "jpg" {
+			actualFormat = "jpeg"
+		}
+		if firstFormat == "" {
+			firstFormat = actualFormat
+		}
+		if firstSize == "" {
+			firstSize = item.Size
+		}
+
 		entry := dto.ImageData{}
 		if wantB64 {
 			entry.B64Json = item.Result
 		} else {
-			raw, err := base64.StdEncoding.DecodeString(item.Result)
-			if err != nil {
-				return nil, fmt.Errorf("decode image base64: %w", err)
-			}
-			url, _, err := r2.PutImageDeduped(ctx, raw, item.OutputFormat)
+			url, err := r2.PutObject(ctx,
+				"images/"+sha256HexBytes(raw)+"."+ext,
+				MimeForExt(ext), raw)
 			if err != nil {
 				return nil, fmt.Errorf("R2 upload: %w", err)
 			}
@@ -280,6 +315,14 @@ func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.Im
 
 	if len(out.Data) == 0 {
 		return nil, errors.New("upstream produced no image_generation_call output")
+	}
+	out.OutputFormat = firstFormat
+	out.Size = firstSize
+	if agg.Background != "" {
+		out.Background = agg.Background
+	}
+	if req.Quality != "" {
+		out.Quality = req.Quality
 	}
 	return out, nil
 }
