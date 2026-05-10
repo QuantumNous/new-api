@@ -50,19 +50,33 @@ export function ComboboxInput({
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
   const [highlightedIndex, setHighlightedIndex] = React.useState(-1)
+  const [editValue, setEditValue] = React.useState('')
+  const [isEditing, setIsEditing] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const listRef = React.useRef<HTMLUListElement>(null)
 
+  const selectedOption = React.useMemo(
+    () => options.find((option) => option.value === value),
+    [options, value]
+  )
+
+  const displayValue = isEditing ? editValue : (selectedOption?.label ?? value)
+
+  React.useEffect(() => {
+    setIsEditing(false)
+  }, [value])
+
   const filteredOptions = React.useMemo(() => {
-    if (!value.trim()) return options
-    const search = value.toLowerCase().trim()
+    if (!isEditing) return options
+    const search = editValue.toLowerCase().trim()
+    if (!search) return options
     return options.filter(
       (option) =>
         option.label.toLowerCase().includes(search) ||
         option.value.toLowerCase().includes(search)
     )
-  }, [options, value])
+  }, [options, editValue, isEditing])
 
   // Reset highlight when filtered options change
   React.useEffect(() => {
@@ -87,9 +101,11 @@ export function ComboboxInput({
   }, [open])
 
   const handleSelect = (selectedValue: string) => {
+    setEditValue('')
+    setIsEditing(false)
     onValueChange(selectedValue)
     setOpen(false)
-    inputRef.current?.focus()
+    inputRef.current?.blur()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -117,8 +133,12 @@ export function ComboboxInput({
         e.preventDefault()
         if (highlightedIndex >= 0 && filteredOptions[highlightedIndex]) {
           handleSelect(filteredOptions[highlightedIndex].value)
+        } else if (isEditing && editValue.trim()) {
+          setEditValue('')
+          setIsEditing(false)
+          onValueChange(editValue.trim())
+          setOpen(false)
         } else {
-          // No highlighted option, just close the dropdown and keep current value
           setOpen(false)
         }
         break
@@ -136,7 +156,7 @@ export function ComboboxInput({
     item?.scrollIntoView({ block: 'nearest' })
   }, [highlightedIndex])
 
-  const showDropdown = open && (filteredOptions.length > 0 || value.trim())
+  const showDropdown = open && (filteredOptions.length > 0 || (isEditing && editValue.trim()))
 
   return (
     <div ref={containerRef} className='relative'>
@@ -150,9 +170,10 @@ export function ComboboxInput({
         aria-autocomplete='list'
         autoComplete='off'
         placeholder={placeholder}
-        value={value}
+        value={displayValue}
         onChange={(e) => {
-          onValueChange(e.target.value)
+          setEditValue(e.target.value)
+          if (!isEditing) setIsEditing(true)
           if (!open) setOpen(true)
         }}
         onFocus={() => setOpen(true)}
@@ -201,9 +222,9 @@ export function ComboboxInput({
           ) : (
             <div className='px-2 py-6 text-center text-sm'>
               {emptyText}
-              {value.trim() && (
+              {isEditing && editValue.trim() && (
                 <div className='text-muted-foreground mt-1 text-xs'>
-                  {t('Press Enter to use "{{value}}"', { value: value.trim() })}
+                  {t('Press Enter to use "{{value}}"', { value: editValue.trim() })}
                 </div>
               )}
             </div>
