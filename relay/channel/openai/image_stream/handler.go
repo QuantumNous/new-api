@@ -266,7 +266,7 @@ func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.Im
 	out := &imageEnvelope{
 		Created: time.Now().Unix(),
 		Model:   agg.Model,
-		Usage:   agg.Usage,
+		Usage:   mergeUsage(agg),
 	}
 
 	var firstFormat, firstSize string
@@ -327,15 +327,54 @@ func buildImagesResponse(ctx context.Context, agg *UpstreamResponse, req *dto.Im
 	return out, nil
 }
 
+// mergeUsage flattens upstream's split usage representation into the single
+// dto.Usage shape new-api's billing path expects. /v1/responses splits the
+// cost across two fields:
+//   - response.usage          — LLM reasoning only (40-200 tokens)
+//   - tool_usage.image_gen.*  — image cost (often thousands of tokens)
+// Forwarding only response.usage means logs show prompt/completion tokens
+// near 0 even when an actual high-res image was rendered. We merge both.
+func mergeUsage(agg *UpstreamResponse) *dto.Usage {
+	u := &dto.Usage{}
+	if agg.Usage != nil {
+		u = agg.Usage
+	}
+	if agg.ToolUsage != nil && agg.ToolUsage.ImageGen != nil {
+		ig := agg.ToolUsage.ImageGen
+		// Add image-gen input/output to the running totals.
+		u.InputTokens += ig.InputTokens
+		u.OutputTokens += ig.OutputTokens
+		u.TotalTokens += ig.TotalTokens
+		// Surface details so per-modality logs can attribute image cost.
+		if u.InputTokensDetails == nil {
+			u.InputTokensDetails = &dto.InputTokenDetails{}
+		}
+		u.InputTokensDetails.ImageTokens += ig.InputTokensDetails.ImageTokens
+		u.InputTokensDetails.TextTokens += ig.InputTokensDetails.TextTokens
+		u.CompletionTokenDetails.ImageTokens += ig.OutputTokensDetails.ImageTokens
+		u.CompletionTokenDetails.TextTokens += ig.OutputTokensDetails.TextTokens
+	}
+	// new-api's billing path keys off PromptTokens/CompletionTokens (the
+	// legacy chat-style names). Mirror the responses-API counts into them
+	// so log_consume_log surfaces real numbers instead of zeros.
+	if u.PromptTokens == 0 && u.InputTokens > 0 {
+		u.PromptTokens = u.InputTokens
+	}
+	if u.CompletionTokens == 0 && u.OutputTokens > 0 {
+		u.CompletionTokens = u.OutputTokens
+	}
+	if u.TotalTokens == 0 {
+		u.TotalTokens = u.PromptTokens + u.CompletionTokens
+	}
+	return u
+}
+
 // applyBilling triggers the standard quota-consume path so this endpoint
 // integrates with the same billing system as everything else. Falls back to
 // PromptTokens=1/TotalTokens=1 if upstream gave us nothing usable, matching
 // the existing image-handler behavior.
 func applyBilling(c *gin.Context, info *relaycommon.RelayInfo, agg *UpstreamResponse, req *dto.ImageRequest) {
-	usage := &dto.Usage{}
-	if agg.Usage != nil {
-		usage = agg.Usage
-	}
+	usage := mergeUsage(agg)
 	if usage.TotalTokens == 0 {
 		usage.TotalTokens = 1
 	}

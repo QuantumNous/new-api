@@ -36,14 +36,35 @@ type UpstreamItem struct {
 	Status        string `json:"status,omitempty"`
 }
 
+// UpstreamToolUsage carries image_gen costs reported in tool_usage.image_gen.
+// Upstream surfaces image_tokens here (typically thousands per render),
+// while response.usage only reports the LLM reasoning slice (~40-200 tokens).
+// Merging the two is what makes billing reflect actual cost.
+type UpstreamToolUsage struct {
+	ImageGen *struct {
+		InputTokens         int `json:"input_tokens"`
+		InputTokensDetails  struct {
+			ImageTokens int `json:"image_tokens"`
+			TextTokens  int `json:"text_tokens"`
+		} `json:"input_tokens_details"`
+		OutputTokens         int `json:"output_tokens"`
+		OutputTokensDetails  struct {
+			ImageTokens int `json:"image_tokens"`
+			TextTokens  int `json:"text_tokens"`
+		} `json:"output_tokens_details"`
+		TotalTokens int `json:"total_tokens"`
+	} `json:"image_gen,omitempty"`
+}
+
 // UpstreamResponse is the slice of /v1/responses we use. The SDK doesn't
 // model the image-generation tool fully; we keep this shape narrow to avoid
 // fighting upstream schema drift.
 type UpstreamResponse struct {
-	Model      string         `json:"model,omitempty"`
-	Background string         `json:"background,omitempty"`
-	Output     []UpstreamItem `json:"output,omitempty"`
-	Usage      *dto.Usage     `json:"usage,omitempty"`
+	Model      string             `json:"model,omitempty"`
+	Background string             `json:"background,omitempty"`
+	Output     []UpstreamItem     `json:"output,omitempty"`
+	Usage      *dto.Usage         `json:"usage,omitempty"`
+	ToolUsage  *UpstreamToolUsage `json:"tool_usage,omitempty"`
 }
 
 // AggregateResponseStream reads an SSE event stream and returns the final
