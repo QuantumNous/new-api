@@ -99,6 +99,9 @@ func AggregateResponseStream(body io.Reader) (*UpstreamResponse, error) {
 		if err := common.UnmarshalJsonStr(data, &probe); err != nil {
 			continue
 		}
+		if probe.Type == "response.completed" || probe.Type == "response.failed" || probe.Type == "error" {
+			common.SysLog(fmt.Sprintf("image_stream sse event: type=%s data_len=%d head=%s", probe.Type, len(data), data[:min(len(data), 200)]))
+		}
 
 		switch probe.Type {
 		case "response.output_item.done":
