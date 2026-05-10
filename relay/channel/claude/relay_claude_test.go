@@ -176,6 +176,55 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	}
 }
 
+func TestStreamResponseClaude2OpenAIMapsParallelToolUseIndexes(t *testing.T) {
+	claudeInfo := &ClaudeResponseInfo{}
+
+	firstStart := streamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:         "content_block_start",
+		Index:        intPtr(0),
+		ContentBlock: &dto.ClaudeMediaMessage{Type: "tool_use", Id: "toolu_1", Name: "read_file"},
+	}, claudeInfo)
+	requireToolCallIndex(t, firstStart, 0)
+
+	firstDelta := streamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: intPtr(0),
+		Delta: &dto.ClaudeMediaMessage{Type: "input_json_delta", PartialJson: stringPtr(`{"file_path":"/a"}`)},
+	}, claudeInfo)
+	requireToolCallIndex(t, firstDelta, 0)
+
+	secondStart := streamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:         "content_block_start",
+		Index:        intPtr(1),
+		ContentBlock: &dto.ClaudeMediaMessage{Type: "tool_use", Id: "toolu_2", Name: "read_file"},
+	}, claudeInfo)
+	requireToolCallIndex(t, secondStart, 1)
+
+	secondDelta := streamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: intPtr(1),
+		Delta: &dto.ClaudeMediaMessage{Type: "input_json_delta", PartialJson: stringPtr(`{"file_path":"/b"}`)},
+	}, claudeInfo)
+	requireToolCallIndex(t, secondDelta, 1)
+}
+
+func requireToolCallIndex(t *testing.T, response *dto.ChatCompletionsStreamResponse, expected int) {
+	t.Helper()
+	require.NotNil(t, response)
+	require.Len(t, response.Choices, 1)
+	require.Len(t, response.Choices[0].Delta.ToolCalls, 1)
+	require.NotNil(t, response.Choices[0].Delta.ToolCalls[0].Index)
+	require.Equal(t, expected, *response.Choices[0].Delta.ToolCalls[0].Index)
+}
+
+func intPtr(v int) *int {
+	return &v
+}
+
+func stringPtr(v string) *string {
+	return &v
+}
+
 func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     100,
