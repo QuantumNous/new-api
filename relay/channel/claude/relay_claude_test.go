@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -273,6 +274,96 @@ func TestBuildOpenAIStyleUsageFromClaudeUsageDefaultsAggregateCacheCreationTo5m(
 
 	require.Equal(t, 50, openAIUsage.ClaudeCacheCreation5mTokens)
 	require.Equal(t, 0, openAIUsage.ClaudeCacheCreation1hTokens)
+}
+
+func TestRequestOpenAI2ClaudeMessage_ConvertsClaudeWebSearchTool(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Tools: []dto.ToolCallRequest{
+			{
+				Type: "web_search_20250305",
+			},
+		},
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "search the web",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+
+	tools, ok := claudeRequest.Tools.([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 1)
+
+	webSearchTool, ok := tools[0].(*dto.ClaudeWebSearchTool)
+	require.True(t, ok)
+	require.Equal(t, "web_search_20250305", webSearchTool.Type)
+	require.Equal(t, "web_search", webSearchTool.Name)
+}
+
+func TestRequestOpenAI2ClaudeMessage_ConvertsWebSearchOptions(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		WebSearchOptions: &dto.WebSearchOptions{
+			SearchContextSize: "high",
+			UserLocation:      json.RawMessage(`{"approximate":{"country":"US","timezone":"America/Los_Angeles"}}`),
+		},
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "search the web",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+
+	tools, ok := claudeRequest.Tools.([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 1)
+
+	webSearchTool, ok := tools[0].(*dto.ClaudeWebSearchTool)
+	require.True(t, ok)
+	require.Equal(t, WebSearchMaxUsesHigh, webSearchTool.MaxUses)
+	require.NotNil(t, webSearchTool.UserLocation)
+	require.Equal(t, "US", webSearchTool.UserLocation.Country)
+	require.Equal(t, "America/Los_Angeles", webSearchTool.UserLocation.Timezone)
+}
+
+func TestRequestOpenAI2ClaudeMessage_DoesNotDuplicateWebSearchTool(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Tools: []dto.ToolCallRequest{
+			{
+				Type: "web_search_preview",
+			},
+		},
+		WebSearchOptions: &dto.WebSearchOptions{
+			SearchContextSize: "medium",
+		},
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "search the web",
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+
+	tools, ok := claudeRequest.Tools.([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 1)
+
+	webSearchTool, ok := tools[0].(*dto.ClaudeWebSearchTool)
+	require.True(t, ok)
+	require.Equal(t, 0, webSearchTool.MaxUses)
 }
 
 func TestRequestOpenAI2ClaudeMessage_IgnoresUnsupportedFileContent(t *testing.T) {
