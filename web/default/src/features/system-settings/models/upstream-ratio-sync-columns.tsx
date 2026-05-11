@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { AlertTriangle } from 'lucide-react'
@@ -100,14 +118,16 @@ export function useUpstreamRatioSyncColumns(
                     ) : (
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <StatusBadge
-                              label={String(current)}
-                              variant='info'
-                              size='sm'
-                              className='max-w-[200px] truncate'
-                            />
-                          </TooltipTrigger>
+                          <TooltipTrigger
+                            render={
+                              <StatusBadge
+                                label={String(current)}
+                                variant='info'
+                                size='sm'
+                                className='max-w-[200px] truncate'
+                              />
+                            }
+                          ></TooltipTrigger>
                           <TooltipContent>
                             <p className='max-w-xs text-xs break-all'>
                               {String(current)}
@@ -161,15 +181,12 @@ export function useUpstreamRatioSyncColumns(
             selectableCount > 0 && selectedCount === selectableCount
           const someSelected =
             selectedCount > 0 && selectedCount < selectableCount
-          let checkboxState: boolean | 'indeterminate' = false
-          if (allSelected) checkboxState = true
-          else if (someSelected) checkboxState = 'indeterminate'
-
           return (
             <div className='flex items-center gap-2'>
               {selectableCount > 0 && (
                 <Checkbox
-                  checked={checkboxState}
+                  checked={allSelected}
+                  indeterminate={someSelected}
                   disabled={isDisabled}
                   onCheckedChange={(checked) => {
                     if (checked) {
@@ -311,10 +328,12 @@ function renderUpstreamValue(args: RenderUpstreamValueArgs) {
       />
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span className='inline-block max-w-[240px] cursor-default truncate font-mono text-sm'>
-              {text}
-            </span>
+          <TooltipTrigger
+            render={
+              <span className='inline-block max-w-[240px] cursor-default truncate font-mono text-sm' />
+            }
+          >
+            {text}
           </TooltipTrigger>
           <TooltipContent>
             <p className='max-w-xs text-xs break-all'>{text}</p>

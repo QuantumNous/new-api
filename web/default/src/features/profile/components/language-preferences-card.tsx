@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState } from 'react'
 import { Languages, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +24,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -54,7 +73,8 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
     setCurrentLanguage(savedLanguage)
   }, [savedLanguage])
 
-  const handleLanguageChange = async (language: string) => {
+  const handleLanguageChange = async (language: string | null) => {
+    if (!language) return
     const nextLanguage = normalizeLanguage(language)
     if (nextLanguage === currentLanguage) return
 
@@ -100,37 +120,45 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
       description={t('Set the language used across the interface')}
       icon={<Languages className='h-4 w-4' />}
     >
-        <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
-          <div className='space-y-1'>
-            <div className='text-sm font-medium'>{t('Interface Language')}</div>
-            <p className='text-muted-foreground line-clamp-2 text-xs sm:text-sm'>
-              {t(
-                'Language preferences sync across your signed-in devices and affect API error messages.'
-              )}
-            </p>
-          </div>
-          <div className='flex items-center gap-2 sm:min-w-48'>
-            <Select
-              value={currentLanguage}
-              onValueChange={handleLanguageChange}
-              disabled={saving}
-            >
-              <SelectTrigger className='w-full sm:w-48'>
-                <SelectValue placeholder={t('Select language')} />
-              </SelectTrigger>
-              <SelectContent>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
+        <div className='space-y-1'>
+          <div className='text-sm font-medium'>{t('Interface Language')}</div>
+          <p className='text-muted-foreground line-clamp-2 text-xs sm:text-sm'>
+            {t(
+              'Language preferences sync across your signed-in devices and affect API error messages.'
+            )}
+          </p>
+        </div>
+        <div className='flex items-center gap-2 sm:min-w-48'>
+          <Select
+            items={[
+              ...LANGUAGE_OPTIONS.map((language) => ({
+                value: language.value,
+                label: language.label,
+              })),
+            ]}
+            value={currentLanguage}
+            onValueChange={handleLanguageChange}
+            disabled={saving}
+          >
+            <SelectTrigger className='w-full sm:w-48'>
+              <SelectValue placeholder={t('Select language')} />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
                 {LANGUAGE_OPTIONS.map((language) => (
                   <SelectItem key={language.value} value={language.value}>
                     {language.label}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-            {saving && (
-              <Loader2 className='text-muted-foreground size-4 animate-spin' />
-            )}
-          </div>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          {saving && (
+            <Loader2 className='text-muted-foreground size-4 animate-spin' />
+          )}
         </div>
+      </div>
     </TitledCard>
   )
 }

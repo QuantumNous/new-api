@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import type { ReactNode } from 'react'
 import { ChevronDown, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -88,12 +106,14 @@ function FilterChip(props: {
       )}
       title={props.option.label}
     >
-      {props.option.icon && <span className='shrink-0'>{props.option.icon}</span>}
+      {props.option.icon && (
+        <span className='shrink-0'>{props.option.icon}</span>
+      )}
       <span className='truncate'>{props.option.label}</span>
       {(props.option.suffix || props.option.count != null) && (
         <span
           className={cn(
-            'rounded-full px-1.5 py-0.5 text-[10px]',
+            'rounded-md px-1.5 py-0.5 text-[10px]',
             props.active
               ? 'bg-background text-foreground'
               : 'bg-muted text-muted-foreground'
@@ -108,12 +128,15 @@ function FilterChip(props: {
 
 function FilterSection(props: FilterSectionProps) {
   return (
-    <Collapsible defaultOpen className='border-border/70 border-b pb-3 last:border-b-0'>
+    <Collapsible
+      defaultOpen
+      className='border-border/70 border-b pb-3 last:border-b-0'
+    >
       <CollapsibleTrigger className='group flex w-full items-center justify-between py-2.5 text-left'>
         <span className='text-foreground text-sm font-semibold'>
           {props.title}
         </span>
-        <ChevronDown className='text-muted-foreground size-4 transition-transform group-data-[state=open]:rotate-180' />
+        <ChevronDown className='text-muted-foreground size-4 transition-transform group-data-[panel-open]:rotate-180' />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className='flex flex-wrap gap-1.5'>
@@ -213,19 +236,15 @@ export function PricingSidebar(props: PricingSidebarProps) {
       .map(([value, label]) => ({
         value,
         label,
-        count: countBy(props.models, (model) =>
-          model.supported_endpoint_types?.includes(value) ?? false
+        count: countBy(
+          props.models,
+          (model) => model.supported_endpoint_types?.includes(value) ?? false
         ),
       })),
   ]
 
   return (
-    <aside
-      className={cn(
-        'rounded-xl border p-3',
-        props.className
-      )}
-    >
+    <aside className={cn('rounded-xl border p-3', props.className)}>
       <div className='mb-2.5 flex items-center justify-between gap-2'>
         <div>
           <h2 className='text-foreground text-sm font-bold'>{t('Filter')}</h2>

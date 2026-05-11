@@ -1,64 +1,36 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 'use client'
 
 import * as React from 'react'
-import * as LabelPrimitive from '@radix-ui/react-label'
 import { cn } from '@/lib/utils'
 
-const requiredMarkerPattern = /\s\*$/
-
-function renderRequiredMarker(text: string, key?: React.Key) {
-  if (!requiredMarkerPattern.test(text)) {
-    return text
-  }
-
+function Label({ className, ...props }: React.ComponentProps<'label'>) {
   return (
-    <span key={key}>
-      {text.slice(0, -1)}
-      <span className='text-destructive'>*</span>
-    </span>
-  )
-}
-
-function renderLabelChildren(children: React.ReactNode) {
-  const childArray = React.Children.toArray(children)
-
-  if (childArray.length === 0) {
-    return children
-  }
-
-  if (
-    childArray.every(
-      (child) => typeof child === 'string' || typeof child === 'number'
-    )
-  ) {
-    return renderRequiredMarker(childArray.join(''))
-  }
-
-  return childArray.map((child, index) => {
-    if (typeof child === 'string' || typeof child === 'number') {
-      return renderRequiredMarker(String(child), index)
-    }
-
-    return child
-  })
-}
-
-function Label({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof LabelPrimitive.Root>) {
-  return (
-    <LabelPrimitive.Root
+    <label
       data-slot='label'
       className={cn(
         'flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
         className
       )}
       {...props}
-    >
-      {renderLabelChildren(children)}
-    </LabelPrimitive.Root>
+    />
   )
 }
 

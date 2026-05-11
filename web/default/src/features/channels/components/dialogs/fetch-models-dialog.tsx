@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search, Info, ChevronDown } from 'lucide-react'
@@ -316,9 +334,9 @@ export function FetchModelsDialog({
                   <span>{model}</span>
                   {redirectOnlySet.has(normalizeModelName(model)) && (
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className='h-3.5 w-3.5 text-amber-500' />
-                      </TooltipTrigger>
+                      <TooltipTrigger
+                        render={<Info className='h-3.5 w-3.5 text-amber-500' />}
+                      ></TooltipTrigger>
                       <TooltipContent>
                         {t('From model redirect, not yet added to models list')}
                       </TooltipContent>

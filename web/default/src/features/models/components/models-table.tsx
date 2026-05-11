@@ -1,8 +1,25 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
-  flexRender,
   getCoreRowModel,
   useReactTable,
   type SortingState,
@@ -10,24 +27,8 @@ import {
 } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  DataTableToolbar,
-  TableSkeleton,
-  TableEmpty,
-  MobileCardList,
-} from '@/components/data-table'
-import { DataTablePagination } from '@/components/data-table/pagination'
-import { PageFooterPortal } from '@/components/layout'
+import { DataTablePage } from '@/components/data-table'
 import { getModels, searchModels, getVendors } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
@@ -219,111 +220,41 @@ export function ModelsTable() {
   ]
 
   return (
-    <>
-      <div className='space-y-3 sm:space-y-4'>
-        <DataTableToolbar
-          table={table}
-          searchPlaceholder={t('Filter by model name...')}
-          filters={[
-            {
-              columnId: 'status',
-              title: t('Status'),
-              options: [...getModelStatusOptions(t)],
-              singleSelect: true,
-            },
-            {
-              columnId: 'vendor_id',
-              title: t('Vendor'),
-              options: vendorFilterOptions,
-              singleSelect: true,
-            },
-            {
-              columnId: 'sync_official',
-              title: t('Official Sync'),
-              options: [...getSyncStatusOptions(t)],
-              singleSelect: true,
-            },
-          ]}
-        />
-
-        {isMobile ? (
-          <MobileCardList
-            table={table}
-            isLoading={isLoading}
-            emptyTitle={t('No Models Found')}
-            emptyDescription={t(
-              'No models available. Create your first model to get started.'
-            )}
-          />
-        ) : (
-          <>
-            <div
-              className={cn(
-                'overflow-hidden rounded-md border transition-opacity duration-150',
-                isFetching && !isLoading && 'pointer-events-none opacity-50'
-              )}
-            >
-              <Table>
-                <TableHeader>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <TableRow key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <TableHead
-                          key={header.id}
-                          style={{ width: header.getSize() }}
-                        >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableSkeleton table={table} keyPrefix='model-skeleton' />
-                  ) : table.getRowModel().rows.length === 0 ? (
-                    <TableEmpty
-                      colSpan={columns.length}
-                      title={t('No Models Found')}
-                      description={t(
-                        'No models available. Create your first model to get started.'
-                      )}
-                    />
-                  ) : (
-                    table.getRowModel().rows.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        data-state={row.getIsSelected() && 'selected'}
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext()
-                            )}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            <DataTableBulkActions table={table} />
-          </>
-        )}
-      </div>
-      <PageFooterPortal>
-        <DataTablePagination
-          table={table as ReturnType<typeof useReactTable>}
-        />
-      </PageFooterPortal>
-    </>
+    <DataTablePage
+      table={table}
+      columns={columns}
+      isLoading={isLoading}
+      isFetching={isFetching}
+      emptyTitle={t('No Models Found')}
+      emptyDescription={t(
+        'No models available. Create your first model to get started.'
+      )}
+      skeletonKeyPrefix='model-skeleton'
+      applyHeaderSize
+      toolbarProps={{
+        searchPlaceholder: t('Filter by model name...'),
+        filters: [
+          {
+            columnId: 'status',
+            title: t('Status'),
+            options: [...getModelStatusOptions(t)],
+            singleSelect: true,
+          },
+          {
+            columnId: 'vendor_id',
+            title: t('Vendor'),
+            options: vendorFilterOptions,
+            singleSelect: true,
+          },
+          {
+            columnId: 'sync_official',
+            title: t('Official Sync'),
+            options: [...getSyncStatusOptions(t)],
+            singleSelect: true,
+          },
+        ],
+      }}
+      bulkActions={<DataTableBulkActions table={table} />}
+    />
   )
 }

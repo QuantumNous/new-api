@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 export type SemanticColor =
   | 'blue'
   | 'green'
@@ -17,41 +35,41 @@ export type SemanticColor =
   | 'grey'
 
 export const colorToBgClass: Record<SemanticColor, string> = {
-  blue: 'bg-blue-500',
-  green: 'bg-green-500',
-  cyan: 'bg-cyan-500',
-  purple: 'bg-purple-500',
-  pink: 'bg-pink-500',
-  red: 'bg-red-500',
-  orange: 'bg-orange-500',
-  amber: 'bg-amber-500',
-  yellow: 'bg-yellow-500',
-  lime: 'bg-lime-500',
-  'light-green': 'bg-green-400',
-  teal: 'bg-teal-500',
-  'light-blue': 'bg-sky-500',
-  indigo: 'bg-indigo-500',
-  violet: 'bg-violet-500',
-  grey: 'bg-gray-500',
+  blue: 'bg-chart-1',
+  green: 'bg-success',
+  cyan: 'bg-chart-2',
+  purple: 'bg-chart-4',
+  pink: 'bg-chart-5',
+  red: 'bg-destructive',
+  orange: 'bg-warning',
+  amber: 'bg-warning',
+  yellow: 'bg-warning',
+  lime: 'bg-chart-3',
+  'light-green': 'bg-success',
+  teal: 'bg-chart-2',
+  'light-blue': 'bg-info',
+  indigo: 'bg-chart-1',
+  violet: 'bg-chart-4',
+  grey: 'bg-neutral',
 }
 
 export const avatarColorMap: Record<SemanticColor, string> = {
-  blue: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
-  green: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400',
-  cyan: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400',
-  purple: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400',
-  pink: 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-400',
-  red: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
-  orange: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400',
-  amber: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400',
-  yellow: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400',
-  lime: 'bg-lime-100 text-lime-700 dark:bg-lime-500/20 dark:text-lime-400',
-  'light-green': 'bg-green-50 text-green-600 dark:bg-green-400/20 dark:text-green-300',
-  teal: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400',
-  'light-blue': 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400',
-  indigo: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400',
-  violet: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400',
-  grey: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400',
+  blue: 'bg-chart-1/10 text-chart-1',
+  green: 'bg-success/10 text-success',
+  cyan: 'bg-chart-2/10 text-chart-2',
+  purple: 'bg-chart-4/10 text-chart-4',
+  pink: 'bg-chart-5/10 text-chart-5',
+  red: 'bg-destructive/10 text-destructive',
+  orange: 'bg-warning/10 text-warning',
+  amber: 'bg-warning/10 text-warning',
+  yellow: 'bg-warning/10 text-warning',
+  lime: 'bg-chart-3/10 text-chart-3',
+  'light-green': 'bg-success/10 text-success',
+  teal: 'bg-chart-2/10 text-chart-2',
+  'light-blue': 'bg-info/10 text-info',
+  indigo: 'bg-chart-1/10 text-chart-1',
+  violet: 'bg-chart-4/10 text-chart-4',
+  grey: 'bg-muted text-muted-foreground',
 }
 
 export function getAvatarColorClass(name: string): string {
@@ -105,11 +123,11 @@ export type AnnouncementType =
  * Announcement status color mapping
  */
 export const ANNOUNCEMENT_TYPE_COLORS: Record<AnnouncementType, string> = {
-  default: 'bg-gray-500',
-  ongoing: 'bg-blue-500',
-  success: 'bg-green-500',
-  warning: 'bg-orange-500',
-  error: 'bg-red-500',
+  default: 'bg-neutral',
+  ongoing: 'bg-info',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  error: 'bg-destructive',
 }
 
 /**

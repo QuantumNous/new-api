@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import {
   Children,
   isValidElement,
@@ -5,7 +23,6 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { AppHeader } from './app-header'
 import { Main } from './main'
 import { PageFooterProvider } from './page-footer'
 
@@ -46,7 +63,6 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
   )
 
   let title: ReactNode = null
-  let description: ReactNode = null
   let actions: ReactNode = null
   let content: ReactNode = null
   let breadcrumb: ReactNode = null
@@ -55,8 +71,6 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
     if (!isValidElement(node)) return
     const child = node as ReactElement<SlotProps>
     if (child.type === SectionPageLayoutTitle) title = child.props.children
-    else if (child.type === SectionPageLayoutDescription)
-      description = child.props.children
     else if (child.type === SectionPageLayoutActions)
       actions = child.props.children
     else if (child.type === SectionPageLayoutContent)
@@ -67,21 +81,16 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
 
   return (
     <PageFooterProvider container={footerContainer}>
-      <AppHeader />
-
       <Main>
-        <div className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-6 sm:pb-4'>
-          {breadcrumb != null && <div className='mb-2 sm:mb-3'>{breadcrumb}</div>}
+        <div className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-5 sm:pb-3'>
+          {breadcrumb != null && (
+            <div className='mb-2 sm:mb-3'>{breadcrumb}</div>
+          )}
           <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4'>
             <div className='min-w-0'>
               <h2 className='truncate text-base font-bold tracking-tight sm:text-lg'>
                 {title}
               </h2>
-              {description != null && (
-                <p className='text-muted-foreground line-clamp-2 max-sm:text-xs sm:text-sm'>
-                  {description}
-                </p>
-              )}
             </div>
             {actions != null && (
               <div className='flex shrink-0 flex-wrap items-center gap-2 sm:gap-x-4'>
@@ -91,7 +100,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
           </div>
         </div>
 
-        <div className='min-h-0 flex-1 overflow-auto px-3 pb-3 sm:px-4 sm:pb-4'>
+        <div className='min-h-0 flex-1 overflow-auto px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'>
           {content}
         </div>
 

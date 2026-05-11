@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useMemo, useCallback, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import {
@@ -59,20 +77,17 @@ export function useFilters(models: PricingModel[]) {
   const viewMode = normalizeViewMode(filterState.view)
   const showRechargePrice = filterState.rechargePrice === true
 
-  const updateFilters = useCallback(
-    (updates: Record<string, unknown>) => {
-      setFilterState((prev) => {
-        const next: Record<string, unknown> = { ...prev, ...updates }
-        for (const key of Object.keys(next)) {
-          if (next[key] === undefined || next[key] === null) {
-            delete next[key]
-          }
+  const updateFilters = useCallback((updates: Record<string, unknown>) => {
+    setFilterState((prev) => {
+      const next: Record<string, unknown> = { ...prev, ...updates }
+      for (const key of Object.keys(next)) {
+        if (next[key] === undefined || next[key] === null) {
+          delete next[key]
         }
-        return next as FilterState
-      })
-    },
-    []
-  )
+      }
+      return next as FilterState
+    })
+  }, [])
 
   const setSearchInput = useCallback(
     (v: string) => updateFilters({ search: v || undefined }),

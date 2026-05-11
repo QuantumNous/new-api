@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 /* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -351,10 +369,10 @@ function BalanceCell({ channel }: { channel: Channel }) {
           aria-hidden='true'
         />
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span className='text-muted-foreground cursor-help'>
-              {usedDisplay}
-            </span>
+          <TooltipTrigger
+            render={<span className='text-muted-foreground cursor-help' />}
+          >
+            {usedDisplay}
           </TooltipTrigger>
           <TooltipContent>
             <p>
@@ -364,22 +382,24 @@ function BalanceCell({ channel }: { channel: Channel }) {
         </Tooltip>
         <span className='text-muted-foreground/30'>·</span>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span
-              className={cn(
-                'cursor-pointer transition-opacity hover:opacity-70',
-                channel.type === 57
-                  ? 'text-primary'
-                  : textColorMap[isUpdating ? 'neutral' : variant]
-              )}
-              onClick={handleClickUpdate}
-            >
-              {isUpdating
-                ? 'Updating...'
-                : channel.type === 57
-                  ? t('Account Info')
-                  : remainingDisplay}
-            </span>
+          <TooltipTrigger
+            render={
+              <span
+                className={cn(
+                  'cursor-pointer transition-opacity hover:opacity-70',
+                  channel.type === 57
+                    ? 'text-primary'
+                    : textColorMap[isUpdating ? 'neutral' : variant]
+                )}
+                onClick={handleClickUpdate}
+              />
+            }
+          >
+            {isUpdating
+              ? 'Updating...'
+              : channel.type === 57
+                ? t('Account Info')
+                : remainingDisplay}
           </TooltipTrigger>
           <TooltipContent>
             <p>
@@ -434,10 +454,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       id: 'select',
       header: ({ table }) => (
         <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
+          checked={table.getIsAllPageRowsSelected()}
+          indeterminate={table.getIsSomePageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label='Select all'
         />
@@ -540,11 +558,13 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
               <div className='flex items-center gap-1.5'>
                 <span className='font-medium'>{truncateText(name, 30)}</span>
                 {isPassThrough && (
-                  <TooltipProvider delayDuration={100}>
+                  <TooltipProvider delay={100}>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <AlertTriangle className='h-3.5 w-3.5 flex-shrink-0 text-amber-500' />
-                      </TooltipTrigger>
+                      <TooltipTrigger
+                        render={
+                          <AlertTriangle className='h-3.5 w-3.5 flex-shrink-0 text-amber-500' />
+                        }
+                      ></TooltipTrigger>
                       <TooltipContent side='top'>
                         {t(
                           'Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.'
@@ -564,12 +584,14 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                 <UpstreamUpdateTags channel={channel} />
               </div>
               {channel.remark && (
-                <TooltipProvider delayDuration={200}>
+                <TooltipProvider delay={200}>
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='text-muted-foreground text-xs'>
-                        {truncateText(channel.remark, 40)}
-                      </span>
+                    <TooltipTrigger
+                      render={
+                        <span className='text-muted-foreground text-xs' />
+                      }
+                    >
+                      {truncateText(channel.remark, 40)}
                     </TooltipTrigger>
                     <TooltipContent side='bottom' className='max-w-xs'>
                       {channel.remark}
@@ -629,12 +651,14 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           <div className='flex items-center gap-2'>
             <div className='flex items-center gap-1.5'>
               {isMultiKey && (
-                <TooltipProvider delayDuration={100}>
+                <TooltipProvider delay={100}>
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='border-border bg-muted text-primary inline-flex h-6 w-6 items-center justify-center rounded-full border'>
-                        <MultiKeyModeIcon className='h-3.5 w-3.5' />
-                      </span>
+                    <TooltipTrigger
+                      render={
+                        <span className='border-border bg-muted text-primary inline-flex h-6 w-6 items-center justify-center rounded-md border' />
+                      }
+                    >
+                      <MultiKeyModeIcon className='h-3.5 w-3.5' />
                     </TooltipTrigger>
                     <TooltipContent side='top'>
                       {multiKeyTooltip}
@@ -651,21 +675,23 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
               copyable={false}
             />
             {isIonet && (
-              <TooltipProvider delayDuration={100}>
+              <TooltipProvider delay={100}>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span
-                      className='flex cursor-pointer items-center gap-1.5 text-xs font-medium'
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (!deploymentId) return
-                        const targetUrl = `/console/deployment?deployment_id=${deploymentId}`
-                        window.open(targetUrl, '_blank', 'noopener')
-                      }}
-                    >
-                      <span className='text-muted-foreground/30'>·</span>
-                      <span className={cn(textColorMap.purple)}>IO.NET</span>
-                    </span>
+                  <TooltipTrigger
+                    render={
+                      <span
+                        className='flex cursor-pointer items-center gap-1.5 text-xs font-medium'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!deploymentId) return
+                          const targetUrl = `/console/deployment?deployment_id=${deploymentId}`
+                          window.open(targetUrl, '_blank', 'noopener')
+                        }}
+                      />
+                    }
+                  >
+                    <span className='text-muted-foreground/30'>·</span>
+                    <span className={cn(textColorMap.purple)}>IO.NET</span>
                   </TooltipTrigger>
                   <TooltipContent side='top'>
                     <div className='max-w-xs space-y-1'>
@@ -769,18 +795,16 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
 
           if (statusReason || statusTime) {
             return (
-              <TooltipProvider delayDuration={100}>
+              <TooltipProvider delay={100}>
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      <StatusBadge
-                        label={label}
-                        variant={config.variant}
-                        showDot={config.showDot}
-                        size='sm'
-                        copyable={false}
-                      />
-                    </span>
+                  <TooltipTrigger render={<span />}>
+                    <StatusBadge
+                      label={label}
+                      variant={config.variant}
+                      showDot={config.showDot}
+                      size='sm'
+                      copyable={false}
+                    />
                   </TooltipTrigger>
                   <TooltipContent side='top' className='max-w-xs'>
                     <div className='space-y-1 text-xs'>
@@ -849,8 +873,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedItems(modelBadges, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedItems(modelBadges, 2)}
               </TooltipTrigger>
               {modelArray.length > 2 && (
                 <TooltipContent
@@ -884,8 +908,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{renderLimitedItems(groupBadges, 2)}</div>
+              <TooltipTrigger render={<div />}>
+                {renderLimitedItems(groupBadges, 2)}
               </TooltipTrigger>
               {groupArray.length > 2 && (
                 <TooltipContent
@@ -1002,10 +1026,12 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         return (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <span className='text-muted-foreground cursor-pointer font-mono text-sm'>
-                  {timeText}
-                </span>
+              <TooltipTrigger
+                render={
+                  <span className='text-muted-foreground cursor-pointer font-mono text-sm' />
+                }
+              >
+                {timeText}
               </TooltipTrigger>
               <TooltipContent side='top'>
                 <p className='font-mono text-sm'>{fullDate}</p>
