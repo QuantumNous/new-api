@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
-import { Users, Loader2 } from 'lucide-react'
+import { Users, Loader2, Coins, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
@@ -37,7 +37,10 @@ import {
   saveGranularity,
   processUserChartData,
 } from '@/features/dashboard/lib'
-import type { ProcessedUserChartData } from '@/features/dashboard/types'
+import type {
+  ConsumptionDistributionMetric,
+  ProcessedUserChartData,
+} from '@/features/dashboard/types'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -46,18 +49,33 @@ let themeManagerPromise: Promise<
 const USER_CHARTS: {
   value: string
   labelKey: string
-  specKey: keyof ProcessedUserChartData
+  specKeys: Record<ConsumptionDistributionMetric, keyof ProcessedUserChartData>
 }[] = [
   {
     value: 'rank',
     labelKey: 'User Consumption Ranking',
-    specKey: 'spec_user_rank',
+    specKeys: {
+      quota: 'spec_user_rank',
+      tokens: 'spec_user_token_rank',
+    },
   },
   {
     value: 'trend',
     labelKey: 'User Consumption Trend',
-    specKey: 'spec_user_trend',
+    specKeys: {
+      quota: 'spec_user_trend',
+      tokens: 'spec_user_token_trend',
+    },
   },
+]
+
+const METRIC_OPTIONS: {
+  value: ConsumptionDistributionMetric
+  labelKey: string
+  icon: typeof WalletCards
+}[] = [
+  { value: 'quota', labelKey: 'Amount', icon: WalletCards },
+  { value: 'tokens', labelKey: 'Tokens', icon: Coins },
 ]
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
@@ -78,6 +96,8 @@ export function UserCharts() {
     getDefaultDays(timeGranularity)
   )
   const [topUserLimit, setTopUserLimit] = useState(10)
+  const [metric, setMetric] =
+    useState<ConsumptionDistributionMetric>('quota')
   const [timeRange, setTimeRange] = useState(() => {
     const days = getDefaultDays(timeGranularity)
     const { start, end } = getRollingDateRange(days)
@@ -210,6 +230,27 @@ export function UserCharts() {
           ))}
         </div>
 
+        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
+          {METRIC_OPTIONS.map((item) => {
+            const Icon = item.icon
+            return (
+              <button
+                key={item.value}
+                type='button'
+                onClick={() => setMetric(item.value)}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  metric === item.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <Icon className='size-3.5' />
+                {t(item.labelKey)}
+              </button>
+            )
+          })}
+        </div>
+
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
         )}
@@ -217,7 +258,21 @@ export function UserCharts() {
 
       <div className='grid gap-3'>
         {USER_CHARTS.map((chart) => {
-          const spec = chartData[chart.specKey]
+          const spec = chartData[chart.specKeys[metric]]
+          const specType = typeof spec?.type === 'string' ? spec.type : chart.value
+          const chartKey = [
+            'user',
+            chart.value,
+            metric,
+            specType,
+            isLoading ? 'loading' : 'ready',
+            userData?.length ?? 0,
+            topUserLimit,
+            timeGranularity,
+            selectedRange,
+            resolvedTheme,
+            customization.preset,
+          ].join('-')
 
           return (
             <div
@@ -236,7 +291,7 @@ export function UserCharts() {
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
+                      key={chartKey}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',

@@ -48,7 +48,6 @@ import {
 import { checkIsActive } from '../lib/url-utils'
 import {
   type NavCollapsible,
-  type NavChatPresets,
   type NavLink,
   type NavGroup as NavGroupProps,
 } from '../types'
@@ -73,7 +72,7 @@ export function NavGroup({ title, items }: NavGroupProps) {
 
           // Special handling: dynamic chat presets list
           if (item.type === 'chat-presets') {
-            return <ChatPresetsItem key={key} item={item as NavChatPresets} />
+            return <ChatPresetsItem key={key} />
           }
 
           // If no sub-items, render regular link

@@ -155,7 +155,7 @@ export function SignUpForm({
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
-        aff: getAffiliateCode(),
+        aff_code: getAffiliateCode(),
         turnstile: turnstileToken,
       })
 

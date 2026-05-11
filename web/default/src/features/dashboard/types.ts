@@ -62,6 +62,8 @@ export interface DashboardFilters {
 
 export type ConsumptionDistributionChartType = 'bar' | 'area'
 
+export type ConsumptionDistributionMetric = 'quota' | 'tokens'
+
 export type ModelAnalyticsChartTab = 'trend' | 'proportion' | 'top'
 
 export interface DashboardChartPreferences {
@@ -101,15 +103,20 @@ export interface ProcessedChartData {
   spec_pie: VChartSpec
   spec_line: VChartSpec
   spec_area: VChartSpec
+  spec_token_line: VChartSpec
+  spec_token_area: VChartSpec
   spec_model_line: VChartSpec
   spec_rank_bar: VChartSpec
   totalQuotaDisplay: string
+  totalTokensDisplay: string
   totalCountDisplay: string
 }
 
 export interface ProcessedUserChartData {
   spec_user_rank: VChartSpec
   spec_user_trend: VChartSpec
+  spec_user_token_rank: VChartSpec
+  spec_user_token_trend: VChartSpec
 }
 
 // ============================================================================

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { VChart } from '@visactor/react-vchart'
-import { AreaChart, BarChart3, WalletCards } from 'lucide-react'
+import { AreaChart, BarChart3, Coins, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
 import type { TimeGranularity } from '@/lib/time'
@@ -32,6 +32,7 @@ import {
 import { processChartData } from '@/features/dashboard/lib'
 import type {
   ConsumptionDistributionChartType,
+  ConsumptionDistributionMetric,
   QuotaDataItem,
 } from '@/features/dashboard/types'
 
@@ -54,6 +55,15 @@ const CHART_TYPE_ICONS: Record<
   area: AreaChart,
 }
 
+const METRIC_OPTIONS: {
+  value: ConsumptionDistributionMetric
+  labelKey: string
+  icon: typeof WalletCards
+}[] = [
+  { value: 'quota', labelKey: 'Amount', icon: WalletCards },
+  { value: 'tokens', labelKey: 'Tokens', icon: Coins },
+]
+
 export function ConsumptionDistributionChart(
   props: ConsumptionDistributionChartProps
 ) {
@@ -67,6 +77,8 @@ export function ConsumptionDistributionChart(
   const [chartType, setChartType] = useState<ConsumptionDistributionChartType>(
     props.defaultChartType ?? 'bar'
   )
+  const [metric, setMetric] =
+    useState<ConsumptionDistributionMetric>('quota')
   const [themeReady, setThemeReady] = useState(false)
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
@@ -114,9 +126,21 @@ export function ConsumptionDistributionChart(
       chartRadius,
     ]
   )
-  const spec = chartType === 'bar' ? chartData.spec_line : chartData.spec_area
+  const spec =
+    metric === 'tokens'
+      ? chartType === 'bar'
+        ? chartData.spec_token_line
+        : chartData.spec_token_area
+      : chartType === 'bar'
+        ? chartData.spec_line
+        : chartData.spec_area
+  const totalDisplay =
+    metric === 'tokens'
+      ? chartData.totalTokensDisplay
+      : chartData.totalQuotaDisplay
   const specType = typeof spec?.type === 'string' ? spec.type : chartType
   const chartKey = [
+    metric,
     chartType,
     specType,
     props.loading ? 'loading' : 'ready',
@@ -132,29 +156,52 @@ export function ConsumptionDistributionChart(
           <WalletCards className='text-muted-foreground/60 size-4' />
           <div className='text-sm font-semibold'>{t('Quota Distribution')}</div>
           <span className='text-muted-foreground text-xs'>
-            {t('Total:')} {chartData.totalQuotaDisplay}
+            {t('Total:')} {totalDisplay}
           </span>
         </div>
 
-        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
-          {CONSUMPTION_DISTRIBUTION_CHART_OPTIONS.map((item) => {
-            const Icon = CHART_TYPE_ICONS[item.value]
-            return (
-              <button
-                key={item.value}
-                type='button'
-                onClick={() => setChartType(item.value)}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
-                  chartType === item.value
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon className='size-3.5' />
-                {t(item.labelKey)}
-              </button>
-            )
-          })}
+        <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+          <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
+            {METRIC_OPTIONS.map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  key={item.value}
+                  type='button'
+                  onClick={() => setMetric(item.value)}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
+                    metric === item.value
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Icon className='size-3.5' />
+                  {t(item.labelKey)}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
+            {CONSUMPTION_DISTRIBUTION_CHART_OPTIONS.map((item) => {
+              const Icon = CHART_TYPE_ICONS[item.value]
+              return (
+                <button
+                  key={item.value}
+                  type='button'
+                  onClick={() => setChartType(item.value)}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
+                    chartType === item.value
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Icon className='size-3.5' />
+                  {t(item.labelKey)}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
