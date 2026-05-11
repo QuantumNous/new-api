@@ -93,22 +93,29 @@ export const useRedemptionsData = () => {
   };
 
   // Search redemption codes
-  const searchRedemptions = async () => {
+  const searchRedemptions = async (
+    targetPage = 1,
+    targetPageSize = pageSize,
+  ) => {
+    const requestedPage = typeof targetPage === 'number' ? targetPage : 1;
+    const requestedPageSize =
+      typeof targetPageSize === 'number' ? targetPageSize : pageSize;
     const { searchKeyword } = getFormValues();
     if (searchKeyword === '') {
-      await loadRedemptions(1, pageSize);
+      await loadRedemptions(requestedPage, requestedPageSize);
       return;
     }
 
     setSearching(true);
     try {
+      const keyword = encodeURIComponent(searchKeyword);
       const res = await API.get(
-        `/api/redemption/search?keyword=${searchKeyword}&p=1&page_size=${pageSize}`,
+        `/api/redemption/?keyword=${keyword}&p=${requestedPage}&page_size=${requestedPageSize}`,
       );
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
-        setActivePage(data.page || 1);
+        setActivePage(data.page || requestedPage);
         setTokenCount(data.total);
         setRedemptionFormat(newPageData);
       } else {
@@ -167,7 +174,7 @@ export const useRedemptionsData = () => {
     if (searchKeyword === '') {
       await loadRedemptions(page, pageSize);
     } else {
-      await searchRedemptions();
+      await searchRedemptions(page, pageSize);
     }
   };
 
@@ -178,7 +185,7 @@ export const useRedemptionsData = () => {
     if (searchKeyword === '') {
       loadRedemptions(page, pageSize);
     } else {
-      searchRedemptions();
+      searchRedemptions(page, pageSize);
     }
   };
 
@@ -190,7 +197,7 @@ export const useRedemptionsData = () => {
     if (searchKeyword === '') {
       loadRedemptions(1, size);
     } else {
-      searchRedemptions();
+      searchRedemptions(1, size);
     }
   };
 

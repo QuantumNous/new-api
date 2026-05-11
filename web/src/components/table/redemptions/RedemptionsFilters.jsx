@@ -60,7 +60,7 @@ const RedemptionsFilters = ({
           <Form.Input
             field='searchKeyword'
             prefix={<IconSearch />}
-            placeholder={t('关键字(id或者名称)')}
+            placeholder={t('关键字(id、名称或兑换码)')}
             showClear
             pure
             size='small'
