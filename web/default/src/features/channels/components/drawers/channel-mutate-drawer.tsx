@@ -400,6 +400,7 @@ export function ChannelMutateDrawer({
     'upstream_model_update_check_enabled'
   )
   const currentSettings = form.watch('settings')
+  const useFullURL = form.watch('use_full_url')
   const {
     unlocked: doubaoApiEditUnlocked,
     handleClick: handleApiConfigSecretClick,
@@ -1248,17 +1249,42 @@ export function ChannelMutateDrawer({
                       name='base_url'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('AZURE_OPENAI_ENDPOINT *')}</FormLabel>
+                          <div className='flex items-center justify-between'>
+                            <FormLabel className='mb-0'>
+                              {useFullURL
+                                ? t('Full Request URL *')
+                                : t('AZURE_OPENAI_ENDPOINT *')}
+                            </FormLabel>
+                            <FormField
+                              control={form.control}
+                              name='use_full_url'
+                              render={({ field: switchField }) => (
+                                <div className='flex items-center gap-2'>
+                                  <span className='text-muted-foreground text-xs'>
+                                    {t('Use Full URL')}
+                                  </span>
+                                  <Switch
+                                    checked={switchField.value === true}
+                                    onCheckedChange={switchField.onChange}
+                                  />
+                                </div>
+                              )}
+                            />
+                          </div>
                           <FormControl>
                             <Input
-                              placeholder={t(
-                                'e.g., https://docs-test-001.openai.azure.com'
-                              )}
+                              placeholder={
+                                useFullURL
+                                  ? t('e.g., https://docs-test-001.openai.azure.com/openai/deployments/model/chat/completions?api-version=2025-04-01-preview')
+                                  : t('e.g., https://docs-test-001.openai.azure.com')
+                              }
                               {...field}
                             />
                           </FormControl>
                           <FormDescription>
-                            {t('Your Azure OpenAI endpoint URL')}
+                            {useFullURL
+                              ? t('Enter the complete request URL. The system will use this URL directly without appending any path.')
+                              : t('Your Azure OpenAI endpoint URL')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -1463,19 +1489,44 @@ export function ChannelMutateDrawer({
                     name='base_url'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('Private Deployment URL')}</FormLabel>
+                        <div className='flex items-center justify-between'>
+                          <FormLabel className='mb-0'>
+                            {useFullURL
+                              ? t('Full Request URL')
+                              : t('Private Deployment URL')}
+                          </FormLabel>
+                          <FormField
+                            control={form.control}
+                            name='use_full_url'
+                            render={({ field: switchField }) => (
+                              <div className='flex items-center gap-2'>
+                                <span className='text-muted-foreground text-xs'>
+                                  {t('Use Full URL')}
+                                </span>
+                                <Switch
+                                  checked={switchField.value === true}
+                                  onCheckedChange={switchField.onChange}
+                                />
+                              </div>
+                            )}
+                          />
+                        </div>
                         <FormControl>
                           <Input
-                            placeholder={t(
-                              'e.g., https://fastgpt.run/api/openapi'
-                            )}
+                            placeholder={
+                              useFullURL
+                                ? t('e.g., https://fastgpt.run/api/openapi/v1/chat/completions')
+                                : t('e.g., https://fastgpt.run/api/openapi')
+                            }
                             {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          {t(
-                            'For private deployments, format: https://fastgpt.run/api/openapi'
-                          )}
+                          {useFullURL
+                            ? t('Enter the complete request URL. The system will use this URL directly without appending any path.')
+                            : t(
+                                'For private deployments, format: https://fastgpt.run/api/openapi'
+                              )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1490,21 +1541,46 @@ export function ChannelMutateDrawer({
                     name='base_url'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>
-                          {t('API Base URL (Important: Not Chat API) *')}
-                        </FormLabel>
+                        <div className='flex items-center justify-between'>
+                          <FormLabel className='mb-0'>
+                            {useFullURL
+                              ? t('Full Request URL')
+                              : t('API Base URL (Important: Not Chat API) *')}
+                          </FormLabel>
+                          <FormField
+                            control={form.control}
+                            name='use_full_url'
+                            render={({ field: switchField }) => (
+                              <div className='flex items-center gap-2'>
+                                <span className='text-muted-foreground text-xs'>
+                                  {t('Use Full URL')}
+                                </span>
+                                <Switch
+                                  checked={switchField.value === true}
+                                  onCheckedChange={switchField.onChange}
+                                />
+                              </div>
+                            )}
+                          />
+                        </div>
                         <FormControl>
                           <Input
-                            placeholder={t(
-                              'e.g., https://api.example.com (path before /suno)'
-                            )}
+                            placeholder={
+                              useFullURL
+                                ? t('e.g., https://api.example.com/suno/submit')
+                                : t(
+                                    'e.g., https://api.example.com (path before /suno)'
+                                  )
+                            }
                             {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          {t(
-                            'Enter the path before /suno, usually just the domain'
-                          )}
+                          {useFullURL
+                            ? t('Enter the complete request URL. The system will use this URL directly without appending any path.')
+                            : t(
+                                'Enter the path before /suno, usually just the domain'
+                              )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1701,55 +1777,91 @@ export function ChannelMutateDrawer({
                     name='base_url'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel
-                          className='cursor-pointer select-none'
-                          onClick={handleApiConfigSecretClick}
-                        >
-                          {t('API Base URL *')}
-                        </FormLabel>
-                        <Select
-                          items={[
-                            {
-                              value: 'https://ark.cn-beijing.volces.com',
-                              label: t('https://ark.cn-beijing.volces.com'),
-                            },
-                            {
-                              value: 'https://ark.ap-southeast.bytepluses.com',
-                              label: t(
-                                'https://ark.ap-southeast.bytepluses.com'
-                              ),
-                            },
-                            {
-                              value: 'doubao-coding-plan',
-                              label: t('Doubao Coding Plan'),
-                            },
-                          ]}
-                          onValueChange={field.onChange}
-                          value={
-                            field.value || 'https://ark.cn-beijing.volces.com'
-                          }
-                        >
+                        <div className='flex items-center justify-between'>
+                          <FormLabel
+                            className='mb-0 cursor-pointer select-none'
+                            onClick={handleApiConfigSecretClick}
+                          >
+                            {useFullURL
+                              ? t('Full Request URL *')
+                              : t('API Base URL *')}
+                          </FormLabel>
+                          <FormField
+                            control={form.control}
+                            name='use_full_url'
+                            render={({ field: switchField }) => (
+                              <div className='flex items-center gap-2'>
+                                <span className='text-muted-foreground text-xs'>
+                                  {t('Use Full URL')}
+                                </span>
+                                <Switch
+                                  checked={switchField.value === true}
+                                  onCheckedChange={switchField.onChange}
+                                />
+                              </div>
+                            )}
+                          />
+                        </div>
+                        {useFullURL ? (
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
+                            <Input
+                              placeholder={t(
+                                'e.g., https://ark.cn-beijing.volces.com/api/v3/chat/completions'
+                              )}
+                              {...field}
+                            />
                           </FormControl>
-                          <SelectContent alignItemWithTrigger={false}>
-                            <SelectGroup>
-                              <SelectItem value='https://ark.cn-beijing.volces.com'>
-                                {t('https://ark.cn-beijing.volces.com')}
-                              </SelectItem>
-                              <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
-                                {t('https://ark.ap-southeast.bytepluses.com')}
-                              </SelectItem>
-                              <SelectItem value='doubao-coding-plan'>
-                                {t('Doubao Coding Plan')}
-                              </SelectItem>
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
+                        ) : (
+                          <Select
+                            items={[
+                              {
+                                value: 'https://ark.cn-beijing.volces.com',
+                                label: t('https://ark.cn-beijing.volces.com'),
+                              },
+                              {
+                                value:
+                                  'https://ark.ap-southeast.bytepluses.com',
+                                label: t(
+                                  'https://ark.ap-southeast.bytepluses.com'
+                                ),
+                              },
+                              {
+                                value: 'doubao-coding-plan',
+                                label: t('Doubao Coding Plan'),
+                              },
+                            ]}
+                            onValueChange={field.onChange}
+                            value={
+                              field.value ||
+                              'https://ark.cn-beijing.volces.com'
+                            }
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent alignItemWithTrigger={false}>
+                              <SelectGroup>
+                                <SelectItem value='https://ark.cn-beijing.volces.com'>
+                                  {t('https://ark.cn-beijing.volces.com')}
+                                </SelectItem>
+                                <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
+                                  {t(
+                                    'https://ark.ap-southeast.bytepluses.com'
+                                  )}
+                                </SelectItem>
+                                <SelectItem value='doubao-coding-plan'>
+                                  {t('Doubao Coding Plan')}
+                                </SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        )}
                         <FormDescription>
-                          {t('Select the API endpoint region')}
+                          {useFullURL
+                            ? t('Enter the complete request URL. The system will use this URL directly without appending any path.')
+                            : t('Select the API endpoint region')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1764,17 +1876,42 @@ export function ChannelMutateDrawer({
                     name='base_url'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('API Base URL *')}</FormLabel>
+                        <div className='flex items-center justify-between'>
+                          <FormLabel className='mb-0'>
+                            {useFullURL
+                              ? t('Full Request URL *')
+                              : t('API Base URL *')}
+                          </FormLabel>
+                          <FormField
+                            control={form.control}
+                            name='use_full_url'
+                            render={({ field: switchField }) => (
+                              <div className='flex items-center gap-2'>
+                                <span className='text-muted-foreground text-xs'>
+                                  {t('Use Full URL')}
+                                </span>
+                                <Switch
+                                  checked={switchField.value === true}
+                                  onCheckedChange={switchField.onChange}
+                                />
+                              </div>
+                            )}
+                          />
+                        </div>
                         <FormControl>
                           <Input
-                            placeholder={t(
-                              'e.g., https://ark.cn-beijing.volces.com'
-                            )}
+                            placeholder={
+                              useFullURL
+                                ? t('e.g., https://ark.cn-beijing.volces.com/api/v3/chat/completions')
+                                : t('e.g., https://ark.cn-beijing.volces.com')
+                            }
                             {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          {t('Enter custom API endpoint URL')}
+                          {useFullURL
+                            ? t('Enter the complete request URL. The system will use this URL directly without appending any path.')
+                            : t('Enter custom API endpoint URL')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1812,17 +1949,46 @@ export function ChannelMutateDrawer({
                     name='base_url'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('Base URL')}</FormLabel>
+                        <div className='flex items-center justify-between'>
+                          <FormLabel className='mb-0'>
+                            {useFullURL
+                              ? t('Full Request URL')
+                              : t('Base URL')}
+                          </FormLabel>
+                          <FormField
+                            control={form.control}
+                            name='use_full_url'
+                            render={({ field: switchField }) => (
+                              <div className='flex items-center gap-2'>
+                                <span className='text-muted-foreground text-xs'>
+                                  {t('Use Full URL')}
+                                </span>
+                                <Switch
+                                  checked={switchField.value === true}
+                                  onCheckedChange={switchField.onChange}
+                                />
+                              </div>
+                            )}
+                          />
+                        </div>
                         <FormControl>
                           <Input
-                            placeholder={t(FIELD_PLACEHOLDERS.BASE_URL)}
+                            placeholder={
+                              useFullURL
+                                ? t('e.g., https://api.example.com/v1/chat/completions')
+                                : t(FIELD_PLACEHOLDERS.BASE_URL)
+                            }
                             {...field}
                           />
                         </FormControl>
                         <FormDescription>
-                          {t(
-                            'Custom API base URL. For official channels, New API has built-in addresses. Only fill this for third-party proxy sites or special endpoints. Do not add /v1 or trailing slash.'
-                          )}
+                          {useFullURL
+                            ? t(
+                                'Enter the complete API request URL. The system will use this URL directly without appending any path.'
+                              )
+                            : t(
+                                'Custom API base URL. For official channels, New API has built-in addresses. Only fill this for third-party proxy sites or special endpoints. Do not add /v1 or trailing slash.'
+                              )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

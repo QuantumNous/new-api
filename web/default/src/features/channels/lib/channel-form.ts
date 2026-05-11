@@ -78,6 +78,7 @@ export const channelFormSchema = z.object({
   upstream_model_update_check_enabled: z.boolean().optional(),
   upstream_model_update_auto_sync_enabled: z.boolean().optional(),
   upstream_model_update_ignored_models: z.string().optional(),
+  use_full_url: z.boolean().optional(),
 })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -135,6 +136,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+  use_full_url: false,
 }
 
 // ============================================================================
@@ -189,6 +191,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let useFullURL = false
 
   if (channel.settings) {
     try {
@@ -213,6 +216,7 @@ export function transformChannelToFormDefaults(
       )
         ? parsed.upstream_model_update_ignored_models.join(',')
         : ''
+      useFullURL = parsed.use_full_url === true
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -262,6 +266,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    use_full_url: useFullURL,
   }
 }
 
@@ -385,6 +390,9 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       settingsObj.upstream_model_update_last_check_time = 0
     }
   }
+
+  // Use full URL setting — applies to all channel types
+  settingsObj.use_full_url = formData.use_full_url === true
 
   return JSON.stringify(settingsObj)
 }

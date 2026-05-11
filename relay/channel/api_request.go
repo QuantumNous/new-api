@@ -288,9 +288,15 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 }
 
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
-	if err != nil {
-		return nil, fmt.Errorf("get request url failed: %w", err)
+	var fullRequestURL string
+	var err error
+	if info.ChannelMeta.ChannelOtherSettings.UseFullURL {
+		fullRequestURL = info.ChannelBaseUrl
+	} else {
+		fullRequestURL, err = a.GetRequestURL(info)
+		if err != nil {
+			return nil, fmt.Errorf("get request url failed: %w", err)
+		}
 	}
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
@@ -319,9 +325,15 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 }
 
 func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
-	if err != nil {
-		return nil, fmt.Errorf("get request url failed: %w", err)
+	var fullRequestURL string
+	var err error
+	if info.ChannelMeta.ChannelOtherSettings.UseFullURL {
+		fullRequestURL = info.ChannelBaseUrl
+	} else {
+		fullRequestURL, err = a.GetRequestURL(info)
+		if err != nil {
+			return nil, fmt.Errorf("get request url failed: %w", err)
+		}
 	}
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
@@ -352,9 +364,15 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 }
 
 func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
-	if err != nil {
-		return nil, fmt.Errorf("get request url failed: %w", err)
+	var fullRequestURL string
+	var err error
+	if info.ChannelMeta.ChannelOtherSettings.UseFullURL {
+		fullRequestURL = info.ChannelBaseUrl
+	} else {
+		fullRequestURL, err = a.GetRequestURL(info)
+		if err != nil {
+			return nil, fmt.Errorf("get request url failed: %w", err)
+		}
 	}
 	targetHeader := http.Header{}
 	err = a.SetupRequestHeader(c, &targetHeader, info)
