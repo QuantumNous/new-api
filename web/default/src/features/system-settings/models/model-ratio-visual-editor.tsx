@@ -90,7 +90,7 @@ const toNumberOrNull = (value?: string) => {
 }
 
 const formatPrice = (value: number) => {
-  return Number.parseFloat(value.toFixed(12)).toString()
+  return Number.parseFloat(value.toFixed(8)).toString()
 }
 
 const ratioToPrice = (ratio?: string, denominator?: string) => {

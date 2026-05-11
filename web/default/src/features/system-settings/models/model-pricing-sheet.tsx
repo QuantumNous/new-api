@@ -202,7 +202,13 @@ function toNumberOrNull(value: unknown): number | null {
 function formatNumber(value: unknown): string {
   const num = toNumberOrNull(value)
   if (num === null) return ''
-  return Number.parseFloat(num.toFixed(12)).toString()
+  return Number.parseFloat(num.toFixed(8)).toString()
+}
+
+function formatRatio(value: unknown): string {
+  const num = toNumberOrNull(value)
+  if (num === null) return ''
+  return Number.parseFloat(num.toFixed(14)).toString()
 }
 
 function ratioToBasePrice(ratio: unknown): string {
@@ -499,12 +505,12 @@ export function ModelPricingEditorPanel({
     if (lane === 'audioOutput') {
       const audioInputPrice = toNumberOrNull(nextLanePrices.audioInput)
       if (audioInputPrice === null || audioInputPrice === 0) return ''
-      return formatNumber(priceNumber / audioInputPrice)
+      return formatRatio(priceNumber / audioInputPrice)
     }
 
     const inputPrice = toNumberOrNull(nextPromptPrice)
     if (inputPrice === null || inputPrice === 0) return ''
-    return formatNumber(priceNumber / inputPrice)
+    return formatRatio(priceNumber / inputPrice)
   }
 
   const syncLaneRatios = (
@@ -515,7 +521,7 @@ export function ModelPricingEditorPanel({
     const inputPrice = toNumberOrNull(nextPromptPrice)
     setFormValue(
       'ratio',
-      inputPrice !== null ? formatNumber(inputPrice / 2) : ''
+      inputPrice !== null ? formatRatio(inputPrice / 2) : ''
     )
 
     laneConfigs.forEach(({ key }) => {

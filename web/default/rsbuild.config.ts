@@ -88,15 +88,21 @@ export default defineConfig(({ envMode }) => {
       },
     },
     tools: {
-      rspack: {
-        plugins: [
+      rspack: (config) => {
+        config.plugins = config.plugins ?? []
+        config.plugins.push(
           tanstackRouter({
             target: 'react',
-            // Dev: avoid per-route async chunks (reduces white flash on navigation + faster HMR feedback).
-            // Prod: keep route-based code splitting.
             autoCodeSplitting: isProd,
           }),
-        ],
+        )
+        if (!isProd) {
+          config.watchOptions = {
+            poll: 1000,
+            aggregateTimeout: 300,
+          }
+        }
+        return config
       },
     },
   }

@@ -9,13 +9,12 @@
  *
  * ## Key Concepts
  *
- * 1. **System USD**: Internal currency unit used throughout the system (e.g., 10 USD)
- * 2. **Local Currency**: Admin-configured display currency (e.g., CNY, custom currency)
- * 3. **Exchange Rate (usdExchangeRate)**: Conversion rate from USD to local currency
- *    - Example: usdExchangeRate = 7 means 1 USD = 7 CNY
- * 4. **Recharge Price (priceRatio)**: Cost in local currency to purchase 1 system USD
- *    - Example: priceRatio = 5 means user pays 5 CNY to get 1 USD credit
- * 5. **Tokens**: Alternative display unit (e.g., 500,000 tokens = 1 USD)
+ * 1. **System CNY**: Internal currency unit (base currency is RMB/CNY)
+ * 2. **Display Currency**: Admin-configured display currency (CNY, USD, custom)
+ * 3. **Exchange Rate (usdExchangeRate)**: 1 USD = X CNY (e.g., 7.3)
+ *    - Used to convert FROM CNY base TO USD display (divide by rate)
+ * 4. **Recharge Price (priceRatio)**: Cost in local currency to purchase 1 CNY credit
+ * 5. **Tokens**: Alternative display unit (e.g., 500,000 tokens = 1 CNY)
  *
  * ## When to Use Each Function
  *
@@ -148,13 +147,15 @@ function getConfig(): CurrencyConfig {
 }
 
 function getDisplayMeta(config: CurrencyConfig): DisplayMeta {
+  // 计价基准为人民币：ratio * 2 直接得到 ¥/1M tokens
+  // CNY 显示无需转换，USD 显示需除以汇率
   switch (config.quotaDisplayType) {
     case 'CNY':
       return {
         kind: 'currency',
         symbol: '¥',
         currencyCode: 'CNY',
-        exchangeRate: config.usdExchangeRate,
+        exchangeRate: 1,
       }
     case 'CUSTOM':
       return {
@@ -168,13 +169,15 @@ function getDisplayMeta(config: CurrencyConfig): DisplayMeta {
         quotaPerUnit: config.quotaPerUnit,
       }
     case 'USD':
-    default:
+    default: {
+      const rate = config.usdExchangeRate > 0 ? config.usdExchangeRate : 7.3
       return {
         kind: 'currency',
         symbol: '$',
         currencyCode: 'USD',
-        exchangeRate: 1,
+        exchangeRate: 1 / rate,
       }
+    }
   }
 }
 

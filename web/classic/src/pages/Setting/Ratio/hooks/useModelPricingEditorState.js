@@ -80,7 +80,15 @@ const formatNumber = (value) => {
   if (num === null) {
     return '';
   }
-  return parseFloat(num.toFixed(12)).toString();
+  return parseFloat(num.toFixed(8)).toString();
+};
+
+const formatRatio = (value) => {
+  const num = toNumberOrNull(value);
+  if (num === null) {
+    return '';
+  }
+  return parseFloat(num.toFixed(14)).toString();
 };
 
 const toNormalizedNumber = (value) => {
@@ -565,7 +573,7 @@ export const buildPreviewRows = (model, t) => {
     {
       key: 'ModelRatio',
       label: 'ModelRatio',
-      value: formatNumber(inputPrice / 2),
+      value: formatRatio(inputPrice / 2),
     },
     {
       key: 'CompletionRatio',
@@ -573,35 +581,35 @@ export const buildPreviewRows = (model, t) => {
       value: model.completionRatioLocked
         ? `${model.lockedCompletionRatio || t('空')} (${t('后端固定')})`
         : completionPrice !== null
-          ? formatNumber(completionPrice / inputPrice)
+          ? formatRatio(completionPrice / inputPrice)
           : t('空'),
     },
     {
       key: 'CacheRatio',
       label: 'CacheRatio',
       value:
-        cachePrice !== null ? formatNumber(cachePrice / inputPrice) : t('空'),
+        cachePrice !== null ? formatRatio(cachePrice / inputPrice) : t('空'),
     },
     {
       key: 'CreateCacheRatio',
       label: 'CreateCacheRatio',
       value:
         createCachePrice !== null
-          ? formatNumber(createCachePrice / inputPrice)
+          ? formatRatio(createCachePrice / inputPrice)
           : t('空'),
     },
     {
       key: 'ImageRatio',
       label: 'ImageRatio',
       value:
-        imagePrice !== null ? formatNumber(imagePrice / inputPrice) : t('空'),
+        imagePrice !== null ? formatRatio(imagePrice / inputPrice) : t('空'),
     },
     {
       key: 'AudioRatio',
       label: 'AudioRatio',
       value:
         audioInputPrice !== null
-          ? formatNumber(audioInputPrice / inputPrice)
+          ? formatRatio(audioInputPrice / inputPrice)
           : t('空'),
     },
     {
@@ -611,7 +619,7 @@ export const buildPreviewRows = (model, t) => {
         audioOutputPrice !== null &&
         audioInputPrice !== null &&
         audioInputPrice !== 0
-          ? formatNumber(audioOutputPrice / audioInputPrice)
+          ? formatRatio(audioOutputPrice / audioInputPrice)
           : t('空'),
     },
   ];

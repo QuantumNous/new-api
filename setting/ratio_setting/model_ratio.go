@@ -8,20 +8,16 @@ import (
 	"github.com/QuantumNous/new-api/types"
 )
 
-// from songquanpeng/one-api
+// 计价基准：人民币 (CNY)
 const (
-	USD2RMB = 7.3 // 暂定 1 USD = 7.3 RMB
-	USD     = 500 // $0.002 = 1 -> $1 = 500
-	RMB     = USD / USD2RMB
+	USD2RMB = 7.3             // 暂定 1 USD = 7.3 RMB
+	RMB     = 500             // ¥0.002 = 1 -> ¥1 = 500（基准货币）
+	USD     = RMB * USD2RMB   // $1 = 3650（由汇率换算，仅供参考）
 )
 
-// modelRatio
-// https://platform.openai.com/docs/models/model-endpoint-compatibility
-// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Blfmc9dlf
-// https://openai.com/pricing
-// TODO: when a new api is enabled, check the pricing here
-// 1 === $0.002 / 1K tokens
-// 1 === ￥0.014 / 1k tokens
+// modelRatio — 以人民币为基准
+// 1 === ¥0.002 / 1K tokens === ¥2 / 1M tokens
+// 1 === $0.000274 / 1K tokens（按 7.3 汇率换算）
 
 var defaultModelRatio = map[string]float64{
 	//"midjourney":                50,

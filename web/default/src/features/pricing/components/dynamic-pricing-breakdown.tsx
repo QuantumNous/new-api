@@ -146,7 +146,7 @@ export function DynamicPricingBreakdown({
 
   const { symbol, rate } = useMemo(() => {
     if (currency.quotaDisplayType === 'CNY') {
-      return { symbol: '¥', rate: currency.usdExchangeRate || 7 }
+      return { symbol: '¥', rate: 1 }
     }
     if (currency.quotaDisplayType === 'CUSTOM') {
       return {
@@ -154,7 +154,11 @@ export function DynamicPricingBreakdown({
         rate: currency.customCurrencyExchangeRate || 1,
       }
     }
-    return { symbol: '¥', rate: currency.usdExchangeRate || 7 }
+    if (currency.quotaDisplayType === 'USD') {
+      const r = currency.usdExchangeRate > 0 ? currency.usdExchangeRate : 7.3
+      return { symbol: '$', rate: 1 / r }
+    }
+    return { symbol: '¥', rate: 1 }
   }, [currency])
 
   const { tiers, ruleGroups } = useMemo(() => {

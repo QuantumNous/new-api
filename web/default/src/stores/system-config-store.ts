@@ -9,9 +9,9 @@ export interface CurrencyConfig {
   displayInCurrency: boolean
   /** Currency presentation strategy configured by the admin */
   quotaDisplayType: CurrencyDisplayType
-  /** Number of quota units that equal one USD */
+  /** Number of quota units that equal one CNY (base currency) */
   quotaPerUnit: number
-  /** Exchange rate from USD to the configured local currency */
+  /** Exchange rate: 1 USD = X CNY, used for USD display conversion */
   usdExchangeRate: number
   /** Custom currency symbol configured by the admin (used when type === CUSTOM) */
   customCurrencySymbol: string
