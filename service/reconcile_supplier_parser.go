@@ -29,18 +29,6 @@ var tokenTypeCN = map[string]string{
 	"count":          "个",
 }
 
-func formatConfigDesc(tokenType string, tokens int64) string {
-	cn := tokenTypeCN[tokenType]
-	if cn == "" {
-		cn = tokenType
-	}
-	suffix := "tokens"
-	if tokenType == "count" {
-		suffix = "个"
-	}
-	return fmt.Sprintf("%s:%d%s", cn, tokens, suffix)
-}
-
 // parseMonthRange parses a "YYYY-MM" string into [from, to] unix-second
 // boundaries that match the cross-month attribution rule documented in the
 // aggregator (hour_bucket carries the bill end-of-hour timestamp, so a
@@ -59,7 +47,7 @@ func parseMonthRange(month string) (int64, int64, error) {
 // ExportMonthXLSX builds an xlsx file listing every aggregated row for the
 // given channel and month, in the supplier-bill column layout. The admin
 // downloads this and lines it up against the supplier's own bill in Excel.
-func ExportMonthXLSX(channelId int, channelName, month, modelFilter string) ([]byte, int, error) {
+func ExportMonthXLSX(channelId int, month, modelFilter string) ([]byte, int, error) {
 	from, to, err := parseMonthRange(month)
 	if err != nil {
 		return nil, 0, err
@@ -73,8 +61,8 @@ func ExportMonthXLSX(channelId int, channelName, month, modelFilter string) ([]b
 	f := excelize.NewFile()
 	sheet := "Sheet1"
 	headers := []string{
-		"账单开始时间", "账单结束时间", "模型", "配置描述",
-		"我方tokens", "我方金额(¥)", "请求数", "备注",
+		"开始时间", "结束时间", "渠道", "模型", "Token类型",
+		"Tokens", "费用(¥)", "请求数", "备注",
 	}
 	for i, h := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
@@ -85,11 +73,20 @@ func ExportMonthXLSX(channelId int, channelName, month, modelFilter string) ([]b
 		y := rowIdx + 2
 		startT := time.Unix(r.HourBucket-3600, 0).In(loc)
 		endT := time.Unix(r.HourBucket, 0).In(loc)
+		tokenTypeLabel := tokenTypeCN[r.TokenType]
+		if tokenTypeLabel == "" {
+			tokenTypeLabel = r.TokenType
+		}
+		chName := r.ChannelName
+		if chName == "" {
+			chName = fmt.Sprintf("#%d", r.ChannelId)
+		}
 		vals := []interface{}{
 			startT.Format("2006-01-02 15:04:05"),
 			endT.Format("2006-01-02 15:04:05"),
+			chName,
 			r.ModelName,
-			formatConfigDesc(r.TokenType, r.Tokens),
+			tokenTypeLabel,
 			r.Tokens,
 			r.AmountCny,
 			r.RequestCount,
@@ -124,17 +121,26 @@ func ExportMonthCSV(channelId int, month, modelFilter string) ([]byte, int, erro
 	buf.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM for Excel compatibility
 	w := csv.NewWriter(&buf)
 	w.Write([]string{
-		"账单开始时间", "账单结束时间", "模型", "配置描述",
-		"我方tokens", "我方金额(¥)", "请求数", "备注",
+		"开始时间", "结束时间", "渠道", "模型", "Token类型",
+		"Tokens", "费用(¥)", "请求数", "备注",
 	})
 	for _, r := range rows {
 		startT := time.Unix(r.HourBucket-3600, 0).In(loc)
 		endT := time.Unix(r.HourBucket, 0).In(loc)
+		tokenTypeLabel := tokenTypeCN[r.TokenType]
+		if tokenTypeLabel == "" {
+			tokenTypeLabel = r.TokenType
+		}
+		chName := r.ChannelName
+		if chName == "" {
+			chName = fmt.Sprintf("#%d", r.ChannelId)
+		}
 		w.Write([]string{
 			startT.Format("2006-01-02 15:04:05"),
 			endT.Format("2006-01-02 15:04:05"),
+			chName,
 			r.ModelName,
-			formatConfigDesc(r.TokenType, r.Tokens),
+			tokenTypeLabel,
 			strconv.FormatInt(r.Tokens, 10),
 			strconv.FormatFloat(r.AmountCny, 'f', 6, 64),
 			strconv.Itoa(r.RequestCount),

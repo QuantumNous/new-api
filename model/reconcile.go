@@ -69,10 +69,11 @@ func GetReconcileHourlyAggregateInfo(channelId int, hourBucket int64) (aggregate
 func ListReconcileHourlyForExport(channelId int, from, to int64, modelName string) ([]*ReconcileHourly, error) {
 	q := buildReconcileQuery(channelId, from, to, modelName)
 	var rows []*ReconcileHourly
-	if err := q.Order("hour_bucket ASC, model_name ASC, token_type ASC").
+	if err := q.Order("hour_bucket ASC, channel_id ASC, model_name ASC, token_type ASC").
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
+	populateChannelNames(rows)
 	return rows, nil
 }
 

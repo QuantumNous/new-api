@@ -69,22 +69,26 @@ func AdminExportReconcileMonth(c *gin.Context) {
 		req.Format = "xlsx"
 	}
 
-	channel, err := model.GetChannelById(req.ChannelId, false)
-	if err != nil || channel == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "渠道不存在"})
-		return
+	// channel_id == 0 means export all channels; validate only when a specific
+	// channel is requested.
+	if req.ChannelId > 0 {
+		ch, err := model.GetChannelById(req.ChannelId, false)
+		if err != nil || ch == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "渠道不存在"})
+			return
+		}
 	}
 
 	adminId := c.GetInt("id")
-	channelName := channel.Name
-
+	// Filename no longer embeds the channel name so it is stable regardless of
+	// whether the export is filtered to one channel or covers all channels.
 	if req.Format == "csv" {
 		data, rowCount, err := service.ExportMonthCSV(req.ChannelId, req.Month, req.ModelName)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 			return
 		}
-		filename := fmt.Sprintf("reconcile_%s_%s.csv", channelName, req.Month)
+		filename := fmt.Sprintf("reconcile_%s.csv", req.Month)
 		model.RecordLog(adminId, model.LogTypeManage,
 			fmt.Sprintf("导出对账账单 [reconcile_export] (channel_id=%d, month=%s, rows=%d)", req.ChannelId, req.Month, rowCount))
 		c.Header("Content-Disposition", buildAttachmentDisposition(filename))
@@ -92,12 +96,12 @@ func AdminExportReconcileMonth(c *gin.Context) {
 		return
 	}
 
-	data, rowCount, err := service.ExportMonthXLSX(req.ChannelId, channelName, req.Month, req.ModelName)
+	data, rowCount, err := service.ExportMonthXLSX(req.ChannelId, req.Month, req.ModelName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	filename := fmt.Sprintf("reconcile_%s_%s.xlsx", channelName, req.Month)
+	filename := fmt.Sprintf("reconcile_%s.xlsx", req.Month)
 	model.RecordLog(adminId, model.LogTypeManage,
 		fmt.Sprintf("导出对账账单 [reconcile_export] (channel_id=%d, month=%s, rows=%d)", req.ChannelId, req.Month, rowCount))
 	c.Header("Content-Disposition", buildAttachmentDisposition(filename))

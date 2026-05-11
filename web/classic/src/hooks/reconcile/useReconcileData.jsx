@@ -154,10 +154,6 @@ export const useReconcileData = () => {
   // months the admin should narrow first.
   const exportMonth = async () => {
     const f = readFilter();
-    if (!f.channelId) {
-      showError(t('导出需要先选定渠道'));
-      return;
-    }
     if (!f.fromUnix) {
       showError(t('请选择月份'));
       return;
@@ -165,22 +161,16 @@ export const useReconcileData = () => {
     const startMonth = dayjs.unix(f.fromUnix).format('YYYY-MM');
     setExporting(true);
     try {
-      // Use the project's axios instance so it auto-attaches the
-      // `New-API-User` header that admin routes require. Plain fetch() would
-      // miss it and get rejected by middleware.AdminAuth(). responseType:
-      // 'blob' is needed for binary xlsx output.
       const params = {
-        channel_id: f.channelId,
         month: startMonth,
         format: 'xlsx',
       };
+      if (f.channelId) params.channel_id = f.channelId;
       if (f.modelName) params.model_name = f.modelName;
       const res = await API.get('/api/reconcile/admin/export', {
         params,
         responseType: 'blob',
       });
-      // axios interceptor only flags HTTP errors; success path may still be
-      // a JSON error blob if the backend returned 200 with success=false.
       if (
         res.data?.type &&
         (res.data.type.includes('application/json') ||
@@ -190,10 +180,9 @@ export const useReconcileData = () => {
         showError(text || t('导出失败'));
         return;
       }
-      const channelName = channelNameById(f.channelId);
       const link = document.createElement('a');
       link.href = URL.createObjectURL(res.data);
-      link.download = `reconcile_${channelName}_${startMonth}.xlsx`;
+      link.download = `reconcile_${startMonth}.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
