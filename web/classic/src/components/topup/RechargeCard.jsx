@@ -108,6 +108,16 @@ const RechargeCard = ({
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
   const regularPayMethods = payMethods || [];
+  // When QuotaDisplayType = CNY, amounts are already in CNY — skip Price conversion.
+  const isCNYDisplay =
+    (localStorage.getItem('quota_display_type') || 'USD') === 'CNY';
+  // Effective price ratio: 1 in CNY mode (no conversion), otherwise use priceRatio.
+  const effectivePriceRatio = isCNYDisplay ? 1 : priceRatio;
+  // Show conflict error when CNY mode AND standard (non-direct) methods are enabled.
+  const hasMixedPayment =
+    isCNYDisplay &&
+    (enableAlipayDirectTopUp || enableWxpayDirectTopUp) &&
+    (enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp || enableWaffoPancakeTopUp || enableCreemTopUp);
   // True when only direct-pay methods (Alipay/WeChat) are available — input is yuan.
   const isDirectPayOnly =
     !enableOnlineTopUp &&
@@ -233,6 +243,15 @@ const RechargeCard = ({
         }
       >
         {/* 在线充值表单 */}
+        {hasMixedPayment && (
+          <Banner
+            type='danger'
+            description={t(
+              '检测到配置冲突：人民币直连支付（支付宝/微信）与其他支付方式不能同时启用。直连支付额度以人民币计算，其他通道以汇率换算，混用会导致金额不一致。请在管理后台仅保留一种支付体系。'
+            )}
+            style={{ marginBottom: 12 }}
+          />
+        )}
         {statusLoading ? (
           <div className='py-8 flex justify-center'>
             <Spin size='large' />
@@ -435,14 +454,15 @@ const RechargeCard = ({
                 </Row>
               )}
 
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp || enableAlipayDirectTopUp || enableWxpayDirectTopUp) && (
                 <Form.Slot
                   label={
                     <div className='flex items-center gap-2'>
                       <span>{t('选择充值额度')}</span>
                       {(() => {
                         const { symbol, rate, type } = getCurrencyConfig();
-                        if (type === 'USD') return null;
+                        // Hide exchange rate hint in CNY display mode
+                        if (type === 'USD' || isCNYDisplay) return null;
 
                         return (
                           <span
@@ -465,7 +485,7 @@ const RechargeCard = ({
                         preset.discount ||
                         topupInfo?.discount?.[preset.value] ||
                         1.0;
-                      const originalPrice = preset.value * priceRatio;
+                      const originalPrice = preset.value * effectivePriceRatio;
                       const discountedPrice = originalPrice * discount;
                       const hasDiscount = discount < 1.0;
                       const actualPay = discountedPrice;
@@ -486,7 +506,9 @@ const RechargeCard = ({
                       let displayActualPay = actualPay;
                       let displaySave = save;
 
-                      if (type === 'USD') {
+                      if (isCNYDisplay) {
+                        // CNY display mode: amounts are already in CNY, no conversion
+                      } else if (type === 'USD') {
                         // 数量保持USD，价格从CNY转USD
                         displayActualPay = actualPay / usdRate;
                         displaySave = save / usdRate;
