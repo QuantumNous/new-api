@@ -43,23 +43,17 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     docsLink,
     isDemoSiteMode,
     isConsoleRoute,
-    theme,
     headerNavModules,
     pricingRequireAuth,
     logout,
     handleLanguageChange,
-    handleThemeToggle,
     handleMobileMenuToggle,
     navigate,
     t,
   } = useHeaderBar({ onMobileMenuToggle, drawerOpen });
 
-  const {
-    noticeVisible,
-    unreadCount,
-    handleNoticeOpen,
-    handleNoticeClose,
-  } = useNotifications();
+  const { noticeVisible, unreadCount, handleNoticeOpen, handleNoticeClose } =
+    useNotifications();
 
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
 
@@ -111,8 +105,6 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             isNewYear={isNewYear}
             unreadCount={unreadCount}
             onNoticeOpen={handleNoticeOpen}
-            theme={theme}
-            onThemeToggle={handleThemeToggle}
             currentLang={currentLang}
             onLanguageChange={handleLanguageChange}
             userState={userState}
