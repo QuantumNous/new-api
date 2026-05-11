@@ -13,7 +13,10 @@ import (
 
 const (
 	// SecureVerificationSessionKey means the user has fully passed secure verification.
-	SecureVerificationSessionKey = "secure_verified_at"
+	SecureVerificationSessionKey       = "secure_verified_at"
+	secureVerificationMethodSessionKey = "secure_verified_method"
+	secureVerificationMethod2FA        = "2fa"
+	secureVerificationMethodPasskey    = "passkey"
 	// PasskeyReadySessionKey means WebAuthn finished and /api/verify can finalize step-up verification.
 	PasskeyReadySessionKey = "secure_passkey_ready_at"
 	// SecureVerificationTimeout 验证有效期（秒）
@@ -120,7 +123,7 @@ func UniversalVerify(c *gin.Context) {
 	}
 
 	// 验证成功，在 session 中记录时间戳
-	now, err := setSecureVerificationSession(c)
+	now, err := setSecureVerificationSession(c, req.Method)
 	if err != nil {
 		common.ApiError(c, fmt.Errorf("保存验证状态失败: %v", err))
 		return
@@ -139,11 +142,12 @@ func UniversalVerify(c *gin.Context) {
 	})
 }
 
-func setSecureVerificationSession(c *gin.Context) (int64, error) {
+func setSecureVerificationSession(c *gin.Context, method string) (int64, error) {
 	session := sessions.Default(c)
 	session.Delete(PasskeyReadySessionKey)
 	now := time.Now().Unix()
 	session.Set(SecureVerificationSessionKey, now)
+	session.Set(secureVerificationMethodSessionKey, method)
 	if err := session.Save(); err != nil {
 		return 0, err
 	}
