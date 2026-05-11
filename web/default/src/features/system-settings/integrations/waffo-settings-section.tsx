@@ -25,6 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { getCurrencyLabel } from '@/lib/currency'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -59,6 +60,7 @@ interface Props {
 
 export function WaffoSettingsSection(props: Props) {
   const { t } = useTranslation()
+  const currencyName = getCurrencyLabel()
   const updateOption = useUpdateOption()
   const [loading, setLoading] = useState(false)
   const iconFileInputRef = useRef<HTMLInputElement | null>(null)
@@ -285,7 +287,7 @@ export function WaffoSettingsSection(props: Props) {
             <Input {...form.register('WaffoCurrency')} disabled />
           </div>
           <div className='grid gap-1.5'>
-            <Label>{t('Unit price (USD)')}</Label>
+            <Label>{t('Unit price (USD)').replace(/USD|美元/g, currencyName)}</Label>
             <Input
               type='number'
               step={0.1}

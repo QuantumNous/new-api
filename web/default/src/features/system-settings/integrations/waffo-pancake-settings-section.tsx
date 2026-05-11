@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { getCurrencyLabel } from '@/lib/currency'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { removeTrailingSlash } from './utils'
@@ -33,6 +34,7 @@ interface Props {
 
 export function WaffoPancakeSettingsSection(props: Props) {
   const { t } = useTranslation()
+  const currencyName = getCurrencyLabel()
   const updateOption = useUpdateOption()
   const [loading, setLoading] = useState(false)
   const form = useForm<WaffoPancakeSettingsValues>({
@@ -157,7 +159,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
       title={t('Waffo Pancake Payment Gateway')}
       description={t(
         'Configure Waffo Pancake hosted checkout integration for USD-priced top-ups'
-      )}
+      ).replace(/USD|美元/g, currencyName)}
     >
       <Alert>
         <AlertDescription className='text-xs'>
@@ -264,7 +266,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
 
       <div className='grid grid-cols-2 gap-4'>
         <div className='grid gap-1.5'>
-          <Label>{t('Unit price (local currency / USD)')}</Label>
+          <Label>{t('Unit price (local currency / USD)').replace(/USD|美元/g, currencyName)}</Label>
           <Input
             type='number'
             step={0.01}
@@ -273,7 +275,7 @@ export function WaffoPancakeSettingsSection(props: Props) {
           />
         </div>
         <div className='grid gap-1.5'>
-          <Label>{t('Minimum top-up (USD)')}</Label>
+          <Label>{t('Minimum top-up (USD)').replace(/USD|美元/g, currencyName)}</Label>
           <Input
             type='number'
             min={1}

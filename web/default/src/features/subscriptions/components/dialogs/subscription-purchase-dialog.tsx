@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { GroupBadge } from '@/components/group-badge'
+import { getCurrencyLabel } from '@/lib/currency'
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,
@@ -47,6 +48,9 @@ interface Props {
 
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
+  const currencyLabel = getCurrencyLabel()
+  const currencySymbol =
+    currencyLabel === 'CNY' ? '¥' : currencyLabel === 'USD' ? '$' : currencyLabel
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
 
@@ -226,7 +230,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <Separator />
             <div className='flex items-center justify-between'>
               <span className='text-sm font-medium'>{t('Amount Due')}</span>
-              <span className='text-primary text-lg font-bold'>${price}</span>
+              <span className='text-primary text-lg font-bold'>{currencySymbol}{price}</span>
             </div>
           </div>
 

@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { getCurrencyLabel } from '@/lib/currency'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
@@ -119,6 +120,7 @@ export function PaymentSettingsSection({
   waffoPancakeDefaultValues,
 }: PaymentSettingsSectionProps) {
   const { t } = useTranslation()
+  const currencyName = getCurrencyLabel()
   const updateOption = useUpdateOption()
   const initialRef = React.useRef(defaultValues)
   const defaultsSignature = React.useMemo(
@@ -565,7 +567,7 @@ export function PaymentSettingsSection({
                 name='Price'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Price (local currency / USD)')}</FormLabel>
+                    <FormLabel>{t('Price (local currency / USD)').replace(/USD|美元/g, currencyName)}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -579,7 +581,7 @@ export function PaymentSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'How much to charge for each US dollar of balance (Epay)'
+                        'How much to charge for each dollar of balance (Epay)'
                       )}
                     </FormDescription>
                     <FormMessage />
@@ -592,7 +594,7 @@ export function PaymentSettingsSection({
                 name='MinTopUp'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                    <FormLabel>{t('Minimum top-up (USD)').replace(/USD|美元/g, currencyName)}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -605,7 +607,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Smallest USD amount users can recharge (Epay)')}
+                      {t('Smallest USD amount users can recharge (Epay)').replace(/USD|美元/g, currencyName)}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1030,7 +1032,7 @@ export function PaymentSettingsSection({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {t('Unit price (local currency / USD)')}
+                      {t('Unit price (local currency / USD)').replace(/USD|美元/g, currencyName)}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -1044,7 +1046,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('e.g., 8 means 8 local currency per USD')}
+                      {t('e.g., 8 means 8 local currency per USD').replace(/USD|美元/g, currencyName)}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1056,7 +1058,7 @@ export function PaymentSettingsSection({
                 name='StripeMinTopUp'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                    <FormLabel>{t('Minimum top-up (USD)').replace(/USD|美元/g, currencyName)}</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -1069,7 +1071,7 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Minimum recharge amount in USD')}
+                      {t('Minimum recharge amount in USD').replace(/USD|美元/g, currencyName)}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

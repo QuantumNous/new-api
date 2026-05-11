@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { getCurrencyLabel } from '@/lib/currency'
 
 const createAmountDiscountDialogSchema = (t: (key: string) => string) =>
   z.object({
@@ -58,6 +59,7 @@ export function AmountDiscountDialog({
   editData,
 }: AmountDiscountDialogProps) {
   const { t } = useTranslation()
+  const currencyName = getCurrencyLabel()
   const isEditMode = !!editData
   const amountDiscountDialogSchema = createAmountDiscountDialogSchema(t)
 
@@ -118,7 +120,7 @@ export function AmountDiscountDialog({
               name='amount'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Recharge Amount (USD)')}</FormLabel>
+                  <FormLabel>{t('Recharge Amount')} ({currencyName})</FormLabel>
                   <FormControl>
                     <Input
                       type='number'

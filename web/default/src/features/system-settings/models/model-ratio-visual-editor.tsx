@@ -20,6 +20,7 @@ import { useMediaQuery } from '@/hooks'
 import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { getCurrencyLabel } from '@/lib/currency'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -127,12 +128,12 @@ const getExpressionSummary = (row: ModelRow, t: (key: string) => string) => {
   return t('Expression pricing')
 }
 
-const getPriceSummary = (row: ModelRow, t: (key: string) => string) => {
+const getPriceSummary = (row: ModelRow, t: (key: string) => string, symbol: string = '$') => {
   if (row.billingMode === 'tiered_expr') {
     return getExpressionSummary(row, t)
   }
   if (row.billingMode === 'per-request') {
-    return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
+    return row.price ? `${symbol}${row.price} / ${t('request')}` : t('Unset price')
   }
 
   const inputPrice = ratioToPrice(row.ratio)
@@ -148,11 +149,11 @@ const getPriceSummary = (row: ModelRow, t: (key: string) => string) => {
   ].filter(hasValue).length
 
   return extraCount > 0
-    ? `${t('Input')} $${inputPrice} · ${extraCount} ${t('extras')}`
-    : `${t('Input')} $${inputPrice}`
+    ? `${t('Input')} ${symbol}${inputPrice} · ${extraCount} ${t('extras')}`
+    : `${t('Input')} ${symbol}${inputPrice}`
 }
 
-const getPriceDetail = (row: ModelRow, t: (key: string) => string) => {
+const getPriceDetail = (row: ModelRow, t: (key: string) => string, symbol: string = '$') => {
   if (row.billingMode === 'tiered_expr') {
     return row.requestRuleExpr
       ? t('Includes request rules')
@@ -167,11 +168,11 @@ const getPriceDetail = (row: ModelRow, t: (key: string) => string) => {
 
   const details = [
     row.completionRatio &&
-      `${t('Output')} $${ratioToPrice(row.completionRatio, inputPrice)}`,
+      `${t('Output')} ${symbol}${ratioToPrice(row.completionRatio, inputPrice)}`,
     row.cacheRatio &&
-      `${t('Cache')} $${ratioToPrice(row.cacheRatio, inputPrice)}`,
+      `${t('Cache')} ${symbol}${ratioToPrice(row.cacheRatio, inputPrice)}`,
     row.createCacheRatio &&
-      `${t('Cache write')} $${ratioToPrice(row.createCacheRatio, inputPrice)}`,
+      `${t('Cache write')} ${symbol}${ratioToPrice(row.createCacheRatio, inputPrice)}`,
   ].filter(Boolean)
 
   return details.length > 0 ? details.join(' · ') : t('Base input price only')
@@ -192,6 +193,8 @@ export const ModelRatioVisualEditor = memo(
     onChange,
   }: ModelRatioVisualEditorProps) {
     const { t } = useTranslation()
+    const currencyLabel = getCurrencyLabel()
+    const currencySymbol = currencyLabel === 'CNY' ? '¥' : currencyLabel === 'Tokens' ? '' : '$'
     const isMobile = useMediaQuery('(max-width: 767px)')
     const [sheetOpen, setSheetOpen] = useState(false)
     const [editorOpen, setEditorOpen] = useState(false)
@@ -618,16 +621,16 @@ export const ModelRatioVisualEditor = memo(
           cell: ({ row }) => (
             <div className='flex min-w-[180px] flex-col gap-1'>
               <span className='font-medium'>
-                {getPriceSummary(row.original, t)}
+                {getPriceSummary(row.original, t, currencySymbol)}
               </span>
               <span className='text-muted-foreground max-w-[320px] truncate text-xs'>
-                {getPriceDetail(row.original, t)}
+                {getPriceDetail(row.original, t, currencySymbol)}
               </span>
             </div>
           ),
           sortingFn: (rowA, rowB) =>
-            getPriceSummary(rowA.original, t).localeCompare(
-              getPriceSummary(rowB.original, t)
+            getPriceSummary(rowA.original, t, currencySymbol).localeCompare(
+              getPriceSummary(rowB.original, t, currencySymbol)
             ),
           meta: { label: t('Price summary') },
         },
@@ -654,7 +657,7 @@ export const ModelRatioVisualEditor = memo(
           enableHiding: false,
         },
       ]
-    }, [handleEdit, handleDelete, t])
+    }, [currencySymbol, handleEdit, handleDelete, t])
 
     const table = useReactTable({
       data: models,

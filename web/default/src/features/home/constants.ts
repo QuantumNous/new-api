@@ -9,20 +9,32 @@ export const MAIN_BASE_CLASSES = 'bg-background text-foreground w-full'
 
 // Hero section - AI Applications (Left side)
 export const AI_APPLICATIONS = [
-  'LobeHub.Color',
+  // 国内应用
   'Dify.Color',
+  'LobeHub.Color',
+  // 国外应用
   'OpenWebUI',
   'Cline',
 ] as const
 
 // Hero section - AI Models (Right side)
 export const AI_MODELS = [
+  // 国内厂商
   'Qwen.Color',
   'DeepSeek.Color',
   'Doubao.Color',
+  'Zhipu.Color',
+  'Moonshot.Color',
+  'Baidu.Color',
+  'Spark.Color',
+  'Volcengine.Color',
+  'Minimax.Color',
+  // 国外厂商
   'OpenAI',
   'Claude.Color',
   'Gemini.Color',
+  'Mistral.Color',
+  'Llama.Color',
 ] as const
 
 // Hero section - Gateway Features

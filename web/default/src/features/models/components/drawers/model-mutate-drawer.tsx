@@ -56,6 +56,7 @@ import type { ModelSettings } from '@/features/system-settings/types'
 import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
+import { getCurrencyLabel } from '@/lib/currency'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
 import type { Model } from '../../types'
 
@@ -106,6 +107,12 @@ export function ModelMutateDrawer({
   const [promptPrice, setPromptPrice] = useState('')
   const [completionPrice, setCompletionPrice] = useState('')
   const [oldModelName, setOldModelName] = useState<string>('')
+
+  // Currency display
+  const currencyLabel = getCurrencyLabel()
+  const currencySymbol =
+    currencyLabel === 'CNY' ? '¥' : currencyLabel === 'USD' ? '$' : currencyLabel
+  const currencyName = currencyLabel === 'Tokens' ? 'Tokens' : currencyLabel
 
   // Fetch vendors for dropdown
   const { data: vendorsData } = useQuery({
@@ -904,7 +911,7 @@ export function ModelMutateDrawer({
                   name='price'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Fixed price (USD)')}</FormLabel>
+                      <FormLabel>{t('Fixed price')} ({currencyName})</FormLabel>
                       <FormControl>
                         <Input
                           type='text'
@@ -920,7 +927,7 @@ export function ModelMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Cost in USD per request, regardless of tokens used.'
+                          'Cost per request, regardless of tokens used.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -946,7 +953,7 @@ export function ModelMutateDrawer({
                       <div className='flex items-center space-x-2'>
                         <RadioGroupItem value='price' id='price' />
                         <Label htmlFor='price' className='font-normal'>
-                          {t('Price mode (USD per 1M tokens)')}
+                          {t('Pricing mode')} ({currencySymbol}/1M tokens)
                         </Label>
                       </div>
                     </RadioGroup>
@@ -982,7 +989,7 @@ export function ModelMutateDrawer({
                             </FormControl>
                             <FormDescription>
                               {field.value && !isNaN(parseFloat(field.value))
-                                ? `Calculated price: $${(parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
+                                ? `Calculated price: ${currencySymbol}${(parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
                                 : t('Multiplier for prompt tokens.')}
                             </FormDescription>
                             <FormMessage />
@@ -1024,7 +1031,7 @@ export function ModelMutateDrawer({
                               !isNaN(parseFloat(field.value)) &&
                               promptPrice &&
                               !isNaN(parseFloat(promptPrice))
-                                ? `Calculated price: $${(parseFloat(promptPrice) * parseFloat(field.value)).toFixed(4)} per 1M tokens`
+                                ? `Calculated price: ${currencySymbol}${(parseFloat(promptPrice) * parseFloat(field.value)).toFixed(4)} per 1M tokens`
                                 : t('Multiplier for completion tokens.')}
                             </FormDescription>
                             <FormMessage />
@@ -1036,7 +1043,7 @@ export function ModelMutateDrawer({
                     <>
                       <div className='space-y-4'>
                         <div className='space-y-2'>
-                          <Label>{t('Prompt price ($/1M tokens)')}</Label>
+                          <Label>{t('Prompt price')} ({currencySymbol}/1M tokens)</Label>
                           <Input
                             type='text'
                             placeholder='2.0'
@@ -1053,7 +1060,7 @@ export function ModelMutateDrawer({
                         </div>
 
                         <div className='space-y-2'>
-                          <Label>{t('Completion price ($/1M tokens)')}</Label>
+                          <Label>{t('Completion price')} ({currencySymbol}/1M tokens)</Label>
                           <Input
                             type='text'
                             placeholder='4.0'

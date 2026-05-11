@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { getCurrencyLabel } from '@/lib/currency'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -277,7 +278,8 @@ function buildPreviewRows(
   promptPrice: string,
   lanePrices: Record<LaneKey, string>,
   laneEnabled: Record<LaneKey, boolean>,
-  t: (key: string) => string
+  t: (key: string) => string,
+  symbol: string = '$'
 ): PreviewRow[] {
   if (mode === 'tiered_expr') {
     const effectiveExpr = combineBillingExpr(billingExpr, requestRuleExpr)
@@ -297,7 +299,7 @@ function buildPreviewRows(
       {
         key: 'price',
         label: 'ModelPrice',
-        value: values.price || t('Empty'),
+        value: values.price ? `${symbol}${values.price}` : t('Empty'),
       },
     ]
   }
@@ -306,14 +308,14 @@ function buildPreviewRows(
     {
       key: 'inputPrice',
       label: t('Input price'),
-      value: promptPrice ? `$${promptPrice}` : t('Empty'),
+      value: promptPrice ? `${symbol}${promptPrice}` : t('Empty'),
     },
     {
       key: 'completion',
       label: t('Completion price'),
       value:
         laneEnabled.completion && lanePrices.completion
-          ? `$${lanePrices.completion}`
+          ? `${symbol}${lanePrices.completion}`
           : t('Empty'),
     },
     {
@@ -321,7 +323,7 @@ function buildPreviewRows(
       label: t('Cache read price'),
       value:
         laneEnabled.cache && lanePrices.cache
-          ? `$${lanePrices.cache}`
+          ? `${symbol}${lanePrices.cache}`
           : t('Empty'),
     },
     {
@@ -329,7 +331,7 @@ function buildPreviewRows(
       label: t('Cache write price'),
       value:
         laneEnabled.createCache && lanePrices.createCache
-          ? `$${lanePrices.createCache}`
+          ? `${symbol}${lanePrices.createCache}`
           : t('Empty'),
     },
     {
@@ -337,7 +339,7 @@ function buildPreviewRows(
       label: t('Image input price'),
       value:
         laneEnabled.image && lanePrices.image
-          ? `$${lanePrices.image}`
+          ? `${symbol}${lanePrices.image}`
           : t('Empty'),
     },
     {
@@ -345,7 +347,7 @@ function buildPreviewRows(
       label: t('Audio input price'),
       value:
         laneEnabled.audioInput && lanePrices.audioInput
-          ? `$${lanePrices.audioInput}`
+          ? `${symbol}${lanePrices.audioInput}`
           : t('Empty'),
     },
     {
@@ -353,7 +355,7 @@ function buildPreviewRows(
       label: t('Audio output price'),
       value:
         laneEnabled.audioOutput && lanePrices.audioOutput
-          ? `$${lanePrices.audioOutput}`
+          ? `${symbol}${lanePrices.audioOutput}`
           : t('Empty'),
     },
   ]
@@ -401,6 +403,8 @@ export function ModelPricingEditorPanel({
   className,
 }: ModelPricingEditorPanelProps) {
   const { t } = useTranslation()
+  const currencyLabel = getCurrencyLabel()
+  const currencySymbol = currencyLabel === 'CNY' ? '¥' : currencyLabel === 'Tokens' ? '' : '$'
   const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
   const [promptPrice, setPromptPrice] = useState('')
   const [lanePrices, setLanePrices] = useState<Record<LaneKey, string>>({
@@ -607,10 +611,12 @@ export function ModelPricingEditorPanel({
         promptPrice,
         lanePrices,
         laneEnabled,
-        t
+        t,
+        currencySymbol
       ),
     [
       billingExpr,
+      currencySymbol,
       laneEnabled,
       lanePrices,
       pricingMode,
@@ -799,10 +805,11 @@ export function ModelPricingEditorPanel({
                       <PriceInput
                         value={promptPrice}
                         placeholder='3'
+                        currencySymbol={currencySymbol}
                         onChange={handlePromptPriceChange}
                       />
                       <FieldDescription>
-                        {t('USD price per 1M input tokens.')}
+                        {t('Price per 1M input tokens.')}
                       </FieldDescription>
                     </Field>
 
@@ -821,6 +828,7 @@ export function ModelPricingEditorPanel({
                             value={lanePrices[lane.key]}
                             enabled={laneEnabled[lane.key]}
                             disabled={disabled}
+                            currencySymbol={currencySymbol}
                             onEnabledChange={(checked) =>
                               handleLaneToggle(lane.key, checked)
                             }
@@ -846,7 +854,7 @@ export function ModelPricingEditorPanel({
                         <FormLabel>{t('Fixed price')}</FormLabel>
                         <FormControl>
                           <InputGroup>
-                            <InputGroupAddon>$</InputGroupAddon>
+                            <InputGroupAddon>{currencySymbol || '$'}</InputGroupAddon>
                             <InputGroupInput
                               inputMode='decimal'
                               placeholder='0.01'
@@ -865,7 +873,7 @@ export function ModelPricingEditorPanel({
                         </FormControl>
                         <FormDescription>
                           {t(
-                            'Cost in USD per request, regardless of tokens used.'
+                            'Cost per request, regardless of tokens used.'
                           )}
                         </FormDescription>
                         <FormMessage />
@@ -961,11 +969,13 @@ function PriceInput(props: {
   value: string
   placeholder?: string
   disabled?: boolean
+  currencySymbol?: string
   onChange: (value: string) => void
 }) {
+  const symbol = props.currencySymbol ?? '$'
   return (
     <InputGroup>
-      <InputGroupAddon>$</InputGroupAddon>
+      <InputGroupAddon>{symbol}</InputGroupAddon>
       <InputGroupInput
         inputMode='decimal'
         value={props.value}
@@ -973,7 +983,7 @@ function PriceInput(props: {
         disabled={props.disabled}
         onChange={(event) => props.onChange(event.target.value)}
       />
-      <InputGroupAddon align='inline-end'>$/1M</InputGroupAddon>
+      <InputGroupAddon align='inline-end'>{symbol}/1M</InputGroupAddon>
     </InputGroup>
   )
 }
@@ -985,6 +995,7 @@ function PriceLane(props: {
   value: string
   enabled: boolean
   disabled?: boolean
+  currencySymbol?: string
   onEnabledChange: (checked: boolean) => void
   onChange: (value: string) => void
 }) {
@@ -1015,11 +1026,12 @@ function PriceLane(props: {
         value={props.value}
         placeholder={props.placeholder}
         disabled={effectiveDisabled}
+        currencySymbol={props.currencySymbol}
         onChange={props.onChange}
       />
       <FieldDescription>
         {props.enabled
-          ? t('USD price per 1M tokens.')
+          ? t('Price per 1M tokens.')
           : t('Disabled lanes are omitted on save.')}
       </FieldDescription>
     </Field>

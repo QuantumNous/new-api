@@ -1,9 +1,8 @@
-# Frontend Development - Backend built from local source
+# Frontend Development - Backend + Frontend in Docker
 #
 # Usage:
-#   1. docker compose -f docker-compose.dev.yml up -d
-#   2. cd web && bun install && bun run dev
-#   3. Open http://localhost:3001 (Rsbuild dev server, API auto-proxied to :3000)
+#   docker compose -f docker-compose.dev.yml up -d
+#   Open http://localhost:5173 (Rsbuild dev server, API auto-proxied to :3000)
 #
 # Rebuild backend after Go code changes:
 #   docker compose -f docker-compose.dev.yml up -d --build new-api
@@ -39,15 +38,33 @@ services:
     networks:
       - dev-network
 
+  frontend:
+    image: oven/bun:1
+    container_name: new-api-frontend
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "5173:3000"
+    volumes:
+      - ./web/default:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      - VITE_REACT_APP_SERVER_URL=http://new-api-dev:3000
+    command: sh -c "bun install && bun run dev --host 0.0.0.0"
+    depends_on:
+      - new-api
+    networks:
+      - dev-network
+
   redis:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: new-api-dev-redis
     restart: unless-stopped
     networks:
       - dev-network
 
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15
     container_name: new-api-dev-pg
     restart: unless-stopped
     environment:
@@ -67,6 +84,7 @@ services:
 volumes:
   dev_data:
   dev_pg_data:
+  frontend_node_modules:
 
 networks:
   dev-network:
