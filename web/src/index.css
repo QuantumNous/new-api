@@ -1357,6 +1357,23 @@ html.dark .with-pastel-balls::before {
   border-radius: 10px !important;
 }
 
+.token-group-select-dropdown {
+  width: min(536px, calc(100vw - 32px)) !important;
+  max-width: min(536px, calc(100vw - 32px)) !important;
+  box-sizing: border-box;
+}
+
+.token-group-select-dropdown .semi-select-option-list,
+.token-group-select-dropdown .semi-select-option {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.token-group-select-dropdown .semi-select-option {
+  overflow: hidden;
+}
+
 @keyframes slideInLeft {
   from {
     transform: translateX(-100%);

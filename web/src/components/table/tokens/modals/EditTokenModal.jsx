@@ -400,6 +400,10 @@ const EditTokenModal = (props) => {
                         }}
                         showClear
                         style={{ width: '100%' }}
+                        dropdownClassName='token-group-select-dropdown'
+                        renderSelectedItem={(optionNode) =>
+                          optionNode?.value || ''
+                        }
                       />
                     ) : (
                       <Form.Select
