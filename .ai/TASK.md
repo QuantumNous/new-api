@@ -2167,3 +2167,47 @@ status: completed
   - 在具备本地后端服务和测试账号的环境中人工验收 `/console/topup`：查看“邀请奖励”卡片下方是否显示邀请返现日志。
   - 用测试邀请关系验证 summary、邀请用户列表和返利流水展示数据是否与后端流水一致。
   - 单独排期清理旧版前端既有 Prettier / dist lint 债务，避免后续 lint 归因成本继续增加。
+
+## 旧版邀请奖励文案修正记录
+
+任务名称：将旧版邀请奖励说明从好友充值改为好友消费
+status: completed
+
+### 修改范围
+
+- `web/classic/src/components/topup/InvitationCard.jsx`
+- `web/classic/src/i18n/locales/en.json`
+- `web/classic/src/i18n/locales/fr.json`
+- `web/classic/src/i18n/locales/ja.json`
+- `web/classic/src/i18n/locales/ru.json`
+- `web/classic/src/i18n/locales/vi.json`
+- `web/classic/src/i18n/locales/zh.json`
+- `web/classic/src/i18n/locales/zh-CN.json`
+- `web/classic/src/i18n/locales/zh-TW.json`
+- `.ai/TASK.md`
+
+### 修改内容
+
+- 将旧版 `/console/topup` 邀请奖励卡片中的说明文案从“邀请好友注册，好友充值后您可获得相应奖励”改为“邀请好友注册，好友消费后您可获得相应奖励”。
+- 同步更新旧版 8 个 locale 文件，移除旧 key 并补齐新 key 翻译。
+- 本轮未修改新版前端 `web/default`。
+
+### 验证命令与结果
+
+- `rg "邀请好友注册，好友充值后您可获得相应奖励" web/classic/src/components/topup/InvitationCard.jsx web/classic/src/i18n/locales -n`：无匹配，旧文案已移除。
+- `rg "邀请好友注册，好友消费后您可获得相应奖励" web/classic/src/components/topup/InvitationCard.jsx web/classic/src/i18n/locales -n`：通过，组件和 8 个旧版 locale 均包含新文案。
+- locale JSON parse 与新旧 key 检查：通过，8 个旧版 locale 均包含新 key 且不再包含旧 key。
+- `bun x prettier web/classic/src/components/topup/InvitationCard.jsx web/classic/src/i18n/locales/en.json web/classic/src/i18n/locales/fr.json web/classic/src/i18n/locales/ja.json web/classic/src/i18n/locales/ru.json web/classic/src/i18n/locales/vi.json web/classic/src/i18n/locales/zh.json web/classic/src/i18n/locales/zh-CN.json web/classic/src/i18n/locales/zh-TW.json --check`：通过。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 已确认本轮只修改旧版前端邀请奖励说明文案和对应 locale。
+- 已确认未修改后端、返利 service、消费挂接、充值、注册 / OAuth、异步任务、Midjourney。
+- 已确认未修改 model / migration、依赖文件、新版前端 `web/default`。
+- 已确认未提交 `node_modules`、`dist` 或构建产物。
+- 已确认未输出或写入 token / secret / sk- key / bearer token。
+
+### 下一步建议
+
+- 用户在已启动的旧版前端 `http://localhost:5173/console/topup` 刷新页面后人工确认邀请奖励说明已显示为“好友消费”。
