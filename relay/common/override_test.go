@@ -1125,6 +1125,81 @@ func TestApplyParamOverrideReturnError(t *testing.T) {
 	}
 }
 
+func TestCheckConditionsShortCircuitAND(t *testing.T) {
+	conditions := []ConditionOperation{
+		{Path: "model", Mode: "full", Value: "gpt-3.5-turbo"},
+		{Path: "temperature", Mode: "gt", Value: 0},
+	}
+
+	ok, err := checkConditions(`{"model":"gpt-4","temperature":"not-a-number"}`, "", conditions, "AND")
+	if err != nil {
+		t.Fatalf("expected short-circuit to skip invalid numeric comparison, got error: %v", err)
+	}
+	if ok {
+		t.Fatalf("expected AND conditions to be false")
+	}
+}
+
+func TestCheckConditionsShortCircuitOR(t *testing.T) {
+	conditions := []ConditionOperation{
+		{Path: "model", Mode: "full", Value: "gpt-4"},
+		{Path: "temperature", Mode: "gt", Value: 0},
+	}
+
+	ok, err := checkConditions(`{"model":"gpt-4","temperature":"not-a-number"}`, "", conditions, "OR")
+	if err != nil {
+		t.Fatalf("expected short-circuit to skip invalid numeric comparison, got error: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected OR conditions to be true")
+	}
+}
+
+func TestCheckConditionsShortCircuitDefaultOR(t *testing.T) {
+	conditions := []ConditionOperation{
+		{Path: "model", Mode: "full", Value: "gpt-4"},
+		{Path: "temperature", Mode: "gt", Value: 0},
+	}
+
+	ok, err := checkConditions(`{"model":"gpt-4","temperature":"not-a-number"}`, "", conditions, "")
+	if err != nil {
+		t.Fatalf("expected default OR short-circuit to skip invalid numeric comparison, got error: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected default OR conditions to be true")
+	}
+}
+
+func TestCheckConditionsANDAllTrue(t *testing.T) {
+	conditions := []ConditionOperation{
+		{Path: "model", Mode: "full", Value: "gpt-4"},
+		{Path: "temperature", Mode: "gt", Value: 0},
+	}
+
+	ok, err := checkConditions(`{"model":"gpt-4","temperature":0.7}`, "", conditions, "AND")
+	if err != nil {
+		t.Fatalf("expected AND conditions to evaluate without error, got: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected AND conditions to be true")
+	}
+}
+
+func TestCheckConditionsORAllFalse(t *testing.T) {
+	conditions := []ConditionOperation{
+		{Path: "model", Mode: "full", Value: "gpt-3.5-turbo"},
+		{Path: "temperature", Mode: "lt", Value: 0},
+	}
+
+	ok, err := checkConditions(`{"model":"gpt-4","temperature":0.7}`, "", conditions, "OR")
+	if err != nil {
+		t.Fatalf("expected OR conditions to evaluate without error, got: %v", err)
+	}
+	if ok {
+		t.Fatalf("expected OR conditions to be false")
+	}
+}
+
 func TestApplyParamOverridePruneObjectsByTypeString(t *testing.T) {
 	input := []byte(`{
 		"messages":[
