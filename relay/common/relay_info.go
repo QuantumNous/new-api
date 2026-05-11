@@ -738,8 +738,54 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	var raw map[string]interface{}
+	if err := common.Unmarshal(data, &raw); err == nil {
+		mergeTaskTopLevelFieldsToMetadata(t, raw)
+	}
+
 	return nil
 }
+
+func mergeTaskTopLevelFieldsToMetadata(t *TaskSubmitReq, raw map[string]interface{}) {
+	if t == nil || len(raw) == 0 {
+		return
+	}
+
+	passthroughFields := []string{
+		"content",
+		"callback_url",
+		"safety_identifier",
+		"return_last_frame",
+		"service_tier",
+		"execution_expires_after",
+		"generate_audio",
+		"draft",
+		"tools",
+		"resolution",
+		"ratio",
+		"duration",
+		"frames",
+		"seed",
+		"camera_fixed",
+		"watermark",
+		"draft_task_id",
+	}
+
+	for _, key := range passthroughFields {
+		value, ok := raw[key]
+		if !ok {
+			continue
+		}
+		if t.Metadata == nil {
+			t.Metadata = make(map[string]interface{})
+		}
+		if _, exists := t.Metadata[key]; exists {
+			continue
+		}
+		t.Metadata[key] = value
+	}
+}
+
 func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 	metadata := t.Metadata
 	if metadata != nil {

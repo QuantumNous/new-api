@@ -146,7 +146,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil
 	}
-	if hasVideoInMetadata(req.Metadata) {
+	if hasVideoInMetadata(req.Metadata) || hasTopLevelContentVideo(req) {
 		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
 			return map[string]float64{"video_input": ratio}
 		}
@@ -181,6 +181,10 @@ func hasVideoInMetadata(metadata map[string]interface{}) bool {
 		}
 	}
 	return false
+}
+
+func hasTopLevelContentVideo(req relaycommon.TaskSubmitReq) bool {
+	return hasVideoInMetadata(req.Metadata)
 }
 
 // BuildRequestBody converts request into Doubao specific format.
