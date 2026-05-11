@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/samber/lo"
 )
 
 var group2model2channels map[string]map[string][]int // enabled channel
@@ -93,10 +94,10 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int, requestEndpointTypes []constant.EndpointType) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return GetChannel(group, model, retry, requestEndpointTypes)
 	}
 
 	channelSyncLock.RLock()
@@ -141,13 +142,10 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	targetPriority := int64(sortedUniquePriorities[retry])
 
-	// get the priority for the given retry number
-	var sumWeight = 0
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
-				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
@@ -158,6 +156,11 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	if len(targetChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
 	}
+
+	targetChannels = preferNativeEndpointChannels(targetChannels, requestEndpointTypes, model)
+	sumWeight := lo.SumBy(targetChannels, func(channel *Channel) int {
+		return channel.GetWeight()
+	})
 
 	// smoothing factor and adjustment
 	smoothingFactor := 1
@@ -188,6 +191,33 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+func preferNativeEndpointChannels(channels []*Channel, requestEndpointTypes []constant.EndpointType, modelName string) []*Channel {
+	if len(requestEndpointTypes) == 0 || len(channels) <= 1 {
+		return channels
+	}
+
+	preferredChannels := lo.Filter(channels, func(channel *Channel, _ int) bool {
+		return isNativeEndpointChannel(channel, requestEndpointTypes, modelName)
+	})
+	if len(preferredChannels) == 0 {
+		return channels
+	}
+	return preferredChannels
+}
+
+func isNativeEndpointChannel(channel *Channel, requestEndpointTypes []constant.EndpointType, modelName string) bool {
+	if channel == nil {
+		return false
+	}
+	endpointTypes := common.GetEndpointTypesByChannelType(channel.Type, modelName)
+	if len(endpointTypes) == 0 {
+		return false
+	}
+	return lo.SomeBy(requestEndpointTypes, func(requestEndpointType constant.EndpointType) bool {
+		return endpointTypes[0] == requestEndpointType
+	})
 }
 
 func CacheGetChannel(id int) (*Channel, error) {

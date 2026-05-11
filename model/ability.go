@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -103,7 +104,7 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannel(group string, model string, retry int, requestEndpointTypes []constant.EndpointType) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
@@ -121,6 +122,10 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	}
 	channel := Channel{}
 	if len(abilities) > 0 {
+		abilities, err = preferNativeEndpointAbilities(abilities, requestEndpointTypes, model)
+		if err != nil {
+			return nil, err
+		}
 		// Randomly choose one
 		weightSum := uint(0)
 		for _, ability_ := range abilities {
@@ -141,6 +146,36 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+func preferNativeEndpointAbilities(abilities []Ability, requestEndpointTypes []constant.EndpointType, modelName string) ([]Ability, error) {
+	if len(requestEndpointTypes) == 0 || len(abilities) <= 1 {
+		return abilities, nil
+	}
+
+	channelIDs := lo.Map(abilities, func(ability Ability, _ int) int {
+		return ability.ChannelId
+	})
+	channels, err := GetChannelsByIds(channelIDs)
+	if err != nil {
+		return nil, err
+	}
+	channelByID := lo.SliceToMap(channels, func(channel *Channel) (int, *Channel) {
+		return channel.Id, channel
+	})
+
+	for _, ability := range abilities {
+		if _, ok := channelByID[ability.ChannelId]; !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", ability.ChannelId)
+		}
+	}
+	preferredAbilities := lo.Filter(abilities, func(ability Ability, _ int) bool {
+		return isNativeEndpointChannel(channelByID[ability.ChannelId], requestEndpointTypes, modelName)
+	})
+	if len(preferredAbilities) == 0 {
+		return abilities, nil
+	}
+	return preferredAbilities, nil
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
