@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -621,6 +623,68 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 		return 0, false
 	}
 	return 0, false
+}
+
+func GetUsablePreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup string) (*model.Channel, string, bool) {
+	channelID, found := GetPreferredChannelByAffinity(c, modelName, usingGroup)
+	if !found {
+		return nil, "", false
+	}
+
+	preferred, err := model.CacheGetChannel(channelID)
+	if err != nil || preferred == nil {
+		DiscardChannelAffinityCacheForContext(c)
+		return nil, "", false
+	}
+
+	selectedGroup, ok := validateChannelAffinityHit(c, preferred, modelName, usingGroup)
+	if !ok {
+		DiscardChannelAffinityCacheForContext(c)
+		return nil, "", false
+	}
+
+	MarkChannelAffinityUsed(c, selectedGroup, preferred.Id)
+	return preferred, selectedGroup, true
+}
+
+func validateChannelAffinityHit(c *gin.Context, channel *model.Channel, modelName string, usingGroup string) (string, bool) {
+	if channel == nil || channel.Id <= 0 {
+		return "", false
+	}
+	if channel.Status != common.ChannelStatusEnabled {
+		return "", false
+	}
+
+	if usingGroup == "auto" {
+		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		autoGroups := GetUserAutoGroup(userGroup)
+		for _, group := range autoGroups {
+			if model.IsChannelEnabledForGroupModel(group, modelName, channel.Id) {
+				common.SetContextKey(c, constant.ContextKeyAutoGroup, group)
+				return group, true
+			}
+		}
+		return "", false
+	}
+
+	if model.IsChannelEnabledForGroupModel(usingGroup, modelName, channel.Id) {
+		return usingGroup, true
+	}
+	return "", false
+}
+
+func DiscardChannelAffinityCacheForContext(c *gin.Context) bool {
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok || cacheKey == "" {
+		return false
+	}
+	cache := getChannelAffinityCache()
+	deleted, err := cache.DeleteMany([]string{cacheKey})
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache delete failed: key=%s, err=%v", cacheKey, err))
+		return false
+	}
+	return deleted[cacheKey]
 }
 
 func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
