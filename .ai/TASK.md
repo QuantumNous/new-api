@@ -2039,4 +2039,41 @@ status: in_progress
 
 ### 阶段 0 自审
 
-- 待提交前确认。
+- 已确认阶段 0 仅修改 `.ai/PROJECT.md` 与 `.ai/TASK.md`，未修改业务代码。
+- 阶段 0 提交：`7dafbf5d2a7dc6e73a6a494fee371cd45a53cbb2`
+
+### 阶段 1：后端 self 查询接口
+
+- 新增普通用户只读接口：
+  - `GET /api/user/invitation_rebate/self/summary`
+  - `GET /api/user/invitation_rebate/self/invitees`
+  - `GET /api/user/invitation_rebate/self/records`
+  - `GET /api/user/invitation_rebate/self/records/:id`
+- 路由挂在 `UserAuth` self route 下。
+- `summary` 返回待使用收益、总返利余额、已转化余额和邀请人数。
+- `invitees` 仅查询当前用户邀请的用户，并按本页 invitee id 合并累计状态。
+- `records` 和 `records/:id` 仅查询当前登录用户作为邀请人的返利记录。
+- 普通用户列表不返回完整 source key；详情明细仅返回截断后的 source key。
+
+### 阶段 1 修改文件
+
+- `controller/invitation_rebate.go`
+- `controller/invitation_rebate_test.go`
+- `router/api-router.go`
+- `.ai/TASK.md`
+
+### 阶段 1 验证
+
+- `gofmt -w controller/invitation_rebate.go controller/invitation_rebate_test.go router/api-router.go`：通过。
+- `go test ./controller -run "TestGetSelfInvitationRebate|TestGetInvitationRebateRecordDetail|TestInvitationRebate" -count=1`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./model/...`：通过。
+- `go test ./service/...`：通过。
+- `git diff --check`：通过。
+
+### 阶段 1 自审
+
+- 已确认阶段 1 新增接口均为普通用户只读查询，路由位于 `UserAuth` self route 下。
+- 已确认详情接口使用 `id + inviter_user_id` 过滤，普通用户无法查询他人返利详情。
+- 已确认普通用户接口不返回完整 source key，详情明细仅返回截断 source key。
+- 已确认未修改返利计算、消费挂接、充值、注册 / OAuth、异步任务、Midjourney、model / migration、依赖。
