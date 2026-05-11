@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - alpha
+      - cooper
   workflow_dispatch:
     inputs:
       name:
@@ -34,10 +35,16 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Determine alpha version
+      - name: Determine image channel
+        run: |
+          CHANNEL="${GITHUB_REF_NAME:-alpha}"
+          echo "CHANNEL=$CHANNEL" >> $GITHUB_ENV
+          echo "Publishing channel: $CHANNEL"
+
+      - name: Determine channel version
         id: version
         run: |
-          VERSION="alpha-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
+          VERSION="${CHANNEL}-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
           echo "$VERSION" > VERSION
           echo "value=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
@@ -78,9 +85,9 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            calciumion/new-api:alpha-${{ matrix.arch }}
+            calciumion/new-api:${{ env.CHANNEL }}-${{ matrix.arch }}
             calciumion/new-api:${{ steps.version.outputs.value }}-${{ matrix.arch }}
-            ghcr.io/${{ env.GHCR_REPOSITORY }}:alpha-${{ matrix.arch }}
+            ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.CHANNEL }}-${{ matrix.arch }}
             ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ steps.version.outputs.value }}-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -100,8 +107,8 @@ jobs:
         run: |
           echo "### Docker Image Digest (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "calciumion/new-api:alpha-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/${{ env.GHCR_REPOSITORY }}:alpha-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "calciumion/new-api:${CHANNEL}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "ghcr.io/${GHCR_REPOSITORY}:${CHANNEL}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -121,10 +128,16 @@ jobs:
       - name: Normalize GHCR repository
         run: echo "GHCR_REPOSITORY=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
-      - name: Determine alpha version
+      - name: Determine image channel
+        run: |
+          CHANNEL="${GITHUB_REF_NAME:-alpha}"
+          echo "CHANNEL=$CHANNEL" >> $GITHUB_ENV
+          echo "Publishing channel: $CHANNEL"
+
+      - name: Determine channel version
         id: version
         run: |
-          VERSION="alpha-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
+          VERSION="${CHANNEL}-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
           echo "value=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
@@ -134,14 +147,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Create & push manifest (Docker Hub - alpha)
+      - name: Create & push manifest (Docker Hub - channel)
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:alpha \
-            calciumion/new-api:alpha-amd64 \
-            calciumion/new-api:alpha-arm64
+            -t calciumion/new-api:${CHANNEL} \
+            calciumion/new-api:${CHANNEL}-amd64 \
+            calciumion/new-api:${CHANNEL}-arm64
 
-      - name: Create & push manifest (Docker Hub - versioned alpha)
+      - name: Create & push manifest (Docker Hub - versioned channel)
         run: |
           docker buildx imagetools create \
             -t calciumion/new-api:${VERSION} \
@@ -155,14 +168,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create & push manifest (GHCR - alpha)
+      - name: Create & push manifest (GHCR - channel)
         run: |
           docker buildx imagetools create \
-            -t ghcr.io/${GHCR_REPOSITORY}:alpha \
-            ghcr.io/${GHCR_REPOSITORY}:alpha-amd64 \
-            ghcr.io/${GHCR_REPOSITORY}:alpha-arm64
+            -t ghcr.io/${GHCR_REPOSITORY}:${CHANNEL} \
+            ghcr.io/${GHCR_REPOSITORY}:${CHANNEL}-amd64 \
+            ghcr.io/${GHCR_REPOSITORY}:${CHANNEL}-arm64
 
-      - name: Create & push manifest (GHCR - versioned alpha)
+      - name: Create & push manifest (GHCR - versioned channel)
         run: |
           docker buildx imagetools create \
             -t ghcr.io/${GHCR_REPOSITORY}:${VERSION} \
@@ -173,7 +186,7 @@ jobs:
         run: |
           echo "### Multi-arch Manifest Digests" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect calciumion/new-api:alpha >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect calciumion/new-api:${CHANNEL} >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect ghcr.io/${GHCR_REPOSITORY}:alpha >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect ghcr.io/${GHCR_REPOSITORY}:${CHANNEL} >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
