@@ -350,17 +350,22 @@ type KYCAdminRow struct {
 //
 // Cross-DB note: only unquoted lowercase identifiers are used in the JOIN, so
 // no PostgreSQL/MySQL/SQLite dialect divergence is needed (per CLAUDE.md Rule 2).
-func GetKYCList(status int, page, pageSize int) ([]*KYCAdminRow, int64, error) {
+func GetKYCList(status int, keyword string, page, pageSize int) ([]*KYCAdminRow, int64, error) {
 	var rows []*KYCAdminRow
 	var total int64
 
-	// Count is run separately (without JOIN) so result row count matches the
-	// number of user_kycs rows, not the JOIN cardinality.
-	countQuery := DB.Model(&UserKYC{})
+	// Build base query with JOIN so keyword can filter on username.
+	baseQuery := DB.Model(&UserKYC{}).
+		Joins("LEFT JOIN users u1 ON u1.id = user_kycs.user_id")
 	if status != 0 {
-		countQuery = countQuery.Where("status = ?", status)
+		baseQuery = baseQuery.Where("user_kycs.status = ?", status)
 	}
-	if err := countQuery.Count(&total).Error; err != nil {
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		baseQuery = baseQuery.Where("u1.username LIKE ? OR user_kycs.real_name LIKE ?", like, like)
+	}
+
+	if err := baseQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -370,6 +375,10 @@ func GetKYCList(status int, page, pageSize int) ([]*KYCAdminRow, int64, error) {
 		Joins("LEFT JOIN users u2 ON u2.id = user_kycs.reviewed_by")
 	if status != 0 {
 		query = query.Where("user_kycs.status = ?", status)
+	}
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("u1.username LIKE ? OR user_kycs.real_name LIKE ?", like, like)
 	}
 
 	offset := (page - 1) * pageSize

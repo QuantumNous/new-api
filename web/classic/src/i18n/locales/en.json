@@ -3827,7 +3827,8 @@
         "实名认证未通过": "Verification rejected",
         "您的实名认证未通过，请重新提交。": "Your identity verification was rejected. Please resubmit.",
         "重新提交": "Resubmit",
-        "您尚未完成实名认证，API 访问及充值已受限。": "Identity verification required. API access and recharge are restricted."
+        "您尚未完成实名认证，API 访问及充值已受限。": "Identity verification required. API access and recharge are restricted.",
+        "实名认证审核管理": "Identity verification management"
     },
     "实名认证": "Identity Verification",
     "未认证": "Not Verified",

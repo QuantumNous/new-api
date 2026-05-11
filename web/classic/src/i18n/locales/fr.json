@@ -3682,7 +3682,8 @@
         "实名认证未通过": "Vérification rejetée",
         "您的实名认证未通过，请重新提交。": "Votre vérification d'identité a été rejetée. Veuillez la soumettre à nouveau.",
         "重新提交": "Soumettre à nouveau",
-        "您尚未完成实名认证，API 访问及充值已受限。": "Vérification d'identité requise. L'accès à l'API et la recharge sont restreints."
+        "您尚未完成实名认证，API 访问及充值已受限。": "Vérification d'identité requise. L'accès à l'API et la recharge sont restreints.",
+        "实名认证审核管理": "Gestion de la vérification d'identité"
     },
     "实名认证": "Vérification d'identité",
     "未认证": "Non vérifié",

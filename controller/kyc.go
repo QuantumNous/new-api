@@ -230,9 +230,10 @@ func DeleteKYC(c *gin.Context) {
 
 // ─── Admin-side handlers ──────────────────────────────────────────────────────
 
-// AdminGetKYCList GET /api/user/kyc/admin?status=1&page=1&page_size=20
+// AdminGetKYCList GET /api/user/kyc/admin?status=1&keyword=xxx&page=1&page_size=20
 func AdminGetKYCList(c *gin.Context) {
 	status, _ := strconv.Atoi(c.DefaultQuery("status", "0"))
+	keyword := c.Query("keyword")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	if page < 1 {
@@ -242,7 +243,7 @@ func AdminGetKYCList(c *gin.Context) {
 		pageSize = 20
 	}
 
-	rows, total, err := model.GetKYCList(status, page, pageSize)
+	rows, total, err := model.GetKYCList(status, keyword, page, pageSize)
 	if err != nil {
 		common.ApiErrorMsg(c, "查询失败")
 		return

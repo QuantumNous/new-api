@@ -4213,7 +4213,8 @@
         "实名认证未通过": "Xác minh bị từ chối",
         "您的实名认证未通过，请重新提交。": "Xác minh danh tính của bạn đã bị từ chối. Vui lòng gửi lại.",
         "重新提交": "Gửi lại",
-        "您尚未完成实名认证，API 访问及充值已受限。": "Cần xác minh danh tính. Truy cập API và nạp tiền bị hạn chế."
+        "您尚未完成实名认证，API 访问及充值已受限。": "Cần xác minh danh tính. Truy cập API và nạp tiền bị hạn chế.",
+        "实名认证审核管理": "Quản lý xác minh danh tính"
     },
     "实名认证": "Xác minh danh tính",
     "未认证": "Chưa xác minh",
