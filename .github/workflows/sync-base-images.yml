@@ -44,3 +44,9 @@ jobs:
           docker pull ghcr.io/umami-software/umami:postgresql-latest
           docker tag ghcr.io/umami-software/umami:postgresql-latest ${{ secrets.ACR_REGISTRY }}/reputationly/umami:latest
           docker push ${{ secrets.ACR_REGISTRY }}/reputationly/umami:latest
+
+      - name: Sync louislam/uptime-kuma:latest
+        run: |
+          docker pull louislam/uptime-kuma:latest
+          docker tag louislam/uptime-kuma:latest ${{ secrets.ACR_REGISTRY }}/reputationly/uptime-kuma:latest
+          docker push ${{ secrets.ACR_REGISTRY }}/reputationly/uptime-kuma:latest
