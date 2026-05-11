@@ -48,6 +48,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidAudioRequest(c, relayMode)
 	case types.RelayFormatOpenAIRealtime:
 		request = &dto.BaseRequest{}
+	case types.RelayFormatDocumentExtract:
+		request, err = GetAndValidateDocumentExtractRequest(c)
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
 	}
@@ -338,4 +340,30 @@ func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*dto.GeminiBatch
 		return nil, err
 	}
 	return request, nil
+}
+
+func GetAndValidateDocumentExtractRequest(c *gin.Context) (*dto.DocumentExtractRequest, error) {
+	// Parse multipart form with a reasonable max memory limit
+	if err := c.Request.ParseMultipartForm(64 << 20); err != nil {
+		return nil, fmt.Errorf("failed to parse multipart form: %w", err)
+	}
+
+	mf := c.Request.MultipartForm
+	if mf == nil {
+		return nil, errors.New("no multipart form data found")
+	}
+
+	// Validate that at least one file is uploaded
+	hasFile := false
+	for fieldName := range mf.File {
+		if len(mf.File[fieldName]) > 0 {
+			hasFile = true
+			break
+		}
+	}
+	if !hasFile {
+		return nil, errors.New("at least one file is required")
+	}
+
+	return &dto.DocumentExtractRequest{}, nil
 }

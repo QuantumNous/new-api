@@ -52,6 +52,8 @@ const (
 	RelayModeGemini
 
 	RelayModeResponsesCompact
+
+	RelayModeDocumentExtract
 )
 
 func Path2RelayMode(path string) int {
@@ -84,6 +86,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeAudioTranslation
 	} else if strings.HasPrefix(path, "/v1/rerank") {
 		relayMode = RelayModeRerank
+	} else if strings.HasPrefix(path, "/v1/file_parse") {
+		relayMode = RelayModeDocumentExtract
 	} else if strings.HasPrefix(path, "/v1/realtime") {
 		relayMode = RelayModeRealtime
 	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {

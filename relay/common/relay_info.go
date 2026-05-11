@@ -362,6 +362,13 @@ func GenRelayInfoOpenAIAudio(c *gin.Context, request dto.Request) *RelayInfo {
 	return info
 }
 
+func GenRelayInfoDocumentExtract(c *gin.Context, request dto.Request) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayMode = relayconstant.RelayModeDocumentExtract
+	info.RelayFormat = types.RelayFormatDocumentExtract
+	return info
+}
+
 func GenRelayInfoEmbedding(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatEmbedding
@@ -555,6 +562,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			return GenRelayInfoResponsesCompaction(c, request), nil
 		}
 		return nil, errors.New("request is not a OpenAIResponsesCompactionRequest")
+	case types.RelayFormatDocumentExtract:
+		info = GenRelayInfoDocumentExtract(c, request)
 	case types.RelayFormatTask:
 		info = genBaseRelayInfo(c, nil)
 		info.TaskRelayInfo = &TaskRelayInfo{}

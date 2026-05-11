@@ -73,6 +73,30 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			localErr: fmt.Errorf("%s channel test is not supported", channelTypeName),
 		}
 	}
+
+	// MinerU 文档解析渠道：直接调用 /health 检查连通性
+	if channel.Type == constant.ChannelTypeMinerU {
+		baseURL := ""
+		if channel.BaseURL != nil {
+			baseURL = *channel.BaseURL
+		}
+		healthURL := strings.TrimSuffix(baseURL, "/") + "/health"
+		resp, err := http.Get(healthURL)
+		if err != nil {
+			return testResult{
+				localErr: fmt.Errorf("mineru health check failed: %w", err),
+			}
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusOK && strings.Contains(strings.ToLower(string(body)), "ok") {
+			return testResult{}
+		}
+		return testResult{
+			localErr: fmt.Errorf("mineru health check returned status %d: %s", resp.StatusCode, string(body)),
+		}
+	}
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 

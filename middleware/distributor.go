@@ -270,6 +270,17 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/file_parse") {
+		// MinerU document extract uses multipart form-data
+		if c.Request.MultipartForm == nil {
+			c.Request.ParseMultipartForm(64 << 20)
+		}
+		if c.Request.MultipartForm != nil {
+			if values, ok := c.Request.MultipartForm.Value["model"]; ok && len(values) > 0 {
+				modelRequest.Model = values[0]
+			}
+		}
+		c.Set("relay_mode", relayconstant.RelayModeDocumentExtract)
 	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 		req, err := getModelFromRequest(c)
 		if err != nil {
