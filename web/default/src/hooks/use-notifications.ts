@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNotificationStore } from '@/stores/notification-store'
 import { getNotice } from '@/lib/api'
@@ -57,6 +57,8 @@ function getAnnouncementKey(item: Record<string, unknown>): string {
   return `hash:${hashString(fingerprint)}`
 }
 
+const autoOpenedNotificationSignatures = new Set<string>()
+
 /**
  * Hook to manage notifications (Notice + Announcements)
  * Provides unread counts and read status management
@@ -66,6 +68,7 @@ export function useNotifications() {
   const [activeTab, setActiveTab] = useState<'notice' | 'announcements'>(
     'notice'
   )
+  const autoOpenRef = useRef<string | null>(null)
 
   // Fetch Notice from API
   const {
@@ -120,6 +123,23 @@ export function useNotifications() {
     }
   }, [noticeContent, lastReadNotice, announcements, isAnnouncementRead])
 
+  const unreadAnnouncementKeys = useMemo(
+    () =>
+      announcements
+        .map((item: Record<string, unknown>) => getAnnouncementKey(item))
+        .filter((key) => key && !isAnnouncementRead(key)),
+    [announcements, isAnnouncementRead]
+  )
+
+  const autoOpenSignature = useMemo(() => {
+    if (unreadCounts.total === 0) return ''
+
+    return JSON.stringify({
+      notice: unreadCounts.notice > 0 ? noticeContent : '',
+      announcements: unreadAnnouncementKeys,
+    })
+  }, [noticeContent, unreadAnnouncementKeys, unreadCounts])
+
   // Handle dialog open
   const handleOpenDialog = (tab?: 'notice' | 'announcements') => {
     // Mark Notice as read when opening dialog
@@ -130,6 +150,31 @@ export function useNotifications() {
     setActiveTab(tab || 'notice')
     setDialogOpen(true)
   }
+
+  useEffect(() => {
+    if (
+      noticeLoading ||
+      statusLoading ||
+      dialogOpen ||
+      !autoOpenSignature ||
+      isNoticeClosed() ||
+      autoOpenRef.current === autoOpenSignature ||
+      autoOpenedNotificationSignatures.has(autoOpenSignature)
+    ) {
+      return
+    }
+
+    autoOpenRef.current = autoOpenSignature
+    autoOpenedNotificationSignatures.add(autoOpenSignature)
+    handleOpenDialog(unreadCounts.notice > 0 ? 'notice' : 'announcements')
+  }, [
+    autoOpenSignature,
+    dialogOpen,
+    noticeLoading,
+    statusLoading,
+    unreadCounts.notice,
+    isNoticeClosed,
+  ])
 
   // Handle tab change - mark announcements as read when switching to that tab
   const handleTabChange = (tab: 'notice' | 'announcements') => {
