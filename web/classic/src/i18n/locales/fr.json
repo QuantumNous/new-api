@@ -3688,6 +3688,22 @@
     "返利基于被邀请用户的累计实际消费额度，不基于充值。": "La remise est basée sur le quota de consommation réelle cumulée de l'utilisateur invité, pas sur les recharges.",
     "开启后，同步消费成功结算后会累计消费额度，达到门槛后按比例给邀请人返利。": "Une fois activée, la consommation synchrone réglée avec succès est cumulée et la remise est accordée à l'inviteur selon le pourcentage lorsque le seuil est atteint.",
     "累计触发消费额度": "Quota de consommation cumulée déclencheur",
-    "累计实际消费额度达到该值时才发放返利，未满部分会继续累计。": "La remise est accordée lorsque le quota de consommation réelle cumulée atteint cette valeur. La partie non réglée continue de s'accumuler."
+    "累计实际消费额度达到该值时才发放返利，未满部分会继续累计。": "La remise est accordée lorsque le quota de consommation réelle cumulée atteint cette valeur. La partie non réglée continue de s'accumuler.",
+    "邀请返现日志": "Journaux des remises de parrainage",
+    "基于被邀请用户实际消费统计，返利进入邀请奖励余额。": "Calculé selon la consommation réelle des utilisateurs invités. Les remises sont créditées aux récompenses de parrainage.",
+    "总返利余额": "Solde total des remises",
+    "已转化余额": "Solde converti",
+    "邀请用户": "Utilisateurs invités",
+    "注册时间": "Heure d'inscription",
+    "累计消费": "Consommation cumulée",
+    "已结算消费": "Consommation réglée",
+    "返利余额": "Solde de remise",
+    "返利流水": "Historique des remises",
+    "结算消费额度": "Quota de consommation réglé",
+    "返利比例": "Pourcentage de remise",
+    "暂无邀请用户": "Aucun utilisateur invité",
+    "暂无返利流水": "Aucun historique de remise",
+    "加载邀请返现日志失败": "Échec du chargement des journaux de remises de parrainage",
+    "每个用户的返利余额为该被邀请用户贡献的累计返利。": "Le solde de remise de chaque utilisateur correspond à la remise cumulée apportée par cet utilisateur invité."
   }
 }

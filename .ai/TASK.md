@@ -2077,3 +2077,55 @@ status: in_progress
 - 已确认详情接口使用 `id + inviter_user_id` 过滤，普通用户无法查询他人返利详情。
 - 已确认普通用户接口不返回完整 source key，详情明细仅返回截断 source key。
 - 已确认未修改返利计算、消费挂接、充值、注册 / OAuth、异步任务、Midjourney、model / migration、依赖。
+
+### 阶段 2：旧版前端展示
+
+- 在旧版 `/console/topup` 的“邀请奖励”卡片下方接入用户端“邀请返现日志”区域。
+- 新增 `InvitationRebateLogPanel`，调用普通用户 self 只读接口：
+  - `GET /api/user/invitation_rebate/self/summary`
+  - `GET /api/user/invitation_rebate/self/invitees`
+  - `GET /api/user/invitation_rebate/self/records`
+- 顶部展示总返利余额、已转化余额、待使用收益。
+- 默认展示邀请用户列表，字段包含用户、注册时间、累计消费、已结算消费、返利余额。
+- 增加“返利流水”切换视图，字段包含被邀请人用户 ID、结算消费额度、返利额度、返利比例、状态、创建时间。
+- 本轮不新增详情弹窗、补发、删除、导出、手动操作或普通用户修改能力。
+- 补齐旧版 8 个 locale 文件；验证发现 `注册时间` 为本轮新增列的缺失 key，已做最小补齐。
+
+### 阶段 2 修改文件
+
+- `web/classic/src/components/topup/InvitationCard.jsx`
+- `web/classic/src/components/topup/InvitationRebateLogPanel.jsx`
+- `web/classic/src/i18n/locales/en.json`
+- `web/classic/src/i18n/locales/fr.json`
+- `web/classic/src/i18n/locales/ja.json`
+- `web/classic/src/i18n/locales/ru.json`
+- `web/classic/src/i18n/locales/vi.json`
+- `web/classic/src/i18n/locales/zh.json`
+- `web/classic/src/i18n/locales/zh-CN.json`
+- `web/classic/src/i18n/locales/zh-TW.json`
+- `.ai/TASK.md`
+
+### 阶段 2 验证
+
+- `C:\Users\Administrator\.bun\bin\bun.exe --version`：通过，版本 `1.3.13`。
+- `cd web/classic && bun run build`：通过；仅有既有 Browserslist、lottie eval、chunk size warning。
+- `cd web/classic && bun run lint`：未通过，失败为既有 Prettier / dist 检查债务；本轮新增 `InvitationRebateLogPanel.jsx` 已定向 Prettier 后不再出现在失败清单。
+- `cd web/classic && bunx prettier src/components/topup/InvitationCard.jsx src/components/topup/InvitationRebateLogPanel.jsx src/i18n/locales/*.json --check`：通过。
+- locale JSON parse 与新增组件 `t()` key 完整性检查：通过，8 个旧版 locale 均包含 23 个相关 key。
+- `git diff --check`：通过。
+
+### 阶段 2 lint 归因
+
+- 旧版 `bun run lint` 等价于 `prettier . --check`，会扫描既有 `dist` 与大量旧文件。
+- 定向修复后，本轮修改文件已通过 Prettier 检查。
+- 全局 lint 剩余失败文件均为既有非本轮文件或构建产物，例如 `.eslintrc.cjs`、`.prettierrc.mjs`、`dist/assets/*`、`src/components/auth/*`、`src/components/table/*`、`src/pages/Setting/*` 等。
+- 该 lint 债务与本轮旧版邀请返现日志实现无直接交集，本轮不扩大修复范围。
+
+### 阶段 2 自审
+
+- 已确认本轮只修改旧版前端 `web/classic` 用户端钱包页和旧版 locale。
+- 已确认未修改新版前端 `web/default`。
+- 已确认未修改后端返利计算、消费挂接、充值、注册 / OAuth、异步任务、Midjourney。
+- 已确认未修改 model / migration、后端 option、依赖文件。
+- 已确认未提交 `node_modules`、`dist` 或构建产物。
+- 已确认未输出或写入 token / secret / sk- key / bearer token。

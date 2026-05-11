@@ -4222,6 +4222,21 @@
     "返利基于被邀请用户的累计实际消费额度，不基于充值。": "Hoàn thưởng dựa trên hạn mức tiêu thụ thực tế tích lũy của người được mời, không dựa trên nạp tiền.",
     "开启后，同步消费成功结算后会累计消费额度，达到门槛后按比例给邀请人返利。": "Sau khi bật, mức tiêu thụ đồng bộ đã quyết toán thành công sẽ được tích lũy và hoàn thưởng theo phần trăm cho người mời khi đạt ngưỡng.",
     "累计触发消费额度": "Hạn mức tiêu thụ tích lũy kích hoạt",
-    "累计实际消费额度达到该值时才发放返利，未满部分会继续累计。": "Chỉ cấp hoàn thưởng khi hạn mức tiêu thụ thực tế tích lũy đạt giá trị này; phần chưa đủ sẽ tiếp tục tích lũy."
+    "累计实际消费额度达到该值时才发放返利，未满部分会继续累计。": "Chỉ cấp hoàn thưởng khi hạn mức tiêu thụ thực tế tích lũy đạt giá trị này; phần chưa đủ sẽ tiếp tục tích lũy.",
+    "邀请返现日志": "Nhật ký hoàn tiền giới thiệu",
+    "基于被邀请用户实际消费统计，返利进入邀请奖励余额。": "Được tính theo mức tiêu dùng thực tế của người được mời. Tiền hoàn được cộng vào phần thưởng giới thiệu.",
+    "总返利余额": "Tổng số dư hoàn tiền",
+    "已转化余额": "Số dư đã chuyển đổi",
+    "邀请用户": "Người dùng đã mời",
+    "累计消费": "Tiêu dùng lũy kế",
+    "已结算消费": "Tiêu dùng đã quyết toán",
+    "返利余额": "Số dư hoàn tiền",
+    "返利流水": "Lịch sử hoàn tiền",
+    "结算消费额度": "Hạn mức tiêu dùng đã quyết toán",
+    "返利比例": "Tỷ lệ hoàn tiền",
+    "暂无邀请用户": "Chưa có người dùng được mời",
+    "暂无返利流水": "Chưa có lịch sử hoàn tiền",
+    "加载邀请返现日志失败": "Không thể tải nhật ký hoàn tiền giới thiệu",
+    "每个用户的返利余额为该被邀请用户贡献的累计返利。": "Số dư hoàn tiền của mỗi người dùng là khoản hoàn tiền lũy kế do người được mời đó đóng góp."
   }
 }

@@ -3833,6 +3833,22 @@
     "返利基于被邀请用户的累计实际消费额度，不基于充值。": "Rebates are based on the invited user's cumulative actual consumption quota, not top-ups.",
     "开启后，同步消费成功结算后会累计消费额度，达到门槛后按比例给邀请人返利。": "When enabled, successful synchronous consumption is accumulated and rebates are granted to the inviter by percentage after the threshold is reached.",
     "累计触发消费额度": "Cumulative Trigger Consumption Quota",
-    "累计实际消费额度达到该值时才发放返利，未满部分会继续累计。": "Rebates are granted when cumulative actual consumption quota reaches this value. The remaining unsettled quota keeps accumulating."
+    "累计实际消费额度达到该值时才发放返利，未满部分会继续累计。": "Rebates are granted when cumulative actual consumption quota reaches this value. The remaining unsettled quota keeps accumulating.",
+    "邀请返现日志": "Invitation Rebate Logs",
+    "基于被邀请用户实际消费统计，返利进入邀请奖励余额。": "Calculated from invited users’ actual consumption. Rebates are credited to referral rewards.",
+    "总返利余额": "Total Rebate Balance",
+    "已转化余额": "Converted Balance",
+    "邀请用户": "Invited Users",
+    "注册时间": "Registration Time",
+    "累计消费": "Total Consumption",
+    "已结算消费": "Settled Consumption",
+    "返利余额": "Rebate Balance",
+    "返利流水": "Rebate Records",
+    "结算消费额度": "Settled Consumption Quota",
+    "返利比例": "Rebate Percentage",
+    "暂无邀请用户": "No invited users",
+    "暂无返利流水": "No rebate records",
+    "加载邀请返现日志失败": "Failed to load invitation rebate logs",
+    "每个用户的返利余额为该被邀请用户贡献的累计返利。": "Each user’s rebate balance is the cumulative rebate contributed by that invited user."
   }
 }

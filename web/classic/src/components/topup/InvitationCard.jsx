@@ -28,6 +28,7 @@ import {
   Space,
 } from '@douyinfe/semi-ui';
 import { Copy, Users, BarChart2, TrendingUp, Gift, Zap } from 'lucide-react';
+import InvitationRebateLogPanel from './InvitationRebateLogPanel';
 
 const { Text } = Typography;
 
@@ -221,6 +222,8 @@ const InvitationCard = ({
             </div>
           </div>
         </Card>
+
+        <InvitationRebateLogPanel t={t} renderQuota={renderQuota} />
       </Space>
     </Card>
   );
