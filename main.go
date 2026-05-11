@@ -284,7 +284,12 @@ func InitResources() error {
 		return err
 	}
 
-	model.CheckSetup()
+	if model.SkipDBMigration() {
+		common.SysLog("database schema validation skipped by SKIP_DB_MIGRATION")
+		model.LoadSetupStatus()
+	} else {
+		model.CheckSetup()
+	}
 
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()

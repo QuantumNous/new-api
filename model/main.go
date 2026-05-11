@@ -89,19 +89,31 @@ func createRootAccountIfNeed() error {
 }
 
 func CheckSetup() {
+	checkSetup(true)
+}
+
+func LoadSetupStatus() {
+	checkSetup(false)
+}
+
+func checkSetup(createMissingSetup bool) {
 	setup := GetSetup()
 	if setup == nil {
 		// No setup record exists, check if we have a root user
 		if RootUserExists() {
-			common.SysLog("system is not initialized, but root user exists")
-			// Create setup record
-			newSetup := Setup{
-				Version:       common.Version,
-				InitializedAt: time.Now().Unix(),
-			}
-			err := DB.Create(&newSetup).Error
-			if err != nil {
-				common.SysLog("failed to create setup record: " + err.Error())
+			if createMissingSetup {
+				common.SysLog("system is not initialized, but root user exists")
+				// Create setup record
+				newSetup := Setup{
+					Version:       common.Version,
+					InitializedAt: time.Now().Unix(),
+				}
+				err := DB.Create(&newSetup).Error
+				if err != nil {
+					common.SysLog("failed to create setup record: " + err.Error())
+				}
+			} else {
+				common.SysLog("setup record not found, treating existing root user as initialized")
 			}
 			constant.Setup = true
 		} else {
@@ -174,7 +186,24 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	})
 }
 
+func SkipDBMigration() bool {
+	value := strings.TrimSpace(os.Getenv("SKIP_DB_MIGRATION"))
+	if value == "" {
+		return false
+	}
+	switch strings.ToLower(value) {
+	case "1", "t", "true", "y", "yes", "on":
+		return true
+	case "0", "f", "false", "n", "no", "off":
+		return false
+	default:
+		common.SysError(fmt.Sprintf("failed to parse SKIP_DB_MIGRATION: %s, using default value: false", value))
+		return false
+	}
+}
+
 func InitDB() (err error) {
+	skipMigration := SkipDBMigration()
 	db, err := chooseDB("SQL_DSN", false)
 	if err == nil {
 		if common.DebugEnabled {
@@ -194,6 +223,11 @@ func InitDB() (err error) {
 		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+
+		if skipMigration {
+			common.SysLog("database migration skipped by SKIP_DB_MIGRATION")
+			return nil
+		}
 
 		if !common.IsMasterNode {
 			return nil
@@ -215,6 +249,7 @@ func InitLogDB() (err error) {
 		LOG_DB = DB
 		return
 	}
+	skipMigration := SkipDBMigration()
 	db, err := chooseDB("LOG_SQL_DSN", true)
 	if err == nil {
 		if common.DebugEnabled {
@@ -234,6 +269,11 @@ func InitLogDB() (err error) {
 		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+
+		if skipMigration {
+			common.SysLog("log database migration skipped by SKIP_DB_MIGRATION")
+			return nil
+		}
 
 		if !common.IsMasterNode {
 			return nil

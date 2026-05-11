@@ -26,7 +26,7 @@ func AllOption() ([]*Option, error) {
 	return options, err
 }
 
-func InitOptionMap() {
+func InitOptionMap(loadFromDatabase ...bool) {
 	common.OptionMapRWMutex.Lock()
 	common.OptionMap = make(map[string]string)
 
@@ -185,7 +185,9 @@ func InitOptionMap() {
 	}
 
 	common.OptionMapRWMutex.Unlock()
-	loadOptionsFromDatabase()
+	if len(loadFromDatabase) == 0 || loadFromDatabase[0] {
+		loadOptionsFromDatabase()
+	}
 }
 
 func loadOptionsFromDatabase() {
