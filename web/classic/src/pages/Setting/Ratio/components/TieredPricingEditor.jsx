@@ -804,6 +804,58 @@ const PRESET_GROUPS = [
     ],
   },
   {
+    group: 'Doubao Seedance',
+    presets: [
+      {
+        key: 'doubao-seedance-1-0-lite-i2v-250428',
+        label: 'Seedance 1.0 Lite i2v (¥10/Mtoken)',
+        expr: 'tier("在线推理(离线半价)", p * 0 + c * 10)',
+        requestRules: [{ conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' }],
+      },
+      {
+        key: 'doubao-seedance-1-0-lite-t2v-250428',
+        label: 'Seedance 1.0 Lite t2v (¥10/Mtoken)',
+        expr: 'tier("在线推理(离线半价)", p * 0 + c * 10)',
+        requestRules: [{ conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' }],
+      },
+      {
+        key: 'doubao-seedance-1-0-pro-250528',
+        label: 'Seedance 1.0 Pro (¥15/Mtoken)',
+        expr: 'tier("在线推理(离线半价)", p * 0 + c * 15)',
+        requestRules: [{ conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' }],
+      },
+      {
+        key: 'doubao-seedance-1-0-pro-fast-251015',
+        label: 'Seedance 1.0 Pro Fast (¥4.2/Mtoken)',
+        expr: 'tier("在线推理(离线半价)", p * 0 + c * 4.2)',
+        requestRules: [{ conditions: [{ source: SOURCE_PARAM, path: 'service_tier', mode: MATCH_EQ, value: 'flex' }], multiplier: '0.5' }],
+      },
+      {
+        key: 'doubao-seedance-1-5-pro-251215',
+        label: 'Seedance 1.5 Pro (¥8/Mtoken)',
+        expr: 'tier("无音频(含音频×2)", p * 0 + c * 8)',
+        requestRules: [{ conditions: [{ source: SOURCE_PARAM, path: 'generate_audio', mode: MATCH_EQ, value: 'true' }], multiplier: '2' }],
+      },
+      {
+        key: 'doubao-seedance-2-0-260128',
+        label: 'Seedance 2.0 (¥46/Mtoken)',
+        expr: 'tier("无视频输入(1080p×1.11、含视频×0.61)", p * 0 + c * 46)',
+        requestRules: [
+          { conditions: [{ source: SOURCE_PARAM, path: 'resolution', mode: MATCH_EQ, value: '1080p' }], multiplier: '1.108696' },
+          { conditions: [{ source: SOURCE_PARAM, path: 'content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.608696' },
+        ],
+      },
+      {
+        key: 'doubao-seedance-2-0-fast-260128',
+        label: 'Seedance 2.0 Fast (¥37/Mtoken)',
+        expr: 'tier("无视频输入(含视频×0.59)", p * 0 + c * 37)',
+        requestRules: [
+          { conditions: [{ source: SOURCE_PARAM, path: 'content.#(type=="video_url")', mode: MATCH_EXISTS }], multiplier: '0.594595' },
+        ],
+      },
+    ],
+  },
+  {
     group: '时间促销',
     presets: [
       {

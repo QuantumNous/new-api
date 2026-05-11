@@ -167,6 +167,14 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
 
+	// tiered_expr branch for task billing (Option A: Volc-native only).
+	// EstimatedBillingTokens is set by the task adaptor before this call;
+	// non-zero means the adaptor confirmed tiered_expr applies.
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr &&
+		info.EstimatedBillingTokens > 0 {
+		return modelPriceHelperTieredForTask(c, info, groupRatioInfo)
+	}
+
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
 	var modelRatio float64
@@ -221,6 +229,81 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 		Quota:          quota,
 		GroupRatioInfo: groupRatioInfo,
 	}
+	return priceData, nil
+}
+
+// modelPriceHelperTieredForTask handles tiered_expr billing for async task requests
+// (e.g. Seedance video generation). Unlike the chat path, token counts are estimated
+// by the adaptor (EstimateBillingTokens) and stored on info.EstimatedBillingTokens
+// before this function is called.
+//
+// Option A restriction: only fires when info.EstimatedBillingTokens > 0, which
+// the doubao adaptor sets only for RelayFormatVolc requests.
+func modelPriceHelperTieredForTask(c *gin.Context, info *relaycommon.RelayInfo, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+	exprStr, ok := billing_setting.GetBillingExpr(info.OriginModelName)
+	if !ok {
+		return types.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", info.OriginModelName)
+	}
+
+	estimatedTokens := info.EstimatedBillingTokens
+
+	requestInput, err := ResolveIncomingBillingExprRequestInput(c, info)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+
+	// For task billing the expression uses `c` (completion/output tokens) as the
+	// primary variable. Seedance expressions are `tier("base", c * PRICE)`.
+	// We pass estimatedTokens for both C and Len so tier conditions work too.
+	rawCost, trace, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{
+		C:   float64(estimatedTokens),
+		Len: float64(estimatedTokens),
+	}, requestInput)
+	if err != nil {
+		return types.PriceData{}, fmt.Errorf("model %s tiered_expr run failed: %w", info.OriginModelName, err)
+	}
+
+	quotaBeforeGroup := rawCost / 1_000_000 * common.QuotaPerUnit
+	preConsumedQuota := billingexpr.QuotaRound(quotaBeforeGroup * groupRatioInfo.GroupRatio)
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if groupRatioInfo.GroupRatio == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		}
+	}
+
+	exprHash := billingexpr.ExprHashString(exprStr)
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode:               billing_setting.BillingModeTieredExpr,
+		ModelName:                 info.OriginModelName,
+		ExprString:                exprStr,
+		ExprHash:                  exprHash,
+		GroupRatio:                groupRatioInfo.GroupRatio,
+		EstimatedPromptTokens:     0,
+		EstimatedCompletionTokens: int(estimatedTokens),
+		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
+		EstimatedQuotaAfterGroup:  preConsumedQuota,
+		EstimatedTier:             trace.MatchedTier,
+		QuotaPerUnit:              common.QuotaPerUnit,
+		ExprVersion:               billingexpr.ExprVersion(exprStr),
+	}
+	info.TieredBillingSnapshot = snapshot
+	info.BillingRequestInput = &requestInput
+
+	priceData := types.PriceData{
+		FreeModel:      freeModel,
+		GroupRatioInfo: groupRatioInfo,
+		Quota:          preConsumedQuota,
+	}
+
+	if common.DebugEnabled {
+		println(fmt.Sprintf("model_price_helper_tiered_task result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f tier=%s estimatedTokens=%d",
+			info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, trace.MatchedTier, estimatedTokens))
+	}
+
+	info.PriceData = priceData
 	return priceData, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/relay"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -175,6 +176,22 @@ func SetRelayRouter(router *gin.Engine) {
 	relayMjModeRouter.Use(middleware.SystemPerformanceCheck())
 	registerMjRouterGroup(relayMjModeRouter)
 	//relayMjRouter.Use()
+
+	// Volc Ark compatible image route — preserves unknown Volc fields without
+	// schema normalization. Default behavior: forward request body byte-identical
+	// to the upstream Volc API (including sequential_image_generation,
+	// optimize_prompt_options, watermark, 2K/4K size literals, etc.).
+	// When model mapping (info.IsModelMapped) or ParamOverride is configured,
+	// byte-level JSON patches are applied; unknown fields are still preserved.
+	volcV3ImageRouter := router.Group("/api/v3")
+	volcV3ImageRouter.Use(middleware.RouteTag("relay"))
+	volcV3ImageRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		volcV3ImageRouter.POST("/images/generations", func(c *gin.Context) {
+			c.Set("relay_mode", relayconstant.RelayModeImagesGenerations)
+			controller.Relay(c, types.RelayFormatVolc)
+		})
+	}
 
 	relaySunoRouter := router.Group("/suno")
 	relaySunoRouter.Use(middleware.RouteTag("relay"))

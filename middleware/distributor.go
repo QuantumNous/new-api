@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -262,6 +263,24 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
 		}
+	} else if strings.HasPrefix(c.Request.URL.Path, "/api/v3/contents/generations/tasks") {
+		// Volc-native task routes (/api/v3/contents/generations/tasks and .../tasks/:id).
+		// GET requests (task fetch and list) do not need channel selection.
+		// DELETE requests (task cancel) operate on a task that already has a channel
+		// stored in the DB; no model body is present, so channel selection must be
+		// skipped to avoid a parse error.
+		// POST requests (task submit) extract model from the request body.
+		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodDelete {
+			shouldSelectChannel = false
+		} else if c.Request.Method == http.MethodPost {
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			if req != nil {
+				modelRequest.Model = req.Model
+			}
+		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
@@ -289,6 +308,28 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	if strings.HasSuffix(c.Request.URL.Path, "embeddings") {
 		if modelRequest.Model == "" {
 			modelRequest.Model = c.Param("model")
+		}
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/api/v3/images/generations") && modelRequest.Model == "" {
+		// Volc Ark image generation accepts model_name and req_key as aliases for model.
+		// The body has already been buffered by getModelFromRequest above, so we can
+		// unmarshal from the reusable storage a second time without re-reading the wire.
+		var probe struct {
+			ModelName *string `json:"model_name,omitempty"`
+			ReqKey    *string `json:"req_key,omitempty"`
+		}
+		if bs, bsErr := common.GetBodyStorage(c); bsErr == nil {
+			if raw, rawErr := bs.Bytes(); rawErr == nil && len(raw) > 0 {
+				if jerr := common.Unmarshal(raw, &probe); jerr == nil {
+					if probe.ModelName != nil && *probe.ModelName != "" {
+						modelRequest.Model = *probe.ModelName
+					} else if probe.ReqKey != nil && *probe.ReqKey != "" {
+						modelRequest.Model = *probe.ReqKey
+					}
+				}
+				// Restore read position so downstream handlers can re-read the body.
+				_, _ = bs.Seek(0, io.SeekStart)
+			}
 		}
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {

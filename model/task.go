@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
 )
 
@@ -115,6 +116,39 @@ type TaskBillingContext struct {
 	OtherRatios     map[string]float64 `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
 	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
 	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
+
+	// TieredSnapshot captures the frozen billing expression state for tiered_expr
+	// models. Present only when BillingMode == tiered_expr at submit time.
+	// Used by volcadapter.AdjustBillingOnComplete to re-run the expression with
+	// actual token counts returned by the upstream at task completion.
+	TieredSnapshot *billingexpr.BillingSnapshot `json:"tiered_snapshot,omitempty"`
+
+	// TieredVolcFlags holds submit-time Volc request fields needed by the
+	// billing expression for Volc-native (ChannelTypeVolcAdapter) tasks.
+	// Replaces the former TieredRequestBody []byte field (~1-2 KB) with a
+	// compact struct that lets volcadapter.AdjustBillingOnComplete synthesize
+	// the param() body even when callback deployments never populate task.Data
+	// with a fetch response.
+	TieredVolcFlags *TieredVolcFlags `json:"tiered_volc_flags,omitempty"`
+}
+
+// TieredVolcFlags stores Volc-specific billing inputs captured at task
+// submission time. Pointer fields distinguish "not present in request" (nil) from
+// "explicitly set to false".
+type TieredVolcFlags struct {
+	GenerateAudio *bool `json:"generate_audio,omitempty"` // nil = absent in request
+	Draft         *bool `json:"draft,omitempty"`          // nil = absent in request
+	HasVideoInput bool  `json:"has_video_input"`          // true if content[] had a video_url item
+	// Resolution / Duration / ServiceTier are captured from the submit body
+	// so the tiered_expr settle path (buildSynthesizedBody) can evaluate
+	// param("resolution")/param("duration")/param("service_tier") in
+	// callback-enabled deployments. task.Data at submit time is just
+	// {"id":...} and the Volc callback payload doesn't include these
+	// fields, so the polling-only fallback (reading from task.Data)
+	// silently uses empty params and produces wrong tiered_expr quotas.
+	Resolution  string `json:"resolution,omitempty"`
+	Duration    int    `json:"duration,omitempty"`
+	ServiceTier string `json:"service_tier,omitempty"`
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

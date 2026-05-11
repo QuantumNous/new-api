@@ -3,6 +3,8 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,6 +41,43 @@ func SetVideoRouter(router *gin.Engine) {
 		klingV1Router.POST("/videos/image2video", controller.RelayTask)
 		klingV1Router.GET("/videos/text2video/:task_id", controller.RelayTaskFetch)
 		klingV1Router.GET("/videos/image2video/:task_id", controller.RelayTaskFetch)
+	}
+
+	// Volc Ark compatible task routes — preserves unknown Volc fields without
+	// schema normalization. Body bytes flow byte-identical to upstream EXCEPT
+	// when model mapping (info.IsModelMapped) or ParamOverride is configured;
+	// those paths apply byte-level JSON patches that re-serialize the body
+	// while still preserving any unknown fields.
+	// relay_format = "volc" signals RelayTask / RelayTaskFetch to use RelayFormatVolc
+	// so the downstream adaptor selects the Volc-native code path.
+	volcV3Router := router.Group("/api/v3")
+	volcV3Router.Use(middleware.RouteTag("relay"))
+	volcV3Router.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		// Task submit: native Volc body forwarded to upstream unchanged.
+		volcV3Router.POST("/contents/generations/tasks", func(c *gin.Context) {
+			c.Set("relay_format", string(types.RelayFormatVolc))
+			controller.RelayTask(c)
+		})
+
+		// Task list: set relay_mode and relay_format for the list builder.
+		volcV3Router.GET("/contents/generations/tasks", func(c *gin.Context) {
+			c.Set("relay_format", string(types.RelayFormatVolc))
+			c.Set("relay_mode", relayconstant.RelayModeVideoFetchList)
+			controller.RelayTaskFetch(c)
+		})
+
+		// Task fetch by ID: set task_id, relay_mode, and relay_format.
+		volcV3Router.GET("/contents/generations/tasks/:id", func(c *gin.Context) {
+			c.Set("relay_format", string(types.RelayFormatVolc))
+			taskID := c.Param("id")
+			c.Set("task_id", taskID)
+			c.Set("relay_mode", relayconstant.RelayModeVideoFetchByID)
+			controller.RelayTaskFetch(c)
+		})
+
+		// Task delete: cancel task upstream and refund quota.
+		volcV3Router.DELETE("/contents/generations/tasks/:id", controller.VolcTaskDelete)
 	}
 
 	// Jimeng official API routes - direct mapping to official API format

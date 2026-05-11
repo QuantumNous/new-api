@@ -160,6 +160,11 @@ type RelayInfo struct {
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
 
+	// EstimatedBillingTokens is set by the task adaptor (via EstimateBillingTokens)
+	// before ModelPriceHelperPerCall is called, when BillingMode is tiered_expr.
+	// 0 means no estimation provided (fall back to ratio billing).
+	EstimatedBillingTokens int64
+
 	Request dto.Request
 
 	// RequestConversionChain records request format conversions in order, e.g.
@@ -317,6 +322,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelCloudflare:      true,
 	constant.ChannelTypeAzure:       true,
 	constant.ChannelTypeVolcEngine:  true,
+	constant.ChannelTypeVolcAdapter: true,
 	constant.ChannelTypeOllama:      true,
 	constant.ChannelTypeXai:         true,
 	constant.ChannelTypeDeepSeek:    true,
@@ -413,6 +419,13 @@ func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
 func GenRelayInfoImage(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatOpenAIImage
+	return info
+}
+
+// GenRelayInfoVolc creates relay info for the native Volc Ark image format.
+func GenRelayInfoVolc(c *gin.Context, request dto.Request) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayFormat = types.RelayFormatVolc
 	return info
 }
 
@@ -536,6 +549,15 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoOpenAIAudio(c, request)
 	case types.RelayFormatOpenAIImage:
 		info = GenRelayInfoImage(c, request)
+	case types.RelayFormatVolc:
+		// When called with a nil request (task path), build task-style relay info.
+		if request == nil {
+			info = genBaseRelayInfo(c, nil)
+			info.TaskRelayInfo = &TaskRelayInfo{}
+			info.RelayFormat = types.RelayFormatVolc
+		} else {
+			info = GenRelayInfoVolc(c, request)
+		}
 	case types.RelayFormatOpenAIRealtime:
 		info = GenRelayInfoWs(c, ws)
 	case types.RelayFormatClaude:

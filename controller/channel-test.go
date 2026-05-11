@@ -117,9 +117,32 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = "/v1/embeddings" // 修改请求路径
 		}
 
-		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+		// VolcEngine 图像生成模型 (OpenAI-format endpoint)
+		if channel.Type == constant.ChannelTypeVolcEngine &&
+			strings.Contains(testModel, "seedream") {
 			requestPath = "/v1/images/generations"
+		}
+		// VolcAdapter 图像生成模型 (Volc-native endpoint)
+		// VolcAdapter only supports the Volc-native /api/v3/images/generations path;
+		// it rejects OpenAI-format requests. Route Seedream models accordingly.
+		// Path2RelayMode does not recognise /api/v3/*, so set relay_mode
+		// explicitly so that GenRelayInfo/genBaseRelayInfo resolves the correct
+		// RelayMode instead of falling back to RelayModeUnknown.
+		if channel.Type == constant.ChannelTypeVolcAdapter &&
+			strings.Contains(testModel, "seedream") {
+			requestPath = "/api/v3/images/generations"
+			c.Set("relay_mode", relayconstant.RelayModeImagesGenerations)
+		}
+
+		// VolcAdapter task models (seedance series) submit via the Volc-native task
+		// endpoint /api/v3/contents/generations/tasks, which uses a different relay
+		// path (RelayTask) incompatible with the channel-test flow.
+		// TODO: support task model channel test for VolcAdapter
+		if channel.Type == constant.ChannelTypeVolcAdapter &&
+			strings.Contains(strings.ToLower(testModel), "seedance") {
+			return testResult{
+				localErr: fmt.Errorf("VolcAdapter seedance (task) models cannot be tested via channel test; use a seedream (image) model to verify the channel"),
+			}
 		}
 
 		// responses-only models
@@ -201,6 +224,9 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 		if c.Request.URL.Path == "/v1/images/generations" {
 			relayFormat = types.RelayFormatOpenAIImage
+		}
+		if c.Request.URL.Path == "/api/v3/images/generations" {
+			relayFormat = types.RelayFormatVolc
 		}
 		if c.Request.URL.Path == "/v1/messages" {
 			relayFormat = types.RelayFormatClaude

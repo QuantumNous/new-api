@@ -95,3 +95,9 @@ func (BaseBilling) AdjustBillingOnSubmit(_ *relaycommon.RelayInfo, _ []byte) map
 func (BaseBilling) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
 	return 0
 }
+
+// EstimateBillingTokens returns 0 (no tiered_expr token estimation; fall back
+// to ratio-based billing). Adaptors that support tiered_expr should override.
+func (BaseBilling) EstimateBillingTokens(_ *gin.Context, _ *relaycommon.RelayInfo) int64 {
+	return 0
+}

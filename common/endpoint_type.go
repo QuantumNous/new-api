@@ -24,6 +24,14 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		fallthrough
 	case constant.ChannelTypeGemini:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeGemini, constant.EndpointTypeOpenAI}
+	case constant.ChannelTypeVolcAdapter:
+		// VolcAdapter only supports Volc-native endpoints; OpenAI-format endpoints
+		// are intentionally omitted because ConvertImageRequest and ConvertVideoRequest
+		// return errors for this channel type.
+		if IsImageGenerationModel(modelName) {
+			return []constant.EndpointType{constant.EndpointTypeVolcImage}
+		}
+		return []constant.EndpointType{constant.EndpointTypeVolcVideo}
 	case constant.ChannelTypeOpenRouter: // OpenRouter 只支持 OpenAI 端点
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 	case constant.ChannelTypeXai:

@@ -55,7 +55,18 @@ const (
 	ChannelTypeSora           = 55
 	ChannelTypeReplicate      = 56
 	ChannelTypeCodex          = 57
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	ChannelTypeVolcAdapter = 58
+	// ChannelTypeDummy is a sentinel that always equals the highest defined
+	// channel type (currently ChannelTypeVolcAdapter = 58); used as an upper
+	// bound when iterating channel types.
+	//
+	// When adding a new channel type, append it after the last existing entry
+	// with an explicit value (e.g. ChannelTypeFoo = 59), then update
+	// ChannelTypeDummy to equal the new highest value.
+	//
+	// Do NOT renumber or reuse existing channel type IDs — doing so would break
+	// compatibility with existing installations and stored configurations.
+	ChannelTypeDummy = ChannelTypeVolcAdapter
 
 )
 
@@ -118,6 +129,7 @@ var ChannelBaseURLs = []string{
 	"https://api.openai.com",                    //55
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
+	"https://ark.cn-beijing.volces.com",         //58
 }
 
 var ChannelTypeNames = map[int]string{
@@ -175,6 +187,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSora:           "Sora",
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "Codex",
+	ChannelTypeVolcAdapter:    "VolcAdapter",
 }
 
 func GetChannelTypeName(channelType int) string {

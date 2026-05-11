@@ -492,7 +492,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	if shouldSettle {
-		settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+		SettleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
 	}
 	if shouldRefund {
 		RefundTaskQuota(ctx, task, task.FailReason)
@@ -535,26 +535,54 @@ func truncateBase64(s string) string {
 	return s[:maxKeep] + "..."
 }
 
-// settleTaskBillingOnComplete 任务完成时的统一计费调整。
-// 优先级：1. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
+// SettleTaskBillingOnComplete 任务完成时的统一计费调整。
+// 优先级：1. PerCallBilling 任务跳过差额结算
 //
-//  2. taskResult.TotalTokens > 0 → 按 token 重算
-//  3. 都不满足 → 保持预扣额度不变
-func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
+//  2. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
+//     (skipped if adaptor is nil — see below)
+//  3. taskResult.TotalTokens > 0 (or CompletionTokens > 0 if total is unset)
+//     → 按 token 重算
+//  4. 都不满足 → 保持预扣额度不变
+//
+// Exported so callback handlers can settle through the same code path as
+// polling and pick up the per-call billing skip and the
+// adaptor.AdjustBillingOnComplete tiered_expr settlement.
+//
+// adaptor may be nil — useful for callers that don't have access to a
+// platform-specific adaptor (e.g. callback handlers when init ordering hasn't
+// run yet). The PerCallBilling guard and the token-count fallback both still
+// apply, so a nil-adaptor caller still gets the correct skip behaviour.
+func SettleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
 	// 0. 按次计费的任务不做差额结算
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过差额结算", task.TaskID))
 		return
 	}
-	// 1. 优先让 adaptor 决定最终额度
-	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
-		return
+	// 1. 优先让 adaptor 决定最终额度（adaptor 不可用时跳过这一档，由 token fallback 处理）
+	if adaptor != nil {
+		if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
+			RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+			return
+		}
 	}
-	// 2. 回退到 token 重算
-	if taskResult.TotalTokens > 0 {
-		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
+	// 2. 回退到 token 重算 — see effectiveTokenCount.
+	if totalTokens := effectiveTokenCount(taskResult); totalTokens > 0 {
+		RecalculateTaskQuotaByTokens(ctx, task, totalTokens)
 		return
 	}
 	// 3. 无调整，保持预扣额度
+}
+
+// effectiveTokenCount returns the token count to use for the billing fallback.
+// Prefers TotalTokens; falls back to CompletionTokens when the upstream only
+// reports the completion side (Volc Ark callbacks routinely do this for video
+// tasks). Returning 0 means the caller should keep the pre-consumed quota.
+func effectiveTokenCount(taskResult *relaycommon.TaskInfo) int {
+	if taskResult == nil {
+		return 0
+	}
+	if taskResult.TotalTokens > 0 {
+		return taskResult.TotalTokens
+	}
+	return taskResult.CompletionTokens
 }

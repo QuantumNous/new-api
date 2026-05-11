@@ -1,11 +1,15 @@
 package controller
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -216,6 +220,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = relay.ClaudeHelper(c, relayInfo)
 		case types.RelayFormatGemini:
 			newAPIError = geminiRelayHandler(c, relayInfo)
+		case types.RelayFormatVolc:
+			newAPIError = relay.VolcImageHelper(c, relayInfo)
 		default:
 			newAPIError = relayHandler(c, relayInfo)
 		}
@@ -467,8 +473,19 @@ func RelayNotFound(c *gin.Context) {
 	})
 }
 
+// taskRelayFormat returns the RelayFormat to use for task relay functions.
+// Routes that require Volc-native pass-through set "relay_format" = "volc" in
+// the context before dispatching; all other routes leave it unset and get the
+// standard task format.
+func taskRelayFormat(c *gin.Context) types.RelayFormat {
+	if f := c.GetString("relay_format"); f != "" {
+		return types.RelayFormat(f)
+	}
+	return types.RelayFormatTask
+}
+
 func RelayTaskFetch(c *gin.Context) {
-	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
+	relayInfo, err := relaycommon.GenRelayInfo(c, taskRelayFormat(c), nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
 			Code:       "gen_relay_info_failed",
@@ -483,7 +500,7 @@ func RelayTaskFetch(c *gin.Context) {
 }
 
 func RelayTask(c *gin.Context) {
-	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
+	relayInfo, err := relaycommon.GenRelayInfo(c, taskRelayFormat(c), nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
 			Code:       "gen_relay_info_failed",
@@ -581,7 +598,7 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
-		task.PrivateData.BillingContext = &model.TaskBillingContext{
+		bc := &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 			ModelRatio:      relayInfo.PriceData.ModelRatio,
@@ -589,6 +606,20 @@ func RelayTask(c *gin.Context) {
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		}
+		// Persist tiered_expr snapshot for settlement-time re-evaluation.
+		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
+			bc.TieredSnapshot = snap
+			// For VolcAdapter tasks, extractVolcFlags captures all 6 fields:
+			// generate_audio, draft, has_video_input (always from the submit body),
+			// plus resolution, duration, service_tier (also from the submit body,
+			// so settlement works on callback-enabled deployments where task.Data
+			// never receives a full Volc fetch response).
+			if relayInfo.ChannelType == constant.ChannelTypeVolcAdapter &&
+				relayInfo.BillingRequestInput != nil && len(relayInfo.BillingRequestInput.Body) > 0 {
+				bc.TieredVolcFlags = extractVolcFlags(relayInfo.BillingRequestInput.Body)
+			}
+		}
+		task.PrivateData.BillingContext = bc
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
@@ -599,6 +630,107 @@ func RelayTask(c *gin.Context) {
 
 	if taskErr != nil {
 		respondTaskError(c, taskErr)
+	}
+}
+
+// extractVolcFlags parses Volc-specific billing inputs from a raw request body.
+// Used at task submission time to snapshot fields needed for tiered_expr
+// settlement that may be missing from callback payloads or may not be
+// persisted into task.Data on callback-enabled Volc deployments.
+func extractVolcFlags(body []byte) *model.TieredVolcFlags {
+	if len(body) == 0 {
+		return nil
+	}
+	flags := &model.TieredVolcFlags{}
+	var parsed map[string]interface{}
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
+	if err := dec.Decode(&parsed); err != nil {
+		return flags
+	}
+	if v, ok := parsed["generate_audio"]; ok {
+		if b, ok := v.(bool); ok {
+			flags.GenerateAudio = &b
+		}
+	}
+	if v, ok := parsed["draft"]; ok {
+		if b, ok := v.(bool); ok {
+			flags.Draft = &b
+		}
+	}
+	// Capture resolution/duration/service_tier from the submit body so the
+	// tiered_expr settle path (buildSynthesizedBody) can evaluate the
+	// corresponding param() lookups even on callback-enabled deployments
+	// where task.Data never picks up the Volc fetch response.
+	if v, ok := parsed["resolution"]; ok {
+		if s, ok := v.(string); ok {
+			flags.Resolution = s
+		}
+	}
+	if v, ok := parsed["duration"]; ok {
+		if duration, ok := parseVolcDuration(v); ok {
+			flags.Duration = duration
+		}
+	}
+	if v, ok := parsed["service_tier"]; ok {
+		if s, ok := v.(string); ok {
+			flags.ServiceTier = s
+		}
+	}
+	// HasVideoInput: true if content[] contains any video_url item
+	if contentRaw, ok := parsed["content"]; ok {
+		if items, ok := contentRaw.([]interface{}); ok {
+			for _, item := range items {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					if typeStr, _ := itemMap["type"].(string); typeStr == "video_url" {
+						flags.HasVideoInput = true
+						break
+					}
+					if _, hasKey := itemMap["video_url"]; hasKey {
+						flags.HasVideoInput = true
+						break
+					}
+				}
+			}
+		}
+	}
+	return flags
+}
+
+func parseVolcDuration(v any) (int, bool) {
+	maxInt := int(^uint(0) >> 1)
+	switch n := v.(type) {
+	case float64:
+		// Reject non-integer, negative, or out-of-int-range values rather than
+		// silently truncating/overflowing (e.g. 15.9 -> 15).
+		if n < 0 || n != math.Trunc(n) || n > float64(maxInt) {
+			return 0, false
+		}
+		return int(n), true
+	case int:
+		if n < 0 {
+			return 0, false
+		}
+		return n, true
+	case int64:
+		if n < 0 || n > int64(maxInt) {
+			return 0, false
+		}
+		return int(n), true
+	case json.Number:
+		i, err := strconv.Atoi(n.String())
+		if err != nil || i < 0 {
+			return 0, false
+		}
+		return i, true
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		if err != nil || i < 0 {
+			return 0, false
+		}
+		return i, true
+	default:
+		return 0, false
 	}
 }
 

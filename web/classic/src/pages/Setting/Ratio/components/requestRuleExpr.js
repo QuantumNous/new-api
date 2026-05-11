@@ -314,33 +314,98 @@ function tryParseTimeCondition(expr) {
   return null;
 }
 
+// Unescape a JSON-string-escaped path (e.g. content.#(type==\"video_url\") → content.#(type=="video_url")).
+// Uses JSON.parse to handle all JSON escape sequences (\", \\, \n, \t, \uXXXX, etc.)
+// so that build/parse always round-trips correctly regardless of which escape
+// sequences JSON.stringify emitted. Returns null if parsing fails (invalid escape
+// sequence typed by admin), allowing the caller to treat the rule as non-matching.
+function unescapePath(raw) {
+  try {
+    const parsed = JSON.parse(`"${raw}"`);
+    return typeof parsed === 'string' && parsed ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Parse a quoted string literal (already including surrounding quotes) with
+// graceful fallback. The has()/== regex fragments accept any backslash escape
+// (`\\.`) which is more permissive than JSON's escape grammar — admins typing
+// half-finished input like `\q` would crash JSON.parse and bubble up to the
+// editor. Return null on any parse error so the caller skips the rule.
+function safeJsonParse(quoted) {
+  try {
+    return JSON.parse(quoted);
+  } catch {
+    return null;
+  }
+}
+
+// Regex fragment that matches a non-empty JSON-escaped path inside double quotes.
+// Captures escaped sequences (\\.) as well as plain non-quote/non-backslash chars.
+const ESCAPED_PATH_RE = '((?:[^"\\\\]|\\\\.)+)';
+// JSON-escaped string literal (e.g. "foo" or "foo\\nbar"). Used as the value
+// position in `has(...)` / `==` request-condition templates.
+const QUOTED_VALUE_RE = '("(?:[^"\\\\]|\\\\.)*")';
+
+// Compiled-once request-condition templates. tryParseRequestCondition runs on
+// every UI edit; module-scope RegExp instances avoid per-call recompilation.
+const HEADER_NEQ_EMPTY_RE = new RegExp(`^header\\("${ESCAPED_PATH_RE}"\\) != ""$`);
+const PARAM_NEQ_NIL_RE = new RegExp(`^param\\("${ESCAPED_PATH_RE}"\\) != nil$`);
+const HAS_HEADER_RE = new RegExp(`^has\\(header\\("${ESCAPED_PATH_RE}"\\), ${QUOTED_VALUE_RE}\\)$`);
+const PARAM_HAS_RE = new RegExp(`^param\\("${ESCAPED_PATH_RE}"\\) != nil && has\\(param\\("${ESCAPED_PATH_RE}"\\), ${QUOTED_VALUE_RE}\\)$`);
+const PARAM_NUMERIC_CMP_RE = new RegExp(`^param\\("${ESCAPED_PATH_RE}"\\) != nil && param\\("${ESCAPED_PATH_RE}"\\) (>|>=|<|<=) ([\\d.eE+-]+)$`);
+const PARAM_OR_HEADER_EQ_RE = new RegExp(`^(param|header)\\("${ESCAPED_PATH_RE}"\\) == (.+)$`);
+
+const NUMERIC_CMP_OP_MAP = { '>': MATCH_GT, '>=': MATCH_GTE, '<': MATCH_LT, '<=': MATCH_LTE };
+
 function tryParseRequestCondition(expr) {
   const tc = tryParseTimeCondition(expr);
   if (tc) return tc;
 
-  let m = expr.match(/^header\("([^"]+)"\) != ""$/);
-  if (m) return { source: SOURCE_HEADER, path: m[1], mode: MATCH_EXISTS, value: '' };
-
-  m = expr.match(/^param\("([^"]+)"\) != nil$/);
-  if (m) return { source: SOURCE_PARAM, path: m[1], mode: MATCH_EXISTS, value: '' };
-
-  m = expr.match(/^has\(header\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/);
-  if (m) return { source: SOURCE_HEADER, path: m[1], mode: MATCH_CONTAINS, value: JSON.parse(m[2]) };
-
-  m = expr.match(/^param\("([^"]+)"\) != nil && has\(param\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/);
-  if (m && m[1] === m[2]) return { source: SOURCE_PARAM, path: m[1], mode: MATCH_CONTAINS, value: JSON.parse(m[3]) };
-
-  m = expr.match(/^param\("([^"]+)"\) != nil && param\("([^"]+)"\) (>|>=|<|<=) ([\d.eE+-]+)$/);
-  if (m && m[1] === m[2]) {
-    const opMap = { '>': MATCH_GT, '>=': MATCH_GTE, '<': MATCH_LT, '<=': MATCH_LTE };
-    return { source: SOURCE_PARAM, path: m[1], mode: opMap[m[3]], value: m[4] };
+  let m = expr.match(HEADER_NEQ_EMPTY_RE);
+  if (m) {
+    const path = unescapePath(m[1]);
+    if (path !== null) return { source: SOURCE_HEADER, path, mode: MATCH_EXISTS, value: '' };
   }
 
-  m = expr.match(/^(param|header)\("([^"]+)"\) == (.+)$/);
+  m = expr.match(PARAM_NEQ_NIL_RE);
+  if (m) {
+    const path = unescapePath(m[1]);
+    if (path !== null) return { source: SOURCE_PARAM, path, mode: MATCH_EXISTS, value: '' };
+  }
+
+  m = expr.match(HAS_HEADER_RE);
+  if (m) {
+    const path = unescapePath(m[1]);
+    const value = safeJsonParse(m[2]);
+    if (path !== null && value !== null) return { source: SOURCE_HEADER, path, mode: MATCH_CONTAINS, value };
+  }
+
+  m = expr.match(PARAM_HAS_RE);
+  if (m) {
+    const path = unescapePath(m[1]);
+    const repeatedPath = unescapePath(m[2]);
+    const value = safeJsonParse(m[3]);
+    if (path !== null && path === repeatedPath && value !== null) return { source: SOURCE_PARAM, path, mode: MATCH_CONTAINS, value };
+  }
+
+  m = expr.match(PARAM_NUMERIC_CMP_RE);
+  if (m) {
+    const path = unescapePath(m[1]);
+    const repeatedPath = unescapePath(m[2]);
+    if (path !== null && path === repeatedPath) {
+      return { source: SOURCE_PARAM, path, mode: NUMERIC_CMP_OP_MAP[m[3]], value: m[4] };
+    }
+  }
+
+  m = expr.match(PARAM_OR_HEADER_EQ_RE);
   if (m) {
     const parsedValue = parseExprLiteral(m[3]);
     if (parsedValue === null) return null;
-    return { source: m[1], path: m[2], mode: MATCH_EQ, value: String(parsedValue) };
+    const path = unescapePath(m[2]);
+    if (path === null) return null;
+    return { source: m[1], path, mode: MATCH_EQ, value: String(parsedValue) };
   }
 
   return null;
