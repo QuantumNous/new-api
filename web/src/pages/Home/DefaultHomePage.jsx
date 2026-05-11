@@ -31,10 +31,10 @@ import { promiseItems, shouldRenderDefaultHomePage } from './homeSections';
 
 const homeText = {
   badge:
-    '\u65e0\u9650\u661f\u6cb3 AI \u00b7 \u8ba9\u521b\u9020\u66f4\u7b80\u5355',
+    '\u65e0\u9650\u661f\u6cb3AI \u00b7 \u8ba9\u521b\u9020\u66f4\u7b80\u5355',
   titleHtml: 'hero-title',
   subtitle:
-    '\u5bf9\u6807\u5b98\u65b9\u4ef7\u683c\u3001\u660e\u793a\u51e0\u6298\uff1b\u5168\u94fe\u8def\u771f\u5b9e\u6027\u68c0\u6d4b\uff1b\n\u4e2a\u4eba\u3001\u5f00\u53d1\u8005\u3001\u4f01\u4e1a\u90fd\u6709\u5bf9\u5e94\u7684\u5f00\u901a\u8def\u5f84\u3002',
+    '\u4ef7\u683c\u900f\u660e\u53ef\u67e5\uff0c\u7ebf\u8def\u6301\u7eed\u6838\u9a8c\uff1b\u4e2a\u4eba\u7528\u6237\u3001\u5f00\u53d1\u8005\u4e0e\u4f01\u4e1a\u5ba2\u6237\u90fd\u80fd\u5feb\u901f\u63a5\u5165\u3002',
   primaryCta: '\u7acb\u5373\u5f00\u59cb',
   primaryConsole: '\u8fdb\u5165\u63a7\u5236\u53f0',
   pricingCta: '\u67e5\u770b\u4ef7\u683c',
@@ -52,7 +52,7 @@ const homeText = {
   ctaButton: '\u7acb\u5373\u5f00\u59cb\u6ce8\u518c',
   footerBrand: '\u65e0\u9650\u661f\u6cb3 AI',
   footerDesc:
-    '\u8ba9\u6700\u9876\u5c16\u7684 AI \u6a21\u578b\uff0c\u4ee5\u66f4\u900f\u660e\u3001\u53ef\u4fe1\u3001\u4f4e\u6210\u672c\u7684\u65b9\u5f0f\u89e6\u8fbe\u6bcf\u4e00\u4f4d\u8ba4\u771f\u7684\u4ea7\u54c1\u4eba\u4e0e\u5f00\u53d1\u8005\u3002',
+    '\u8ba9\u9876\u5c16 AI \u6a21\u578b\uff0c\u4ee5\u66f4\u900f\u660e\u3001\u53ef\u4fe1\u3001\u4f4e\u6210\u672c\u7684\u65b9\u5f0f\u670d\u52a1\u6bcf\u4e00\u4f4d AI \u7528\u6237\u3002',
   footerTitle: '\u4ea7\u54c1\u4e0e\u6587\u6863',
   footerModels: '\u6a21\u578b\u8986\u76d6\u77e9\u9635',
   footerDocs: '\u6587\u6863',
@@ -134,8 +134,8 @@ const trustCards = [
   },
   {
     key: 'builders',
-    titleKey: '30W+ 产品人信任',
-    descKey: '持续服务个人创作者、开发者与团队用户，口碑沉淀更真实。',
+    titleKey: '30W+ 用户信任',
+    descKey: '持续服务个人创作者、开发者与企业用户，口碑沉淀更真实。',
   },
   {
     key: 'invoice',
@@ -228,7 +228,7 @@ const DefaultHomePage = ({ t, docsLink, isDemoSiteMode }) => {
               </div>
               <p className='mt-6 max-w-[320px] text-sm leading-7 text-gray-500'>
                 {t(
-                  '面向个人与团队用户，保障接口稳定、调用顺畅，日常使用更省心。',
+                  '面向个人与企业用户，保障接口稳定、调用顺畅，日常使用更省心。',
                 )}
               </p>
             </div>

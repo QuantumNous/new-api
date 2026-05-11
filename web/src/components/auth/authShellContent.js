@@ -18,7 +18,7 @@ const zhStories = [
   {
     tag: 'OPS',
     quote:
-      '活动页、投放文案、客服话术都能快速生成和改写，运营团队不再需要反复等支持。',
+      '活动页、投放文案、客服话术都能快速生成和改写，运营侧不再需要反复等支持。',
     name: 'Mia Lin',
     role: '运营经理 @ SparkGrowth',
     avatar: 'M',
@@ -34,7 +34,7 @@ const zhStories = [
   {
     tag: 'FOUNDER',
     quote:
-      '对我们这种小团队来说，最重要的是稳定和省心。模型覆盖够全，团队成员谁都能马上上手。',
+      '对我们这种小企业来说，最重要的是稳定和省心。模型覆盖够全，成员谁都能马上上手。',
     name: 'Annie Zhao',
     role: '联合创始人 @ NorthStar',
     avatar: 'A',
@@ -44,17 +44,43 @@ const zhStories = [
 const enStories = [
   {
     tag: 'PRODUCT',
-    quote: 'Connected research and planning into one workflow.',
+    quote:
+      'We connected product research, requirement planning, and competitive analysis into one workflow, so the same model setup now supports everything from ideas to delivery.',
     name: 'Lynn Guo',
     role: 'Product Lead @ AsterLab',
     avatar: 'L',
   },
   {
+    tag: 'DESIGN',
+    quote:
+      'Designers can now use it directly for copy drafts, visual exploration, and prompt iteration, which makes collaboration much faster.',
+    name: 'Sarah Chen',
+    role: 'Creative Director @ DesignStudio',
+    avatar: 'S',
+  },
+  {
+    tag: 'OPS',
+    quote:
+      'Campaign pages, ad copy, and support scripts can all be generated and rewritten quickly, so the operations team no longer waits around for help.',
+    name: 'Mia Lin',
+    role: 'Operations Manager @ SparkGrowth',
+    avatar: 'M',
+  },
+  {
     tag: 'ENGINEER',
-    quote: 'Integration was smooth and routing is flexible.',
+    quote:
+      'Integration was smooth. Our developers just swapped the base_url and kept going, while model and route switching became much more flexible.',
     name: 'Jason Wu',
     role: 'Engineering Lead @ ByteFlow',
     avatar: 'J',
+  },
+  {
+    tag: 'FOUNDER',
+    quote:
+      'For a small team like ours, stability and simplicity matter most. Model coverage is broad enough that anyone on the team can start using it right away.',
+    name: 'Annie Zhao',
+    role: 'Co-founder @ NorthStar',
+    avatar: 'A',
   },
 ];
 
