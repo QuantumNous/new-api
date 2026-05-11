@@ -38,6 +38,9 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
   const [days, setDays] = useState(15);
   const [groupFilter, setGroupFilter] = useState('');
   const [usernameFilter, setUsernameFilter] = useState('');
+  const [planIdFilter, setPlanIdFilter] = useState('');
+  const [groupOptions, setGroupOptions] = useState([{ label: t('全部分组'), value: '' }]);
+  const [planOptions, setPlanOptions] = useState([{ label: t('全部套餐'), value: '' }]);
 
   const [planPage, setPlanPage] = useState(1);
   const [planPageSize, setPlanPageSize] = useState(20);
@@ -47,6 +50,28 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
   const [inactivePageSize, setInactivePageSize] = useState(20);
   const [inactiveTotal, setInactiveTotal] = useState(0);
 
+  const loadFilterOptions = async () => {
+    try {
+      const [groupsRes, plansRes] = await Promise.all([
+        API.get('/api/group/'),
+        API.get('/api/subscription/admin/plans'),
+      ]);
+      const nextGroups = (groupsRes.data?.data || []).map((g) => ({ label: g, value: g }));
+      setGroupOptions([{ label: t('全部分组'), value: '' }, ...nextGroups]);
+
+      const nextPlans = (plansRes.data?.data || [])
+        .map((p) => ({
+          label: p?.plan?.title || `${t('套餐')} #${p?.plan?.id}`,
+          value: String(p?.plan?.id || ''),
+        }))
+        .filter((p) => p.value !== '');
+      setPlanOptions([{ label: t('全部套餐'), value: '' }, ...nextPlans]);
+    } catch {
+      setGroupOptions([{ label: t('全部分组'), value: '' }]);
+      setPlanOptions([{ label: t('全部套餐'), value: '' }]);
+    }
+  };
+
   const loadPlanUsage = async (targetPage = planPage, targetPageSize = planPageSize) => {
     setLoading(true);
     try {
@@ -55,8 +80,9 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
           p: targetPage,
           page_size: targetPageSize,
           month,
-          group: groupFilter.trim(),
+          group: groupFilter,
           username: usernameFilter.trim(),
+          plan_id: planIdFilter ? Number(planIdFilter) : undefined,
         },
       });
       if (planRes.data?.success) {
@@ -103,6 +129,7 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
 
   useEffect(() => {
     if (viewType === 'plan') {
+      loadFilterOptions();
       loadPlanUsage(1, planPageSize);
       return;
     }
@@ -203,10 +230,9 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
         >
           <div style={{ fontSize: 14, fontWeight: 600 }}>{t('套餐用量')}</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
+            <select
               value={groupFilter}
               onChange={(e) => setGroupFilter(e.target.value || '')}
-              placeholder={t('按分组筛选')}
               style={{
                 width: 160,
                 border: '1px solid var(--semi-color-border)',
@@ -214,7 +240,26 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
                 padding: '7px 10px',
                 background: 'var(--semi-color-bg-0)',
               }}
-            />
+            >
+              {groupOptions.map((g) => (
+                <option key={g.value || '__all'} value={g.value}>{g.label}</option>
+              ))}
+            </select>
+            <select
+              value={planIdFilter}
+              onChange={(e) => setPlanIdFilter(e.target.value || '')}
+              style={{
+                width: 180,
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 8,
+                padding: '7px 10px',
+                background: 'var(--semi-color-bg-0)',
+              }}
+            >
+              {planOptions.map((p) => (
+                <option key={p.value || '__all'} value={p.value}>{p.label}</option>
+              ))}
+            </select>
             <input
               value={usernameFilter}
               onChange={(e) => setUsernameFilter(e.target.value || '')}
@@ -258,7 +303,6 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
                 <th style={thStyle}>{t('分组')}</th>
                 <th style={thStyle}>{t('套餐')}</th>
                 <th style={thStyle}>{t('本月用量')}</th>
-                <th style={thStyle}>{t('累计已用')}</th>
                 <th style={thStyle}>{t('总量')}</th>
               </tr>
             </thead>
@@ -266,7 +310,7 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
               {planUsage.length === 0
                 ? (
                   <tr>
-                    <td colSpan={7}>{renderEmpty(t('暂无套餐用量数据'))}</td>
+                    <td colSpan={6}>{renderEmpty(t('暂无套餐用量数据'))}</td>
                   </tr>
                 )
                 : planUsage.map((row, idx) => (
@@ -279,7 +323,6 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
                       <td style={tdStyle}>{row.user_group || '-'}</td>
                       <td style={tdStyle}>{row.plan_title || '-'}</td>
                       <td style={tdStyle}>{renderQuota(row.month_used || 0)}</td>
-                      <td style={tdStyle}>{renderQuota(row.amount_used || 0)}</td>
                       <td style={tdStyle}>{renderQuota(row.amount_total || 0)}</td>
                     </tr>
                   ))}
@@ -391,7 +434,7 @@ const SubscriptionUsageView = ({ t, viewType = 'plan' }) => {
                     <td style={tdStyle}>{row.display_name || '-'}</td>
                     <td style={tdStyle}>{row.user_group || '-'}</td>
                     <td style={tdStyle}>{row.org_name || '-'}</td>
-                    <td style={tdStyle}>{row.last_token_used_at || '-'}</td>
+                    <td style={tdStyle}>{row.last_login_at || '-'}</td>
                   </tr>
                 ))}
           </tbody>

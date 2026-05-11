@@ -1112,6 +1112,31 @@ func FeishuInitWebhook(c *gin.Context) {
 		err := model.DB.Where("feishu_id = ?", openId).First(&existingUser).Error
 		if err == nil && existingUser.Id > 0 {
 			result.Skipped++
+			existingTokens, tokenErr := model.GetAllUserTokens(existingUser.Id, 0, operation_setting.GetMaxUserTokens())
+			if tokenErr == nil {
+				now := common.GetTimestamp()
+				selectedToken := (*model.Token)(nil)
+				for _, token := range existingTokens {
+					if token == nil {
+						continue
+					}
+					if token.Status != common.TokenStatusEnabled {
+						continue
+					}
+					if token.ExpiredTime != -1 && token.ExpiredTime < now {
+						continue
+					}
+					if !token.UnlimitedQuota && token.RemainQuota <= 0 {
+						continue
+					}
+					selectedToken = token
+					break
+				}
+				if selectedToken != nil {
+					result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: existingUser.Id, Username: existingUser.Username, TokenId: selectedToken.Id, TokenName: selectedToken.Name, TokenKey: selectedToken.Key, Action: "skipped_exists"})
+					continue
+				}
+			}
 			result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: existingUser.Id, Username: existingUser.Username, Action: "skipped_exists"})
 			continue
 		}

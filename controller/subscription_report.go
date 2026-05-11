@@ -22,11 +22,20 @@ type subscriptionPlanUsageItem struct {
 	PlanId             *int   `json:"plan_id,omitempty"`
 	PlanTitle          string `json:"plan_title"`
 	AmountTotal        int64  `json:"amount_total"`
-	AmountUsed         int64  `json:"amount_used"`
 	MonthUsed          int64  `json:"month_used"`
 	StartTime          int64  `json:"start_time"`
 	EndTime            int64  `json:"end_time"`
 	Status             string `json:"status"`
+}
+
+type subscriptionPlanUsageFilters struct {
+	Groups []subscriptionUsageFilterOption `json:"groups"`
+	Plans  []subscriptionUsageFilterOption `json:"plans"`
+}
+
+type subscriptionUsageFilterOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 func parseMonthRange(month string) (int64, int64) {
@@ -58,12 +67,12 @@ func AdminGetSubscriptionPlanUsage(c *gin.Context) {
 	monthStart, monthEnd := parseMonthRange(c.Query("month"))
 	monthUsageSubQuery := model.DB.Table("subscription_pre_consume_records spr").
 		Select("spr.user_subscription_id as sub_id, COALESCE(SUM(spr.pre_consumed),0) as month_used").
-		Where("spr.status = ? AND spr.created_at >= ? AND spr.created_at < ?", "consumed", monthStart, monthEnd).
+		Where("spr.status = ? AND spr.is_settled = ? AND spr.settled_at >= ? AND spr.settled_at < ?", "consumed", true, monthStart, monthEnd).
 		Group("spr.user_subscription_id")
 
 	selectGroup := fmt.Sprintf("%s as user_group", model.CommonGroupColumnName())
 	base := model.DB.Table("users").
-		Select("users.id as user_id, users.username, users.display_name, users.org_name, "+selectGroup+", us.id as user_subscription_id, us.plan_id, sp.title as plan_title, COALESCE(us.amount_total, 0) as amount_total, COALESCE(us.amount_used, 0) as amount_used, COALESCE(mu.month_used, 0) as month_used, COALESCE(us.start_time, 0) as start_time, COALESCE(us.end_time, 0) as end_time, COALESCE(us.status, '') as status").
+		Select("users.id as user_id, users.username, users.display_name, users.org_name, "+selectGroup+", us.id as user_subscription_id, us.plan_id, sp.title as plan_title, COALESCE(us.amount_total, 0) as amount_total, COALESCE(mu.month_used, 0) as month_used, COALESCE(us.start_time, 0) as start_time, COALESCE(us.end_time, 0) as end_time, COALESCE(us.status, '') as status").
 		Joins("LEFT JOIN user_subscriptions us ON us.user_id = users.id AND us.source = ? AND us.status = ?", "bind_group", "active").
 		Joins("LEFT JOIN subscription_plans sp ON sp.id = us.plan_id").
 		Joins("LEFT JOIN (?) mu ON mu.sub_id = us.id", monthUsageSubQuery)
@@ -146,7 +155,7 @@ func AdminGetInactiveUsers(c *gin.Context) {
 	start := common.GetTimestamp() - int64(days*24*3600)
 	selectGroup := fmt.Sprintf("%s as user_group", model.CommonGroupColumnName())
 	base := model.DB.Table("users").
-		Select("users.id as user_id, users.username, users.display_name, "+selectGroup+", users.org_name, COALESCE(MAX(q_all.created_at),0) as last_token_used_at").
+		Select("users.id as user_id, users.username, users.display_name, "+selectGroup+", users.org_name, COALESCE(MAX(q_all.created_at),0) as last_login_at").
 		Joins("LEFT JOIN quota_data q_recent ON q_recent.user_id = users.id AND q_recent.created_at >= ?", start).
 		Joins("LEFT JOIN quota_data q_all ON q_all.user_id = users.id").
 		Group("users.id, users.username, users.display_name, users.org_name, " + model.CommonGroupColumnName()).
@@ -167,6 +176,17 @@ func AdminGetInactiveUsers(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+func sanitizeCSVField(value string) string {
+	if value == "" {
+		return value
+	}
+	first := value[0]
+	if first == '=' || first == '+' || first == '-' || first == '@' {
+		return "'" + value
+	}
+	return value
+}
+
 func AdminExportInactiveUsers(c *gin.Context) {
 	days, _ := strconv.Atoi(c.DefaultQuery("days", "15"))
 	if days <= 0 {
@@ -175,7 +195,7 @@ func AdminExportInactiveUsers(c *gin.Context) {
 	start := common.GetTimestamp() - int64(days*24*3600)
 	selectGroup := fmt.Sprintf("%s as user_group", model.CommonGroupColumnName())
 	base := model.DB.Table("users").
-		Select("users.id as user_id, users.username, users.display_name, "+selectGroup+", users.org_name, COALESCE(MAX(q_all.created_at),0) as last_token_used_at").
+		Select("users.id as user_id, users.username, users.display_name, "+selectGroup+", users.org_name, COALESCE(MAX(q_all.created_at),0) as last_login_at").
 		Joins("LEFT JOIN quota_data q_recent ON q_recent.user_id = users.id AND q_recent.created_at >= ?", start).
 		Joins("LEFT JOIN quota_data q_all ON q_all.user_id = users.id").
 		Group("users.id, users.username, users.display_name, users.org_name, " + model.CommonGroupColumnName()).
@@ -199,6 +219,6 @@ func AdminExportInactiveUsers(c *gin.Context) {
 		if it.LastLoginAt > 0 {
 			last = time.Unix(it.LastLoginAt, 0).Format("2006-01-02 15:04:05")
 		}
-		writer.Write([]string{strconv.Itoa(it.UserId), it.Username, it.DisplayName, it.UserGroup, it.OrgName, last})
+		writer.Write([]string{strconv.Itoa(it.UserId), sanitizeCSVField(it.Username), sanitizeCSVField(it.DisplayName), sanitizeCSVField(it.UserGroup), sanitizeCSVField(it.OrgName), last})
 	}
 }
