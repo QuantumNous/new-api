@@ -78,6 +78,17 @@ func validatePrompt(prompt string) *dto.TaskError {
 	return nil
 }
 
+func allowsPromptlessTask(req TaskSubmitReq) bool {
+	if req.Model != "doubao-seedance-2-0-260128" && req.Model != "doubao-seedance-2-0-fast-260128" {
+		return false
+	}
+	if req.Metadata == nil {
+		return false
+	}
+	_, hasContent := req.Metadata["content"]
+	return hasContent
+}
+
 func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string) (TaskSubmitReq, error) {
 	var req TaskSubmitReq
 	if _, err := c.MultipartForm(); err != nil {
@@ -210,8 +221,10 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 		return createTaskError(err, "invalid_request", http.StatusBadRequest, true)
 	}
 
-	if taskErr := validatePrompt(req.Prompt); taskErr != nil {
-		return taskErr
+	if strings.TrimSpace(req.Prompt) == "" {
+		if !allowsPromptlessTask(req) {
+			return validatePrompt(req.Prompt)
+		}
 	}
 
 	if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {

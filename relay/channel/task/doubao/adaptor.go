@@ -44,6 +44,7 @@ type requestPayload struct {
 	Model                 string         `json:"model"`
 	Content               []ContentItem  `json:"content,omitempty"`
 	CallbackURL           string         `json:"callback_url,omitempty"`
+	SafetyIdentifier      string         `json:"safety_identifier,omitempty"`
 	ReturnLastFrame       *dto.BoolValue `json:"return_last_frame,omitempty"`
 	ServiceTier           string         `json:"service_tier,omitempty"`
 	ExecutionExpiresAfter *dto.IntValue  `json:"execution_expires_after,omitempty"`
@@ -59,6 +60,7 @@ type requestPayload struct {
 	Seed        *dto.IntValue  `json:"seed,omitempty"`
 	CameraFixed *dto.BoolValue `json:"camera_fixed,omitempty"`
 	Watermark   *dto.BoolValue `json:"watermark,omitempty"`
+	DraftTaskID string         `json:"draft_task_id,omitempty"`
 }
 
 type responsePayload struct {
@@ -70,7 +72,8 @@ type responseTask struct {
 	Model   string `json:"model"`
 	Status  string `json:"status"`
 	Content struct {
-		VideoURL string `json:"video_url"`
+		VideoURL     string `json:"video_url"`
+		LastFrameURL string `json:"last_frame_url"`
 	} `json:"content"`
 	Seed            int    `json:"seed"`
 	Resolution      string `json:"resolution"`
@@ -78,6 +81,7 @@ type responseTask struct {
 	Ratio           string `json:"ratio"`
 	FramesPerSecond int    `json:"framespersecond"`
 	ServiceTier     string `json:"service_tier"`
+	DraftTaskID     string `json:"draft_task_id"`
 	Tools           []struct {
 		Type string `json:"type"`
 	} `json:"tools"`
@@ -105,6 +109,10 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+}
+
+var resolveVirtualPortraitAssetURI = func(_ *relaycommon.RelayInfo, item ContentItem) (string, error) {
+	return "", nil
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -190,6 +198,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		body.Model = info.UpstreamModelName
 	} else {
 		info.UpstreamModelName = body.Model
+	}
+	if err := preprocessSeedance20VirtualPortrait(info, body); err != nil {
+		return nil, err
 	}
 	data, err := common.Marshal(body)
 	if err != nil {
@@ -294,13 +305,56 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		r.Duration = lo.ToPtr(dto.IntValue(sec))
 	}
 
-	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
-	r.Content = append(r.Content, ContentItem{
-		Type: "text",
-		Text: req.Prompt,
-	})
+	if req.Prompt != "" {
+		r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
+		r.Content = append(r.Content, ContentItem{
+			Type: "text",
+			Text: req.Prompt,
+		})
+	}
 
 	return &r, nil
+}
+
+func preprocessSeedance20VirtualPortrait(info *relaycommon.RelayInfo, body *requestPayload) error {
+	if info == nil || body == nil {
+		return nil
+	}
+	if !isSeedance20Model(body.Model) && !isSeedance20Model(info.OriginModelName) && !isSeedance20Model(info.UpstreamModelName) {
+		return nil
+	}
+	resolvedAssets := make(map[string]string)
+	for i := range body.Content {
+		item := &body.Content[i]
+		if item.Type != "image_url" || item.ImageURL == nil || item.ImageURL.URL == "" {
+			continue
+		}
+		originURL := item.ImageURL.URL
+		if isAssetURI(originURL) {
+			continue
+		}
+		if assetURI, ok := resolvedAssets[originURL]; ok {
+			item.ImageURL.URL = assetURI
+			continue
+		}
+		assetURI, err := resolveVirtualPortraitAssetURI(info, *item)
+		if err != nil {
+			return err
+		}
+		if assetURI != "" {
+			item.ImageURL.URL = assetURI
+			resolvedAssets[originURL] = assetURI
+		}
+	}
+	return nil
+}
+
+func isSeedance20Model(modelName string) bool {
+	return modelName == "doubao-seedance-2-0-260128" || modelName == "doubao-seedance-2-0-fast-260128"
+}
+
+func isAssetURI(uri string) bool {
+	return len(uri) >= len("asset://") && uri[:len("asset://")] == "asset://"
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
@@ -353,6 +407,12 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
 	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	if dResp.Content.LastFrameURL != "" {
+		openAIVideo.SetMetadata("last_frame_url", dResp.Content.LastFrameURL)
+	}
+	if dResp.DraftTaskID != "" {
+		openAIVideo.SetMetadata("draft_task_id", dResp.DraftTaskID)
+	}
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 	openAIVideo.Model = originTask.Properties.OriginModelName
