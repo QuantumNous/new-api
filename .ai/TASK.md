@@ -2017,7 +2017,7 @@ status: blocked
 ## 旧版用户端邀请返现日志记录
 
 任务名称：旧版前端用户端邀请返现日志
-status: in_progress
+status: completed
 
 ### 阶段 0：文档与边界
 
@@ -2129,3 +2129,41 @@ status: in_progress
 - 已确认未修改 model / migration、后端 option、依赖文件。
 - 已确认未提交 `node_modules`、`dist` 或构建产物。
 - 已确认未输出或写入 token / secret / sk- key / bearer token。
+- 阶段 2 提交：`3bd3d8b24212b6413d202e67da52cebcd1059caf`
+
+### 阶段 3：验证与收口
+
+- 旧版用户端邀请返现日志本轮实现完成。
+- 最终功能范围：
+  - 普通用户可在旧版 `/console/topup` 右侧“邀请奖励”卡片下方查看邀请返现日志。
+  - 汇总口径：总返利余额 = `aff_history_quota`；待使用收益 = `aff_quota`；已转化余额 = `max(aff_history_quota - aff_quota, 0)`。
+  - 邀请用户列表展示每个被邀请用户贡献的累计返利，不按被邀请用户拆分已转化余额。
+  - 返利流水只读展示当前用户作为邀请人的返利记录。
+- 已完成提交：
+  - `7dafbf5d2a7dc6e73a6a494fee371cd45a53cbb2`：文档：规划旧版用户端邀请返现日志。
+  - `bee845c87bbba4fefe8cf0ce1dfb13a492d0469c`：后端：新增用户端邀请返现日志接口。
+  - `3bd3d8b24212b6413d202e67da52cebcd1059caf`：前端：新增旧版用户端邀请返现日志。
+- 本轮未实现范围：
+  - 不接入新版前端 `web/default`。
+  - 不新增数据库表。
+  - 不新增普通用户补发、删除、导出、手动修改或详情修改能力。
+  - 不做多级邀请。
+  - 不修改返利计算、消费挂接、充值、注册 / OAuth、异步任务、Midjourney。
+- 最终验证结果：
+  - `go test ./controller/...`：阶段 1 已通过。
+  - `go test ./model/...`：阶段 1 已通过。
+  - `go test ./service/...`：阶段 1 已通过。
+  - `cd web/classic && bun run build`：阶段 2 已通过，仅有既有 warning。
+  - `cd web/classic && bun run lint`：阶段 2 未通过，失败为既有 Prettier / dist 检查债务；本轮修改文件定向 Prettier 检查通过。
+  - locale JSON parse 与新增组件 `t()` key 完整性检查：阶段 2 已通过。
+  - `git diff --check`：阶段 2 已通过。
+- 自审查结果：
+  - 已确认没有修改新版前端。
+  - 已确认没有修改消费挂接逻辑、返利 service、充值链路、注册 / OAuth、异步任务、Midjourney。
+  - 已确认没有修改 model / migration、依赖文件。
+  - 已确认没有提交 `node_modules`、`dist` 或构建产物。
+  - 已确认没有输出或写入 token / secret / sk- key / bearer token。
+- 下一步建议：
+  - 在具备本地后端服务和测试账号的环境中人工验收 `/console/topup`：查看“邀请奖励”卡片下方是否显示邀请返现日志。
+  - 用测试邀请关系验证 summary、邀请用户列表和返利流水展示数据是否与后端流水一致。
+  - 单独排期清理旧版前端既有 Prettier / dist lint 债务，避免后续 lint 归因成本继续增加。
