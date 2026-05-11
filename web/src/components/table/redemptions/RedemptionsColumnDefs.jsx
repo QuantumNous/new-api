@@ -97,6 +97,16 @@ export const getRedemptionsColumns = ({
       dataIndex: 'name',
     },
     {
+      title: t('兑换码'),
+      dataIndex: 'key',
+      width: 280,
+      render: (text) => {
+        return (
+          <div className='font-mono text-xs whitespace-nowrap'>{text}</div>
+        );
+      },
+    },
+    {
       title: t('状态'),
       dataIndex: 'status',
       key: 'status',

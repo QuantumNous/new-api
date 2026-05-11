@@ -73,12 +73,14 @@ func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Re
 
 	// Build query based on keyword type
 	query := tx.Model(&Redemption{})
+	keyCol := redemptionKeyColumn()
+	keywordPattern := keyword + "%"
 
 	// Only try to convert to ID if the string represents a valid integer
 	if id, err := strconv.Atoi(keyword); err == nil {
-		query = query.Where("id = ? OR name LIKE ?", id, keyword+"%")
+		query = query.Where("id = ? OR name LIKE ? OR "+keyCol+" LIKE ?", id, keywordPattern, keywordPattern)
 	} else {
-		query = query.Where("name LIKE ?", keyword+"%")
+		query = query.Where("name LIKE ? OR "+keyCol+" LIKE ?", keywordPattern, keywordPattern)
 	}
 
 	// Get total count
@@ -102,6 +104,13 @@ func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Re
 	return redemptions, total, nil
 }
 
+func redemptionKeyColumn() string {
+	if common.UsingPostgreSQL {
+		return `"key"`
+	}
+	return "`key`"
+}
+
 func GetRedemptionById(id int) (*Redemption, error) {
 	if id == 0 {
 		return nil, errors.New("id 为空！")
@@ -121,10 +130,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 	}
 	redemption := &Redemption{}
 
-	keyCol := "`key`"
-	if common.UsingPostgreSQL {
-		keyCol = `"key"`
-	}
+	keyCol := redemptionKeyColumn()
 	common.RandomSleep()
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error

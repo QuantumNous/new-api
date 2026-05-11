@@ -14,7 +14,15 @@ import (
 
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	keyword := c.Query("keyword")
+	var redemptions []*model.Redemption
+	var total int64
+	var err error
+	if keyword == "" {
+		redemptions, total, err = model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	} else {
+		redemptions, total, err = model.SearchRedemptions(keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
