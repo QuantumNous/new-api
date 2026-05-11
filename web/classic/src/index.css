@@ -1024,3 +1024,12 @@ html.dark .with-pastel-balls::before {
 }
 
 .ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
+
+/* Fork override: dark-mode header text was washing out when the home page
+   renders an external (light-themed) URL via iframe — the iframe sat under
+   the sticky header and its bright content bled through the 75% transparent
+   dark bg. Bump opacity to 0.70 (still lets some content through for the
+   frosted-glass effect to remain visible, but keeps white nav text readable). */
+html.dark header.text-semi-color-text-0.sticky {
+    background-color: rgb(24 24 27 / 0.70);
+}
