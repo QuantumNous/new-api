@@ -45,8 +45,10 @@ jobs:
           docker tag ghcr.io/umami-software/umami:postgresql-latest ${{ secrets.ACR_REGISTRY }}/reputationly/umami:latest
           docker push ${{ secrets.ACR_REGISTRY }}/reputationly/umami:latest
 
-      - name: Sync louislam/uptime-kuma:latest
+      - name: Sync louislam/uptime-kuma:2
+        # 注意：Kuma 的 :latest 故意停在 1.23.17 防自动跨大版本升级，
+        # 实际"最新稳定"是 :2(2.x 线)。详见 https://github.com/louislam/uptime-kuma/wiki/Docker-Tags
         run: |
-          docker pull louislam/uptime-kuma:latest
-          docker tag louislam/uptime-kuma:latest ${{ secrets.ACR_REGISTRY }}/reputationly/uptime-kuma:latest
-          docker push ${{ secrets.ACR_REGISTRY }}/reputationly/uptime-kuma:latest
+          docker pull louislam/uptime-kuma:2
+          docker tag louislam/uptime-kuma:2 ${{ secrets.ACR_REGISTRY }}/reputationly/uptime-kuma:2
+          docker push ${{ secrets.ACR_REGISTRY }}/reputationly/uptime-kuma:2
