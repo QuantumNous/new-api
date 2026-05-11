@@ -2013,3 +2013,30 @@ status: blocked
 - 在安装 Docker Desktop 或具备 Docker Engine 的机器上重新执行 `docker-compose.dev.yml` 本地验收。
 - 生产开启前继续保持 `InvitationRebateEnabled=false`。
 - 容器验收通过后，再用小比例、小门槛、测试账号验证完整“邀请关系 -> 累计消费 -> 达标返利 -> 流水详情”链路。
+
+## 旧版用户端邀请返现日志记录
+
+任务名称：旧版前端用户端邀请返现日志
+status: in_progress
+
+### 阶段 0：文档与边界
+
+- 本轮只实现旧版前端 `web/classic` 的用户端邀请返现日志，不接入新版前端 `web/default`。
+- 日志位置为用户端 `/console/topup` 右侧“邀请奖励”卡片下方。
+- 单个被邀请用户的“返利余额”统计口径为该用户贡献的累计返利 `total_rebate_quota`。
+- 总返利余额 = `aff_history_quota`；待使用收益 = `aff_quota`；已转化余额 = `max(aff_history_quota - aff_quota, 0)`。
+- 当前不新增按被邀请用户拆分的划转归因表。
+- 本轮不修改返利计算、消费挂接、充值、注册 / OAuth、异步任务、Midjourney、model / migration、依赖。
+
+### 阶段 0 修改文件
+
+- `.ai/PROJECT.md`
+- `.ai/TASK.md`
+
+### 阶段 0 验证
+
+- 待执行：`git diff --check`
+
+### 阶段 0 自审
+
+- 待提交前确认。
