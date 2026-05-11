@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "Mỗi dòng hiển thị một yêu cầu tiêu thụ được tính trong lần quyết toán hoàn tiền tích lũy này.",
+    "Failed to load invitation rebate record detail": "Không thể tải chi tiết bản ghi hoàn tiền lời mời",
+    "Invitation Rebate Settlement Detail": "Chi tiết quyết toán hoàn tiền lời mời",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "Bản ghi hoàn tiền cũ chỉ giữ source key kích hoạt và không có chi tiết quyết toán.",
+    "No settlement item details found": "Không tìm thấy chi tiết quyết toán",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "Bản ghi quyết toán tích lũy chỉ đọc dựa trên mức tiêu thụ thực tế của người được mời.",
+    "Remainder After": "Số dư sau",
+    "Remainder Before": "Số dư trước",
+    "Settled Source Quota": "Quota tiêu thụ đã quyết toán",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
@@ -1411,6 +1420,7 @@
     "Ensure Suffix": "Đảm bảo hậu tố",
     "Ensure the string has a specified prefix": "Đảm bảo chuỗi có tiền tố chỉ định",
     "Ensure the string has a specified suffix": "Đảm bảo chuỗi có hậu tố chỉ định",
+    "Enter 10 for 10%. Rebates are based on actual consumed quota, not top-ups.": "Nhập 10 cho 10%. Hoàn thưởng dựa trên hạn mức đã tiêu thụ thực tế, không phải nạp tiền.",
     "Enter 6-digit code": "Nhập mã 6 chữ số",
     "Enter a name": "Nhập tên",
     "Enter a new name": "Nhập tên mới",
@@ -3128,6 +3138,7 @@
     "Re-enable on success": "Kích hoạt lại khi thành công",
     "Re-login": "Đăng nhập lại",
     "Read-only rebate records based on invited users' actual consumption.": "Bản ghi hoàn thưởng chỉ đọc dựa trên mức tiêu thụ thực tế của người dùng được mời.",
+    "Rebate Percentage": "Phần trăm hoàn thưởng",
     "Rebate Quota": "Hạn mức hoàn thưởng",
     "Rebate Ratio (bps)": "Tỷ lệ hoàn thưởng (bps)",
     "Ready": "Sẵn sàng",
@@ -4155,6 +4166,7 @@
     "URL": "URL",
     "URL is required": "URL là bắt buộc",
     "URL to your logo image (optional)": "URL hình ảnh logo của bạn (tùy chọn)",
+    "Use at most two decimal places": "Sử dụng tối đa hai chữ số thập phân",
     "Usage": "Sử dụng",
     "Usage at a glance": "Tổng quan mức dùng",
     "Usage guide": "Hướng dẫn sử dụng",
@@ -4421,6 +4433,10 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Configure cumulative rebates from invited users' actual consumption": "Cấu hình hoàn thưởng tích lũy từ mức tiêu thụ thực tế của người được mời",
+    "Accumulate invited users' actual consumed quota and grant inviter rewards after the configured threshold is reached. Rebates are not based on top-ups.": "Tích lũy hạn mức tiêu thụ thực tế của người được mời và thưởng cho người mời sau khi đạt ngưỡng đã cấu hình. Hoàn thưởng không dựa trên nạp tiền.",
+    "Cumulative Trigger Consumption Quota": "Hạn mức tiêu thụ tích lũy kích hoạt",
+    "Grant rebates when cumulative actual consumed quota reaches this value. Unsettled quota keeps accumulating.": "Cấp hoàn thưởng khi hạn mức tiêu thụ thực tế tích lũy đạt giá trị này. Hạn mức chưa quyết toán tiếp tục được tích lũy."
   }
 }

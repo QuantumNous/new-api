@@ -1385,3 +1385,631 @@ status: completed
 - 为后台流水表格增加更细的日期范围筛选。
 - 在测试环境增加真实同步请求的端到端验收脚本。
 - 若未来有主库 usage ledger，可将 `source_key` 从 request id 演进到主库结算流水 id。
+
+## 阶段 3B 体验调整记录
+
+任务名：迁移邀请返利配置到“运营设置 → 额度设置”并改为百分比输入
+
+status: completed
+
+### 本轮目标
+
+- 只移动邀请返利配置项：`InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota`。
+- 后台输入不再展示 bps，改为直接输入百分比；输入 `10` 表示 `10%`。
+- 后端仍沿用 `InvitationRebateRatioBps` 配置 key，前端负责读写换算，保持旧数据和返利 service 兼容。
+- 不移动邀请返利流水入口，不修改消费挂接、返利 service、数据库结构、后端 option API 或依赖。
+
+### 实现摘要
+
+- 将额度设置 section 从 Billing 分组迁移到 Operations 分组，目标路径为 `/system-settings/operations/quota`。
+- 在额度设置中加入“邀请返利”配置块，包含启用开关、返利百分比、最小触发消费额度。
+- 读取时将 `InvitationRebateRatioBps / 100` 显示为百分比。
+- 保存时将百分比 `* 100` 并四舍五入写回 `InvitationRebateRatioBps`。
+- 百分比输入限制为 `0..100`，最多两位小数；例如 `10` 保存为 `1000 bps`，`12.5` 保存为 `1250 bps`。
+- 移除独立 `Invitation Rebate` 配置 section，保留 Billing 下的 `Invitation Rebate Records` 只读流水入口。
+- 旧路径 `/system-settings/billing/invitation-rebate` 和 `/system-settings/billing/quota` 重定向到 `/system-settings/operations/quota`。
+- 流水表格中的返利比例列改为显示百分比，避免后台继续暴露 bps 概念。
+- 补齐 en / zh / fr / ja / ru / vi locale 新增文案，并将中文侧栏 `Operations` 调整为“运营设置”。
+
+### 本轮实际修改文件
+
+- `web/default/src/features/system-settings/billing/index.tsx`
+- `web/default/src/features/system-settings/billing/section-registry.tsx`
+- `web/default/src/features/system-settings/general/quota-settings-section.tsx`
+- `web/default/src/features/system-settings/general/invitation-rebate-records-section.tsx`
+- `web/default/src/features/system-settings/general/invitation-rebate-settings-section.tsx`（删除）
+- `web/default/src/features/system-settings/operations/index.tsx`
+- `web/default/src/features/system-settings/operations/section-registry.tsx`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/routes/_authenticated/system-settings/billing/$section.tsx`
+- `web/default/src/i18n/locales/en.json`
+- `web/default/src/i18n/locales/zh.json`
+- `web/default/src/i18n/locales/fr.json`
+- `web/default/src/i18n/locales/ja.json`
+- `web/default/src/i18n/locales/ru.json`
+- `web/default/src/i18n/locales/vi.json`
+- `.ai/TASK.md`
+
+### 本轮未修改范围
+
+- 未修改消费挂接逻辑。
+- 未修改返利 service。
+- 未修改后端 option 逻辑。
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改异步任务 / Midjourney。
+- 未修改 model / migration。
+- 未修改依赖文件。
+- 未执行 `.agents/skills` 命令。
+
+### 验证命令与结果
+
+- `bun --version`：当前 shell 未直接识别全局 `bun`，使用上一轮已安装的临时 Bun 路径 `%TEMP%/codex-bun-tool/node_modules/.bin`，版本 `1.3.13`。
+- `Test-Path web/default/node_modules`：通过，结果为 `True`。
+- `cd web/default && bun run typecheck`：通过。
+- `cd web/default && bun run build`：通过。
+- `cd web/default && bun run lint`：未通过，失败文件均为既有非本轮文件，和本轮修改文件无交集，按既有 lint 债务豁免：
+  - `web/default/src/features/keys/components/api-keys-dialogs.tsx`
+  - `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+  - `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+  - `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`
+  - `web/default/src/features/usage-logs/components/common-logs-filter-bar.tsx`
+  - `web/default/src/features/usage-logs/components/task-logs-filter-bar.tsx`
+  - `web/default/src/lib/theme-radius.ts`
+  - warnings：`web/default/src/features/channels/components/channels-table.tsx`、`web/default/src/features/dashboard/components/users/user-charts.tsx`
+- `node -` locale JSON parse、六语言 key 一致性与新增 key 完整性检查：通过。
+- `git diff --check`：通过。
+- `git status --short`：确认仅存在本轮允许范围内前端、locale 与 `.ai/TASK.md` 变更。
+- `git diff --stat` / `git diff`：已执行，用于确认迁移 diff 和未改后端逻辑。
+
+### 自审查结果
+
+- 通过：本轮 diff 只包含阶段 3B 体验调整相关前端文件、locale 和 `.ai/TASK.md`。
+- 通过：没有修改后端、消费挂接、返利 service、充值、注册 / OAuth、异步任务、Midjourney、model / migration 或依赖文件。
+- 通过：没有提交 `node_modules`，也没有 lockfile / package 依赖定义变更。
+- 通过：百分比输入仅在前端转换为 `InvitationRebateRatioBps`，兼容旧配置值，不改变后端返利计算逻辑。
+- 通过：旧路径重定向到 `/system-settings/operations/quota`，不移动 Billing 下只读流水入口。
+- 通过：没有 token / secret / sk- key / bearer token。
+
+### commit hash
+
+- 本轮提交：提交后由最终响应记录，避免在同一 commit 中自引用造成 hash 变化。
+
+### 下一步最小任务建议
+
+- 本轮完成后进行本地后台页面人工验收：打开 `/system-settings/operations/quota`，确认能看到返利百分比；输入 `10` 保存后刷新仍显示 `10`；旧路径 `/system-settings/billing/invitation-rebate` 自动跳转到新路径。
+
+## 旧版前端同步记录
+
+任务名：旧版前端同步邀请返利配置与流水入口
+
+status: completed
+
+### 最新提交复核
+
+- 已检查最新提交 `da03f27edc661a373ac75cd68c97ea028f1c0f6a`：该提交只迁移新版前端 `web/default` 的邀请返利配置位置并更新 `.ai/TASK.md`，属于新版前端有效实现，不是 bug 或无用代码。
+- 本轮不回退 `da03f27e`，避免移除新版前端已完成的邀请返利配置和流水展示。
+
+### 本轮目标
+
+- 在旧版前端 `web/classic` 的“系统设置 → 运营设置 → 额度设置”中同步邀请消费返利配置。
+- 旧版前端使用百分比输入；读取 `InvitationRebateRatioBps / 100`，保存时将百分比乘以 100 写回 `InvitationRebateRatioBps`。
+- 在旧版额度设置附近新增管理员只读邀请返利流水入口。
+- 不修改后端消费挂接、返利 service、model / migration、充值、注册 / OAuth、异步任务、Midjourney 或依赖。
+
+### 当前实现摘要
+
+- `web/classic/src/pages/Setting/Operation/SettingsCreditLimit.jsx`：新增邀请消费返利配置块和“查看邀请返利流水”入口。
+- `web/classic/src/components/settings/OperationSetting.jsx`：补齐旧版前端 option 默认值 `InvitationRebateEnabled`、`InvitationRebateRatioBps`、`InvitationRebateMinQuota`。
+- `web/classic/src/pages/Setting/Operation/InvitationRebateRecordsModal.jsx`：新增管理员只读流水 Modal，调用已有 `GET /api/user/invitation_rebate`。
+- `web/classic/src/i18n/locales/{en,zh,zh-CN,zh-TW,fr,ja,ru,vi}.json`：手动补齐旧版前端新增文案。
+
+### 日志权限结论
+
+- 当前返利流水接口为管理员接口，后端路由位于 `AdminAuth` 保护范围内。
+- 第一版只有管理员返利流水；没有普通用户返利日志页，也没有普通用户可访问的返利流水 API。
+
+### 验证命令与结果
+
+- `git status --short`：确认本轮仅存在旧版前端、旧版 locale 与 `.ai/TASK.md` 变更；未出现依赖文件、`node_modules` 或 `dist` 待提交变更。
+- `git diff --stat` / `git diff`：已检查本轮改动范围。
+- `cd web/classic && bun run build`：使用临时 Bun `1.3.13` 执行，通过；仅有既有 Browserslist、lottie eval 与 chunk size warning。
+- `cd web/classic && bun run lint`：未通过；失败为旧版前端既有 Prettier 债务和 `dist` 检查项。本轮新增/修改文件在定向 Prettier 修复后已不在失败清单中。
+- `cd web/classic && bunx prettier <本轮 JS/JSX/locale 文件> --check`：通过，本轮文件均符合 Prettier。
+- locale JSON parse 与本轮 touched 组件 `t()` key 完整性检查：通过，en / zh / zh-CN / zh-TW / fr / ja / ru / vi 均包含新增 key。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 通过：未回退 `da03f27e`，新版前端邀请返利配置和流水继续保留。
+- 通过：旧版前端已在“系统设置 → 运营设置 → 额度设置”中新增邀请消费返利配置，百分比输入会兼容写回 `InvitationRebateRatioBps`。
+- 通过：旧版前端已新增管理员只读邀请返利流水入口，不提供补发、删除、修改或导出。
+- 通过：未修改后端消费挂接、返利 service、后端 option、model / migration、充值、注册 / OAuth、异步任务、Midjourney 或依赖。
+- 通过：未执行 `.agents/skills` 命令，未连接真实 New API 实例，未输出 token / secret / sk- key / bearer token。
+
+### commit hash
+
+- 本轮提交：提交后由最终响应记录，避免在同一 commit 中自引用造成 hash 变化。
+
+### 下一步最小任务建议
+
+- 同时在新版和旧版前端做人工验收：旧版打开 `/console/setting?tab=operation`，在“额度设置”中确认邀请返利配置和“查看邀请返利流水”入口；新版继续确认 `/system-settings/operations/quota` 与 Billing 下返利流水入口可用。
+
+## 邀请返利生产问题修复记录
+
+任务名：修复邀请返利结算边界与配置持久化一致性
+
+status: completed
+
+### 问题背景
+
+- 资金相关审计发现边界风险：`BillingSession.Settle` 中资金来源结算成功后，如果后续 token 额度调整失败，函数仍返回 error。
+- 邀请返利同步挂接只在 `SettleBilling` 返回 nil 后触发，因此可能出现“实际消费已成立，但返利被 token 后置统计失败阻断”的漏返利。
+- 配置持久化一致性风险：`InvitationRebateRatioBps` 和 `InvitationRebateMinQuota` 原先会先把原始值写入 `options` 表，再在内存中做 clamp，可能留下脏配置值。
+
+### 本轮实际修改文件
+
+- `service/billing_session.go`
+- `service/billing_session_test.go`
+- `model/option.go`
+- `model/option_test.go`
+- `.ai/TASK.md`
+
+### 修复摘要
+
+- `funding.Settle(delta)` 失败时仍返回 error，不触发邀请返利。
+- `funding.Settle(delta)` 成功后，如果 token 额度调整失败，只记录系统日志，`BillingSession.Settle` 返回 nil。
+- 资金侧已结算成功时，后续邀请返利等成功后置逻辑不再被 token 统计失败阻断。
+- `InvitationRebateRatioBps` 写入 DB 前规范化到 `0..10000`。
+- `InvitationRebateMinQuota` 写入 DB 前负数归零。
+- 后端返利 service、消费挂接点、前端页面、model 结构、migration 均未修改。
+
+### 数据修复原则
+
+- 本轮不连接真实 New API 实例，不直接修改生产数据。
+- 生产补发必须先在备份库或本地库 dry-run，确认问题窗口内“实际已扣费但缺少 `invitation_rebate_records`”的消费。
+- 补发必须复用 `TryGrantInvitationRebate` 的幂等语义，使用原始 `request_id` 作为 `SourceKey` / `SourceRequestID`，不得直接 SQL 增加 `aff_quota`。
+- 已存在同一 `source_type + source_key` 的记录必须跳过，避免重复返利。
+
+### 验证命令与结果
+
+- `gofmt -w service/billing_session.go service/billing_session_test.go model/option.go model/option_test.go`：通过。
+- `go test ./service -run "TestBillingSessionSettle|TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume" -count=1`：通过。
+- `go test ./model -run TestUpdateInvitationRebateOptionsPersistNormalizedValues -count=1`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `git diff --check`：通过。
+- `go test ./service/...`：未通过，失败仍在既有 `service/channel_affinity_usage_cache_test.go`，与本轮邀请返利结算修复无直接调用关系；本轮定向 service 测试已通过。
+
+### 自审查结果
+
+- 未修改前端。
+- 未修改返利 service。
+- 未修改消费挂接点。
+- 未修改充值、注册 / OAuth、异步任务、Midjourney。
+- 未修改 model 结构、migration、依赖文件。
+- 未提交 `node_modules` 或构建产物。
+- 未输出或写入 token / secret / sk- key / bearer token。
+
+### 下一步建议
+
+- 在生产备份库按问题窗口生成漏返利 dry-run 清单，再决定是否执行一次性补发。
+- 补发后抽查 `invitation_rebate_records`、邀请人 `aff_quota` / `aff_history` 与消费记录的一致性。
+
+## 资金链路上线前全盘加固修复记录
+
+任务名称：资金链路上线前全盘加固修复
+status: completed
+
+### 本轮目标
+
+- 修复易支付充值回调本地入账非原子、且过早返回 `success` 的资金风险。
+- 修复 `model.UpdateOption` 忽略数据库写入错误导致关闭返利止血不可靠的问题。
+- 对 Stripe / Creem / Waffo / Waffo Pancake / 易支付支付日志做最小脱敏，不再记录原始 webhook body、签名、完整回调参数或完整支付响应。
+- 补齐高权重定向测试：易支付幂等入账、入账失败回滚、支付网关不匹配、option 写失败不更新内存、邀请返利流水普通用户不可访问。
+
+### 当前已修改文件
+
+- `model/option.go`
+- `model/option_test.go`
+- `model/topup.go`
+- `model/payment_method_guard_test.go`
+- `controller/topup.go`
+- `controller/topup_stripe.go`
+- `controller/topup_creem.go`
+- `controller/topup_waffo.go`
+- `controller/topup_waffo_pancake.go`
+- `controller/invitation_rebate_auth_test.go`
+- `.ai/TASK.md`
+
+### 当前实现摘要
+
+- `UpdateOption` 现在用事务执行 `FirstOrCreate` 和 `Save`；DB 写失败时直接返回 error，不调用 `updateOptionMap`。
+- 新增 `model.RechargeEpay`，在单个事务中锁定 `topups.trade_no`、校验 `PaymentProviderEpay`、校验 pending / success、更新订单成功状态并增加用户额度。
+- 易支付已 success 的订单按幂等成功返回，不重复增加用户额度。
+- 如果用户额度更新失败或用户不存在，事务回滚，订单不会被永久标记为 success。
+- 易支付事务成功后按原有语义补充用户 quota 缓存增量；缓存失败只记系统日志，不回滚已成功入账。
+- `EpayNotify` 验签成功后不再立即返回 `success`；只有本地事务成功或已幂等成功后才返回 `success`，本地失败返回 `fail` 让网关可重试。
+- 支付日志改为记录事件类型、订单号、状态、金额、用户 ID、客户端 IP、payload 字节数和错误摘要，不记录原始 body、签名、完整参数或完整响应。
+
+### 当前未修改范围
+
+- 未修改邀请返利计算语义。
+- 未修改同步消费挂接范围。
+- 未修改 model 结构 / migration。
+- 未修改前端页面。
+- 未修改依赖文件。
+- 未执行 `.agents/skills`。
+- 未连接真实 New API 实例。
+
+### 验证命令与结果
+
+- `gofmt -w model/option.go model/option_test.go model/topup.go model/payment_method_guard_test.go controller/topup.go controller/topup_stripe.go controller/topup_creem.go controller/topup_waffo.go controller/topup_waffo_pancake.go controller/invitation_rebate_auth_test.go`：通过。
+- `go test ./model -run "TestUpdateInvitationRebateOptions|TestUpdateOption|TestRechargeEpay" -count=1`：通过。
+- `go test ./controller -run "TestEpay|TestInvitationRebate" -count=1`：通过。
+- `go test ./service -run "TestBillingSessionSettle|TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume" -count=1`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./service/...`：未通过，失败仍在既有 `service/channel_affinity_usage_cache_test.go`，当前复现失败用例为 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode`，与本轮易支付、option、支付日志脱敏和邀请返利功能无直接交集。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 已确认未修改前端页面。
+- 已确认未修改邀请返利计算语义。
+- 已确认未扩大同步消费挂接范围。
+- 已确认未修改 model 结构 / migration。
+- 已确认未修改依赖文件，未提交 `node_modules` 或构建产物。
+- 已确认易支付本地入账成功前不会向网关返回 `success`；本地失败返回 `fail`，允许网关重试。
+- 已确认易支付重复 success 回调只幂等返回，不重复增加用户额度。
+- 已确认 `UpdateOption` 在 DB 写失败时不更新内存 `OptionMap`。
+- 已确认支付日志不再记录原始 webhook body、签名、完整回调参数、完整支付响应或支付链接。
+- 已确认未输出或写入 token / secret / sk- key / bearer token。
+
+### 下一步建议
+
+- 生产上先保持邀请返利关闭，完成备份和问题窗口核账。
+- 在备份库或本地库执行 dry-run，只筛出已实际扣费但缺少 `invitation_rebate_records` 的请求。
+- 如需补发，必须复用 `TryGrantInvitationRebate` 幂等语义，使用原始 request id 作为 `SourceKey` / `SourceRequestID`，不要直接 SQL 修改 `aff_quota`。
+- 单独排期修复既有 `service/channel_affinity_usage_cache_test.go`，恢复 `go test ./service/...` 全包绿灯。
+## 累计邀请返利资金安全加固记录
+
+任务名称：将邀请消费返利改为累计消费达标返利
+status: completed
+
+### 本轮目标
+
+- 将邀请返利从单笔消费达标返利改为累计消费达标返利。
+- 所有累计入账、满额结算、返利流水创建、邀请人 `aff_quota` / `aff_history` 更新均在主库事务中完成。
+- 继续复用现有后台配置项：
+  - `InvitationRebateEnabled`
+  - `InvitationRebateRatioBps`
+  - `InvitationRebateMinQuota`
+- 不修改充值、注册 / OAuth、异步任务、Midjourney、多级邀请、补发、删除、导出逻辑。
+
+### 实现摘要
+
+- 新增主库累计消费明细模型 `InvitationRebateConsumption`，对 `source_type + source_key` 建唯一索引，确保同一次同步消费不会重复累计。
+- 新增主库累计状态模型 `InvitationRebateAccumulation`，按邀请人 / 被邀请人关系维护未结算累计额度、历史累计额度、历史已结算额度、历史返利额度和返利分子余数。
+- `TryGrantInvitationRebate` 保持入口不变，内部改为：
+  - 配置关闭、比例为 0、空 source、无邀请人、邀请人不存在、消费额度小于等于 0 时跳过。
+  - 有效消费先写入累计明细。
+  - 按后台当前 `InvitationRebateMinQuota` 动态计算是否达到累计门槛。
+  - 未满门槛返回 `accumulated`，不发放返利。
+  - 达到门槛后只结算满额部分，剩余未满部分继续保留。
+  - 每笔消费记录消费发生时的 `rebate_ratio_bps`，后续管理员改比例不追溯旧消费。
+  - 小额返利的分子余数保留到累计状态中，避免长期向下取整损失。
+  - 已发放返利继续写入 `invitation_rebate_records` 作为管理员流水。
+- 后台新版和旧版额度设置文案已改为累计门槛语义，强调基于累计实际消费而不是充值。
+- 自审时发现部分 locale 新增文案存在终端编码导致的 `????` 乱码，并且新版 locale 中受保护的 footer key 被 JSON 重写为普通拼写；已仅限 locale 文件修复为正确翻译与原有 `footer.new\u0061pi.projectAttributionSuffix` key，未改业务逻辑。
+
+### 修改文件
+
+- `model/invitation_rebate_record.go`
+- `model/main.go`
+- `service/invitation_rebate.go`
+- `service/invitation_rebate_test.go`
+- `web/default/src/features/system-settings/general/quota-settings-section.tsx`
+- `web/default/src/i18n/locales/{en,zh,fr,ja,ru,vi}.json`
+- `web/classic/src/pages/Setting/Operation/SettingsCreditLimit.jsx`
+- `web/classic/src/i18n/locales/{en,zh,zh-CN,zh-TW,fr,ja,ru,vi}.json`
+- `.ai/TASK.md`
+
+### 验证命令与结果
+
+- `gofmt -w model/invitation_rebate_record.go model/main.go service/invitation_rebate.go service/invitation_rebate_test.go`：通过。
+- `go test ./service -run "TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume" -count=1`：通过。
+- `go test ./service/...`：未通过，失败仍在既有 `service/channel_affinity_usage_cache_test.go`；本轮最新复现用例为 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode`，上一轮曾复现 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`，均与本轮累计返利模型、事务和前端文案无直接交集。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `cd web/default && bun run typecheck`：通过，使用临时 Bun 1.3.13。
+- `cd web/default && bun run build`：通过。
+- `cd web/classic && bun run build`：通过，仅有既有 Browserslist、lottie eval 和 chunk size warning。
+- `cd web/default && bun run lint`：未通过，失败文件均为既有非本轮修改文件。
+- `cd web/classic && bun run lint`：未通过，失败为旧版前端既有 Prettier / dist 检查债务，本轮修改文件未出现在失败清单中。
+- locale JSON parse 与本轮新增 key 完整性检查：通过。
+- `git diff --check`：通过。
+
+### 已知既有失败与豁免依据
+
+- 新版前端 lint 仍失败在既有文件：
+  - `web/default/src/features/keys/components/api-keys-dialogs.tsx`
+  - `web/default/src/features/system-settings/models/group-ratio-visual-editor.tsx`
+  - `web/default/src/features/system-settings/models/ratio-settings-card.tsx`
+  - `web/default/src/features/system-settings/models/tiered-pricing-editor.tsx`
+  - `web/default/src/features/usage-logs/components/common-logs-filter-bar.tsx`
+  - `web/default/src/features/usage-logs/components/task-logs-filter-bar.tsx`
+  - `web/default/src/lib/theme-radius.ts`
+- 旧版前端 lint 仍失败在既有大范围 Prettier / dist 检查债务，本轮修改的 `SettingsCreditLimit.jsx` 与新增 locale key 不在失败清单中。
+- 上述 lint 失败均不涉及本轮累计返利后端事务、累计账本、消费挂接、充值、注册 / OAuth、异步任务或 Midjourney。
+
+### 自审查结果
+
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改异步任务 / Midjourney。
+- 未扩大同步消费挂接范围。
+- 未新增补发、删除、导出、多级邀请或普通用户返利日志。
+- 未修改依赖文件，未提交 `node_modules` 或构建产物。
+- 未输出或写入 token / secret / sk- key / bearer token。
+- 新增累计模型通过 AutoMigrate 注册，兼容项目现有 SQLite / MySQL / PostgreSQL 的 GORM 写法。
+- 重复 `source_type + source_key` 只会幂等返回，不重复累计或重复返利。
+- 返利流水创建、累计状态更新、邀请人返利额度更新在同一事务中完成；任一失败会回滚。
+
+### 下一步建议
+
+- 上线前保持 `InvitationRebateEnabled=false`，先在本地或备份库确认新表和唯一索引创建成功。
+- 用低风险测试账号验证低额累计、满额返利、重复请求幂等和后台流水展示。
+- 生产如发现异常，第一步关闭 `InvitationRebateEnabled`，保留 `users`、`options`、`invitation_rebate_consumptions`、`invitation_rebate_accumulations`、`invitation_rebate_records` 和消费日志用于核账。
+## 累计邀请返利审计可解释性优化记录
+
+任务名称：新增累计返利结算明细与后台只读详情
+status: completed
+
+### 本轮目标
+
+- 保留现有累计返利核心算法、消费挂接、充值、注册 / OAuth、异步任务与 Midjourney 范围不变。
+- 新增结算明细审计层，解决管理员流水只看到触发 request id、无法复盘本次累计返利覆盖哪些消费明细的问题。
+- 管理员流水列表继续保留，新增只读详情入口；不新增补发、删除、导出、手动修改、多级邀请或普通用户日志页。
+
+### 本轮实际修改文件
+
+- `model/invitation_rebate_record.go`
+- `model/main.go`
+- `service/invitation_rebate.go`
+- `service/invitation_rebate_test.go`
+- `controller/invitation_rebate.go`
+- `controller/invitation_rebate_auth_test.go`
+- `controller/invitation_rebate_test.go`
+- `router/api-router.go`
+- `web/default/src/features/system-settings/api.ts`
+- `web/default/src/features/system-settings/types.ts`
+- `web/default/src/features/system-settings/general/invitation-rebate-records-section.tsx`
+- `web/default/src/i18n/locales/{en,zh,fr,ja,ru,vi}.json`
+- `web/classic/src/pages/Setting/Operation/InvitationRebateRecordsModal.jsx`
+- `web/classic/src/i18n/locales/{en,zh,zh-CN,zh-TW,fr,ja,ru,vi}.json`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 新增主库表模型 `InvitationRebateSettlementItem`，记录 `rebate_record_id`、`consumption_id`、邀请人 / 被邀请人、消费 source type/key/request id、本次从该消费结算的 quota、消费发生时的比例快照、本段返利 quota、结算前后取整余数。
+- `InvitationRebateSettlementItem` 已注册到 `AutoMigrate` 和 fast migration 列表，使用 GORM 普通字段和索引，未使用数据库特有语法。
+- `TryGrantInvitationRebate` 内部改为先生成结算计划，再同事务创建返利流水、创建结算明细、更新消费明细状态、更新累计状态并增加邀请人 `aff_quota` / `aff_history`。
+- 当低比例导致本次 `rebate_quota=0` 时，仍创建 0 金额结算流水和明细用于审计复盘，但不增加邀请人返利余额。
+- 新增管理员只读详情接口 `GET /api/user/invitation_rebate/:id`，返回单条返利流水、结算明细列表以及 legacy 标记；路由继续挂在 `AdminAuth` 管理员权限组。
+- 新版前端和旧版前端的管理员返利流水均新增“详情”入口，展示本次累计结算覆盖的消费明细；旧流水无明细时展示 legacy 说明。
+- i18n 已手动补齐本轮新增 key，未执行 `.agents/skills` 命令。
+
+### 未修改范围
+
+- 未修改充值链路。
+- 未修改注册 / OAuth。
+- 未修改异步任务 / Midjourney。
+- 未扩大同步消费挂接范围。
+- 未新增补发、删除、导出、手动修改、多级邀请或普通用户返利日志。
+- 未修改依赖文件，未提交 `node_modules` 或构建产物。
+
+### 验证命令与结果
+
+- `gofmt -w model/invitation_rebate_record.go model/main.go service/invitation_rebate.go service/invitation_rebate_test.go controller/invitation_rebate.go controller/invitation_rebate_auth_test.go controller/invitation_rebate_test.go`：通过。
+- `go test ./service -run "TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume" -count=1`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./service/...`：未通过，仍失败在既有 `service/channel_affinity_usage_cache_test.go`，本轮复现用例为 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode` 和 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`，与累计返利审计明细无直接交集。
+- `cd web/default && bun run typecheck`：通过，使用临时 Bun 1.3.13。
+- `cd web/default && bun run build`：通过。
+- `cd web/classic && bun run build`：通过，仅有既有 Browserslist、lottie eval 和 chunk size warning。
+- `cd web/default && bun run lint`：未通过，失败文件均为既有非本轮修改文件。
+- `cd web/classic && bun run lint`：未通过，失败为既有 Prettier / dist 检查债务；对本轮 `InvitationRebateRecordsModal.jsx` 做定向 Prettier 后，该文件不再出现在失败清单中。
+- locale JSON parse 与本轮新增 key 完整性检查：通过。
+- `git diff --check`：通过。
+
+### 已知失败与豁免依据
+
+- `go test ./service/...` 仍受既有 channel affinity usage cache 测试失败影响；定向返利 service 测试已通过，本轮新增结算明细、事务回滚和详情接口不涉及该缓存逻辑。
+- 新版前端 lint 仍失败在既有文件：`api-keys-dialogs.tsx`、`group-ratio-visual-editor.tsx`、`ratio-settings-card.tsx`、`tiered-pricing-editor.tsx`、`common-logs-filter-bar.tsx`、`task-logs-filter-bar.tsx`、`theme-radius.ts` 等，均非本轮修改文件。
+- 旧版前端 lint 仍失败在既有大范围 Prettier / dist 检查债务；本轮修改的旧版返利流水 Modal 已定向格式化并从失败清单移除。
+
+### 自审查结果
+
+- 通过：返利流水、结算明细、消费明细状态、累计状态、邀请人返利余额仍在同一主库事务内完成，任一步失败整体回滚。
+- 通过：重复 `source_type + source_key` 不重复累计、不重复返利。
+- 通过：详情接口只读，且位于管理员权限组；普通用户权限测试覆盖列表与详情路由。
+- 通过：前端只新增管理员只读详情展示，不提供补发、删除、导出或修改。
+- 通过：未修改充值、注册 / OAuth、异步任务、Midjourney、依赖文件或构建产物。
+- 通过：未输出或写入 token / secret / sk- key / bearer token。
+
+### 下一步建议
+
+- 上线前继续保持 `InvitationRebateEnabled=false`，先在本地或备份库验证 `invitation_rebate_settlement_items` 表与索引创建成功。
+- 用测试账号验收低额累计、跨多笔消费结算、同一消费拆分结算、比例变更快照、低比例 0 金额明细、详情展示和重复 request id 幂等。
+- 生产开启前先小比例、小门槛、小流量灰度；如发现异常，第一步关闭 `InvitationRebateEnabled` 并保留 `users`、`options`、累计表、返利流水、结算明细和消费日志用于核账。
+
+## 资金链路漏洞与风险修复记录
+
+任务名称：资金链路行锁、回调入账与累计返利并发加固
+status: completed
+
+### 本轮目标
+
+- 修复资金事务中旧式 `gorm:query_option` 行锁可能不生效的问题。
+- 修复 Stripe webhook 本地入账失败仍可能返回 200 的问题。
+- 对齐充值渠道用户额度更新命中行数检查，避免订单 success 但用户额度未增加。
+- 加固累计返利消费明细结算条件更新，避免并发覆盖同一消费明细。
+- 加固邀请余额转余额、兑换码等资金相关事务边界。
+
+### 本轮修改文件
+
+- `model/locking.go`
+- `model/topup.go`
+- `model/redemption.go`
+- `model/user.go`
+- `model/subscription.go`
+- `model/task_cas_test.go`
+- `model/payment_method_guard_test.go`
+- `controller/topup_stripe.go`
+- `controller/topup_stripe_test.go`
+- `service/invitation_rebate.go`
+- `service/invitation_rebate_test.go`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 新增 `model.LockingForUpdate(tx)`，MySQL/PostgreSQL 使用 `clause.Locking{Strength: "UPDATE"}`，SQLite 保持 no-op 兼容。
+- 替换资金相关路径中的旧式 `tx.Set("gorm:query_option", "FOR UPDATE")`。
+- Stripe webhook 的本地订阅/充值处理失败会向上返回 error，webhook 返回 5xx，允许 Stripe 重试。
+- Stripe、Creem、Waffo、Waffo Pancake、易支付、管理员补单的用户额度增加均检查 `RowsAffected`，未命中用户时回滚事务。
+- Stripe 重复 success 回调和管理员重复补单保持幂等，不重复增加额度，也不重复写成功充值日志。
+- 兑换码充值用户额度更新检查 `RowsAffected`，用户不存在时回滚兑换码状态。
+- 邀请余额转余额在行锁基础上增加 `aff_quota >= quota` 条件原子更新，防止并发超扣。
+- 累计返利消费明细结算更新增加旧 `settled_source_quota` 条件，命中 0 行视为并发冲突并回滚。
+
+### 未修改范围
+
+- 未修改返利比例、累计门槛、source key 或消费挂接范围。
+- 未修改充值金额计算规则。
+- 未修改注册 / OAuth、异步任务、Midjourney。
+- 未修改 model 结构 / migration。
+- 未修改前端。
+- 未修改依赖文件，未提交 `node_modules` 或构建产物。
+- 未执行 `.agents/skills`，未连接真实 New API 实例。
+
+### 验证命令与结果
+
+- `gofmt -w model/locking.go model/topup.go model/user.go model/redemption.go model/subscription.go model/task_cas_test.go model/payment_method_guard_test.go service/invitation_rebate.go service/invitation_rebate_test.go controller/topup_stripe.go controller/topup_stripe_test.go`：通过。
+- `go test ./model -run "TestRechargeEpay|TestRechargeStripe|TestRechargeCreem|TestRechargeWaffo|TestManualCompleteTopUp|TestRedeem|TestTransferAffQuota|TestUpdatePendingTopUpStatus|TestCompleteSubscriptionOrder|TestExpireSubscriptionOrder" -count=1`：通过。
+- `go test ./controller -run "TestStripe|TestEpay|TestInvitationRebate" -count=1`：通过。
+- `go test ./service -run "TestTryGrantInvitationRebate|TestGrantInvitationRebateAfterSyncConsume|TestApplyInvitationRebateSettlementPlan|TestBillingSessionSettle" -count=1`：通过。
+- `go test ./model -run "TestUpdateInvitationRebateOptions|TestUpdateOption|TestRechargeEpay|TestRechargeStripe|TestRechargeCreem|TestRechargeWaffo|TestManualCompleteTopUp|TestRedeem|TestTransferAffQuota" -count=1`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./service/...`：未通过，仍失败在既有 `service/channel_affinity_usage_cache_test.go` 的 `TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode` 和 `TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty`，与本轮资金链路、充值入账、累计返利结算加固无直接交集。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- staged 前自审：本轮只改后端资金安全和对应测试，不改前端、不改依赖、不改数据库结构。
+- 已确认没有扩大邀请返利消费挂接范围，没有修改返利计算语义。
+- 已确认 Stripe 本地入账失败不会返回 200。
+- 已确认充值渠道用户额度更新未命中时会回滚订单状态。
+- 已确认累计返利消费明细结算并发冲突会回滚。
+- 已确认没有输出或写入 token / secret / sk- key / bearer token。
+
+### 下一步建议
+
+- 生产继续保持 `InvitationRebateEnabled=false`，先部署加固版本并在备份库/本地验证行锁、充值回调重试和累计返利并发场景。
+- 单独排期修复既有 `service/channel_affinity_usage_cache_test.go` 测试债务，恢复 `go test ./service/...` 全绿。
+- 如需恢复生产邀请返利，先用小比例、小门槛、测试账号跑完整消费到返利流水链路。
+## service 通道亲和缓存统计测试隔离修复记录
+任务名称：修复 `channel_affinity_usage_cache_test.go` 既有测试隔离失败
+status: completed
+
+### 本轮目标
+
+- 修复 `go test ./service/...` 中既有 `TestObserveChannelAffinityUsageCacheByRelayFormat` 统计串扰失败。
+- 只修改测试隔离逻辑，不修改通道亲和业务实现。
+- 不修改邀请返利、充值、消费挂接、model/migration、前端或依赖。
+
+### 问题归因
+
+- 失败复现时，`MixedMode` 或 `UnsupportedModeKeepsEmpty` 的 `Total` 会累加前置用例统计。
+- 测试原先使用 `time.Now().UnixNano()` 生成 `ruleName` 与 `keyFP`。
+- 在当前环境快速执行时，该时间戳后缀可能不足以隔离包级统计缓存，导致多个用例命中同一统计 key。
+
+### 修改文件
+
+- `service/channel_affinity_usage_cache_test.go`
+- `.ai/TASK.md`
+
+### 修复摘要
+
+- 新增测试专用原子计数器和唯一后缀 helper。
+- 使用测试名 + 原子递增值生成 `ruleName` 与 `keyFP`。
+- 移除对 `time.Now().UnixNano()` 的依赖。
+- 未修改 `service/channel_affinity.go` 或任何业务代码。
+
+### 验证命令与结果
+
+- `gofmt -w service/channel_affinity_usage_cache_test.go`：通过。
+- `go test ./service -run TestObserveChannelAffinityUsageCacheByRelayFormat -count=1 -v`：通过。
+- `go test ./service/...`：通过。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 已确认只修改测试隔离与任务记录。
+- 已确认未修改邀请返利 service、消费挂接、充值、注册 / OAuth、异步任务、Midjourney。
+- 已确认未修改 model/migration、前端、依赖文件。
+- 已确认未提交 node_modules、构建产物或任何密钥。
+
+### 下一步建议
+
+- 资金链路继续保持上线前人工验收：小比例、小门槛、测试账号验证完整消费到返利流水链路。
+- 后续如需继续增强，可补 MySQL/PostgreSQL 集成环境下的资金行锁与并发回归测试。
+## 邀请返利上线前本地验收记录
+任务名称：本地 PostgreSQL + Redis 环境验证累计邀请返利与后台流水
+status: blocked
+
+### 本轮目标
+
+- 使用 `docker-compose.dev.yml` 构建当前源码后端，在本地 PostgreSQL + Redis 环境验证迁移、健康检查、后台配置与返利流水。
+- 不连接真实 New API 实例，不使用生产库，不写入真实资金数据。
+- 不修改业务代码、前端代码、数据库结构、依赖或构建产物。
+
+### 已完成验证
+
+- 已安装并启用当前 Codex 环境 Bun 1.3.13；安装发生在用户工具目录，未修改仓库文件。
+- `go test ./model/...`：通过。
+- `go test ./controller/...`：通过。
+- `go test ./service/...`：通过。
+- `cd web/default && bun run typecheck`：通过。
+- `cd web/default && bun run build`：通过。
+- `cd web/classic && bun run build`：通过；仅有既有 Browserslist、lottie eval 和 chunk size warning。
+- `cd web/default && bun run lint`：未通过，失败仍为既有非本轮文件的 React hooks lint 债务；本轮未修改前端文件。
+- `cd web/classic && bun run lint`：未通过，失败为既有 Prettier / dist 检查债务；本轮未修改前端文件。
+
+### 阻塞项
+
+- 当前环境没有 `docker` 命令，`docker --version` 和 `docker compose version` 均无法执行。
+- 当前环境没有可用替代容器运行时：未发现 `podman`、`nerdctl`。
+- 当前环境没有本地 PostgreSQL 命令：未发现 `psql`、`postgres`。
+- 因此无法执行：
+  - `docker compose -f docker-compose.dev.yml up -d --build new-api`
+  - `docker compose -f docker-compose.dev.yml ps`
+  - `docker compose -f docker-compose.dev.yml logs --tail=200 new-api`
+  - 本地 PostgreSQL 表和索引创建结果查询
+  - 管理员后台人工验收和真实本地消费链路验收
+
+### 当前结论
+
+- 代码层回归、前端 typecheck 和构建验证已通过。
+- 本地 PostgreSQL + Redis 生产相似验收未完成，原因是当前执行环境缺少 Docker/容器运行时和本地 PostgreSQL。
+- 本轮不得标记为完成态，也不创建 `文档：记录邀请返利上线前本地验收结果` commit。
+
+### 下一步建议
+
+- 在安装 Docker Desktop 或具备 Docker Engine 的机器上重新执行 `docker-compose.dev.yml` 本地验收。
+- 生产开启前继续保持 `InvitationRebateEnabled=false`。
+- 容器验收通过后，再用小比例、小门槛、测试账号验证完整“邀请关系 -> 累计消费 -> 达标返利 -> 流水详情”链路。

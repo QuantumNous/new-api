@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "各行は、この累計リベート精算に含まれる消費リクエストを示します。",
+    "Failed to load invitation rebate record detail": "招待リベート記録の詳細を読み込めませんでした",
+    "Invitation Rebate Settlement Detail": "招待リベート精算明細",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "旧版のリベート記録にはトリガー source key のみが残り、精算明細は含まれません。",
+    "No settlement item details found": "精算明細が見つかりません",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "招待されたユーザーの実消費に基づく読み取り専用の累計精算記録です。",
+    "Remainder After": "精算後の余り",
+    "Remainder Before": "精算前の余り",
+    "Settled Source Quota": "精算済み消費クォータ",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
@@ -1411,6 +1420,7 @@
     "Ensure Suffix": "サフィックスを保証",
     "Ensure the string has a specified prefix": "文字列に指定のプレフィックスがあることを確認",
     "Ensure the string has a specified suffix": "文字列に指定のサフィックスがあることを確認",
+    "Enter 10 for 10%. Rebates are based on actual consumed quota, not top-ups.": "10 と入力すると 10% です。還元はチャージではなく実際に消費されたクォータに基づきます。",
     "Enter 6-digit code": "6桁のコードを入力",
     "Enter a name": "名前を入力",
     "Enter a new name": "新しい名前を入力してください",
@@ -3128,6 +3138,7 @@
     "Re-enable on success": "成功時に再有効化",
     "Re-login": "再ログイン",
     "Read-only rebate records based on invited users' actual consumption.": "招待されたユーザーの実際の消費に基づく読み取り専用の還元履歴です。",
+    "Rebate Percentage": "還元率",
     "Rebate Quota": "還元クォータ",
     "Rebate Ratio (bps)": "還元率 (bps)",
     "Ready": "準備完了",
@@ -4155,6 +4166,7 @@
     "URL": "URL",
     "URL is required": "URL は必須です",
     "URL to your logo image (optional)": "ロゴ画像のURL (オプション)",
+    "Use at most two decimal places": "小数点以下は最大2桁まで使用してください",
     "Usage": "使用量",
     "Usage at a glance": "使用状況の概要",
     "Usage guide": "使用ガイド",
@@ -4421,6 +4433,10 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Configure cumulative rebates from invited users' actual consumption": "招待ユーザーの累計実消費に基づくリベートを設定",
+    "Accumulate invited users' actual consumed quota and grant inviter rewards after the configured threshold is reached. Rebates are not based on top-ups.": "招待ユーザーの実際の消費クォータを累計し、設定したしきい値に達した後に招待者へリベートを付与します。リベートはチャージに基づきません。",
+    "Cumulative Trigger Consumption Quota": "累計消費トリガークォータ",
+    "Grant rebates when cumulative actual consumed quota reaches this value. Unsettled quota keeps accumulating.": "累計の実消費クォータがこの値に達したときにリベートを付与します。未精算のクォータは引き続き累計されます。"
   }
 }

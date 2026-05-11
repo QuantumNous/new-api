@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "Каждая строка показывает один запрос потребления, включенный в это накопительное начисление реферального возврата.",
+    "Failed to load invitation rebate record detail": "Не удалось загрузить детали записи реферального возврата",
+    "Invitation Rebate Settlement Detail": "Детали начисления реферального возврата",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "Старые записи возврата содержат только trigger source key и не включают детали начисления.",
+    "No settlement item details found": "Детали начисления не найдены",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "Записи накопительных начислений только для чтения на основе фактического потребления приглашенных пользователей.",
+    "Remainder After": "Остаток после",
+    "Remainder Before": "Остаток до",
+    "Settled Source Quota": "Начисленная квота потребления",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
@@ -1411,6 +1420,7 @@
     "Ensure Suffix": "Обеспечить суффикс",
     "Ensure the string has a specified prefix": "Убедиться, что строка имеет указанный префикс",
     "Ensure the string has a specified suffix": "Убедиться, что строка имеет указанный суффикс",
+    "Enter 10 for 10%. Rebates are based on actual consumed quota, not top-ups.": "Введите 10 для 10%. Возврат основан на фактически израсходованной квоте, а не на пополнениях.",
     "Enter 6-digit code": "Введите 6-значный код",
     "Enter a name": "Введите имя",
     "Enter a new name": "Введите новое имя",
@@ -3128,6 +3138,7 @@
     "Re-enable on success": "Повторно включить при успехе",
     "Re-login": "Повторный вход",
     "Read-only rebate records based on invited users' actual consumption.": "Записи возврата только для чтения на основе фактического потребления приглашенных пользователей.",
+    "Rebate Percentage": "Процент возврата",
     "Rebate Quota": "Квота возврата",
     "Rebate Ratio (bps)": "Коэффициент возврата (bps)",
     "Ready": "Готово",
@@ -4155,6 +4166,7 @@
     "URL": "URL",
     "URL is required": "URL обязателен",
     "URL to your logo image (optional)": "URL изображения вашего логотипа (необязательно)",
+    "Use at most two decimal places": "Используйте не более двух знаков после запятой",
     "Usage": "Использование",
     "Usage at a glance": "Краткий обзор использования",
     "Usage guide": "Руководство",
@@ -4421,6 +4433,10 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Configure cumulative rebates from invited users' actual consumption": "Настройка накопительных возвратов за фактическое потребление приглашенных пользователей",
+    "Accumulate invited users' actual consumed quota and grant inviter rewards after the configured threshold is reached. Rebates are not based on top-ups.": "Накапливает фактически израсходованную квоту приглашенных пользователей и начисляет вознаграждение пригласившему после достижения настроенного порога. Возвраты не основаны на пополнениях.",
+    "Cumulative Trigger Consumption Quota": "Накопительный порог потребления",
+    "Grant rebates when cumulative actual consumed quota reaches this value. Unsettled quota keeps accumulating.": "Начисляет возвраты, когда накопленная фактически израсходованная квота достигает этого значения. Нерассчитанная квота продолжает накапливаться."
   }
 }

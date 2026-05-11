@@ -42,6 +42,24 @@ export type InvitationRebateRecord = {
   updated_at: number
 }
 
+export type InvitationRebateSettlementItem = {
+  id: number
+  rebate_record_id: number
+  consumption_id: number
+  inviter_user_id: number
+  invitee_user_id: number
+  source_type: string
+  source_key: string
+  source_request_id: string
+  settled_source_quota: number
+  rebate_ratio_bps: number
+  rebate_quota: number
+  remainder_before: number
+  remainder_after: number
+  created_at: number
+  updated_at: number
+}
+
 export type InvitationRebateRecordQuery = {
   p: number
   page_size: number
@@ -60,6 +78,16 @@ export type InvitationRebateRecordsResponse = {
     page_size: number
     total: number
     items: InvitationRebateRecord[]
+  }
+}
+
+export type InvitationRebateRecordDetailResponse = {
+  success: boolean
+  message: string
+  data: {
+    record: InvitationRebateRecord
+    items: InvitationRebateSettlementItem[]
+    legacy: boolean
   }
 }
 
@@ -191,16 +219,6 @@ export type ModelSettings = {
 }
 
 export type BillingSettings = {
-  QuotaForNewUser: number
-  PreConsumedQuota: number
-  QuotaForInviter: number
-  QuotaForInvitee: number
-  InvitationRebateEnabled: boolean
-  InvitationRebateRatioBps: number
-  InvitationRebateMinQuota: number
-  TopUpLink: string
-  'general_setting.docs_link': string
-  'quota_setting.enable_free_model_pre_consume': boolean
   QuotaPerUnit: number
   USDExchangeRate: number
   'general_setting.quota_display_type': string
@@ -283,6 +301,16 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  QuotaForNewUser: number
+  PreConsumedQuota: number
+  QuotaForInviter: number
+  QuotaForInvitee: number
+  InvitationRebateEnabled: boolean
+  InvitationRebateRatioBps: number
+  InvitationRebateMinQuota: number
+  TopUpLink: string
+  'general_setting.docs_link': string
+  'quota_setting.enable_free_model_pre_consume': boolean
   ChannelDisableThreshold: string
   QuotaRemindThreshold: string
   AutomaticDisableChannelEnabled: boolean

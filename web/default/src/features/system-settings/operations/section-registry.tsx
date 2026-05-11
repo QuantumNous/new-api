@@ -1,4 +1,5 @@
 import { SystemBehaviorSection } from '../general/system-behavior-section'
+import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
@@ -20,6 +21,33 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'quota',
+    titleKey: 'Quota Settings',
+    descriptionKey: 'Configure user quota allocation and rewards',
+    build: (settings: OperationsSettings) => (
+      <QuotaSettingsSection
+        defaultValues={{
+          QuotaForNewUser: settings.QuotaForNewUser,
+          PreConsumedQuota: settings.PreConsumedQuota,
+          QuotaForInviter: settings.QuotaForInviter,
+          QuotaForInvitee: settings.QuotaForInvitee,
+          InvitationRebateEnabled: settings.InvitationRebateEnabled,
+          InvitationRebateRatioPercent:
+            settings.InvitationRebateRatioBps / 100,
+          InvitationRebateMinQuota: settings.InvitationRebateMinQuota,
+          TopUpLink: settings.TopUpLink,
+          general_setting: {
+            docs_link: settings['general_setting.docs_link'],
+          },
+          quota_setting: {
+            enable_free_model_pre_consume:
+              settings['quota_setting.enable_free_model_pre_consume'],
+          },
         }}
       />
     ),

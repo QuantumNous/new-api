@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -50,6 +51,36 @@ func GetAllInvitationRebateRecords(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(records)
 	common.ApiSuccess(c, pageInfo)
+}
+
+// GetInvitationRebateRecordDetail returns one rebate record and its settlement items for admins.
+func GetInvitationRebateRecordDetail(c *gin.Context) {
+	id, err := strconv.Atoi(strings.TrimSpace(c.Param("id")))
+	if err != nil || id <= 0 {
+		common.ApiError(c, errors.New("invalid invitation rebate record id"))
+		return
+	}
+
+	var record model.InvitationRebateRecord
+	if err := model.DB.Where("id = ?", id).First(&record).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var items []*model.InvitationRebateSettlementItem
+	if err := model.DB.
+		Where("rebate_record_id = ?", id).
+		Order("id asc").
+		Find(&items).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"record": record,
+		"items":  items,
+		"legacy": len(items) == 0,
+	})
 }
 
 func parsePositiveQueryInt(c *gin.Context, key string) (int, bool) {

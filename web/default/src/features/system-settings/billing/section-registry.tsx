@@ -1,9 +1,7 @@
 import { parseCurrencyDisplayType } from '@/lib/currency'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { InvitationRebateRecordsSection } from '../general/invitation-rebate-records-section'
-import { InvitationRebateSettingsSection } from '../general/invitation-rebate-settings-section'
 import { PricingSection } from '../general/pricing-section'
-import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
@@ -36,29 +34,6 @@ const getGroupDefaults = (settings: BillingSettings) => ({
 
 const BILLING_SECTIONS = [
   {
-    id: 'quota',
-    titleKey: 'Quota Settings',
-    descriptionKey: 'Configure user quota allocation and rewards',
-    build: (settings: BillingSettings) => (
-      <QuotaSettingsSection
-        defaultValues={{
-          QuotaForNewUser: settings.QuotaForNewUser,
-          PreConsumedQuota: settings.PreConsumedQuota,
-          QuotaForInviter: settings.QuotaForInviter,
-          QuotaForInvitee: settings.QuotaForInvitee,
-          TopUpLink: settings.TopUpLink,
-          general_setting: {
-            docs_link: settings['general_setting.docs_link'],
-          },
-          quota_setting: {
-            enable_free_model_pre_consume:
-              settings['quota_setting.enable_free_model_pre_consume'],
-          },
-        }}
-      />
-    ),
-  },
-  {
     id: 'currency',
     titleKey: 'Currency & Display',
     descriptionKey: 'Configure currency conversion and quota display options',
@@ -78,20 +53,6 @@ const BILLING_SECTIONS = [
             custom_currency_exchange_rate:
               settings['general_setting.custom_currency_exchange_rate'] ?? 1,
           },
-        }}
-      />
-    ),
-  },
-  {
-    id: 'invitation-rebate',
-    titleKey: 'Invitation Rebate',
-    descriptionKey: "Configure rebates from invited users' actual consumption",
-    build: (settings: BillingSettings) => (
-      <InvitationRebateSettingsSection
-        defaultValues={{
-          InvitationRebateEnabled: settings.InvitationRebateEnabled,
-          InvitationRebateRatioBps: settings.InvitationRebateRatioBps,
-          InvitationRebateMinQuota: settings.InvitationRebateMinQuota,
         }}
       />
     ),
@@ -218,7 +179,7 @@ const billingRegistry = createSectionRegistry<
   BillingSettings
 >({
   sections: BILLING_SECTIONS,
-  defaultSection: 'quota',
+  defaultSection: 'currency',
   basePath: '/system-settings/billing',
   urlStyle: 'path',
 })

@@ -1,5 +1,14 @@
 {
   "translation": {
+    "Each row shows one consumed request included in this cumulative rebate settlement.": "Chaque ligne affiche une requête consommée incluse dans ce règlement cumulé de remise.",
+    "Failed to load invitation rebate record detail": "Échec du chargement du détail de l'enregistrement de remise d'invitation",
+    "Invitation Rebate Settlement Detail": "Détail du règlement de remise d'invitation",
+    "Legacy rebate records only retain the trigger source key and do not include settlement item details.": "Les anciens enregistrements de remise ne conservent que la source key déclencheuse et n'incluent pas les détails de règlement.",
+    "No settlement item details found": "Aucun détail de règlement trouvé",
+    "Read-only cumulative settlement records based on invited users' actual consumption.": "Enregistrements de règlement cumulé en lecture seule basés sur la consommation réelle des utilisateurs invités.",
+    "Remainder After": "Reste après",
+    "Remainder Before": "Reste avant",
+    "Settled Source Quota": "Quota de consommation réglé",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
@@ -1411,6 +1420,7 @@
     "Ensure Suffix": "Garantir le suffixe",
     "Ensure the string has a specified prefix": "S'assurer que la chaîne a un préfixe spécifié",
     "Ensure the string has a specified suffix": "S'assurer que la chaîne a un suffixe spécifié",
+    "Enter 10 for 10%. Rebates are based on actual consumed quota, not top-ups.": "Saisissez 10 pour 10 %. Les remises sont basées sur le quota réellement consommé, pas sur les recharges.",
     "Enter 6-digit code": "Saisir le code à 6 chiffres",
     "Enter a name": "Saisir un nom",
     "Enter a new name": "Entrez un nouveau nom",
@@ -3128,6 +3138,7 @@
     "Re-enable on success": "Réactiver en cas de succès",
     "Re-login": "Se reconnecter",
     "Read-only rebate records based on invited users' actual consumption.": "Enregistrements de remise en lecture seule basés sur la consommation réelle des utilisateurs invités.",
+    "Rebate Percentage": "Pourcentage de remise",
     "Rebate Quota": "Quota de remise",
     "Rebate Ratio (bps)": "Ratio de remise (bps)",
     "Ready": "Prêt",
@@ -4155,6 +4166,7 @@
     "URL": "URL",
     "URL is required": "L'URL est requise",
     "URL to your logo image (optional)": "URL de votre image de logo (facultatif)",
+    "Use at most two decimal places": "Utilisez au maximum deux décimales",
     "Usage": "Utilisation",
     "Usage at a glance": "Vue d'ensemble de l'utilisation",
     "Usage guide": "Guide d'utilisation",
@@ -4421,6 +4433,10 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Configure cumulative rebates from invited users' actual consumption": "Configurer les remises cumulées basées sur la consommation réelle des utilisateurs invités",
+    "Accumulate invited users' actual consumed quota and grant inviter rewards after the configured threshold is reached. Rebates are not based on top-ups.": "Cumule le quota réellement consommé par les utilisateurs invités et accorde des récompenses au parrain lorsque le seuil configuré est atteint. Les remises ne sont pas basées sur les recharges.",
+    "Cumulative Trigger Consumption Quota": "Quota de consommation cumulée déclencheur",
+    "Grant rebates when cumulative actual consumed quota reaches this value. Unsettled quota keeps accumulating.": "Accorde des remises lorsque le quota de consommation réelle cumulée atteint cette valeur. Le quota non réglé continue de s'accumuler."
   }
 }

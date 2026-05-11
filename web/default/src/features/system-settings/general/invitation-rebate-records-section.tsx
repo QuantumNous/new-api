@@ -1,11 +1,18 @@
 import { useMemo, useState } from 'react'
-import { RefreshCcw } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { RefreshCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import {
@@ -16,7 +23,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getInvitationRebateRecords } from '../api'
+import {
+  getInvitationRebateRecordDetail,
+  getInvitationRebateRecords,
+} from '../api'
 import { SettingsSection } from '../components/settings-section'
 
 type Filters = {
@@ -31,6 +41,14 @@ const PAGE_SIZE = 10
 function formatRebateStatus(status: string, t: (key: string) => string) {
   if (status === 'success') return t('Success')
   return status
+}
+
+function formatRebatePercentage(ratioBps: number) {
+  const percent = ratioBps / 100
+  const formatted = Number.isInteger(percent)
+    ? percent.toFixed(0)
+    : percent.toFixed(2).replace(/\.?0+$/, '')
+  return `${formatted}%`
 }
 
 function positiveNumberOrUndefined(value: string) {
@@ -50,6 +68,7 @@ export function InvitationRebateRecordsSection() {
     sourceKey: '',
     status: '',
   })
+  const [detailRecordId, setDetailRecordId] = useState<number | null>(null)
 
   const queryParams = useMemo(
     () => ({
@@ -70,6 +89,20 @@ export function InvitationRebateRecordsSection() {
       if (!result.success) {
         toast.error(
           result.message || t('Failed to load invitation rebate records')
+        )
+      }
+      return result.data
+    },
+  })
+
+  const { data: detailData, isLoading: isDetailLoading } = useQuery({
+    queryKey: ['invitation-rebate-record-detail', detailRecordId, t],
+    enabled: detailRecordId !== null,
+    queryFn: async () => {
+      const result = await getInvitationRebateRecordDetail(detailRecordId!)
+      if (!result.success) {
+        toast.error(
+          result.message || t('Failed to load invitation rebate record detail')
         )
       }
       return result.data
@@ -99,7 +132,7 @@ export function InvitationRebateRecordsSection() {
     <SettingsSection
       title={t('Invitation Rebate Records')}
       description={t(
-        "Read-only rebate records based on invited users' actual consumption."
+        "Read-only cumulative settlement records based on invited users' actual consumption."
       )}
     >
       <div className='space-y-3'>
@@ -132,11 +165,15 @@ export function InvitationRebateRecordsSection() {
           <NativeSelect
             className='w-full'
             value={filters.status}
-            onChange={(event) => updateFilter('status', event.currentTarget.value)}
+            onChange={(event) =>
+              updateFilter('status', event.currentTarget.value)
+            }
             aria-label={t('Status')}
           >
             <NativeSelectOption value=''>{t('All Status')}</NativeSelectOption>
-            <NativeSelectOption value='success'>{t('Success')}</NativeSelectOption>
+            <NativeSelectOption value='success'>
+              {t('Success')}
+            </NativeSelectOption>
           </NativeSelect>
           <div className='flex gap-2'>
             <Button variant='outline' onClick={resetFilters}>
@@ -167,16 +204,17 @@ export function InvitationRebateRecordsSection() {
                   <TableHead>{t('Request ID')}</TableHead>
                   <TableHead>{t('Source Quota')}</TableHead>
                   <TableHead>{t('Rebate Quota')}</TableHead>
-                  <TableHead>{t('Rebate Ratio (bps)')}</TableHead>
+                  <TableHead>{t('Rebate Percentage')}</TableHead>
                   <TableHead>{t('Status')}</TableHead>
                   <TableHead>{t('Created At')}</TableHead>
+                  <TableHead>{t('Actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={11}
+                      colSpan={12}
                       className='text-muted-foreground h-24 text-center'
                     >
                       {t('Loading...')}
@@ -185,7 +223,7 @@ export function InvitationRebateRecordsSection() {
                 ) : records.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={11}
+                      colSpan={12}
                       className='text-muted-foreground h-24 text-center'
                     >
                       {t('No invitation rebate records found')}
@@ -219,7 +257,7 @@ export function InvitationRebateRecordsSection() {
                         {formatQuota(record.rebate_quota)}
                       </TableCell>
                       <TableCell className='font-mono text-xs'>
-                        {record.rebate_ratio_bps}
+                        {formatRebatePercentage(record.rebate_ratio_bps)}
                       </TableCell>
                       <TableCell>
                         <Badge variant='secondary'>
@@ -228,6 +266,15 @@ export function InvitationRebateRecordsSection() {
                       </TableCell>
                       <TableCell className='font-mono text-xs whitespace-nowrap'>
                         {formatTimestampToDate(record.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => setDetailRecordId(record.id)}
+                        >
+                          {t('Details')}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -267,6 +314,95 @@ export function InvitationRebateRecordsSection() {
           </div>
         </div>
       </div>
+      <Dialog
+        open={detailRecordId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailRecordId(null)
+        }}
+      >
+        <DialogContent className='max-w-[96vw] sm:max-w-[960px]'>
+          <DialogHeader>
+            <DialogTitle>
+              {t('Invitation Rebate Settlement Detail')}
+            </DialogTitle>
+            <DialogDescription>
+              {detailData?.legacy
+                ? t(
+                    'Legacy rebate records only retain the trigger source key and do not include settlement item details.'
+                  )
+                : t(
+                    'Each row shows one consumed request included in this cumulative rebate settlement.'
+                  )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='max-h-[60vh] overflow-auto rounded-lg border'>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>{t('Source Key')}</TableHead>
+                  <TableHead>{t('Request ID')}</TableHead>
+                  <TableHead>{t('Settled Source Quota')}</TableHead>
+                  <TableHead>{t('Rebate Percentage')}</TableHead>
+                  <TableHead>{t('Rebate Quota')}</TableHead>
+                  <TableHead>{t('Remainder Before')}</TableHead>
+                  <TableHead>{t('Remainder After')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isDetailLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className='text-muted-foreground h-20 text-center'
+                    >
+                      {t('Loading...')}
+                    </TableCell>
+                  </TableRow>
+                ) : (detailData?.items ?? []).length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className='text-muted-foreground h-20 text-center'
+                    >
+                      {t('No settlement item details found')}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  detailData!.items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className='font-mono text-xs'>
+                        #{item.id}
+                      </TableCell>
+                      <TableCell className='max-w-[220px] truncate font-mono text-xs'>
+                        {item.source_key}
+                      </TableCell>
+                      <TableCell className='max-w-[180px] truncate font-mono text-xs'>
+                        {item.source_request_id || '-'}
+                      </TableCell>
+                      <TableCell className='font-mono text-xs whitespace-nowrap'>
+                        {formatQuota(item.settled_source_quota)}
+                      </TableCell>
+                      <TableCell className='font-mono text-xs'>
+                        {formatRebatePercentage(item.rebate_ratio_bps)}
+                      </TableCell>
+                      <TableCell className='font-mono text-xs whitespace-nowrap'>
+                        {formatQuota(item.rebate_quota)}
+                      </TableCell>
+                      <TableCell className='font-mono text-xs'>
+                        {item.remainder_before}
+                      </TableCell>
+                      <TableCell className='font-mono text-xs'>
+                        {item.remainder_after}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </SettingsSection>
   )
 }

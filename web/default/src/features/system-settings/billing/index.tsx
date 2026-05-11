@@ -6,16 +6,6 @@ import {
 } from './section-registry.tsx'
 
 const defaultBillingSettings: BillingSettings = {
-  QuotaForNewUser: 0,
-  PreConsumedQuota: 0,
-  QuotaForInviter: 0,
-  QuotaForInvitee: 0,
-  InvitationRebateEnabled: false,
-  InvitationRebateRatioBps: 0,
-  InvitationRebateMinQuota: 0,
-  TopUpLink: '',
-  'general_setting.docs_link': '',
-  'quota_setting.enable_free_model_pre_consume': true,
   QuotaPerUnit: 500000,
   USDExchangeRate: 7,
   'general_setting.quota_display_type': 'USD',

@@ -35,6 +35,13 @@ type BillingSession struct {
 	mu               sync.Mutex
 }
 
+var adjustTokenQuotaAfterFundingSettled = func(info *relaycommon.RelayInfo, delta int) error {
+	if delta > 0 {
+		return model.DecreaseTokenQuota(info.TokenId, info.TokenKey, delta)
+	}
+	return model.IncreaseTokenQuota(info.TokenId, info.TokenKey, -delta)
+}
+
 // Settle 根据实际消耗额度进行结算。
 // 资金来源和令牌额度分两步提交：若资金来源已提交但令牌调整失败，
 // 会标记 fundingSettled 防止 Refund 对已提交的资金来源执行退款。
@@ -59,13 +66,10 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	// 2) 调整令牌额度
 	var tokenErr error
 	if !s.relayInfo.IsPlayground {
-		if delta > 0 {
-			tokenErr = model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
-		} else {
-			tokenErr = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, -delta)
-		}
+		tokenErr = adjustTokenQuotaAfterFundingSettled(s.relayInfo, delta)
 		if tokenErr != nil {
-			// 资金来源已提交，令牌调整失败只能记录日志；标记 settled 防止 Refund 误退资金
+			// 资金来源已提交，令牌调整失败只能记录日志；标记 settled 防止 Refund 误退资金。
+			// 此时实际消费已经成立，后续邀请返利等成功后置逻辑不应被 token 统计失败阻断。
 			common.SysLog(fmt.Sprintf("error adjusting token quota after funding settled (userId=%d, tokenId=%d, delta=%d): %s",
 				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
 		}
@@ -75,7 +79,7 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		s.relayInfo.SubscriptionPostDelta += int64(delta)
 	}
 	s.settled = true
-	return tokenErr
+	return nil
 }
 
 // Refund 退还所有预扣费，幂等安全，异步执行。

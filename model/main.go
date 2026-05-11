@@ -282,6 +282,9 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&InvitationRebateRecord{},
+		&InvitationRebateConsumption{},
+		&InvitationRebateAccumulation{},
+		&InvitationRebateSettlementItem{},
 	)
 	if err != nil {
 		return err
@@ -332,6 +335,9 @@ func migrateDBFast() error {
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
 		{&InvitationRebateRecord{}, "InvitationRebateRecord"},
+		{&InvitationRebateConsumption{}, "InvitationRebateConsumption"},
+		{&InvitationRebateAccumulation{}, "InvitationRebateAccumulation"},
+		{&InvitationRebateSettlementItem{}, "InvitationRebateSettlementItem"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

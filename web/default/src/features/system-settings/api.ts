@@ -2,6 +2,7 @@ import { api } from '@/lib/api'
 import type {
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
+  InvitationRebateRecordDetailResponse,
   InvitationRebateRecordQuery,
   InvitationRebateRecordsResponse,
   SystemOptionsResponse,
@@ -34,6 +35,13 @@ export async function getInvitationRebateRecords(
   const res = await api.get<InvitationRebateRecordsResponse>(
     '/api/user/invitation_rebate',
     { params }
+  )
+  return res.data
+}
+
+export async function getInvitationRebateRecordDetail(recordId: number) {
+  const res = await api.get<InvitationRebateRecordDetailResponse>(
+    `/api/user/invitation_rebate/${recordId}`
   )
   return res.data
 }
