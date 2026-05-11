@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestOpenaiImageStreamHandlerForwardsSSEAndUsage verifies image SSE passthrough.
 func TestOpenaiImageStreamHandlerForwardsSSEAndUsage(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
@@ -62,8 +61,6 @@ func TestOpenaiImageStreamHandlerForwardsSSEAndUsage(t *testing.T) {
 	require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
 }
 
-// TestOpenaiImageStreamHandlerWrapsJSONResponse verifies stream requests keep SSE semantics
-// even when the upstream image endpoint ignores stream=true and returns a JSON body.
 func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
@@ -101,7 +98,6 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
 }
 
-// TestNormalizeOpenAIUsageMapsImageTokenDetailsWithoutDoubleCounting verifies ImageRatio inputs.
 func TestNormalizeOpenAIUsageMapsImageTokenDetailsWithoutDoubleCounting(t *testing.T) {
 	usage := &dto.Usage{
 		InputTokens:  5000,

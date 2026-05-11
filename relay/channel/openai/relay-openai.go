@@ -581,7 +581,6 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	return &usageResp.Usage, nil
 }
 
-// normalizeOpenAIUsage maps OpenAI usage aliases into NewAPI billing fields.
 func normalizeOpenAIUsage(usage *dto.Usage) {
 	if usage == nil {
 		return
@@ -604,7 +603,6 @@ func normalizeOpenAIUsage(usage *dto.Usage) {
 	}
 }
 
-// OpenaiImageStreamHandler forwards OpenAI Images SSE events and extracts usage.
 func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid image stream response")
@@ -624,21 +622,25 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	var lastStreamData []byte
 
 	helper.SetEventStreamHeaders(c)
-	if info.StreamStatus == nil {
+	if info != nil && info.StreamStatus == nil {
 		info.StreamStatus = relaycommon.NewStreamStatus()
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.GetScannerBufferSize())
+	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.DefaultMaxScannerBufferSize)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "data:") {
 			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 			if data == "[DONE]" {
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+				if info != nil && info.StreamStatus != nil {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+				}
 			} else if data != "" {
-				info.SetFirstResponseTime()
-				info.ReceivedResponseCount++
+				if info != nil {
+					info.SetFirstResponseTime()
+					info.ReceivedResponseCount++
+				}
 				lastStreamData = common.StringToByteSlice(data)
 				var usageResp dto.SimpleResponse
 				if err := common.Unmarshal(lastStreamData, &usageResp); err == nil {
@@ -650,20 +652,26 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 			}
 		}
 		if _, err := c.Writer.Write(append([]byte(line), '\n')); err != nil {
-			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
+			if info != nil && info.StreamStatus != nil {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
+			}
 			return usage, nil
 		}
 		if line == "" {
 			if err := helper.FlushWriter(c); err != nil {
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
+				if info != nil && info.StreamStatus != nil {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
+				}
 				return usage, nil
 			}
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
-	} else if info.StreamStatus.EndReason == relaycommon.StreamEndReasonNone {
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
+	if info != nil && info.StreamStatus != nil {
+		if err := scanner.Err(); err != nil {
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
+		} else if info.StreamStatus.EndReason == relaycommon.StreamEndReasonNone {
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
+		}
 	}
 	_ = helper.FlushWriter(c)
 
