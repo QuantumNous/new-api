@@ -552,6 +552,20 @@ export const getGroups = getUserGroups
 // ============================================================================
 
 /**
+ * Fetch pricing groups from an upstream supplier station's /api/pricing endpoint.
+ * Returns a map of group_name -> group_ratio.
+ */
+export async function fetchUpstreamPricingGroups(
+  baseUrl: string
+): Promise<Record<string, number>> {
+  const url = baseUrl.replace(/\/+$/, '') + '/api/pricing'
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const data = await res.json()
+  return (data?.group_ratio as Record<string, number>) ?? {}
+}
+
+/**
  * Get prefill groups for quick model selection
  */
 export async function getPrefillGroups(

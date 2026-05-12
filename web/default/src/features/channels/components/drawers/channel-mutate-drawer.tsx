@@ -108,6 +108,7 @@ import {
 import {
   createChannel,
   fetchModels,
+  fetchUpstreamPricingGroups,
   getAllModels,
   getChannel,
   getChannelKey,
@@ -265,6 +266,103 @@ function formatUnixTime(timestamp: unknown): string {
   const seconds = Number(timestamp)
   if (!Number.isFinite(seconds) || seconds <= 0) return '-'
   return new Date(seconds * 1000).toLocaleString()
+}
+
+function KeyGroupField({
+  control,
+  baseUrl,
+}: {
+  control: ReturnType<typeof useForm<ChannelFormValues>>['control']
+  baseUrl: string
+}) {
+  const { t } = useTranslation()
+  const [pricingGroups, setPricingGroups] = useState<Record<string, number>>({})
+  const [fetching, setFetching] = useState(false)
+  const [fetchError, setFetchError] = useState('')
+
+  async function handleFetch() {
+    if (!baseUrl) return
+    setFetching(true)
+    setFetchError('')
+    try {
+      const groups = await fetchUpstreamPricingGroups(baseUrl)
+      setPricingGroups(groups)
+    } catch {
+      setFetchError(t('Failed to fetch pricing groups, please enter manually'))
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  const groupEntries = Object.entries(pricingGroups)
+
+  return (
+    <FormField
+      control={control}
+      name='key_group'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('KEY所在分组')}</FormLabel>
+          <div className='flex gap-2'>
+            {groupEntries.length > 0 ? (
+              <Select
+                items={groupEntries.map(([k, v]) => ({
+                  value: k,
+                  label: `${k} (×${v})`,
+                }))}
+                value={field.value || ''}
+                onValueChange={field.onChange}
+              >
+                <FormControl>
+                  <SelectTrigger className='flex-1'>
+                    <SelectValue placeholder={t('Select group')} />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {groupEntries.map(([k, v]) => (
+                      <SelectItem key={k} value={k}>
+                        {k} <span className='text-muted-foreground ml-1 text-xs'>(×{v})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            ) : (
+              <FormControl>
+                <Input
+                  className='flex-1'
+                  placeholder={t('e.g. aws-q')}
+                  {...field}
+                />
+              </FormControl>
+            )}
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              disabled={!baseUrl || fetching}
+              onClick={handleFetch}
+            >
+              {fetching ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : (
+                <RefreshCw className='h-4 w-4' />
+              )}
+              <span className='ml-1'>{t('获取分组')}</span>
+            </Button>
+          </div>
+          {fetchError && (
+            <p className='text-destructive text-xs'>{fetchError}</p>
+          )}
+          <FormDescription>
+            {t('The pricing group this API key belongs to on the supplier station (e.g. aws-q, cc-sale)')}
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
 }
 
 function CardHeading({ title, icon }: { title: string; icon?: ReactNode }) {
@@ -2437,6 +2535,11 @@ export function ChannelMutateDrawer({
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+
+                <KeyGroupField
+                  control={form.control}
+                  baseUrl={form.watch('base_url') || ''}
                 />
               </div>
 
