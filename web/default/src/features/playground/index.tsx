@@ -79,22 +79,23 @@ export function Playground() {
   useEffect(() => {
     if (!groupsData) return
 
-    // Add auto group if not present
-    const hasAutoGroup = groupsData.some((g) => g.value === DEFAULT_GROUP)
-    const processedGroups = hasAutoGroup
-      ? groupsData
-      : [
-          {
-            value: DEFAULT_GROUP,
-            label: 'Auto',
-            ratio: 1,
-            desc: 'Circuit Breaker',
-          },
-          ...groupsData,
-        ]
+    setGroups(groupsData)
 
-    setGroups(processedGroups)
-  }, [groupsData, setGroups])
+    // If the persisted config.group isn't in the available groups, switch to
+    // the first valid one. Handles two cases: (1) localStorage retained an
+    // 'auto' value from a prior version that hardcoded it as default, and the
+    // operator never configured 'auto'; (2) the operator removed the group
+    // the user previously had selected.
+    const isCurrentGroupValid = groupsData.some(
+      (g) => g.value === config.group
+    )
+    if (groupsData.length > 0 && !isCurrentGroupValid) {
+      const fallback =
+        groupsData.find((g) => g.value === DEFAULT_GROUP)?.value ??
+        groupsData[0].value
+      updateConfig('group', fallback)
+    }
+  }, [groupsData, config.group, setGroups, updateConfig])
 
   const handleSendMessage = (text: string) => {
     const userMessage = createUserMessage(text)

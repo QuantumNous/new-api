@@ -39,8 +39,11 @@ export const API_ENDPOINTS = {
   USER_GROUPS: '/api/user/self/groups',
 } as const
 
-// Default group
-export const DEFAULT_GROUP = 'auto' as const
+// Default group — the standard user group that every install ships with.
+// Don't hardcode 'auto' here: 'auto' is only available when the operator has
+// configured AutoGroups in the system options. For installs without that
+// setup, picking 'auto' silently fails to route any request.
+export const DEFAULT_GROUP = 'default' as const
 
 // Default configuration
 export const DEFAULT_CONFIG: PlaygroundConfig = {
