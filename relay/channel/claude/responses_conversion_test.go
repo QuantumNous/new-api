@@ -819,6 +819,49 @@ func TestBuiltinToolsStrippedSilently(t *testing.T) {
 	}
 }
 
+func TestRequestAcceptsCustomToolCallEcho(t *testing.T) {
+	inputJSON := `[
+		{"role":"user","content":"hi"},
+		{"type":"custom_tool_call","status":"completed","call_id":"call_X","name":"apply_patch","input":"*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch\n"},
+		{"type":"custom_tool_call_output","call_id":"call_X","output":"Success"}
+	]`
+	req := &dto.OpenAIResponsesRequest{
+		Model: "claude-opus-4-7",
+		Input: []byte(inputJSON),
+	}
+	claude, _, err := ConvertResponsesRequestToClaude(req)
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	if len(claude.Messages) < 3 {
+		t.Fatalf("expected at least 3 messages, got %d", len(claude.Messages))
+	}
+	asst := claude.Messages[1]
+	if asst.Role != "assistant" {
+		t.Fatalf("messages[1].role=%q want assistant", asst.Role)
+	}
+	contents, _ := asst.ParseContent()
+	if len(contents) != 1 || contents[0].Type != "tool_use" || contents[0].Name != "apply_patch" || contents[0].Id != "call_X" {
+		t.Fatalf("expected tool_use(apply_patch, call_X), got %+v", contents)
+	}
+	inputMap, ok := contents[0].Input.(map[string]any)
+	if !ok {
+		t.Fatalf("input not a map: %T", contents[0].Input)
+	}
+	if got, _ := inputMap["input"].(string); got != "*** Begin Patch\n*** Add File: a.txt\n+hi\n*** End Patch\n" {
+		t.Errorf("input.input=%q want raw patch text", got)
+	}
+
+	user := claude.Messages[2]
+	if user.Role != "user" {
+		t.Fatalf("messages[2].role=%q want user", user.Role)
+	}
+	userContents, _ := user.ParseContent()
+	if len(userContents) != 1 || userContents[0].Type != "tool_result" || userContents[0].ToolUseId != "call_X" {
+		t.Fatalf("expected tool_result(call_X), got %+v", userContents)
+	}
+}
+
 func TestCustomToolNamesTracked(t *testing.T) {
 	toolsRaw, _ := common.Marshal([]map[string]any{
 		{"type": "function", "name": "exec"},

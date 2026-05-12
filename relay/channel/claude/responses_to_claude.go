@@ -148,7 +148,7 @@ func stringFromInputTextPart(m map[string]any) (string, bool) {
 	return "", false
 }
 
-// Responses input 数组里可能混合：message / function_call / function_call_output / reasoning。
+// Responses input 数组里可能混合：message / function_call / function_call_output / custom_tool_call / custom_tool_call_output / reasoning。
 // 多个相邻同 role 的 item 需要合并到同一个 Claude message 的 content blocks 里，
 // 这是 Anthropic 协议的硬要求：thinking → tool_use → text 等都属于同一 assistant turn。
 func convertResponsesInputToClaudeMessages(rawInput []byte) ([]dto.ClaudeMessage, error) {
@@ -231,6 +231,21 @@ func convertResponsesInputItem(item map[string]any) (role string, blocks []dto.C
 		}
 		return "assistant", []dto.ClaudeMediaMessage{blk}, nil
 	case "function_call_output":
+		blk, err := convertResponsesInputFunctionCallOutput(item)
+		if err != nil {
+			return "", nil, err
+		}
+		return "user", []dto.ClaudeMediaMessage{blk}, nil
+	case "custom_tool_call":
+		// 客户端把上一轮我们返回的 custom_tool_call 回传给我们。因为请求侧把 custom tool 降级为
+		// {input: string} schema 的 function tool，所以这里要把 raw string 重新包成 {"input": ...}
+		// 才与 Anthropic 上游已知的 tool schema 对得上。
+		blk, err := convertResponsesInputCustomToolCall(item)
+		if err != nil {
+			return "", nil, err
+		}
+		return "assistant", []dto.ClaudeMediaMessage{blk}, nil
+	case "custom_tool_call_output":
 		blk, err := convertResponsesInputFunctionCallOutput(item)
 		if err != nil {
 			return "", nil, err
@@ -430,6 +445,23 @@ func convertResponsesInputFunctionCall(item map[string]any) (dto.ClaudeMediaMess
 		Id:    callID,
 		Name:  name,
 		Input: input,
+	}, nil
+}
+
+func convertResponsesInputCustomToolCall(item map[string]any) (dto.ClaudeMediaMessage, error) {
+	callID, _ := item["call_id"].(string)
+	name, _ := item["name"].(string)
+	if callID == "" || name == "" {
+		return dto.ClaudeMediaMessage{}, errors.New("custom_tool_call requires call_id and name")
+	}
+	input, _ := item["input"].(string)
+	return dto.ClaudeMediaMessage{
+		Type: "tool_use",
+		Id:   callID,
+		Name: name,
+		Input: map[string]any{
+			"input": input,
+		},
 	}, nil
 }
 
