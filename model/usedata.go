@@ -22,11 +22,30 @@ type QuotaData struct {
 	Quota     int    `json:"quota" gorm:"default:0"`
 }
 
+// MinuteQuotaData 分钟级柱状图数据。
+// 聚合粒度：user_id + username + model_name + created_at(分钟)。
+type MinuteQuotaData struct {
+	Id        int    `json:"id"`
+	UserID    int    `json:"user_id" gorm:"index;uniqueIndex:uk_min_qdt_user_model_time,priority:1"`
+	Username  string `json:"username" gorm:"index:idx_min_qdt_model_user_name,priority:2;uniqueIndex:uk_min_qdt_user_model_time,priority:2;size:64;default:''"`
+	ModelName string `json:"model_name" gorm:"index:idx_min_qdt_model_user_name,priority:1;uniqueIndex:uk_min_qdt_user_model_time,priority:3;size:64;default:''"`
+	CreatedAt int64  `json:"created_at" gorm:"bigint;index:idx_min_qdt_created_at,priority:2;uniqueIndex:uk_min_qdt_user_model_time,priority:4"`
+	EndAt     int64  `json:"end_at" gorm:"bigint;index:idx_min_qdt_end_at,priority:2"`
+	TokenUsed int    `json:"token_used" gorm:"default:0"`
+	Count     int    `json:"count" gorm:"default:0"`
+	Quota     int    `json:"quota" gorm:"default:0"`
+}
+
+func (MinuteQuotaData) TableName() string {
+	return "quota_data_minute"
+}
+
 func UpdateQuotaData() {
 	for {
 		if common.DataExportEnabled {
 			common.SysLog("正在更新数据看板数据...")
 			SaveQuotaDataCache()
+			SaveMinuteQuotaDataCache()
 		}
 		time.Sleep(time.Duration(common.DataExportInterval) * time.Minute)
 	}
@@ -34,6 +53,8 @@ func UpdateQuotaData() {
 
 var CacheQuotaData = make(map[string]*QuotaData)
 var CacheQuotaDataLock = sync.Mutex{}
+var CacheMinuteQuotaData = make(map[string]*MinuteQuotaData)
+var CacheMinuteQuotaDataLock = sync.Mutex{}
 
 func logQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
 	key := fmt.Sprintf("%d-%s-%s-%d", userId, username, modelName, createdAt)
@@ -66,6 +87,37 @@ func LogQuotaData(userId int, username string, modelName string, quota int, crea
 	logQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed)
 }
 
+func logMinuteQuotaDataCache(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+	key := fmt.Sprintf("%d-%s-%s-%d", userId, username, modelName, createdAt)
+	quotaData, ok := CacheMinuteQuotaData[key]
+	if ok {
+		quotaData.Count += 1
+		quotaData.Quota += quota
+		quotaData.TokenUsed += tokenUsed
+	} else {
+		quotaData = &MinuteQuotaData{
+			UserID:    userId,
+			Username:  username,
+			ModelName: modelName,
+			CreatedAt: createdAt,
+			EndAt:     createdAt + 60,
+			Count:     1,
+			Quota:     quota,
+			TokenUsed: tokenUsed,
+		}
+	}
+	CacheMinuteQuotaData[key] = quotaData
+}
+
+func LogMinuteQuotaData(userId int, username string, modelName string, quota int, createdAt int64, tokenUsed int) {
+	// 只精确到分钟
+	createdAt = createdAt - (createdAt % 60)
+
+	CacheMinuteQuotaDataLock.Lock()
+	defer CacheMinuteQuotaDataLock.Unlock()
+	logMinuteQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed)
+}
+
 func SaveQuotaDataCache() {
 	CacheQuotaDataLock.Lock()
 	defer CacheQuotaDataLock.Unlock()
@@ -91,6 +143,24 @@ func SaveQuotaDataCache() {
 	common.SysLog(fmt.Sprintf("保存数据看板数据成功，共保存%d条数据", size))
 }
 
+func SaveMinuteQuotaDataCache() {
+	CacheMinuteQuotaDataLock.Lock()
+	defer CacheMinuteQuotaDataLock.Unlock()
+	size := len(CacheMinuteQuotaData)
+	for _, quotaData := range CacheMinuteQuotaData {
+		quotaDataDB := &MinuteQuotaData{}
+		DB.Table("quota_data_minute").Where("user_id = ? and username = ? and model_name = ? and created_at = ?",
+			quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.CreatedAt).First(quotaDataDB)
+		if quotaDataDB.Id > 0 {
+			increaseMinuteQuotaData(quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.Count, quotaData.Quota, quotaData.CreatedAt, quotaData.EndAt, quotaData.TokenUsed)
+		} else {
+			DB.Table("quota_data_minute").Create(quotaData)
+		}
+	}
+	CacheMinuteQuotaData = make(map[string]*MinuteQuotaData)
+	common.SysLog(fmt.Sprintf("保存分钟级数据看板数据成功，共保存%d条数据", size))
+}
+
 func increaseQuotaData(userId int, username string, modelName string, count int, quota int, createdAt int64, endAt int64, tokenUsed int) {
 	err := DB.Table("quota_data").Where("user_id = ? and username = ? and model_name = ? and created_at = ?",
 		userId, username, modelName, createdAt).Updates(map[string]interface{}{
@@ -101,6 +171,19 @@ func increaseQuotaData(userId int, username string, modelName string, count int,
 	}).Error
 	if err != nil {
 		common.SysLog(fmt.Sprintf("increaseQuotaData error: %s", err))
+	}
+}
+
+func increaseMinuteQuotaData(userId int, username string, modelName string, count int, quota int, createdAt int64, endAt int64, tokenUsed int) {
+	err := DB.Table("quota_data_minute").Where("user_id = ? and username = ? and model_name = ? and created_at = ?",
+		userId, username, modelName, createdAt).Updates(map[string]interface{}{
+		"count":      gorm.Expr("count + ?", count),
+		"quota":      gorm.Expr("quota + ?", quota),
+		"end_at":     endAt,
+		"token_used": gorm.Expr("token_used + ?", tokenUsed),
+	}).Error
+	if err != nil {
+		common.SysLog(fmt.Sprintf("increaseMinuteQuotaData error: %s", err))
 	}
 }
 
