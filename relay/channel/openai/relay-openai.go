@@ -2,6 +2,7 @@ package openai
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -628,9 +629,12 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), helper.DefaultMaxScannerBufferSize)
+	currentEvent := ""
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "data:") {
+		if strings.HasPrefix(line, "event:") {
+			currentEvent = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+		} else if strings.HasPrefix(line, "data:") {
 			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 			if data == "[DONE]" {
 				if info != nil && info.StreamStatus != nil {
@@ -642,6 +646,9 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 					info.ReceivedResponseCount++
 				}
 				lastStreamData = common.StringToByteSlice(data)
+				if info != nil && info.StreamStatus != nil && isOpenAIImageStreamErrorEvent(currentEvent, lastStreamData) {
+					info.StreamStatus.RecordError(extractOpenAIImageStreamErrorMessage(lastStreamData))
+				}
 				var usageResp dto.SimpleResponse
 				if err := common.Unmarshal(lastStreamData, &usageResp); err == nil {
 					normalizeOpenAIUsage(&usageResp.Usage)
@@ -664,11 +671,14 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 				}
 				return usage, nil
 			}
+			currentEvent = ""
 		}
 	}
 	if info != nil && info.StreamStatus != nil {
 		if err := scanner.Err(); err != nil {
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
+		} else if info.StreamStatus.HasErrors() {
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, fmt.Errorf("upstream image stream returned error event"))
 		} else if info.StreamStatus.EndReason == relaycommon.StreamEndReasonNone {
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
 		}
@@ -677,6 +687,54 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 
 	applyUsagePostProcessing(info, usage, lastStreamData)
 	return usage, nil
+}
+
+func isOpenAIImageStreamErrorEvent(eventName string, data []byte) bool {
+	if strings.EqualFold(strings.TrimSpace(eventName), "error") {
+		return true
+	}
+	if !json.Valid(data) {
+		return false
+	}
+	var payload struct {
+		Type  string          `json:"type"`
+		Error json.RawMessage `json:"error"`
+	}
+	if err := common.Unmarshal(data, &payload); err != nil {
+		return false
+	}
+	payloadType := strings.ToLower(strings.TrimSpace(payload.Type))
+	return payloadType == "error" || payloadType == "upstream_error" || len(payload.Error) > 0
+}
+
+func extractOpenAIImageStreamErrorMessage(data []byte) string {
+	if len(data) == 0 || !json.Valid(data) {
+		return "upstream image stream returned error event"
+	}
+	var payload struct {
+		Message string          `json:"message"`
+		Error   json.RawMessage `json:"error"`
+	}
+	if err := common.Unmarshal(data, &payload); err != nil {
+		return "upstream image stream returned error event"
+	}
+	if msg := strings.TrimSpace(payload.Message); msg != "" {
+		return msg
+	}
+	if len(payload.Error) > 0 {
+		var nested struct {
+			Message string `json:"message"`
+		}
+		if err := common.Unmarshal(payload.Error, &nested); err == nil {
+			if msg := strings.TrimSpace(nested.Message); msg != "" {
+				return msg
+			}
+		}
+		if msg := strings.TrimSpace(common.JsonRawMessageToString(payload.Error)); msg != "" {
+			return msg
+		}
+	}
+	return "upstream image stream returned error event"
 }
 
 func OpenaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {

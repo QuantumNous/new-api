@@ -98,6 +98,46 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
 }
 
+func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	body := strings.Join([]string{
+		`event: image_generation.partial_image`,
+		`data: {"type":"image_generation.partial_image","b64_json":"partial"}`,
+		``,
+		`event: error`,
+		`data: {"type":"upstream_error","error":{"message":"stream error: stream ID 77; INTERNAL_ERROR; received from peer"}}`,
+		``,
+	}, "\n")
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+		IsStream:    true,
+	}
+
+	usage, err := OpenaiImageStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	require.NotNil(t, info.StreamStatus)
+	require.Equal(t, relaycommon.StreamEndReasonHandlerStop, info.StreamStatus.EndReason)
+	require.True(t, info.StreamStatus.HasErrors())
+	require.Equal(t, 1, info.StreamStatus.TotalErrorCount())
+	require.Contains(t, info.StreamStatus.Errors[0].Message, "INTERNAL_ERROR")
+	require.Contains(t, recorder.Body.String(), `event: error`)
+	require.Contains(t, recorder.Body.String(), `stream ID 77`)
+}
+
 func TestNormalizeOpenAIUsageMapsImageTokenDetailsWithoutDoubleCounting(t *testing.T) {
 	usage := &dto.Usage{
 		InputTokens:  5000,
