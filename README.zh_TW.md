@@ -55,9 +55,10 @@
 ## 📝 項目說明
 
 > [!IMPORTANT]
-> - 本項目僅供個人學習使用，不保證穩定性，且不提供任何技術支援
-> - 使用者必須在遵循 OpenAI 的 [使用條款](https://openai.com/policies/terms-of-use) 以及**法律法規**的情況下使用，不得用於非法用途
-> - 根據 [《生成式人工智慧服務管理暫行辦法》](http://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm) 的要求，請勿對中國地區公眾提供一切未經備案的生成式人工智慧服務
+> - 本專案僅面向合法授權的 AI API 閘道、組織內部鑑權、多模型管理、用量統計、成本核算和私有化部署場景。
+> - 使用者必須合法取得上游 API Key、帳號、模型服務或介面權限，並遵守上游服務條款及適用法律法規。
+> - 使用者應確保其使用方式符合上游服務條款及適用法律法規。
+> - 面向公眾提供生成式人工智慧服務時，使用者應遵守[《生成式人工智慧服務管理暫行辦法》](http://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm)等監管要求，自行完成所在司法轄區要求的備案、許可、內容安全、實名、日誌留存、稅務和上游授權等合規義務。
 
 ---
 
@@ -151,6 +152,9 @@ docker run --name new-api -d --restart always \
 
 🎉 部署完成後，訪問 `http://localhost:3000` 即可使用！
 
+> [!WARNING]
+> 將本專案作為面向公眾的生成式 AI 服務或 API 轉售服務運營時，使用者應先完成備案、內容安全、實名、日誌留存、稅務、支付和上游授權等合規義務。
+
 📖 更多部署方式請參考 [部署指南](https://docs.newapi.pro/zh/docs/installation)
 
 ---
@@ -189,12 +193,12 @@ docker run --name new-api -d --restart always \
 | 📈 數據看板 | 視覺化控制檯與統計分析 |
 | 🔒 權限管理 | 令牌分組、模型限制、用戶管理 |
 
-### 💰 支付與計費
+### 💰 授權用量與成本管理
 
-- ✅ 在線儲值（易支付、Stripe）
-- ✅ 模型按次數收費
-- ✅ 快取計費支援（OpenAI、Azure、DeepSeek、Claude、Qwen等所有支援的模型）
-- ✅ 靈活的計費策略配置
+- ✅ 合法授權場景下的內部儲值與額度分配（易支付、Stripe）
+- ✅ 組織內按次、按量或快取命中成本核算
+- ✅ 支援 OpenAI、Azure、DeepSeek、Claude、Qwen 等模型的快取計費統計
+- ✅ 面向內部管理或企業客戶的靈活計費策略配置
 
 ### 🔐 授權與安全
 
@@ -254,7 +258,7 @@ docker run --name new-api -d --restart always \
 
 ## 🤖 模型支援
 
-> 詳情請參考 [接口文件 - 中繼接口](https://docs.newapi.pro/zh/docs/api)
+> 詳情請參考 [接口文件 - 閘道接口](https://docs.newapi.pro/zh/docs/api)
 
 | 模型類型 | 說明 | 文件 |
 |---------|------|------|
@@ -266,7 +270,7 @@ docker run --name new-api -d --restart always \
 | 💬 Claude | Messages 格式 | [文件](https://docs.newapi.pro/zh/docs/api/ai-model/chat/createmessage) |
 | 🌐 Gemini | Google Gemini 格式 | [文件](https://docs.newapi.pro/zh/docs/api/ai-model/chat/gemini/geminirelayv1beta) |
 | 🔧 Dify | ChatFlow 模式 | - |
-| 🎯 自訂 | 支援完整調用位址 | - |
+| 🎯 自訂上游 | 支援配置合法授權的上游介面位址 | - |
 
 ### 📡 支援的接口
 

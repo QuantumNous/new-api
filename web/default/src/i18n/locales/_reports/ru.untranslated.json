@@ -8,6 +8,7 @@
   "AccessKey / SecretAccessKey": "AccessKey / SecretAccessKey",
   "AI Proxy": "AI Proxy",
   "AIGC2D": "AIGC2D",
+  "Alipay": "Alipay",
   "All conditions must match before this tier is used.": "All conditions must match before this tier is used.",
   "Anthropic": "Anthropic",
   "API2GPT": "API2GPT",
@@ -100,10 +101,9 @@
   "Vertex AI": "Vertex AI",
   "VolcEngine": "VolcEngine",
   "WeChat": "WeChat",
+  "WeChat Pay": "WeChat Pay",
   "whsec_xxx": "whsec_xxx",
   "Xinference": "Xinference",
   "Xunfei": "Xunfei",
-  "Alipay": "Alipay",
-  "WeChat Pay": "WeChat Pay",
   "Zhipu V4": "Zhipu V4"
 }

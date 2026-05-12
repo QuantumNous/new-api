@@ -55,9 +55,10 @@
 ## 📝 Description du projet
 
 > [!IMPORTANT]
-> - Ce projet est uniquement destiné à des fins d'apprentissage personnel, sans garantie de stabilité ni de support technique.
-> - Les utilisateurs doivent se conformer aux [Conditions d'utilisation](https://openai.com/policies/terms-of-use) d'OpenAI et aux **lois et réglementations applicables**, et ne doivent pas l'utiliser à des fins illégales.
-> - Conformément aux [《Mesures provisoires pour la gestion des services d'intelligence artificielle générative》](http://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm), veuillez ne fournir aucun service d'IA générative non enregistré au public en Chine.
+> - Ce projet est exclusivement destiné aux scénarios de passerelle API d'IA légalement autorisés, d'authentification organisationnelle, de gestion multi-modèles, d'analyse d'utilisation, de comptabilisation des coûts et de déploiement privé.
+> - Les utilisateurs doivent obtenir légalement les clés API, comptes, services de modèles et autorisations d'interface en amont, et doivent respecter les conditions d'utilisation en amont et les lois et réglementations applicables.
+> - Les utilisateurs doivent s'assurer que leur utilisation est conforme aux conditions d'utilisation en amont et aux lois et réglementations applicables.
+> - Lors de la fourniture de services d'IA générative au public, les utilisateurs doivent se conformer aux exigences réglementaires applicables et remplir toutes les obligations d'enregistrement, de licence, de sécurité du contenu, de vérification d'identité, de conservation des journaux, de fiscalité et d'autorisation en amont requises par leur juridiction.
 
 ---
 
@@ -151,6 +152,9 @@ docker run --name new-api -d --restart always \
 
 🎉 Après le déploiement, visitez `http://localhost:3000` pour commencer à utiliser!
 
+> [!WARNING]
+> Lorsque vous exploitez ce projet en tant que service public d'IA générative ou service de revente d'API, les utilisateurs doivent d'abord remplir toutes les obligations requises en matière d'enregistrement, de licence, de sécurité du contenu, de vérification d'identité, de conservation des journaux, de fiscalité, de paiement et d'autorisation en amont.
+
 📖 Pour plus de méthodes de déploiement, veuillez vous référer à [Guide de déploiement](https://docs.newapi.pro/en/docs/installation)
 
 ---
@@ -189,12 +193,12 @@ docker run --name new-api -d --restart always \
 | 📈 Tableau de bord des données | Console visuelle et analyse statistique |
 | 🔒 Gestion des permissions | Regroupement de jetons, restrictions de modèles, gestion des utilisateurs |
 
-### 💰 Paiement et facturation
+### 💰 Comptabilisation et facturation des usages autorisés
 
-- ✅ Recharge en ligne (EPay, Stripe)
-- ✅ Tarification des modèles de paiement à l'utilisation
-- ✅ Prise en charge de la facturation du cache (OpenAI, Azure, DeepSeek, Claude, Qwen et tous les modèles pris en charge)
-- ✅ Configuration flexible des politiques de facturation
+- ✅ Rechargement interne et allocation de quotas pour les scénarios légalement autorisés (EPay, Stripe)
+- ✅ Comptabilisation des coûts par requête, par utilisation et par hit de cache au niveau organisationnel
+- ✅ Statistiques de facturation du cache pour OpenAI, Azure, DeepSeek, Claude, Qwen et les modèles pris en charge
+- ✅ Politiques de facturation flexibles pour la gestion interne ou les clients entreprise autorisés
 
 ### 🔐 Autorisation et sécurité
 
@@ -254,7 +258,7 @@ docker run --name new-api -d --restart always \
 
 ## 🤖 Prise en charge des modèles
 
-> Pour les détails, veuillez vous référer à [Documentation de l'API - Interface de relais](https://docs.newapi.pro/en/docs/api)
+> Pour les détails, veuillez vous référer à [Documentation de l'API - Interface de passerelle](https://docs.newapi.pro/en/docs/api)
 
 | Type de modèle | Description | Documentation |
 |---------|------|------|
@@ -266,7 +270,7 @@ docker run --name new-api -d --restart always \
 | 💬 Claude | Format Messages | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/chat/createmessage) |
 | 🌐 Gemini | Format Google Gemini | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/chat/gemini/geminirelayv1beta) |
 | 🔧 Dify | Mode ChatFlow | - |
-| 🎯 Personnalisé | Prise en charge de l'adresse d'appel complète | - |
+| 🎯 Amont personnalisé | Configuration des points d'accès amont légalement autorisés | - |
 
 ### 📡 Interfaces prises en charge
 
