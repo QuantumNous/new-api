@@ -187,7 +187,7 @@ func QuerySummaryAll(hours int) (SummaryAllResult, error) {
 		})
 	}
 	sort.Slice(models, func(i, j int) bool {
-		return models[i].ModelName < models[j].ModelName
+		return models[i].RequestCount > models[j].RequestCount
 	})
 
 	return SummaryAllResult{Models: models}, nil

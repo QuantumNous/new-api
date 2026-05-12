@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export function formatThroughput(tps: number): string {
-  if (tps <= 0) return '—'
+  if (!Number.isFinite(tps) || tps <= 0) return '—'
   if (tps >= 1_000) return `${(tps / 1_000).toFixed(1)}K t/s`
   return `${tps.toFixed(tps < 10 ? 2 : 1)} t/s`
 }

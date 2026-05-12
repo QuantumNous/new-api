@@ -145,7 +145,7 @@ export function ApiKeyGroupCombobox({
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='min-w-0'>
             <span className='block truncate font-medium'>
-              {selectedOption?.value || placeholder || t('Select a group')}
+              {selectedOption?.label || placeholder || t('Select a group')}
             </span>
             {selectedOption?.desc && (
               <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>
@@ -178,7 +178,7 @@ export function ApiKeyGroupCombobox({
                 <CommandItem
                   key={option.value}
                   value={option.value}
-                  onSelect={handleSelect}
+                  onSelect={() => handleSelect(option.value)}
                   className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
                 >
                   <Check
@@ -189,7 +189,7 @@ export function ApiKeyGroupCombobox({
                   />
                   <span className='min-w-0 flex-1'>
                     <span className='block truncate font-medium'>
-                      {option.value}
+                      {option.label}
                     </span>
                     {option.desc && (
                       <span className='text-muted-foreground block truncate text-xs'>

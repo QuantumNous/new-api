@@ -475,14 +475,14 @@ export function RechargeFormCard({
         </div>
         {topupLink && (
           <p className='text-muted-foreground text-xs'>
-            {t('Need a code?')}{' '}
+            {t('Need a redemption code?')}{' '}
             <a
               href={topupLink}
               target='_blank'
               rel='noopener noreferrer'
               className='inline-flex items-center gap-1 underline-offset-4 hover:underline'
             >
-              {t('Purchase here')}
+              {t('Get one here')}
               <ExternalLink className='h-3 w-3' />
             </a>
           </p>

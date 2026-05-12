@@ -484,6 +484,12 @@ export function transformFormDataToUpdatePayload(
     }
   })
 
+  // Send explicit empty strings for nullable JSON/text fields so GORM updates can clear them.
+  payload.model_mapping = formData.model_mapping || ''
+  payload.status_code_mapping = formData.status_code_mapping || ''
+  payload.param_override = formData.param_override || ''
+  payload.header_override = formData.header_override || ''
+
   return payload
 }
 
