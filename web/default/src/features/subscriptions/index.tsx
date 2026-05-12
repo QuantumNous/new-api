@@ -59,7 +59,9 @@ export function Subscriptions() {
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value='plans'>{t('Plans')}</TabsTrigger>
-              <TabsTrigger value='group-mapping'>{t('Group Mapping')}</TabsTrigger>
+              <TabsTrigger value='group-mapping'>
+                {t('Group Mapping')}
+              </TabsTrigger>
               <TabsTrigger value='usage'>{t('Usage View')}</TabsTrigger>
             </TabsList>
             <TabsContent value='plans'>

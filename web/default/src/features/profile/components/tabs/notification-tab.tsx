@@ -162,9 +162,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
       {/* Warning Threshold */}
       <div className='space-y-1.5'>
-        <Label htmlFor='threshold'>
-          {t('Quota Warning Threshold (%)')}
-        </Label>
+        <Label htmlFor='threshold'>{t('Quota Warning Threshold (%)')}</Label>
         <Input
           id='threshold'
           type='number'
@@ -178,7 +176,9 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           placeholder={t('Enter threshold')}
         />
         <p className='text-muted-foreground text-xs'>
-          {t('Get notified when remaining subscription quota falls below this percentage')}
+          {t(
+            'Get notified when remaining subscription quota falls below this percentage'
+          )}
         </p>
       </div>
 
