@@ -17,11 +17,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useRef, useEffect } from 'react';
-import { Typography, TextArea, Button } from '@douyinfe/semi-ui';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import {
+  Typography,
+  TextArea,
+  Button,
+  ImagePreview,
+  Tooltip,
+  Toast,
+} from '@douyinfe/semi-ui';
 import MarkdownRenderer from '../common/markdown/MarkdownRenderer';
 import ThinkingContent from './ThinkingContent';
-import { Loader2, Check, X, Settings, AlertTriangle } from 'lucide-react';
+import {
+  Loader2,
+  Check,
+  X,
+  Settings,
+  AlertTriangle,
+  ZoomIn,
+  ZoomOut,
+  Download,
+  RotateCcw,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { isAdmin } from '../../helpers/utils';
 
@@ -39,9 +56,202 @@ const MessageContent = ({
   const { t } = useTranslation();
   const previousContentLengthRef = useRef(0);
   const lastContentRef = useRef('');
+  const [previewState, setPreviewState] = useState({
+    visible: false,
+    images: [],
+    index: 0,
+  });
 
   const isThinkingStatus =
     message.status === 'loading' || message.status === 'incomplete';
+
+  const openImagePreview = useCallback((images, index) => {
+    setPreviewState({
+      visible: true,
+      images,
+      index,
+    });
+  }, []);
+
+  const closeImagePreview = useCallback(() => {
+    setPreviewState((prev) => ({
+      ...prev,
+      visible: false,
+    }));
+  }, []);
+
+  const changePreviewImage = useCallback((nextIndex) => {
+    setPreviewState((prev) => ({
+      ...prev,
+      index: nextIndex,
+    }));
+  }, []);
+
+  const previewImages = previewState.images;
+  const previewImageCount = previewImages.length;
+
+  const handlePreviewDownload = useCallback(
+    async (src, index) => {
+      if (!src) {
+        return;
+      }
+
+      const fileName = `playground-image-${index + 1}.png`;
+
+      if (src.startsWith('data:image/')) {
+        const link = document.createElement('a');
+        link.href = src;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+
+      try {
+        const response = await fetch(src);
+        if (!response.ok) {
+          throw new Error('download failed');
+        }
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      } catch (error) {
+        window.open(src, '_blank', 'noopener,noreferrer');
+        Toast.warning(t('下载失败，已为你打开原图'));
+      }
+    },
+    [t],
+  );
+
+  const renderPreviewHeader = useCallback(() => {
+    return (
+      <div className='playground-image-preview-header-content'>
+        <Typography.Text className='playground-image-preview-title'>
+          {t('图片预览')}
+        </Typography.Text>
+        {previewImageCount > 1 && (
+          <Typography.Text className='playground-image-preview-count'>
+            {t('第 {{current}} 张，共 {{total}} 张', {
+              current: previewState.index + 1,
+              total: previewImageCount,
+            })}
+          </Typography.Text>
+        )}
+      </div>
+    );
+  }, [previewImageCount, previewState.index, t]);
+
+  const renderPreviewMenu = useCallback(
+    ({
+      min,
+      max,
+      zoom,
+      ratio,
+      disabledPrev,
+      disabledNext,
+      onDownload,
+      onNext,
+      onPrev,
+      onRatioClick,
+      onRotateLeft,
+      onZoomIn,
+      onZoomOut,
+    }) => {
+      return (
+        <div className='playground-image-preview-menu'>
+          <div className='playground-image-preview-menu-group'>
+            <Tooltip content={t('上一张图片')}>
+              <Button
+                theme='borderless'
+                className='playground-image-preview-button'
+                onClick={onPrev}
+                disabled={disabledPrev}
+              >
+                <span className='playground-image-preview-button-text'>
+                  {t('上一张')}
+                </span>
+              </Button>
+            </Tooltip>
+            <Typography.Text className='playground-image-preview-scale'>
+              {Math.round(zoom)}%
+            </Typography.Text>
+            <Tooltip content={t('下一张图片')}>
+              <Button
+                theme='borderless'
+                className='playground-image-preview-button'
+                onClick={onNext}
+                disabled={disabledNext}
+              >
+                <span className='playground-image-preview-button-text'>
+                  {t('下一张')}
+                </span>
+              </Button>
+            </Tooltip>
+          </div>
+
+          <div className='playground-image-preview-menu-group'>
+            <Tooltip content={t('缩小图片')}>
+              <Button
+                theme='borderless'
+                icon={<ZoomOut size={16} />}
+                className='playground-image-preview-button'
+                onClick={onZoomOut}
+                disabled={zoom === min}
+              />
+            </Tooltip>
+            <Tooltip content={t('放大图片')}>
+              <Button
+                theme='borderless'
+                icon={<ZoomIn size={16} />}
+                className='playground-image-preview-button'
+                onClick={onZoomIn}
+                disabled={zoom === max}
+              />
+            </Tooltip>
+            <Tooltip
+              content={
+                ratio === 'adaptation' ? t('查看原始尺寸') : t('自适应显示')
+              }
+            >
+              <Button
+                theme='borderless'
+                className='playground-image-preview-button playground-image-preview-mode-button'
+                onClick={onRatioClick}
+              >
+                <span className='playground-image-preview-button-text'>
+                  {ratio === 'adaptation' ? t('原始尺寸') : t('自适应')}
+                </span>
+              </Button>
+            </Tooltip>
+            <Tooltip content={t('向左旋转')}>
+              <Button
+                theme='borderless'
+                icon={<RotateCcw size={16} />}
+                className='playground-image-preview-button'
+                onClick={onRotateLeft}
+              />
+            </Tooltip>
+            <Tooltip content={t('下载图片')}>
+              <Button
+                theme='borderless'
+                icon={<Download size={16} />}
+                className='playground-image-preview-button'
+                onClick={onDownload}
+              />
+            </Tooltip>
+          </div>
+        </div>
+      );
+    },
+    [t],
+  );
 
   useEffect(() => {
     if (!isThinkingStatus) {
@@ -116,7 +326,10 @@ const MessageContent = ({
       >
         <div className='playground-error-card rounded-lg p-3 space-y-2'>
           <div className='playground-error-heading flex items-center gap-2'>
-            <AlertTriangle size={16} className='playground-error-icon shrink-0' />
+            <AlertTriangle
+              size={16}
+              className='playground-error-icon shrink-0'
+            />
             <Typography.Text strong className='playground-error-title'>
               {t('请求发生错误')}
             </Typography.Text>
@@ -331,26 +544,51 @@ const MessageContent = ({
               <div>
                 {imageContents.length > 0 && (
                   <div className='mb-3 space-y-2'>
-                    {imageContents.map((imgItem, index) => (
-                      <div key={index} className='max-w-sm'>
-                        <img
-                          src={imgItem.image_url.url}
-                          alt={`用户上传的图片 ${index + 1}`}
-                          className='playground-message-image rounded-lg max-w-full h-auto shadow-sm border'
-                          style={{ maxHeight: '300px' }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                          }}
-                        />
-                        <div
-                          className='playground-message-image-error text-sm p-2 rounded-lg border'
-                          style={{ display: 'none' }}
-                        >
-                          图片加载失败: {imgItem.image_url.url}
+                    {(() => {
+                      const imageUrls = imageContents
+                        .map((item) => item?.image_url?.url)
+                        .filter(
+                          (url) => typeof url === 'string' && url.trim() !== '',
+                        );
+
+                      return imageContents.map((imgItem, index) => (
+                        <div key={index} className='max-w-sm'>
+                          <img
+                            src={imgItem.image_url.url}
+                            alt={t('图片 {{index}}', { index: index + 1 })}
+                            className='playground-message-image rounded-lg max-w-full h-auto shadow-sm border'
+                            style={{ maxHeight: '300px' }}
+                            onClick={() => openImagePreview(imageUrls, index)}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              const overlayNode =
+                                e.target.parentElement?.querySelector(
+                                  '.playground-message-image-overlay',
+                                );
+                              const errorNode =
+                                e.target.parentElement?.querySelector(
+                                  '.playground-message-image-error',
+                                );
+                              if (overlayNode) {
+                                overlayNode.style.display = 'none';
+                              }
+                              if (errorNode) {
+                                errorNode.style.display = 'block';
+                              }
+                            }}
+                          />
+                          <div className='playground-message-image-overlay'>
+                            {t('点击预览图片')}
+                          </div>
+                          <div
+                            className='playground-message-image-error text-sm p-2 rounded-lg border'
+                            style={{ display: 'none' }}
+                          >
+                            {t('图片加载失败')}: {imgItem.image_url.url}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 )}
 
@@ -366,7 +604,7 @@ const MessageContent = ({
                         className={
                           message.role === 'user'
                             ? 'playground-user-markdown user-message'
-                            : 'playground-assistant-markdown'
+                            : ''
                         }
                         animated={false}
                         previousContentLength={0}
@@ -422,7 +660,7 @@ const MessageContent = ({
                     className={
                       message.role === 'user'
                         ? 'playground-user-markdown user-message'
-                        : 'playground-assistant-markdown'
+                        : ''
                     }
                     animated={false}
                     previousContentLength={0}
@@ -435,6 +673,38 @@ const MessageContent = ({
           return null;
         })()
       )}
+
+      <ImagePreview
+        src={previewImages}
+        visible={previewState.visible}
+        currentIndex={previewState.index}
+        onChange={changePreviewImage}
+        onVisibleChange={(visible) => {
+          if (!visible) {
+            closeImagePreview();
+            return;
+          }
+          setPreviewState((prev) => ({ ...prev, visible }));
+        }}
+        onDownload={handlePreviewDownload}
+        renderHeader={renderPreviewHeader}
+        renderPreviewMenu={renderPreviewMenu}
+        previewCls='playground-image-preview'
+        showTooltip={false}
+        closable
+        infinite={false}
+        zoomStep={0.25}
+        minZoom={0.5}
+        maxZoom={5}
+        prevTip={t('上一张图片')}
+        nextTip={t('下一张图片')}
+        zoomInTip={t('放大图片')}
+        zoomOutTip={t('缩小图片')}
+        rotateTip={t('向左旋转')}
+        downloadTip={t('下载图片')}
+        adaptiveTip={t('自适应显示')}
+        originTip={t('查看原始尺寸')}
+      />
     </div>
   );
 };
