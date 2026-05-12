@@ -3,6 +3,7 @@ package claude
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -585,6 +586,9 @@ func convertResponsesCustomToolToClaude(t map[string]any) (*dto.Tool, error) {
 		return nil, errors.New("custom tool requires name")
 	}
 	desc, _ := t["description"].(string)
+	// custom tool 在 OpenAI 是 freeform 文本输入，但我们降级成 {input: string} 的 function tool 后
+	// 输入会被 JSON 包一层，原描述里「不要用 JSON 包装」之类的提示会与实际协议矛盾，需要剥掉。
+	desc = stripFreeformHint(desc)
 	if format, ok := t["format"].(map[string]any); ok {
 		if ftype, _ := format["type"].(string); ftype == "grammar" {
 			syntax, _ := format["syntax"].(string)
@@ -741,4 +745,16 @@ func convertResponsesMetadataToClaude(raw []byte) ([]byte, error) {
 		return out, nil
 	}
 	return nil, nil
+}
+
+// 匹配 OpenAI Codex apply_patch 等 custom tool 描述里「This is a FREEFORM tool, so do not wrap the patch in JSON.」之类的整句。
+// 我们已把 custom tool 降级为 {input: string}，再保留这句话会让模型拒绝按 schema 输出。
+var freeformHintRE = regexp.MustCompile(`(?i)[^.\n]*\bfreeform\b[^.\n]*(?:\.|\n|$)`)
+
+func stripFreeformHint(desc string) string {
+	if desc == "" {
+		return desc
+	}
+	cleaned := freeformHintRE.ReplaceAllString(desc, "")
+	return strings.TrimSpace(cleaned)
 }

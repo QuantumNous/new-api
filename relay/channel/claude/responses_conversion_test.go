@@ -587,6 +587,34 @@ func TestStreamRedactedThinkingEmitsEncryptedContent(t *testing.T) {
 	}
 }
 
+func TestCustomToolDescriptionStripsFreeformHint(t *testing.T) {
+	toolsRaw, _ := common.Marshal([]map[string]any{{
+		"type":        "custom",
+		"name":        "apply_patch",
+		"description": "Use the `apply_patch` tool to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.\n\nInput must conform to the following lark grammar:\nstart: ...",
+	}})
+	req := &dto.OpenAIResponsesRequest{
+		Model: "claude-opus-4-7",
+		Input: []byte(`"hi"`),
+		Tools: toolsRaw,
+	}
+	claude, _, err := ConvertResponsesRequestToClaude(req)
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	tool := claude.Tools.([]any)[0].(*dto.Tool)
+	lower := strings.ToLower(tool.Description)
+	if strings.Contains(lower, "freeform") {
+		t.Errorf("freeform hint not stripped: %q", tool.Description)
+	}
+	if strings.Contains(tool.Description, "do not wrap the patch in JSON") {
+		t.Errorf("JSON-warning sentence not stripped: %q", tool.Description)
+	}
+	if !strings.Contains(tool.Description, "apply_patch") || !strings.Contains(tool.Description, "lark grammar") {
+		t.Errorf("legitimate description content removed: %q", tool.Description)
+	}
+}
+
 func TestCustomToolConvertedToFunctionTool(t *testing.T) {
 	toolsRaw, _ := common.Marshal([]map[string]any{{
 		"type":        "custom",
