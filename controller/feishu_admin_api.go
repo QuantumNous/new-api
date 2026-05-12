@@ -427,6 +427,17 @@ func verifyFeishuInitWebhookSecret(c *gin.Context) bool {
 	return true
 }
 
+func formatTokenKeyForResponse(key string) string {
+	trimmedKey := strings.TrimSpace(key)
+	if trimmedKey == "" {
+		return ""
+	}
+	if strings.HasPrefix(trimmedKey, "sk-") {
+		return trimmedKey
+	}
+	return "sk-" + trimmedKey
+}
+
 func createTokenForUser(user *model.User, opts *createTokenOptions) (*model.Token, string, error) {
 	maxTokens := operation_setting.GetMaxUserTokens()
 	count, err := model.CountUserTokens(user.Id)
@@ -500,7 +511,7 @@ func createTokenForUser(user *model.User, opts *createTokenOptions) (*model.Toke
 	if err = token.Insert(); err != nil {
 		return nil, "", err
 	}
-	return token, key, nil
+	return token, formatTokenKeyForResponse(key), nil
 }
 
 func BatchCreateFeishuUsers(c *gin.Context) {
@@ -690,7 +701,7 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 			Username:      newUser.Username,
 			TokenId:       createdToken.Id,
 			TokenName:     createdToken.Name,
-			TokenKey:      tokenKey,
+			TokenKey:      formatTokenKeyForResponse(tokenKey),
 			Action:        "created",
 		})
 	}
@@ -866,7 +877,7 @@ func AdminCreateTokenByFeishu(c *gin.Context) {
 			UserId:       user.Id,
 			TokenId:      token.Id,
 			TokenName:    tokenName,
-			Key:          key,
+			Key:          formatTokenKeyForResponse(key),
 		},
 	})
 }
@@ -1019,7 +1030,7 @@ func AdminBatchCreateTokensByFeishu(c *gin.Context) {
 			FeishuOpenId: openId,
 			UserId:       user.Id,
 			TokenId:      token.Id,
-			Key:          key,
+			Key:          formatTokenKeyForResponse(key),
 		})
 	}
 
@@ -1133,7 +1144,7 @@ func FeishuInitWebhook(c *gin.Context) {
 					break
 				}
 				if selectedToken != nil {
-					result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: existingUser.Id, Username: existingUser.Username, TokenId: selectedToken.Id, TokenName: selectedToken.Name, TokenKey: selectedToken.Key, Action: "skipped_exists"})
+					result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: existingUser.Id, Username: existingUser.Username, TokenId: selectedToken.Id, TokenName: selectedToken.Name, TokenKey: formatTokenKeyForResponse(selectedToken.Key), Action: "skipped_exists"})
 					continue
 				}
 			}
@@ -1210,7 +1221,7 @@ func FeishuInitWebhook(c *gin.Context) {
 		}
 
 		result.Success++
-		result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: newUser.Id, Username: newUser.Username, TokenId: createdToken.Id, TokenName: createdToken.Name, TokenKey: tokenKey, Action: "created"})
+		result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: newUser.Id, Username: newUser.Username, TokenId: createdToken.Id, TokenName: createdToken.Name, TokenKey: formatTokenKeyForResponse(tokenKey), Action: "created"})
 	}
 
 	common.ApiSuccess(c, result)
