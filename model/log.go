@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -39,6 +41,26 @@ type Log struct {
 	Other            string `json:"other"`
 }
 
+type UserLog struct {
+	Id               int    `json:"id"`
+	UserId           int    `json:"user_id"`
+	CreatedAt        int64  `json:"created_at"`
+	Type             int    `json:"type"`
+	Content          string `json:"content"`
+	Username         string `json:"username"`
+	TokenName        string `json:"token_name"`
+	ModelName        string `json:"model_name"`
+	Quota            int    `json:"quota"`
+	PromptTokens     int    `json:"prompt_tokens"`
+	CompletionTokens int    `json:"completion_tokens"`
+	UseTime          int    `json:"use_time"`
+	IsStream         bool   `json:"is_stream"`
+	Group            string `json:"group"`
+	Ip               string `json:"ip"`
+	RequestId        string `json:"request_id,omitempty"`
+	Other            string `json:"other"`
+}
+
 // don't use iota, avoid change log type value
 const (
 	LogTypeUnknown = 0
@@ -50,38 +72,192 @@ const (
 	LogTypeRefund  = 6
 )
 
-func formatUserLogs(logs []*Log, startIdx int) {
+var userErrorLogSensitiveContentPattern = regexp.MustCompile(`(?i)\b(?:authorization|api[-_ ]?key|x-api-key|access[-_ ]?token|refresh[-_ ]?token|bearer|channel|upstream|relay|key[-_ ]?hint|key[-_ ]?fp|multi[-_ ]?key)\b`)
+
+func formatUserLogs(logs []*Log, startIdx int) []*UserLog {
+	userLogs := make([]*UserLog, 0, len(logs))
 	for i := range logs {
-		logs[i].ChannelName = ""
-		var otherMap map[string]interface{}
-		otherMap, _ = common.StrToMap(logs[i].Other)
-		if otherMap != nil {
-			// Remove admin-only debug fields.
-			delete(otherMap, "admin_info")
-			delete(otherMap, "channel_id")
-			delete(otherMap, "channel_name")
-			delete(otherMap, "channel_type")
-			delete(otherMap, "final_model_name")
-			delete(otherMap, "upstream_model_name")
-			delete(otherMap, "is_model_mapped")
-			delete(otherMap, "request_conversion")
-			delete(otherMap, "final_relay_format")
-			delete(otherMap, "retry_count")
-			delete(otherMap, "upstream_error")
-			delete(otherMap, "upstream_status_code")
-			delete(otherMap, "last_error_summary")
-			// delete(otherMap, "reject_reason")
-			delete(otherMap, "stream_status")
+		log := logs[i]
+		otherMap, _ := common.StrToMap(log.Other)
+		other := filterUserLogOther(log.Type, otherMap)
+		userLogs = append(userLogs, &UserLog{
+			Id:               startIdx + i + 1,
+			UserId:           log.UserId,
+			CreatedAt:        log.CreatedAt,
+			Type:             log.Type,
+			Content:          userLogContent(log),
+			Username:         log.Username,
+			TokenName:        log.TokenName,
+			ModelName:        log.ModelName,
+			Quota:            log.Quota,
+			PromptTokens:     log.PromptTokens,
+			CompletionTokens: log.CompletionTokens,
+			UseTime:          log.UseTime,
+			IsStream:         log.IsStream,
+			Group:            log.Group,
+			Ip:               log.Ip,
+			RequestId:        log.RequestId,
+			Other:            common.MapToJsonStr(other),
+		})
+	}
+	return userLogs
+}
+
+func filterUserLogOther(logType int, otherMap map[string]interface{}) map[string]interface{} {
+	if otherMap == nil {
+		return nil
+	}
+	if logType == LogTypeError {
+		return whitelistUserErrorLogOther(otherMap)
+	}
+	removeSensitiveUserLogOtherFields(otherMap)
+	return otherMap
+}
+
+func whitelistUserErrorLogOther(otherMap map[string]interface{}) map[string]interface{} {
+	allowed := make(map[string]interface{})
+	for _, key := range []string{"status_code", "error_type", "error_code"} {
+		if value, ok := otherMap[key]; ok {
+			allowed[key] = userSafeErrorLogOtherValue(value)
 		}
-		logs[i].Other = common.MapToJsonStr(otherMap)
-		logs[i].Id = startIdx + i + 1
+	}
+	return allowed
+}
+
+func removeSensitiveUserLogOtherFields(otherMap map[string]interface{}) {
+	removeSensitiveUserLogOtherFieldsRecursive(otherMap, map[string]bool{
+		"admininfo":          true,
+		"channelid":          true,
+		"channelname":        true,
+		"channeltype":        true,
+		"finalmodelname":     true,
+		"upstreammodelname":  true,
+		"ismodelmapped":      true,
+		"requestconversion":  true,
+		"finalrelayformat":   true,
+		"retrycount":         true,
+		"upstreamerror":      true,
+		"upstreamstatuscode": true,
+		"lasterrorsummary":   true,
+		"streamstatus":       true,
+		"keyhint":            true,
+		"keyfp":              true,
+		"keysource":          true,
+		"keypath":            true,
+		"keykey":             true,
+		"ismultikey":         true,
+		"multikeyindex":      true,
+		"multikey":           true,
+		"usechannel":         true,
+		"channelaffinity":    true,
+		"relaymode":          true,
+		"relaymodeid":        true,
+		"relayformat":        true,
+		"errorsource":        true,
+	})
+}
+
+func removeSensitiveUserLogOtherFieldsRecursive(value interface{}, sensitiveKeys map[string]bool) {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		for key, item := range typed {
+			if sensitiveKeys[normalizeUserLogOtherKey(key)] {
+				delete(typed, key)
+				continue
+			}
+			removeSensitiveUserLogOtherFieldsRecursive(item, sensitiveKeys)
+		}
+	case []interface{}:
+		for _, item := range typed {
+			removeSensitiveUserLogOtherFieldsRecursive(item, sensitiveKeys)
+		}
 	}
 }
 
-func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
-	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
-	formatUserLogs(logs, 0)
-	return logs, err
+func normalizeUserLogOtherKey(key string) string {
+	key = strings.ToLower(strings.TrimSpace(key))
+	key = strings.ReplaceAll(key, "-", "")
+	key = strings.ReplaceAll(key, "_", "")
+	key = strings.ReplaceAll(key, " ", "")
+	return key
+}
+
+func userSafeErrorLogOtherValue(value interface{}) interface{} {
+	text := strings.TrimSpace(fmt.Sprintf("%v", value))
+	if containsUserErrorLogSensitiveTerm(text) {
+		return "request_error"
+	}
+	return value
+}
+
+func userLogContent(log *Log) string {
+	if log == nil {
+		return ""
+	}
+	if log.Type != LogTypeError || !containsUserErrorLogSensitiveTerm(log.Content) {
+		return log.Content
+	}
+	if statusCode := userLogStatusCodeFromOther(log.Other); statusCode != "" {
+		return "status_code=" + statusCode
+	}
+	return "request failed"
+}
+
+func containsUserErrorLogSensitiveTerm(content string) bool {
+	if userErrorLogSensitiveContentPattern.MatchString(content) {
+		return true
+	}
+	lowerContent := strings.ToLower(content)
+	for _, term := range []string{
+		"authorization",
+		"api_key",
+		"api-key",
+		"x-api-key",
+		"access_token",
+		"access-token",
+		"refresh_token",
+		"refresh-token",
+		"bearer",
+		"sk-",
+		"channel",
+		"upstream",
+		"relay",
+		"key_hint",
+		"key-hint",
+		"key_fp",
+		"key-fp",
+		"multi_key",
+		"multi-key",
+	} {
+		if strings.Contains(lowerContent, term) {
+			return true
+		}
+	}
+	return false
+}
+
+func userLogStatusCodeFromOther(other string) string {
+	otherMap, err := common.StrToMap(other)
+	if err != nil || otherMap == nil {
+		return ""
+	}
+	value, ok := otherMap["status_code"]
+	if !ok {
+		value, ok = otherMap["upstream_status_code"]
+	}
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", value))
+}
+
+func GetLogByTokenId(tokenId int) (logs []*UserLog, err error) {
+	var dbLogs []*Log
+	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order("id desc").Limit(common.MaxRecentItems).Find(&dbLogs).Error
+	if err != nil {
+		return nil, err
+	}
+	return formatUserLogs(dbLogs, 0), nil
 }
 
 func RecordLog(userId int, logType int, content string) {
@@ -393,7 +569,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string) (logs []*UserLog, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
@@ -428,14 +604,14 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		common.SysError("failed to count user logs: " + err.Error())
 		return nil, 0, errors.New("查询日志失败")
 	}
-	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	var dbLogs []*Log
+	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&dbLogs).Error
 	if err != nil {
 		common.SysError("failed to search user logs: " + err.Error())
 		return nil, 0, errors.New("查询日志失败")
 	}
 
-	formatUserLogs(logs, startIdx)
-	return logs, total, err
+	return formatUserLogs(dbLogs, startIdx), total, nil
 }
 
 type Stat struct {

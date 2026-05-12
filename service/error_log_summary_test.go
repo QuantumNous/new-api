@@ -73,6 +73,20 @@ func TestSafeErrorLogSnippetRedactsTextPayloadFields(t *testing.T) {
 	require.Contains(t, snippet, "image_url=[redacted]")
 }
 
+func TestSafeErrorLogSnippetRedactsBracketPayloadWithQuotedClosers(t *testing.T) {
+	message := `upstream rejected messages=[{"role":"user","content":"secret ] still secret with \"quote\" and } brace"}] error_code=bad_request`
+
+	snippet, truncated := SafeErrorLogSnippet(message, 800)
+
+	require.False(t, truncated)
+	require.Contains(t, snippet, "upstream rejected")
+	require.Contains(t, snippet, "messages=[redacted]")
+	require.Contains(t, snippet, "error_code=bad_request")
+	require.NotContains(t, snippet, "secret ] still secret")
+	require.NotContains(t, snippet, `\"quote\"`)
+	require.NotContains(t, snippet, "} brace")
+}
+
 func TestBuildErrorLogSummaryUsesStructuredOpenAIError(t *testing.T) {
 	err := types.WithOpenAIError(types.OpenAIError{
 		Message: "upstream rejected request Authorization: Bearer sk-secret123456789",

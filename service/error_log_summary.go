@@ -301,8 +301,26 @@ func findBracketedErrorLogFieldValueEnd(text string, start int) int {
 		close = '}'
 	}
 	depth := 0
+	var quote byte
+	escaped := false
 	for i := start; i < len(text); i++ {
+		if quote != 0 {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if text[i] == '\\' {
+				escaped = true
+				continue
+			}
+			if text[i] == quote {
+				quote = 0
+			}
+			continue
+		}
 		switch text[i] {
+		case '"', '\'':
+			quote = text[i]
 		case open:
 			depth++
 		case close:

@@ -2329,3 +2329,47 @@ status: completed
 ### 下一步最小任务建议
 
 - 在本地测试实例中人工触发一次 4xx/5xx 上游错误，分别用管理员和普通用户账号检查旧版请求日志展开行，确认管理员可排障、普通用户不暴露上游调试字段。
+
+## 用户端日志敏感字段彻底移除记录
+
+任务名称：彻底移除用户端日志中的上游敏感字段
+status: completed
+
+### 修改文件
+
+- `model/log.go`
+- `model/log_test.go`
+- `service/error_log_summary.go`
+- `service/error_log_summary_test.go`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 新增普通用户日志响应 DTO，`/api/log/self` 与 `/api/log/token` 不再直接返回完整 `Log`，响应 JSON 不包含顶层 `channel`、`channel_name`、`token_id`。
+- 普通用户错误日志 `type=5` 的 `other` 改为白名单，仅保留安全的 `status_code`、`error_type`、`error_code`，并将包含上游/渠道/relay/key 含义的错误类型或错误码归一为 `request_error`。
+- 普通用户非错误日志继续保留用户自有字段与计费展示字段，但递归移除 `admin_info`、渠道、上游模型、relay、重试、多 key、key 指纹/key 摘要、上游摘要等管理员排障字段。
+- 普通用户错误日志 `content` 增加用户视图净化：若内容仍包含 `Authorization`、API key、Bearer、`sk-`、channel、upstream、relay、key_hint、key_fp、多 key 等敏感排障词，则回退为 `status_code=xxx` 或通用失败信息。
+- 修复自由文本 bracket payload 扫描器，`messages=[{"content":"... ] ..."}]` 中的 `]`、`}`、转义引号不会提前结束脱敏范围。
+
+### 验证命令与结果
+
+- `gofmt -w model/log.go model/log_test.go service/error_log_summary.go service/error_log_summary_test.go`：通过。
+- `go test ./model -run "TestFormatUserLogs|TestUserLogContent" -count=1`：通过。
+- `go test ./service -run "TestSafeErrorLogSnippet|TestRelayErrorHandler" -count=1`：通过。
+- `go test ./controller/...`：通过。
+- `New-Item -ItemType Directory -Force .gotmp | Out-Null; $env:GOTMPDIR=(Resolve-Path .gotmp).Path; go test ./model/...`：通过。
+- `go test ./service/...`：通过。
+- `git diff --check`：通过。
+
+### 自审查结果
+
+- 已确认管理员日志接口 `/api/log/` 未改动，仍保留管理员排障信息。
+- 已确认普通用户日志响应字段由后端投影控制，不依赖旧版前端隐藏。
+- 已确认普通用户仍可看到自己创建/使用的 `token_name`、请求模型、分组、用量、时间、Request ID 和安全错误状态/错误码。
+- 已确认本轮未修改数据库结构、迁移、API 路由、成功消费日志、计费逻辑或新版/旧版前端代码。
+- 已确认新增测试只使用伪造敏感样本，不依赖真实 token、key 或外部服务。
+- 已确认未提交 `node_modules`、`dist` 或构建产物，未输出或写入真实 token / secret / access token / sk- key / bearer token。
+
+### 下一步最小任务建议
+
+- 在本地测试实例中分别请求 `/api/log/self` 和 `/api/log/token`，抓取原始 JSON 响应确认用户端不存在渠道、上游 key、多 key、relay、重试链和实际上游模型字段名。
