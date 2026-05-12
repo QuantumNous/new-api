@@ -103,7 +103,16 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	request.Store = json.RawMessage("false")
 	// rm max_output_tokens
 	request.MaxOutputTokens = nil
-	request.Temperature = nil
+
+	if strings.HasPrefix(info.UpstreamModelName, "o") {
+		request.Temperature = nil
+	}
+
+	// gpt-5系列模型适配 归零不再支持的参数
+	if strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
+		request.Temperature = nil
+		request.TopP = nil
+	}
 	return request, nil
 }
 
