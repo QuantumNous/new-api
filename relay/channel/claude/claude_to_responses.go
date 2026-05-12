@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -27,6 +28,8 @@ const (
 	respEventReasoningSummaryTextDone  = "response.reasoning_summary_text.done"
 	respEventFnCallArgsDelta           = "response.function_call_arguments.delta"
 	respEventFnCallArgsDone            = "response.function_call_arguments.done"
+	respEventCustomToolInputDelta      = "response.custom_tool_call_input.delta"
+	respEventCustomToolInputDone       = "response.custom_tool_call_input.done"
 )
 
 type responsesBlockKind int
@@ -37,7 +40,10 @@ const (
 	blockThinking
 	blockRedactedThinking
 	blockToolUse
+	blockCustomToolCall
 )
+
+const customToolNamesContextKey = "claude_responses_custom_tool_names"
 
 type responsesOutputItem struct {
 	kind             responsesBlockKind
@@ -52,6 +58,8 @@ type responsesOutputItem struct {
 	toolArgs         strings.Builder
 	annotations      []any
 	redactedData     string
+	customInput      string
+	customStreamer   *customInputStreamer
 	emittedSummary   bool
 	emittedContent   bool
 	emittedItemAdded bool
@@ -59,16 +67,17 @@ type responsesOutputItem struct {
 
 // Claude content_block 的索引与 Responses output_index 不是 1:1 — 按收到顺序自增 outputIndex。
 type ClaudeResponsesStreamState struct {
-	ResponseID     string
-	Model          string
-	CreatedAt      int64
-	StopReason     string
-	Usage          *dto.ClaudeUsage
-	Outputs        []*responsesOutputItem
-	blockToOutput  map[int]*responsesOutputItem
-	nextOutputIdx  int
-	seq            int
-	createdEmitted bool
+	ResponseID      string
+	Model           string
+	CreatedAt       int64
+	StopReason      string
+	Usage           *dto.ClaudeUsage
+	Outputs         []*responsesOutputItem
+	CustomToolNames map[string]bool
+	blockToOutput   map[int]*responsesOutputItem
+	nextOutputIdx   int
+	seq             int
+	createdEmitted  bool
 }
 
 func NewClaudeResponsesStreamState(model string) *ClaudeResponsesStreamState {
@@ -152,6 +161,15 @@ func (it *responsesOutputItem) toOutput() dto.ResponsesOutput {
 			CallId:    it.toolCallID,
 			Name:      it.toolName,
 			Arguments: []byte(args),
+		}
+	case blockCustomToolCall:
+		return dto.ResponsesOutput{
+			Type:   "custom_tool_call",
+			ID:     it.itemID,
+			Status: "completed",
+			CallId: it.toolCallID,
+			Name:   it.toolName,
+			Input:  it.customInput,
 		}
 	}
 	return dto.ResponsesOutput{Type: "unknown", ID: it.itemID}
@@ -294,6 +312,9 @@ func (s *ClaudeResponsesStreamState) handleBlockStart(chunk *dto.ClaudeResponse)
 	if kind == blockUnknown {
 		return nil
 	}
+	if kind == blockToolUse && s.CustomToolNames[chunk.ContentBlock.Name] {
+		kind = blockCustomToolCall
+	}
 
 	it := &responsesOutputItem{
 		kind:        kind,
@@ -328,6 +349,12 @@ func (s *ClaudeResponsesStreamState) handleBlockStart(chunk *dto.ClaudeResponse)
 		it.toolCallID = chunk.ContentBlock.Id
 		it.toolName = chunk.ContentBlock.Name
 		it.itemID = "fc_" + it.toolCallID
+		events = append(events, s.emitOutputItemAdded(it))
+	case blockCustomToolCall:
+		it.toolCallID = chunk.ContentBlock.Id
+		it.toolName = chunk.ContentBlock.Name
+		it.itemID = "ctc_" + it.toolCallID
+		it.customStreamer = newCustomInputStreamer()
 		events = append(events, s.emitOutputItemAdded(it))
 	}
 	s.blockToOutput[blockIdx] = it
@@ -395,6 +422,22 @@ func (s *ClaudeResponsesStreamState) handleBlockDelta(chunk *dto.ClaudeResponse)
 	case "input_json_delta":
 		if chunk.Delta.PartialJson != nil && *chunk.Delta.PartialJson != "" {
 			it.toolArgs.WriteString(*chunk.Delta.PartialJson)
+			if it.kind == blockCustomToolCall {
+				if it.customStreamer == nil {
+					it.customStreamer = newCustomInputStreamer()
+				}
+				delta := it.customStreamer.Feed(*chunk.Delta.PartialJson)
+				if delta != "" {
+					events = append(events, dto.ResponsesStreamResponse{
+						Type:           respEventCustomToolInputDelta,
+						ItemID:         it.itemID,
+						OutputIndex:    intPtr(it.outputIndex),
+						Delta:          delta,
+						SequenceNumber: s.nextSeq(),
+					})
+				}
+				break
+			}
 			events = append(events, dto.ResponsesStreamResponse{
 				Type:           respEventFnCallArgsDelta,
 				ItemID:         it.itemID,
@@ -486,6 +529,40 @@ func (s *ClaudeResponsesStreamState) handleBlockStop(chunk *dto.ClaudeResponse) 
 			Arguments:      args,
 			SequenceNumber: s.nextSeq(),
 		})
+	case blockCustomToolCall:
+		// streamer Parsed=true 用解析结果；否则用完整 raw JSON 兜底（含 input 缺失、非字符串、嵌套等异常）。
+		// 失败兜底比"返回空字符串"安全：宁可让客户端拿到原始 JSON 也不能丢 Codex 等关键内容。
+		if it.customStreamer != nil && it.customStreamer.Parsed() {
+			it.customInput = it.customStreamer.FinalInput()
+		} else {
+			it.customInput = extractCustomToolInput(it.toolArgs.String())
+			if streamed := it.customStreamer.FinalInput(); it.customInput != streamed && it.customInput != "" {
+				if remainder, ok := strings.CutPrefix(it.customInput, streamed); ok && remainder != "" {
+					events = append(events, dto.ResponsesStreamResponse{
+						Type:           respEventCustomToolInputDelta,
+						ItemID:         it.itemID,
+						OutputIndex:    intPtr(it.outputIndex),
+						Delta:          remainder,
+						SequenceNumber: s.nextSeq(),
+					})
+				} else {
+					events = append(events, dto.ResponsesStreamResponse{
+						Type:           respEventCustomToolInputDelta,
+						ItemID:         it.itemID,
+						OutputIndex:    intPtr(it.outputIndex),
+						Delta:          it.customInput,
+						SequenceNumber: s.nextSeq(),
+					})
+				}
+			}
+		}
+		events = append(events, dto.ResponsesStreamResponse{
+			Type:           respEventCustomToolInputDone,
+			ItemID:         it.itemID,
+			OutputIndex:    intPtr(it.outputIndex),
+			Input:          it.customInput,
+			SequenceNumber: s.nextSeq(),
+		})
 	}
 	if it.kind != blockUnknown {
 		item := it.toOutput()
@@ -545,7 +622,7 @@ func (s *ClaudeResponsesStreamState) emitSummaryPartAdded(it *responsesOutputIte
 	}
 }
 
-func ConvertClaudeResponseToResponses(claudeResp *dto.ClaudeResponse) *dto.OpenAIResponsesResponse {
+func ConvertClaudeResponseToResponses(claudeResp *dto.ClaudeResponse, customToolNames map[string]bool) *dto.OpenAIResponsesResponse {
 	if claudeResp == nil {
 		return nil
 	}
@@ -604,6 +681,21 @@ func ConvertClaudeResponseToResponses(claudeResp *dto.ClaudeResponse) *dto.OpenA
 				EncryptedContent: EncodeRedactedThinking(block.Data),
 			})
 		case "tool_use":
+			if customToolNames[block.Name] {
+				inputStr := ""
+				if raw, marshalErr := common.Marshal(block.Input); marshalErr == nil {
+					inputStr = extractCustomToolInput(string(raw))
+				}
+				resp.Output = append(resp.Output, dto.ResponsesOutput{
+					Type:   "custom_tool_call",
+					ID:     "ctc_" + block.Id,
+					Status: "completed",
+					CallId: block.Id,
+					Name:   block.Name,
+					Input:  inputStr,
+				})
+				break
+			}
 			args, marshalErr := common.Marshal(block.Input)
 			if marshalErr != nil || len(args) == 0 {
 				args = []byte("{}")
@@ -639,3 +731,28 @@ func mapClaudeStopReasonToResponsesStatus(reason string) string {
 }
 
 func intPtr(i int) *int { return &i }
+
+// 把 Claude 累积的 tool_use input JSON 抽成 custom_tool_call 的 raw string。
+// 入口侧把 custom tool 降级成 function tool with {input: string} schema，所以模型生成的
+// tool_use.input 应该是 {"input":"<raw>"}；解析失败则回退用整段 JSON 当 raw input 避免丢失。
+// extractCustomToolInput 区分 input 字段的三种状态：
+//   - 存在且是 string → 返回该 string（包括空串）
+//   - 缺失或非 string → 返回整段 raw JSON，避免模型不按 schema 输出时丢内容
+func extractCustomToolInput(rawJSON string) string {
+	if rawJSON == "" {
+		return ""
+	}
+	var probe map[string]json.RawMessage
+	if err := common.UnmarshalJsonStr(rawJSON, &probe); err != nil {
+		return rawJSON
+	}
+	raw, ok := probe["input"]
+	if !ok {
+		return rawJSON
+	}
+	var s string
+	if err := common.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	return rawJSON
+}

@@ -348,6 +348,7 @@ type ResponsesOutput struct {
 	CallId           string                          `json:"call_id,omitempty"`
 	Name             string                          `json:"name,omitempty"`
 	Arguments        json.RawMessage                 `json:"arguments,omitempty"`
+	Input            string                          `json:"input,omitempty"`
 	Summary          []ResponsesReasoningSummaryPart `json:"summary,omitempty"`
 	EncryptedContent string                          `json:"encrypted_content,omitempty"`
 }
@@ -403,6 +404,7 @@ type ResponsesStreamResponse struct {
 	Part            any                      `json:"part,omitempty"`
 	Text            string                   `json:"text,omitempty"`
 	Arguments       string                   `json:"arguments,omitempty"`
+	Input           string                   `json:"input,omitempty"`
 	Annotation      any                      `json:"annotation,omitempty"`
 	SequenceNumber  int                      `json:"sequence_number"`
 }

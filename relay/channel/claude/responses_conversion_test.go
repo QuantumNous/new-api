@@ -167,7 +167,7 @@ func TestResponsesRequestReasoningRoundTrip(t *testing.T) {
 		Model: "claude-opus-4-7",
 		Input: []byte(inputJSON),
 	}
-	claude, err := ConvertResponsesRequestToClaude(req)
+	claude, _, err := ConvertResponsesRequestToClaude(req)
 	if err != nil {
 		t.Fatalf("convert: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestResponsesRequestPreviousResponseIDRejected(t *testing.T) {
 		Input:              []byte(`"hi"`),
 		PreviousResponseID: "resp_prev_xxx",
 	}
-	_, err := ConvertResponsesRequestToClaude(req)
+	_, _, err := ConvertResponsesRequestToClaude(req)
 	if err == nil || !strings.Contains(err.Error(), "previous_response_id") {
 		t.Errorf("expected previous_response_id rejection, got %v", err)
 	}
@@ -215,7 +215,7 @@ func TestResponsesRequestJSONSchemaFormatRejected(t *testing.T) {
 		Input: []byte(`"hi"`),
 		Text:  textRaw,
 	}
-	_, err := ConvertResponsesRequestToClaude(req)
+	_, _, err := ConvertResponsesRequestToClaude(req)
 	if err == nil || !strings.Contains(err.Error(), "json_schema") {
 		t.Errorf("expected json_schema rejection, got %v", err)
 	}
@@ -242,7 +242,7 @@ func TestResponsesRequestReasoningEffortMapsToAdaptive(t *testing.T) {
 				Input:     []byte(`"hi"`),
 				Reasoning: &dto.Reasoning{Effort: tc.effort, Summary: tc.summary},
 			}
-			claude, err := ConvertResponsesRequestToClaude(req)
+			claude, _, err := ConvertResponsesRequestToClaude(req)
 			if err != nil {
 				t.Fatalf("convert: %v", err)
 			}
@@ -269,7 +269,7 @@ func TestResponsesRequestToolCallRoundTrip(t *testing.T) {
 		Model: "claude-opus-4-7",
 		Input: []byte(inputJSON),
 	}
-	claude, err := ConvertResponsesRequestToClaude(req)
+	claude, _, err := ConvertResponsesRequestToClaude(req)
 	if err != nil {
 		t.Fatalf("convert: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestNonStreamMaxTokensIncomplete(t *testing.T) {
 		},
 		Usage: &dto.ClaudeUsage{InputTokens: 5, OutputTokens: 50},
 	}
-	resp := ConvertClaudeResponseToResponses(cr)
+	resp := ConvertClaudeResponseToResponses(cr, nil)
 	if resp.IncompleteDetails == nil {
 		t.Fatal("incomplete_details should be set")
 	}
@@ -368,7 +368,7 @@ func TestAssistantTextThenReasoningRejected(t *testing.T) {
 		{"type":"reasoning","id":"rs_1","encrypted_content":"` + encryptedRaw + `","summary":[{"type":"summary_text","text":"thought"}]}
 	]`
 	req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(inputJSON)}
-	_, err := ConvertResponsesRequestToClaude(req)
+	_, _, err := ConvertResponsesRequestToClaude(req)
 	if err == nil || !strings.Contains(err.Error(), "reasoning") {
 		t.Errorf("expected rejection for reasoning after text, got %v", err)
 	}
@@ -382,7 +382,7 @@ func TestAssistantReasoningThenTextAllowed(t *testing.T) {
 		{"role":"assistant","content":[{"type":"output_text","text":"hello"}]}
 	]`
 	req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(inputJSON)}
-	claude, err := ConvertResponsesRequestToClaude(req)
+	claude, _, err := ConvertResponsesRequestToClaude(req)
 	if err != nil {
 		t.Fatalf("should not err: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestToolChoiceAllowedToolsRejected(t *testing.T) {
 		Input:      []byte(`"hi"`),
 		ToolChoice: tc,
 	}
-	_, err := ConvertResponsesRequestToClaude(req)
+	_, _, err := ConvertResponsesRequestToClaude(req)
 	if err == nil || !strings.Contains(err.Error(), "allowed_tools") {
 		t.Errorf("expected allowed_tools rejection, got %v", err)
 	}
@@ -479,7 +479,7 @@ func TestStreamMalformedEnvelopeInInputRejected(t *testing.T) {
 		{"type":"reasoning","id":"rs_1","encrypted_content":"` + bad + `","summary":[{"type":"summary_text","text":"x"}]}
 	]`
 	req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(inputJSON)}
-	_, err := ConvertResponsesRequestToClaude(req)
+	_, _, err := ConvertResponsesRequestToClaude(req)
 	if err == nil || !strings.Contains(err.Error(), "envelope") {
 		t.Errorf("expected envelope decode error, got %v", err)
 	}
@@ -584,5 +584,354 @@ func TestStreamRedactedThinkingEmitsEncryptedContent(t *testing.T) {
 	}
 	if kind != ReasoningKindRedacted || data != "REDACTED_BLOB" {
 		t.Errorf("roundtrip kind=%q data=%q want redacted/REDACTED_BLOB", kind, data)
+	}
+}
+
+func TestCustomToolConvertedToFunctionTool(t *testing.T) {
+	toolsRaw, _ := common.Marshal([]map[string]any{{
+		"type":        "custom",
+		"name":        "my_custom",
+		"description": "do something",
+		"format": map[string]any{
+			"type":       "grammar",
+			"syntax":     "regex",
+			"definition": "^[a-z]+$",
+		},
+	}})
+	req := &dto.OpenAIResponsesRequest{
+		Model: "claude-opus-4-7",
+		Input: []byte(`"hi"`),
+		Tools: toolsRaw,
+	}
+	claude, _, err := ConvertResponsesRequestToClaude(req)
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	if len(claude.Tools.([]any)) != 1 {
+		t.Fatalf("tools count=%d want 1", len(claude.Tools.([]any)))
+	}
+	tool := claude.Tools.([]any)[0].(*dto.Tool)
+	if tool.Name != "my_custom" {
+		t.Errorf("name=%q want my_custom", tool.Name)
+	}
+	if !strings.Contains(tool.Description, "regex grammar") || !strings.Contains(tool.Description, "^[a-z]+$") {
+		t.Errorf("description missing grammar info: %q", tool.Description)
+	}
+	props, _ := tool.InputSchema["properties"].(map[string]any)
+	if _, ok := props["input"]; !ok {
+		t.Errorf("custom tool should have 'input' property, got %+v", tool.InputSchema)
+	}
+}
+
+func TestNonStreamCustomToolCallRestoredWithNames(t *testing.T) {
+	cr := &dto.ClaudeResponse{
+		Id:    "msg_x",
+		Model: "claude-opus-4-7",
+		Role:  "assistant",
+		Type:  "message",
+		Content: []dto.ClaudeMediaMessage{
+			{Type: "tool_use", Id: "toolu_apply", Name: "apply_patch", Input: map[string]any{"input": "*** Begin Patch\n*** End Patch\n"}},
+			{Type: "tool_use", Id: "toolu_exec", Name: "exec_command", Input: map[string]any{"cmd": "ls"}},
+		},
+		StopReason: "tool_use",
+		Usage:      &dto.ClaudeUsage{InputTokens: 10, OutputTokens: 20},
+	}
+	resp := ConvertClaudeResponseToResponses(cr, map[string]bool{"apply_patch": true})
+	if len(resp.Output) != 2 {
+		t.Fatalf("output count=%d want 2", len(resp.Output))
+	}
+	if resp.Output[0].Type != "custom_tool_call" {
+		t.Errorf("output[0].type=%q want custom_tool_call", resp.Output[0].Type)
+	}
+	if resp.Output[0].Input != "*** Begin Patch\n*** End Patch\n" {
+		t.Errorf("output[0].input=%q want raw patch text", resp.Output[0].Input)
+	}
+	if resp.Output[1].Type != "function_call" {
+		t.Errorf("output[1].type=%q want function_call", resp.Output[1].Type)
+	}
+}
+
+func TestStreamCustomToolCallTransparentRoundTrip(t *testing.T) {
+	state := NewClaudeResponsesStreamState("claude-opus-4-7")
+	state.CreatedAt = 1700000000
+	state.ResponseID = "resp_x"
+	state.CustomToolNames = map[string]bool{"apply_patch": true}
+
+	state.HandleClaudeChunk(&dto.ClaudeResponse{
+		Type:    "message_start",
+		Message: &dto.ClaudeMediaMessage{Id: "msg_1", Model: "claude-opus-4-7", Usage: &dto.ClaudeUsage{InputTokens: 10}},
+	})
+	state.HandleClaudeChunk(&dto.ClaudeResponse{
+		Type:         "content_block_start",
+		Index:        ptrInt(0),
+		ContentBlock: &dto.ClaudeMediaMessage{Type: "tool_use", Id: "toolu_001", Name: "apply_patch"},
+	})
+	events1 := state.HandleClaudeChunk(&dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: ptrInt(0),
+		Delta: &dto.ClaudeMediaMessage{Type: "input_json_delta", PartialJson: ptrStr(`{"input":"abc`)},
+	})
+	for _, e := range events1 {
+		if e.Type == respEventFnCallArgsDelta {
+			t.Errorf("custom tool should not emit function_call_arguments.delta, got %+v", e)
+		}
+	}
+	deltaSeen := ""
+	for _, e := range events1 {
+		if e.Type == respEventCustomToolInputDelta {
+			deltaSeen += e.Delta
+		}
+	}
+	if deltaSeen != "abc" {
+		t.Errorf("first chunk delta=%q want abc", deltaSeen)
+	}
+
+	events2 := state.HandleClaudeChunk(&dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: ptrInt(0),
+		Delta: &dto.ClaudeMediaMessage{Type: "input_json_delta", PartialJson: ptrStr(`def"}`)},
+	})
+	for _, e := range events2 {
+		if e.Type == respEventCustomToolInputDelta {
+			deltaSeen += e.Delta
+		}
+	}
+	if deltaSeen != "abcdef" {
+		t.Errorf("after second chunk delta accum=%q want abcdef", deltaSeen)
+	}
+
+	stopEvents := state.HandleClaudeChunk(&dto.ClaudeResponse{Type: "content_block_stop", Index: ptrInt(0)})
+	state.HandleClaudeChunk(&dto.ClaudeResponse{
+		Type:  "message_delta",
+		Delta: &dto.ClaudeMediaMessage{StopReason: ptrStr("tool_use")},
+	})
+	final := state.FinalEvents()
+
+	gotTypes := []string{}
+	for _, e := range stopEvents {
+		gotTypes = append(gotTypes, e.Type)
+	}
+	wantInStop := []string{respEventCustomToolInputDone, respEventOutputItemDone}
+	for _, want := range wantInStop {
+		found := false
+		for _, got := range gotTypes {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("stop events missing %q, got %v", want, gotTypes)
+		}
+	}
+	for _, e := range stopEvents {
+		if e.Type == respEventCustomToolInputDelta {
+			t.Errorf("custom_tool_call_input.delta should not appear in stop events (streamed earlier), got %+v", e)
+		}
+		if e.Type == respEventCustomToolInputDone {
+			if e.Input != "abcdef" {
+				t.Errorf("custom_tool_call_input.done.input=%q want abcdef", e.Input)
+			}
+		}
+	}
+	if final[0].Response == nil || len(final[0].Response.Output) != 1 {
+		t.Fatalf("final output count wrong: %+v", final[0].Response)
+	}
+	out := final[0].Response.Output[0]
+	if out.Type != "custom_tool_call" {
+		t.Errorf("final output[0].type=%q want custom_tool_call", out.Type)
+	}
+	if out.Input != "abcdef" {
+		t.Errorf("final output[0].input=%q want abcdef", out.Input)
+	}
+	if out.Name != "apply_patch" {
+		t.Errorf("final output[0].name=%q want apply_patch", out.Name)
+	}
+}
+
+func TestBuiltinToolsStrippedSilently(t *testing.T) {
+	toolsRaw, _ := common.Marshal([]map[string]any{
+		{"type": "function", "name": "exec", "parameters": map[string]any{"type": "object"}},
+		{"type": "web_search", "external_web_access": true},
+		{"type": "file_search"},
+		{"type": "code_interpreter"},
+		{"type": "image_generation"},
+		{"type": "mcp"},
+	})
+	req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(`"hi"`), Tools: toolsRaw}
+	claude, _, err := ConvertResponsesRequestToClaude(req)
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	tools := claude.Tools.([]any)
+	if len(tools) != 1 {
+		t.Errorf("tools count=%d want 1 (only function should survive)", len(tools))
+	}
+	if fn, ok := tools[0].(*dto.Tool); !ok || fn.Name != "exec" {
+		t.Errorf("surviving tool wrong: %+v", tools[0])
+	}
+}
+
+func TestCustomToolNamesTracked(t *testing.T) {
+	toolsRaw, _ := common.Marshal([]map[string]any{
+		{"type": "function", "name": "exec"},
+		{"type": "custom", "name": "apply_patch"},
+		{"type": "custom", "name": "freeform"},
+	})
+	req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(`"hi"`), Tools: toolsRaw}
+	_, names, err := ConvertResponsesRequestToClaude(req)
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	if len(names) != 2 || !names["apply_patch"] || !names["freeform"] {
+		t.Errorf("customNames=%v want {apply_patch:true, freeform:true}", names)
+	}
+}
+
+func TestDuplicateToolNamesRejected(t *testing.T) {
+	cases := []struct {
+		name string
+		tools []map[string]any
+	}{
+		{"function-function dup", []map[string]any{
+			{"type": "function", "name": "x", "parameters": map[string]any{"type": "object"}},
+			{"type": "function", "name": "x", "parameters": map[string]any{"type": "object"}},
+		}},
+		{"function-custom dup", []map[string]any{
+			{"type": "function", "name": "x", "parameters": map[string]any{"type": "object"}},
+			{"type": "custom", "name": "x"},
+		}},
+		{"custom-custom dup", []map[string]any{
+			{"type": "custom", "name": "x"},
+			{"type": "custom", "name": "x"},
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, _ := common.Marshal(tc.tools)
+			req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(`"hi"`), Tools: raw}
+			_, _, err := ConvertResponsesRequestToClaude(req)
+			if err == nil || !strings.Contains(err.Error(), "duplicate tool name") {
+				t.Errorf("expected duplicate name rejection, got %v", err)
+			}
+		})
+	}
+}
+
+func TestToolChoiceSanitizedAfterStrip(t *testing.T) {
+	// tool_choice 指向被剥离的工具应该被 unset
+	t.Run("function tool_choice pointing to stripped web_search", func(t *testing.T) {
+		toolsRaw, _ := common.Marshal([]map[string]any{
+			{"type": "function", "name": "exec", "parameters": map[string]any{"type": "object"}},
+			{"type": "web_search", "external_web_access": true},
+		})
+		tc, _ := common.Marshal(map[string]any{"type": "function", "name": "web_search"})
+		req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(`"hi"`), Tools: toolsRaw, ToolChoice: tc}
+		claude, _, err := ConvertResponsesRequestToClaude(req)
+		if err != nil {
+			t.Fatalf("convert: %v", err)
+		}
+		if claude.ToolChoice != nil {
+			t.Errorf("ToolChoice should be unset when pointing to stripped tool, got %+v", claude.ToolChoice)
+		}
+	})
+
+	t.Run("required with all tools stripped", func(t *testing.T) {
+		toolsRaw, _ := common.Marshal([]map[string]any{
+			{"type": "web_search", "external_web_access": true},
+			{"type": "file_search"},
+		})
+		tc, _ := common.Marshal("required")
+		req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(`"hi"`), Tools: toolsRaw, ToolChoice: tc}
+		claude, _, err := ConvertResponsesRequestToClaude(req)
+		if err != nil {
+			t.Fatalf("convert: %v", err)
+		}
+		if claude.ToolChoice != nil {
+			t.Errorf("ToolChoice 'required' should be unset when no surviving tools, got %+v", claude.ToolChoice)
+		}
+	})
+
+	t.Run("required with surviving tools keeps any", func(t *testing.T) {
+		toolsRaw, _ := common.Marshal([]map[string]any{
+			{"type": "function", "name": "exec", "parameters": map[string]any{"type": "object"}},
+			{"type": "web_search", "external_web_access": true},
+		})
+		tc, _ := common.Marshal("required")
+		req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(`"hi"`), Tools: toolsRaw, ToolChoice: tc}
+		claude, _, err := ConvertResponsesRequestToClaude(req)
+		if err != nil {
+			t.Fatalf("convert: %v", err)
+		}
+		ctc, _ := claude.ToolChoice.(*dto.ClaudeToolChoice)
+		if ctc == nil || ctc.Type != "any" {
+			t.Errorf("ToolChoice should be 'any' when surviving tools exist, got %+v", claude.ToolChoice)
+		}
+	})
+
+	t.Run("function tool_choice pointing to surviving function", func(t *testing.T) {
+		toolsRaw, _ := common.Marshal([]map[string]any{
+			{"type": "function", "name": "exec", "parameters": map[string]any{"type": "object"}},
+		})
+		tc, _ := common.Marshal(map[string]any{"type": "function", "name": "exec"})
+		req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(`"hi"`), Tools: toolsRaw, ToolChoice: tc}
+		claude, _, err := ConvertResponsesRequestToClaude(req)
+		if err != nil {
+			t.Fatalf("convert: %v", err)
+		}
+		ctc, _ := claude.ToolChoice.(*dto.ClaudeToolChoice)
+		if ctc == nil || ctc.Type != "tool" || ctc.Name != "exec" {
+			t.Errorf("ToolChoice wrong: %+v", claude.ToolChoice)
+		}
+	})
+}
+
+func TestNonStreamCustomToolInputFallbackForMalformedOutput(t *testing.T) {
+	cr := &dto.ClaudeResponse{
+		Id:    "msg_x",
+		Model: "claude-opus-4-7",
+		Role:  "assistant",
+		Type:  "message",
+		Content: []dto.ClaudeMediaMessage{
+			// 模型没遵守 schema：用了 text 而不是 input
+			{Type: "tool_use", Id: "toolu_a", Name: "apply_patch", Input: map[string]any{"text": "should not lose"}},
+		},
+		StopReason: "tool_use",
+	}
+	resp := ConvertClaudeResponseToResponses(cr, map[string]bool{"apply_patch": true})
+	if len(resp.Output) != 1 {
+		t.Fatalf("output count=%d want 1", len(resp.Output))
+	}
+	out := resp.Output[0]
+	if out.Type != "custom_tool_call" {
+		t.Errorf("type=%q want custom_tool_call", out.Type)
+	}
+	if !strings.Contains(out.Input, "should not lose") {
+		t.Errorf("input=%q should contain raw JSON fallback when schema deviates", out.Input)
+	}
+}
+
+func TestCustomToolGrammarDescriptionTruncated(t *testing.T) {
+	huge := strings.Repeat("x", 16000)
+	toolsRaw, _ := common.Marshal([]map[string]any{{
+		"type": "custom",
+		"name": "freeform",
+		"format": map[string]any{
+			"type":       "grammar",
+			"syntax":     "lark",
+			"definition": huge,
+		},
+	}})
+	req := &dto.OpenAIResponsesRequest{Model: "claude-opus-4-7", Input: []byte(`"hi"`), Tools: toolsRaw}
+	claude, _, err := ConvertResponsesRequestToClaude(req)
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	tool := claude.Tools.([]any)[0].(*dto.Tool)
+	if len(tool.Description) > 10000 {
+		t.Errorf("description should be truncated, got len=%d", len(tool.Description))
+	}
+	if !strings.Contains(tool.Description, "[grammar truncated]") {
+		t.Errorf("description should contain truncation marker, got %q", tool.Description[:200])
 	}
 }

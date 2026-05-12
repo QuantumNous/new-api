@@ -591,6 +591,18 @@ type ClaudeResponseInfo struct {
 	ResponsesState *ClaudeResponsesStreamState
 }
 
+func getResponsesCustomToolNames(c *gin.Context) map[string]bool {
+	if c == nil {
+		return nil
+	}
+	v, ok := c.Get(customToolNamesContextKey)
+	if !ok {
+		return nil
+	}
+	names, _ := v.(map[string]bool)
+	return names
+}
+
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
 	if usage == nil {
 		return 0
@@ -833,6 +845,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			claudeInfo.ResponsesState = NewClaudeResponsesStreamState(info.UpstreamModelName)
 			claudeInfo.ResponsesState.CreatedAt = claudeInfo.Created
 			claudeInfo.ResponsesState.ResponseID = claudeInfo.ResponseId
+			claudeInfo.ResponsesState.CustomToolNames = getResponsesCustomToolNames(c)
 		}
 		for _, evt := range claudeInfo.ResponsesState.HandleClaudeChunk(&claudeResponse) {
 			if sendErr := helper.ObjectData(c, evt); sendErr != nil {
@@ -883,6 +896,7 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			claudeInfo.ResponsesState = NewClaudeResponsesStreamState(info.UpstreamModelName)
 			claudeInfo.ResponsesState.CreatedAt = claudeInfo.Created
 			claudeInfo.ResponsesState.ResponseID = claudeInfo.ResponseId
+			claudeInfo.ResponsesState.CustomToolNames = getResponsesCustomToolNames(c)
 		}
 		for _, evt := range claudeInfo.ResponsesState.FinalEvents() {
 			if sendErr := helper.ObjectData(c, evt); sendErr != nil {
@@ -950,7 +964,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	case types.RelayFormatClaude:
 		responseData = data
 	case types.RelayFormatOpenAIResponses:
-		responsesResp := ConvertClaudeResponseToResponses(&claudeResponse)
+		responsesResp := ConvertClaudeResponseToResponses(&claudeResponse, getResponsesCustomToolNames(c))
 		if claudeInfo.Created > 0 {
 			responsesResp.CreatedAt = int(claudeInfo.Created)
 		}

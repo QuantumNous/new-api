@@ -10,20 +10,23 @@ import (
 )
 
 // 不走 Chat Completions 中间格式，避免有损翻译丢失 thinking signature 等关键字段。
-func ConvertResponsesRequestToClaude(req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
+// 第二个返回值为 OpenAI Responses 里 type:"custom" 工具的名字集合；
+// 上游 Anthropic 无 custom tool 概念，所以请求侧降级成 function tool，
+// 响应侧需要这个集合把 tool_use 还原成 custom_tool_call 实现透明往返。
+func ConvertResponsesRequestToClaude(req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, map[string]bool, error) {
 	if req == nil {
-		return nil, errors.New("request is nil")
+		return nil, nil, errors.New("request is nil")
 	}
 	if len(req.PreviousResponseID) > 0 {
-		return nil, errors.New("previous_response_id is not supported when converting to Anthropic Messages API; pass the full conversation in input")
+		return nil, nil, errors.New("previous_response_id is not supported when converting to Anthropic Messages API; pass the full conversation in input")
 	}
 	if len(req.Conversation) > 0 && !isJSONNull(req.Conversation) {
-		return nil, errors.New("conversation is not supported when converting to Anthropic Messages API")
+		return nil, nil, errors.New("conversation is not supported when converting to Anthropic Messages API")
 	}
 	if format, present, err := extractTextFormatType(req.Text); err != nil {
-		return nil, err
+		return nil, nil, err
 	} else if present && format != "text" {
-		return nil, fmt.Errorf("text.format=%q is not supported when converting to Anthropic Messages API", format)
+		return nil, nil, fmt.Errorf("text.format=%q is not supported when converting to Anthropic Messages API", format)
 	}
 
 	claude := &dto.ClaudeRequest{
@@ -39,26 +42,26 @@ func ConvertResponsesRequestToClaude(req *dto.OpenAIResponsesRequest) (*dto.Clau
 
 	system, err := buildSystemFromInstructions(req.Instructions)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	claude.System = system
 
 	messages, err := convertResponsesInputToClaudeMessages(req.Input)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	claude.Messages = messages
 
-	tools, err := convertResponsesToolsToClaudeTools(req.Tools)
+	tools, customNames, survivingNames, err := convertResponsesToolsToClaudeTools(req.Tools)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(tools) > 0 {
 		claude.Tools = tools
 	}
 
-	if tc, err := convertResponsesToolChoiceToClaude(req.ToolChoice); err != nil {
-		return nil, err
+	if tc, err := convertResponsesToolChoiceToClaude(req.ToolChoice, survivingNames); err != nil {
+		return nil, nil, err
 	} else if tc != nil {
 		claude.ToolChoice = tc
 	}
@@ -68,12 +71,12 @@ func ConvertResponsesRequestToClaude(req *dto.OpenAIResponsesRequest) (*dto.Clau
 	}
 
 	if meta, err := convertResponsesMetadataToClaude(req.Metadata); err != nil {
-		return nil, err
+		return nil, nil, err
 	} else if meta != nil {
 		claude.Metadata = meta
 	}
 
-	return claude, nil
+	return claude, customNames, nil
 }
 
 func isJSONNull(raw []byte) bool {
@@ -520,41 +523,103 @@ func convertResponsesInputReasoning(item map[string]any) (*dto.ClaudeMediaMessag
 	return blk, nil
 }
 
-func convertResponsesToolsToClaudeTools(raw []byte) ([]any, error) {
+func convertResponsesToolsToClaudeTools(raw []byte) ([]any, map[string]bool, map[string]bool, error) {
 	if isJSONNull(raw) {
-		return nil, nil
+		return nil, nil, nil, nil
 	}
 	var tools []map[string]any
 	if err := common.Unmarshal(raw, &tools); err != nil {
-		return nil, fmt.Errorf("tools must be an array: %w", err)
+		return nil, nil, nil, fmt.Errorf("tools must be an array: %w", err)
 	}
 	result := make([]any, 0, len(tools))
+	var customNames map[string]bool
+	survivingNames := map[string]bool{}
 	for _, t := range tools {
 		ty, _ := t["type"].(string)
 		switch ty {
 		case "function":
 			tool, err := convertResponsesFunctionToolToClaude(t)
 			if err != nil {
-				return nil, err
+				return nil, nil, nil, err
 			}
+			if survivingNames[tool.Name] {
+				return nil, nil, nil, fmt.Errorf("duplicate tool name %q", tool.Name)
+			}
+			survivingNames[tool.Name] = true
 			result = append(result, tool)
-		case "web_search_preview", "web_search":
-			result = append(result, buildClaudeWebSearchTool(t))
-		case "file_search":
-			return nil, errors.New("file_search tool is not supported when converting to Anthropic Messages API")
-		case "code_interpreter":
-			return nil, errors.New("code_interpreter tool is not supported when converting to Anthropic Messages API")
-		case "computer_use_preview", "computer":
-			return nil, errors.New("computer_use tool is not supported when converting to Anthropic Messages API")
-		case "image_generation":
-			return nil, errors.New("image_generation tool is not supported when converting to Anthropic Messages API")
-		case "mcp":
-			return nil, errors.New("mcp tool is not supported when converting to Anthropic Messages API")
+		case "custom":
+			tool, err := convertResponsesCustomToolToClaude(t)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if survivingNames[tool.Name] {
+				return nil, nil, nil, fmt.Errorf("duplicate tool name %q (function/custom name conflict cannot be disambiguated when round-tripping through Anthropic)", tool.Name)
+			}
+			survivingNames[tool.Name] = true
+			result = append(result, tool)
+			if customNames == nil {
+				customNames = map[string]bool{}
+			}
+			customNames[tool.Name] = true
+		case "web_search_preview", "web_search",
+			"file_search",
+			"code_interpreter",
+			"computer_use_preview", "computer",
+			"image_generation",
+			"mcp":
+			// 上游 Anthropic 不支持这些 OpenAI 内置服务端工具（或者支持但需要单独开通/付费/语义不一致），
+			// 静默剥离避免转发到上游导致 schema 错误或意外计费；模型不会看到这些工具，行为等价于客户端没传。
+			continue
 		default:
-			return nil, fmt.Errorf("unsupported tool type %q", ty)
+			return nil, nil, nil, fmt.Errorf("unsupported tool type %q", ty)
 		}
 	}
-	return result, nil
+	return result, customNames, survivingNames, nil
+}
+
+// Anthropic 无 free-text/grammar 输入工具的原生对应；把 OpenAI custom tool 降级为接受单个 input string 的 function tool。
+// grammar 约束（lark/regex）作为描述注入，依赖模型自觉遵守，协议层不强制。
+func convertResponsesCustomToolToClaude(t map[string]any) (*dto.Tool, error) {
+	name, _ := t["name"].(string)
+	if name == "" {
+		return nil, errors.New("custom tool requires name")
+	}
+	desc, _ := t["description"].(string)
+	if format, ok := t["format"].(map[string]any); ok {
+		if ftype, _ := format["type"].(string); ftype == "grammar" {
+			syntax, _ := format["syntax"].(string)
+			definition, _ := format["definition"].(string)
+			if definition != "" {
+				const maxGrammarBytes = 8192
+				truncated := false
+				if len(definition) > maxGrammarBytes {
+					definition = definition[:maxGrammarBytes]
+					truncated = true
+				}
+				if desc != "" {
+					desc += "\n\n"
+				}
+				desc += "Input must conform to the following " + syntax + " grammar:\n" + definition
+				if truncated {
+					desc += "\n[grammar truncated]"
+				}
+			}
+		}
+	}
+	return &dto.Tool{
+		Name:        name,
+		Description: desc,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"input": map[string]any{
+					"type":        "string",
+					"description": "The raw input string for this custom tool.",
+				},
+			},
+			"required": []any{"input"},
+		},
+	}, nil
 }
 
 func convertResponsesFunctionToolToClaude(t map[string]any) (*dto.Tool, error) {
@@ -581,45 +646,27 @@ func convertResponsesFunctionToolToClaude(t map[string]any) (*dto.Tool, error) {
 	return tool, nil
 }
 
-func buildClaudeWebSearchTool(t map[string]any) *dto.ClaudeWebSearchTool {
-	tool := &dto.ClaudeWebSearchTool{
-		Type: "web_search_20250305",
-		Name: "web_search",
-	}
-	if maxUses, ok := t["max_uses"].(float64); ok && maxUses > 0 {
-		tool.MaxUses = int(maxUses)
-	}
-	if loc, ok := t["user_location"].(map[string]any); ok {
-		ul := &dto.ClaudeWebSearchUserLocation{Type: "approximate"}
-		if tz, _ := loc["timezone"].(string); tz != "" {
-			ul.Timezone = tz
-		}
-		if country, _ := loc["country"].(string); country != "" {
-			ul.Country = country
-		}
-		if region, _ := loc["region"].(string); region != "" {
-			ul.Region = region
-		}
-		if city, _ := loc["city"].(string); city != "" {
-			ul.City = city
-		}
-		tool.UserLocation = ul
-	}
-	return tool
-}
-
 // Responses tool_choice 与 Chat Completions 不同：function 形态是 {type,name} 而非 {type,function:{name}}。
 // 单独实现，不复用 chat 版本的 mapToolChoice。
-func convertResponsesToolChoiceToClaude(raw []byte) (*dto.ClaudeToolChoice, error) {
+// 接收 surviving tool name 集合：内置工具被静默剥离后，tool_choice 指向已剥离工具或 required+空 tools
+// 都必须 unset，否则 Anthropic 会 400。
+func convertResponsesToolChoiceToClaude(raw []byte, survivingTools map[string]bool) (*dto.ClaudeToolChoice, error) {
 	if isJSONNull(raw) {
 		return nil, nil
 	}
+	hasSurviving := len(survivingTools) > 0
 	var asString string
 	if err := common.Unmarshal(raw, &asString); err == nil {
 		switch asString {
 		case "auto":
+			if !hasSurviving {
+				return nil, nil
+			}
 			return &dto.ClaudeToolChoice{Type: "auto"}, nil
 		case "required":
+			if !hasSurviving {
+				return nil, nil
+			}
 			return &dto.ClaudeToolChoice{Type: "any"}, nil
 		case "none":
 			return &dto.ClaudeToolChoice{Type: "none"}, nil
@@ -635,15 +682,21 @@ func convertResponsesToolChoiceToClaude(raw []byte) (*dto.ClaudeToolChoice, erro
 	}
 	ty, _ := asObject["type"].(string)
 	switch ty {
-	case "function":
+	case "function", "custom":
 		name, _ := asObject["name"].(string)
 		if name == "" {
-			return nil, errors.New("tool_choice.function requires name")
+			return nil, errors.New("tool_choice." + ty + " requires name")
+		}
+		if !survivingTools[name] {
+			return nil, nil
 		}
 		return &dto.ClaudeToolChoice{Type: "tool", Name: name}, nil
 	case "allowed_tools":
 		return nil, errors.New("tool_choice.allowed_tools is not supported when converting to Anthropic Messages API; downgrading to auto would silently broaden the allowed tool set")
 	case "auto", "":
+		if !hasSurviving {
+			return nil, nil
+		}
 		return &dto.ClaudeToolChoice{Type: "auto"}, nil
 	case "none":
 		return &dto.ClaudeToolChoice{Type: "none"}, nil
