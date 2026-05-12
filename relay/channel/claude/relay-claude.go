@@ -848,9 +848,13 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			claudeInfo.ResponsesState.CustomToolNames = getResponsesCustomToolNames(c)
 		}
 		for _, evt := range claudeInfo.ResponsesState.HandleClaudeChunk(&claudeResponse) {
-			if sendErr := helper.ObjectData(c, evt); sendErr != nil {
-				logger.LogError(c, "send_responses_stream_failed: "+sendErr.Error())
+			payload, marshalErr := common.Marshal(evt)
+			if marshalErr != nil {
+				logger.LogError(c, "marshal_responses_stream_failed: "+marshalErr.Error())
+				continue
 			}
+			// 标准 OpenAI /v1/responses SSE 每个事件必须带 event: <type>，否则 Codex 等客户端按 untyped 处理会丢字段。
+			helper.ResponseChunkData(c, evt, string(payload))
 		}
 	}
 	return nil
@@ -899,9 +903,12 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			claudeInfo.ResponsesState.CustomToolNames = getResponsesCustomToolNames(c)
 		}
 		for _, evt := range claudeInfo.ResponsesState.FinalEvents() {
-			if sendErr := helper.ObjectData(c, evt); sendErr != nil {
-				common.SysLog("send final responses event failed: " + sendErr.Error())
+			payload, marshalErr := common.Marshal(evt)
+			if marshalErr != nil {
+				common.SysLog("marshal final responses event failed: " + marshalErr.Error())
+				continue
 			}
+			helper.ResponseChunkData(c, evt, string(payload))
 		}
 	}
 }
