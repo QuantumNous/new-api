@@ -2373,3 +2373,72 @@ status: completed
 ### 下一步最小任务建议
 
 - 在本地测试实例中分别请求 `/api/log/self` 和 `/api/log/token`，抓取原始 JSON 响应确认用户端不存在渠道、上游 key、多 key、relay、重试链和实际上游模型字段名。
+
+## 上游渠道密钥安全与错误响应加固记录
+
+任务名称：统一加固上游渠道密钥脱敏、用户可见错误响应与用户日志投影
+status: completed
+
+### 修改文件
+
+- `common/str.go`
+- `common/str_test.go`
+- `types/error.go`
+- `types/error_test.go`
+- `service/error.go`
+- `service/error_log_summary.go`
+- `service/error_log_summary_test.go`
+- `controller/relay.go`
+- `controller/channel-test.go`
+- `controller/error_log_info.go`
+- `controller/error_log_info_test.go`
+- `model/log.go`
+- `model/log_test.go`
+- `relay/audio_handler.go`
+- `relay/chat_completions_via_responses.go`
+- `relay/claude_handler.go`
+- `relay/compatible_handler.go`
+- `relay/embedding_handler.go`
+- `relay/gemini_handler.go`
+- `relay/image_handler.go`
+- `relay/rerank_handler.go`
+- `relay/responses_handler.go`
+- `relay/channel/gemini/relay-gemini.go`
+- `relay/channel/zhipu/relay-zhipu.go`
+- `relay/common/relay_utils.go`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 新增统一脱敏与用户可见净化函数，覆盖 Authorization/Bearer、API key、访问令牌、裸上游密钥形态、管道分隔密钥，并支持传入当前渠道 key 做精确替换。
+- OpenAI/Claude/Task 用户错误响应统一净化 message、type/code/error_code；包含 channel/upstream/relay/retry/key/token/prompt/messages/file/image 等内部或敏感词时回退为安全错误内容。
+- `RelayErrorHandler`、错误日志摘要、自动禁用 reason/status_reason、通道测试响应均接入强脱敏，并把当前渠道 key 作为显式 secret 参与替换。
+- 普通用户日志继续使用后端投影：错误日志 `other` 只保留安全字段，非错误日志 `other` 递归移除 key/channel/upstream/relay/retry 等敏感字段名，用户端错误 content 遇到内部词直接回退安全内容。
+- 智谱无效 key 日志不再输出 key 值。
+- 本轮未修改数据库结构、未新增 API、未修改前端、未触碰成功消费日志和计费逻辑。
+
+### 验证命令
+
+- `go test ./common/...`：通过
+- `go test ./types/...`：通过
+- `go test ./service/...`：通过
+- `go test ./controller/...`：通过
+- `New-Item -ItemType Directory -Force .gotmp | Out-Null; $env:GOTMPDIR=(Resolve-Path .gotmp).Path; go test ./model/...`：通过
+- `go test ./relay -run TestNonExistent -count=1`：通过
+- `go test ./relay/common -run TestNonExistent -count=1`：通过
+- `go test ./relay/channel/gemini -run TestNonExistent -count=1`：通过
+- `go test ./relay/channel/zhipu -run TestNonExistent -count=1`：通过
+- `git diff --check`：通过
+- 额外检查 `go test ./relay/...`：未通过，失败集中在未修改的 `relay/channel/claude` 文件内容转换用例与 `relay/helper` stream scanner 用例；本轮修改未触碰这些包内实现。
+
+### 自审结果
+
+- 已确认用户可见错误响应不再返回原始上游密钥、Bearer/API key、渠道、上游、relay、重试链、key 指纹/提示等内部信息。
+- 已确认管理员日志保留排障字段，但 message/body/prompt/file/image/key 均经过脱敏、截断或字段级替换。
+- 已确认普通用户 `/api/log/self` 与 `/api/log/token` 的日志投影不返回顶层渠道/令牌 ID 字段，错误日志 `other` 只保留状态码、错误类型和错误码。
+- 已确认新增测试仅使用伪造敏感样本，不依赖真实 token、密钥或外部服务。
+- 已确认未修改新旧前端、数据库迁移、依赖文件、成功计费或消费结算逻辑。
+
+### 下一步最小任务建议
+
+- 在本地测试实例中用普通用户调用一次会失败的 relay 请求，抓取原始响应 JSON 与 `/api/log/self`，人工确认用户端完全不出现渠道、上游、relay、重试、key/token 字段名。

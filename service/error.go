@@ -63,10 +63,11 @@ func ClaudeErrorWrapper(err error, code string, statusCode int) *dto.ClaudeError
 	lowerText := strings.ToLower(text)
 	if !strings.HasPrefix(lowerText, "get file base64 from url") {
 		if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
-			common.SysLog(fmt.Sprintf("error: %s", text))
+			common.SysLog(fmt.Sprintf("error: %s", common.MaskSecretsForLog(text)))
 			text = "请求上游地址失败"
 		}
 	}
+	text = common.SanitizeUserVisibleError(text, statusCode, code)
 	claudeError := types.ClaudeError{
 		Message: text,
 		Type:    "new_api_error",
@@ -83,7 +84,7 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 	return claudeErr
 }
 
-func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
+func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool, secrets ...string) (newApiErr *types.NewAPIError) {
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 
 	responseBody, err := io.ReadAll(resp.Body)
@@ -103,7 +104,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		if apiErr == nil {
 			return
 		}
-		snippet, truncated := SafeErrorLogSnippet(message, upstreamErrorSummaryMaxRunes)
+		snippet, truncated := SafeErrorLogSnippet(message, upstreamErrorSummaryMaxRunes, secrets...)
 		summary := map[string]interface{}{
 			"source":      "upstream",
 			"status_code": resp.StatusCode,
@@ -120,7 +121,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		apiErr.ErrorLogSummary = summary
 	}
 	safeBodySnippet := func() (string, bool) {
-		return SafeErrorLogSnippet(string(responseBody), upstreamErrorSummaryMaxRunes)
+		return SafeErrorLogSnippet(string(responseBody), upstreamErrorSummaryMaxRunes, secrets...)
 	}
 	buildErrWithBody := func(message string) error {
 		snippet, truncated := safeBodySnippet()
@@ -131,7 +132,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		if message == "" {
 			return fmt.Errorf("bad response status code %d, body_snippet: %s%s", resp.StatusCode, snippet, truncatedSuffix)
 		}
-		safeMessage, messageTruncated := SafeErrorLogSnippet(message, upstreamErrorSummaryMaxRunes)
+		safeMessage, messageTruncated := SafeErrorLogSnippet(message, upstreamErrorSummaryMaxRunes, secrets...)
 		if messageTruncated {
 			safeMessage += " (truncated)"
 		}
@@ -231,17 +232,18 @@ func TaskErrorWrapperLocal(err error, code string, statusCode int) *dto.TaskErro
 	return openaiErr
 }
 
-func TaskErrorWrapper(err error, code string, statusCode int) *dto.TaskError {
+func TaskErrorWrapper(err error, code string, statusCode int, secrets ...string) *dto.TaskError {
 	text := err.Error()
 	lowerText := strings.ToLower(text)
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
-		common.SysLog(fmt.Sprintf("error: %s", text))
+		common.SysLog(fmt.Sprintf("error: %s", common.MaskSecretsForLog(text, secrets...)))
 		//text = "请求上游地址失败"
-		text = common.MaskSensitiveInfo(text)
+		text = common.MaskSecretsForLog(text, secrets...)
 	}
 	//避免暴露内部错误
+	text = common.SanitizeUserVisibleError(text, statusCode, code, secrets...)
 	taskError := &dto.TaskError{
-		Code:       code,
+		Code:       common.SanitizeUserVisibleErrorCode(code, secrets...),
 		Message:    text,
 		StatusCode: statusCode,
 		Error:      err,
@@ -255,9 +257,13 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *dto.TaskError {
 	if apiErr == nil {
 		return nil
 	}
+	message := ""
+	if apiErr.Err != nil {
+		message = apiErr.Err.Error()
+	}
 	return &dto.TaskError{
-		Code:       string(apiErr.GetErrorCode()),
-		Message:    apiErr.Err.Error(),
+		Code:       common.SanitizeUserVisibleErrorCode(apiErr.GetErrorCode()),
+		Message:    common.SanitizeUserVisibleError(message, apiErr.StatusCode, apiErr.GetErrorCode()),
 		StatusCode: apiErr.StatusCode,
 		Error:      apiErr.Err,
 	}

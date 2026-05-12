@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -125,7 +126,7 @@ func TestBuildErrorLogOtherIncludesDiagnosticFields(t *testing.T) {
 
 func TestErrorLogContentSafeForAutoDisableReason(t *testing.T) {
 	err := types.NewErrorWithStatusCode(
-		errors.New("upstream failed Authorization: Bearer test-secret-key api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message]"),
+		errors.New("upstream failed Authorization: Bearer test-secret-key123 api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message]"),
 		types.ErrorCodeBadResponseStatusCode,
 		http.StatusUnauthorized,
 	)
@@ -138,7 +139,7 @@ func TestErrorLogContentSafeForAutoDisableReason(t *testing.T) {
 	require.Contains(t, reason, "api_key=***")
 	require.Contains(t, reason, "prompt=[redacted]")
 	require.Contains(t, reason, "messages=[redacted]")
-	require.NotContains(t, reason, "test-secret-key")
+	require.NotContains(t, reason, "test-secret-key123")
 	require.NotContains(t, reason, "raw-api-key")
 	require.NotContains(t, reason, "sk-test-secret")
 	require.NotContains(t, reason, "raw prompt")
@@ -208,7 +209,7 @@ func TestProcessChannelErrorAutoDisableStoresSafeReason(t *testing.T) {
 
 	ctx := newErrorLogInfoTestContext()
 	err := types.NewErrorWithStatusCode(
-		errors.New("upstream failed Authorization: Bearer test-secret-key api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message]"),
+		errors.New("upstream failed Authorization: Bearer test-secret-key123 api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message]"),
 		types.ErrorCodeBadResponseStatusCode,
 		http.StatusUnauthorized,
 	)
@@ -229,11 +230,42 @@ func TestProcessChannelErrorAutoDisableStoresSafeReason(t *testing.T) {
 	require.Contains(t, reason, "Authorization:***")
 	require.Contains(t, reason, "api_key=***")
 	require.Contains(t, reason, "prompt=[redacted]")
-	require.NotContains(t, reason, "test-secret-key")
+	require.NotContains(t, reason, "test-secret-key123")
 	require.NotContains(t, reason, "raw-api-key")
 	require.NotContains(t, reason, "sk-test-secret")
 	require.NotContains(t, reason, "raw prompt")
 	require.NotContains(t, reason, "private message")
+}
+
+func TestProcessChannelErrorMasksExplicitChannelKeyInStoredLog(t *testing.T) {
+	setupErrorLogInfoTestDB(t)
+	require.NoError(t, model.DB.Create(&model.User{Id: 101, Username: "error_user"}).Error)
+
+	oldEnabled := constant.ErrorLogEnabled
+	constant.ErrorLogEnabled = true
+	t.Cleanup(func() {
+		constant.ErrorLogEnabled = oldEnabled
+	})
+
+	ctx := newErrorLogInfoTestContext()
+	err := types.WithOpenAIError(types.OpenAIError{
+		Message: "provider echoed unusual-key-value",
+		Type:    "bad_response",
+		Code:    "bad_response",
+	}, http.StatusBadGateway)
+
+	processChannelError(ctx, nil, *types.NewChannelError(303, 1, "test_channel", false, "unusual-key-value", false), err)
+
+	var logs []model.Log
+	require.NoError(t, model.LOG_DB.Find(&logs).Error)
+	require.Len(t, logs, 1)
+	require.NotContains(t, logs[0].Content, "unusual-key-value")
+
+	other, errMap := common.StrToMap(logs[0].Other)
+	require.NoError(t, errMap)
+	otherText := fmt.Sprintf("%v", other)
+	require.NotContains(t, otherText, "unusual-key-value")
+	require.Contains(t, otherText, "***")
 }
 
 func TestProcessChannelErrorSkipsLogWhenDisabled(t *testing.T) {

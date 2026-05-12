@@ -427,7 +427,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
+			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true, info.ApiKey)
 			common.SysError(fmt.Sprintf(
 				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
 				channel.Id,
@@ -837,13 +837,15 @@ func TestChannel(c *gin.Context) {
 	tik := time.Now()
 	result := testChannel(channel, testModel, endpointType, isStream)
 	if result.localErr != nil {
+		message := common.SanitizeUserVisibleError(result.localErr.Error(), http.StatusInternalServerError, "channel_test_failed")
 		resp := gin.H{
 			"success": false,
-			"message": result.localErr.Error(),
+			"message": message,
 			"time":    0.0,
 		}
 		if result.newAPIError != nil {
-			resp["error_code"] = result.newAPIError.GetErrorCode()
+			resp["error_code"] = common.SanitizeUserVisibleErrorCode(result.newAPIError.GetErrorCode())
+			resp["message"] = result.newAPIError.UserVisibleErrorMessage(common.GetContextKeyString(result.context, constant.ContextKeyChannelKey))
 		}
 		c.JSON(http.StatusOK, resp)
 		return
@@ -853,11 +855,12 @@ func TestChannel(c *gin.Context) {
 	go channel.UpdateResponseTime(milliseconds)
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
+		channelKey := common.GetContextKeyString(result.context, constant.ContextKeyChannelKey)
 		c.JSON(http.StatusOK, gin.H{
 			"success":    false,
-			"message":    result.newAPIError.Error(),
+			"message":    result.newAPIError.UserVisibleErrorMessage(channelKey),
 			"time":       consumedTime,
-			"error_code": result.newAPIError.GetErrorCode(),
+			"error_code": common.SanitizeUserVisibleErrorCode(result.newAPIError.GetErrorCode()),
 		})
 		return
 	}

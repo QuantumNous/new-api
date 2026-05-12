@@ -154,10 +154,14 @@ func (e *NewAPIError) MaskSensitiveError() string {
 		return string(e.errorCode)
 	}
 	errStr := e.Err.Error()
-	if e.errorCode == ErrorCodeCountTokenFailed {
-		return errStr
+	return common.MaskSecretsForLog(errStr)
+}
+
+func (e *NewAPIError) UserVisibleErrorMessage(secrets ...string) string {
+	if e == nil {
+		return ""
 	}
-	return common.MaskSensitiveInfo(errStr)
+	return common.SanitizeUserVisibleError(e.MaskSensitiveError(), e.StatusCode, e.errorCode, secrets...)
 }
 
 func (e *NewAPIError) MaskSensitiveErrorWithStatusCode() string {
@@ -178,7 +182,7 @@ func (e *NewAPIError) SetMessage(message string) {
 	e.Err = errors.New(message)
 }
 
-func (e *NewAPIError) ToOpenAIError() OpenAIError {
+func (e *NewAPIError) ToOpenAIError(secrets ...string) OpenAIError {
 	var result OpenAIError
 	switch e.errorType {
 	case ErrorTypeOpenAIError:
@@ -202,16 +206,20 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 			Code:    e.errorCode,
 		}
 	}
-	if e.errorCode != ErrorCodeCountTokenFailed {
-		result.Message = common.MaskSensitiveInfo(result.Message)
+	result.Message = common.SanitizeUserVisibleError(result.Message, e.StatusCode, e.errorCode, secrets...)
+	result.Type = common.SanitizeUserVisibleErrorType(result.Type, secrets...)
+	if result.Code != nil {
+		result.Code = common.SanitizeUserVisibleErrorCode(result.Code, secrets...)
+	} else if e.errorCode != "" {
+		result.Code = common.SanitizeUserVisibleErrorCode(e.errorCode, secrets...)
 	}
 	if result.Message == "" {
-		result.Message = string(e.errorType)
+		result.Message = common.SanitizeUserVisibleErrorType(e.errorType, secrets...)
 	}
 	return result
 }
 
-func (e *NewAPIError) ToClaudeError() ClaudeError {
+func (e *NewAPIError) ToClaudeError(secrets ...string) ClaudeError {
 	var result ClaudeError
 	switch e.errorType {
 	case ErrorTypeOpenAIError:
@@ -231,11 +239,10 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 			Type:    string(e.errorType),
 		}
 	}
-	if e.errorCode != ErrorCodeCountTokenFailed {
-		result.Message = common.MaskSensitiveInfo(result.Message)
-	}
+	result.Message = common.SanitizeUserVisibleError(result.Message, e.StatusCode, e.errorCode, secrets...)
+	result.Type = common.SanitizeUserVisibleErrorType(result.Type, secrets...)
 	if result.Message == "" {
-		result.Message = string(e.errorType)
+		result.Message = common.SanitizeUserVisibleErrorType(e.errorType, secrets...)
 	}
 	return result
 }

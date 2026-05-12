@@ -18,7 +18,7 @@ import (
 func buildErrorLogOther(c *gin.Context, relayInfo *relaycommon.RelayInfo, channelError types.ChannelError, err *types.NewAPIError, useTimeSeconds int) map[string]interface{} {
 	other := make(map[string]interface{})
 	appendErrorLogRequestInfo(c, relayInfo, other, useTimeSeconds)
-	appendErrorLogErrorInfo(other, err)
+	appendErrorLogErrorInfo(other, err, channelError.UsingKey)
 	appendErrorLogChannelInfo(c, channelError, other)
 	appendErrorLogModelInfo(c, relayInfo, other)
 	appendErrorLogRelayInfo(c, relayInfo, other)
@@ -53,7 +53,7 @@ func appendErrorLogRequestInfo(c *gin.Context, relayInfo *relaycommon.RelayInfo,
 	}
 }
 
-func appendErrorLogErrorInfo(other map[string]interface{}, err *types.NewAPIError) {
+func appendErrorLogErrorInfo(other map[string]interface{}, err *types.NewAPIError, secrets ...string) {
 	if err == nil {
 		return
 	}
@@ -62,7 +62,7 @@ func appendErrorLogErrorInfo(other map[string]interface{}, err *types.NewAPIErro
 	other["status_code"] = err.StatusCode
 	other["upstream_status_code"] = err.StatusCode
 	other["error_source"] = service.ErrorSourceForLog(err)
-	if summary := errorLogSummary(err); len(summary) > 0 {
+	if summary := errorLogSummary(err, secrets...); len(summary) > 0 {
 		other["upstream_error"] = summary
 		if message, ok := summary["message"].(string); ok && message != "" {
 			other["last_error_summary"] = message
@@ -267,24 +267,40 @@ func errorLogElapsedMilliseconds(c *gin.Context) int64 {
 	return time.Since(startTime).Milliseconds()
 }
 
-func errorLogSummary(err *types.NewAPIError) map[string]interface{} {
+func errorLogSummary(err *types.NewAPIError, secrets ...string) map[string]interface{} {
 	if err == nil {
 		return nil
 	}
 	if len(err.ErrorLogSummary) > 0 {
-		return err.ErrorLogSummary
+		return sanitizeErrorLogSummary(err.ErrorLogSummary, secrets...)
 	}
-	return service.BuildErrorLogSummary(err)
+	return service.BuildErrorLogSummary(err, secrets...)
 }
 
-func errorLogContent(err *types.NewAPIError) string {
+func sanitizeErrorLogSummary(summary map[string]interface{}, secrets ...string) map[string]interface{} {
+	if len(summary) == 0 {
+		return nil
+	}
+	safe := make(map[string]interface{}, len(summary))
+	for key, value := range summary {
+		if text, ok := value.(string); ok {
+			snippet, _ := service.SafeErrorLogSnippet(text, 800, secrets...)
+			safe[key] = snippet
+			continue
+		}
+		safe[key] = value
+	}
+	return safe
+}
+
+func errorLogContent(err *types.NewAPIError, secrets ...string) string {
 	if err == nil {
 		return ""
 	}
-	summary := errorLogSummary(err)
+	summary := errorLogSummary(err, secrets...)
 	message, _ := summary["message"].(string)
 	if message == "" {
-		message, _ = service.SafeErrorLogSnippet(err.MaskSensitiveError(), 800)
+		message, _ = service.SafeErrorLogSnippet(err.MaskSensitiveError(), 800, secrets...)
 	}
 	if err.StatusCode == 0 {
 		return message

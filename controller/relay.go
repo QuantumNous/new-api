@@ -79,7 +79,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		var err error
 		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
-			helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToOpenAIError())
+			channelKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+			helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToOpenAIError(channelKey))
 			return
 		}
 		defer ws.Close()
@@ -87,19 +88,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	defer func() {
 		if newAPIError != nil {
-			logger.LogError(c, fmt.Sprintf("relay error: %s", newAPIError.Error()))
-			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			channelKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+			logger.LogError(c, fmt.Sprintf("relay error: %s", newAPIError.MaskSensitiveError()))
+			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.UserVisibleErrorMessage(channelKey), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
-				helper.WssError(c, ws, newAPIError.ToOpenAIError())
+				helper.WssError(c, ws, newAPIError.ToOpenAIError(channelKey))
 			case types.RelayFormatClaude:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"type":  "error",
-					"error": newAPIError.ToClaudeError(),
+					"error": newAPIError.ToClaudeError(channelKey),
 				})
 			default:
 				c.JSON(newAPIError.StatusCode, gin.H{
-					"error": newAPIError.ToOpenAIError(),
+					"error": newAPIError.ToOpenAIError(channelKey),
 				})
 			}
 		}
@@ -353,12 +355,12 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 }
 
 func processChannelError(c *gin.Context, relayInfo *relaycommon.RelayInfo, channelError types.ChannelError, err *types.NewAPIError) {
-	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, errorLogContent(err)))
+	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, errorLogContent(err, channelError.UsingKey)))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
 		gopool.Go(func() {
-			service.DisableChannel(channelError, errorLogContent(err))
+			service.DisableChannel(channelError, errorLogContent(err, channelError.UsingKey))
 		})
 	}
 
@@ -375,7 +377,7 @@ func processChannelError(c *gin.Context, relayInfo *relaycommon.RelayInfo, chann
 		}
 		useTimeSeconds := errorLogUseTimeSeconds(c)
 		other := buildErrorLogOther(c, relayInfo, channelError, err, useTimeSeconds)
-		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, errorLogContent(err), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, errorLogContent(err, channelError.UsingKey), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
 }
@@ -452,7 +454,7 @@ func RelayTaskFetch(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
 			Code:       "gen_relay_info_failed",
-			Message:    err.Error(),
+			Message:    common.SanitizeUserVisibleError(err.Error(), http.StatusInternalServerError, "gen_relay_info_failed"),
 			StatusCode: http.StatusInternalServerError,
 		})
 		return
@@ -467,7 +469,7 @@ func RelayTask(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
 			Code:       "gen_relay_info_failed",
-			Message:    err.Error(),
+			Message:    common.SanitizeUserVisibleError(err.Error(), http.StatusInternalServerError, "gen_relay_info_failed"),
 			StatusCode: http.StatusInternalServerError,
 		})
 		return
@@ -587,6 +589,9 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
+	channelKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+	taskErr.Code = common.SanitizeUserVisibleErrorCode(taskErr.Code, channelKey)
+	taskErr.Message = common.SanitizeUserVisibleError(taskErr.Message, taskErr.StatusCode, taskErr.Code, channelKey)
 	c.JSON(taskErr.StatusCode, taskErr)
 }
 

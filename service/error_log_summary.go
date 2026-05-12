@@ -28,7 +28,7 @@ type UpstreamErrorLogSummary struct {
 	Truncated  bool   `json:"truncated,omitempty"`
 }
 
-func BuildErrorLogSummary(err *types.NewAPIError) map[string]interface{} {
+func BuildErrorLogSummary(err *types.NewAPIError, secrets ...string) map[string]interface{} {
 	if err == nil {
 		return nil
 	}
@@ -48,19 +48,19 @@ func BuildErrorLogSummary(err *types.NewAPIError) map[string]interface{} {
 		if relayErr.Code != nil {
 			summary.Code = fmt.Sprintf("%v", relayErr.Code)
 		}
-		summary.Message, summary.Truncated = SafeErrorLogSnippet(relayErr.Message, upstreamErrorSummaryMaxRunes)
+		summary.Message, summary.Truncated = SafeErrorLogSnippet(relayErr.Message, upstreamErrorSummaryMaxRunes, secrets...)
 	case types.ClaudeError:
 		if relayErr.Type != "" {
 			summary.Type = relayErr.Type
 		}
 		summary.Code = relayErr.Type
-		summary.Message, summary.Truncated = SafeErrorLogSnippet(relayErr.Message, upstreamErrorSummaryMaxRunes)
+		summary.Message, summary.Truncated = SafeErrorLogSnippet(relayErr.Message, upstreamErrorSummaryMaxRunes, secrets...)
 	default:
-		summary.Message, summary.Truncated = SafeErrorLogSnippet(err.MaskSensitiveError(), upstreamErrorSummaryMaxRunes)
+		summary.Message, summary.Truncated = SafeErrorLogSnippet(err.MaskSensitiveError(), upstreamErrorSummaryMaxRunes, secrets...)
 	}
 
 	if summary.Message == "" {
-		summary.Message, summary.Truncated = SafeErrorLogSnippet(err.MaskSensitiveError(), upstreamErrorSummaryMaxRunes)
+		summary.Message, summary.Truncated = SafeErrorLogSnippet(err.MaskSensitiveError(), upstreamErrorSummaryMaxRunes, secrets...)
 	}
 
 	result := make(map[string]interface{})
@@ -88,8 +88,8 @@ func BuildErrorLogSummary(err *types.NewAPIError) map[string]interface{} {
 	return result
 }
 
-func BuildUpstreamErrorLogSummary(err *types.NewAPIError) map[string]interface{} {
-	return BuildErrorLogSummary(err)
+func BuildUpstreamErrorLogSummary(err *types.NewAPIError, secrets ...string) map[string]interface{} {
+	return BuildErrorLogSummary(err, secrets...)
 }
 
 func ErrorSourceForLog(err *types.NewAPIError) string {
@@ -116,33 +116,33 @@ func ErrorSourceForLog(err *types.NewAPIError) string {
 	}
 }
 
-func SafeErrorLogSnippet(text string, maxRunes int) (string, bool) {
+func SafeErrorLogSnippet(text string, maxRunes int, secrets ...string) (string, bool) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return "", false
 	}
-	masked := sanitizeErrorLogText(text)
+	masked := sanitizeErrorLogText(text, secrets...)
 	if maxRunes <= 0 {
 		return masked, false
 	}
 	return truncateRunes(masked, maxRunes)
 }
 
-func sanitizeErrorLogText(text string) string {
-	if redacted, ok := redactJSONErrorLogText(text); ok {
+func sanitizeErrorLogText(text string, secrets ...string) string {
+	if redacted, ok := redactJSONErrorLogText(text, secrets...); ok {
 		return redacted
 	}
-	text = common.MaskSensitiveInfo(text)
+	text = common.MaskSecretsForLog(text, secrets...)
 	text = maskErrorLogSecrets(text)
 	return maskErrorLogPayloadFields(text)
 }
 
-func redactJSONErrorLogText(text string) (string, bool) {
+func redactJSONErrorLogText(text string, secrets ...string) (string, bool) {
 	var payload any
 	if err := common.Unmarshal([]byte(text), &payload); err != nil {
 		return "", false
 	}
-	payload = redactErrorLogValue(payload)
+	payload = redactErrorLogValue(payload, secrets...)
 	bytes, err := common.Marshal(payload)
 	if err != nil {
 		return "", false
@@ -150,7 +150,7 @@ func redactJSONErrorLogText(text string) (string, bool) {
 	return string(bytes), true
 }
 
-func redactErrorLogValue(value any) any {
+func redactErrorLogValue(value any, secrets ...string) any {
 	switch typed := value.(type) {
 	case map[string]any:
 		for key, item := range typed {
@@ -160,17 +160,17 @@ func redactErrorLogValue(value any) any {
 			case isPayloadLogField(key):
 				typed[key] = "[redacted]"
 			default:
-				typed[key] = redactErrorLogValue(item)
+				typed[key] = redactErrorLogValue(item, secrets...)
 			}
 		}
 		return typed
 	case []any:
 		for i, item := range typed {
-			typed[i] = redactErrorLogValue(item)
+			typed[i] = redactErrorLogValue(item, secrets...)
 		}
 		return typed
 	case string:
-		return maskErrorLogPayloadFields(maskErrorLogSecrets(common.MaskSensitiveInfo(typed)))
+		return maskErrorLogPayloadFields(maskErrorLogSecrets(common.MaskSecretsForLog(typed, secrets...)))
 	default:
 		return typed
 	}

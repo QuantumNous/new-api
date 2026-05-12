@@ -3,8 +3,10 @@ package common
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -17,7 +19,13 @@ var (
 	maskDomainPattern = regexp.MustCompile(`\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b`)
 	maskIPPattern     = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
 	// maskApiKeyPattern matches patterns like 'api_key:xxx' or "api_key:xxx" to mask the API key value
-	maskApiKeyPattern = regexp.MustCompile(`(['"]?)api_key:([^\s'"]+)(['"]?)`)
+	maskApiKeyPattern                  = regexp.MustCompile(`(['"]?)api_key:([^\s'"]+)(['"]?)`)
+	maskAuthorizationPattern           = regexp.MustCompile(`(?i)(["']?\bauthorization\b["']?\s*[:=]\s*)(?:bearer\s+)?("[^"]*"|'[^']*'|[^\s,;}\]]+)`)
+	maskSecretAssignmentPattern        = regexp.MustCompile(`(?i)(["']?\b(?:authorization|api[-_ ]?key|x-api-key|x-goog-api-key|access[-_ ]?token|refresh[-_ ]?token|bearer[-_ ]?token|secret|token|key)\b["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}\]]+)`)
+	maskBearerTokenPattern             = regexp.MustCompile(`(?i)\bbearer\s+([a-z0-9._~+/=-]{6,})`)
+	maskSkTokenPattern                 = regexp.MustCompile(`(?i)\bsk-[a-z0-9_-]{6,}`)
+	maskPipeSeparatedSecretPattern     = regexp.MustCompile(`\b[A-Za-z0-9][A-Za-z0-9._~+/=-]{5,}\|[A-Za-z0-9][A-Za-z0-9._~+/=-]{5,}(?:\|[A-Za-z0-9][A-Za-z0-9._~+/=-]{2,})?\b`)
+	userVisibleSensitiveContentPattern = regexp.MustCompile(`(?i)\b(?:authorization|api[-_ ]?key|x-api-key|x-goog-api-key|access[-_ ]?token|refresh[-_ ]?token|bearer|secret|token|key|channel|upstream|relay|retry|key[-_ ]?hint|key[-_ ]?fp|multi[-_ ]?key|use[-_ ]?channel|prompt|messages|input|content|image[-_ ]?url|image|images|file[-_ ]?data|file|files|audio|request[-_ ]?header|headers?)\b|sk-|渠道|上游|重试|密钥|令牌|多密钥`)
 )
 
 func GetStringIfEmpty(str string, defaultValue string) string {
@@ -250,5 +258,186 @@ func MaskSensitiveInfo(str string) string {
 	// Mask API keys (e.g., "api_key:AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70" -> "api_key:***")
 	str = maskApiKeyPattern.ReplaceAllString(str, "${1}api_key:***${3}")
 
+	str = maskSecretLiterals(str)
+
 	return str
+}
+
+func MaskSecretsForLog(str string, secrets ...string) string {
+	if str == "" {
+		return ""
+	}
+	str = maskExactSecrets(str, secrets...)
+	return MaskSensitiveInfo(str)
+}
+
+func SanitizeUserVisibleError(message string, statusCode int, errorCode any, secrets ...string) string {
+	message = strings.TrimSpace(MaskSecretsForLog(message, secrets...))
+	if message == "" || ContainsUserVisibleSensitiveTerm(message) {
+		return userVisibleErrorFallback(statusCode, errorCode, secrets...)
+	}
+	return message
+}
+
+func SanitizeUserVisibleErrorCode(errorCode any, secrets ...string) string {
+	code := strings.TrimSpace(fmt.Sprintf("%v", errorCode))
+	if code == "" || code == "<nil>" {
+		return ""
+	}
+	code = strings.TrimSpace(MaskSecretsForLog(code, secrets...))
+	if code == "" {
+		return ""
+	}
+	if ContainsUserVisibleSensitiveTerm(code) {
+		return "request_error"
+	}
+	return code
+}
+
+func SanitizeUserVisibleErrorType(errorType any, secrets ...string) string {
+	typ := strings.TrimSpace(fmt.Sprintf("%v", errorType))
+	if typ == "" || typ == "<nil>" {
+		return "new_api_error"
+	}
+	typ = strings.TrimSpace(MaskSecretsForLog(typ, secrets...))
+	if typ == "" || ContainsUserVisibleSensitiveTerm(typ) {
+		return "new_api_error"
+	}
+	return typ
+}
+
+func ContainsUserVisibleSensitiveTerm(content string) bool {
+	if userVisibleSensitiveContentPattern.MatchString(content) {
+		return true
+	}
+	normalized := strings.ToLower(content)
+	for _, term := range []string{
+		"authorization",
+		"api_key",
+		"api-key",
+		"apikey",
+		"x-api-key",
+		"x-goog-api-key",
+		"access_token",
+		"access-token",
+		"refresh_token",
+		"refresh-token",
+		"bearer",
+		"secret",
+		"token",
+		"key",
+		"sk-",
+		"channel",
+		"upstream",
+		"relay",
+		"retry",
+		"key_hint",
+		"key-hint",
+		"key_fp",
+		"key-fp",
+		"multi_key",
+		"multi-key",
+		"prompt",
+		"messages",
+		"image_url",
+		"image-url",
+		"file_data",
+		"file-data",
+		"request_header",
+		"request-header",
+		"header",
+		"渠道",
+		"上游",
+		"重试",
+		"密钥",
+		"令牌",
+		"多密钥",
+	} {
+		if strings.Contains(normalized, term) {
+			return true
+		}
+	}
+	return false
+}
+
+func maskExactSecrets(text string, secrets ...string) string {
+	candidates := make([]string, 0, len(secrets)*3)
+	seen := make(map[string]bool)
+	for _, secret := range secrets {
+		for _, candidate := range secretCandidates(secret) {
+			if seen[candidate] {
+				continue
+			}
+			seen[candidate] = true
+			candidates = append(candidates, candidate)
+		}
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return len(candidates[i]) > len(candidates[j])
+	})
+	for _, candidate := range candidates {
+		text = strings.ReplaceAll(text, candidate, "***")
+	}
+	return text
+}
+
+func secretCandidates(secret string) []string {
+	secret = strings.TrimSpace(secret)
+	if len(secret) < 4 {
+		return nil
+	}
+	candidates := []string{secret}
+	if strings.HasPrefix(strings.ToLower(secret), "bearer ") {
+		trimmed := strings.TrimSpace(secret[7:])
+		if len(trimmed) >= 4 {
+			candidates = append(candidates, trimmed)
+		}
+	}
+	if strings.HasPrefix(secret, "sk-") && len(secret) > 3 {
+		trimmed := strings.TrimPrefix(secret, "sk-")
+		if len(trimmed) >= 4 {
+			candidates = append(candidates, trimmed)
+		}
+	}
+	for _, part := range strings.Split(secret, "|") {
+		part = strings.TrimSpace(part)
+		if len(part) >= 8 {
+			candidates = append(candidates, part)
+		}
+	}
+	return candidates
+}
+
+func maskSecretLiterals(text string) string {
+	text = maskAuthorizationPattern.ReplaceAllStringFunc(text, maskSecretAssignmentMatch)
+	text = maskSecretAssignmentPattern.ReplaceAllStringFunc(text, func(match string) string {
+		return maskSecretAssignmentMatch(match)
+	})
+	text = maskBearerTokenPattern.ReplaceAllString(text, "Bearer ***")
+	text = maskSkTokenPattern.ReplaceAllString(text, "sk-***")
+	text = maskPipeSeparatedSecretPattern.ReplaceAllString(text, "***|***")
+	return text
+}
+
+func maskSecretAssignmentMatch(match string) string {
+	idx := strings.IndexAny(match, ":=")
+	if idx < 0 {
+		return "***"
+	}
+	key := strings.TrimSpace(match[:idx])
+	return key + match[idx:idx+1] + "***"
+}
+
+func userVisibleErrorFallback(statusCode int, errorCode any, secrets ...string) string {
+	code := SanitizeUserVisibleErrorCode(errorCode, secrets...)
+	if statusCode > 0 && code != "" {
+		return fmt.Sprintf("status_code=%d, error_code=%s", statusCode, code)
+	}
+	if statusCode > 0 {
+		return fmt.Sprintf("status_code=%d", statusCode)
+	}
+	if code != "" {
+		return fmt.Sprintf("error_code=%s", code)
+	}
+	return "request failed"
 }

@@ -119,8 +119,22 @@ func TestBuildErrorLogSummaryUsesMaskedFallback(t *testing.T) {
 	require.Contains(t, summary["message"], "https://***.com/***")
 }
 
+func TestBuildErrorLogSummaryMasksExplicitChannelKey(t *testing.T) {
+	err := types.WithOpenAIError(types.OpenAIError{
+		Message: "provider echoed unusual-key-value",
+		Type:    "bad_response",
+		Code:    "bad_response",
+	}, http.StatusBadGateway)
+
+	summary := BuildErrorLogSummary(err, "unusual-key-value")
+
+	message, _ := summary["message"].(string)
+	require.NotContains(t, message, "unusual-key-value")
+	require.Contains(t, message, "***")
+}
+
 func TestRelayErrorHandlerNonJSONBodyUsesSafeSummary(t *testing.T) {
-	body := "upstream failed Authorization: Bearer test-secret-key api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message] image_url=https://example.com/private.png file_data=base64-file"
+	body := "upstream failed Authorization: Bearer test-secret-key123 api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message] image_url=https://example.com/private.png file_data=base64-file"
 	resp := &http.Response{
 		StatusCode: http.StatusBadGateway,
 		Body:       io.NopCloser(bytes.NewBufferString(body)),
@@ -137,7 +151,7 @@ func TestRelayErrorHandlerNonJSONBodyUsesSafeSummary(t *testing.T) {
 	require.Contains(t, message, "messages=[redacted]")
 	require.Contains(t, message, "image_url=[redacted]")
 	require.Contains(t, message, "file_data=[redacted]")
-	require.NotContains(t, message, "test-secret-key")
+	require.NotContains(t, message, "test-secret-key123")
 	require.NotContains(t, message, "raw-api-key")
 	require.NotContains(t, message, "sk-test-secret")
 	require.NotContains(t, message, "raw prompt")
@@ -147,7 +161,7 @@ func TestRelayErrorHandlerNonJSONBodyUsesSafeSummary(t *testing.T) {
 }
 
 func TestRelayErrorHandlerShowBodyWhenFailUsesSafeSnippet(t *testing.T) {
-	body := "upstream failed Authorization: Bearer test-secret-key api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message] image_url=https://example.com/private.png file_data=base64-file"
+	body := "upstream failed Authorization: Bearer test-secret-key123 api_key=raw-api-key sk-test-secret prompt=raw prompt messages=[private message] image_url=https://example.com/private.png file_data=base64-file"
 	resp := &http.Response{
 		StatusCode: http.StatusBadGateway,
 		Body:       io.NopCloser(bytes.NewBufferString(body)),
@@ -160,11 +174,56 @@ func TestRelayErrorHandlerShowBodyWhenFailUsesSafeSnippet(t *testing.T) {
 	require.Contains(t, errText, "Authorization:***")
 	require.Contains(t, errText, "api_key=***")
 	require.Contains(t, errText, "prompt=[redacted]")
-	require.NotContains(t, errText, "test-secret-key")
+	require.NotContains(t, errText, "test-secret-key123")
 	require.NotContains(t, errText, "raw-api-key")
 	require.NotContains(t, errText, "sk-test-secret")
 	require.NotContains(t, errText, "raw prompt")
 	require.NotContains(t, errText, "private message")
 	require.NotContains(t, errText, "private.png")
 	require.NotContains(t, errText, "base64-file")
+}
+
+func TestTaskErrorWrapperSanitizesUserVisibleMessage(t *testing.T) {
+	body := "upstream channel failed Authorization: Bearer test-secret-key123 api_key=raw-api-key sk-test-secret prompt=raw messages=[private message]"
+
+	taskErr := TaskErrorWrapper(errors.New(body), "fail_to_fetch_task", http.StatusBadGateway)
+
+	require.Equal(t, "status_code=502, error_code=fail_to_fetch_task", taskErr.Message)
+	require.NotContains(t, taskErr.Message, "test-secret-key123")
+	require.NotContains(t, taskErr.Message, "raw-api-key")
+	require.NotContains(t, taskErr.Message, "sk-test-secret")
+	require.NotContains(t, strings.ToLower(taskErr.Message), "upstream")
+	require.NotContains(t, strings.ToLower(taskErr.Message), "channel")
+	require.NotContains(t, strings.ToLower(taskErr.Message), "prompt")
+}
+
+func TestTaskErrorFromAPIErrorSanitizesUserVisibleMessage(t *testing.T) {
+	apiErr := types.NewErrorWithStatusCode(
+		errors.New("upstream failed Authorization: Bearer test-secret-key123 api_key=raw-api-key"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusBadGateway,
+	)
+
+	taskErr := TaskErrorFromAPIError(apiErr)
+
+	require.Equal(t, "bad_response_status_code", taskErr.Code)
+	require.Equal(t, "status_code=502, error_code=bad_response_status_code", taskErr.Message)
+	require.NotContains(t, taskErr.Message, "test-secret-key123")
+	require.NotContains(t, taskErr.Message, "raw-api-key")
+	require.NotContains(t, strings.ToLower(taskErr.Message), "upstream")
+}
+
+func TestTaskErrorFromAPIErrorSanitizesInternalCode(t *testing.T) {
+	apiErr := types.NewErrorWithStatusCode(
+		errors.New("channel failed with no key"),
+		types.ErrorCodeChannelNoAvailableKey,
+		http.StatusBadGateway,
+	)
+
+	taskErr := TaskErrorFromAPIError(apiErr)
+
+	require.Equal(t, "request_error", taskErr.Code)
+	require.Equal(t, "status_code=502, error_code=request_error", taskErr.Message)
+	require.NotContains(t, strings.ToLower(taskErr.Code), "channel")
+	require.NotContains(t, strings.ToLower(taskErr.Message), "channel")
 }

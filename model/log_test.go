@@ -163,9 +163,12 @@ func TestFormatUserLogsPreservesUserOwnedConsumeFields(t *testing.T) {
 				"upstream_model_name": "provider-model",
 				"key_hint":            "secret-key-hint",
 				"nested": map[string]interface{}{
-					"channel_id": 9,
-					"key-fp":     "nested-key-fp",
-					"safe":       "keep",
+					"channel_id":  9,
+					"key-fp":      "nested-key-fp",
+					"api_key":     "nested-api-key",
+					"secret":      "nested-secret",
+					"retry_chain": []interface{}{"9", "10"},
+					"safe":        "keep",
 				},
 			}),
 		},
@@ -198,6 +201,8 @@ func TestFormatUserLogsPreservesUserOwnedConsumeFields(t *testing.T) {
 	require.NotContains(t, bodyText, "secret-channel")
 	require.NotContains(t, bodyText, "provider-model")
 	require.NotContains(t, bodyText, "secret-key-hint")
+	require.NotContains(t, bodyText, "nested-api-key")
+	require.NotContains(t, bodyText, "nested-secret")
 
 	other, err := common.StrToMap(userLog.Other)
 	require.NoError(t, err)
@@ -211,6 +216,9 @@ func TestFormatUserLogsPreservesUserOwnedConsumeFields(t *testing.T) {
 	require.Equal(t, "keep", nested["safe"])
 	require.NotContains(t, nested, "channel_id")
 	require.NotContains(t, nested, "key-fp")
+	require.NotContains(t, nested, "api_key")
+	require.NotContains(t, nested, "secret")
+	require.NotContains(t, nested, "retry_chain")
 }
 
 func TestUserLogContentLeavesPlainErrorMessage(t *testing.T) {
@@ -236,4 +244,14 @@ func TestUserLogContentFallsBackWhenSensitiveWordsRemain(t *testing.T) {
 	require.False(t, strings.Contains(strings.ToLower(content), "relay"))
 	require.False(t, strings.Contains(strings.ToLower(content), "channel"))
 	require.False(t, strings.Contains(strings.ToLower(content), "key_fp"))
+}
+
+func TestUserLogContentFallsBackForChineseInternalTerms(t *testing.T) {
+	log := &Log{
+		Type:    LogTypeError,
+		Content: "上游渠道密钥失败",
+		Other:   common.MapToJsonStr(map[string]interface{}{"status_code": 502}),
+	}
+
+	require.Equal(t, "status_code=502", userLogContent(log))
 }

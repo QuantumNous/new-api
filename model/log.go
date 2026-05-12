@@ -72,7 +72,7 @@ const (
 	LogTypeRefund  = 6
 )
 
-var userErrorLogSensitiveContentPattern = regexp.MustCompile(`(?i)\b(?:authorization|api[-_ ]?key|x-api-key|access[-_ ]?token|refresh[-_ ]?token|bearer|channel|upstream|relay|key[-_ ]?hint|key[-_ ]?fp|multi[-_ ]?key)\b`)
+var userErrorLogSensitiveContentPattern = regexp.MustCompile(`(?i)\b(?:authorization|api[-_ ]?key|x-api-key|access[-_ ]?token|refresh[-_ ]?token|bearer|secret|token|key|channel|upstream|relay|retry|key[-_ ]?hint|key[-_ ]?fp|multi[-_ ]?key)\b|sk-|渠道|上游|重试|密钥|令牌|多密钥`)
 
 func formatUserLogs(logs []*Log, startIdx int) []*UserLog {
 	userLogs := make([]*UserLog, 0, len(logs))
@@ -145,6 +145,16 @@ func removeSensitiveUserLogOtherFields(otherMap map[string]interface{}) {
 		"keysource":          true,
 		"keypath":            true,
 		"keykey":             true,
+		"key":                true,
+		"apikey":             true,
+		"xapikey":            true,
+		"xgoogapikey":        true,
+		"authorization":      true,
+		"token":              true,
+		"secret":             true,
+		"accesstoken":        true,
+		"refreshtoken":       true,
+		"bearertoken":        true,
 		"ismultikey":         true,
 		"multikeyindex":      true,
 		"multikey":           true,
@@ -161,7 +171,7 @@ func removeSensitiveUserLogOtherFieldsRecursive(value interface{}, sensitiveKeys
 	switch typed := value.(type) {
 	case map[string]interface{}:
 		for key, item := range typed {
-			if sensitiveKeys[normalizeUserLogOtherKey(key)] {
+			if isSensitiveUserLogOtherKey(key, sensitiveKeys) {
 				delete(typed, key)
 				continue
 			}
@@ -172,6 +182,31 @@ func removeSensitiveUserLogOtherFieldsRecursive(value interface{}, sensitiveKeys
 			removeSensitiveUserLogOtherFieldsRecursive(item, sensitiveKeys)
 		}
 	}
+}
+
+func isSensitiveUserLogOtherKey(key string, sensitiveKeys map[string]bool) bool {
+	normalized := normalizeUserLogOtherKey(key)
+	if sensitiveKeys[normalized] {
+		return true
+	}
+	for _, fragment := range []string{
+		"authorization",
+		"apikey",
+		"accesstoken",
+		"refreshtoken",
+		"bearertoken",
+		"secret",
+		"key",
+		"channel",
+		"upstream",
+		"relay",
+		"retry",
+	} {
+		if strings.Contains(normalized, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeUserLogOtherKey(key string) string {
@@ -194,8 +229,9 @@ func userLogContent(log *Log) string {
 	if log == nil {
 		return ""
 	}
-	if log.Type != LogTypeError || !containsUserErrorLogSensitiveTerm(log.Content) {
-		return log.Content
+	content := common.MaskSecretsForLog(log.Content)
+	if log.Type != LogTypeError || !containsUserErrorLogSensitiveTerm(content) {
+		return content
 	}
 	if statusCode := userLogStatusCodeFromOther(log.Other); statusCode != "" {
 		return "status_code=" + statusCode
@@ -212,22 +248,33 @@ func containsUserErrorLogSensitiveTerm(content string) bool {
 		"authorization",
 		"api_key",
 		"api-key",
+		"apikey",
 		"x-api-key",
 		"access_token",
 		"access-token",
 		"refresh_token",
 		"refresh-token",
 		"bearer",
+		"secret",
+		"token",
+		"key",
 		"sk-",
 		"channel",
 		"upstream",
 		"relay",
+		"retry",
 		"key_hint",
 		"key-hint",
 		"key_fp",
 		"key-fp",
 		"multi_key",
 		"multi-key",
+		"渠道",
+		"上游",
+		"重试",
+		"密钥",
+		"令牌",
+		"多密钥",
 	} {
 		if strings.Contains(lowerContent, term) {
 			return true
