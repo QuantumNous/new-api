@@ -7,5 +7,13 @@ Makefile
 docs
 .eslintcache
 .gocache
-/web/node_modules
+# Exclude all node_modules. The Dockerfile builder stages run `bun install`
+# themselves; bundling the host's local node_modules into the build context
+# is pure waste — adds ~2GB to every `COPY . .` for nothing.
+# (The legacy `/web/node_modules` line below no longer matches anything —
+# after the web/default + web/classic split, the actual dirs are nested.)
+**/node_modules
+# Build outputs — same reasoning; the Dockerfile rebuilds these in-image.
+/web/default/dist
+/web/classic/dist
 !THIRD-PARTY-LICENSES.md
