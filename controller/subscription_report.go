@@ -67,7 +67,7 @@ func AdminGetSubscriptionPlanUsage(c *gin.Context) {
 	monthStart, monthEnd := parseMonthRange(c.Query("month"))
 	monthUsageSubQuery := model.DB.Table("subscription_pre_consume_records spr").
 		Select("spr.user_subscription_id as sub_id, COALESCE(SUM(spr.pre_consumed),0) as month_used").
-		Where("spr.status = ? AND spr.settled_at >= ? AND spr.settled_at < ?", "consumed", monthStart, monthEnd).
+		Where("spr.status = ? AND spr.updated_at >= ? AND spr.updated_at < ?", "consumed", monthStart, monthEnd).
 		Group("spr.user_subscription_id")
 
 	selectGroup := fmt.Sprintf("%s as user_group", model.CommonGroupColumnName())
