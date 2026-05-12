@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect } from 'react'
 import { type QueryClient } from '@tanstack/react-query'
 import {
   createRootRouteWithContext,
@@ -31,10 +32,18 @@ import { NavigationProgress } from '@/components/navigation-progress'
 import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
 import { getSetupStatus } from '@/features/setup/api'
+import { saveAffiliateCode } from '@/features/auth/lib/storage'
 
 function RootComponent() {
   // Load system configuration (logo, system name, etc.) from backend
   useSystemConfig({ autoLoad: true })
+
+  useEffect(() => {
+    const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
+    if (aff) {
+      saveAffiliateCode(aff)
+    }
+  }, [])
 
   return (
     <ThemeCustomizationProvider>

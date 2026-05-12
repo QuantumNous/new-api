@@ -36,6 +36,7 @@ interface ComboboxInputProps {
   emptyText?: string
   className?: string
   id?: string
+  allowCustomValue?: boolean
 }
 
 export function ComboboxInput({
@@ -46,23 +47,30 @@ export function ComboboxInput({
   emptyText = 'No option found.',
   className,
   id,
+  allowCustomValue = false,
 }: ComboboxInputProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
+  const [searchValue, setSearchValue] = React.useState('')
   const [highlightedIndex, setHighlightedIndex] = React.useState(-1)
   const containerRef = React.useRef<HTMLDivElement>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const listRef = React.useRef<HTMLUListElement>(null)
+  const selectedOption = React.useMemo(
+    () => options.find((option) => option.value === value),
+    [options, value]
+  )
+  const displayValue = open ? searchValue : (selectedOption?.label ?? value)
 
   const filteredOptions = React.useMemo(() => {
-    if (!value.trim()) return options
-    const search = value.toLowerCase().trim()
+    if (!searchValue.trim()) return options
+    const search = searchValue.toLowerCase().trim()
     return options.filter(
       (option) =>
         option.label.toLowerCase().includes(search) ||
         option.value.toLowerCase().includes(search)
     )
-  }, [options, value])
+  }, [options, searchValue])
 
   // Reset highlight when filtered options change
   React.useEffect(() => {
@@ -79,6 +87,7 @@ export function ComboboxInput({
         !containerRef.current.contains(e.target as Node)
       ) {
         setOpen(false)
+        setSearchValue('')
       }
     }
 
@@ -89,6 +98,7 @@ export function ComboboxInput({
   const handleSelect = (selectedValue: string) => {
     onValueChange(selectedValue)
     setOpen(false)
+    setSearchValue('')
     inputRef.current?.focus()
   }
 
@@ -117,14 +127,18 @@ export function ComboboxInput({
         e.preventDefault()
         if (highlightedIndex >= 0 && filteredOptions[highlightedIndex]) {
           handleSelect(filteredOptions[highlightedIndex].value)
+        } else if (allowCustomValue && searchValue.trim()) {
+          handleSelect(searchValue.trim())
         } else {
           // No highlighted option, just close the dropdown and keep current value
           setOpen(false)
+          setSearchValue('')
         }
         break
       case 'Escape':
         e.preventDefault()
         setOpen(false)
+        setSearchValue('')
         break
     }
   }
@@ -136,7 +150,9 @@ export function ComboboxInput({
     item?.scrollIntoView({ block: 'nearest' })
   }, [highlightedIndex])
 
-  const showDropdown = open && (filteredOptions.length > 0 || value.trim())
+  const showDropdown =
+    open &&
+    (filteredOptions.length > 0 || (allowCustomValue && searchValue.trim()))
 
   return (
     <div ref={containerRef} className='relative'>
@@ -150,12 +166,19 @@ export function ComboboxInput({
         aria-autocomplete='list'
         autoComplete='off'
         placeholder={placeholder}
-        value={value}
+        value={displayValue}
         onChange={(e) => {
-          onValueChange(e.target.value)
+          const nextValue = e.target.value
+          setSearchValue(nextValue)
+          if (allowCustomValue) {
+            onValueChange(nextValue)
+          }
           if (!open) setOpen(true)
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setSearchValue(allowCustomValue ? value : '')
+          setOpen(true)
+        }}
         onKeyDown={handleKeyDown}
         className={cn('pr-9', className)}
       />
@@ -200,10 +223,12 @@ export function ComboboxInput({
             </ul>
           ) : (
             <div className='px-2 py-6 text-center text-sm'>
-              {emptyText}
-              {value.trim() && (
+              {t(emptyText)}
+              {allowCustomValue && searchValue.trim() && (
                 <div className='text-muted-foreground mt-1 text-xs'>
-                  {t('Press Enter to use "{{value}}"', { value: value.trim() })}
+                  {t('Press Enter to use "{{value}}"', {
+                    value: searchValue.trim(),
+                  })}
                 </div>
               )}
             </div>
