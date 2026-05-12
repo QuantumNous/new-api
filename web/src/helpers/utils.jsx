@@ -59,6 +59,15 @@ export function getLogo() {
   return logo;
 }
 
+export function getAssetUrl(path) {
+  const meta = document.querySelector('meta[name="cdn-url"]');
+  const cdnUrl = meta?.getAttribute('content') || '';
+  if (cdnUrl && path.startsWith('/')) {
+    return cdnUrl + path;
+  }
+  return path;
+}
+
 export function getUserIdFromLocalStorage() {
   let user = localStorage.getItem('user');
   if (!user) return -1;

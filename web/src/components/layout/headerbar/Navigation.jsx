@@ -32,12 +32,12 @@ const Navigation = ({
 
   const renderNavLinks = () => {
     const baseClasses =
-      'flex-shrink-0 flex items-center gap-1.5 text-sm font-semibold text-[#0f172a] transition-colors duration-200 ease-in-out dark:text-white';
-    const hoverClasses = 'hover:text-[#2563eb] dark:hover:text-[#93c5fd]';
+      'flex-shrink-0 flex items-center gap-1.5 text-sm font-semibold transition-colors duration-200 ease-in-out';
+    const textClasses = 'text-[var(--semi-color-text-0)] hover:text-[var(--semi-color-primary)]';
     const spacingClasses = isMobile ? 'px-2 py-1' : 'px-2.5 py-1.5 lg:px-3';
-    const activeClasses = 'text-[#2563eb] dark:text-[#93c5fd]';
+    const activeClasses = 'text-[var(--semi-color-primary)]';
 
-    const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
+    const commonLinkClasses = `${baseClasses} ${textClasses} ${spacingClasses}`;
 
     return mainNavLinks.map((link) => {
       const renderLinkContent = (isActive = false) => {

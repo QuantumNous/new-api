@@ -105,8 +105,11 @@ export const useUsersData = () => {
       return;
     }
     setSearching(true);
+    const isIpLike = /^[\d.:%a-fA-F]+$/.test(searchKeyword) && searchKeyword.includes('.');
+    const keyword = isIpLike ? '' : searchKeyword;
+    const ip = isIpLike ? searchKeyword : '';
     const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
+      `/api/user/search?keyword=${keyword}&group=${searchGroup}&ip=${ip}&p=${startIdx}&page_size=${pageSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {

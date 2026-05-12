@@ -72,7 +72,7 @@ const btnPrimary = {
   paddingRight: 28,
   background: 'var(--semi-color-primary)',
   color: '#fff',
-  boxShadow: '0 12px 32px rgba(var(--semi-blue-5), 0.28), 0 4px 12px rgba(var(--semi-blue-5), 0.16)',
+  boxShadow: '0 12px 32px rgba(99, 102, 241, 0.28), 0 4px 12px rgba(99, 102, 241, 0.16)',
 };
 
 const btnWhiteOutline = {
@@ -475,7 +475,7 @@ const Home = () => {
 
         .uni-home-hover-card:hover {
           transform: translate3d(0, -10px, 0);
-          border-color: rgba(var(--semi-blue-5), 0.18);
+          border-color: rgba(99, 102, 241, 0.18);
           box-shadow: 0 30px 70px rgba(15, 23, 42, 0.10);
         }
 
@@ -597,7 +597,7 @@ const Home = () => {
                 height: isMobile ? 300 : 560,
                 borderRadius: '50%',
                 background:
-                  'radial-gradient(circle, rgba(var(--semi-blue-5), 0.22) 0%, rgba(var(--semi-orange-5), 0.14) 42%, rgba(255,255,255,0) 76%)',
+                  'radial-gradient(circle, rgba(99, 102, 241, 0.22) 0%, rgba(139, 92, 246, 0.14) 42%, rgba(255,255,255,0) 76%)',
                 filter: 'blur(40px)',
                 transform: `translate3d(-50%, ${heroGlowShift}px, 0)`,
                 transition: 'transform 120ms linear',

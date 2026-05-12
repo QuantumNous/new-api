@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     colors: {

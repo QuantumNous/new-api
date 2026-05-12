@@ -55,6 +55,7 @@ func SetWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 				cdnUrl := operation_setting.GetCDNUrlForCountry(country)
 				if cdnUrl != "" {
 					modifiedPage := bytes.ReplaceAll(indexPage, []byte("/assets/"), []byte(cdnUrl+"/assets/"))
+					modifiedPage = bytes.Replace(modifiedPage, []byte("<head>"), []byte(`<head><meta name="cdn-url" content="`+cdnUrl+`">`), 1)
 					c.Data(http.StatusOK, "text/html; charset=utf-8", modifiedPage)
 					return
 				}

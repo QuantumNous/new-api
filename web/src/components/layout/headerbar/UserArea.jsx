@@ -30,10 +30,10 @@ import { stringToColor } from '../../../helpers';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const dropdownMenuClassName =
-  '!rounded-2xl !border !border-black/[0.06] !bg-white/95 !p-1 !shadow-[0_18px_50px_rgba(15,23,42,0.14)] backdrop-blur-xl dark:!border-white/10 dark:!bg-[#111827]/95';
+  '!rounded-2xl !border !border-[var(--semi-color-border)] !bg-[var(--semi-color-bg-1)] !p-1 !shadow-[0_18px_50px_rgba(45,31,22,0.12)] backdrop-blur-xl dark:!border-[var(--semi-color-border)] dark:!bg-[var(--semi-color-bg-2)]';
 
 const dropdownItemClassName =
-  '!rounded-xl !px-3 !py-2 !text-sm !text-semi-color-text-0 hover:!bg-black/[0.04] dark:!text-gray-200 dark:hover:!bg-white/[0.08]';
+  '!rounded-xl !px-3 !py-2 !text-sm !text-[var(--semi-color-text-0)] hover:!bg-[var(--semi-color-fill-0)] dark:hover:!bg-[var(--semi-color-fill-0)]';
 
 const ChevronDownIcon = () => (
   <svg
@@ -144,7 +144,7 @@ const UserArea = ({
           <Button
             theme='borderless'
             type='tertiary'
-            className='group !h-10 !rounded-full !border-0 !bg-transparent !px-1.5 !text-semi-color-text-0 hover:!bg-black/[0.04] dark:hover:!bg-white/[0.06]'
+            className='group !h-10 !rounded-full !border-0 !bg-transparent !px-1.5 !text-[var(--semi-color-text-0)] hover:!bg-[var(--semi-color-fill-0)] dark:hover:!bg-[var(--semi-color-fill-0)]'
           >
             <div className='flex items-center gap-2 rounded-full'>
               <Avatar
@@ -155,11 +155,11 @@ const UserArea = ({
                 {userState.user.username[0].toUpperCase()}
               </Avatar>
               <span className='hidden md:flex md:max-w-[120px] md:items-center'>
-                <Typography.Text className='!truncate !text-[13px] !font-semibold !text-[#0f172a] dark:!text-gray-100'>
+                <Typography.Text className='!truncate !text-[13px] !font-semibold !text-[var(--semi-color-text-0)] dark:!text-[var(--semi-color-text-0)]'>
                   {userState.user.username}
                 </Typography.Text>
               </span>
-              <span className='hidden md:flex items-center text-[#64748b] transition-colors duration-200 group-hover:text-[#0f172a] dark:text-gray-400 dark:group-hover:text-gray-200'>
+              <span className='hidden md:flex items-center transition-colors duration-200' style={{ color: 'var(--semi-color-text-2)' }}>
                 <ChevronDownIcon />
               </span>
             </div>
@@ -176,7 +176,7 @@ const UserArea = ({
           <Button
             theme='borderless'
             type='tertiary'
-            className='!h-10 !rounded-full !bg-transparent !px-3 md:!px-4 !text-sm !font-semibold !text-[#0f172a] hover:!bg-black/[0.04] dark:!text-white dark:hover:!bg-white/[0.06]'
+            className='!h-10 !rounded-full !bg-transparent !px-3 md:!px-4 !text-sm !font-semibold !text-[var(--semi-color-text-1)] hover:!bg-[var(--semi-color-fill-0)] dark:hover:!bg-[var(--semi-color-fill-0)]'
           >
             <span>{t('登录')}</span>
           </Button>
@@ -187,7 +187,7 @@ const UserArea = ({
               <Button
                 theme='solid'
                 type='primary'
-                className='!h-10 !rounded-full !border-0 !bg-[#111827] !px-6 !text-sm !font-semibold !text-white !shadow-[0_14px_34px_rgba(15,23,42,0.18)] hover:!bg-[#0f172a] dark:!bg-white dark:!text-[#0f172a] dark:!shadow-[0_14px_34px_rgba(255,255,255,0.12)]'
+                className='!h-10 !rounded-full !border-0 !px-6 !text-sm !font-semibold !text-white !shadow-[0_14px_34px_rgba(99,102,241,0.32)] hover:!shadow-[0_20px_40px_rgba(99,102,241,0.45)] !bg-[var(--semi-color-primary)] hover:!bg-[var(--semi-color-primary-hover)] dark:!bg-[var(--semi-color-primary)] dark:hover:!bg-[var(--semi-color-primary-hover)]'
               >
                 <span>{t('立即开始')}</span>
               </Button>

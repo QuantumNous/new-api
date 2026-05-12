@@ -21,7 +21,7 @@ import React from 'react';
 import { Button, Badge } from '@douyinfe/semi-ui';
 
 const iconButtonClassName =
-  'inline-flex !h-10 !w-10 !min-w-10 items-center justify-center !rounded-full !p-0 !leading-none !text-[#1877F2] hover:!text-[#1668d9] !bg-transparent hover:!bg-transparent focus:!bg-transparent dark:!text-[#60a5fa] dark:hover:!text-[#93c5fd]';
+  'inline-flex !h-10 !w-10 !min-w-10 items-center justify-center !rounded-full !p-0 !leading-none !text-[var(--semi-color-text-1)] hover:!text-[var(--semi-color-primary)] !bg-transparent hover:!bg-transparent focus:!bg-transparent dark:!text-[var(--semi-color-text-2)] dark:hover:!text-[var(--semi-color-primary)]';
 
 const BellIcon = () => (
   <svg

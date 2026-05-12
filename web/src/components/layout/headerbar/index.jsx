@@ -105,8 +105,8 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       className='text-semi-color-text-0 backdrop-blur-[18px]'
       style={{
         background: isDark
-          ? scrolled ? 'rgba(17, 24, 39, 0.92)' : 'rgba(17, 24, 39, 0.6)'
-          : scrolled ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.7)',
+          ? scrolled ? 'rgba(15, 23, 42, 0.94)' : 'rgba(15, 23, 42, 0.7)'
+          : scrolled ? 'rgba(248, 250, 252, 0.96)' : 'rgba(248, 250, 252, 0.75)',
         borderBottom: scrolled
           ? `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`
           : '1px solid transparent',

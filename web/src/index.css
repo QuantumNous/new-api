@@ -13,11 +13,114 @@
   @tailwind utilities;
 }
 
-/* ==================== 全局基础样式 ==================== */
-:root {
-  --sidebar-width: 180px;
+/* ==================== 设计系统变量 ==================== */
+:root,
+body {
+  /* 布局 */
+  --sidebar-width: 220px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
+
+  /* Semi Design 主色 */
+  --semi-color-primary: #6366f1;
+  --semi-color-primary-hover: #4f46e5;
+  --semi-color-primary-active: #4338ca;
+  --semi-color-primary-disabled: rgba(99, 102, 241, 0.4);
+  --semi-color-primary-light-default: rgba(99, 102, 241, 0.08);
+  --semi-color-primary-light-hover: rgba(99, 102, 241, 0.14);
+  --semi-color-primary-light-active: rgba(99, 102, 241, 0.2);
+
+  --semi-color-secondary: #8b5cf6;
+  --semi-color-secondary-hover: #7c3aed;
+  --semi-color-secondary-active: #6d28d9;
+  --semi-color-secondary-disabled: rgba(139, 92, 246, 0.4);
+  --semi-color-secondary-light-default: rgba(139, 92, 246, 0.08);
+  --semi-color-secondary-light-hover: rgba(139, 92, 246, 0.14);
+  --semi-color-secondary-light-active: rgba(139, 92, 246, 0.2);
+
+  --semi-color-tertiary: #64748b;
+  --semi-color-tertiary-hover: #475569;
+  --semi-color-tertiary-active: #334155;
+  --semi-color-tertiary-light-default: rgba(100, 116, 139, 0.08);
+  --semi-color-tertiary-light-hover: rgba(100, 116, 139, 0.14);
+  --semi-color-tertiary-light-active: rgba(100, 116, 139, 0.2);
+
+  /* 背景色 */
+  --semi-color-bg-0: #f8fafc;
+  --semi-color-bg-1: #ffffff;
+  --semi-color-bg-2: #f1f5f9;
+  --semi-color-bg-3: #e2e8f0;
+  --semi-color-bg-4: #cbd5e1;
+
+  /* 文本色 */
+  --semi-color-text-0: #0f172a;
+  --semi-color-text-1: #334155;
+  --semi-color-text-2: #64748b;
+  --semi-color-text-3: #94a3b8;
+
+  /* 语义色 */
+  --semi-color-success: #10b981;
+  --semi-color-success-hover: #059669;
+  --semi-color-success-active: #047857;
+  --semi-color-success-disabled: rgba(16, 185, 129, 0.4);
+  --semi-color-success-light-default: rgba(16, 185, 129, 0.08);
+  --semi-color-success-light-hover: rgba(16, 185, 129, 0.14);
+  --semi-color-success-light-active: rgba(16, 185, 129, 0.2);
+
+  --semi-color-danger: #ef4444;
+  --semi-color-danger-hover: #dc2626;
+  --semi-color-danger-active: #b91c1c;
+  --semi-color-danger-disabled: rgba(239, 68, 68, 0.4);
+  --semi-color-danger-light-default: rgba(239, 68, 68, 0.08);
+  --semi-color-danger-light-hover: rgba(239, 68, 68, 0.14);
+  --semi-color-danger-light-active: rgba(239, 68, 68, 0.2);
+
+  --semi-color-warning: #f59e0b;
+  --semi-color-warning-hover: #d97706;
+  --semi-color-warning-active: #b45309;
+  --semi-color-warning-disabled: rgba(245, 158, 11, 0.4);
+  --semi-color-warning-light-default: rgba(245, 158, 11, 0.08);
+  --semi-color-warning-light-hover: rgba(245, 158, 11, 0.14);
+  --semi-color-warning-light-active: rgba(245, 158, 11, 0.2);
+
+  --semi-color-info: #3b82f6;
+  --semi-color-info-hover: #2563eb;
+  --semi-color-info-active: #1d4ed8;
+  --semi-color-info-disabled: rgba(59, 130, 246, 0.4);
+  --semi-color-info-light-default: rgba(59, 130, 246, 0.08);
+  --semi-color-info-light-hover: rgba(59, 130, 246, 0.14);
+  --semi-color-info-light-active: rgba(59, 130, 246, 0.2);
+
+  /* 边框 & 填充 */
+  --semi-color-border: #e2e8f0;
+  --semi-color-nav-bg: #f8fafc;
+  --semi-color-overlay-bg: rgba(15, 23, 42, 0.6);
+  --semi-color-shadow: rgba(15, 23, 42, 0.06);
+  --semi-color-highlight: #6366f1;
+  --semi-color-highlight-bg: rgba(99, 102, 241, 0.08);
+  --semi-color-focus-border: #6366f1;
+  --semi-color-disabled-text: #94a3b8;
+  --semi-color-disabled-border: #e2e8f0;
+  --semi-color-disabled-bg: #f1f5f9;
+  --semi-color-disabled-fill: #f1f5f9;
+
+  /* 链接色 */
+  --semi-color-link: #6366f1;
+  --semi-color-link-hover: #4f46e5;
+  --semi-color-link-active: #4338ca;
+  --semi-color-link-visited: #7c3aed;
+
+  /* 填充层级 */
+  --semi-color-fill-0: rgba(99, 102, 241, 0.06);
+  --semi-color-fill-1: rgba(99, 102, 241, 0.1);
+  --semi-color-fill-2: rgba(99, 102, 241, 0.16);
+
+  /* 默认色 & 基础色 */
+  --semi-color-default: #e2e8f0;
+  --semi-color-default-hover: #cbd5e1;
+  --semi-color-default-active: #94a3b8;
+  --semi-color-white: #ffffff;
+  --semi-color-black: #0f172a;
 }
 
 body.sidebar-collapsed {
@@ -25,7 +128,7 @@ body.sidebar-collapsed {
 }
 
 body {
-  font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
+  font-family: Outfit, 'Microsoft YaHei', 'PingFang SC', system-ui, -apple-system,
     sans-serif;
   color: var(--semi-color-text-0);
   background-color: var(--semi-color-bg-0);
@@ -42,8 +145,7 @@ body {
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: 'Geist Mono', source-code-pro, Menlo, Monaco, Consolas, monospace;
 }
 
 /* ==================== 布局相关样式 ==================== */
@@ -146,17 +248,19 @@ code {
   margin: 3px 8px;
   transition: all 0.15s ease;
   padding: 8px 12px;
+  border-left: 3px solid transparent;
 }
 
 .sidebar-nav-item:hover {
-  background-color: rgba(var(--semi-blue-0), 0.08);
+  background-color: var(--semi-color-primary-light-default);
   color: var(--semi-color-primary);
 }
 
 .sidebar-nav-item-selected {
-  background-color: rgba(var(--semi-blue-0), 0.12);
+  background-color: var(--semi-color-primary-light-hover);
   color: var(--semi-color-primary);
   font-weight: 500;
+  border-left-color: var(--semi-color-primary);
 }
 
 /* 图标容器样式 */
@@ -749,7 +853,6 @@ html.dark .sbg-variant-green {
 
 .blur-ball-indigo {
   background: #6366f1;
-  /* indigo-500 */
   top: 40px;
   left: 50%;
   transform: translateX(-50%);
@@ -757,8 +860,7 @@ html.dark .sbg-variant-green {
 }
 
 .blur-ball-teal {
-  background: #14b8a6;
-  /* teal-400 */
+  background: #818cf8;
   top: 200px;
   left: 30%;
   opacity: 0.4;
@@ -778,15 +880,10 @@ html:not(.dark) .blur-ball-teal {
 .with-pastel-balls {
   position: relative;
   overflow: hidden;
-  /* 默认变量（明亮模式） */
-  --pb1: #ffd1dc;
-  /* 粉 */
-  --pb2: #e5d4ff;
-  /* 薰衣草 */
-  --pb3: #d1fff6;
-  /* 薄荷 */
-  --pb4: #ffe5d9;
-  /* 桃 */
+  --pb1: #ddd6fe;
+  --pb2: #c7d2fe;
+  --pb3: #e0e7ff;
+  --pb4: #ede9fe;
   --pb-opacity: 0.55;
   --pb-blur: 60px;
 }
@@ -812,16 +909,11 @@ html:not(.dark) .blur-ball-teal {
 
 /* 暗黑模式下更柔和的色彩和透明度 */
 html.dark .with-pastel-balls {
-  /* 使用与明亮模式一致的“刚才那组”马卡龙色，但整体更柔和 */
-  --pb1: #ffd1dc;
-  /* 粉 */
-  --pb2: #e5d4ff;
-  /* 薰衣草 */
-  --pb3: #d1fff6;
-  /* 薄荷 */
-  --pb4: #ffe5d9;
-  /* 桃 */
-  --pb-opacity: 0.36;
+  --pb1: #ddd6fe;
+  --pb2: #c7d2fe;
+  --pb3: #e0e7ff;
+  --pb4: #ede9fe;
+  --pb-opacity: 0.28;
   --pb-blur: 65px;
 }
 
@@ -975,6 +1067,16 @@ html.dark .with-pastel-balls::before {
 
 /* ==================== 自定义圆角样式 ==================== */
 .semi-radio,
+
+/* 输入框内图标颜色统一 */
+.semi-input-wrapper-prefix .semi-icon,
+.semi-input-wrapper-suffix .semi-icon,
+.semi-input-prefix .semi-icon,
+.semi-input-suffix .semi-icon {
+  color: var(--semi-color-text-2) !important;
+}
+
+/* ==================== 自定义圆角样式 ==================== */
 .semi-tagInput,
 .semi-input-textarea-wrapper,
 .semi-navigation-sub-title,
@@ -985,7 +1087,101 @@ html.dark .with-pastel-balls::before {
 .semi-input-wrapper,
 .semi-tabs-tab-button,
 .semi-select,
-.semi-button,
 .semi-datepicker-range-input {
   border-radius: 10px !important;
+}
+
+.semi-button {
+  border-radius: 8px !important;
+}
+
+/* ==================== 暗色模式 ==================== */
+html.dark,
+body[theme-mode='dark'] {
+  --semi-color-primary: #818cf8;
+  --semi-color-primary-hover: #6366f1;
+  --semi-color-primary-active: #4f46e5;
+  --semi-color-primary-light-default: rgba(129, 140, 248, 0.14);
+  --semi-color-primary-light-hover: rgba(129, 140, 248, 0.22);
+  --semi-color-primary-light-active: rgba(129, 140, 248, 0.3);
+
+  --semi-color-secondary: #a78bfa;
+  --semi-color-secondary-hover: #8b5cf6;
+  --semi-color-secondary-active: #7c3aed;
+  --semi-color-secondary-light-default: rgba(167, 139, 250, 0.14);
+  --semi-color-secondary-light-hover: rgba(167, 139, 250, 0.22);
+  --semi-color-secondary-light-active: rgba(167, 139, 250, 0.3);
+
+  --semi-color-tertiary: #64748b;
+  --semi-color-tertiary-hover: #94a3b8;
+  --semi-color-tertiary-active: #475569;
+  --semi-color-tertiary-light-default: rgba(100, 116, 139, 0.14);
+  --semi-color-tertiary-light-hover: rgba(100, 116, 139, 0.22);
+  --semi-color-tertiary-light-active: rgba(100, 116, 139, 0.3);
+
+  --semi-color-bg-0: #0f172a;
+  --semi-color-bg-1: #1e293b;
+  --semi-color-bg-2: #334155;
+  --semi-color-bg-3: #475569;
+  --semi-color-bg-4: #64748b;
+
+  --semi-color-text-0: #f1f5f9;
+  --semi-color-text-1: #cbd5e1;
+  --semi-color-text-2: #94a3b8;
+  --semi-color-text-3: #64748b;
+
+  --semi-color-success: #34d399;
+  --semi-color-success-hover: #10b981;
+  --semi-color-success-active: #059669;
+  --semi-color-success-light-default: rgba(52, 211, 153, 0.14);
+  --semi-color-success-light-hover: rgba(52, 211, 153, 0.22);
+  --semi-color-success-light-active: rgba(52, 211, 153, 0.3);
+
+  --semi-color-danger: #f87171;
+  --semi-color-danger-hover: #ef4444;
+  --semi-color-danger-active: #dc2626;
+  --semi-color-danger-light-default: rgba(248, 113, 113, 0.14);
+  --semi-color-danger-light-hover: rgba(248, 113, 113, 0.22);
+  --semi-color-danger-light-active: rgba(248, 113, 113, 0.3);
+
+  --semi-color-warning: #fbbf24;
+  --semi-color-warning-hover: #f59e0b;
+  --semi-color-warning-active: #d97706;
+  --semi-color-warning-light-default: rgba(251, 191, 36, 0.14);
+  --semi-color-warning-light-hover: rgba(251, 191, 36, 0.22);
+  --semi-color-warning-light-active: rgba(251, 191, 36, 0.3);
+
+  --semi-color-info: #60a5fa;
+  --semi-color-info-hover: #3b82f6;
+  --semi-color-info-active: #2563eb;
+  --semi-color-info-light-default: rgba(96, 165, 250, 0.14);
+  --semi-color-info-light-hover: rgba(96, 165, 250, 0.22);
+  --semi-color-info-light-active: rgba(96, 165, 250, 0.3);
+
+  --semi-color-border: #334155;
+  --semi-color-nav-bg: #0f172a;
+  --semi-color-overlay-bg: rgba(0, 0, 0, 0.7);
+  --semi-color-shadow: rgba(0, 0, 0, 0.3);
+  --semi-color-highlight: #818cf8;
+  --semi-color-highlight-bg: rgba(129, 140, 248, 0.14);
+  --semi-color-focus-border: #818cf8;
+  --semi-color-disabled-text: #475569;
+  --semi-color-disabled-border: #334155;
+  --semi-color-disabled-bg: #1e293b;
+  --semi-color-disabled-fill: #1e293b;
+
+  --semi-color-link: #818cf8;
+  --semi-color-link-hover: #6366f1;
+  --semi-color-link-active: #4f46e5;
+  --semi-color-link-visited: #a78bfa;
+
+  --semi-color-fill-0: rgba(129, 140, 248, 0.1);
+  --semi-color-fill-1: rgba(129, 140, 248, 0.16);
+  --semi-color-fill-2: rgba(129, 140, 248, 0.24);
+
+  --semi-color-default: #334155;
+  --semi-color-default-hover: #475569;
+  --semi-color-default-active: #64748b;
+  --semi-color-white: #1e293b;
+  --semi-color-black: #f1f5f9;
 }
