@@ -157,6 +157,16 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	if hasInputReference {
 		action = constant.TaskActionGenerate
 	}
+
+	if isFramesModel(model) {
+		if hasInputReference {
+			action = constant.TaskActionGenerate
+		}
+		if req.AspectRatio != "" && !lo.Contains([]string{"9:16", "16:9"}, req.AspectRatio) {
+			return createTaskError(fmt.Errorf("aspect_ratio must be 9:16 or 16:9"), "invalid_aspect_ratio", http.StatusBadRequest, true)
+		}
+	}
+
 	if strings.HasPrefix(model, "sora-2") {
 
 		if size == "" {
@@ -173,12 +183,15 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		if model == "sora-2-pro" && !lo.Contains([]string{"720x1280", "1280x720", "1792x1024", "1024x1792"}, size) {
 			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
 		}
-		// OtherRatios 已移到 Sora adaptor 的 EstimateBilling 中设置
 	}
 
 	storeTaskRequest(c, info, action, req)
 
 	return nil
+}
+
+func isFramesModel(model string) bool {
+	return strings.HasSuffix(model, "-frames") || strings.HasSuffix(model, "-components") || strings.Contains(model, "-frames-") || strings.Contains(model, "-components-")
 }
 
 func isKnownTaskField(field string) bool {
@@ -190,7 +203,10 @@ func isKnownTaskField(field string) bool {
 		"images":          true,
 		"size":            true,
 		"duration":        true,
-		"input_reference": true, // Sora 特有字段
+		"input_reference": true,
+		"aspect_ratio":    true,
+		"enhance_prompt":  true,
+		"enable_upsample": true,
 	}
 	return knownFields[field]
 }

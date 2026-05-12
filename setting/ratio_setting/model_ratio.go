@@ -301,8 +301,46 @@ var defaultModelPrice = map[string]float64{
 	"mj_upscale":                     0.05,
 	"swap_face":                      0.05,
 	"mj_upload":                      0.05,
-	"sora-2":                         0.3,
-	"sora-2-pro":                     0.5,
+	// 上游中转站采购价（参考）:
+	// bltcy.ai / ablai.top: veo3.1-fast=$0.2, veo3.1=$0.3, veo3.1-components=$0.3, veo3.1-pro=$1, veo3.1-pro-4k=$13
+	// bltcy.ai / ablai.top: veo3.1-fast-components=$0.2, veo3.1-fast-4k=$1.5, veo3.1-4k=$1.5, veo3.1-components-4k=$1.5, veo3.1-fast-components-4k=$1.5
+	// bltcy.ai / ablai.top: veo3-pro-frames≈$1, veo3-fast-frames≈$0.2, veo2-fast-frames≈$0.2, veo2-fast-components≈$0.2
+	// bltcy.ai / ablai.top: sora-2=$0.3(按次), sora-2-pro=$0.5(按次)
+	// bltcy.ai: gemini-2.5-flash-image=$0.04, nano-banana=$0.08, nano-banana-hd=$0.12, gemini-3.1-flash-image=$0.1, nano-banana-pro=$0.2, gemini-3-pro-image=$0.2
+	// xgapi.top: veo3.1-lite=$0.5, veo3.1-lite-4k=$0.55, sora-2=$0.2(按次,便宜)
+	// apexerapi.top: veo2≈$0.2, veo2-fast≈$0.2, veo2-pro≈$0.5, veo3≈$0.3, veo3-fast≈$0.2, veo3-pro≈$1, veo3.1≈$0.3, veo3.1-pro≈$1
+	"sora-2":                              0.4,
+	"sora-2-pro":                          0.6,
+	"veo2":                                0.3,
+	"veo2-fast":                           0.3,
+	"veo2-pro":                            0.6,
+	"veo2-fast-frames":                    0.3,
+	"veo2-fast-components":                0.3,
+	"veo3":                                0.4,
+	"veo3-fast":                           0.3,
+	"veo3-pro":                            1.5,
+	"veo3-pro-frames":                     1.5,
+	"veo3-fast-frames":                    0.3,
+	"veo3.1-fast":                         0.3,
+	"veo3.1":                              0.4,
+	"veo3.1-pro":                          1.5,
+	"veo3.1-pro-4k":                       15,
+	"veo3.1-components":                   0.4,
+	"veo3.1-lite":                         0.6,
+	"veo3.1-lite-4k":                      0.65,
+	"veo-3.1":                             0.4,
+	"veo3.1-fast-4k":                      1.5,
+	"veo3.1-4k":                           1.5,
+	"veo3.1-components-4k":                1.5,
+	"veo3.1-fast-components":              0.3,
+	"veo3.1-fast-components-4k":           1.5,
+	"gemini-2.5-flash-image-preview": 0.14,
+	"gemini-2.5-flash-image":         0.14,
+	"nano-banana":                    0.18,
+	"nano-banana-hd":                 0.22,
+	"gemini-3.1-flash-image-preview": 0.2,
+	"nano-banana-pro":                0.3,
+	"gemini-3-pro-image-preview":     0.3,
 	"gpt-4o-mini-tts":                0.3,
 	"veo-3.0-generate-001":           0.4,
 	"veo-3.0-fast-generate-001":      0.15,

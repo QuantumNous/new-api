@@ -134,6 +134,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  58: {
+    id: 58,
+    name: CHANNEL_TYPES[58],
+    icon: 'openai',
+    hints: {
+      baseUrl: 'e.g., https://api.bltcy.ai, https://api.ablai.top, https://xgapi.top',
+      key: 'API Key from relay provider',
+      models: 'veo3.1-fast,veo3.1,veo3.1-pro,sora-2,sora-2-pro',
+      other: 'OpenAI-compatible video generation relay (Veo/Sora via third-party API)',
+    },
+  },
 }
 
 /**

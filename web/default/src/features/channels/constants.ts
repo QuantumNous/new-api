@@ -76,6 +76,7 @@ export const CHANNEL_TYPES = {
   55: 'Sora',
   56: 'Replicate',
   57: 'Codex',
+  58: 'OpenAI Video',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [

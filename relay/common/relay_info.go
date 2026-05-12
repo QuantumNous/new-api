@@ -683,6 +683,9 @@ type TaskSubmitReq struct {
 	Duration       int                    `json:"duration,omitempty"`
 	Seconds        string                 `json:"seconds,omitempty"`
 	InputReference string                 `json:"input_reference,omitempty"`
+	AspectRatio    string                 `json:"aspect_ratio,omitempty"`
+	EnhancePrompt  *bool                  `json:"enhance_prompt,omitempty"`
+	EnableUpsample *bool                  `json:"enable_upsample,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 }
 
