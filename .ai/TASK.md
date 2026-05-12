@@ -2442,3 +2442,55 @@ status: completed
 ### 下一步最小任务建议
 
 - 在本地测试实例中用普通用户调用一次会失败的 relay 请求，抓取原始响应 JSON 与 `/api/log/self`，人工确认用户端完全不出现渠道、上游、relay、重试、key/token 字段名。
+## 用户端任务与 Midjourney 错误安全修复记录
+
+任务名称：修复用户端任务与 Midjourney 错误泄露
+status: completed
+
+### 修改文件
+
+- `dto/task.go`
+- `dto/midjourney.go`
+- `controller/task.go`
+- `controller/midjourney.go`
+- `controller/relay.go`
+- `controller/task_video.go`
+- `model/task.go`
+- `relay/relay_task.go`
+- `relay/mjproxy_handler.go`
+- `service/error.go`
+- `service/midjourney.go`
+- `service/task_polling.go`
+- `service/user_visible_task.go`
+- `service/user_visible_task_test.go`
+- `.ai/TASK.md`
+
+### 实现摘要
+
+- 普通用户任务与 Midjourney 查询改用后端 DTO 投影，不再返回渠道、上游模型、relay、重试链、key/token 等内部字段。
+- Midjourney relay 错误响应、submit/swap-face/image-seed、notify 写库均使用用户可见净化，用户响应不再返回 `upstream_error`。
+- Midjourney 与异步任务轮询日志不再输出原始上游 body，改为脱敏摘要；任务失败原因写库前净化。
+- 任务响应体入库前递归移除 key/channel/upstream/relay/retry 等内部字段，并保留用户可见结果 URL/audio URL。
+
+### 验证命令与结果
+
+- `gofmt -w controller/relay.go controller/task.go controller/midjourney.go controller/task_video.go dto/task.go dto/midjourney.go model/task.go relay/mjproxy_handler.go relay/relay_task.go service/error.go service/midjourney.go service/task_polling.go service/user_visible_task.go service/user_visible_task_test.go`：通过。
+- `go test ./common/...`：通过。
+- `go test ./types/...`：通过。
+- `go test ./service/...`：通过。
+- `go test ./controller/...`：通过。
+- `New-Item -ItemType Directory -Force .gotmp | Out-Null; $env:GOTMPDIR=(Resolve-Path .gotmp).Path; go test ./model/...`：通过。
+- `go test ./relay -count=1`：通过。
+- `git diff --check`：通过。
+- 额外执行 `go test ./relay/...`：未通过，失败仍集中在既有的 `relay/channel/claude` 文件内容转换用例和 `relay/helper` stream scanner 用例；本轮未修改这些包。
+
+### 自审结果
+
+- 已确认未修改数据库结构、未新增 API、未改前端、未触碰成功消费日志和计费结算逻辑。
+- 已确认普通用户任务和 Midjourney 响应不再返回渠道 ID、上游模型、relay/重试链、key/token 字段名。
+- 已确认服务器日志与任务失败原因只使用脱敏摘要或用户安全描述，不再持久化原始上游错误 body。
+- 已确认新增测试只使用伪造敏感样本，不依赖真实密钥、token 或外部服务。
+
+### 下一步最小任务建议
+
+- 另开一轮处理 `go test ./relay/...` 中既有的 Claude 文件内容转换和 stream scanner 测试失败，避免它们继续干扰后续安全回归。

@@ -2,7 +2,6 @@ package relay
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -24,6 +23,52 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func midjourneyContextSecrets(c *gin.Context, extra ...string) []string {
+	secrets := make([]string, 0, len(extra)+2)
+	if c != nil {
+		if key := common.GetContextKeyString(c, constant.ContextKeyChannelKey); key != "" {
+			secrets = append(secrets, key)
+		}
+		if c.Request != nil {
+			if auth := c.Request.Header.Get("Authorization"); auth != "" {
+				secrets = append(secrets, auth)
+			}
+		}
+	}
+	for _, secret := range extra {
+		if secret != "" {
+			secrets = append(secrets, secret)
+		}
+	}
+	return secrets
+}
+
+func midjourneyTaskSecretsByChannelID(channelID int) []string {
+	if channelID == 0 {
+		return nil
+	}
+	channel, err := model.CacheGetChannel(channelID)
+	if err != nil || channel == nil || channel.Key == "" {
+		return nil
+	}
+	return []string{channel.Key}
+}
+
+func sanitizeMidjourneyTaskErrorText(text string, code int, secrets ...string) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+	return service.SanitizeMidjourneyUserError(text, "", 0, code, secrets...)
+}
+
+func sanitizeMidjourneyTaskDtoForUser(task *dto.MidjourneyDto, secrets ...string) {
+	if task == nil {
+		return
+	}
+	task.Description = sanitizeMidjourneyTaskErrorText(task.Description, 0, secrets...)
+	task.FailReason = sanitizeMidjourneyTaskErrorText(task.FailReason, 0, secrets...)
+}
 
 func RelayMidjourneyImage(c *gin.Context) {
 	taskId := c.Param("id")
@@ -66,8 +111,9 @@ func RelayMidjourneyImage(c *gin.Context) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
+		message := common.SanitizeUserVisibleError(string(responseBody), resp.StatusCode, "image_fetch_failed", midjourneyTaskSecretsByChannelID(midjourneyTask.ChannelId)...)
 		c.JSON(resp.StatusCode, gin.H{
-			"error": string(responseBody),
+			"error": message,
 		})
 		return
 	}
@@ -115,10 +161,10 @@ func RelayMidjourneyNotify(c *gin.Context) *dto.MidjourneyResponse {
 	midjourneyTask.FinishTime = midjRequest.FinishTime
 	midjourneyTask.ImageUrl = midjRequest.ImageUrl
 	midjourneyTask.VideoUrl = midjRequest.VideoUrl
-	videoUrlsStr, _ := json.Marshal(midjRequest.VideoUrls)
+	videoUrlsStr, _ := common.Marshal(midjRequest.VideoUrls)
 	midjourneyTask.VideoUrls = string(videoUrlsStr)
 	midjourneyTask.Status = midjRequest.Status
-	midjourneyTask.FailReason = midjRequest.FailReason
+	midjourneyTask.FailReason = sanitizeMidjourneyTaskErrorText(midjRequest.FailReason, 0, midjourneyTaskSecretsByChannelID(midjourneyTask.ChannelId)...)
 	err = midjourneyTask.Update()
 	if err != nil {
 		return &dto.MidjourneyResponse{
@@ -151,27 +197,28 @@ func coverMidjourneyTaskDto(c *gin.Context, originTask *model.Midjourney) (midjo
 		midjourneyTask.VideoUrl = originTask.VideoUrl
 	}
 	midjourneyTask.Status = originTask.Status
-	midjourneyTask.FailReason = originTask.FailReason
+	secrets := midjourneyTaskSecretsByChannelID(originTask.ChannelId)
+	midjourneyTask.FailReason = sanitizeMidjourneyTaskErrorText(originTask.FailReason, originTask.Code, secrets...)
 	midjourneyTask.Action = originTask.Action
-	midjourneyTask.Description = originTask.Description
+	midjourneyTask.Description = sanitizeMidjourneyTaskErrorText(originTask.Description, originTask.Code, secrets...)
 	midjourneyTask.Prompt = originTask.Prompt
 	if originTask.Buttons != "" {
 		var buttons []dto.ActionButton
-		err := json.Unmarshal([]byte(originTask.Buttons), &buttons)
+		err := common.Unmarshal([]byte(originTask.Buttons), &buttons)
 		if err == nil {
 			midjourneyTask.Buttons = buttons
 		}
 	}
 	if originTask.VideoUrls != "" {
 		var videoUrls []dto.ImgUrls
-		err := json.Unmarshal([]byte(originTask.VideoUrls), &videoUrls)
+		err := common.Unmarshal([]byte(originTask.VideoUrls), &videoUrls)
 		if err == nil {
 			midjourneyTask.VideoUrls = videoUrls
 		}
 	}
 	if originTask.Properties != "" {
 		var properties dto.Properties
-		err := json.Unmarshal([]byte(originTask.Properties), &properties)
+		err := common.Unmarshal([]byte(originTask.Properties), &properties)
 		if err == nil {
 			midjourneyTask.Properties = &properties
 		}
@@ -247,6 +294,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		}
 	}()
 	midjResponse := &mjResp.Response
+	safeMidjResponse := service.SanitizeMidjourneyResponseForUser(midjResponse, mjResp.StatusCode, midjourneyContextSecrets(c)...)
 	midjourneyTask := &model.Midjourney{
 		UserId:      info.UserId,
 		Code:        midjResponse.Code,
@@ -254,7 +302,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		MjId:        midjResponse.Result,
 		Prompt:      "InsightFace",
 		PromptEn:    "",
-		Description: midjResponse.Description,
+		Description: safeMidjResponse.Description,
 		State:       "",
 		SubmitTime:  info.StartTime.UnixNano() / int64(time.Millisecond),
 		StartTime:   time.Now().UnixNano() / int64(time.Millisecond),
@@ -271,7 +319,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "insert_midjourney_task_failed")
 	}
 	c.Writer.WriteHeader(mjResp.StatusCode)
-	respBody, err := json.Marshal(midjResponse)
+	respBody, err := common.Marshal(safeMidjResponse)
 	if err != nil {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "unmarshal_response_body_failed")
 	}
@@ -294,7 +342,7 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "get_channel_info_failed")
 	}
 	if channel.Status != common.ChannelStatusEnabled {
-		return service.MidjourneyErrorWrapper(constant.MjRequestError, "该任务所属渠道已被禁用")
+		return service.MidjourneyErrorWrapper(constant.MjRequestError, "task_unavailable")
 	}
 	c.Set("channel_id", originTask.ChannelId)
 	c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
@@ -306,8 +354,9 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 		return &midjResponseWithStatus.Response
 	}
 	midjResponse := &midjResponseWithStatus.Response
+	safeMidjResponse := service.SanitizeMidjourneyResponseForUser(midjResponse, midjResponseWithStatus.StatusCode, midjourneyContextSecrets(c, channel.Key)...)
 	c.Writer.WriteHeader(midjResponseWithStatus.StatusCode)
-	respBody, err := json.Marshal(midjResponse)
+	respBody, err := common.Marshal(safeMidjResponse)
 	if err != nil {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "unmarshal_response_body_failed")
 	}
@@ -330,7 +379,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 			}
 		}
 		midjourneyTask := coverMidjourneyTaskDto(c, originTask)
-		respBody, err = json.Marshal(midjourneyTask)
+		respBody, err = common.Marshal(midjourneyTask)
 		if err != nil {
 			return &dto.MidjourneyResponse{
 				Code:        4,
@@ -359,7 +408,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 		if tasks == nil {
 			tasks = make([]dto.MidjourneyDto, 0)
 		}
-		respBody, err = json.Marshal(tasks)
+		respBody, err = common.Marshal(tasks)
 		if err != nil {
 			return &dto.MidjourneyResponse{
 				Code:        4,
@@ -468,12 +517,12 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 				return service.MidjourneyErrorWrapper(constant.MjRequestError, "get_channel_info_failed")
 			}
 			if channel.Status != common.ChannelStatusEnabled {
-				return service.MidjourneyErrorWrapper(constant.MjRequestError, "该任务所属渠道已被禁用")
+				return service.MidjourneyErrorWrapper(constant.MjRequestError, "task_unavailable")
 			}
 			c.Set("base_url", channel.GetBaseURL())
 			c.Set("channel_id", originTask.ChannelId)
 			c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", channel.Key))
-			log.Printf("检测到此操作为放大、变换、重绘，获取原channel信息: %s,%s", strconv.Itoa(originTask.ChannelId), channel.GetBaseURL())
+			log.Printf("detected midjourney origin task action: channel_id=%s, base_url=%s", strconv.Itoa(originTask.ChannelId), common.MaskSensitiveInfo(channel.GetBaseURL()))
 		}
 		midjRequest.Prompt = originTask.Prompt
 
@@ -528,6 +577,8 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		return &midjResponseWithStatus.Response
 	}
 	midjResponse := &midjResponseWithStatus.Response
+	originalMidjourneyCode := midjResponse.Code
+	safeMidjResponse := service.SanitizeMidjourneyResponseForUser(midjResponse, midjResponseWithStatus.StatusCode, midjourneyContextSecrets(c)...)
 
 	defer func() {
 		if consumeQuota && midjResponseWithStatus.StatusCode == 200 {
@@ -567,7 +618,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		MjId:        midjResponse.Result,
 		Prompt:      midjRequest.Prompt,
 		PromptEn:    "",
-		Description: midjResponse.Description,
+		Description: safeMidjResponse.Description,
 		State:       "",
 		SubmitTime:  time.Now().UnixNano() / int64(time.Millisecond),
 		StartTime:   0,
@@ -591,7 +642,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	}
 	if midjResponse.Code != 1 && midjResponse.Code != 21 && midjResponse.Code != 22 {
 		//非1-提交成功,21-任务已存在和22-排队中，则记录错误原因
-		midjourneyTask.FailReason = midjResponse.Description
+		midjourneyTask.FailReason = safeMidjResponse.Description
 		consumeQuota = false
 	}
 
@@ -634,6 +685,18 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		//修改返回值
 		newBody := strings.Replace(string(responseBody), `"code":22`, `"code":1`, -1)
 		responseBody = []byte(newBody)
+	}
+	outputMidjResponse := service.SanitizeMidjourneyResponseForUser(midjResponse, midjResponseWithStatus.StatusCode, midjourneyContextSecrets(c)...)
+	if originalMidjourneyCode == 22 ||
+		(originalMidjourneyCode == 21 && midjRequest.Action != constant.MjActionInPaint && midjRequest.Action != constant.MjActionCustomZoom) {
+		outputMidjResponse.Code = 1
+	}
+	responseBody, err = common.Marshal(outputMidjResponse)
+	if err != nil {
+		return &dto.MidjourneyResponse{
+			Code:        4,
+			Description: "unmarshal_response_body_failed",
+		}
 	}
 	//resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 	bodyReader := io.NopCloser(bytes.NewBuffer(responseBody))

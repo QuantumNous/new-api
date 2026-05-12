@@ -178,7 +178,7 @@ func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM
 			}
 		}
 		err = model.TaskBulkUpdateByID(failedIDs, map[string]any{
-			"fail_reason": fmt.Sprintf("获取渠道信息失败，请联系管理员，渠道ID：%d", channelId),
+			"fail_reason": "request failed",
 			"status":      "FAILURE",
 			"progress":    "100%",
 		})
@@ -212,11 +212,13 @@ func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM
 	var responseItems dto.TaskResponse[[]dto.SunoDataResponse]
 	err = common.Unmarshal(responseBody, &responseItems)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("Get Suno Task parse body error2: %v, body: %s", err, string(responseBody)))
+		snippet, truncated := SafeErrorLogSnippet(string(responseBody), 800, ch.Key)
+		logger.LogError(ctx, fmt.Sprintf("Get Suno Task parse body error2: %v, body_snippet=%s, truncated=%t", err, snippet, truncated))
 		return err
 	}
 	if !responseItems.IsSuccess() {
-		common.SysLog(fmt.Sprintf("渠道 #%d 未完成的任务有: %d, 成功获取到任务数: %s", channelId, len(taskIds), string(responseBody)))
+		snippet, truncated := SafeErrorLogSnippet(string(responseBody), 800, ch.Key)
+		common.SysLog(fmt.Sprintf("渠道 #%d 未完成的任务有: %d, response_body_snippet=%s, truncated=%t", channelId, len(taskIds), snippet, truncated))
 		return err
 	}
 
@@ -227,7 +229,9 @@ func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM
 		}
 
 		task.Status = lo.If(model.TaskStatus(responseItem.Status) != "", model.TaskStatus(responseItem.Status)).Else(task.Status)
-		task.FailReason = lo.If(responseItem.FailReason != "", responseItem.FailReason).Else(task.FailReason)
+		if responseItem.FailReason != "" {
+			task.FailReason = SanitizeTaskUserError(task, responseItem.FailReason, 0, "task_failed", ch.Key)
+		}
 		task.SubmitTime = lo.If(responseItem.SubmitTime != 0, responseItem.SubmitTime).Else(task.SubmitTime)
 		task.StartTime = lo.If(responseItem.StartTime != 0, responseItem.StartTime).Else(task.StartTime)
 		task.FinishTime = lo.If(responseItem.FinishTime != 0, responseItem.FinishTime).Else(task.FinishTime)
@@ -312,7 +316,7 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 			}
 		}
 		errUpdate := model.TaskBulkUpdateByID(failedIDs, map[string]any{
-			"fail_reason": fmt.Sprintf("Failed to get channel info, channel ID: %d", channelId),
+			"fail_reason": "request failed",
 			"status":      "FAILURE",
 			"progress":    "100%",
 		})
@@ -372,7 +376,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
 	}
 
-	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask response: %s", string(responseBody)))
+	responseSnippet, responseTruncated := SafeErrorLogSnippet(string(responseBody), 800, key, ch.Key)
+	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask response_snippet=%s, truncated=%t", responseSnippet, responseTruncated))
 
 	snap := task.Snapshot()
 
@@ -392,7 +397,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
 	}
 
-	task.Data = redactVideoResponseBody(responseBody)
+	task.Data = RedactTaskResponseBodyForUser(responseBody, key, ch.Key)
 
 	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask taskResult: %+v", taskResult))
 
@@ -413,7 +418,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
 				// unknown error format, log original response
-				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
+				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response_snippet=%s, truncated=%t", taskId, responseSnippet, responseTruncated))
 				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
 			}
 		}
@@ -451,13 +456,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:
-		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
 		task.Status = model.TaskStatusFailure
 		task.Progress = taskcommon.ProgressComplete
 		if task.FinishTime == 0 {
 			task.FinishTime = now
 		}
-		task.FailReason = taskResult.Reason
+		task.FailReason = SanitizeTaskUserError(task, taskResult.Reason, 0, "task_failed", key, ch.Key)
 		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		taskResult.Progress = taskcommon.ProgressComplete
 		if quota != 0 {
@@ -501,10 +505,25 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	return nil
 }
 
-func redactVideoResponseBody(body []byte) []byte {
-	var m map[string]any
-	if err := common.Unmarshal(body, &m); err != nil {
-		return body
+// RedactTaskResponseBodyForUser removes internal fields and oversized binary payloads before storing task data.
+func RedactTaskResponseBodyForUser(body []byte, secrets ...string) []byte {
+	var value any
+	if err := common.Unmarshal(body, &value); err != nil {
+		snippet, _ := SafeErrorLogSnippet(string(body), 800, secrets...)
+		b, marshalErr := common.Marshal(snippet)
+		if marshalErr != nil {
+			return nil
+		}
+		return b
+	}
+	value = sanitizeUserVisibleDataValue(value, secrets...)
+	m, ok := value.(map[string]any)
+	if !ok {
+		b, err := common.Marshal(value)
+		if err != nil {
+			return nil
+		}
+		return b
 	}
 	resp, _ := m["response"].(map[string]any)
 	if resp != nil {
@@ -522,7 +541,7 @@ func redactVideoResponseBody(body []byte) []byte {
 	}
 	b, err := common.Marshal(m)
 	if err != nil {
-		return body
+		return nil
 	}
 	return b
 }

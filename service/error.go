@@ -31,6 +31,48 @@ func MidjourneyErrorWithStatusCodeWrapper(code int, desc string, statusCode int)
 	}
 }
 
+func SanitizeMidjourneyUserError(description string, result string, statusCode int, code int, secrets ...string) string {
+	message := strings.TrimSpace(strings.TrimSpace(description) + " " + strings.TrimSpace(result))
+	if code == 0 {
+		return common.SanitizeUserVisibleError(message, statusCode, "midjourney_error", secrets...)
+	}
+	return common.SanitizeUserVisibleError(message, statusCode, code, secrets...)
+}
+
+func SanitizeMidjourneyResponseForUser(response *dto.MidjourneyResponse, statusCode int, secrets ...string) dto.MidjourneyResponse {
+	if response == nil {
+		return dto.MidjourneyResponse{}
+	}
+	safe := *response
+	safe.Description = sanitizeMidjourneyDescriptionForUser(response.Description, response.Result, statusCode, response.Code, secrets...)
+	safe.Result = sanitizeMidjourneyResultForUser(response.Result, secrets...)
+	safe.Properties = sanitizeUserVisibleDataValue(response.Properties, secrets...)
+	return safe
+}
+
+func sanitizeMidjourneyDescriptionForUser(description string, result string, statusCode int, code int, secrets ...string) string {
+	description = strings.TrimSpace(description)
+	if description == "" {
+		return ""
+	}
+	if code == 1 || code == 21 || code == 22 {
+		safe := strings.TrimSpace(common.MaskSecretsForLog(description, secrets...))
+		if safe == "" || common.ContainsUserVisibleSensitiveTerm(safe) {
+			return ""
+		}
+		return safe
+	}
+	return SanitizeMidjourneyUserError(description, result, statusCode, code, secrets...)
+}
+
+func sanitizeMidjourneyResultForUser(result string, secrets ...string) string {
+	result = strings.TrimSpace(common.MaskSecretsForLog(result, secrets...))
+	if result == "" || common.ContainsUserVisibleSensitiveTerm(result) {
+		return ""
+	}
+	return result
+}
+
 //// OpenAIErrorWrapper wraps an error into an OpenAIErrorWithStatusCode
 //func OpenAIErrorWrapper(err error, code string, statusCode int) *dto.OpenAIErrorWithStatusCode {
 //	text := err.Error()

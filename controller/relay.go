@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
@@ -386,9 +385,10 @@ func RelayMidjourney(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatMjProxy, nil, nil)
 
 	if err != nil {
+		message := common.SanitizeUserVisibleError(err.Error(), http.StatusInternalServerError, "gen_relay_info_failed")
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"description": fmt.Sprintf("failed to generate relay info: %s", err.Error()),
-			"type":        "upstream_error",
+			"description": message,
+			"type":        "new_api_error",
 			"code":        4,
 		})
 		return
@@ -408,20 +408,22 @@ func RelayMidjourney(c *gin.Context) {
 		mjErr = relay.RelayMidjourneySubmit(c, relayInfo)
 	}
 	//err = relayMidjourneySubmit(c, relayMode)
-	log.Println(mjErr)
 	if mjErr != nil {
 		statusCode := http.StatusBadRequest
 		if mjErr.Code == 30 {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
 		}
+		channelKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+		description := service.SanitizeMidjourneyUserError(mjErr.Description, mjErr.Result, statusCode, mjErr.Code, channelKey)
 		c.JSON(statusCode, gin.H{
-			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
-			"type":        "upstream_error",
+			"description": description,
+			"type":        "new_api_error",
 			"code":        mjErr.Code,
 		})
 		channelId := c.GetInt("channel_id")
-		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)))
+		snippet, truncated := service.SafeErrorLogSnippet(fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result), 800, channelKey)
+		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): body_snippet=%s, truncated=%t", channelId, statusCode, snippet, truncated))
 	}
 }
 
